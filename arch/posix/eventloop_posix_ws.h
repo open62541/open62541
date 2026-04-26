@@ -8,11 +8,6 @@
 
 #include <open62541/plugin/eventloop.h>
 
-_UA_BEGIN_DECLS
-
-UA_EXPORT UA_ConnectionManager *
-UA_ConnectionManager_new_WS(const UA_String eventSourceName);
-
-_UA_END_DECLS
+/* UA_ConnectionManager_new_WS is declared in eventloop.h */
 
 #endif /* UA_EVENTLOOP_POSIX_WS_H_ */

@@ -8,9 +8,18 @@
 /* Suppress the warning 'redefinition of typedef' in the libwebsockets library. */
 #pragma GCC diagnostic ignored "-Wpedantic"
 
-#include "eventloop_posix_lws.h"
+#include "eventloop_posix.h"
+#include <libwebsockets.h>
+#include "eventloop_posix_ws.h"
 
 #include <string.h>
+
+/* Pending send message */
+typedef struct WSPendingSend {
+    TAILQ_ENTRY(WSPendingSend) next;
+    UA_Byte *data;
+    size_t length;
+} WSPendingSend;
 
 /* Connection state for a single WebSocket connection */
 typedef struct WSConnection {
@@ -26,17 +35,18 @@ typedef struct WSConnection {
     UA_ByteString recvBuffer;
     size_t recvOffset;
 
-    UA_Byte *sendData;
-    size_t sendLength;
-    UA_Boolean sendPending;
+    TAILQ_HEAD(, WSPendingSend) sendQueue;
 } WSConnection;
 
 /* Manager state */
 typedef struct {
     UA_POSIXConnectionManager pcm;
     struct lws_context *lwsContext;
-    UA_EventLoop *foreign_loop;
     LIST_HEAD(, WSConnection) connections;
+
+    /* Timer to drive lws_service in the EventLoop thread */
+    UA_UInt64 timerId;
+    UA_Boolean running;
 
     void *application;
     void *context;
@@ -90,10 +100,13 @@ cleanupWSConnection(WSConnectionManager *wscm, WSConnection *wsConn) {
     }
 
     UA_ByteString_clear(&wsConn->recvBuffer);
-    if(wsConn->sendPending) {
-        UA_free(wsConn->sendData);
-        wsConn->sendData = NULL;
-        wsConn->sendPending = false;
+    
+    WSPendingSend *ps;
+    while(!TAILQ_EMPTY(&wsConn->sendQueue)) {
+        ps = TAILQ_FIRST(&wsConn->sendQueue);
+        TAILQ_REMOVE(&wsConn->sendQueue, ps, next);
+        UA_free(ps->data);
+        UA_free(ps);
     }
 }
 
@@ -121,6 +134,7 @@ callback_ws(struct lws *wsi, enum lws_callback_reasons reason,
         newConn->application = wscm->application;
         newConn->context = wscm->context;
         newConn->applicationCB = wscm->applicationCB;
+        TAILQ_INIT(&newConn->sendQueue);
         *(WSConnection**)user = newConn;
         LIST_INSERT_HEAD(&wscm->connections, newConn, next);
 
@@ -138,8 +152,11 @@ callback_ws(struct lws *wsi, enum lws_callback_reasons reason,
         WSConnection *wsConn = user ? *(WSConnection**)user : NULL;
         if(!wsConn)
             return -1;
-        if(!lws_frame_is_binary(wsi))
+        if(!lws_frame_is_binary(wsi)) {
+            UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                         "WS %p\t| Received non-binary frame, closing", (void*)wsi);
             return -1;
+        }
 
         size_t needed = wsConn->recvOffset + len;
         if(wsConn->recvBuffer.length < needed) {
@@ -152,31 +169,52 @@ callback_ws(struct lws *wsi, enum lws_callback_reasons reason,
         memcpy(wsConn->recvBuffer.data + wsConn->recvOffset, in, len);
         wsConn->recvOffset += len;
 
-        if(lws_is_final_fragment(wsi) && lws_remaining_packet_payload(wsi) == 0) {
+        printf("[WS_RECV] %p | got %zu bytes | offset=%zu | final=%d | remain=%zu\n",
+               (void*)wsi, len, wsConn->recvOffset,
+               lws_is_final_fragment(wsi), lws_remaining_packet_payload(wsi));
+
+        if(lws_is_final_fragment(wsi)) {
+            printf("[WS_RECV] %p | complete msg %zu bytes\n", (void*)wsi, wsConn->recvOffset);
             UA_ByteString msg = {wsConn->recvOffset, wsConn->recvBuffer.data};
             wsConn->applicationCB(cm, (uintptr_t)wsi,
                                   wsConn->application, &wsConn->context,
                                   UA_CONNECTIONSTATE_ESTABLISHED,
                                   &UA_KEYVALUEMAP_NULL, msg);
             wsConn->recvOffset = 0;
-            /* Keep the buffer allocated for reuse */
         }
         break;
     }
 
     case LWS_CALLBACK_SERVER_WRITEABLE: {
         WSConnection *wsConn = user ? *(WSConnection**)user : NULL;
-        if(!wsConn || !wsConn->sendPending)
+        if(!wsConn)
             break;
-        int n = lws_write(wsi, wsConn->sendData + LWS_PRE,
-                          wsConn->sendLength, LWS_WRITE_BINARY);
+        WSPendingSend *ps = TAILQ_FIRST(&wsConn->sendQueue);
+        if(!ps)
+            break;
+
+        printf("[WS_SEND] %p | writing %zu bytes\n", (void*)wsi, ps->length);
+        int n = lws_write(wsi, ps->data + LWS_PRE, ps->length, LWS_WRITE_BINARY);
         if(n < 0) {
+            printf("[WS_SEND] %p | lws_write failed: %d\n", (void*)wsi, n);
             return -1;
         }
-        UA_free(wsConn->sendData);
-        wsConn->sendData = NULL;
-        wsConn->sendLength = 0;
-        wsConn->sendPending = false;
+        printf("[WS_SEND] %p | wrote %d bytes\n", (void*)wsi, n);
+
+        if((size_t)n < ps->length) {
+            /* Partial write - keep remaining bytes in queue */
+            memmove(ps->data + LWS_PRE, ps->data + LWS_PRE + n, ps->length - n);
+            ps->length -= n;
+            lws_callback_on_writable(wsi);
+            break;
+        }
+        
+        TAILQ_REMOVE(&wsConn->sendQueue, ps, next);
+        UA_free(ps->data);
+        UA_free(ps);
+
+        if(!TAILQ_EMPTY(&wsConn->sendQueue))
+            lws_callback_on_writable(wsi);
         break;
     }
 
@@ -203,6 +241,16 @@ callback_ws(struct lws *wsi, enum lws_callback_reasons reason,
     }
 
     return 0;
+}
+
+/* Timer callback to drive the libwebsockets event loop */
+static void
+WS_serviceCallback(void *application, void *data) {
+    (void)data;
+    WSConnectionManager *wscm = (WSConnectionManager*)application;
+    if(wscm->lwsContext && wscm->running) {
+        lws_service(wscm->lwsContext, 0);
+    }
 }
 
 static UA_StatusCode
@@ -285,14 +333,13 @@ WS_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_GOOD;
     }
 
+    lws_set_log_level(0, NULL);
+
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
     info.port = *port;
     info.protocols = wsProtocols;
     info.user = wscm;
-    info.log_cx = &open62541_log_cx;
-    info.event_lib_custom = &evlib_open62541;
-    info.foreign_loops = (void**)&wscm->foreign_loop;
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
 
     if(hostname[0] != '\0') {
@@ -343,7 +390,9 @@ WS_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if(wsConn->closing || wsConn->sendPending) {
+    if(wsConn->closing) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "WS %p\t| sendWithConnection failed: closing", (void*)wsConn->wsi);
         UA_UNLOCK(&el->elMutex);
         UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -355,16 +404,28 @@ WS_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_Byte *data = (UA_Byte*)UA_malloc(LWS_PRE + buf->length);
-    if(!data) {
+    WSPendingSend *ps = (WSPendingSend*)UA_malloc(sizeof(WSPendingSend));
+    if(!ps) {
         UA_UNLOCK(&el->elMutex);
         UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    memcpy(data + LWS_PRE, buf->data, buf->length);
-    wsConn->sendData = data;
-    wsConn->sendLength = buf->length;
-    wsConn->sendPending = true;
+
+    ps->data = (UA_Byte*)UA_malloc(LWS_PRE + buf->length);
+    if(!ps->data) {
+        UA_free(ps);
+        UA_UNLOCK(&el->elMutex);
+        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    memcpy(ps->data + LWS_PRE, buf->data, buf->length);
+    ps->length = buf->length;
+
+    /* Append to queue */
+    TAILQ_INSERT_TAIL(&wsConn->sendQueue, ps, next);
+
+    printf("[WS_QUEUE] %p | queued %zu bytes | queue_len=%d\n",
+           (void*)wsConn->wsi, buf->length, 0); /* TODO queue_len */
 
     UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
     lws_callback_on_writable(wsConn->wsi);
@@ -432,8 +493,18 @@ WS_eventSourceStart(UA_ConnectionManager *cm) {
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
-    wscm->foreign_loop = (UA_EventLoop*)el;
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
+    wscm->running = true;
+
+    /* Register a timer to drive lws_service in the EventLoop thread */
+    res = el->eventLoop.addTimer(&el->eventLoop, WS_serviceCallback, wscm, NULL,
+                                 10, NULL, UA_TIMERPOLICY_CURRENTTIME,
+                                 &wscm->timerId);
+    if(res != UA_STATUSCODE_GOOD) {
+        cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
+        UA_ByteString_clear(&wscm->pcm.rxBuffer);
+        UA_ByteString_clear(&wscm->pcm.txBuffer);
+    }
 
  finish:
     UA_UNLOCK(&el->elMutex);
@@ -459,6 +530,12 @@ WS_eventSourceStop(UA_ConnectionManager *cm) {
                 "WS\t| Stopping the ConnectionManager");
 
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
+    wscm->running = false;
+
+    if(wscm->timerId) {
+        el->eventLoop.removeTimer(&el->eventLoop, wscm->timerId);
+        wscm->timerId = 0;
+    }
 
     if(wscm->lwsContext) {
         lws_context_destroy(wscm->lwsContext);
