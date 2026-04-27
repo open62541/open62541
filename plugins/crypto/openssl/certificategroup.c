@@ -1170,11 +1170,11 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
 
     char buf[1024];
 	memset(buf, 0, 1024);
-	int len = X509_NAME_get_text_by_NID(subj, NID_commonName, buf, 1024);
+	X509_NAME_get_text_by_NID(subj, NID_commonName, buf, 1024);
 	X509_free(x509);
 
     *commonName = UA_STRING_ALLOC(buf);
-    if(!commonName) {
+    if(!commonName->data) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 

@@ -126,7 +126,7 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey);
 
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate,
                                       UA_String *commonName);
 _UA_END_DECLS
