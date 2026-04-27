@@ -533,8 +533,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     }
 
     /* Handle missing payload header and "inject" metadata */
-    if(!nm->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+    if(!nm->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_NetworkMessage_clear(nm);
+            return rv;
+        }
+    }
 
     /* Decrypt */
     rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
