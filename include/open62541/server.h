@@ -2816,6 +2816,9 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId sessionId,
                               size_t *outSize, UA_QualifiedName **outRoleNames);
 
+/* Convenience bitmask: all permission bits set */
+#define UA_PERMISSIONTYPE_ALL ((UA_PermissionType)0xFFFFFFFF)
+
 /**
  * Per-Role Node Permission Management
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2855,6 +2858,45 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                                 const UA_NodeId roleId,
                                 UA_PermissionType permissions,
                                 UA_Boolean recursive);
+
+/**
+ * Namespace Default Role Permissions
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Per OPC UA Part 5: if a node has no explicit RolePermissions,
+ * the DefaultRolePermissions from the NamespaceMetadata apply.
+ *
+ * Permission resolution order:
+ *  1. Explicit node RolePermissions (set via addRolePermissions)
+ *  2. Namespace default RolePermissions (set via this API) */
+
+/* Set default role permissions for a namespace.
+ * Overwrites any previously set defaults for the given namespace.
+ *
+ * @param server The server instance
+ * @param namespaceIndex The namespace index
+ * @param entriesSize Number of role-permission entries
+ * @param entries Array of role-permission entries (deep-copied)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
+                                             UA_UInt16 namespaceIndex,
+                                             size_t entriesSize,
+                                             const UA_RolePermission *entries);
+
+/* Get default role permissions for a namespace.
+ * Returns a deep copy. The caller must free each entry's roleId
+ * with UA_NodeId_clear and the array with UA_free.
+ *
+ * @param server The server instance
+ * @param namespaceIndex The namespace index
+ * @param entriesSize Output: number of entries
+ * @param entries Output: deep-copied array (caller must free)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
+                                             UA_UInt16 namespaceIndex,
+                                             size_t *entriesSize,
+                                             UA_RolePermission **entries);
 
 #endif /* UA_ENABLE_RBAC */
 
