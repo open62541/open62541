@@ -12,7 +12,33 @@
 
 /* RBAC implementation. Permission configurations are deduplicated internally;
  * nodes sharing the same role permissions reference a shared entry via a
- * compact permission index in the node head. */
+ * compact permission index in the node head.
+ *
+ * Known Limitations (OPC UA Part 18 / Part 3 / Part 5):
+ *
+ * - TrustedApplication role (i=18625) is not registered because the current
+ *   nodeset version does not assign that node ID to the role and
+ *   IdentityCriteriaType value 9 (TrustedApplication) is absent from
+ *   the generated type definitions.
+ *
+ * - Writing RolePermissions via the OPC UA attribute service (Part 3
+ *   §5.2.9) returns BadNotWritable.  Use the C API instead:
+ *   UA_Server_addRolePermissions / UA_Server_setNodeRolePermissions.
+ *
+ * - AccessRestrictions attribute (Part 3 §5.2.11) and
+ *   DefaultAccessRestrictions in NamespaceMetadata are not implemented.
+ *
+ * - Identity criteria auto-assignment is limited to Anonymous and
+ *   AuthenticatedUser.  Username, Thumbprint, GroupId, Application and
+ *   X509Subject require explicit UA_Server_addRoleIdentity() calls.
+ *
+ * - Application / Endpoint role filters (and their Exclude variants)
+ *   defined on well-known role objects are not evaluated during role
+ *   resolution.
+ *
+ * - RBAC-related audit events (e.g. AuditUpdateMethodResultEvent) are
+ *   not emitted.
+ */
 
 /*********************************/
 /* UA_RolePermissionSet Type API */
@@ -398,7 +424,15 @@ initializeStandardRoles(UA_Server *server) {
         {UA_NS0ID_WELLKNOWNROLE_ENGINEER, "Engineer", {0, 0}, 0},
         {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR, "Supervisor", {0, 0}, 0},
         {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN, "ConfigureAdmin", {0, 0}, 0},
-        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0}
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0},
+#ifdef UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN,
+         "SecurityKeyServerAdmin", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERPUSH,
+         "SecurityKeyServerPush", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERACCESS,
+         "SecurityKeyServerAccess", {0, 0}, 0},
+#endif
     };
     size_t count = sizeof(stdRoles) / sizeof(stdRoles[0]);
 
@@ -477,6 +511,8 @@ UA_Server_initRBAC(UA_Server *server) {
 
     server->rolePermissionsSize = 0;
     server->rolePermissions = NULL;
+    server->namespaceMetadataSize = 0;
+    server->namespaceMetadata = NULL;
 
     /* Copy presets from config into the internal array.
      * Mark them with UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED so they
@@ -561,6 +597,20 @@ UA_Server_cleanupRBAC(UA_Server *server) {
     UA_free(server->rolesProtected);
     server->rolesProtected = NULL;
     server->rolesSize = 0;
+
+    /* Clean up namespace metadata */
+    if(server->namespaceMetadata) {
+        for(size_t i = 0; i < server->namespaceMetadataSize; i++) {
+            if(server->namespaceMetadata[i].entries) {
+                for(size_t j = 0; j < server->namespaceMetadata[i].entriesSize; j++)
+                    UA_NodeId_clear(&server->namespaceMetadata[i].entries[j].roleId);
+                UA_free(server->namespaceMetadata[i].entries);
+            }
+        }
+        UA_free(server->namespaceMetadata);
+        server->namespaceMetadata = NULL;
+        server->namespaceMetadataSize = 0;
+    }
 }
 
 /************************************/
@@ -1953,10 +2003,18 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
         const UA_RolePermissionEntry *rp = &server->rolePermissions[permIdx];
         entries = rp->rolePermissions;
         entriesSize = rp->rolePermissionsSize;
+    } else {
+        /* No explicit permissions, check namespace defaults */
+        UA_UInt16 nsIdx = node->head.nodeId.namespaceIndex;
+        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata) {
+            entries = server->namespaceMetadata[nsIdx].entries;
+            entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
+        }
     }
 
     /* If no permissions configured, check allPermissionsForAnonymous.
-     * When true (the default), un-configured nodes are fully permissive. */
+     * When true (the default), un-configured nodes are fully permissive.
+     * When false, only explicitly configured nodes grant access. */
     if(!entries || entriesSize == 0) {
         if(server->config.allPermissionsForAnonymous)
             return 0xFFFFFFFF; /* All permissions granted */
@@ -2112,6 +2170,101 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+/********************************************/
+/* Namespace Default Role Permissions       */
+/********************************************/
+
+UA_StatusCode
+UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
+                                             UA_UInt16 namespaceIndex,
+                                             size_t entriesSize,
+                                             const UA_RolePermission *entries) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(entriesSize > 0 && !entries)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    if(!server->namespaceMetadata) {
+        server->namespaceMetadata = (UA_NamespaceMetadata*)
+            UA_calloc(server->namespacesSize, sizeof(UA_NamespaceMetadata));
+        if(!server->namespaceMetadata) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        server->namespaceMetadataSize = server->namespacesSize;
+    } else if(server->namespaceMetadataSize < server->namespacesSize) {
+        UA_NamespaceMetadata *newMetadata = (UA_NamespaceMetadata*)
+            UA_realloc(server->namespaceMetadata,
+                       server->namespacesSize * sizeof(UA_NamespaceMetadata));
+        if(!newMetadata) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        server->namespaceMetadata = newMetadata;
+        memset(&server->namespaceMetadata[server->namespaceMetadataSize], 0,
+               (server->namespacesSize - server->namespaceMetadataSize) *
+               sizeof(UA_NamespaceMetadata));
+        server->namespaceMetadataSize = server->namespacesSize;
+    }
+
+    /* Clear old entries */
+    if(server->namespaceMetadata[namespaceIndex].entries) {
+        for(size_t i = 0; i < server->namespaceMetadata[namespaceIndex].entriesSize; i++)
+            UA_NodeId_clear(&server->namespaceMetadata[namespaceIndex].entries[i].roleId);
+        UA_free(server->namespaceMetadata[namespaceIndex].entries);
+        server->namespaceMetadata[namespaceIndex].entries = NULL;
+        server->namespaceMetadata[namespaceIndex].entriesSize = 0;
+    }
+
+    /* Set new entries if provided */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(entriesSize > 0) {
+        res = copyRolePermissionArray(entriesSize, entries,
+                                      &server->namespaceMetadata[namespaceIndex].entriesSize,
+                                      &server->namespaceMetadata[namespaceIndex].entries);
+    }
+
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
+                                             UA_UInt16 namespaceIndex,
+                                             size_t *entriesSize,
+                                             UA_RolePermission **entries) {
+    if(!server || !entriesSize || !entries)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *entriesSize = 0;
+    *entries = NULL;
+
+    lockServer(server);
+
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(server->namespaceMetadata && namespaceIndex < server->namespaceMetadataSize) {
+        res = copyRolePermissionArray(
+            server->namespaceMetadata[namespaceIndex].entriesSize,
+            server->namespaceMetadata[namespaceIndex].entries,
+            entriesSize, entries);
+    }
+
+    unlockServer(server);
+    return res;
 }
 
 /************************************/

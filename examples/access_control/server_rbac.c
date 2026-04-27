@@ -164,7 +164,24 @@ int main(void) {
         }
     }
 
-    /* Step 4: Configure permissions for the roles */
+    /* Look up the AdminRole's NodeId (it was created via config) */
+    UA_NodeId adminRoleId = UA_NODEID_NULL;
+    {
+        UA_Role tmpRole;
+        retval = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "AdminRole"), &tmpRole);
+        if(retval == UA_STATUSCODE_GOOD) {
+            adminRoleId = tmpRole.roleId;
+            tmpRole.roleId = UA_NODEID_NULL; /* prevent clear from freeing it */
+            UA_Role_clear(&tmpRole);
+        } else {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Failed to look up AdminRole: %s", UA_StatusCode_name(retval));
+        }
+    }
+
+    /* Step 4: Configure permissions for the roles on ServerStatus.
+     * Once a node has explicit RolePermissions, ONLY listed roles get access.
+     * So we must list both OperatorRole and AdminRole. */
     UA_NodeId serverStatusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
     UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
                             UA_PERMISSIONTYPE_READROLEPERMISSIONS;
@@ -176,6 +193,16 @@ int main(void) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Added BROWSE|READ|READROLEPERMISSIONS permissions for "
                     "OperatorRole on ServerStatus");
+    }
+
+    /* Add all permissions for AdminRole on ServerStatus */
+    if(!UA_NodeId_isNull(&adminRoleId)) {
+        retval = UA_Server_addRolePermissions(server, serverStatusId, adminRoleId,
+                                              0xFFFFFFFF, false, false);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Added ALL permissions for AdminRole on ServerStatus");
+        }
     }
 
     /* Step 5: Configure permissions on BuildInfo node with recursive flag */
@@ -195,6 +222,16 @@ int main(void) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Failed to add recursive permissions for OperatorRole on BuildInfo: %s",
                      UA_StatusCode_name(retval));
+    }
+
+    /* Add all permissions for AdminRole on BuildInfo and children (recursive) */
+    if(!UA_NodeId_isNull(&adminRoleId)) {
+        retval = UA_Server_addRolePermissions(server, buildInfoId, adminRoleId,
+                                              0xFFFFFFFF, false, true);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Added ALL permissions for AdminRole on BuildInfo (recursive)");
+        }
     }
 
     /* Verify one child node has permissions set (recursive example) */
@@ -278,6 +315,7 @@ int main(void) {
     UA_Server_runUntilInterrupt(server);
 
     UA_NodeId_clear(&operatorRoleId);
+    UA_NodeId_clear(&adminRoleId);
     retval = UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 

@@ -631,6 +631,13 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
+    /* GDS methods restricted to SecurityAdmin (must run after RBAC init
+     * so that the SecurityAdmin role exists) */
+#if defined(UA_ENABLE_GDS_PUSHMANAGEMENT) && defined(UA_ENABLE_RBAC)
+    res = initGDSRolePermissions(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
     /* Initialize the binay protocol support */
     server->binarySC = UA_BinaryProtocolManager_new();
     res = addServerComponent(server, server->binarySC);
