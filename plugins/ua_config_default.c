@@ -211,6 +211,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxNotificationsPerPublish = 1000;
     conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
+    conf->maxPublishReqPerSession = 512; /* limit outstanding publish requests per session */
 # ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
 # endif
