@@ -387,7 +387,11 @@ UA_AsymEn_Basic128Rsa15_getRemotePlainTextBlockSize(const UA_SecurityPolicy *pol
     const Channel_Context_Basic128Rsa15 *cc =
         (const Channel_Context_Basic128Rsa15 *) channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_StatusCode retval =
+        UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    if(retval != UA_STATUSCODE_GOOD ||
+       keyLen <= (UA_Int32)UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN)
+        return 0;
     return (size_t) keyLen - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 }
 

@@ -12,6 +12,10 @@
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server_config_default.h>
 
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#include "crypto/openssl/securitypolicy_common.h"
+#endif
+
 #include "client/ua_client_internal.h"
 #include "ua_server_internal.h"
 
@@ -333,6 +337,35 @@ START_TEST(encryption_connect_pem) {
 }
 END_TEST
 
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+START_TEST(securitypolicy_basic128rsa15_null_cert_no_underflow) {
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey  = {KEY_DER_LENGTH,  KEY_DER_DATA};
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert(client != NULL);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+
+    UA_SecurityPolicy policy;
+    memset(&policy, 0, sizeof(policy));
+    UA_StatusCode retval = UA_SecurityPolicy_Basic128Rsa15(&policy, certificate,
+                                                           privateKey, cc->logging);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    unsigned char fakeCtx[256];
+    memset(fakeCtx, 0, sizeof(fakeCtx));
+
+    size_t result = policy.asymEncryptionAlgorithm
+                        .getRemotePlainTextBlockSize(&policy, fakeCtx);
+
+    ck_assert_uint_eq(result, 0);
+
+    policy.clear(&policy);
+    UA_Client_delete(client);
+}
+END_TEST
+#endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption basic128rsa15");
@@ -342,6 +375,12 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption, encryption_connect_pem);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    TCase *tc_unit = tcase_create("Security policy unit tests (OpenSSL/LibreSSL)");
+    tcase_add_test(tc_unit, securitypolicy_basic128rsa15_null_cert_no_underflow);
+    suite_add_tcase(s, tc_unit);
+#endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     TCase *tc_encryption_filestore = tcase_create("Encryption basic128rsa15 security policy filestore");
