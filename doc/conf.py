@@ -82,6 +82,9 @@ latex_elements = {
 
 # Clean up the header and footer
 'preamble': r"""
+\usepackage{pifont}
+\DeclareUnicodeCharacter{2265}{$\geq$}
+\DeclareUnicodeCharacter{2717}{\ding{55}}
 \fancypagestyle{normal}{
     \fancyhf{}
     \fancyfoot[RO,LE]{\thepage}
