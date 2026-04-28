@@ -4,6 +4,7 @@
 
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/util.h>
 #include "open62541/types.h"
 #include "open62541/types_generated.h"
 
@@ -183,11 +184,22 @@ START_TEST(connectTCP) {
     memcpy(snd.data, testMsg, strlen(testMsg));
     retval = cm->sendWithConnection(cm, clientId, NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_QualifiedName workKey = UA_QUALIFIEDNAME(0, "work-performed");
+    UA_Boolean sawWork = false;
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
+        const UA_Boolean *flag = (const UA_Boolean *)
+            UA_KeyValueMap_getScalar(&el->params, workKey,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
+        if(flag && *flag)
+            sawWork = true;
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(received);
+    /* At least one of the run() iterations above dispatched an I/O
+     * callback (the server side receiving the message), so the
+     * "work-performed" flag should have been observed as true. */
+    ck_assert(sawWork);
 
 #if !defined(UA_ARCHITECTURE_LWIP)
     /* Open a second client connection.
