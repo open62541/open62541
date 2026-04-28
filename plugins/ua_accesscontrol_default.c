@@ -522,6 +522,57 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
     context->loginCallback = loginCallback;
     context->loginContext = loginContext;
 
+    if(!loginCallback)
+        return UA_STATUSCODE_GOOD;
+
+    for(size_t i = 0; i < config->accessControl.userTokenPoliciesSize; i++) {
+        if(config->accessControl.userTokenPolicies[i].tokenType ==
+           UA_USERTOKENTYPE_USERNAME)
+            return UA_STATUSCODE_GOOD;
+    }
+
+    size_t numOfPolcies = 1;
+    if(!userTokenPolicyUri) {
+        if(config->securityPoliciesSize > 0)
+            numOfPolcies = config->securityPoliciesSize;
+        else
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_UserTokenPolicy *p = (UA_UserTokenPolicy*)UA_realloc(
+        (void*)(uintptr_t)config->accessControl.userTokenPolicies,
+        sizeof(UA_UserTokenPolicy) *
+        (config->accessControl.userTokenPoliciesSize + numOfPolcies));
+    if(!p)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    config->accessControl.userTokenPolicies = p;
+
+    for(size_t i = 0; i < numOfPolcies; i++) {
+        const UA_String *utpUri = userTokenPolicyUri ?
+            userTokenPolicyUri : &config->securityPolicies[i].policyUri;
+
+        UA_UserTokenPolicy_init(
+            &config->accessControl.userTokenPolicies[config->accessControl.userTokenPoliciesSize]);
+        config->accessControl.userTokenPolicies[config->accessControl.userTokenPoliciesSize].tokenType =
+            UA_USERTOKENTYPE_USERNAME;
+        config->accessControl.userTokenPolicies[config->accessControl.userTokenPoliciesSize].policyId =
+            UA_STRING_ALLOC(USERNAME_POLICY);
+
+#if UA_LOGLEVEL <= 400
+        if(UA_String_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                           "Username/Password Authentication configured, "
+                           "but no encrypting SecurityPolicy. "
+                           "This can leak credentials on the network.");
+        }
+#endif
+        
+        UA_String_copy(utpUri,
+            &config->accessControl.userTokenPolicies[config->accessControl.userTokenPoliciesSize].securityPolicyUri);
+        config->accessControl.userTokenPoliciesSize++;
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
