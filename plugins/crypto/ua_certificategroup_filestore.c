@@ -162,8 +162,16 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
 
     if(ptr != NULL) {
         subName = ptr + 3;
+        char *endName = strchr(subName, ',');
+        if(endName != NULL)
+            *endName = '\0';
     } else {
         subName = subjectNameBuffer;
+    }
+
+    for(char *c = subName; *c; c++) {
+        if(*c == '/' || *c == '\\')
+            *c = '_';
     }
 
     if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]", path, subName,
