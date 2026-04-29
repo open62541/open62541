@@ -1100,4 +1100,34 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
+    if(!certificate || !certificate->data || !commonName)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    mbedtls_x509_crt publicKey;
+    mbedtls_x509_crt_init(&publicKey);
+
+    UA_StatusCode retval =
+        UA_mbedTLS_LoadCertificate((UA_ByteString*)(uintptr_t)certificate,
+                                   &publicKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    for(mbedtls_x509_name *name = &publicKey.subject; name != NULL;
+        name = name->next) {
+        if(MBEDTLS_OID_CMP(MBEDTLS_OID_AT_CN, &name->oid) == 0) {
+            UA_String tmp = {
+                (size_t)name->val.len,
+                (UA_Byte*)name->val.p
+            };
+            retval = UA_String_copy(&tmp, commonName);
+            mbedtls_x509_crt_free(&publicKey);
+            return retval;
+        }
+    }
+
+    mbedtls_x509_crt_free(&publicKey);
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
 #endif
