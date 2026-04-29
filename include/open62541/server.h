@@ -1669,11 +1669,21 @@ typedef void
  *
  * @param server
  * @param cb the callback
- * @param data data passed to the callback
- * @return ``UA_STATUSCODE_SUCCESS`` on success */
+ * @param data data passed to the callback */
 void UA_EXPORT UA_THREADSAFE
 UA_Server_setRegisterServerCallback(UA_Server *server,
                                     UA_Server_registerServerCallback cb, void* data);
+
+/* Register a server with this discovery server.
+ * This is called by the own discovery server implementation
+ * 
+ * @param server the own server object
+ * @param requestServer the server to register
+ * @param requestDiscoveryConfiguration the discovery configurations of the requested server record
+ * @return The StatusCode of the UA_Server_registerServer method */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *requestServer,
+                         const UA_MdnsDiscoveryConfiguration *requestDiscoveryConfiguration);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
