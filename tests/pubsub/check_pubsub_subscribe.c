@@ -2508,6 +2508,7 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
 
 /* ---------------------------------------------------------------------------
  * Additional coverage tests:
+ * Additional coverage tests (Phase A2):
  *  - ReaderGroup / DataSetReader state transitions
  *  - Double remove returns BADNOTFOUND
  *  - removeReaderGroup cascades to its DataSetReaders
@@ -2892,6 +2893,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_reader_lifecycle, UpdateReaderGroupConfigInvalid);
     tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderIdentifierMismatchPaths);
     tcase_add_test(tc_pubsub_reader_lifecycle, GetDataSetReaderStateInvalid);
+
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);

@@ -112,6 +112,7 @@ START_TEST(GetPDSConfigurationAndCompareValues){
 
 /* ---------------------------------------------------------------------------
  * Additional coverage tests:
+ * Additional coverage tests (Phase A4):
  *  - findByName / find for unknown ids
  *  - DataSetField add/remove for the VARIABLE type, with slot reuse
  *  - DataSetField rejected for the EVENT type

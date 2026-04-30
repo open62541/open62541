@@ -676,6 +676,7 @@ START_TEST(DataSetOrderingReconfiguration) {
 
 /* ---------------------------------------------------------------------------
  * Additional coverage tests:
+ * Additional coverage tests (Phase A1):
  *  - WriterGroup / DataSetWriter state transitions
  *  - Double remove returns BADNOTFOUND
  *  - removeWriterGroup cascades to its DataSetWriters
@@ -1048,6 +1049,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_lifecycle, TriggerWriterGroupPublishOnDisabledGroup);
     tcase_add_test(tc_pubsub_lifecycle, GetWriterGroupLastPublishTimestampInvalid);
     tcase_add_test(tc_pubsub_lifecycle, GetDataSetWriterStateAndConfigInvalid);
+
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);
     suite_add_tcase(s, tc_add_pubsub_datasetwriter);

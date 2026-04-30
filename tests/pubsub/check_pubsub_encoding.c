@@ -1257,6 +1257,7 @@ END_TEST
 
 /* ---------------------------------------------------------------------------
  * Additional coverage tests:
+ * Additional coverage tests (Phase A3):
  *  - PublisherId of every supported type (Byte/UInt16/UInt32/UInt64/String)
  *  - Decode of a truncated buffer must fail gracefully
  *  - Decode of a buffer with the version field set to 0xFF (invalid) must fail
