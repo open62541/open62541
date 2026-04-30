@@ -197,6 +197,10 @@ if(UNIX AND NOT APPLE)
     ua_add_test(check_log_syslog.c)
 endif()
 
+if(UNIX AND NOT APPLE)
+    ua_add_test(check_log_syslog.c)
+endif()
+
 if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
     ua_add_test(check_types_builtin_json.c)
