@@ -271,6 +271,17 @@ static const char *sessionStateTexts[6] =
 #endif
 
 void
+setConnectStatus(UA_Client *client, UA_StatusCode status) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
+    client->connectStatus = status;
+    if(status != UA_STATUSCODE_GOOD)
+        closeSecureChannel(client);
+
+    notifyClientState(client);
+}
+
+void
 notifyClientState(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
