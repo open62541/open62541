@@ -208,6 +208,7 @@ UA_StatusCode connectInternal(UA_Client *client, UA_Boolean async);
 UA_StatusCode connectSecureChannel(UA_Client *client, const char *endpointUrl);
 UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
+void setConnectStatus(UA_Client *client, UA_StatusCode status);
 void notifyClientState(UA_Client *client);
 void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
