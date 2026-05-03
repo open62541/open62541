@@ -514,8 +514,8 @@ UA_Server_delete(UA_Server *server) {
         for(size_t i = 0; i < server->customTypes_internalSize; i++) {
             UA_DataTypeArray *curr = &server->customTypes_internal[i];
             for(size_t j = 0; j < curr->typesSize; j++)
-                UA_DataType_clear(&curr->types[j]);
-            UA_free(curr->types);
+                UA_DataType_clear((UA_DataType*)(uintptr_t)&curr->types[j]);
+            UA_free((void*)(uintptr_t)curr->types);
         }
         UA_free(server->customTypes_internal);
     }

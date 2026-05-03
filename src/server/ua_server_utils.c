@@ -73,7 +73,7 @@ addDataType(UA_Server *server, UA_DataType *dt) {
     }
 
     /* Move the datatype into the stable location in the server */
-    current->types[current->typesSize] = *dt;
+    ((UA_DataType*)(uintptr_t)current->types)[current->typesSize] = *dt;
     current->typesSize++;
     return UA_STATUSCODE_GOOD;
 }
