@@ -73,6 +73,43 @@ readConditionField(UA_Server *s, const UA_NodeId conditionId,
     return retval;
 }
 
+static UA_NodeId
+createConfiguredExclusiveLimitAlarm(UA_Server *s, const char *name,
+                                    const UA_NodeId source) {
+    UA_NodeId cond = createTestCondition(
+        s, UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITALARMTYPE),
+        name, source);
+
+    UA_Variant val;
+    UA_StatusCode retval;
+
+    UA_Double highHighLimit = 100.0;
+    UA_Variant_setScalar(&val, &highHighLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Server_setConditionField(s, cond, &val,
+                                         UA_QUALIFIEDNAME(0, "HighHighLimit"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Double highLimit = 80.0;
+    UA_Variant_setScalar(&val, &highLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Server_setConditionField(s, cond, &val,
+                                         UA_QUALIFIEDNAME(0, "HighLimit"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Double lowLimit = 20.0;
+    UA_Variant_setScalar(&val, &lowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Server_setConditionField(s, cond, &val,
+                                         UA_QUALIFIEDNAME(0, "LowLimit"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Double lowLowLimit = 5.0;
+    UA_Variant_setScalar(&val, &lowLowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Server_setConditionField(s, cond, &val,
+                                         UA_QUALIFIEDNAME(0, "LowLowLimit"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    return cond;
+}
+
 START_TEST(createDelete) {
     UA_StatusCode retval;
     // Loop to increase the chance of capturing dead pointers
@@ -1277,6 +1314,45 @@ START_TEST(setLimitState_nonLimitCondition) {
     UA_Server_deleteCondition(server_ac, cond, source);
 } END_TEST
 
+/* Regression test for limit getter paths (HighHigh, High, LowLow, Low)
+ * Ensures no crash and correct behavior. Leak detection relies on ASan/LSan. */
+START_TEST(limitAlarm_limitGetter_regression) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_StatusCode retval;
+
+    {
+        UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
+            server_ac, "LimitGetterHighHigh", source);
+        retval = UA_Server_setLimitState(server_ac, cond, 110.0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_deleteCondition(server_ac, cond, source);
+    }
+
+    {
+        UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
+            server_ac, "LimitGetterHigh", source);
+        retval = UA_Server_setLimitState(server_ac, cond, 90.0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_deleteCondition(server_ac, cond, source);
+    }
+
+    {
+        UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
+            server_ac, "LimitGetterLowLow", source);
+        retval = UA_Server_setLimitState(server_ac, cond, 3.0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_deleteCondition(server_ac, cond, source);
+    }
+
+    {
+        UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
+            server_ac, "LimitGetterLow", source);
+        retval = UA_Server_setLimitState(server_ac, cond, 15.0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_deleteCondition(server_ac, cond, source);
+    }
+} END_TEST
+
 /* Test reading Comment field on condition */
 START_TEST(conditionField_comment) {
     UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
@@ -1764,6 +1840,7 @@ int main(void) {
     tcase_add_test(tc_limit, limitAlarm_setLimitState);
     tcase_add_test(tc_limit, limitAlarm_exactBoundaries);
     tcase_add_test(tc_limit, setLimitState_nonLimitCondition);
+    tcase_add_test(tc_limit, limitAlarm_limitGetter_regression);
     tcase_add_test(tc_limit, exclusiveLimitAlarm_test);
 #endif
     tcase_add_checked_fixture(tc_limit, setup, teardown);

@@ -2865,10 +2865,13 @@ static UA_StatusCode
 getLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLIMIT), &value);
-    *lowLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *lowLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2876,10 +2879,13 @@ static UA_StatusCode
 getLowLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLowLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLOWLIMIT), &value);
-    *lowLowLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *lowLowLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2887,10 +2893,13 @@ static UA_StatusCode
 getHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHLIMIT), &value);
-    *highLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *highLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2898,10 +2907,13 @@ static UA_StatusCode
 getHighHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highHighLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHHIGHLIMIT), &value);
-    *highHighLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *highHighLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2910,7 +2922,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
               UA_Double limitValue) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_NodeId limitState;
+    UA_NodeId limitState = UA_NODEID_NULL;
     UA_Double lowLowLimit;
     UA_Double lowLimit;
     UA_Double highLimit;
@@ -2924,7 +2936,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getHighHighLimit(server, conditionId, &highHighLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue >= highHighLimit) {
-            UA_NodeId highHighLimitId;
+            UA_NodeId highHighLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId,
                                               &fieldHighHighLimitQN, &highHighLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_HIGHHIGH_TEXT);
@@ -2940,7 +2952,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getHighLimit(server, conditionId, &highLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue >= highLimit) {
-            UA_NodeId highLimitId;
+            UA_NodeId highLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId, &fieldHighLimitQN, &highLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_HIGH_TEXT);
             UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -2957,7 +2969,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getLowLowLimit(server, conditionId, &lowLowLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue <= lowLowLimit) {
-            UA_NodeId lowLowLimitId;
+            UA_NodeId lowLowLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId,
                                               &fieldLowLowLimitQN, &lowLowLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_LOWLOW_TEXT);
@@ -2974,7 +2986,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getLowLimit(server, conditionId, &lowLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue <= lowLimit) {
-            UA_NodeId lowLimitId;
+            UA_NodeId lowLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId, &fieldLowLimitQN, &lowLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_LOW_TEXT);
             UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
