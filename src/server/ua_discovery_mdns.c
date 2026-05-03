@@ -9,12 +9,14 @@
 
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
-
+#include <stdlib.h>
+#include "mdnsd.h"
+#include "inet.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 #ifndef UA_ENABLE_AMALGAMATION
-#include "mdnsd/libmdnsd/xht.h"
-#include "mdnsd/libmdnsd/sdtxt.h"
+#include "xht.h"
+#include "sdtxt.h"
 #endif
 
 #include "../deps/mp_printf.h"
@@ -743,16 +745,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
 
     char portStr[16];
-    UA_UInt16 myPort = *port;
-    for(size_t i = 0; i < 16; i++) {
-        if(myPort == 0) {
-            portStr[i] = 0;
-            break;
-        }
-        unsigned char rem = (unsigned char)(myPort % 10);
-        portStr[i] = (char)(rem + 48); /* to ascii */
-        myPort = myPort / 10;
-    }
+    snprintf(portStr, sizeof(portStr), "%u", (unsigned)*port);
 
     struct addrinfo *infoptr;
     int res = getaddrinfo((const char*)address->data, portStr, NULL, &infoptr);
@@ -762,10 +755,13 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Parse and process the message */
     struct message mm;
     memset(&mm, 0, sizeof(struct message));
-    UA_Boolean rr = message_parse(&mm, (unsigned char*)msg.data, msg.length);
-    if(rr)
-        mdnsd_in(dm->mdnsDaemon, &mm, infoptr->ai_addr,
-                 (unsigned short)infoptr->ai_addrlen);
+    int rr = message_parse(&mm, (unsigned char*)msg.data);
+    if(rr == 0) { /* 0 = success in new mdnsd API */
+        inet_addr_t from;
+        memset(&from, 0, sizeof(from));
+        memcpy(&from, infoptr->ai_addr, infoptr->ai_addrlen);
+        mdnsd_in(dm->mdnsDaemon, &mm, &from);
+    }
     freeaddrinfo(infoptr);
 }
 
@@ -775,15 +771,13 @@ sendMulticastMessages(UA_DiscoveryManager *dm) {
         return;
     UA_ConnectionManager *cm = dm->cm;
 
-    struct sockaddr ip;
-    memset(&ip, 0, sizeof(struct sockaddr));
-    ip.sa_family = AF_INET; /* Ipv4 */
+    inet_addr_t to;
+    memset(&to, 0, sizeof(to));
 
     struct message mm;
     memset(&mm, 0, sizeof(struct message));
 
-    unsigned short sport = 0;
-    while(mdnsd_out(dm->mdnsDaemon, &mm, &ip, &sport) > 0) {
+    while(mdnsd_out(dm->mdnsDaemon, &mm, &to) > 0) {
         int len = message_packet_len(&mm);
         char* buf = (char*)message_packet(&mm);
         if(len > 0) {
