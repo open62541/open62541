@@ -1257,7 +1257,10 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain
     mdns_record_t *r  = mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
     while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
-        if(data->type == QTYPE_SRV && (port == 0 || data->srv.port == port))
+        if(data->type == QTYPE_SRV &&
+           data->name != NULL &&
+           strcasecmp(data->name, fullServiceDomain) == 0 &&
+           (port == 0 || data->srv.port == port))
             return true;
         r = mdnsd_record_next(r);
     }
