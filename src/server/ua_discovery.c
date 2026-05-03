@@ -283,6 +283,10 @@ registerAsyncResponse(UA_Client *client, void *userdata,
                    "%s failed with statuscode %s", regtype,
                    UA_StatusCode_name(response->responseHeader.serviceResult));
 
+    /* RegisterServer already failed. Do not retry indefinitely. */
+    if(!ar->register2)
+        goto done;
+
     /* Try RegisterServer next */
     ar->register2 = false;
 
