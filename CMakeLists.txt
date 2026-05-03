@@ -808,26 +808,6 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 # Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-    include(GenerateExportHeader)
-    set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
-
-    # create a "fake" empty library to generate the export header macros
-    if (APPLE)
-        add_library(mdnsd INTERFACE ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
-    else()
-        add_library(mdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
-    endif()
-
-    set_property(TARGET mdnsd PROPERTY LINKER_LANGUAGE C)
-    set_property(TARGET mdnsd PROPERTY DEFINE_SYMBOL "MDNSD_DYNAMIC_LINKING_EXPORT")
-    configure_file("deps/mdnsd/libmdnsd/mdnsd_config_extra.in"
-                   "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config_extra")
-    file(READ "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config_extra" MDNSD_CONFIG_EXTRA)
-    generate_export_header(mdnsd EXPORT_FILE_NAME "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h"
-                           BASE_NAME MDNSD DEFINE_NO_DEPRECATED CUSTOM_CONTENT_FROM_VARIABLE MDNSD_CONFIG_EXTRA)
-endif()
-
 # Exported headers
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
@@ -1002,19 +982,61 @@ if(UA_DEBUG_DUMP_PKGS)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    # Copy mdnsd libmdnsd files into src_generated/mdnsd/ so they can be
+    # patched via regex (configure_file copies without variable substitution
+    # when COPYONLY is given, but using the plain copy lets downstream code
+    # run regex passes on the generated copies before compilation).
+    set(MDNSD_GENERATED_DIR "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
+    file(MAKE_DIRECTORY "${MDNSD_GENERATED_DIR}")
+
+    set(MDNSD_LIBMDNSD_HEADERS 1035.h xht.h sdtxt.h mdnsd.h)
+    set(MDNSD_LIBMDNSD_SOURCES 1035.c xht.c sdtxt.c mdnsd.c log.c)
+
+    foreach(_f IN LISTS MDNSD_LIBMDNSD_HEADERS MDNSD_LIBMDNSD_SOURCES)
+        configure_file(
+            "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/${_f}"
+            "${MDNSD_GENERATED_DIR}/${_f}"
+            COPYONLY)
+        file(READ "${MDNSD_GENERATED_DIR}/${_f}" _content)
+        # Ensure open62541/config.h (which sets _GNU_SOURCE etc.) is included
+        # before any system header, then remove any original config.h include.
+        string(PREPEND _content "#include \"open62541/config.h\"\n")
+        string(REGEX REPLACE "#include \"config\\.h\"\n?" "" _content "${_content}")
+        # Rename C++ keyword identifiers: 'class' -> 'clazz', 'new' -> 'new_'
+        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2" _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2" _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2" _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2" _content "${_content}")
+        file(WRITE "${MDNSD_GENERATED_DIR}/${_f}" "${_content}")
+    endforeach()
+
+    # Suppress warnings from the generated (upstream) mdnsd C files
+    set_source_files_properties(
+        ${MDNSD_GENERATED_DIR}/1035.c
+        ${MDNSD_GENERATED_DIR}/xht.c
+        ${MDNSD_GENERATED_DIR}/sdtxt.c
+        ${MDNSD_GENERATED_DIR}/mdnsd.c
+        ${MDNSD_GENERATED_DIR}/log.c
+        PROPERTIES COMPILE_FLAGS
+            "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast")
+    # ua_discovery_mdns.c includes mdnsd.h which has GCC-style named variadic macros
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
+        PROPERTIES COMPILE_FLAGS "-Wno-variadic-macros")
+
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     list(APPEND lib_headers
-        ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+        ${MDNSD_GENERATED_DIR}/1035.h
+        ${MDNSD_GENERATED_DIR}/xht.h
+        ${MDNSD_GENERATED_DIR}/sdtxt.h
+        ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
         ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c)
+        ${MDNSD_GENERATED_DIR}/1035.c
+        ${MDNSD_GENERATED_DIR}/xht.c
+        ${MDNSD_GENERATED_DIR}/sdtxt.c
+        ${MDNSD_GENERATED_DIR}/mdnsd.c
+        ${MDNSD_GENERATED_DIR}/log.c)
 elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     list(APPEND lib_sources
       ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns_avahi.c
@@ -1456,6 +1478,9 @@ function(include_directories_private)
 endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    include_directories_private("${PROJECT_BINARY_DIR}/src_generated/mdnsd")
+endif()
 
 if(UA_ARCHITECTURE_LWIP)
     include_directories_private(${LWIP_INCLUDE_DIRS})
