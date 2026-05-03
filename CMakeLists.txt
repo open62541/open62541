@@ -571,7 +571,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     find_package(PkgConfig REQUIRED)
     pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
     include_directories(${AVAHI_INCLUDE_DIRS})
-    list(APPEND open62541_LIBRARIES "${AVAHI_LIBRARIES}")
+    list(APPEND open62541_PUBLIC_LIBRARIES "${AVAHI_LIBRARIES}")
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
@@ -1014,33 +1014,6 @@ if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-    # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
-    list(APPEND lib_headers
-        ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
-    list(APPEND lib_sources
-        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c)
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
-        PROPERTIES COMPILE_FLAGS "-Wno-undef")
-elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    list(APPEND lib_sources
-      ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns_avahi.c
-    )
-endif()
-
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
@@ -1145,6 +1118,34 @@ if(UA_ENABLE_HISTORIZING)
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c)
+endif()
+
+# mDNS Discovery
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
+    list(APPEND lib_headers
+        ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+    list(APPEND lib_sources
+        ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_mdnsd.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c)
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
+        PROPERTIES COMPILE_FLAGS "-Wno-undef")
+elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    list(APPEND lib_sources
+        ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_avahi.c
+    )
 endif()
 
 # Syslog-logging on Linux and Unices
@@ -1540,9 +1541,6 @@ SET_TARGET_PROPERTIES(open62541 PROPERTIES
 # DLL requires linking to dependencies
 target_link_libraries(open62541 PUBLIC ${open62541_PUBLIC_LIBRARIES})
 target_link_libraries(open62541 PRIVATE ${open62541_LIBRARIES})
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    target_link_libraries(open62541 PUBLIC ${AVAHI_LIBRARIES})
-endif()
 
 ##########################
 # Build Selected Targets #

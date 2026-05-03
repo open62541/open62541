@@ -495,9 +495,16 @@ UA_Server_delete(UA_Server *server) {
 
     unlockServer(server); /* The timer has its own mutex */
 
-#ifdef UA_ENABLE_RBAC
     /* Clean up internal RBAC state (before config clear) */
+#ifdef UA_ENABLE_RBAC
     UA_Server_cleanupRBAC(server);
+#endif
+
+    /* Clean up Multicast Discovery entries  */
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_Array_delete(server->serversOnNetwork,
+                    server->serversOnNetworkSize,
+                    &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
 #endif
 
     /* Clean up the config */
@@ -641,6 +648,13 @@ UA_Server_init(UA_Server *server) {
     server->discoverySC = UA_DiscoveryManager_new();
     res = addServerComponent(server, server->discoverySC);
     UA_CHECK_STATUS(res, goto cleanup);
+#endif
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_EventLoop *el = server->config.eventLoop;
+    server->lastCounterResetTime = el->dateTime_now(el);
+    server->serversOnNetworkRecordCounter = 1;
+    server->serversOnNetworkSize = 0;
+    server->serversOnNetwork = NULL;
 #endif
 
     /* Initialize PubSub */
