@@ -175,6 +175,12 @@ UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
         return;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+
+    /* Set STOPPING early so that CLOSING callbacks (fired by stopMulticast
+     * below) do not trigger UA_DiscoveryManager_startMulticast and re-open
+     * connections that would prevent the DM from reaching STOPPED. */
+    sc->state = UA_LIFECYCLESTATE_STOPPING;
+
     removeCallback(dm->sc.server, dm->discoveryCallbackId);
 
     /* Cancel all outstanding register requests */
