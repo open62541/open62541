@@ -779,6 +779,7 @@ START_TEST(Client_getNamespaceUri_outOfBounds) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_QUERY
 START_TEST(Client_queryNext_emptyContinuation) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -797,6 +798,7 @@ START_TEST(Client_queryNext_emptyContinuation) {
     UA_Client_delete(client);
 }
 END_TEST
+#endif
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
@@ -839,7 +841,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_ext, Client_setAuthenticationUsername);
     tcase_add_test(tc_ext, Client_newWithConfig_NULL);
     tcase_add_test(tc_ext, Client_getNamespaceUri_outOfBounds);
+#ifdef UA_ENABLE_QUERY
     tcase_add_test(tc_ext, Client_queryNext_emptyContinuation);
+#endif
     suite_add_tcase(s, tc_ext);
 
     return s;
