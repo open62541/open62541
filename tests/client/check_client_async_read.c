@@ -25,6 +25,7 @@ static UA_Server *server;
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static volatile UA_Boolean asyncCallbackDone;
+static volatile UA_StatusCode asyncServiceStatus;
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -130,6 +131,20 @@ static void disconnectClient(UA_Client *client) {
 static void iterateClient(UA_Client *client) {
     for(int i = 0; i < 30 && !asyncCallbackDone; i++)
         UA_Client_run_iterate(client, 50);
+}
+
+static void cbAsyncCall(UA_Client *c, void *ud, UA_UInt32 rId,
+                        UA_CallResponse *cr) {
+    (void)c; (void)ud; (void)rId;
+    asyncServiceStatus = cr->responseHeader.serviceResult;
+    asyncCallbackDone = true;
+}
+
+static void cbAsyncBrowseNext(UA_Client *c, void *ud, UA_UInt32 rId,
+                              UA_BrowseNextResponse *br) {
+    (void)c; (void)ud; (void)rId;
+    asyncServiceStatus = br->responseHeader.serviceResult;
+    asyncCallbackDone = true;
 }
 
 /* Typed callbacks for each async read function */
@@ -253,6 +268,53 @@ static void cbAsyncWrite(UA_Client *c, void *ud, UA_UInt32 rId,
     (void)c; (void)ud; (void)rId; (void)wr;
     asyncCallbackDone = true;
 }
+
+static void cbAsyncReadNoop(UA_Client *c, void *ud, UA_UInt32 rId,
+                            UA_ReadResponse *response) {
+    (void)c; (void)ud; (void)rId; (void)response;
+}
+
+static void cbAsyncWriteNoop(UA_Client *c, void *ud, UA_UInt32 rId,
+                             UA_WriteResponse *response) {
+    (void)c; (void)ud; (void)rId; (void)response;
+}
+
+START_TEST(async_serviceWrappers_disconnected) {
+    UA_Client *client = UA_Client_newForUnitTest();
+
+    UA_UInt32 reqId = 0;
+    UA_ReadRequest rr;
+    UA_ReadRequest_init(&rr);
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = UA_NODEID_NUMERIC(1, 71001);
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+    rr.nodesToRead = &rvid;
+    rr.nodesToReadSize = 1;
+
+    UA_WriteRequest wr;
+    UA_WriteRequest_init(&wr);
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = UA_NODEID_NUMERIC(1, 71001);
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Int32 v = 7;
+    UA_Variant_setScalar(&wv.value.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasValue = true;
+    wr.nodesToWrite = &wv;
+    wr.nodesToWriteSize = 1;
+
+    UA_StatusCode res = UA_Client_sendAsyncReadRequest(client, &rr,
+        cbAsyncReadNoop, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSERVERNOTCONNECTED);
+
+    res = UA_Client_sendAsyncWriteRequest(client, &wr,
+        cbAsyncWriteNoop, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSERVERNOTCONNECTED);
+
+    UA_Client_delete(client);
+}
+END_TEST
 
 /* === Async read tests === */
 START_TEST(async_readValue) {
@@ -588,6 +650,46 @@ START_TEST(async_writeWriteMask) {
     disconnectClient(client);
 } END_TEST
 
+START_TEST(async_writeBrowseName) {
+    UA_Client *client = connectClient();
+    asyncCallbackDone = false;
+    UA_UInt32 reqId = 0;
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "AsyncRenamed");
+    UA_StatusCode res = UA_Client_writeBrowseNameAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), &qn, cbAsyncWrite, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(async_writeAccessLevel) {
+    UA_Client *client = connectClient();
+    asyncCallbackDone = false;
+    UA_UInt32 reqId = 0;
+    UA_Byte accessLevel = UA_ACCESSLEVELMASK_READ;
+    UA_StatusCode res = UA_Client_writeAccessLevelAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), &accessLevel, cbAsyncWrite, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(async_writeIsAbstract) {
+    UA_Client *client = connectClient();
+    asyncCallbackDone = false;
+    UA_UInt32 reqId = 0;
+    UA_Boolean isAbstract = false;
+    UA_StatusCode res = UA_Client_writeIsAbstractAttribute_async(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        &isAbstract, cbAsyncWrite, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    disconnectClient(client);
+} END_TEST
+
 /* === Method call === */
 START_TEST(client_callMethod) {
     UA_Client *client = connectClient();
@@ -650,6 +752,79 @@ START_TEST(client_browseNext) {
 
     UA_BrowseRequest_clear(&browseReq);
     UA_BrowseResponse_clear(&browseResp);
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(client_browseNext_async_wrapper) {
+    UA_Client *client = connectClient();
+
+    UA_BrowseRequest browseReq;
+    UA_BrowseRequest_init(&browseReq);
+    UA_BrowseDescription *bd = UA_BrowseDescription_new();
+    UA_BrowseDescription_init(bd);
+    bd->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd->resultMask = UA_BROWSERESULTMASK_ALL;
+    bd->browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    browseReq.nodesToBrowse = bd;
+    browseReq.nodesToBrowseSize = 1;
+    browseReq.requestedMaxReferencesPerNode = 2;
+
+    UA_BrowseResponse browseResp = UA_Client_Service_browse(client, browseReq);
+    ck_assert_uint_eq(browseResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(browseResp.resultsSize > 0);
+
+    if(browseResp.results[0].continuationPoint.length > 0) {
+        UA_ByteString cp;
+        UA_ByteString_copy(&browseResp.results[0].continuationPoint, &cp);
+
+        asyncCallbackDone = false;
+        asyncServiceStatus = UA_STATUSCODE_BADINTERNALERROR;
+
+        UA_BrowseNextRequest nextReq;
+        UA_BrowseNextRequest_init(&nextReq);
+        nextReq.releaseContinuationPoints = false;
+        nextReq.continuationPoints = &cp;
+        nextReq.continuationPointsSize = 1;
+
+        UA_UInt32 reqId = 0;
+        UA_StatusCode res = UA_Client_sendAsyncBrowseNextRequest(
+            client, &nextReq, cbAsyncBrowseNext, NULL, &reqId);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+        iterateClient(client);
+        ck_assert(asyncCallbackDone);
+        ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+
+        UA_ByteString_clear(&cp);
+    }
+
+    UA_BrowseRequest_clear(&browseReq);
+    UA_BrowseResponse_clear(&browseResp);
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(client_callMethod_async_wrapper) {
+    UA_Client *client = connectClient();
+
+    UA_Int32 inputVal = 21;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &inputVal, &UA_TYPES[UA_TYPES_INT32]);
+
+    asyncCallbackDone = false;
+    asyncServiceStatus = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_UInt32 reqId = 0;
+    UA_StatusCode res = UA_Client_call_async(
+        client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(1, 71002),
+        1, &input, cbAsyncCall, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+
     disconnectClient(client);
 } END_TEST
 
@@ -731,6 +906,7 @@ static Suite *testSuite_clientAsync(void) {
     tcase_add_test(tc_asyncRead, async_readUserExecutable);
     tcase_add_test(tc_asyncRead, async_readContainsNoLoops);
     tcase_add_test(tc_asyncRead, async_readAttribute_generic);
+    tcase_add_test(tc_asyncRead, async_serviceWrappers_disconnected);
 
     TCase *tc_asyncWrite = tcase_create("AsyncWrite");
     tcase_add_checked_fixture(tc_asyncWrite, setup, teardown);
@@ -738,12 +914,17 @@ static Suite *testSuite_clientAsync(void) {
     tcase_add_test(tc_asyncWrite, async_writeDisplayName);
     tcase_add_test(tc_asyncWrite, async_writeDescription);
     tcase_add_test(tc_asyncWrite, async_writeWriteMask);
+    tcase_add_test(tc_asyncWrite, async_writeBrowseName);
+    tcase_add_test(tc_asyncWrite, async_writeAccessLevel);
+    tcase_add_test(tc_asyncWrite, async_writeIsAbstract);
 
     TCase *tc_ops = tcase_create("ClientOps");
     tcase_add_checked_fixture(tc_ops, setup, teardown);
     tcase_add_test(tc_ops, client_getState);
     tcase_add_test(tc_ops, client_browseNext);
+    tcase_add_test(tc_ops, client_browseNext_async_wrapper);
     tcase_add_test(tc_ops, client_translateBrowsePath);
+    tcase_add_test(tc_ops, client_callMethod_async_wrapper);
     tcase_add_test(tc_ops, client_disconnectSecureChannel);
 
     Suite *s = suite_create("Client Async and Operations");
