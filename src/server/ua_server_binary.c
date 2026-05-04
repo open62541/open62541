@@ -1178,7 +1178,16 @@ addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
     }
 }
 
-/* Callback of a TCP socket (server socket or an active connection) */
+/* Callback of a TCP socket (server socket or an active connection).
+ *
+ * The connectionContext points to one of two possible structures. A
+ * double-pointer is used here, so we get re-assign the context to a different
+ * memory location within the callback.
+ *
+ * - The server socket (listening) has an initial NULL context and then gets
+ *   assigned to the appropriate UA_ServerConnection slot.
+ * - The connection socket (active) initially points to the UA_ServerConnection
+ *   slot and then gets assigned to the new SecureChannel instance. */
 static void
 serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
                             void *application, void **connectionContext,
@@ -1229,6 +1238,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
+    /* Either sc or channel applies. See the comment before this function. */
     UA_ServerConnection *sc = (UA_ServerConnection*)*connectionContext;
     UA_SecureChannel *channel = (UA_SecureChannel*)*connectionContext;
     UA_Boolean serverSocket = (sc >= bpm->serverConnections &&
