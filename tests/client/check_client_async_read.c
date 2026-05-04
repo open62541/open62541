@@ -26,6 +26,7 @@ static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static volatile UA_Boolean asyncCallbackDone;
 static volatile UA_StatusCode asyncServiceStatus;
+static volatile UA_StatusCode asyncOperationStatus;
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -144,6 +145,17 @@ static void cbAsyncBrowseNext(UA_Client *c, void *ud, UA_UInt32 rId,
                               UA_BrowseNextResponse *br) {
     (void)c; (void)ud; (void)rId;
     asyncServiceStatus = br->responseHeader.serviceResult;
+    asyncCallbackDone = true;
+}
+
+static void cbAsyncAddNodes(UA_Client *c, void *ud, UA_UInt32 rId,
+                            UA_AddNodesResponse *ar) {
+    (void)c; (void)ud; (void)rId;
+    asyncServiceStatus = ar->responseHeader.serviceResult;
+    if(asyncServiceStatus == UA_STATUSCODE_GOOD && ar->resultsSize == 1)
+        asyncOperationStatus = ar->results[0].statusCode;
+    else
+        asyncOperationStatus = UA_STATUSCODE_BADUNEXPECTEDERROR;
     asyncCallbackDone = true;
 }
 
@@ -828,6 +840,126 @@ START_TEST(client_callMethod_async_wrapper) {
     disconnectClient(client);
 } END_TEST
 
+#ifdef UA_ENABLE_NODEMANAGEMENT
+START_TEST(client_addVariableNode_async_wrapper) {
+    UA_Client *client = connectClient();
+
+    asyncCallbackDone = false;
+    asyncServiceStatus = UA_STATUSCODE_BADINTERNALERROR;
+    asyncOperationStatus = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 initialValue = 123;
+    UA_Variant_setScalar(&attr.value, &initialValue, &UA_TYPES[UA_TYPES_INT32]);
+    attr.displayName = UA_LOCALIZEDTEXT("en", "Async Add Variable");
+
+    UA_NodeId newNodeId = UA_NODEID_NULL;
+    UA_UInt32 reqId = 0;
+    UA_StatusCode res = UA_Client_addVariableNode_async(
+        client,
+        UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "AsyncAddVariableNode"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr,
+        &newNodeId,
+        cbAsyncAddNodes,
+        NULL,
+        &reqId);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_GOOD);
+
+    if(!UA_NodeId_isNull(&newNodeId)) {
+        UA_StatusCode del = UA_Client_deleteNode(client, newNodeId, true);
+        ck_assert_uint_eq(del, UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&newNodeId);
+    }
+
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(client_addMethodNode_async_wrapper) {
+    UA_Client *client = connectClient();
+
+    asyncCallbackDone = false;
+    asyncServiceStatus = UA_STATUSCODE_BADINTERNALERROR;
+    asyncOperationStatus = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en", "Async Add Method");
+    attr.executable = true;
+    attr.userExecutable = true;
+
+    UA_NodeId newNodeId = UA_NODEID_NULL;
+    UA_UInt32 reqId = 0;
+    UA_StatusCode res = UA_Client_addMethodNode_async(
+        client,
+        UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "AsyncAddMethodNode"),
+        attr,
+        &newNodeId,
+        cbAsyncAddNodes,
+        NULL,
+        &reqId);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_GOOD);
+
+    if(!UA_NodeId_isNull(&newNodeId)) {
+        UA_StatusCode del = UA_Client_deleteNode(client, newNodeId, true);
+        ck_assert_uint_eq(del, UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&newNodeId);
+    }
+
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(client_addObjectNode_async_wrapper_invalidParent) {
+    UA_Client *client = connectClient();
+
+    asyncCallbackDone = false;
+    asyncServiceStatus = UA_STATUSCODE_BADINTERNALERROR;
+    asyncOperationStatus = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en", "Async Add Object Invalid Parent");
+
+    UA_NodeId newNodeId = UA_NODEID_NULL;
+    UA_UInt32 reqId = 0;
+    UA_StatusCode res = UA_Client_addObjectNode_async(
+        client,
+        UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(1, 99999),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "AsyncAddObjectInvalidParent"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        attr,
+        &newNodeId,
+        cbAsyncAddNodes,
+        NULL,
+        &reqId);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(asyncOperationStatus, UA_STATUSCODE_GOOD);
+
+    UA_NodeId_clear(&newNodeId);
+    disconnectClient(client);
+} END_TEST
+#endif
+
 /* === TranslateBrowsePath === */
 START_TEST(client_translateBrowsePath) {
     UA_Client *client = connectClient();
@@ -925,6 +1057,11 @@ static Suite *testSuite_clientAsync(void) {
     tcase_add_test(tc_ops, client_browseNext_async_wrapper);
     tcase_add_test(tc_ops, client_translateBrowsePath);
     tcase_add_test(tc_ops, client_callMethod_async_wrapper);
+#ifdef UA_ENABLE_NODEMANAGEMENT
+    tcase_add_test(tc_ops, client_addVariableNode_async_wrapper);
+    tcase_add_test(tc_ops, client_addMethodNode_async_wrapper);
+    tcase_add_test(tc_ops, client_addObjectNode_async_wrapper_invalidParent);
+#endif
     tcase_add_test(tc_ops, client_disconnectSecureChannel);
 
     Suite *s = suite_create("Client Async and Operations");
