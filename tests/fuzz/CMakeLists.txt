@@ -69,7 +69,7 @@ macro(add_fuzzer FUZZER_NAME FUZZER_SOURCE)
     target_link_libraries(${FUZZER_NAME} ${LIBS})
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src/client)
-    target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/deps/mdnsd)
+    target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_BINARY_DIR}/src_generated/mdnsd)
     assign_source_group(${FUZZER_SOURCE})
     list(APPEND FUZZER_TARGETS ${FUZZER_NAME})
 endmacro()
@@ -85,10 +85,11 @@ add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 add_fuzzer(fuzz_attributeoperand fuzz_attributeoperand.cc)
 add_fuzzer(fuzz_parse_string fuzz_parse_string.cc)
 
-# Add fuzzer for mdns dependency. It's currently not fuzzed separately.
-# See also: https://github.com/google/oss-fuzz/pull/2928
-add_fuzzer(fuzz_mdns_message ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message.cc)
-add_fuzzer(fuzz_mdns_xht ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_xht.cc)
+# Fuzzer for mdns dependency
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    add_fuzzer(fuzz_mdns_message fuzz_mdns_message.cc)
+    add_fuzzer(fuzz_mdns_xht fuzz_mdns_xht.cc)
+endif()
 
 add_fuzzer(fuzz_base64_encode fuzz_base64_encode.cc)
 add_fuzzer(fuzz_base64_decode fuzz_base64_decode.cc)
