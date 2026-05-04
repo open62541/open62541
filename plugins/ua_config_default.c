@@ -2115,18 +2115,18 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
 #endif
-    }
 
 #if !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
-    /* Add the interrupt manager */
-    UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
-    if(im) {
-        config->eventLoop->registerEventSource(config->eventLoop, &im->eventSource);
-    } else {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_APPLICATION,
-                     "Cannot create the Interrupt Manager (only relevant if used)");
-    }
+        /* Add the interrupt manager */
+        UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
+        if(im) {
+            config->eventLoop->registerEventSource(config->eventLoop, &im->eventSource);
+        } else {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_APPLICATION,
+                         "Cannot create the Interrupt Manager (only relevant if used)");
+        }
 #endif
+    }
 
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
