@@ -20,6 +20,3 @@ done
 cp $OUT/fuzz_binary_message_seed_corpus.zip $OUT/fuzz_tcp_message_seed_corpus.zip
 
 cp $SRC/open62541/tests/fuzz/*.dict $SRC/open62541/tests/fuzz/*.options $OUT/
-
-# Copy the fuzzer stuff from mdns
-SRC=$SRC/open62541/deps $SRC/open62541/deps/mdnsd/tests/fuzz/oss-fuzz-copy.sh
