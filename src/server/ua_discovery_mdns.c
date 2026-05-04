@@ -10,12 +10,12 @@
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
 #include <stdlib.h>
-#include "mdnsd/libmdnsd/mdnsd.h"
+#include "mdnsd.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
 #ifndef UA_ENABLE_AMALGAMATION
-#include "mdnsd/libmdnsd/xht.h"
-#include "mdnsd/libmdnsd/sdtxt.h"
+#include "xht.h"
+#include "sdtxt.h"
 #endif
 
 #ifdef UA_ARCHITECTURE_WIN32
@@ -524,7 +524,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     xht_free(h);
     mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, (char *) packet,
                   (unsigned short) txtRecordLength);
-    MDNSD_free(packet);
+    UA_free(packet);
 }
 
 static mdns_record_t *
@@ -881,10 +881,11 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Parse and process the message */
     struct message mm;
     memset(&mm, 0, sizeof(struct message));
-    UA_Boolean rr = message_parse(&mm, (unsigned char*)msg.data, msg.length);
-    if(rr)
-        mdnsd_in(mdnsPrivateData.mdnsDaemon, &mm, infoptr->ai_addr,
-                 (unsigned short)infoptr->ai_addrlen);
+    int rr = message_parse(&mm, (unsigned char*)msg.data);
+    if(rr == 0) { /* 0 = success in new mdnsd API */
+        struct sockaddr_in *sa = (struct sockaddr_in*)infoptr->ai_addr;
+        mdnsd_in(mdnsPrivateData.mdnsDaemon, &mm, sa->sin_addr, sa->sin_port);
+    }
     freeaddrinfo(infoptr);
 }
 
@@ -894,9 +895,8 @@ UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     if(!dm->cm || mdnsPrivateData.mdnsSendConnection == 0)
         return;
 
-    struct sockaddr ip;
-    memset(&ip, 0, sizeof(struct sockaddr));
-    ip.sa_family = AF_INET; /* Ipv4 */
+    struct in_addr ip;
+    memset(&ip, 0, sizeof(struct in_addr));
 
     struct message mm;
     memset(&mm, 0, sizeof(struct message));
@@ -1256,7 +1256,10 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain
     mdns_record_t *r  = mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
     while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
-        if(data->type == QTYPE_SRV && (port == 0 || data->srv.port == port))
+        if(data->type == QTYPE_SRV &&
+           data->name != NULL &&
+           strcasecmp(data->name, fullServiceDomain) == 0 &&
+           (port == 0 || data->srv.port == port))
             return true;
         r = mdnsd_record_next(r);
     }

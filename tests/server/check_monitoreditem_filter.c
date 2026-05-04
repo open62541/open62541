@@ -195,7 +195,7 @@ waitForNotification(UA_UInt32 notifications) {
     for(UA_UInt32 i = 0; i < MAXWAIT_TRIES; ++i) {
         UA_fakeSleep((UA_UInt32)publishingInterval + 100);
         UA_Server_run_iterate(server, false);
-        retval = UA_Client_run_iterate(client, 0);
+        retval = UA_Client_run_iterate(client, 1);
         if(retval != UA_STATUSCODE_GOOD)
             break;
         if(countNotificationReceived == notifications)
