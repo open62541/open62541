@@ -2037,15 +2037,13 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Internal lock-held variant. Accepts a pre-resolved session pointer.
- * If the node is not present in the nodestore, returns the permissive
- * sentinel 0xFFFFFFFF so callers in subsystem-internal paths (e.g.,
- * event delivery) do not accidentally start blocking on missing nodes. */
+/* Internal helper. Caller holds the lock.
+ * Missing node -> 0xFFFFFFFF (permissive sentinel). */
 UA_StatusCode
-getEffectivePermissions_nolock(UA_Server *server,
-                               const UA_Session *session,
-                               const UA_NodeId *nodeId,
-                               UA_PermissionType *effectivePermissions) {
+getEffectivePermissions(UA_Server *server,
+                        const UA_Session *session,
+                        const UA_NodeId *nodeId,
+                        UA_PermissionType *effectivePermissions) {
     if(!server || !nodeId || !effectivePermissions)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK_ASSERT(&server->serviceMutex);

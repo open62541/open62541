@@ -16,7 +16,7 @@
  *
  * NOTE on ReceiveEvents (bit 11): the bit is now enforced in
  * src/server/ua_subscription_event.c::createEvent via the internal
- * helper getEffectivePermissions_nolock(). The unit-level tests below
+ * helper getEffectivePermissions(). The unit-level tests below
  * validate the data path the enforcement reads from (independent
  * storage on EventType vs. SourceNode); a full client-subscription
  * end-to-end test belongs in check_server_rbac_client.c.
@@ -520,7 +520,7 @@ END_TEST
 /* 4. ReceiveEvents (Part 3 §8.55 bit 11) — interlocked on EventType +   */
 /*    SourceNode. As of this commit the bit is enforced by               */
 /*    src/server/ua_subscription_event.c::createEvent which calls the    */
-/*    internal getEffectivePermissions_nolock() helper for both the      */
+/*    internal getEffectivePermissions() helper for both the             */
 /*    EventType and the SourceNode of every event being delivered to a   */
 /*    non-admin session, skipping the MonitoredItem when either node is  */
 /*    RBAC-restricted and lacks the bit.                                 */

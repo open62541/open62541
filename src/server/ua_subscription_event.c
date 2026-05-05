@@ -1719,10 +1719,10 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             if(ctx.session != &server->adminSession) {
                 UA_PermissionType evtPerms = 0xFFFFFFFF;
                 UA_PermissionType srcPerms = 0xFFFFFFFF;
-                (void)getEffectivePermissions_nolock(server, ctx.session,
-                                                    &ed->eventType, &evtPerms);
-                (void)getEffectivePermissions_nolock(server, ctx.session,
-                                                    &ed->sourceNode, &srcPerms);
+                (void)getEffectivePermissions(server, ctx.session,
+                                              &ed->eventType, &evtPerms);
+                (void)getEffectivePermissions(server, ctx.session,
+                                              &ed->sourceNode, &srcPerms);
                 if((evtPerms != 0xFFFFFFFF &&
                     !(evtPerms & UA_PERMISSIONTYPE_RECEIVEEVENTS)) ||
                    (srcPerms != 0xFFFFFFFF &&
