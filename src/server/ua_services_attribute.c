@@ -25,6 +25,10 @@
 #include "../ua_types_encoding_binary.h"
 #include "ua_services.h"
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 #ifdef UA_ENABLE_HISTORIZING
 #include <open62541/plugin/historydatabase.h>
 #endif

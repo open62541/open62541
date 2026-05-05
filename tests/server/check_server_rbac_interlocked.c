@@ -2,38 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2026 (c) GitHub Copilot — RBAC interlocked-permission tests
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 /* RBAC interlocked-permission tests
  *
- * These tests exercise the *combinations* of permission bits defined in
- * OPC UA Part 3 v1.05, §8.55 (PermissionType, Table 38). The spec
- * defines 16 fine-grained permissions whose semantics are not
- * independent: several only take effect when another bit is also set,
- * or must be checked on more than one node before an operation is
- * allowed. The matrix below summarises the interactions exercised by
- * this test file.
- *
- *  +---------------------------+--------------------------------------+
- *  | Permission (Part 3 §8.55) | Required combination                 |
- *  +---------------------------+--------------------------------------+
- *  | ReceiveEvents (bit 11)    | needed on EventType **and** Source   |
- *  | Call          (bit 12)    | needed on Object/ObjectType **and**  |
- *  |                           | the Method instance                  |
- *  | WriteAttribute (bit 2)    | requires WriteMask bit on attribute  |
- *  | WriteRolePerm. (bit 3)    | distinct from WriteAttribute         |
- *  | WriteHistoriz. (bit 4)    | distinct from WriteAttribute         |
- *  | Read           (bit 5)    | drives CurrentRead bit; Browse not   |
- *  |                           | implied                              |
- *  | Browse         (bit 0)    | does not imply Read (Value)          |
- *  | ReadRolePerms. (bit 1)    | distinct from Read & Browse          |
- *  +---------------------------+--------------------------------------+
- *
- * For each row we add only the relevant bit to a fresh node, ask for
- * the effective permission via UA_Server_getEffectivePermissions or
- * the corresponding AccessControl plugin callback, and check the
- * spec-mandated outcome.
+ * Compact regression suite for OPC UA Part 3 v1.05, §8.55 PermissionType
+ * semantics. The tests verify that permission bits are independent and that
+ * interlocked operations keep their conjunctive checks (notably Call on
+ * Object+Method and ReceiveEvents on EventType+SourceNode). Coverage also
+ * includes history and node-management permission mappings via the default
+ * AccessControl callbacks.
  *
  * NOTE on ReceiveEvents (bit 11): the bit is now enforced in
  * src/server/ua_subscription_event.c::createEvent via the internal
