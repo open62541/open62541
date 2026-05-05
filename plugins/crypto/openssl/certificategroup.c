@@ -1151,7 +1151,8 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
 
 UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
-	const unsigned char *p = NULL;
+	UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
+    const unsigned char *p = NULL;
 	X509 *x509;
 	X509_NAME *subj;
 
@@ -1162,23 +1163,18 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
 	x509 = d2i_X509(NULL, &p, (long)certificate->length);
 	if(!x509)
 		return UA_STATUSCODE_BADINTERNALERROR;
-	subj = X509_get_subject_name(x509);
-	if(!subj) {
-		X509_free(x509);
-		return UA_STATUSCODE_BADINTERNALERROR;
-	}
 
-    char buf[1024];
-	memset(buf, 0, 1024);
-	X509_NAME_get_text_by_NID(subj, NID_commonName, buf, 1024);
+    subj = X509_get_subject_name(x509);
+
+    if(subj) {
+        char buf[1024] = {0};
+        X509_NAME_get_text_by_NID(subj, NID_commonName, buf, sizeof(buf));
+        UA_String tmp = UA_STRING(buf);
+        retval = UA_String_copy(&tmp, commonName);
+    }
 	X509_free(x509);
 
-    *commonName = UA_STRING_ALLOC(buf);
-    if(!commonName->data) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-	return UA_STATUSCODE_GOOD;
+	return retval;
 }
 
 #endif

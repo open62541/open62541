@@ -1102,7 +1102,7 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
 
 UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
-    if(!certificate || !certificate->data || !commonName)
+    if(!certificate || !certificate->data)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     mbedtls_x509_crt publicKey;
@@ -1114,7 +1114,8 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    for(mbedtls_x509_name *name = &publicKey.subject; name != NULL;
+    for(mbedtls_x509_name *name = &publicKey.subject;
+        name != NULL;
         name = name->next) {
         if(MBEDTLS_OID_CMP(MBEDTLS_OID_AT_CN, &name->oid) == 0) {
             UA_String tmp = {
@@ -1122,8 +1123,9 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
                 (UA_Byte*)name->val.p
             };
             retval = UA_String_copy(&tmp, commonName);
-            mbedtls_x509_crt_free(&publicKey);
-            return retval;
+            //mbedtls_x509_crt_free(&publicKey);
+            //return retval;
+            break;
         }
     }
 

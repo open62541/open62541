@@ -185,6 +185,22 @@ START_TEST(add_to_trustlist) {
 }
 END_TEST
 
+START_TEST(check_cert_common_name) {
+    UA_String commonName;
+    UA_String expected = UA_STRING("open62541Server@localhost"); // from certificates.h
+
+    /* Load certificate and private key */
+    UA_ByteString trustedCertificate;
+    trustedCertificate.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    trustedCertificate.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    UA_CertificateUtils_getCertCommonName(&trustedCertificate, &commonName);
+
+    ck_assert_uint_eq(commonName.length, expected.length);
+    ck_assert(UA_String_equal(&commonName, &expected));
+}
+END_TEST
+
 START_TEST(add_to_trustlist_with_email) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -411,6 +427,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, set_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist_with_email);
+    tcase_add_test(tc_encryption_memorystore, check_cert_common_name);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
     tcase_add_test(tc_encryption_memorystore, get_rejectedlist);
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
@@ -425,6 +442,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, set_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist_with_email);
+    tcase_add_test(tc_encryption_filestore, check_cert_common_name);
     tcase_add_test(tc_encryption_filestore, remove_from_trustlist);
     tcase_add_test(tc_encryption_filestore, get_rejectedlist);
     tcase_add_test(tc_encryption_filestore, verify_expired_certificate_status_depends_on_trust);
