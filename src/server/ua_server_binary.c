@@ -285,8 +285,12 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT &&
-       channel->state != UA_SECURECHANNELSTATE_OPEN)
+       channel->state != UA_SECURECHANNELSTATE_OPEN) {
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
+                            "processOPN: BadInternalError, channel state is %d",
+                            channel->state);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
     /* Decode the request */
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
@@ -431,8 +435,12 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
            UA_UInt32 requestId, const UA_ByteString *msg) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    if(channel->state != UA_SECURECHANNELSTATE_OPEN)
+    if(channel->state != UA_SECURECHANNELSTATE_OPEN) {
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
+                            "processMSG: BadInternalError, channel state is %d (expected %d)",
+                            channel->state, UA_SECURECHANNELSTATE_OPEN);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
     /* Decode the nodeid */
     size_t offset = 0;
     UA_NodeId requestTypeId;
@@ -506,6 +514,9 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_LOG_INFO_CHANNEL(server->config.logging, channel,
+                        "processSecureChannelMessage: type=%d, state=%d",
+                        messagetype, channel->state);
     switch(messagetype) {
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(server->config.logging, channel, "Process a HEL message");
@@ -529,16 +540,18 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
         break;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        if(!UA_SecureChannel_isConnected(channel)) {
+        UA_Boolean connected = UA_SecureChannel_isConnected(channel);
+        if(!connected) {
             UA_LOG_INFO_CHANNEL(server->config.logging, channel,
-                                "Processing the message failed. Channel already closed "
-                                "with StatusCode %s. ", UA_StatusCode_name(retval));
+                                "Processing message type %d failed because channel "
+                                "is already in state %d. StatusCode %s. ", 
+                                messagetype, channel->state, UA_StatusCode_name(retval));
             return retval;
         }
 
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
-                            "Processing the message failed with StatusCode %s. "
-                            "Closing the channel.", UA_StatusCode_name(retval));
+                            "Processing message type %d failed with StatusCode %s. "
+                            "Closing the channel.", messagetype, UA_StatusCode_name(retval));
         UA_TcpErrorMessage errMsg;
         UA_TcpErrorMessage_init(&errMsg);
         errMsg.error = retval;
@@ -818,7 +831,20 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
 
     /* Process all complete messages */
+    UA_LOG_INFO_CHANNEL(bpm->logging, channel,
+                        "loadBuffer: msgLen=%zu, unprocessed=%zu/%zu, copied=%d",
+                        msg.length, channel->unprocessedOffset,
+                        channel->unprocessed.length, channel->unprocessedCopied);
     retval = UA_SecureChannel_loadBuffer(channel, msg);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto finish;
+
+    /* Persist the buffer. WS buffers are often not persistent after the
+     * callback. And we might have multiple messages in one frame. */
+    retval = UA_SecureChannel_persistBuffer(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto finish;
+
     while(UA_LIKELY(retval == UA_STATUSCODE_GOOD)) {
         UA_MessageType messageType;
         UA_UInt32 requestId = 0;
@@ -833,8 +859,11 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(copied)
             UA_ByteString_clear(&payload);
     }
+
+    /* Persist any remaining unprocessed data for the next callback */
     retval |= UA_SecureChannel_persistBuffer(channel);
 
+ finish:
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, channel,
                                "Processing the message failed with error %s",
@@ -878,13 +907,17 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
         return res;
 
     UA_String tcpString = UA_STRING("tcp");
+    UA_String wsString  = UA_STRING("ws");
+    UA_String wssString = UA_STRING("wss");
     for(UA_EventSource *es = config->eventLoop->eventSources;
         es != NULL; es = es->next) {
         /* Is this a usable connection manager? */
         if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
             continue;
         UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
+        if(!UA_String_equal(&tcpString, &cm->protocol) &&
+           !UA_String_equal(&wsString, &cm->protocol) &&
+           !UA_String_equal(&wssString, &cm->protocol))
             continue;
 
         /* Set up the parameters */

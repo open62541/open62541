@@ -1140,6 +1140,12 @@ if(UA_ARCHITECTURE_FREERTOS)
     list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
 endif()
 
+if(UA_ENABLE_LWS)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_ws.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_ws.c)
+endif()
+
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
