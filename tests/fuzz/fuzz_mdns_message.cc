@@ -16,29 +16,24 @@ extern "C" {
 #include "inet.h"
 }
 
+unsigned char message_buf[MAX_PACKET_LEN];
+
 /*
 ** Main entry point.  The fuzzer invokes this function with each
 ** fuzzed input.
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-
+    if(size >= MAX_PACKET_LEN)
+        return 0;
+    memcpy(message_buf, data, size);
+    message_buf[size] = 0; /* zero terminate */
 
     struct message m;
     memset(&m, 0, sizeof(struct message));
 
-    unsigned char *dataCopy = (unsigned char *)malloc(size);
-    if (!dataCopy) {
-        return 0;
-    }
-
-    memcpy(dataCopy, data, size);
-
-    int parseResult = message_parse(&m, dataCopy);
-
-    free(dataCopy);
-
-    if (!parseResult)
+    int parseResult = message_parse(&m, message_buf);
+    if(!parseResult)
         return 0;
 
     mdns_daemon_t *d = mdnsd_new(QCLASS_IN, 1000);
@@ -46,7 +41,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     inet_addr_t from = {};
     inet_anyaddr(AF_INET, 2000, &from);
     mdnsd_in(d, &m, &from);
-
     mdnsd_free(d);
 
     return 0;
