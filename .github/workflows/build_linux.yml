@@ -283,7 +283,7 @@ jobs:
     runs-on: ubuntu-latest
     # runs-on: self-hosted
     container:
-      image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
+      image: ghcr.io/open62541/open62541-ci:${{ matrix.os }}
       options: --privileged
     services:
       mosquitto:
