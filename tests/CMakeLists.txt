@@ -334,6 +334,7 @@ if(UA_ENABLE_RBAC)
     ua_add_test(server/check_server_rbac.c)
     ua_add_test(server/check_server_rbac_permissions.c)
     ua_add_test(server/check_server_rbac_client.c)
+    ua_add_test(server/check_server_rbac_interlocked.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
