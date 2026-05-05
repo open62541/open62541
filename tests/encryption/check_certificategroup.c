@@ -198,6 +198,8 @@ START_TEST(check_cert_common_name) {
 
     ck_assert_uint_eq(commonName.length, expected.length);
     ck_assert(UA_String_equal(&commonName, &expected));
+
+    UA_String_clear(&commonName);
 }
 END_TEST
 
