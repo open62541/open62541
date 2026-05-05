@@ -1710,22 +1710,20 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
              *  Node identified by the EventTypeId field and on the Node
              *  identified by the SourceNode field."
              *
-             * Skip MonitoredItems whose owning session lacks the
-             * RECEIVEEVENTS permission on either the EventType or the
-             * SourceNode. The AdminSession is exempt (server-internal
-             * delivery / unbound subscriptions). The 0xFFFFFFFF sentinel
-             * means "no RBAC entries on this node" and is treated as
-             * permissive to preserve backward compatibility. */
+             * Skip MonitoredItems if the session lacks RECEIVEEVENTS on
+             * either EventType or SourceNode. AdminSession is exempt.
+             * UA_PERMISSIONTYPE_ALL means no RBAC entries for that node
+             * and is treated as permissive for compatibility. */
             if(ctx.session != &server->adminSession) {
-                UA_PermissionType evtPerms = 0xFFFFFFFF;
-                UA_PermissionType srcPerms = 0xFFFFFFFF;
+                UA_PermissionType evtPerms = UA_PERMISSIONTYPE_ALL;
+                UA_PermissionType srcPerms = UA_PERMISSIONTYPE_ALL;
                 (void)getEffectivePermissions(server, ctx.session,
                                               &ed->eventType, &evtPerms);
                 (void)getEffectivePermissions(server, ctx.session,
                                               &ed->sourceNode, &srcPerms);
-                if((evtPerms != 0xFFFFFFFF &&
+                if((evtPerms != UA_PERMISSIONTYPE_ALL &&
                     !(evtPerms & UA_PERMISSIONTYPE_RECEIVEEVENTS)) ||
-                   (srcPerms != 0xFFFFFFFF &&
+                   (srcPerms != UA_PERMISSIONTYPE_ALL &&
                     !(srcPerms & UA_PERMISSIONTYPE_RECEIVEEVENTS))) {
                     continue;
                 }

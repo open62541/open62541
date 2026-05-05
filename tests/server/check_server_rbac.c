@@ -1816,7 +1816,7 @@ START_TEST(namespaceDefault_noRoleMatchDenied) {
                                         UA_QUALIFIEDNAME(0, "roles"), &rv);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    UA_PermissionType eff = 0xFFFFFFFF;
+    UA_PermissionType eff = UA_PERMISSIONTYPE_ALL;
     res = UA_Server_getEffectivePermissions(server, &adminSessionId, &nodeId, &eff);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_msg(eff == 0,

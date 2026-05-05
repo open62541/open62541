@@ -554,11 +554,11 @@ START_TEST(ReceiveEvents_storedSeparatelyOnEventTypeAndSource) {
     ck_assert_msg((effEt & UA_PERMISSIONTYPE_RECEIVEEVENTS) != 0,
         "Spec §8.55 bit 11: bit must be readable on the EventType "
         "(eff=0x%08x)", effEt);
-    /* The source has no entries -> 0xFFFFFFFF (permissive). The
-     * createEvent enforcement treats 0xFFFFFFFF as "no RBAC entries
+    /* The source has no entries -> UA_PERMISSIONTYPE_ALL (permissive). The
+     * createEvent enforcement treats UA_PERMISSIONTYPE_ALL as "no RBAC entries
      * configured" and so allows delivery; the bit is NOT inferred from
      * the EventType. */
-    ck_assert_msg(effSrc == 0xFFFFFFFFu ||
+    ck_assert_msg(effSrc == UA_PERMISSIONTYPE_ALL ||
                   !(effSrc & UA_PERMISSIONTYPE_RECEIVEEVENTS) ||
                   (effSrc & UA_PERMISSIONTYPE_RECEIVEEVENTS),
         "Source effective perms must be independently retrievable "
@@ -569,7 +569,7 @@ START_TEST(ReceiveEvents_storedSeparatelyOnEventTypeAndSource) {
         UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_getEffectivePermissions(server,
         &adminSessionId, &source, &effSrc), UA_STATUSCODE_GOOD);
-    ck_assert_msg(effSrc != 0xFFFFFFFFu &&
+    ck_assert_msg(effSrc != UA_PERMISSIONTYPE_ALL &&
                   !(effSrc & UA_PERMISSIONTYPE_RECEIVEEVENTS),
         "Source must NOT inherit RECEIVEEVENTS from the EventType "
         "(effSrc=0x%08x)", effSrc);

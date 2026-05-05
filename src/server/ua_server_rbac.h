@@ -71,7 +71,7 @@ UA_Server_getEffectivePermissions(UA_Server *server,
                                   UA_PermissionType *effectivePermissions);
 
 /* Internal helper. Requires the server lock to be held.
- * Missing node -> 0xFFFFFFFF (permissive sentinel). */
+ * Missing node -> UA_PERMISSIONTYPE_ALL (permissive sentinel). */
 UA_StatusCode
 getEffectivePermissions(UA_Server *server,
                         const UA_Session *session,

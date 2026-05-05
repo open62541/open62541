@@ -2038,7 +2038,7 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
 }
 
 /* Internal helper. Caller holds the lock.
- * Missing node -> 0xFFFFFFFF (permissive sentinel). */
+ * Missing node -> UA_PERMISSIONTYPE_ALL (permissive sentinel). */
 UA_StatusCode
 getEffectivePermissions(UA_Server *server,
                         const UA_Session *session,
@@ -2050,7 +2050,7 @@ getEffectivePermissions(UA_Server *server,
 
     const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node) {
-        *effectivePermissions = 0xFFFFFFFF;
+        *effectivePermissions = UA_PERMISSIONTYPE_ALL;
         return UA_STATUSCODE_GOOD;
     }
 
