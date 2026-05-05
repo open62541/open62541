@@ -8,6 +8,17 @@
 
 #include <open62541/plugin/accesscontrol_default.h>
 
+#ifdef UA_ENABLE_RBAC
+/* Forward declaration of the internal effective-permission helper.
+ * The real declaration lives in src/server/ua_server_rbac.h, which is
+ * not part of the public plugin API surface. */
+UA_StatusCode
+UA_Server_getEffectivePermissions(UA_Server *server,
+                                  const UA_NodeId *sessionId,
+                                  const UA_NodeId *nodeId,
+                                  UA_PermissionType *effectivePermissions);
+#endif
+
 /* Example access control management. Anonymous and username / password login.
  * The access rights are maximally permissive.
  *

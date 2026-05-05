@@ -70,6 +70,19 @@ UA_Server_getEffectivePermissions(UA_Server *server,
                                   const UA_NodeId *nodeId,
                                   UA_PermissionType *effectivePermissions);
 
+/* Lock-held variant of UA_Server_getEffectivePermissions. The server lock
+ * must already be held by the caller. Accepts an already-resolved session
+ * pointer (NULL = anonymous / no roles). On success *effectivePermissions
+ * holds the OR-merged PermissionType bitmask; the sentinel 0xFFFFFFFF
+ * indicates "no RBAC restrictions configured for this node". If the node
+ * cannot be loaded from the nodestore, *effectivePermissions is set to
+ * 0xFFFFFFFF (permissive) and UA_STATUSCODE_GOOD is returned. */
+UA_StatusCode
+getEffectivePermissions_nolock(UA_Server *server,
+                               const UA_Session *session,
+                               const UA_NodeId *nodeId,
+                               UA_PermissionType *effectivePermissions);
+
 UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server,
                                  const UA_NodeId *sessionId,

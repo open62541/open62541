@@ -2037,6 +2037,37 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Internal lock-held variant. Accepts a pre-resolved session pointer.
+ * If the node is not present in the nodestore, returns the permissive
+ * sentinel 0xFFFFFFFF so callers in subsystem-internal paths (e.g.,
+ * event delivery) do not accidentally start blocking on missing nodes. */
+UA_StatusCode
+getEffectivePermissions_nolock(UA_Server *server,
+                               const UA_Session *session,
+                               const UA_NodeId *nodeId,
+                               UA_PermissionType *effectivePermissions) {
+    if(!server || !nodeId || !effectivePermissions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node) {
+        *effectivePermissions = 0xFFFFFFFF;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    size_t rolesSize = 0;
+    const UA_NodeId *roles = NULL;
+    if(session && session->rolesSize > 0) {
+        rolesSize = session->rolesSize;
+        roles = session->roles;
+    }
+
+    *effectivePermissions = computeEffectivePermissions(server, node, rolesSize, roles);
+    UA_NODESTORE_RELEASE(server, node);
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_NodeId *nodeId,

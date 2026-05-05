@@ -12,6 +12,10 @@
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 static UA_StatusCode
@@ -1699,6 +1703,34 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
              * the subscription is not bound to a session, use the AdminSession.
              * TODO: Preserve the access rights of the last connected session? */
             ctx.session = (sub->session) ? sub->session : &server->adminSession;
+
+#ifdef UA_ENABLE_RBAC
+            /* OPC UA Part 3 v1.05 §8.55, bit 11 (ReceiveEvents):
+             * "A Client only receives an Event if this bit is set on the
+             *  Node identified by the EventTypeId field and on the Node
+             *  identified by the SourceNode field."
+             *
+             * Skip MonitoredItems whose owning session lacks the
+             * RECEIVEEVENTS permission on either the EventType or the
+             * SourceNode. The AdminSession is exempt (server-internal
+             * delivery / unbound subscriptions). The 0xFFFFFFFF sentinel
+             * means "no RBAC entries on this node" and is treated as
+             * permissive to preserve backward compatibility. */
+            if(ctx.session != &server->adminSession) {
+                UA_PermissionType evtPerms = 0xFFFFFFFF;
+                UA_PermissionType srcPerms = 0xFFFFFFFF;
+                (void)getEffectivePermissions_nolock(server, ctx.session,
+                                                    &ed->eventType, &evtPerms);
+                (void)getEffectivePermissions_nolock(server, ctx.session,
+                                                    &ed->sourceNode, &srcPerms);
+                if((evtPerms != 0xFFFFFFFF &&
+                    !(evtPerms & UA_PERMISSIONTYPE_RECEIVEEVENTS)) ||
+                   (srcPerms != 0xFFFFFFFF &&
+                    !(srcPerms & UA_PERMISSIONTYPE_RECEIVEEVENTS))) {
+                    continue;
+                }
+            }
+#endif
 
             /* Evaluate the where-clause and create a notification */
             res = UA_MonitoredItem_addEvent(mon, &ctx);
