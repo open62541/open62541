@@ -31,7 +31,7 @@ jobs:
             cmd_action: unit_tests_alarms
 
           - name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc libcrypt-dev
+            cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
 
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
@@ -307,7 +307,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev libcrypt-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash
