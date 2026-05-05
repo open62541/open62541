@@ -505,6 +505,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     UA_DecodeBinaryOptions opt;
     memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
     opt.customTypes = config->customDataTypes;
+    opt.namespaceMapping = client->channel.namespaceMapping;
     retval = UA_decodeBinaryInternal(msg, &offset, response, responseType, &opt);
 
  process:
