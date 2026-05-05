@@ -70,6 +70,14 @@ UA_Server_getEffectivePermissions(UA_Server *server,
                                   const UA_NodeId *nodeId,
                                   UA_PermissionType *effectivePermissions);
 
+/* Internal helper. Requires the server lock to be held.
+ * Missing node -> UA_PERMISSIONTYPE_ALL (permissive sentinel). */
+UA_StatusCode
+getEffectivePermissions(UA_Server *server,
+                        const UA_Session *session,
+                        const UA_NodeId *nodeId,
+                        UA_PermissionType *effectivePermissions);
+
 UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server,
                                  const UA_NodeId *sessionId,
