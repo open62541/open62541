@@ -6,6 +6,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2022, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright (c) 2026 Pilz GmbH & Co. KG, Author: Marcel Patzlaff
  */
 
 #include <open62541/types.h>
@@ -1528,6 +1529,25 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *emitNode,
 }
 #endif
 
+// Utility function to fetch the event type node from the various possible locations.
+const UA_Node* getEventTypeNode(UA_FilterEvalContext *ctx) {
+    /* Read the /EventType event field */
+    static UA_QualifiedName eventTypeName = {0, UA_STRING_STATIC("EventType")};
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePath = &eventTypeName;
+    sao.browsePathSize = 1;
+    UA_Variant eventType;
+    UA_Variant_init(&eventType);
+    if(UA_STATUSCODE_GOOD != resolveSAO(ctx, &sao, &eventType))
+        return NULL;
+
+    const UA_Node *typeNode = UA_NODESTORE_GET(ctx->server, (UA_NodeId*) eventType.data);
+    UA_Variant_clear(&eventType);
+    return typeNode;
+}
+
 #define EMIT_REFS_ROOT_COUNT 4
 static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
@@ -1651,6 +1671,10 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             return res;
     }
 
+    const UA_Node *evTypeNode = getEventTypeNode(&ctx);
+    if(!evTypeNode)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Loop over all nodes that emit this event instance */
     for(size_t i = 0; i < emitNodesSize; i++) {
         /* We can only emit on local nodes */
@@ -1688,6 +1712,19 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             /* Filter on the MonitoredItemId */
             if(ed->monitoredItemId && *ed->monitoredItemId != mon->monitoredItemId)
                 continue;
+
+            /* Check ReceiveEvents permission */
+            if(sub->session && server->config.accessControl.allowReceiveEvents)
+            {
+                if(!server->config.accessControl.
+                    allowReceiveEvents(server, &server->config.accessControl,
+                                       &sub->session->sessionId, sub->session->context,
+                                       &node->head.nodeId, node->head.context,
+                                       &evTypeNode->head.nodeId, evTypeNode->head.context)
+                ) {
+                    continue;
+                }
+            }
 
             /* Get the EventFilter from the MonitoredItem */
             if(!UA_ExtensionObject_hasDecodedType(&mon->parameters.filter,
@@ -1749,6 +1786,8 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             setHistoricalEvent(server, &emitNodes[i].nodeId, ed);
 #endif
     }
+
+    UA_NODESTORE_RELEASE(server, evTypeNode);
 
     /* Clean up and return */
     if(outEventId && res != UA_STATUSCODE_GOOD)
