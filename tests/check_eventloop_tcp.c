@@ -97,8 +97,14 @@ START_TEST(listenTCP) {
 
 #if !defined(UA_ARCHITECTURE_LWIP)
     port = 4841;
-    /* This should fail because the maximum number of sockets has been reached */
+    /* Depending on IPv4/IPv6 availability, the first open may consume one or two
+     * socket slots. Keep opening on new ports until the configured limit is hit. */
     retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        port = 4842;
+        retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+    }
 
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 #endif
