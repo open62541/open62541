@@ -17,7 +17,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    UA_ServerConfig_clean(&cfg);
+    UA_ServerConfig_clear(&cfg);
 }
 
 START_TEST(SetBasicsZeroConfigSucceeds) {
@@ -86,6 +86,9 @@ START_TEST(AddAllSecureEndpointsClearsExisting) {
     ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
 } END_TEST
 
+#ifdef UA_ENABLE_ENCRYPTION
+#include "../tests/encryption/certificates.h"
+
 START_TEST(AddAllSecurityPoliciesWithoutCertSucceeds) {
     ck_assert_uint_eq(UA_ServerConfig_setBasics(&cfg), UA_STATUSCODE_GOOD);
 
@@ -100,9 +103,6 @@ START_TEST(AddAllSecurityPoliciesWithoutCertSucceeds) {
     r = UA_ServerConfig_addAllSecureSecurityPolicies(&cfg, NULL, NULL);
     ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
 } END_TEST
-
-#ifdef UA_ENABLE_ENCRYPTION
-#include "../tests/encryption/certificates.h"
 
 START_TEST(AddSecurityPolicyHelpersWithoutCertReturnError) {
     ck_assert_uint_eq(UA_ServerConfig_setBasics(&cfg), UA_STATUSCODE_GOOD);
@@ -149,7 +149,7 @@ START_TEST(AddAllSecurityPoliciesWithCertSucceed) {
     ck_assert_uint_gt(cfg.securityPoliciesSize, 0);
 
     /* And the secure-only variant on a fresh config */
-    UA_ServerConfig_clean(&cfg);
+    UA_ServerConfig_clear(&cfg);
     memset(&cfg, 0, sizeof(cfg));
     ck_assert_uint_eq(UA_ServerConfig_setBasics(&cfg), UA_STATUSCODE_GOOD);
     r = UA_ServerConfig_addAllSecureSecurityPolicies(&cfg, &cert, &key);
@@ -168,8 +168,8 @@ int main(void) {
     tcase_add_test(tc, AddSecurityPolicyNoneAndAllEndpoints);
     tcase_add_test(tc, AddEndpointWithUnknownPolicyRejected);
     tcase_add_test(tc, AddAllSecureEndpointsClearsExisting);
-    tcase_add_test(tc, AddAllSecurityPoliciesWithoutCertSucceeds);
 #ifdef UA_ENABLE_ENCRYPTION
+    tcase_add_test(tc, AddAllSecurityPoliciesWithoutCertSucceeds);
     tcase_add_test(tc, AddSecurityPolicyHelpersWithoutCertReturnError);
     tcase_add_test(tc, AddSecurityPolicyHelpersWithCertSucceed);
     tcase_add_test(tc, AddAllSecurityPoliciesWithCertSucceed);
