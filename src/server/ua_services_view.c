@@ -999,6 +999,25 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         if(!node)
             continue;
 
+        /* Check whether the session is allowed to browse this node.
+         * Mirrors the access-control gate applied in browseWithContinuation().
+         * Without this check, a client denied direct Browse on a node can
+         * still use it as a waypoint in TranslateBrowsePathsToNodeIds,
+         * disclosing hidden intermediate nodes and their children. */
+        if(session != &server->adminSession) {
+            UA_UNLOCK(&server->serviceMutex);
+            UA_Boolean canBrowse =
+                server->config.accessControl.allowBrowseNode(
+                    server, &server->config.accessControl,
+                    &session->sessionId, session->sessionHandle,
+                    &current->targets[i].nodeId, node->head.context);
+            UA_LOCK(&server->serviceMutex);
+            if(!canBrowse) {
+                UA_NODESTORE_RELEASE(server, node);
+                continue;
+            }
+        }
+
         /* Test whether the node fits the class mask */
         UA_Boolean skip = !matchClassMask(node, nodeClassMask);
 
@@ -1149,6 +1168,25 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         const UA_Node *node = UA_NODESTORE_GET(server, &next->targets[k].nodeId);
         if(!node)
             continue;
+
+        /* Check whether the session is allowed to browse the resolved target.
+         * Without this check, a client denied direct Browse on a terminal node
+         * can still have its NodeId disclosed as the result of path
+         * translation. */
+        if(session != &server->adminSession) {
+            UA_UNLOCK(&server->serviceMutex);
+            UA_Boolean canBrowse =
+                server->config.accessControl.allowBrowseNode(
+                    server, &server->config.accessControl,
+                    &session->sessionId, session->sessionHandle,
+                    &next->targets[k].nodeId, node->head.context);
+            UA_LOCK(&server->serviceMutex);
+            if(!canBrowse) {
+                UA_NODESTORE_RELEASE(server, node);
+                continue;
+            }
+        }
+
         UA_Boolean match = UA_QualifiedName_equal(browseNameFilter, &node->head.browseName);
         UA_NODESTORE_RELEASE(server, node);
         if(!match)
