@@ -237,7 +237,7 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
     if(!oldSessionId)
-        return true;
+        return false;
     
     /* Get clientUserId for both sessions */
     UA_Variant session1UserId;
