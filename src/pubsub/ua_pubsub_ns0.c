@@ -90,6 +90,16 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* For top-level PublishSubscribe/Status, fall back to the parent NodeId
+     * (NS0:PUBLISHSUBSCRIBE) to keep Enable/Disable deterministic. */
+    UA_NodeId publishSubscribeNodeId = UA_NS0ID(PUBLISHSUBSCRIBE);
+    if(UA_NodeId_equal(componentNodeId, &publishSubscribeNodeId)) {
+        *isPublishSubscribeObject = true;
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = psm;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Identify component type and find the component */
     UA_NodeId pubsubconnectionTypeId = UA_NS0ID(PUBSUBCONNECTIONTYPE);
     UA_NodeId writergroupTypeId = UA_NS0ID(WRITERGROUPTYPE);
