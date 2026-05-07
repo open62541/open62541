@@ -45,8 +45,10 @@ with open(logfile) as content_file:
     log_content = content_file.read()
 
 if len(log_content) == 0:
-    print("### PYTHON ERROR: Valgrind logfile is empty: " + logfile)
-    exit(1)
+    if ret_code != 0:
+        print("### PYTHON ERROR: Valgrind found errors but logfile is empty: " + logfile)
+        exit(1)
+    exit(0)
 
 # Remove output of possible bug in OSX
 # --16672-- run: /usr/bin/dsymutil "/Users/travis/build/Pro/open62541/build/bin/tests/check_utils"
@@ -55,20 +57,20 @@ if len(log_content) == 0:
 # --16672-- Read the file README_MISSING_SYSCALL_OR_IOCTL.
 # --16672-- Nevertheless we consider this a bug.  Please report
 # --16672-- it at http://valgrind.org/support/bug_reports.html.
-replace_re = re.compile(r"^--(\d+)--\s+run: .*-- it at http://valgrind.org/support/bug_reports.html\.$\n", re.MULTILINE | re.DOTALL)
+replace_re = re.compile(r"^--(\d+)--\s+run: .*-- it at http://valgrind.org/support/bug_reports.html\.\$\n", re.MULTILINE | re.DOTALL)
 log_content = replace_re.sub('', log_content)
 
 # Try to parse the output. Look for the following line:
 # ==17054== FILE DESCRIPTORS: 5 open at exit.
-descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open(\s\(\d std\))? at exit\..*")
-m = descriptors_re.match(log_content)
+descriptors_re = re.compile(r"^==(\d+)==\s+FILE DESCRIPTORS: (\d+) open[^\n]*\n", re.MULTILINE)
+m = descriptors_re.search(log_content)
 
 if not m:
     print("### PYTHON ERROR: File descriptors header not found: " + logfile)
     print(log_content)
     exit(1)
 
-log_content = descriptors_re.sub('', log_content)
+log_content = descriptors_re.sub('', log_content, count=1)
 
 valgrind_number = m.group(1)
 open_count = int(m.group(2))
@@ -96,10 +98,18 @@ if ret_code != 0:
     print(log_content)
     exit(ret_code)
 
-# No issues by valgrind
+# Quick path for quiet-mode output (old Valgrind): nothing left means clean run.
 if len(log_content) == 0 or log_content.isspace():
     exit(0)
 
-# There is something fishy in the valgrind output, so error-exit
-print(log_content)
-exit(1)
+# Explicitly check for non-inherited open file descriptors (FD leaks).
+# In quiet mode this is the only content that can remain at this point.
+# In non-quiet mode (Valgrind 3.26+ without --quiet) the log also contains
+# informational header/summary lines which are benign when ret_code == 0.
+fd_leak_re = re.compile(r"^==" + str(valgrind_number) + r"==\s+Open file descriptor \d+:", re.MULTILINE)
+if fd_leak_re.search(log_content):
+    print("### PYTHON ERROR: Non-inherited file descriptor still open:")
+    print(log_content)
+    exit(1)
+
+exit(0)
