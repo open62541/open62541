@@ -871,15 +871,18 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
-        if(op->output.call->outputArguments == output) {
-            op->output.call->statusCode = result;
-            processOperationResult(server, op);
-            break;
-        }
-        if(op->output.directCall.outputArguments == output) {
-            op->output.directCall.statusCode = result;
-            processOperationResult(server, op);
-            break;
+        if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+            if(op->output.call->outputArguments == output) {
+                op->output.call->statusCode = result;
+                processOperationResult(server, op);
+                break;
+            }
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+            if(op->output.directCall.outputArguments == output) {
+                op->output.directCall.statusCode = result;
+                processOperationResult(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);
