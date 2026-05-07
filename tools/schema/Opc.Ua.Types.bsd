@@ -3238,7 +3238,7 @@
     <opc:Field Name="DisabledMonitoredItemCount" TypeName="opc:UInt32" />
     <opc:Field Name="MonitoringQueueOverflowCount" TypeName="opc:UInt32" />
     <opc:Field Name="NextSequenceNumber" TypeName="opc:UInt32" />
-    <opc:Field Name="EventQueueOverFlowCount" TypeName="opc:UInt32" />
+    <opc:Field Name="EventQueueOverflowCount" TypeName="opc:UInt32" />
   </opc:StructuredType>
 
   <opc:EnumeratedType Name="ModelChangeStructureVerbMask" LengthInBits="32">

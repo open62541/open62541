@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Use the error status of the first failure in a pipeline
+set -o pipefail
+
+# Exit if an uninitialized variable is accessed
+set -o nounset
+
+# Clang build options
+if [ "$CC_SHORTNAME" = "clang-mingw" ]; then
+    export CC="clang --target=x86_64-w64-mingw32"
+    export CXX="clang++ --target=x86_64-w64-mingw32"
+fi
+
+mkdir build
+cd build
+
+echo "Build MinGW Unit Tests"
+cmake -G "Ninja" -DBUILD_SHARED_LIBS:BOOL=OFF -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_DA=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_ENCRYPTION:STRING=MBEDTLS -DUA_ENABLE_JSON_ENCODING:BOOL=ON -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON -DUA_FORCE_WERROR:BOOL=OFF ..
+cmake --build .
+echo "Run MinGW Unit Tests"
+cmake --build . --target test-verbose -j 1
+rm -r *
+
+echo "Build MinGW Examples"
+cmake -G "Ninja" -DBUILD_SHARED_LIBS:BOOL=OFF -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_FORCE_WERROR=ON ..
+cmake --build .
+rm -r *
+
+echo "Build MinGW Amalgamation with UA_ARCHITECTURE=none"
+cmake -G "Ninja" \
+    -DBUILD_SHARED_LIBS:BOOL=OFF \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DUA_ENABLE_AMALGAMATION:BOOL=ON \
+    -DUA_ARCHITECTURE:STRING=none \
+    -DUA_FORCE_WERROR=ON ..
+cmake --build . --target open62541-amalgamation
+
+# Smoke test: compile and link a small program against the amalgamation
+# to catch any missing symbols that only show up at link time
+cat > amalgamation_none_smoke.c <<'EOF'
+#include "open62541.h"
+
+int main(void) {
+    UA_Server *server = UA_Server_new();
+    if(!server)
+        return 1;
+    UA_Server_delete(server);
+
+    UA_Client *client = UA_Client_new();
+    if(!client)
+        return 2;
+    UA_Client_delete(client);
+
+    return 0;
+}
+EOF
+
+${CC:-gcc} -I. amalgamation_none_smoke.c open62541.c -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+
+rm -r *
+
+echo "Build MingW with NS0"
+cmake -G "Ninja" -DBUILD_SHARED_LIBS:BOOL=OFF -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_DA:BOOL=ON -DUA_ENABLE_JSON_ENCODING:BOOL=ON -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_FORCE_WERROR=ON -DUA_NAMESPACE_ZERO:STRING=FULL ..
+cmake --build .
+rm -r *
+
+echo "Build MinGW with .dll"
+cmake -G "Ninja" -DBUILD_SHARED_LIBS:BOOL=ON -DCMAKE_BUILD_TYPE=Debug -DUA_FORCE_WERROR=ON ..
+cmake --build .
+rm -r *

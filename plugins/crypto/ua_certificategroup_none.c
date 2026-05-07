@@ -10,7 +10,7 @@
 static UA_StatusCode
 verifyCertificateAllowAll(UA_CertificateGroup *certGroup,
                           const UA_ByteString *certificate) {
-    UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_APPLICATION,
                    "No certificate store configured. Accepting the certificate.");
     return UA_STATUSCODE_GOOD;
 }
@@ -38,10 +38,8 @@ void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
 
 #ifndef UA_ENABLE_ENCRYPTION
 UA_StatusCode
-UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
-                                         const UA_ByteString *certificate,
-                                         const UA_String *applicationURI,
-                                         UA_Logger *logger) {
+UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
+                                         const UA_String *applicationURI) {
     return UA_STATUSCODE_GOOD;
 }
 

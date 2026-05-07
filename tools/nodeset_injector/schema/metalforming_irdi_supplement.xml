@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IRDI supplement for MetalForming.
+  The PADIM 1.02.0 release removed IRDI entries that MetalForming still
+  references.  This file provides the missing nodes so that the nodeset
+  compiler can resolve all references.
+-->
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+           xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+           xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/Dictionary/IRDI</Uri>
+  </NamespaceUris>
+
+  <UAObject SymbolicName="S0112_2___61987_ABB271_007"
+            NodeId="ns=1;s=0112/2///61987#ABB271#007"
+            BrowseName="1:0112/2///61987#ABB271#007"
+            ParentNodeId="i=17594">
+    <DisplayName>Tag</DisplayName>
+    <Description>https://cdd.iec.ch/cdd/iec61987/iec61987.nsf/PropertiesAllVersions/0112-2---61987%23ABB271</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

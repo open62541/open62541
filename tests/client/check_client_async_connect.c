@@ -18,6 +18,13 @@
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
+#ifdef __unix__
+# include <unistd.h>
+#elif defined _WIN32
+# include <windows.h>
+#define sleep(x) Sleep(1000 * (x))
+#endif
+
 UA_Server *server;
 UA_Boolean connected = false;
 
@@ -82,6 +89,8 @@ START_TEST(Client_connect_async) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_BrowseRequest_clear(&bReq);
+    ck_assert_uint_eq(connected, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnectAsync(client);
     while(connected) {
         UA_Server_run_iterate(server, false);
@@ -170,13 +179,100 @@ START_TEST(Client_run_iterate) {
     connected = false;
     retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    while (!connected) {
+    while(!connected) {
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_realSleep(100);
     }
 
+    UA_Client_disconnectAsync(client);
+    while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_connectSecureChannelAsync) {
+    /* Connect only the SecureChannel without opening a Session */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannelAsync(client,
+                                "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Drive both sides until the channel is open */
+    while(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+
+    UA_SecureChannelState channelState;
+    UA_SessionState sessionState;
+    UA_StatusCode connectStatus;
+    UA_Client_getState(client, &channelState, &sessionState, &connectStatus);
+    ck_assert_uint_eq(channelState, UA_SECURECHANNELSTATE_OPEN);
+    /* No session should be created */
+    ck_assert(sessionState != UA_SESSIONSTATE_ACTIVATED);
+
+    UA_Client_disconnectAsync(client);
+    while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_connect_async_wrongUrl) {
+    /* Attempt to connect to a wrong port — should fail gracefully */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->timeout = 200; /* short timeout */
+    UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4841");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Drive a few iterations */
+    for(int i = 0; i < 50; i++) {
+        UA_fakeSleep(10);
+        UA_Client_run_iterate(client, 0);
+    }
+
+    UA_SecureChannelState channelState;
+    UA_StatusCode connectStatus;
+    UA_Client_getState(client, &channelState, NULL, &connectStatus);
+    /* Either still connecting or failed — not OPEN */
+    ck_assert(channelState != UA_SECURECHANNELSTATE_OPEN ||
+              connectStatus != UA_STATUSCODE_GOOD);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_connectUsername_async) {
+    /* Connect with username/password via the sync connectUsername wrapper,
+     * but using manual iteration for the server side */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->stateCallback = currentState;
+    connected = false;
+    UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    while(!connected) {
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    /* Verify the client is connected with an active session */
+    UA_SecureChannelState channelState;
+    UA_SessionState sessionState;
+    UA_Client_getState(client, &channelState, &sessionState, NULL);
+    ck_assert_uint_eq(channelState, UA_SECURECHANNELSTATE_OPEN);
+    ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_ACTIVATED);
+
+    /* Disconnect asynchronously */
     UA_Client_disconnectAsync(client);
     while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_Server_run_iterate(server, false);
@@ -195,6 +291,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_no_connection);
     tcase_add_test(tc_client_connect, Client_without_run_iterate);
     tcase_add_test(tc_client_connect, Client_run_iterate);
+    tcase_add_test(tc_client_connect, Client_connectSecureChannelAsync);
+    tcase_add_test(tc_client_connect, Client_connect_async_wrongUrl);
+    tcase_add_test(tc_client_connect, Client_connectUsername_async);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }

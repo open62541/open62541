@@ -42,13 +42,17 @@ typedef struct {
 
 static int
 mkpath(char *dir, UA_MODE mode) {
-    struct UA_STAT sb;
-
     if(dir == NULL)
         return 1;
 
-    if(!UA_stat(dir, &sb))
-        return 0;  /* Directory already exist */
+    if(UA_mkdir(dir, mode) == 0)
+        return 0;
+
+    if(errno == EEXIST)
+        return 0; /* Directory already exists */
+
+    if(errno != ENOENT)
+        return 1;
 
     size_t len = strlen(dir) + 1;
     char *tmp_dir = (char*)UA_malloc(len);
@@ -58,10 +62,16 @@ mkpath(char *dir, UA_MODE mode) {
 
     /* Before the actual target directory is created, the recursive call ensures
      * that all parent directories are created or already exist. */
-    mkpath(UA_dirname(tmp_dir), mode);
+    int retval = mkpath(UA_dirname(tmp_dir), mode);
     UA_free(tmp_dir);
 
-    return UA_mkdir(dir, mode);
+    if(retval != 0)
+        return retval;
+
+    if(UA_mkdir(dir, mode) == 0 || errno == EEXIST)
+        return 0;
+
+    return 1;
 }
 
 static UA_StatusCode
@@ -263,12 +273,12 @@ reloadTrustStore(UA_CertificateGroup *certGroup) {
     FileCertStore *context = (FileCertStore *)certGroup->context;
 
     char buffer[BUF_LEN];
-    const int length = read(context->inotifyFd, buffer, BUF_LEN );
+    const ssize_t length = read(context->inotifyFd, buffer, BUF_LEN );
     if(length == -1 && errno != EAGAIN)
         return UA_STATUSCODE_BADINTERNALERROR;
 #else
     /* TODO: Implement a way to check for changes in the pki folder */
-    const int length = 0;
+    const ssize_t length = 0;
 #endif /* __linux__ */
 
     /* No events, which means no changes to the pki folder */
@@ -376,7 +386,8 @@ FileCertStore_setupStorePath(char *directory, char *rootDirectory,
     char path[UA_PATH_MAX] = {0};
     size_t pathSize = 0;
 
-    strncpy(path, rootDirectory, UA_PATH_MAX);
+    strncpy(path, rootDirectory, UA_PATH_MAX - 1);
+    path[UA_PATH_MAX - 1] = '\0';
     pathSize = strnlen(path, UA_PATH_MAX);
 
     strncpy(&path[pathSize], directory, UA_PATH_MAX - pathSize);

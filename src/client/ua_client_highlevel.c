@@ -1013,6 +1013,13 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
                                   out, &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
+UA_StatusCode
+UA_Client_readDatatypeDefinitionAttribute(UA_Client* client, const UA_NodeId nodeId,
+                                          UA_StructureDefinition *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DATATYPEDEFINITION,
+                                  out, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+}
+
 static UA_StatusCode
 processReadArrayDimensionsResult(UA_ReadResponse *response,
                                  UA_UInt32 **outArrayDimensions,
@@ -1065,6 +1072,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 /*********************/
 /* Historical Access */
 /*********************/
+#ifdef UA_ENABLE_HISTORIZING
 
 static UA_HistoryReadResponse
 __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
@@ -1328,6 +1336,8 @@ cleanup:
     UA_NodeId_clear(&details.nodeId);
     return ret;
 }
+
+#endif
 
 /*******************/
 /* Async Functions */

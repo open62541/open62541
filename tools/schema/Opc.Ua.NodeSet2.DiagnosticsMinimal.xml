@@ -3254,7 +3254,7 @@
       <Field Name="DisabledMonitoredItemCount" DataType="i=7" />
       <Field Name="MonitoringQueueOverflowCount" DataType="i=7" />
       <Field Name="NextSequenceNumber" DataType="i=7" />
-      <Field Name="EventQueueOverFlowCount" DataType="i=7" />
+      <Field Name="EventQueueOverflowCount" DataType="i=7" />
     </Definition>
   </UADataType>
   <UADataType NodeId="i=871" BrowseName="ServiceCounterDataType">

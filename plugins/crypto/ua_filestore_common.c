@@ -60,10 +60,8 @@ writeByteStringToFile(const char *const path, const UA_ByteString *data) {
 
     /* Write byte string to file */
     size_t len = UA_fwrite(data->data, sizeof(UA_Byte), data->length * sizeof(UA_Byte), fp);
-    if(len != data->length) {
-        UA_fclose(fp);
+    if(len != data->length)
         retval = UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     UA_fclose(fp);
     return retval;

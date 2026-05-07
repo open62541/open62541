@@ -468,7 +468,7 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
                                     size_t targetsSize, const UA_FieldTargetDataType *targets);
 
 /* Returns an error reason if the target state is `Error` */
-void
+UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState, UA_StatusCode errorReason);
 
@@ -636,6 +636,11 @@ struct UA_PubSubManager {
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;
 
+    /* During the initial activation of the PubSub subsystem (e.g. when loading a configuration file), special behaviour
+     * is required within the PubSub state machine transitions. This global flag can be set to indicate that the
+     * configuration phase is active, and it is evaluated during the state changes of the PubSub components. */
+    UA_Boolean pubSubInitialSetupMode;
+
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
 
@@ -650,7 +655,7 @@ struct UA_PubSubManager {
 
 static UA_INLINE UA_PubSubManager *
 getPSM(UA_Server *server) {
-    return (UA_PubSubManager*)getServerComponentByName(server, UA_STRING("pubsub"));
+    return (UA_PubSubManager*)server->pubSubSC;
 }
 
 UA_StatusCode
@@ -690,6 +695,11 @@ UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 UA_StatusCode
 initPubSubNS0(UA_Server *server);
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+UA_StatusCode
+initPubSubNS0_SKS(UA_Server *server);
+#endif
+
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
 
@@ -723,6 +733,29 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
+
+/* Recursively check whether a data type contains String or ByteString
+ * members. Used to warn about RawData encoding where maxStringLength
+ * padding is not applied for strings inside structures. */
+static UA_INLINE UA_Boolean
+typeContainsString(const UA_DataType *type, size_t depth) {
+    if(!type || depth > 10)
+        return false;
+    if(type->typeKind == UA_DATATYPEKIND_STRING ||
+       type->typeKind == UA_DATATYPEKIND_BYTESTRING)
+        return true;
+    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+       type->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&
+       type->typeKind != UA_DATATYPEKIND_UNION)
+        return false;
+    if(type->pointerFree)
+        return false;
+    for(size_t i = 0; i < type->membersSize; i++) {
+        if(typeContainsString(type->members[i].memberType, depth + 1))
+            return true;
+    }
+    return false;
+}
 
 #endif /* UA_ENABLE_PUBSUB */
 

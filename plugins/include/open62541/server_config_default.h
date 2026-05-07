@@ -6,6 +6,7 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SERVER_CONFIG_DEFAULT_H_
@@ -74,6 +75,11 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize);
 
+/* This function adds only secure security policies to the policy list,
+ * explicitly excluding the 'None' policy.
+ * Because of this, clients cannot retrieve the server certificate
+ * or access the server’s exposed endpoints.
+ * As a result, connections can only be established in 'direct' way. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
                                                      UA_UInt16 portNumber,
@@ -236,6 +242,31 @@ UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
                                                      const UA_ByteString *certificate,
                                                      const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519(UA_ServerConfig *config,
+                                               const UA_ByteString *certificate,
+                                               const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey);
 
 /* Adds all supported security policies and sets up certificate
  * validation procedures.

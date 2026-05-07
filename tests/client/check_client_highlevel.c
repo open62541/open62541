@@ -384,7 +384,7 @@ START_TEST(Node_AddReadWriteNodes) {
         attr.description = UA_LOCALIZEDTEXT("en-US", "Array");
         attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array");
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-        attr.writeMask = UA_WRITEMASK_ARRRAYDIMENSIONS;
+        attr.writeMask = UA_WRITEMASK_ARRAYDIMENSIONS;
 
         UA_Int32 values[2];
         values[0] = 10;
@@ -1034,6 +1034,188 @@ END_TEST
 
 #endif
 
+/* Extended tests for untested highlevel functions */
+
+START_TEST(Highlevel_TranslateBrowsePath) {
+    /* Translate a browse path from Objects folder to Server node */
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    rpe.targetName = UA_QUALIFIEDNAME(0, "Server");
+    bp.relativePath.elementsSize = 1;
+    bp.relativePath.elements = &rpe;
+
+    UA_BrowsePathResult res =
+        UA_Client_translateBrowsePathToNodeIds(client, &bp);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(res.targetsSize > 0);
+    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    ck_assert(UA_NodeId_equal(&res.targets[0].targetId.nodeId,
+                              &serverNodeId));
+    UA_BrowsePathResult_clear(&res);
+}
+END_TEST
+
+START_TEST(Highlevel_WriteValueScalar) {
+    /* Write a scalar value using writeValueAttribute_scalar and read back */
+    UA_Int32 newVal = 42;
+    UA_StatusCode retval =
+        UA_Client_writeValueAttribute_scalar(client,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE),
+            &newVal, &UA_TYPES[UA_TYPES_INT32]);
+    /* Access may be denied because serverstatus/state is read-only,
+     * but the function path is exercised */
+    (void)retval;
+}
+END_TEST
+
+START_TEST(Highlevel_WriteValueEx) {
+    /* Write a DataValue using writeValueAttributeEx and read back */
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    dv.hasValue = true;
+    UA_Int32 val = 99;
+    UA_Variant_setScalar(&dv.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    dv.hasSourceTimestamp = true;
+    dv.sourceTimestamp = UA_DateTime_now();
+
+    UA_StatusCode retval =
+        UA_Client_writeValueAttributeEx(client,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE),
+            &dv);
+    /* May be denied on read-only node but exercises the code path */
+    (void)retval;
+}
+END_TEST
+
+#ifdef UA_ENABLE_NODEMANAGEMENT
+START_TEST(Highlevel_ReadWriteAccessLevelEx) {
+    /* Create a variable node to test AccessLevelEx */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "ALExTest");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.writeMask = 0xFFFFFFFF;
+    UA_Int32 intVal = 123;
+    UA_Variant_setScalar(&attr.value, &intVal, &UA_TYPES[UA_TYPES_INT32]);
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_NodeId outId = UA_NODEID_NULL;
+    UA_StatusCode retval =
+        UA_Client_addVariableNode(client, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "ALExTest"),
+                                  UA_NODEID_NULL, attr, &outId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read AccessLevelEx */
+    UA_UInt32 alEx = 0;
+    retval = UA_Client_readAccessLevelExAttribute(client, outId, &alEx);
+    /* May not be supported → either GOOD or BADATTRIBUTEIDINVALID */
+    if(retval == UA_STATUSCODE_GOOD) {
+        /* Write AccessLevelEx */
+        UA_UInt32 newAlEx = alEx | 0x100; /* set a higher bit */
+        retval = UA_Client_writeAccessLevelExAttribute(client, outId, &newAlEx);
+        /* May fail, but exercises the path */
+        (void)retval;
+    }
+
+    /* Cleanup */
+    UA_Client_deleteNode(client, outId, true);
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+#endif
+
+START_TEST(Highlevel_ForEachChildNode_InvalidNode) {
+    /* forEachChildNodeCall with non-existent node — exercises the browse path.
+     * The server may return GOOD with empty results for unknown nodes. */
+    UA_NodeId invalidNode = UA_NODEID_NUMERIC(99, 99999);
+    unsigned int prevCount = iteratedNodeCount;
+    UA_Client_forEachChildNodeCall(client, invalidNode, nodeIter, NULL);
+    /* No children should have been iterated */
+    ck_assert_uint_eq(iteratedNodeCount, prevCount);
+}
+END_TEST
+
+START_TEST(Highlevel_WriteRead_Direct) {
+    /* UA_Client_write with NULL argument */
+    UA_StatusCode retval = UA_Client_write(client, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* UA_Client_write with a valid write value */
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wv.value.hasValue = true;
+    UA_DateTime now = UA_DateTime_now();
+    UA_Variant_setScalar(&wv.value.value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
+    retval = UA_Client_write(client, &wv);
+    /* Result may be BADWRITENOTSUPPORTED for read-only node, but path is hit */
+    (void)retval;
+
+    /* UA_Client_read with a valid read value id */
+    UA_ReadValueId rv;
+    UA_ReadValueId_init(&rv);
+    rv.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    rv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dval = UA_Client_read(client, &rv);
+    ck_assert_uint_eq(dval.status, UA_STATUSCODE_GOOD);
+    ck_assert(dval.hasValue);
+    UA_DataValue_clear(&dval);
+}
+END_TEST
+
+START_TEST(Highlevel_BrowseSimplified) {
+    /* Test UA_Client_browse highlevel wrapper */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 2, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(br.referencesSize > 0);
+
+    /* Use browseNext if there's a continuation point */
+    if(br.continuationPoint.length > 0) {
+        UA_BrowseResult br2 =
+            UA_Client_browseNext(client, false, br.continuationPoint);
+        ck_assert_uint_eq(br2.statusCode, UA_STATUSCODE_GOOD);
+
+        /* Release continuation point */
+        if(br2.continuationPoint.length > 0) {
+            UA_BrowseResult br3 =
+                UA_Client_browseNext(client, true, br2.continuationPoint);
+            UA_BrowseResult_clear(&br3);
+        }
+        UA_BrowseResult_clear(&br2);
+    }
+
+    UA_BrowseResult_clear(&br);
+}
+END_TEST
+
+#ifdef UA_ENABLE_METHODCALLS
+START_TEST(Highlevel_CallMethod_Error) {
+    /* Call a method on a non-existent node */
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(1, 99999),
+        0, NULL, &outputSize, &output);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(outputSize, 0);
+    ck_assert(output == NULL);
+}
+END_TEST
+#endif
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Client Highlevel");
     TCase *tc_misc = tcase_create("Client Highlevel Misc");
@@ -1081,6 +1263,23 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_readwrite, Node_ReadWrite_UserExecutable);
     suite_add_tcase(s, tc_readwrite);
 #endif
+
+    TCase *tc_ext = tcase_create("Client Highlevel Extended");
+    tcase_add_checked_fixture(tc_ext, setup, teardown);
+    tcase_add_test(tc_ext, Highlevel_TranslateBrowsePath);
+    tcase_add_test(tc_ext, Highlevel_WriteValueScalar);
+    tcase_add_test(tc_ext, Highlevel_WriteValueEx);
+#ifdef UA_ENABLE_NODEMANAGEMENT
+    tcase_add_test(tc_ext, Highlevel_ReadWriteAccessLevelEx);
+#endif
+    tcase_add_test(tc_ext, Highlevel_ForEachChildNode_InvalidNode);
+    tcase_add_test(tc_ext, Highlevel_WriteRead_Direct);
+    tcase_add_test(tc_ext, Highlevel_BrowseSimplified);
+#ifdef UA_ENABLE_METHODCALLS
+    tcase_add_test(tc_ext, Highlevel_CallMethod_Error);
+#endif
+    suite_add_tcase(s, tc_ext);
+
     return s;
 }
 

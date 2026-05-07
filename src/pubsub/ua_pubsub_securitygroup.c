@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2019 ifak e.V. Magdeburg (Holger Zipper)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/server_pubsub.h>
@@ -68,7 +69,7 @@ UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
 }
 
 static UA_StatusCode
-generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
+generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     if(!key || !policy)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -88,12 +89,12 @@ generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     seed.data = seedBytes;
     seed.length = UA_PUBSUB_KEYMATERIAL_NONCELENGTH;
     memset(seed.data, 0, seed.length);
-    retVal = policy->symmetricModule.generateNonce(policy->policyContext, &secret);
-    retVal |= policy->symmetricModule.generateNonce(policy->policyContext, &seed);
+    retVal = policy->generateNonce(policy, NULL, &secret);
+    retVal |= policy->generateNonce(policy, NULL, &seed);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
-    retVal = policy->symmetricModule.generateKey(policy->policyContext, &secret, &seed, key);
+    retVal = policy->generateKey(policy, NULL, &secret, &seed, key);
     return retVal;
 }
 
@@ -110,7 +111,7 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
 
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_ByteString newKey;
-    size_t keyLength = keyStorage->policy->symmetricModule.secureChannelNonceLength;
+    size_t keyLength = keyStorage->policy->nonceLength;
 
     retval = UA_ByteString_allocBuffer(&newKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -188,7 +189,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
     sg->keyStorage = ks;
 
     UA_ByteString currentKey;
-    size_t keyLength = ks->policy->symmetricModule.secureChannelNonceLength;
+    size_t keyLength = ks->policy->nonceLength;
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     retval = generateKeyData(ks->policy, &currentKey);
 

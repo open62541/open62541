@@ -1,0 +1,182 @@
+// Example JSON5 client configuration for UA_Client_newFromFile() and
+// UA_ClientConfig_loadFromFile().
+//
+// See client.c for the exact meaning of the fields. This file intentionally
+// documents every currently supported key.
+{
+  // Response timeout in ms. 0 disables request timeouts.
+  timeout: 1000,
+
+  // Self-description of the client application.
+  applicationDescription: {
+    applicationUri: "urn:open62541.client.application",
+    productUri: "urn:open62541.example.client",
+    applicationName: {
+      locale: "en-US",
+      text: "open62541 JSON5 Client"
+    }
+  },
+
+  /* Connection Configuration */
+
+  // URI of the server endpoint to connect to.
+  endpointUrl: "opc.tcp://localhost:4840",
+
+  // Client-defined session name.
+  sessionName: "open62541 JSON5 session",
+
+  // Preferred locales, ordered by priority.
+  sessionLocaleIds: ["en-US", "de-DE"],
+
+  // UserIdentityToken for session authentication. If omitted or empty,
+  // Anonymous authentication is used.
+  // userIdentityToken: {
+  //   type: "UserName",
+  //   userName: "user",
+  //   password: "password",
+
+  //   // Optional algorithm hint for encrypted usernames.
+  //   // encryptionAlgorithm: "http://www.w3.org/2001/04/xmlenc#rsa-oaep",
+
+  //   // Alternative certificate-based authentication:
+  //   // type: "Certificate",
+  //   // certificateData: "./certs/user_cert.der",
+  // },
+
+  // Only open a SecureChannel, without creating a Session.
+  noSession: false,
+
+  // Do not reconnect the SecureChannel automatically after connection loss.
+  noReconnect: false,
+
+  // Do not create a new Session automatically when the current one is lost.
+  noNewSession: false,
+
+  // Requested SecureChannel lifetime in ms.
+  secureChannelLifeTime: 600000,
+
+  // Requested Session timeout in ms.
+  requestedSessionTimeout: 1200000,
+
+  // Local OPC UA connection limits and buffer sizes.
+  localConnectionConfig: {
+    protocolVersion: 0,
+    recvBufferSize: 65535,
+    sendBufferSize: 65535,
+    localMaxMessageSize: 0,
+    remoteMaxMessageSize: 0,
+    localMaxChunkCount: 0,
+    remoteMaxChunkCount: 0,
+  },
+
+  // Background connectivity check interval in ms. 0 disables the check.
+  connectivityCheckInterval: 3000,
+
+  // Enable SO_REUSEADDR for OPC UA TCP transport.
+  tcpReuseAddr: true,
+
+  // Optional explicit EndpointDescription. Use this when endpoint settings are
+  // already known and should be pinned.
+  //endpoint: {
+  //  endpointUrl: "opc.tcp://localhost:4840",
+  //  server: {
+  //    applicationUri: "urn:open62541.server.application",
+  //    productUri: "urn:open62541.example.server",
+  //    applicationName: {
+  //      locale: "en-US",
+  //      text: "open62541 JSON5 Server"
+  //    },
+  //    applicationType: "Server",
+  //    discoveryUrls: ["opc.tcp://localhost:4840"]
+  //  },
+  //  securityMode: "None",
+  //  securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+  //  userIdentityTokens: [
+  //    {
+  //      policyId: "anonymous",
+  //      tokenType: "Anonymous",
+  //      securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+  //    },
+  //    {
+  //      policyId: "username",
+  //      tokenType: "UserName",
+  //      securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+  //    },
+  //    {
+  //      policyId: "certificate",
+  //      tokenType: "Certificate",
+  //      securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256"
+  //    }
+  //  ],
+  //  transportProfileUri: "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary",
+  //  securityLevel: 0,
+  //},
+
+  // Select one user-token policy from the endpoint.
+  userTokenPolicy: {
+    // policyId: "...",
+    tokenType: "Anonymous",
+
+    // Alternative token types:
+
+    /*
+    tokenType: "UserName",
+    userName: "user",
+    password: "password",
+    // Optional algorithm hint for encrypted usernames.
+    // encryptionAlgorithm: "http://www.w3.org/2001/04/xmlenc#rsa-oaep",
+    */
+
+    /*
+    tokenType: "Certificate",
+    certificateData: "./certs/user_cert.der",
+    */
+
+    // TODO: unsupported
+    // tokenType: "IssuedToken",
+  },
+
+  /* Endpoint Filtering */
+
+  //applicationUri: "urn:open62541.client.application",
+  securityMode: "None",
+  securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+  authSecurityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+
+  /* Security Configuration */
+
+  // securityPolicies: [
+  //   {
+  //     policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+  //     certificate: "./certs/client_cert.der",
+  //     privateKey: "./certs/client_key.pem"
+  //   }
+  // ],
+  // authSecurityPolicies: [
+  //   {
+  //     policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+  //     certificate: "./certs/client_auth_cert.der",
+  //     privateKey: "./certs/client_auth_key.pem"
+  //   }
+  // ],
+
+  // Allow plain-text username/password over SecurityPolicy#None.
+  allowNonePolicyPassword: false,
+
+  // TrustList size limit in bytes (0 means unlimited).
+  maxTrustListSize: 20,
+
+  // Rejected certificate list size limit in bytes (0 means unlimited).
+  maxRejectedListSize: 20,
+
+  /* Other */
+
+  // Predefined namespace URI table for stable namespace index mapping.
+  namespaces: [
+    "http://opcfoundation.org/UA/",
+    "urn:open62541.example.namespace"
+  ],
+
+  // Number of PublishRequests kept in flight for subscriptions.
+  outStandingPublishRequests: 4,
+}

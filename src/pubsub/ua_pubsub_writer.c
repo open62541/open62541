@@ -211,6 +211,32 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         /* Save the current version of the connected PublishedDataSet */
         dsw->connectedDataSetVersion = pds->dataSetMetaData.configurationVersion;
 
+        /* Warn about structures containing strings with RawData encoding.
+         * MaxStringLength padding is only applied for top-level
+         * String/ByteString fields, not for strings nested inside
+         * structures. */
+        if(dswConfig->dataSetFieldContentMask &
+           (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
+            for(size_t i = 0; i < pds->dataSetMetaData.fieldsSize; i++) {
+                const UA_FieldMetaData *fmd = &pds->dataSetMetaData.fields[i];
+                const UA_DataType *type =
+                    UA_findDataTypeWithCustom(&fmd->dataType,
+                                              psm->sc.server->config.customDataTypes);
+                if(type &&
+                   (type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+                    type->typeKind == UA_DATATYPEKIND_UNION ||
+                    type->typeKind == UA_DATATYPEKIND_OPTSTRUCT) &&
+                   typeContainsString(type, 0)) {
+                    UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                                          "DataSetWriter field %.*s uses a structure "
+                                          "type that contains String/ByteString members. "
+                                          "MaxStringLength padding is not applied for "
+                                          "strings inside structures with RawData encoding.",
+                                          (int)fmd->name.length, fmd->name.data);
+                }
+            }
+        }
+
         if(psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
             /* Initialize the queue for the last values */
             if(pds->fieldSize > 0) {
@@ -721,7 +747,7 @@ UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(getPSM(server), dswId);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;;
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(dsw) {
         *state = dsw->head.state;
         res = UA_STATUSCODE_GOOD;
@@ -830,10 +856,6 @@ UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
         UA_DataSetWriterConfig_clear(&dsw->config);
         dsw->config = newConfig;
     }
-
-    /* Call the state-machine. This can move the connection state from _ERROR to
-     * _DISABLED. */
-    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
 
     unlockServer(server);
     return res;

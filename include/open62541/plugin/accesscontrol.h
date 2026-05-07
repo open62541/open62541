@@ -43,7 +43,18 @@ struct UA_AccessControl {
      *
      * Note that this callback can be called several times for a Session. For
      * example when a Session is recovered (activated) on a new
-     * SecureChannel. */
+     * SecureChannel.
+     *
+     * The following checks are performed in the server before calling
+     * activateSession:
+     *
+     * - Select matching Endpoint/UserTokenPolicy (compare token type,
+     *   SecureChannel and PolicyId from the UserIdentityToken)
+     * - Cryptographic checks:
+     *   - Check the encryption algortihm from the UserIdentityToken
+     *   - UsernamePassword/IssuedToken: Decrypt the secret
+     *   - Check the x509 auth certificate signature and validate the
+     *     certificate against the server's sessionPKI */
     UA_StatusCode (*activateSession)(UA_Server *server, UA_AccessControl *ac,
                                      const UA_EndpointDescription *endpointDescription,
                                      const UA_ByteString *secureChannelRemoteCertificate,
@@ -103,6 +114,10 @@ struct UA_AccessControl {
                                   const UA_NodeId *nodeId, void *nodeContext);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Allow creating a subscription */
+    UA_Boolean (*allowCreateSubscription)(UA_Server *server, UA_AccessControl *ac,
+                                          const UA_NodeId *sessionId, void *sessionContext);
+
     /* Allow transfer of a subscription to another session. The Server shall
      * validate that the Client of that Session is operating on behalf of the
      * same user */

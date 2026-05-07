@@ -148,7 +148,7 @@ add_node_integration_test "DI" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml
 
 add_node_integration_test "DotNet" \
-    $UA_NODESET_PATH/DotNet/Opc.Ua.NodeSet.xml
+    $UA_NODESET_PATH/DotNet/Opc.Ua.PredefinedNodes.xml
 
 add_node_integration_test "FDT" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
@@ -156,11 +156,6 @@ add_node_integration_test "FDT" \
 
 add_node_integration_test "GDS" \
     $UA_NODESET_PATH/GDS/Opc.Ua.Gds.NodeSet2.xml
-
-add_node_integration_test "Flat.Glass" \
-    $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
-    $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
-    $UA_NODESET_PATH/Glass/Flat/Opc.Ua.Glass.NodeSet2.xml
 
 add_node_integration_test "I4AAS" \
     $UA_NODESET_PATH/I4AAS/Opc.Ua.I4AAS.NodeSet2.xml

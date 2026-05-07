@@ -7,7 +7,6 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include <stdlib.h>
 
@@ -142,7 +141,7 @@ int main(int argc, char* argv[]) {
         // print the certificat and private key
         printf("certificate: %.*s\n", (int)certificate.length, certificate.data);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Missing arguments. Arguments are "
                      "<port> <server-certificate.der> <private-key.der> "
                      "[<trustlist1.crl>, ...]");

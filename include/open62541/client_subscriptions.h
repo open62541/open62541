@@ -147,7 +147,12 @@ UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
  *
  * During the creation of a MonitoredItem, the server may return changed
  * adjusted parameters. Check the returned ``UA_CreateMonitoredItemsResponse``
- * to get the current parameters. */
+ * to get the current parameters.
+ *
+ * Be aware that the client may process incoming notifications before receiving
+ * the CreateMonitoredItemsResponse. This is due to the behavior of some server
+ * SDKs. Without this "early processing" we would miss the initial value, which
+ * can be an issue if the value changes at a slow rate. */
 
 /* Provides default values for a new monitored item. */
 static UA_INLINE UA_MonitoredItemCreateRequest
@@ -165,7 +170,8 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
 
 /**
  * The clientHandle parameter cannot be set by the user, any value will be
- * replaced by the client before sending the request to the server. */
+ * replaced by the client with a unique internal ClientHandle value before
+ * sending the request to the server. */
 
 /* Callback for the deletion of a MonitoredItem */
 typedef void (*UA_Client_DeleteMonitoredItemCallback)

@@ -4,7 +4,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server_config_file_based.h>
 
 #include <stdlib.h>
 #include "common.h"
@@ -17,20 +16,22 @@ int main(int argc, char** argv) {
         /* Load server config */
         json_config = loadFile(argv[1]);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Missing argument. Argument are "
                      "<server-config.json5>");
         return EXIT_FAILURE;
     }
 
     /* Alternative API function */
-//    UA_Server *server = UA_Server_new();
-//    UA_ServerConfig *config = UA_Server_getConfig(server);
-//    retval = UA_ServerConfig_setFromFile(config, json_config);
-//    if(retval != UA_STATUSCODE_GOOD) {
-//        UA_Server_delete(server);
-//        return EXIT_FAILURE;
-//    }
+    /*
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    retval = UA_ServerConfig_setFromFile(config, json_config);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
+    */
 
     UA_Server *server = UA_Server_newFromFile(json_config);
 

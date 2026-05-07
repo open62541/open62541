@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Spec namespace BSD used by test_cross_ns_types.py (different-definition case).
+     SharedEnum has an EXTRA value compared to cross_ns_base.bsd -> generator must fail. -->
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://test.org/CrossNsDiff/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://test.org/CrossNsDiff/">
+
+  <!-- Different definition: extra Val2 value -> must be rejected -->
+  <opc:EnumeratedType LengthInBits="32" Name="SharedEnum">
+    <opc:EnumeratedValue Name="Val0" Value="0"/>
+    <opc:EnumeratedValue Name="Val1" Value="1"/>
+    <opc:EnumeratedValue Name="Val2" Value="2"/>
+  </opc:EnumeratedType>
+
+</opc:TypeDictionary>

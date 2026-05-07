@@ -12,6 +12,8 @@
 
 _UA_BEGIN_DECLS
 
+#ifdef UA_ENABLE_HISTORIZING
+
 typedef struct UA_HistoryDatabase UA_HistoryDatabase;
 
 struct UA_HistoryDatabase {
@@ -192,6 +194,8 @@ struct UA_HistoryDatabase {
     /* Add more function pointer here.
      * For example for read_event, read_annotation, update_details */
 };
+
+#endif /* UA_ENABLE_HISTORIZING */
 
 _UA_END_DECLS
 

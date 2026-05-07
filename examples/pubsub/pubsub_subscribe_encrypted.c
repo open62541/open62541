@@ -19,15 +19,15 @@
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
 
-UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
-UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
-UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+static UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+static UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
+static UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 
-UA_NodeId connectionIdentifier;
-UA_NodeId readerGroupIdentifier;
-UA_NodeId readerIdentifier;
+static UA_NodeId connectionIdentifier;
+static UA_NodeId readerGroupIdentifier;
+static UA_NodeId readerIdentifier;
 
-UA_DataSetReaderConfig readerConfig;
+static UA_DataSetReaderConfig readerConfig;
 
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 

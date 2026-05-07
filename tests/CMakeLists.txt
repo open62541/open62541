@@ -6,8 +6,10 @@ if(MSVC)
         $<$<CONFIG:Release>:/MD>
     )
 else()
-    add_compile_options(-Wno-unused-variable -Wno-unused-function)
-    add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
+    add_compile_options(-Wno-unused-variable -Wno-unused-function -Wno-shadow)
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
+    endif()
 endif()
 
 # Check dependency
@@ -78,13 +80,14 @@ endif()
 
 # Use additional plugins for testing
 set(test_plugin_sources
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/test_helpers.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 
 # Network replay tests currently require a Linux environment.
 # Also only do it for 64bit builds, as there is a bug in the Debian multi-arch installation.
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND NOT UA_ARCHITECTURE_LWIP)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
     list(APPEND test_plugin_sources
                 ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
     list(APPEND LIBS pcap)
@@ -145,7 +148,15 @@ macro(add_test_no_valgrind TEST_NAME)
     endif()
 endmacro()
 
-add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+# On multi-config generators (Visual Studio) CTest requires -C <config> so that
+# generator expressions in test commands (and non-standard executables like
+# Python) are resolved correctly.  On single-config generators (Makefiles,
+# Ninja) no -C argument is needed.
+if(CMAKE_CONFIGURATION_TYPES)
+    add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --verbose)
+else()
+    add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+endif()
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
@@ -172,10 +183,34 @@ endfunction()
 ua_add_test(check_types_builtin.c)
 ua_add_test(check_ziptree.c)
 ua_add_test(check_mp_printf.c)
+ua_add_test(check_base64.c)
+ua_add_test(check_dtoa.c)
+ua_add_test(check_itoa.c)
+ua_add_test(check_libc_time.c)
+ua_add_test(check_parse_num.c)
+ua_add_test(check_pcg_basic.c)
+ua_add_test(check_utf8.c)
+ua_add_test(check_musl_inet_pton.c)
 
 if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
     ua_add_test(check_types_builtin_json.c)
+    ua_add_test(check_types_json_encode.c)
+    ua_add_test(check_types_json_decode.c)
+
+    configure_file(${CMAKE_SOURCE_DIR}/tests/server/server_json_config.json5 ${CMAKE_BINARY_DIR}/tests/server_json_config.json5 COPYONLY)
+    ua_add_test(server/check_server_json_config.c)
+
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_json_config.json5 ${CMAKE_BINARY_DIR}/tests/client_json_config.json5 COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_json_config_username.json5 ${CMAKE_BINARY_DIR}/tests/client_json_config_username.json5 COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_json_config_certificate.json5 ${CMAKE_BINARY_DIR}/tests/client_json_config_certificate.json5 COPYONLY)
+    ua_add_test(client/check_client_json_config.c)
+
+    # Copy client and server certificates and keys for test
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_cert.der ${CMAKE_BINARY_DIR}/tests/client_cert.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
 
     if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encoding_json.c)
@@ -186,22 +221,33 @@ endif()
 if(UA_ENABLE_XML_ENCODING)
     ua_add_test(check_yxml.c)
     ua_add_test(check_types_builtin_xml.c)
+    ua_add_test(check_xml_encoding_roundtrip.c)
 endif()
 
 ua_add_test(check_types_memory.c)
 ua_add_test(check_types_range.c)
+ua_add_test(check_types_parse.c)
 
-if(UA_ENABLE_PARSING)
-    ua_add_test(check_types_parse.c)
-    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        ua_add_test(server/check_eventfilter_parser.c)
-    endif()
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    ua_add_test(server/check_eventfilter_parser.c)
 endif()
 
 ua_add_test(check_types_custom.c)
 ua_add_test(check_chunking.c)
 ua_add_test(check_utils.c)
 ua_add_test(check_kvm_utils.c)
+ua_add_test(check_util_functions.c)
+ua_add_test(check_types_nodeid_copy.c)
+ua_add_test(check_types_builtin_variant.c)
+ua_add_test(check_types_range_lookup.c)
+ua_add_test(check_types_order.c)
+ua_add_test(check_types_order_struct.c)
+ua_add_test(check_utils_trustlist_path.c)
+ua_add_test(check_types_copy_complex.c)
+ua_add_test(check_types_print.c)
+ua_add_test(check_encoding_roundtrip.c)
+ua_add_test(check_types_builtin_binary.c)
+ua_add_test(check_utils_url_kvm.c)
 ua_add_test(check_securechannel.c)
 ua_add_test(check_timer.c)
 ua_add_test(check_eventloop.c)
@@ -273,8 +319,26 @@ ua_add_test(server/check_server.c)
 ua_add_test(server/check_server_jobs.c)
 ua_add_test(server/check_server_userspace.c)
 ua_add_test(server/check_node_inheritance.c)
+ua_add_test(server/check_server_utils.c)
+ua_add_test(server/check_nodes.c)
+ua_add_test(server/check_server_diagnostics.c)
+ua_add_test(server/check_server_readwrite.c)
+ua_add_test(server/check_server_attr_wrappers.c)
+ua_add_test(server/check_services_nodemanagement_callbacks.c)
+ua_add_test(server/check_server_ns0_diagnostics.c)
+ua_add_test(server/check_server_node_services.c)
+ua_add_test(server/check_server_client_readwrite.c)
+ua_add_test(server/check_services_attributes_all.c)
+
+if(UA_ENABLE_RBAC)
+    ua_add_test(server/check_server_rbac.c)
+    ua_add_test(server/check_server_rbac_permissions.c)
+    ua_add_test(server/check_server_rbac_client.c)
+    ua_add_test(server/check_server_rbac_interlocked.c)
+endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
+    ua_add_test(server/check_services_subscriptions_modify.c)
     ua_add_test(server/check_local_monitored_item.c)
 endif()
 
@@ -359,11 +423,16 @@ ua_add_test(client/check_activateSession.c)
 ua_add_test(client/check_activateSessionAsync.c)
 ua_add_test(client/check_client_securechannel.c)
 ua_add_test(client/check_client_async.c)
+ua_add_test(client/check_client_async_read.c)
 ua_add_test(client/check_client_async_connect.c)
 ua_add_test(client/check_client_highlevel.c)
+ua_add_test(check_client_highlevel_read.c)
+ua_add_test(check_client_highlevel_write.c)
+ua_add_test(client/check_client_highlevel_readwrite.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(client/check_client_subscriptions.c)
+    ua_add_test(client/check_client_subscriptions_datachange.c)
     ua_add_test(client/check_subscriptionWithactivateSession.c)
 endif()
 
@@ -376,6 +445,9 @@ endif()
 if(UA_ENABLE_ENCRYPTION)
     ua_add_test(client/check_client_encryption.c)
     ua_add_test(encryption/check_crl_validation.c)
+    ua_add_test(encryption/check_cert_validation_client_response.c)
+    ua_add_test(encryption/check_ca_chain.c)
+    ua_add_test(server/check_server_getendpoints.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)
@@ -422,8 +494,19 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_certificategroup.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
     ua_add_test(encryption/check_encryption_eccnistp256.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
+    ua_add_test(encryption/check_encryption_ecc.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
+    ua_add_test(encryption/check_ecc_config.c)
 endif()
 
 # Tests for Nodeset Compiler
@@ -441,6 +524,28 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 endif()
 
 # Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_FORCE_32BIT)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
     ua_add_test(network_replay/check_network_replay.c)
+endif()
+
+# Cross-SDK interoperability test binaries (standalone, no check framework)
+if(UA_BUILD_INTEROP_TESTS)
+    if(NOT TARGET interop_server)
+        add_executable(interop_server interop/interop_server.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(interop_server ${LIBS})
+        set_target_properties(interop_server PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+    if(NOT TARGET check_interop_client)
+        add_executable(check_interop_client interop/check_interop_client.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_interop_client ${LIBS})
+        set_target_properties(check_interop_client PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
 endif()

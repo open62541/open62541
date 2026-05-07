@@ -54,16 +54,17 @@
 #cmakedefine UA_ENABLE_DA
 #cmakedefine UA_ENABLE_DIAGNOSTICS
 #cmakedefine UA_ENABLE_HISTORIZING
-#cmakedefine UA_ENABLE_PARSING
+#cmakedefine UA_ENABLE_AUDITING
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
-#cmakedefine UA_ENABLE_JSON_ENCODING_LEGACY
 #cmakedefine UA_ENABLE_XML_ENCODING
+#cmakedefine UA_ENABLE_NODESETLOADER
 #cmakedefine UA_ENABLE_MQTT
 #cmakedefine UA_ENABLE_NODESET_INJECTOR
 #cmakedefine UA_INFORMATION_MODEL_AUTOLOAD
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
 #cmakedefine UA_ENABLE_GDS_PUSHMANAGEMENT
+#cmakedefine UA_ENABLE_RBAC
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
@@ -71,6 +72,16 @@
 #define UA_ENABLE_ENCRYPTION
 #endif
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+/* Role-Based Access Control (RBAC)
+ * Configurable storage size (in bytes) for the node permission index.
+ * Valid options: 2, 4 (default), 8
+ * The index references a position in the server's internal rolePermissions
+ * array. Larger sizes allow more distinct role-permission configurations
+ * at the cost of increased per-node memory usage. */
+#ifndef UA_ROLEPERMISSIONS_NODE_SIZE_BYTE
+#define UA_ROLEPERMISSIONS_NODE_SIZE_BYTE 4
+#endif
 
 /* Multithreading */
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
@@ -215,13 +226,16 @@
  * Thread-local variables
  * ---------------------- */
 #if UA_MULTITHREADING >= 100
-# if defined(__GNUC__) /* Also covers clang */
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define UA_THREAD_LOCAL _Thread_local /* C11 or newer */
+# elif defined(__GNUC__) || defined(__clang__)
 #  define UA_THREAD_LOCAL __thread
 # elif defined(_MSC_VER)
 #  define UA_THREAD_LOCAL __declspec(thread)
+# else
+#  error "No thread-local storage keyword available on this compiler."
 # endif
-#endif
-#ifndef UA_THREAD_LOCAL
+#else
 # define UA_THREAD_LOCAL
 #endif
 
@@ -338,11 +352,31 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
 #else
-# include <stdlib.h>
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
+# ifdef UA_ARCHITECTURE_ZEPHYR /* try to use zephyr's k_malloc and k_alloc */
+/*cant use <zephyr/version.h> since v2.7.0 and older stores the file in another place*/
+#  include <version.h> /* zephyr version. */
+/* must be 3.7.0 or higher */
+#  if (KERNEL_VERSION_MAJOR >= 4 || \
+      (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
+#   include <zephyr/kernel.h>
+#   define UA_free k_free
+#   define UA_malloc k_malloc
+#   define UA_calloc k_calloc
+#   define UA_realloc k_realloc
+#  else
+#   include <stdlib.h>
+#   define UA_free free
+#   define UA_malloc malloc
+#   define UA_calloc calloc
+#   define UA_realloc realloc
+#  endif
+# else
+#  include <stdlib.h>
+#  define UA_free free
+#  define UA_malloc malloc
+#  define UA_calloc calloc
+#  define UA_realloc realloc
+# endif /*UA_ARCHITECTURE_ZEPHYR*/
 #endif
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
@@ -567,20 +601,17 @@ UA_LOCK_ASSERT(UA_Lock *lock) {
 # define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
 # define UA_FUNC_ATTR_CONST __attribute__((const))
-# define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 # define UA_FORMAT(X,Y) __attribute__ ((format (printf, X, Y)))
 #elif defined(_MSC_VER) && _MSC_VER >= 1800
 # include <sal.h>
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
-# define UA_FUNC_ATTR_WARN_UNUSED_RESULT _Check_return_
 # define UA_FORMAT(X,Y)
 #else
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
-# define UA_FUNC_ATTR_WARN_UNUSED_RESULT
 # define UA_FORMAT(X,Y)
 #endif
 
@@ -690,7 +721,7 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 # define UA_FLOAT_IEEE754 1
 #elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__) || \
     defined(__ia64__) || defined(__powerpc__) || defined(__sparc__) || \
-    defined(__arm__)
+    defined(__arm__) || defined(__aarch64__) || defined(__arm64__)
 # define UA_FLOAT_IEEE754 1
 #elif defined(__STDC_IEC_559__)
 # define UA_FLOAT_IEEE754 1

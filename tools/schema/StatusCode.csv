@@ -96,7 +96,7 @@ BadNumericOverflow,0x81120000,"The number was not accepted because of a numeric 
 BadServerUriInvalid,0x804F0000,"The ServerUri is not a valid URI."
 BadServerNameMissing,0x80500000,"No ServerName was specified."
 BadDiscoveryUrlMissing,0x80510000,"No DiscoveryUrl was specified."
-BadSempahoreFileMissing,0x80520000,"The semaphore file specified by the client is not valid."
+BadSemaphoreFileMissing,0x80520000,"The semaphore file specified by the client is not valid."
 BadRequestTypeInvalid,0x80530000,"The security token request type is not valid."
 BadSecurityModeRejected,0x80540000,"The security mode does not meet the requirements set by the server."
 BadSecurityPolicyRejected,0x80550000,"The security policy does not meet the requirements set by the server."

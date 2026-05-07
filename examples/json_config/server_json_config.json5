@@ -1,71 +1,96 @@
-// JSON 5 server configuration
+// Example JSON5 server configuration for UA_Server_newFromFile() and
+// UA_ServerConfig_loadFromFile().
+//
+// This file intentionally documents every currently supported key. Keep the
+// active values runnable for a local example server and use comments for
+// optional or feature-gated alternatives.
 {
-  // Server Description
+  // Build information exposed by the server.
   buildInfo: {
-    productUri: "build.product.test.org",
-    manufacturerName: "Manufacture GmbH",
-    productName: "Product Name",
-    softwareVersion: "0.1.0",
-    buildNumber: "0.9.4",
-    buildDate: "2022-11-02T15:31:03Z",
+    productUri: "urn:open62541.example.server",
+    manufacturerName: "open62541",
+    productName: "open62541 JSON5 Server",
+    softwareVersion: "1.0.0",
+    buildNumber: "1",
+    buildDate: "2026-03-20T00:00:00Z",
   },
-  // The applicationType is not just descriptive, it changes the actual functionality of the server.
-  // It just sets the value in the information model (https://reference.opcfoundation.org/Core/Part4/v104/docs/7.1).
+
+  // ApplicationDescription values published in discovery.
   applicationDescription: {
     applicationUri: "urn:open62541.server.application",
-    productUri: "urn:product.test.org",
+    productUri: "urn:open62541.example.server",
     applicationName: {
-      locale: "en-EN",
-      text: "Test Application"
+      locale: "en-US",
+      text: "open62541 JSON5 Server"
     },
-    // Server = 0, Client = 1, Client&Server = 2, Discovery_Server = 3
-    applicationType: 0,
-    gatewayServerUri: "GATEWAY",
-    discoveryProfileUri: "DISC",
-    discoveryUrls: [
-      "opc.tcp://10.0.20.240:2017",
-      "opc.tcp://10.0.20.240:2018",
-      "opc.tcp://10.0.20.241:2020"
-    ],
+    // Accepted strings: "Client", "Server", "ClientAndServer",
+    // "DiscoveryServer". Numeric enum values also work.
+    applicationType: "Server",
+    // gatewayServerUri: "",
+    // discoveryProfileUri: "",
+    // discoveryUrls: [
+    //   "opc.tcp://localhost:4840"
+    // ],
   },
-  // Value is in milliseconds.
-  shutdownDelay: 5000.00,
 
-  // Verify that the server sends a timestamp in the request header.
-  //    DEFAULT = 0
-  //    ABORT = 1  /* Abort the operation and return an error code */
-  //    WARN = 2   /* Print a message in the logs and continue */
-  //    ACCEPT = 3 /* Continue and disregard the broken rule */
+  // Delay in milliseconds before the server process shuts down after a stop.
+  shutdownDelay: 5000.0,
+
+  // Rule handling values:
+  //   0 = DEFAULT, 1 = ABORT, 2 = WARN, 3 = ACCEPT
   verifyRequestTimestamp: 0,
-  // Variables (that don't have a DataType of BaseDataType) must not have an empty variant value.
-  // The default behaviour is to auto-create a matching zeroed-out value for empty VariableNodes when they are added.
-  //    DEFAULT = 0
-  //    ABORT = 1  /* Abort the operation and return an error code */
-  //    WARN = 2   /* Print a message in the logs and continue */
-  //    ACCEPT = 3 /* Continue and disregard the broken rule */
   allowEmptyVariables: 0,
 
-  // Networking
-  // Set up the local ServerUrls. They are used during startup to initialize the server sockets.
+  // Socket listener setup. All listed URLs are opened on startup.
   serverUrls: [
     "opc.tcp://localhost:4840",
   ],
   tcpEnabled: true,
   tcp: {
-    tcpBufSize: 64000,
+    tcpBufSize: 65535,
     tcpMaxMsgSize: 0,
     tcpMaxChunks: 0,
   },
 
-  // Limits for SecureChannels
+  // Endpoint definitions exposed to clients. Match the client configuration.
+  // endpoints: [
+  //   {
+  //     endpointUrl: "opc.tcp://localhost:4840",
+  //     securityMode: "None",
+  //     securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+  //     transportProfileUri: "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary",
+  //     securityLevel: 0,
+  //     userIdentityTokens: [
+  //       {
+  //         policyId: "anonymous",
+  //         tokenType: "Anonymous",
+  //         securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+  //       },
+  //       {
+  //         policyId: "username",
+  //         tokenType: "UserName",
+  //         securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+  //       },
+  //       {
+  //         policyId: "certificate",
+  //         tokenType: "Certificate",
+  //         securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256"
+  //       }
+  //     ]
+  //   }
+  // ],
+
+  // Allow SecurityPolicy#None only on discovery endpoints.
+  securityPolicyNoneDiscoveryOnly: false,
+
+  // Apply modelling rules automatically when creating instances.
+  modellingRulesOnInstances: false,
+
+  // Resource limits.
   maxSecureChannels: 10,
   maxSecurityTokenLifetime: 300000,
-
-  // Limits for Sessions
   maxSessions: 50,
-  maxSessionTimeout: 3600000,
-
-  // Operation limits
+  maxSessionTimeout: 3600000.0,
   maxNodesPerRead: 10000,
   maxNodesPerWrite: 10000,
   maxNodesPerMethodCall: 10000,
@@ -74,36 +99,39 @@
   maxNodesPerTranslateBrowsePathsToNodeIds: 10000,
   maxNodesPerNodeManagement: 10000,
   maxMonitoredItemsPerCall: 10000,
-
-  // Limits for Requests
   maxReferencesPerNode: 0,
 
-  // Limits for Async Operations
-  asyncOperationTimeout: 120000,
+  // Reverse-connect retry interval in milliseconds.
+  reverseReconnectInterval: 20000,
+
+  // Only available in multithreaded builds.
+  asyncOperationTimeout: 120000.0,
   maxAsyncOperationQueueSize: 1000000,
 
-  // Discovery Multicast
-  mdnsEnabled: false,
-  mdns: {
-    mdnsServerName: "mdnsServerName",
-    // See https://reference.opcfoundation.org/GDS/v105/docs/D
-    serverCapabilities: [
-      // "NA" should be first and only server capability:
-      //"NA"
-      "LDS",
-      "GDS"
-    ],
-    mdnsInterfaceIP: "127.0.0.1",
-    mdnsIpAddressList: [
-      1,
-      2,
-      3
-    ]
-  },
+  // Only available when discovery support is enabled.
+  discoveryCleanupTimeout: 60,
 
+  // mDNS / LDS-ME support (UA_ENABLE_DISCOVERY_MULTICAST).
+  // mdnsEnabled: false,
+  // mdns: {
+  //   mdnsServerName: "open62541-json5-server",
+  //   // Common capability tags: "LDS", "DA", "HD", "GDS".
+  //   // Use ["NA"] if no capability should be advertised.
+  //   serverCapabilities: [
+  //     "DA",
+  //     "HD"
+  //   ],
+  //   // Bind to one interface or leave empty for the default.
+  //   mdnsInterfaceIP: "127.0.0.1",
+  //   // Raw IPv4 addresses as unsigned integers. Leave empty to auto-detect.
+  //   mdnsIpAddressList: [
+  //     2130706433
+  //   ]
+  // },
+
+  // Subscription and MonitoredItem limits (UA_ENABLE_SUBSCRIPTIONS).
   subscriptionsEnabled: true,
   subscriptions: {
-    // Limits for Subscriptions
     maxSubscriptions: 100,
     maxSubscriptionsPerSession: 50,
     publishingIntervalLimits: {
@@ -112,41 +140,30 @@
     },
     lifeTimeCountLimits: {
       min: 3,
-      max: 15000
+      max: 15000,
     },
     keepAliveCountLimits: {
       min: 1,
-      max: 100
+      max: 100,
     },
     maxNotificationsPerPublish: 1000,
     enableRetransmissionQueue: true,
     maxRetransmissionQueueSize: 0,
     maxEventsPerNode: 0,
-
-    // Limits for MonitoredItems
     maxMonitoredItems: 0,
     maxMonitoredItemsPerSubscription: 0,
     samplingIntervalLimits: {
       min: 50.0,
-      max: 86400000.0
+      max: 86400000.0,
     },
     queueSizeLimits: {
       min: 1,
-      max: 100
+      max: 100,
     },
-
-    // Limits for PublishRequests
-    maxPublishReqPerSession: 5
+    maxPublishReqPerSession: 5,
   },
 
-  // PubSub Configuration
-  pubsubEnabled: true,
-  pubsub: {
-    enableDeltaFrames: true,
-    enableInformationModelMethods: true
-  },
-
-  // Limits for Historizing
+  // Historizing capability flags (UA_ENABLE_HISTORIZING).
   historizingEnabled: true,
   historizing: {
     accessHistoryDataCapability: false,
@@ -165,37 +182,28 @@
     deleteAtTimeDataCapability: false,
   },
 
-  // Reverse Connect
-  reverseReconnectInterval: 20000,
+  // PubSub feature flags (UA_ENABLE_PUBSUB).
+  pubsubEnabled: true,
+  pubsub: {
+    enableDeltaFrames: true,
+    enableInformationModelMethods: true,
+  },
 
-  // Security Settings
-//  securityPolicies: [
-//    {
-//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15",
-//      certificate: "/path/to/certificate",
-//      privateKey: "/path/to/privateKey"
-//    },
-//    {
-//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256",
-//      certificate: "/path/to/certificate",
-//      privateKey: "/path/to/privateKey"
-//    },
-//    {
-//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
-//      certificate: "/path/to/certificate",
-//      privateKey: "/path/to/privateKey"
-//    },
-//    {
-//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep",
-//      certificate: "/path/to/certificate",
-//      privateKey: "/path/to/privateKey"
-//    },
-//    {
-//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss"",
-//      certificate: "/path/to/certificate",
-//      privateKey: "/path/to/privateKey"
-//    }
-//  ],
+  // Security policy configuration requires encryption support and valid file
+  // paths. Uncomment the entries that should be exposed by the server.
+  // securityPolicies: [
+  //   {
+  //     policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+  //     certificate: "./certs/server_cert.der",
+  //     privateKey: "./certs/server_key.pem"
+  //   },
+  //   {
+  //     policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss",
+  //     certificate: "./certs/server_cert.der",
+  //     privateKey: "./certs/server_key.pem"
+  //   }
+  // ],
 
-//  pkiFolder: "/store",
+  // PKI store folder used by the default certificate verification plugin.
+  // pkiFolder: "./pki",
 }

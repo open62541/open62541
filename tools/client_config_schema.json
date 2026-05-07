@@ -1,0 +1,373 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open62541.org/schemas/client-config.json",
+  "title": "OPC UA Client Configuration",
+  "description": "JSON schema for open62541 client configuration",
+  "type": "object",
+  "properties": {
+    "timeout": {
+      "type": "integer",
+      "description": "Connection timeout in milliseconds",
+      "minimum": 0
+    },
+    "applicationDescription": {
+      "$ref": "#/definitions/ApplicationDescription",
+      "description": "Client application description"
+    },
+    "endpointUrl": {
+      "type": "string",
+      "description": "OPC UA server endpoint URL",
+      "pattern": "^opc\\.tcp://.*"
+    },
+    "sessionName": {
+      "type": "string",
+      "description": "Name of the client session"
+    },
+    "sessionLocaleIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of locale IDs for the session"
+    },
+    "localConnectionConfig": {
+      "$ref": "#/definitions/ConnectionConfig",
+      "description": "Local connection configuration"
+    },
+    "noSession": {
+      "type": "boolean",
+      "description": "Connect without creating a session",
+      "default": false
+    },
+    "noReconnect": {
+      "type": "boolean",
+      "description": "Disable automatic reconnection",
+      "default": false
+    },
+    "noNewSession": {
+      "type": "boolean",
+      "description": "Do not create a new session on reconnect",
+      "default": false
+    },
+    "secureChannelLifeTime": {
+      "type": "integer",
+      "description": "Secure channel lifetime in milliseconds",
+      "minimum": 0
+    },
+    "requestedSessionTimeout": {
+      "type": "integer",
+      "description": "Requested session timeout in milliseconds",
+      "minimum": 0
+    },
+    "connectivityCheckInterval": {
+      "type": "integer",
+      "description": "Interval for connectivity checks in milliseconds",
+      "minimum": 0
+    },
+    "tcpReuseAddr": {
+      "type": "boolean",
+      "description": "Reuse TCP address",
+      "default": true
+    },
+    "endpoint": {
+      "$ref": "#/definitions/EndpointDescription",
+      "description": "Endpoint description"
+    },
+    "userTokenPolicy": {
+      "$ref": "#/definitions/UserTokenPolicy",
+      "description": "User token policy for authentication"
+    },
+    "userIdentityToken": {
+      "$ref": "#/definitions/UserIdentityToken",
+      "description": "User identity token for authentication"
+    },
+    "applicationUri": {
+      "type": "string",
+      "description": "Application URI"
+    },
+    "securityMode": {
+      "$ref": "#/definitions/MessageSecurityMode",
+      "description": "Message security mode"
+    },
+    "securityPolicyUri": {
+      "type": "string",
+      "description": "Security policy URI"
+    },
+    "authSecurityPolicyUri": {
+      "type": "string",
+      "description": "Authentication security policy URI"
+    },
+    "securityPolicies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of security policies"
+    },
+    "authSecurityPolicies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of authentication security policies"
+    },
+    "allowNonePolicyPassword": {
+      "type": "boolean",
+      "description": "Allow password authentication with None security policy",
+      "default": true
+    },
+    "maxTrustListSize": {
+      "type": "integer",
+      "description": "Maximum size of the trust list (only if encryption enabled)",
+      "minimum": 0
+    },
+    "maxRejectedListSize": {
+      "type": "integer",
+      "description": "Maximum size of the rejected list (only if encryption enabled)",
+      "minimum": 0
+    },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of namespace URIs"
+    },
+    "outStandingPublishRequests": {
+      "type": "integer",
+      "description": "Number of outstanding publish requests",
+      "minimum": 0
+    }
+  },
+  "definitions": {
+    "ApplicationDescription": {
+      "type": "object",
+      "properties": {
+        "applicationUri": {
+          "type": "string",
+          "description": "Application URI"
+        },
+        "productUri": {
+          "type": "string",
+          "description": "Product URI"
+        },
+        "applicationName": {
+          "$ref": "#/definitions/LocalizedText",
+          "description": "Application name"
+        },
+        "applicationType": {
+          "$ref": "#/definitions/ApplicationType",
+          "description": "Application type"
+        },
+        "gatewayServerUri": {
+          "type": "string",
+          "description": "Gateway server URI"
+        },
+        "discoveryProfileUri": {
+          "type": "string",
+          "description": "Discovery profile URI"
+        },
+        "discoveryUrls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Discovery URLs"
+        }
+      }
+    },
+    "LocalizedText": {
+      "type": "object",
+      "properties": {
+        "locale": {
+          "type": "string",
+          "description": "Locale identifier (e.g., 'en-US', 'de-DE')"
+        },
+        "text": {
+          "type": "string",
+          "description": "Localized text content"
+        }
+      }
+    },
+    "ApplicationType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["Server", "Client", "ClientAndServer", "DiscoveryServer"]
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      ],
+      "description": "Application type: Server (0), Client (1), ClientAndServer (2), DiscoveryServer (3)"
+    },
+    "ConnectionConfig": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "description": "Protocol version",
+          "minimum": 0
+        },
+        "recvBufferSize": {
+          "type": "integer",
+          "description": "Receive buffer size in bytes",
+          "minimum": 0
+        },
+        "sendBufferSize": {
+          "type": "integer",
+          "description": "Send buffer size in bytes",
+          "minimum": 0
+        },
+        "localMaxMessageSize": {
+          "type": "integer",
+          "description": "Local maximum message size in bytes",
+          "minimum": 0
+        },
+        "remoteMaxMessageSize": {
+          "type": "integer",
+          "description": "Remote maximum message size in bytes",
+          "minimum": 0
+        },
+        "localMaxChunkCount": {
+          "type": "integer",
+          "description": "Local maximum chunk count",
+          "minimum": 0
+        },
+        "remoteMaxChunkCount": {
+          "type": "integer",
+          "description": "Remote maximum chunk count",
+          "minimum": 0
+        }
+      }
+    },
+    "EndpointDescription": {
+      "type": "object",
+      "properties": {
+        "endpointUrl": {
+          "type": "string",
+          "description": "Endpoint URL"
+        },
+        "server": {
+          "$ref": "#/definitions/ApplicationDescription",
+          "description": "Server application description"
+        },
+        "serverCertificate": {
+          "type": "string",
+          "description": "Server certificate as base64-encoded string"
+        },
+        "securityMode": {
+          "$ref": "#/definitions/MessageSecurityMode",
+          "description": "Message security mode"
+        },
+        "securityPolicyUri": {
+          "type": "string",
+          "description": "Security policy URI"
+        },
+        "userIdentityTokens": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UserTokenPolicy"
+          },
+          "description": "Supported user identity tokens"
+        },
+        "transportProfileUri": {
+          "type": "string",
+          "description": "Transport profile URI"
+        },
+        "securityLevel": {
+          "type": "integer",
+          "description": "Security level",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "MessageSecurityMode": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["Invalid", "None", "Sign", "SignAndEncrypt"]
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      ],
+      "description": "Message security mode: Invalid (0), None (1), Sign (2), SignAndEncrypt (3)"
+    },
+    "UserTokenPolicy": {
+      "type": "object",
+      "properties": {
+        "policyId": {
+          "type": "string",
+          "description": "Policy identifier"
+        },
+        "tokenType": {
+          "$ref": "#/definitions/UserTokenType",
+          "description": "User token type"
+        },
+        "issuedTokenType": {
+          "type": "string",
+          "description": "Issued token type (only for IssuedToken)"
+        },
+        "issuerEndpointUrl": {
+          "type": "string",
+          "description": "Issuer endpoint URL (only for IssuedToken)"
+        },
+        "securityPolicyUri": {
+          "type": "string",
+          "description": "Security policy URI"
+        }
+      },
+      "required": ["policyId", "tokenType"]
+    },
+    "UserTokenType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["Anonymous", "Username", "Certificate", "IssuedToken"]
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      ],
+      "description": "User token type: Anonymous (0), Username (1), Certificate (2), IssuedToken (3)"
+    },
+    "UserIdentityToken": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/UserTokenType",
+          "description": "User identity token type"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Username (for Username token type)"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password (for Username token type)"
+        },
+        "certificateData": {
+          "type": "string",
+          "description": "Certificate data as base64-encoded string (for Certificate token type)"
+        },
+        "tokenData": {
+          "type": "string",
+          "description": "Token data (for IssuedToken type)"
+        },
+        "encryptionAlgorithm": {
+          "type": "string",
+          "description": "Encryption algorithm URI"
+        }
+      },
+      "required": ["type"]
+    }
+  }
+}

@@ -69,6 +69,7 @@ doc_src/
 /exampleClient_legacy
 /src_generated/
 **/build
+**/build_*
 /cmake-build*
 /tools/certs/certs/*
 Pipfile
@@ -96,3 +97,5 @@ nbbuild/
 dist/
 nbdist/
 .nb-gradle/
+tests/interop/node-opcua/node_modules/
+tests/interop/node-opcua/package-lock.json

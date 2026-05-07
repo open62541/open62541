@@ -486,6 +486,11 @@ newEncryptedClientConfig(const char *username, const char *password) {
 
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
     UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
     identityToken->userName = UA_STRING_ALLOC(username);
     identityToken->password = UA_STRING_ALLOC(password);

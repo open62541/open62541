@@ -1,0 +1,80 @@
+# OPC UA XML encoding dictionary for Variant decoding
+# Provides XML syntax and OPC UA type/field names so the fuzzer
+# can quickly assemble valid structures.
+
+# --- XML syntax tokens ---
+xml_lt="<"
+xml_gt=">"
+xml_slash_gt="/>"
+xml_lt_slash="</"
+xml_space=" "
+xml_eq="="
+xml_quot="\""
+
+# --- Variant / Value wrapper ---
+kw_Value="Value"
+kw_ListOf="ListOf"
+kw_Matrix="Matrix"
+kw_Dimensions="Dimensions"
+kw_Elements="Elements"
+
+# --- Builtin scalar type element names ---
+kw_Boolean="Boolean"
+kw_SByte="SByte"
+kw_Byte="Byte"
+kw_Int16="Int16"
+kw_UInt16="UInt16"
+kw_Int32="Int32"
+kw_UInt32="UInt32"
+kw_Int64="Int64"
+kw_UInt64="UInt64"
+kw_Float="Float"
+kw_Double="Double"
+kw_String="String"
+kw_DateTime="DateTime"
+kw_Guid="Guid"
+kw_ByteString="ByteString"
+kw_XmlElement="XmlElement"
+kw_NodeId="NodeId"
+kw_ExpandedNodeId="ExpandedNodeId"
+kw_StatusCode="StatusCode"
+kw_QualifiedName="QualifiedName"
+kw_LocalizedText="LocalizedText"
+kw_ExtensionObject="ExtensionObject"
+kw_Variant="Variant"
+
+# --- Field names used inside structured types ---
+kw_Identifier="Identifier"
+kw_Code="Code"
+kw_NamespaceIndex="NamespaceIndex"
+kw_Name="Name"
+kw_Locale="Locale"
+kw_Text="Text"
+kw_TypeId="TypeId"
+kw_Body="Body"
+
+# --- Commonly assembled open/close tags ---
+tag_Value_open="<Value>"
+tag_Value_close="</Value>"
+tag_Int64_open="<Int64>"
+tag_Int64_close="</Int64>"
+tag_Int64_empty="<Int64/>"
+tag_Int32_open="<Int32>"
+tag_Int32_close="</Int32>"
+tag_Int32_empty="<Int32/>"
+tag_String_open="<String>"
+tag_String_close="</String>"
+tag_Boolean_open="<Boolean>"
+tag_Boolean_close="</Boolean>"
+tag_Double_open="<Double>"
+tag_Double_close="</Double>"
+tag_Variant_open="<Variant>"
+tag_Variant_close="</Variant>"
+
+# --- Common scalar content values ---
+val_true="true"
+val_false="false"
+val_zero="0"
+val_one="1"
+val_neg="-1"
+val_max64="9223372036854775807"

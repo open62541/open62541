@@ -1159,6 +1159,60 @@ START_TEST(UA_ExpandedNodeId_hashIdentical) {
 }
 END_TEST
 
+START_TEST(UA_ExpandedNodeId_constructors) {
+    /* Test UA_EXPANDEDNODEID_STRING */
+    char testStr[] = "TestString";
+    UA_ExpandedNodeId enStr = UA_EXPANDEDNODEID_STRING(1, testStr);
+    ck_assert_uint_eq(enStr.nodeId.namespaceIndex, 1);
+    ck_assert_int_eq(enStr.nodeId.identifierType, UA_NODEIDTYPE_STRING);
+    UA_String expectedStr = UA_STRING("TestString");
+    ck_assert(UA_String_equal(&enStr.nodeId.identifier.string, &expectedStr));
+    ck_assert(UA_String_equal(&enStr.namespaceUri, &UA_STRING_NULL));
+    ck_assert_uint_eq(enStr.serverIndex, 0);
+
+    /* Test UA_EXPANDEDNODEID_STRING_ALLOC */
+    UA_ExpandedNodeId enStrAlloc = UA_EXPANDEDNODEID_STRING_ALLOC(2, "AllocString");
+    ck_assert_uint_eq(enStrAlloc.nodeId.namespaceIndex, 2);
+    ck_assert_int_eq(enStrAlloc.nodeId.identifierType, UA_NODEIDTYPE_STRING);
+    UA_String expectedAlloc = UA_STRING("AllocString");
+    ck_assert(UA_String_equal(&enStrAlloc.nodeId.identifier.string, &expectedAlloc));
+    UA_ExpandedNodeId_clear(&enStrAlloc);
+
+    /* Test UA_EXPANDEDNODEID_STRING_GUID */
+    UA_Guid testGuid = {0x12345678, 0x1234, 0x1234,
+                        {0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0}};
+    UA_ExpandedNodeId enGuid = UA_EXPANDEDNODEID_STRING_GUID(3, testGuid);
+    ck_assert_uint_eq(enGuid.nodeId.namespaceIndex, 3);
+    ck_assert_int_eq(enGuid.nodeId.identifierType, UA_NODEIDTYPE_GUID);
+    ck_assert(UA_Guid_equal(&enGuid.nodeId.identifier.guid, &testGuid));
+
+    /* Test UA_EXPANDEDNODEID_BYTESTRING */
+    char bsData[] = "ByteData";
+    UA_ExpandedNodeId enBs = UA_EXPANDEDNODEID_BYTESTRING(4, bsData);
+    ck_assert_uint_eq(enBs.nodeId.namespaceIndex, 4);
+    ck_assert_int_eq(enBs.nodeId.identifierType, UA_NODEIDTYPE_BYTESTRING);
+    UA_String expectedBs = UA_STRING("ByteData");
+    ck_assert(UA_String_equal(&enBs.nodeId.identifier.byteString, &expectedBs));
+
+    /* Test UA_EXPANDEDNODEID_BYTESTRING_ALLOC */
+    UA_ExpandedNodeId enBsAlloc = UA_EXPANDEDNODEID_BYTESTRING_ALLOC(5, "AllocByte");
+    ck_assert_uint_eq(enBsAlloc.nodeId.namespaceIndex, 5);
+    ck_assert_int_eq(enBsAlloc.nodeId.identifierType, UA_NODEIDTYPE_BYTESTRING);
+    UA_String expectedBsAlloc = UA_STRING("AllocByte");
+    ck_assert(UA_String_equal(&enBsAlloc.nodeId.identifier.byteString, &expectedBsAlloc));
+    UA_ExpandedNodeId_clear(&enBsAlloc);
+
+    /* Test UA_EXPANDEDNODEID_NODEID */
+    UA_NodeId testNodeId = UA_NODEID_NUMERIC(6, 12345);
+    UA_ExpandedNodeId enFromNodeId = UA_EXPANDEDNODEID_NODEID(testNodeId);
+    ck_assert_uint_eq(enFromNodeId.nodeId.namespaceIndex, 6);
+    ck_assert_int_eq(enFromNodeId.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_uint_eq(enFromNodeId.nodeId.identifier.numeric, 12345);
+    ck_assert(UA_String_equal(&enFromNodeId.namespaceUri, &UA_STRING_NULL));
+    ck_assert_uint_eq(enFromNodeId.serverIndex, 0);
+}
+END_TEST
+
 START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
     // given
     /* UA_Byte data[3] = { 1, 2, 3 }; */
@@ -1823,6 +1877,7 @@ static Suite *testSuite_builtin(void) {
 
     TCase *tc_hash = tcase_create("hash");
     tcase_add_test(tc_hash, UA_ExpandedNodeId_hashIdentical);
+    tcase_add_test(tc_hash, UA_ExpandedNodeId_constructors);
     suite_add_tcase(s, tc_hash);
 
     TCase *tc_copy = tcase_create("copy");

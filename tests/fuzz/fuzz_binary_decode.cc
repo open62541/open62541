@@ -34,6 +34,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if(typeIndex >= UA_TYPES_COUNT)
         return UA_FALSE;
 
+    // For DataValue types, consume 2 extra bytes to construct a
+    // NumericRange for testing UA_DataValue_copyRange
+    uint8_t rangeMin = 0, rangeMax = 0;
+    if(typeIndex == UA_TYPES_DATAVALUE && size >= 2) {
+        rangeMin = data[0];
+        rangeMax = data[1];
+        data += 2;
+        size -= 2;
+    }
+
     void *dst = UA_new(&UA_TYPES[typeIndex]);
     if(!dst)
         return 0;
@@ -79,6 +89,24 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_assert(ret == UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&encoded);
+
+    // Test UA_DataValue_copyRange with fuzz-derived range parameters.
+    // This exercises array sub-range copying where mismatched range
+    // dimensions can cause out-of-bounds access.
+    if(typeIndex == UA_TYPES_DATAVALUE) {
+        UA_NumericRangeDimension dim;
+        dim.min = rangeMin;
+        dim.max = rangeMax;
+        UA_NumericRange range;
+        range.dimensionsSize = 1;
+        range.dimensions = &dim;
+
+        UA_DataValue dstRange;
+        UA_DataValue_init(&dstRange);
+        UA_DataValue_copyRange((UA_DataValue*)dst, &dstRange, range);
+        UA_DataValue_clear(&dstRange);
+    }
+
     UA_delete(dst, &UA_TYPES[typeIndex]);
     return 0;
 }

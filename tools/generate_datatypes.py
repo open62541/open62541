@@ -5,7 +5,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import re
-import sys
 import copy
 from collections import OrderedDict
 import argparse
@@ -134,8 +133,7 @@ def makeCIdentifier(value):
     sanitized = re.sub(r'[^\w]', '', value)
     if sanitized in keywords:
         return "_" + sanitized
-    else:
-        return sanitized
+    return sanitized
 
 def getNodeidTypeAndId(nodeId):
     if not nodeId:
@@ -147,6 +145,38 @@ def getNodeidTypeAndId(nodeId):
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
+
+def splitNodeidNs(nodeId):
+    """Split an optional 'ns=X;' prefix from a nodeId string.
+    Returns (namespaceindex_str, bare_nodeId)."""
+    if nodeId and nodeId.startswith("ns="):
+        parts = nodeId.split(";", 1)
+        return parts[0][3:], parts[1] if len(parts) > 1 else ""
+    return "0", nodeId
+
+def _types_definition_equal(t1, t2):
+    """Compare two Type objects by structural definition (ignoring nodeId/outname).
+    Used to detect cross-namespace same-name types that are ABI-compatible vs
+    those that would produce a silent memory-layout mismatch."""
+    if type(t1) is not type(t2):
+        return False
+    if isinstance(t1, EnumerationType):
+        return (t1.elements == t2.elements and
+                t1.isOptionSet == t2.isOptionSet and
+                t1.lengthInBits == t2.lengthInBits)
+    if isinstance(t1, OpaqueType):
+        return t1.base_type == t2.base_type
+    if isinstance(t1, StructType):
+        if len(t1.members) != len(t2.members):
+            return False
+        for m1, m2 in zip(t1.members, t2.members):
+            if (m1.name != m2.name or
+                    m1.member_type.name != m2.member_type.name or
+                    m1.is_array != m2.is_array or
+                    m1.is_optional != m2.is_optional):
+                return False
+        return True
+    return False
 
 class CGenerator:
     def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap):
@@ -216,12 +246,17 @@ class CGenerator:
             return self.get_struct_overlayable(datatype)
         raise RuntimeError("Unknown datatype")
 
-    def print_datatype(self, datatype, namespaceMap):
-        typeid = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.binaryEncodingId))
-        xmlEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.xmlEncodingId))
+    def print_datatype(self, datatype):
+        nsIdx, bareNodeId = splitNodeidNs(datatype.nodeId)
+        typeid = "{{{}, {}}}".format(nsIdx, getNodeidTypeAndId(bareNodeId))
+        binNs, bareBinId = splitNodeidNs(datatype.binaryEncodingId)
+        binaryEncodingId = "{{{}, {}}}".format(binNs, getNodeidTypeAndId(bareBinId))
+        xmlNs, bareXmlId = splitNodeidNs(datatype.xmlEncodingId)
+        xmlEncodingId = "{{{}, {}}}".format(xmlNs, getNodeidTypeAndId(bareXmlId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
+        # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
+        isEnum = isinstance(datatype, EnumerationType)  and not datatype.isOptionSet
         return "{\n" + \
                "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
@@ -231,64 +266,85 @@ class CGenerator:
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
-               "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
+               "    " + str(len(datatype.elements) if isEnum else len(datatype.members)) + ", /* .membersSize */\n" + \
                "    %s_members" % idName + "  /* .members */\n" + \
                "}"
 
     @staticmethod
-    def print_members(datatype, namespaceMap):
+    def print_members(datatype):
         idName = makeCIdentifier(datatype.name)
-        if len(datatype.members) == 0:
+        # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
+        isEnum = isinstance(datatype, EnumerationType) and not datatype.isOptionSet
+        if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.members))
+        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
         before = None
-        size = len(datatype.members)
-        for i, member in enumerate(datatype.members):
+        size = len(datatype.elements) if isEnum else len(datatype.members)
+        if isEnum:
+            # Print all enumerators as UA_DataTypeMember
+            for i, name in enumerate(datatype.elements):
+                m = "\n{\n"
+                m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % name
+                m += "    (const UA_DataType *){}, /* .memberType */\n".format(i)
+                m += "    0, /* .padding */\n"
+                m += "    false, /* .isArray */\n"
+                m += "    false /* .isOptional */\n}"
+                # Don't add a trailing comma for the last entry
+                if i != size - 1:
+                    m += ","
+                members += m
+        else:
+            # Print all structure fields as UA_DataTypeMember
+            for i, member in enumerate(datatype.members):
 
-            # Abfrage member_type
-            if not member.member_type.members and isinstance(member.member_type, StructType):
-                type_name = "ExtensionObject"
-            else:
-                type_name = member.member_type.name
-
-            if before:
-                if not before.member_type.members and isinstance(before.member_type, StructType):
-                    type_name_before = "ExtensionObject"
+                # Build the type name for the current field
+                if not member.member_type.members and isinstance(member.member_type, StructType):
+                    type_name = "ExtensionObject"
                 else:
-                    type_name_before = before.member_type.name
+                    type_name = member.member_type.name
 
-            member_name = makeCIdentifier(member.name)
-            member_name_capital = member_name
-            if len(member_name) > 0:
-                member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n"
-            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
-            m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
-                member.member_type.outname.upper(), member.member_type.outname.upper(),
-                makeCIdentifier(type_name.upper()))
-            m += "    "
-            if not before and not isUnion:
-                m += "0,"
-            elif isUnion:
+                # Build the type name for the previous field (used to calculate padding)
+                if before:
+                    if not before.member_type.members and isinstance(before.member_type, StructType):
+                        type_name_before = "ExtensionObject"
+                    else:
+                        type_name_before = before.member_type.name
+
+                # Build a valid identifier as member name with capital first letter
+                member_name = makeCIdentifier(member.name)
+                member_name_capital = member_name
+                if len(member_name) > 0:
+                    member_name_capital = member_name[0].upper() + member_name[1:]
+                m = "\n{\n"
+                m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
+                m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
+                    member.member_type.outname.upper(), member.member_type.outname.upper(),
+                    makeCIdentifier(type_name.upper()))
+                m += "    "
+                # Print code to calculate type specific padding for the member
+                if not before and not isUnion:
+                    m += "0,"
+                elif isUnion:
                     m += "offsetof(UA_{}, fields.{}),".format(idName, member_name)
-            else:
-                if member.is_array:
-                    m += "offsetof(UA_{}, {}Size)".format(idName, member_name)
                 else:
-                    m += "offsetof(UA_{}, {})".format(idName, member_name)
-                m += " - offsetof(UA_{}, {})".format(idName, makeCIdentifier(before.name))
-                if before.is_array or before.is_optional:
-                    m += " - sizeof(void *),"
-                else:
-                    m += " - sizeof(UA_%s)," % makeCIdentifier(type_name_before)
-            m += " /* .padding */\n"
-            m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
-            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
-            if i != size:
-                m += ","
-            members += m
-            before = member
+                    if member.is_array:
+                        m += "offsetof(UA_{}, {}Size)".format(idName, member_name)
+                    else:
+                        m += "offsetof(UA_{}, {})".format(idName, member_name)
+                    m += " - offsetof(UA_{}, {})".format(idName, makeCIdentifier(before.name))
+                    if before.is_array or before.is_optional:
+                        m += " - sizeof(void *),"
+                    else:
+                        m += " - sizeof(UA_%s)," % makeCIdentifier(type_name_before)
+                m += " /* .padding */\n"
+                m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
+                m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
+                # Don't add a trailing comma for the last entry
+                if i != size - 1:
+                    m += ","
+                members += m
+                before = member
         return members + "};"
 
     @staticmethod
@@ -319,7 +375,7 @@ class CGenerator:
     @staticmethod
     def print_enum_typedef(enum, gen_doc=False):
         values = enum.elements.items()
-        if enum.isOptionSet == True:
+        if enum.isOptionSet:
             elements = map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " " + kv[1], values)
             return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(elements)
         else:
@@ -390,8 +446,7 @@ class CGenerator:
             returnstr += "    } fields;\n"
         if struct.is_recursive:
             return returnstr + "};"
-        else:
-            return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
+        return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
     @staticmethod
     def print_datatype_typedef(datatype, gen_doc=False):
@@ -450,11 +505,43 @@ class CGenerator:
                         if ns in l and t in l[ns]:
                             del l[ns][t]
 
-        # Remove types that from other bsd files
+        # Remove types that are from other (imported) bsd files.
+        # Track type names from imported namespaces so we can detect
+        # cross-namespace name collisions (same C type name, different
+        # OPC UA namespace).  Those types must still appear in the type
+        # array (they have their own NodeId), but we must not re-emit
+        # the C typedef / inline helpers because the C symbol already
+        # exists from the included dependency header.
+        # IMPORTANT: the definitions must be identical; differing definitions
+        # would cause a silent ABI mismatch since the same C struct is used for
+        # both type array entries.
+        self.cross_ns_duplicate_types = set()
+        # Build name→Type map from existing (imported) types for comparison.
+        # When the same name appears in multiple imported namespaces prefer the
+        # non-builtin definition.
+        existing_type_map = {}
         for ns in self.parser.existing_types:
             for t in self.parser.existing_types[ns]:
+                et = self.parser.existing_types[ns][t]
+                if t not in existing_type_map or isinstance(existing_type_map[t], BuiltinType):
+                    existing_type_map[t] = et
                 if ns in l and t in l[ns]:
                     del l[ns][t]
+        for ns in list(l.keys()):
+            for t in list(l.get(ns, {}).keys()):
+                if t in existing_type_map:
+                    clash = existing_type_map[t]
+                    if not isinstance(clash, BuiltinType) and \
+                            not _types_definition_equal(clash, l[ns][t]):
+                        raise RuntimeError(
+                            f"Type '{t}' in namespace '{ns}' has the same name "
+                            f"as an imported type but a different definition. "
+                            f"Cross-namespace duplicate type names are only "
+                            f"allowed when definitions are identical.\n"
+                            f"  Imported from: {clash.namespaceUri}\n"
+                            f"  Current:       {ns}"
+                        )
+                    self.cross_ns_duplicate_types.add(t)
 
         # Remove structs with no members
         for ns in v:
@@ -504,15 +591,22 @@ _UA_BEGIN_DECLS
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
                     t = self.filtered_types[ns][t_name]
+                    is_cross_ns_dup = t_name in self.cross_ns_duplicate_types
                     if t.description == "":
                         self.printh("\n/* " + t.name + " */")
                     else:
                         self.printh("\n/* " + t.name + ": " + t.description + " */")
-                    if not isinstance(t, BuiltinType):
-                        self.printh(self.print_datatype_typedef(t) + "\n")
+                    # For cross-namespace duplicates the C typedef and inline
+                    # helpers already exist from the imported dependency header.
+                    # We only emit the index constant here; the type array
+                    # entry is emitted in the .c file as usual.
+                    if not is_cross_ns_dup:
+                        if not isinstance(t, BuiltinType):
+                            self.printh(self.print_datatype_typedef(t) + "\n")
                     self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
                     self.printh("")
-                    self.printh(self.print_functions(t))
+                    if not is_cross_ns_dup:
+                        self.printh(self.print_functions(t))
         else:
             self.printh("#define UA_" + self.parser.outname.upper() + " NULL")
 
@@ -523,7 +617,7 @@ _UA_END_DECLS
 
     def print_doc(self):
         for ns in self.filtered_types:
-            for i, t_name in enumerate(self.filtered_types[ns]):
+            for _, t_name in enumerate(self.filtered_types[ns]):
                 t = self.filtered_types[ns][t_name]
                 if isinstance(t, BuiltinType):
                     continue
@@ -546,21 +640,21 @@ _UA_END_DECLS
         totalCount = 0
         for ns in self.filtered_types:
             totalCount += len(self.filtered_types[ns])
-            for i, t_name in enumerate(self.filtered_types[ns]):
+            for _, t_name in enumerate(self.filtered_types[ns]):
                 t = self.filtered_types[ns][t_name]
                 self.printc("")
                 self.printc("/* " + t.name + " */")
-                self.printc(CGenerator.print_members(t, self.namespaceMap))
+                self.printc(CGenerator.print_members(t))
 
         if totalCount > 0:
             self.printc(
                 "UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
 
             for ns in self.filtered_types:
-                for i, t_name in enumerate(self.filtered_types[ns]):
+                for _, t_name in enumerate(self.filtered_types[ns]):
                     t = self.filtered_types[ns][t_name]
                     self.printc("/* " + t.name + " */")
-                    self.printc(self.print_datatype(t, self.namespaceMap) + ",")
+                    self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
 
 ###########################################

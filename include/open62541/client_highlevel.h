@@ -138,6 +138,10 @@ UA_Client_readUserExecutableAttribute(UA_Client *client,
                                       const UA_NodeId nodeId,
                                       UA_Boolean *out);
 
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_readDatatypeDefinitionAttribute(UA_Client* client, const UA_NodeId nodeId,
+                                          UA_StructureDefinition *out);
+
 /**
  * Historical Access
  * ~~~~~~~~~~~~~~~~~

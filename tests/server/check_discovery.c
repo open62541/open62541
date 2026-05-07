@@ -24,10 +24,6 @@
 #include <check.h>
 #include <stdlib.h>
 
-#ifndef UA_ARCHITECTURE_WIN32
-#include <sys/stat.h>
-#endif
-
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 4
 // cleanup is only triggered every 10 seconds, thus wait a bit longer to check

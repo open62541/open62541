@@ -42,7 +42,7 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static UA_StatusCode
-generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
+generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     if(!key || !policy)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -58,13 +58,12 @@ generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     seed.data = seedBytes;
     seed.length = UA_PUBSUB_KEYMATERIAL_NONCELENGTH;
 
-    retVal = policy->symmetricModule.generateNonce(policy->policyContext, &secret);
-    retVal |= policy->symmetricModule.generateNonce(policy->policyContext, &seed);
+    retVal = policy->generateNonce(policy, NULL, &secret);
+    retVal |= policy->generateNonce(policy, NULL, &seed);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
-    retVal =
-        policy->symmetricModule.generateKey(policy->policyContext, &secret, &seed, key);
+    retVal = policy->generateKey(policy, NULL, &secret, &seed, key);
     return retVal;
 }
 
@@ -97,6 +96,11 @@ encyrptedclientconnect(UA_Client *client) {
 
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
     /* Secure client connect */
     return UA_Client_connect(client, "opc.tcp://localhost:4840");
 }
@@ -118,7 +122,7 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
 
     UA_Variant_setScalar(&inputs[2], &currentTokenId, &UA_TYPES[UA_TYPES_UINT32]);
 
-    size_t keyLength = server->config.pubSubConfig.securityPolicies->symmetricModule.secureChannelNonceLength;
+    size_t keyLength = server->config.pubSubConfig.securityPolicies->nonceLength;
     UA_ByteString_allocBuffer(&currentKey, keyLength);
     generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
     UA_Variant_setScalar(&inputs[3], &currentKey, &UA_TYPES[UA_TYPES_BYTESTRING]);

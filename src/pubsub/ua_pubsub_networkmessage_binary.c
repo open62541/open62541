@@ -647,6 +647,28 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
     return rv;
 }
 
+/* If no PayloadHeader is defined, then assume the EncodingOptions reflect the
+ * DataSetMessages. This can be used to inject an a-priori known number of
+ * NetworkMessages and their DataSetWriterIds if the payload header is
+ * disabled. */
+void
+UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOptions *eo,
+                                             UA_NetworkMessage *nm) {
+    UA_assert(nm->payloadHeaderEnabled == false);
+
+    if(eo->metaDataSize > 0) {
+        nm->messageCount = (UA_Byte)eo->metaDataSize;
+        for(size_t i = 0; i < nm->messageCount; i++)
+            nm->dataSetWriterIds[i] = eo->metaData[i].dataSetWriterId;
+    } else {
+        /* No Metadata configured and no payload header -> assume one
+         * DataSetMessage. The NetworkMessage shall contain at least one
+         * DataSetMessage if the NetworkMessage type is DataSetMessage
+         * payload. */
+        nm->messageCount = 1;
+    }
+}
+
 UA_StatusCode
 UA_NetworkMessage_decodeHeaders(PubSubDecodeCtx *ctx,
                                 UA_NetworkMessage *nm) {
@@ -661,18 +683,6 @@ UA_NetworkMessage_decodeHeaders(PubSubDecodeCtx *ctx,
     if(nm->payloadHeaderEnabled) {
         rv = UA_PayloadHeader_decodeBinary(ctx, nm);
         UA_CHECK_STATUS(rv, return rv);
-    } else {
-        /* If no PayloadHeader is defined, then assume the EncodingOptions
-         * reflect the DataSetMessages */
-        nm->messageCount = (UA_Byte)ctx->eo.metaDataSize;
-        for(size_t i = 0; i < nm->messageCount; i++)
-            nm->dataSetWriterIds[i] = ctx->eo.metaData[i].dataSetWriterId;
-
-        /* No Metadata configured. Assume one DataSetMessage. The NetworkMessage
-         * shall contain at least one DataSetMessage if the NetworkMessage type
-         * is DataSetMessage payload. */
-        if(nm->messageCount == 0)
-            nm->messageCount = 1;
     }
 
     rv = UA_ExtendedNetworkMessageHeader_decodeBinary(ctx, nm);
@@ -790,12 +800,19 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
     /* Initialize the NetworkMessage */
     memset(nm, 0, sizeof(UA_NetworkMessage));
 
+    /* Decode the header */
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
     UA_CHECK_STATUS(rv, goto cleanup);
 
+    /* Handle missing payload header and "inject" metadata */
+    if(!nm->payloadHeaderEnabled)
+        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+
+    /* Decode the payload */
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
     UA_CHECK_STATUS(rv, goto cleanup);
 
+    /* Decode the footers */
     rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
     UA_CHECK_STATUS(rv, goto cleanup);
 
@@ -833,6 +850,10 @@ UA_NetworkMessage_decodeBinaryHeaders(const UA_ByteString *src,
             UA_NetworkMessage_clear(dst);
         return rv;
     }
+
+    /* Handle missing payload header and "inject" metadata */
+    if(!dst->payloadHeaderEnabled)
+        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, dst);
 
     /* Set the offset */
     if(payloadOffset)
@@ -1150,7 +1171,7 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
 UA_StatusCode
 UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
-                              UA_PubSubSecurityPolicy *policy, void *policyContext,
+                              UA_PubSubSecurityPolicy *sp, void *policyContext,
                               UA_Byte *messageStart, UA_Byte *encryptStart,
                               UA_Byte *sigStart) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -1162,15 +1183,14 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
             (size_t)nm->securityHeader.messageNonceSize,
             nm->securityHeader.messageNonce
         };
-        res = policy->setMessageNonce(policyContext, &nonce);
+        res = sp->setMessageNonce(sp, policyContext, &nonce);
         UA_CHECK_STATUS(res, return res);
 
         /* The encryption is done in-place, no need to encode again */
         UA_ByteString encryptBuf;
         encryptBuf.data = encryptStart;
         encryptBuf.length = (uintptr_t)sigStart - (uintptr_t)encryptStart;
-        res = policy->symmetricModule.cryptoModule.encryptionAlgorithm.
-            encrypt(policyContext, &encryptBuf);
+        res = sp->encrypt(sp, policyContext, &encryptBuf);
         UA_CHECK_STATUS(res, return res);
     }
 
@@ -1180,11 +1200,9 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
         UA_ByteString sigBuf;
         sigBuf.length = (uintptr_t)sigStart - (uintptr_t)messageStart;
         sigBuf.data = messageStart;
-        size_t sigSize = policy->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(policyContext);
+        size_t sigSize = sp->getSignatureSize(sp, policyContext);
         UA_ByteString sig = {sigSize, sigStart};
-        res = policy->symmetricModule.cryptoModule.
-            signatureAlgorithm.sign(policyContext, &sigBuf, &sig);
+        res = sp->sign(sp, policyContext, &sigBuf, &sig);
     }
 
     return res;

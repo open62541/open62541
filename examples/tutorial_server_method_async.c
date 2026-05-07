@@ -34,12 +34,37 @@
 #include <open62541/server.h>
 #include <open62541/plugin/log.h>
 
+/* The example mocks up a work queue for worker threads with a single slot. The
+ * asyncLock is introduced to show how locking can be used for independent
+ * worker threads. Notably the method result pointer must not be used after the
+ * asyncOperationCancelCallback signals the cancellation of the operation. */
+
+#if UA_MULTITHREADING >= 100
+UA_Lock asyncLock;
+#endif
+UA_Variant * workQueue[1]; /* The currently active async callback */
+
+static void
+asyncOperationCancelCallback(UA_Server *server, const void *out) {
+    /* This blocks if a worker thread currently processes the async callback */
+    UA_LOCK(&asyncLock);
+
+    if((void*)workQueue[0] == out)
+        workQueue[0] = NULL; /* Disable active async callback */
+
+    UA_UNLOCK(&asyncLock);
+}
+
 static void
 asyncCall(UA_Server *server, void *data) {
-    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "call");
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION, "call");
 
-    UA_Variant *out = (UA_Variant*)data;
-    UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
+    /* Process async result if still active */
+    UA_LOCK(&asyncLock);
+    if((void*)workQueue[0] == data)
+        UA_Server_setAsyncCallMethodResult(server, workQueue[0], UA_STATUSCODE_GOOD);
+    workQueue[0] = NULL;
+    UA_UNLOCK(&asyncLock);
 }
 
 static UA_StatusCode
@@ -49,7 +74,17 @@ helloWorldMethodCallback1(UA_Server *server,
                          const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "async");
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION, "async");
+
+    UA_LOCK(&asyncLock);
+
+    /* The work queue is full */
+    if(workQueue[0]) {
+        UA_LOG_WARNING(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION,
+                       "async queue full");
+        UA_UNLOCK(&asyncLock);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     /* Prepare the output */
     UA_String *inputStr = (UA_String*)input->data;
@@ -61,11 +96,25 @@ helloWorldMethodCallback1(UA_Server *server,
     /* Return the output with a five second delay */
     UA_DateTime callTime = UA_DateTime_nowMonotonic() + (2 * UA_DATETIME_SEC);
     UA_Server_addTimedCallback(server, asyncCall, output, callTime, NULL);
+
+    /* Store the pointer to the active async operation.
+     * So it can be cancelled. */
+    workQueue[0] = output;
+
+    UA_UNLOCK(&asyncLock);
+
+    /* Signal async processing to the server. Will be completed later. */
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
 int main(void) {
+    /* Create the server */
+    UA_LOCK_INIT(&asyncLock);
     UA_Server *server = UA_Server_new();
+
+    /* Set the cancel callback */
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->asyncOperationCancelCallback = asyncOperationCancelCallback;
 
     /* Add method */
     UA_Argument inputArgument;
@@ -93,7 +142,12 @@ int main(void) {
                             helloAttr, &helloWorldMethodCallback1,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
 
+    /* Run the server */
     UA_Server_runUntilInterrupt(server);
+
+    /* Clean up */
     UA_Server_delete(server);
+    UA_LOCK_DESTROY(&asyncLock);
+
     return 0;
 }

@@ -10,6 +10,7 @@
 
 #include <check.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include "tests/namespace_tests_di_generated.h"
 #include "tests/namespace_tests_plc_generated.h"
@@ -43,6 +44,21 @@ static void setup(void) {
     if(retval != UA_STATUSCODE_GOOD) {
         retval = namespace_tests_plc_generated(server);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        UA_Boolean value = true;
+        UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        attr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        UA_Server_addVariableNode(server,
+            UA_NODEID_NUMERIC(2, 12345),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+            UA_QUALIFIEDNAME(2, "CustomVar"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+            attr, NULL, NULL);
     }
 
     UA_Server_run_startup(server);
@@ -86,11 +102,145 @@ START_TEST(Client_nsMapping){
 }
 END_TEST
 
+START_TEST(Client_nsMapping_browse_shifted_indices) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_UInt16 extraNsIndex = 0;
+    UA_StatusCode retval = UA_Client_addNamespace(client,
+        UA_STRING("http://example.com/dummy-shift/"),
+        &extraNsIndex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(extraNsIndex, 2);
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t max_stop_iteration_count = 100000;
+    size_t iteration = 0;
+    while(!client->haveNamespaces && iteration < max_stop_iteration_count) {
+        UA_Client_run_iterate(client, 0);
+        iteration++;
+    }
+    ck_assert_uint_ne(client->haveNamespaces, false);
+
+    UA_UInt16 expectedIndex =
+        UA_NamespaceMapping_remote2Local(client->channel.namespaceMapping, 2);
+    ck_assert_uint_ne(expectedIndex, 0);
+    ck_assert_uint_ne(expectedIndex, 2);
+
+    UA_BrowseRequest bReq;
+    UA_BrowseRequest_init(&bReq);
+    bReq.nodesToBrowseSize = 1;
+    bReq.nodesToBrowse = UA_BrowseDescription_new();
+    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;
+
+    UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
+    ck_assert_uint_eq(bResp.resultsSize, 1);
+
+    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(expectedIndex, 12345);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < bResp.results[0].referencesSize; i++) {
+        if(UA_ExpandedNodeId_isLocal(&bResp.results[0].references[i].nodeId) &&
+           UA_NodeId_equal(&bResp.results[0].references[i].nodeId.nodeId,
+                           &expectedNodeId)) {
+            found = true;
+            break;
+        }
+    }
+
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
+
+    ck_assert_msg(found,
+        "Expected locally remapped browse target NodeId for shifted namespace index");
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+/* Helper state for the allocation-failure test. When nsmapping_test_calloc
+ * detects the nsMapping allocation (calloc(1, sizeof(UA_NamespaceMapping))), it
+ * records the pointer and arms a one-shot failure for the very next calloc call
+ * (which is the UA_Array_copy call that copies the namespace URIs). This
+ * exercises the error-path that the bug fix adds
+ * UA_NamespaceMapping_delete(nsMapping) to. */
+static void *g_nsMapping_ptr = NULL;
+static UA_Boolean g_fail_next_calloc = UA_FALSE;
+
+static void *
+nsmapping_test_calloc(size_t num, size_t size) {
+    if(g_fail_next_calloc) {
+        g_fail_next_calloc = UA_FALSE;
+        return NULL;
+    }
+    void *p = calloc(num, size);
+    if(p && num == 1 && size == sizeof(UA_NamespaceMapping)) {
+        /* Detected the nsMapping allocation. Arm the one-shot failure so that
+         * the next calloc (the UA_Array_copy call inside
+         * responseReadNamespacesArray) fails, triggering the error path. */
+        g_nsMapping_ptr = p;
+        g_fail_next_calloc = UA_TRUE;
+    }
+    return p;
+}
+
+static void
+nsmapping_test_free(void *p) {
+    if(p && p == g_nsMapping_ptr)
+        g_nsMapping_ptr = NULL;
+    free(p);
+}
+
+/* This test verifies that nsMapping is not leaked when an allocation failure
+ * occurs inside responseReadNamespacesArray after nsMapping itself was
+ * allocated.  Without the fix the nsMapping struct is silently leaked; with the
+ * fix UA_NamespaceMapping_delete() is called on the error path and
+ * g_nsMapping_ptr is set back to NULL. */
+START_TEST(Client_nsMapping_alloc_failure) {
+    g_nsMapping_ptr = NULL;
+    g_fail_next_calloc = UA_FALSE;
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+
+    /* Install custom allocators *before* connecting so that the namespace read
+     * response (which is processed synchronously inside UA_Client_connect) is
+     * handled by our intercepting calloc. */
+    UA_callocSingleton = nsmapping_test_calloc;
+    UA_freeSingleton = nsmapping_test_free;
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Restore the default allocators before teardown so that the client and
+     * server destruction use the normal allocator. */
+    UA_callocSingleton = calloc;
+    UA_freeSingleton = free;
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Without the fix: nsMapping was not deleted on the error path and
+     * g_nsMapping_ptr remains non-NULL (memory leaked).
+     * With the fix: UA_NamespaceMapping_delete() is called, which eventually
+     * triggers nsmapping_test_free() and resets g_nsMapping_ptr to NULL. */
+    ck_assert_ptr_eq(g_nsMapping_ptr, NULL);
+}
+END_TEST
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Namespace Mapping");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_nsMapping);
+    tcase_add_test(tc_client, Client_nsMapping_browse_shifted_indices);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    tcase_add_test(tc_client, Client_nsMapping_alloc_failure);
+#endif
     suite_add_tcase(s,tc_client);
     return s;
 }

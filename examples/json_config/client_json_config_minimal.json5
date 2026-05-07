@@ -1,0 +1,11 @@
+// Minimal JSON5 client configuration
+{
+  endpointUrl: "opc.tcp://localhost:4840",
+
+  applicationDescription: {
+    applicationUri: "urn:open62541.client.application",
+    applicationName: {
+      text: "OPC UA Client"
+    }
+  }
+}

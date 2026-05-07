@@ -18,9 +18,9 @@
 #include "testing_networklayers.h"
 
 #ifdef UA_ENABLE_STATUSCODE_DESCRIPTIONS
-    #define ASSERT_STATUSCODE(a,b) ck_assert_str_eq(UA_StatusCode_name(a),UA_StatusCode_name(b));
+    #define ASSERT_STATUSCODE(a,b) ck_assert_str_eq(UA_StatusCode_name(a),UA_StatusCode_name(b))
 #else
-    #define ASSERT_STATUSCODE(a,b) ck_assert_uint_eq((a),(b));
+    #define ASSERT_STATUSCODE(a,b) ck_assert_uint_eq((a),(b))
 #endif
 
 UA_Server *server;

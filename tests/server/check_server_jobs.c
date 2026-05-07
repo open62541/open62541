@@ -41,9 +41,6 @@ START_TEST(Server_addRemoveRepeatedCallback) {
     /* Wait until the callback has surely timed out */
     UA_fakeSleep(15);
     UA_Server_run_iterate(server, false);
-
-    /* Wait a bit longer until the workers have picked up the dispatched callback */
-    UA_realSleep(100);
     ck_assert_uint_eq(*executed, true);
 
     UA_Server_removeRepeatedCallback(server, id);

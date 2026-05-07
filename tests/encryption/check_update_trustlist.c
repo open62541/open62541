@@ -277,6 +277,42 @@ START_TEST(remove_certificate_issuerlist) {
 }
 END_TEST
 
+/* Regression test for fix/ca-removal-without-crl:
+ * Removing a CA certificate that has no associated CRL must succeed.
+ * Without the fix, getCertificateCrls returns Bad_NoMatch and the
+ * remove call fails with that status code. */
+START_TEST(remove_ca_certificate_without_crl) {
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+
+    /* Add a CA certificate with no CRL */
+    UA_ByteString caCert;
+    caCert.length = ROOT_CERT_DER_LENGTH;
+    caCert.data = ROOT_CERT_DER_DATA;
+
+    UA_StatusCode retval =
+        UA_Server_addCertificates(server, defaultApplicationGroup,
+                                  &caCert, 1, NULL, 0, true, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Remove it — must succeed even though there is no CRL */
+    retval = UA_Server_removeCertificates(server, defaultApplicationGroup,
+                                          &caCert, 1, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the trust list is back to its initial state */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    retval = config->secureChannelPKI.getTrustList(&config->secureChannelPKI, &trustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(trustList.trustedCertificatesSize, initialTrustSize);
+    ck_assert_uint_eq(trustList.trustedCrlsSize, 0);
+    UA_TrustListDataType_clear(&trustList);
+}
+END_TEST
+
 START_TEST(add_application_certificate_trustlist) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -316,6 +352,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, add_ca_certificate_issuerlist);
     tcase_add_test(tc_cert, remove_certificate_trustlist);
     tcase_add_test(tc_cert, remove_certificate_issuerlist);
+    tcase_add_test(tc_cert, remove_ca_certificate_without_crl);
     tcase_add_test(tc_cert, add_application_certificate_trustlist);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
@@ -328,6 +365,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, add_ca_certificate_issuerlist);
     tcase_add_test(tc_cert_filestore, remove_certificate_trustlist);
     tcase_add_test(tc_cert_filestore, remove_certificate_issuerlist);
+    tcase_add_test(tc_cert_filestore, remove_ca_certificate_without_crl);
     tcase_add_test(tc_cert_filestore, add_application_certificate_trustlist);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
