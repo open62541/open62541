@@ -1156,7 +1156,7 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
 	X509 *x509;
 	X509_NAME *subj;
 
-	if(!certificate || !certificate->data)
+	if(!certificate || !certificate->data || !commonName)
 		return UA_STATUSCODE_BADINTERNALERROR;
 	p = certificate->data;
 
