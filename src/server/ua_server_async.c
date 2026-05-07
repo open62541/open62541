@@ -597,6 +597,13 @@ read_async(UA_Server *server, UA_Session *session, const UA_ReadValueId *operati
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
+
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
         UA_EventLoop *el = server->config.eventLoop;
@@ -712,6 +719,13 @@ write_async(UA_Server *server, UA_Session *session, const UA_WriteValue *operati
     UA_AsyncOperation *op = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
@@ -831,6 +845,13 @@ call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *o
     UA_AsyncOperation *op = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
