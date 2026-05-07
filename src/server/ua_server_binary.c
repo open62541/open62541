@@ -1114,6 +1114,15 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     if(connConfig.sendBufferSize == 0)
         connConfig.sendBufferSize = 1 << 16; /* 64kB */
 
+    if(connConfig.localMaxMessageSize == 0)
+        connConfig.localMaxMessageSize = 1 << 29; /* 512 MB */
+    if(connConfig.remoteMaxMessageSize == 0)
+        connConfig.remoteMaxMessageSize = 1 << 29; /* 512 MB */
+    if(connConfig.localMaxChunkCount == 0)
+        connConfig.localMaxChunkCount = 1 << 14; /* 16384 */
+    if(connConfig.remoteMaxChunkCount == 0)
+        connConfig.remoteMaxChunkCount = 1 << 14; /* 16384 */
+
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(&entry->channel);
     entry->channel.config = connConfig;
