@@ -96,12 +96,14 @@ UA_Guid_random(void);   /* no cryptographic entropy */
  * The generated UA_DataType faithfully generates the padding of the
  * corresponding C-structures. */
 
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
 UA_EXPORT UA_StatusCode
 UA_DataType_fromDescription(UA_DataType *type, const UA_ExtensionObject *descr,
                             const UA_DataTypeArray *customTypes);
 
 UA_EXPORT UA_StatusCode
 UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr);
+#endif
 
 /**
  * Key Value Map
@@ -455,17 +457,23 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * - ``/3:Truck/5:Wheel``
  * - ``#BrowseName`` */
 
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
 UA_EXPORT UA_StatusCode
 UA_ReadValueId_parse(UA_ReadValueId *rvi,
                      const UA_String str);
+#endif
 
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
 UA_EXPORT UA_StatusCode
 UA_AttributeOperand_parse(UA_AttributeOperand *ao,
                           const UA_String str);
+#endif
 
+#ifdef UA_TYPES_SIMPLEATTRIBUTEOPERAND
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
+#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
@@ -473,13 +481,17 @@ UA_EXPORT UA_StatusCode
 UA_ReadValueId_print(const UA_ReadValueId *rvi,
                      UA_String *out);
 
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
 UA_EXPORT UA_StatusCode
 UA_AttributeOperand_print(const UA_AttributeOperand *ao,
                           UA_String *out);
+#endif
 
+#ifdef UA_TYPES_SIMPLEATTRIBUTEOPERAND
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out);
+#endif
 
 /**
  * Convenience macros for complex types

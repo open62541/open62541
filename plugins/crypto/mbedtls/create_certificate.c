@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright (c) 2023 Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  *
  */
 
@@ -52,6 +53,22 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
 
 static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFormat, UA_ByteString *outPrivateKey);
 
+/* Case-insensitive comparison of a UA_String with a C string literal */
+static UA_Boolean
+uaStringEqualsCI_mbedtls(const UA_String *uaStr, const char *cStr) {
+    size_t cLen = strlen(cStr);
+    if(uaStr->length != cLen)
+        return false;
+    for(size_t i = 0; i < cLen; i++) {
+        char a = (char)uaStr->data[i];
+        char b = cStr[i];
+        if(a >= 'A' && a <= 'Z') a = (char)(a + 32);
+        if(b >= 'A' && b <= 'Z') b = (char)(b + 32);
+        if(a != b) return false;
+    }
+    return true;
+}
+
 UA_StatusCode
 UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                      size_t subjectSize, const UA_String *subjectAltName,
@@ -67,6 +84,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_UInt16 keySizeBits = 4096;
     /* Default to 1 year */
     UA_UInt16 expiresInDays = 365;
+    /* Key type: 0 = RSA (default), 1 = EC */
+    int keyTypeEC = 0;
+    UA_String eccCurve = UA_STRING_STATIC("prime256v1");
 
     if(params) {
         const UA_UInt16 *keySizeBitsValue = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
@@ -78,6 +98,16 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             params, UA_QUALIFIEDNAME(0, "expires-in-days"), &UA_TYPES[UA_TYPES_UINT16]);
         if(expiresInDaysValue)
             expiresInDays = *expiresInDaysValue;
+
+        const UA_String *keyTypeValue = (const UA_String *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "key-type"), &UA_TYPES[UA_TYPES_STRING]);
+        if(keyTypeValue && uaStringEqualsCI_mbedtls(keyTypeValue, "ec"))
+            keyTypeEC = 1;
+
+        const UA_String *eccCurveValue = (const UA_String *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "ecc-curve"), &UA_TYPES[UA_TYPES_STRING]);
+        if(eccCurveValue && eccCurveValue->length > 0)
+            eccCurve = *eccCurveValue;
     }
 
     UA_ByteString_init(outPrivateKey);
@@ -105,18 +135,71 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    /* Generate an RSA key pair */
-    if (mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0 ||
-        mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedtls_ctr_drbg_random, &ctr_drbg, keySizeBits, 65537) != 0) {
+    /* Generate a key pair */
+    if(keyTypeEC) {
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+        /* Map curve name to mbedTLS group ID */
+        mbedtls_ecp_group_id grp_id = MBEDTLS_ECP_DP_SECP256R1; /* default: P-256 */
+        if(uaStringEqualsCI_mbedtls(&eccCurve, "prime256v1") ||
+           uaStringEqualsCI_mbedtls(&eccCurve, "nistp256"))
+            grp_id = MBEDTLS_ECP_DP_SECP256R1;
+        else if(uaStringEqualsCI_mbedtls(&eccCurve, "secp384r1") ||
+                uaStringEqualsCI_mbedtls(&eccCurve, "nistp384"))
+            grp_id = MBEDTLS_ECP_DP_SECP384R1;
+        else if(uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp256r1"))
+            grp_id = MBEDTLS_ECP_DP_BP256R1;
+        else if(uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp384r1"))
+            grp_id = MBEDTLS_ECP_DP_BP384R1;
+        else if(uaStringEqualsCI_mbedtls(&eccCurve, "ed25519") ||
+                uaStringEqualsCI_mbedtls(&eccCurve, "ed448")) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "EdDSA (Curve25519/Curve448) certificate generation "
+                         "is not supported with mbedTLS. Use OpenSSL.");
+            errRet = UA_STATUSCODE_BADNOTIMPLEMENTED;
+            goto cleanup;
+        } else {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "Create Certificate: Unsupported ECC curve for mbedTLS.");
+            errRet = UA_STATUSCODE_BADINVALIDARGUMENT;
+            goto cleanup;
+        }
+
+        if(mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)) != 0 ||
+           mbedtls_ecp_gen_key(grp_id, mbedtls_pk_ec(key),
+                               mbedtls_ctr_drbg_random, &ctr_drbg) != 0) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "Failed to generate ECC key pair.");
+            errRet = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+#else
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Failed to generate RSA key pair.");
-        errRet = UA_STATUSCODE_BADINTERNALERROR;
+                     "ECC certificate generation requires mbedTLS >= 3.0.");
+        errRet = UA_STATUSCODE_BADNOTIMPLEMENTED;
         goto cleanup;
+#endif
+    } else {
+        /* Generate an RSA key pair */
+        if(mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0 ||
+           mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedtls_ctr_drbg_random,
+                               &ctr_drbg, keySizeBits, 65537) != 0) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "Failed to generate RSA key pair.");
+            errRet = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
     }
 
     /* Setting certificate values */
     mbedtls_x509write_crt_set_version(&crt, MBEDTLS_X509_CRT_VERSION_3);
-    mbedtls_x509write_crt_set_md_alg(&crt, MBEDTLS_MD_SHA256);
+    /* P-384 / brainpoolP384r1 use SHA-384; everything else uses SHA-256 */
+    if(keyTypeEC &&
+       (uaStringEqualsCI_mbedtls(&eccCurve, "secp384r1") ||
+        uaStringEqualsCI_mbedtls(&eccCurve, "nistp384") ||
+        uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp384r1")))
+        mbedtls_x509write_crt_set_md_alg(&crt, MBEDTLS_MD_SHA384);
+    else
+        mbedtls_x509write_crt_set_md_alg(&crt, MBEDTLS_MD_SHA256);
 
     size_t subject_char_len = 0;
     for(size_t i = 0; i < subjectSize; i++) {
@@ -289,9 +372,14 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    if(mbedtls_x509write_crt_set_key_usage(&crt, MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION
-                                            | MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT
-                                            | MBEDTLS_X509_KU_KEY_CERT_SIGN | MBEDTLS_X509_KU_CRL_SIGN) != 0) {
+    /* ECC certificates need keyAgreement for ECDH instead of keyEncipherment */
+    unsigned int keyUsageFlags = keyTypeEC
+        ? (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION
+           | MBEDTLS_X509_KU_KEY_AGREEMENT | MBEDTLS_X509_KU_KEY_CERT_SIGN)
+        : (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION
+           | MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT
+           | MBEDTLS_X509_KU_KEY_CERT_SIGN | MBEDTLS_X509_KU_CRL_SIGN);
+    if(mbedtls_x509write_crt_set_key_usage(&crt, keyUsageFlags) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Setting key usage failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;

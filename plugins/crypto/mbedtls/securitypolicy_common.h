@@ -17,6 +17,7 @@
 #include <mbedtls/x509_csr.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
+#include <mbedtls/ecp.h>
 
 // MBEDTLS_ENTROPY_HARDWARE_ALT should be defined if your hardware does not supportd platform entropy
 
@@ -158,10 +159,6 @@ size_t
 UA_mbedTLS_asym_getRemoteBlockSize_generic(const UA_SecurityPolicy *policy,
                                            const void *channelContext);
 
-size_t
-UA_mbedTLS_asym_cert_getLocalSignatureSize_generic(const UA_SecurityPolicy *policy,
-                                                    const void *channelContext);
-
 UA_StatusCode
 UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
                                             void *channelContext,
@@ -225,6 +222,88 @@ UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
                                         const UA_KeyValueMap *params,
                                         UA_ByteString *csr,
                                         UA_ByteString *newPrivateKey);
+
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+
+/* ECC key generation per curve */
+UA_StatusCode
+UA_mbedTLS_ECC_NISTP256_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                    mbedtls_ctr_drbg_context *drbgContext,
+                                    UA_ByteString *keyPublicEncOut);
+
+UA_StatusCode
+UA_mbedTLS_ECC_NISTP384_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                    mbedtls_ctr_drbg_context *drbgContext,
+                                    UA_ByteString *keyPublicEncOut);
+
+UA_StatusCode
+UA_mbedTLS_ECC_BRAINPOOLP256R1_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                           mbedtls_ctr_drbg_context *drbgContext,
+                                           UA_ByteString *keyPublicEncOut);
+
+UA_StatusCode
+UA_mbedTLS_ECC_BRAINPOOLP384R1_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                           mbedtls_ctr_drbg_context *drbgContext,
+                                           UA_ByteString *keyPublicEncOut);
+
+/* ECC key derivation (ECDH + HKDF) */
+UA_StatusCode
+UA_mbedTLS_ECC_DeriveKeys(mbedtls_ecp_group_id curveID,
+                          mbedtls_md_type_t hashType,
+                          const UA_ApplicationType applicationType,
+                          mbedtls_pk_context *localEphemeralKeyPair,
+                          mbedtls_ctr_drbg_context *drbgContext,
+                          const UA_ByteString *key1,
+                          const UA_ByteString *key2,
+                          UA_ByteString *out);
+
+/* ECDSA signing/verification */
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA256_Sign(const UA_ByteString *message,
+                             mbedtls_pk_context *privateKey,
+                             mbedtls_ctr_drbg_context *drbgContext,
+                             UA_ByteString *outSignature);
+
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA256_Verify(const UA_ByteString *message,
+                               mbedtls_x509_crt *publicKeyCert,
+                               const UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA384_Sign(const UA_ByteString *message,
+                             mbedtls_pk_context *privateKey,
+                             mbedtls_ctr_drbg_context *drbgContext,
+                             UA_ByteString *outSignature);
+
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA384_Verify(const UA_ByteString *message,
+                               mbedtls_x509_crt *publicKeyCert,
+                               const UA_ByteString *signature);
+
+/* HMAC-SHA256 signing/verification (already existing for RSA policies but
+ * re-exported here for ECC usage) */
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA256_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA256_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature);
+
+/* HMAC-SHA384 signing/verification */
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA384_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA384_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature);
+
+#endif /* MBEDTLS_VERSION_NUMBER >= 0x03000000 */
 
 _UA_END_DECLS
 

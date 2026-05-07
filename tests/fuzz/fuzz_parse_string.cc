@@ -26,7 +26,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
     memcpy(str.data, payload, payload_size);
 
-    switch(selector % 5) {
+    switch(selector % 8) {
     case 0: {
         UA_NodeId id;
         UA_NodeId_init(&id);
@@ -57,6 +57,32 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         UA_QualifiedName_init(&qn);
         UA_QualifiedName_parse(&qn, str);
         UA_QualifiedName_clear(&qn);
+        break;
+    }
+    case 5: {
+        UA_RelativePath rp;
+        UA_RelativePath_init(&rp);
+        UA_StatusCode ret = UA_RelativePath_parse(&rp, str);
+        if(ret == UA_STATUSCODE_GOOD) {
+            UA_String printed = UA_STRING_NULL;
+            UA_RelativePath_print(&rp, &printed);
+            UA_String_clear(&printed);
+        }
+        UA_RelativePath_clear(&rp);
+        break;
+    }
+    case 6: {
+        UA_SimpleAttributeOperand sao;
+        UA_SimpleAttributeOperand_init(&sao);
+        UA_SimpleAttributeOperand_parse(&sao, str);
+        UA_SimpleAttributeOperand_clear(&sao);
+        break;
+    }
+    case 7: {
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        UA_ReadValueId_parse(&rvi, str);
+        UA_ReadValueId_clear(&rvi);
         break;
     }
     default: break;

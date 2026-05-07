@@ -651,6 +651,42 @@ START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+START_TEST(ReadSingleAttributeServerTimestampOnError) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_NODEID;
+    rvi.indexRange = UA_STRING("0:1");
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert_int_eq(UA_STATUSCODE_BADINDEXRANGENODATA, resp.status);
+    ck_assert(resp.hasServerTimestamp);
+    UA_DataValue_clear(&resp);
+
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvi.dataEncoding.name = UA_STRING("invalid");
+
+    resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert_int_eq(UA_STATUSCODE_BADDATAENCODINGINVALID, resp.status);
+    ck_assert(resp.hasServerTimestamp);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
+START_TEST(ReadSingleAttributeSourceTimestampOnValueError) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvi.dataEncoding.name = UA_STRING("invalid");
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert_int_eq(UA_STATUSCODE_BADDATAENCODINGINVALID, resp.status);
+    ck_assert(resp.hasSourceTimestamp);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -1623,6 +1659,8 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeServerTimestampOnError);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeSourceTimestampOnValueError);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
 

@@ -32,7 +32,7 @@ static UA_SecureChannel testChannel;
 static UA_ByteString dummyCertificate =
     UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
 static UA_SecurityPolicy dummyPolicy;
-static UA_ByteString sentData;
+static UA_ConnectionManager *testCM;
 
 static funcs_called fCalled;
 static key_sizes keySizes;
@@ -44,16 +44,18 @@ setup_secureChannel(void) {
     testChannel.config = UA_ConnectionConfig_default;
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testChannel.connectionManager = &testConnectionManagerTCP;
+    testCM = TestConnectionManager_new("tcp", NULL);
+    testChannel.connectionManager = testCM;
     testChannel.state = UA_SECURECHANNELSTATE_OPEN;
-    testConnectionLastSentBuf = &sentData;
 }
 
 static void
 teardown_secureChannel(void) {
     UA_SecureChannel_clear(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
-    UA_ByteString_clear(&sentData);
+    UA_ConnectionManager *cm = testCM;
+    testCM = NULL;
+    cm->eventSource.free(&cm->eventSource);
 }
 
 static void
@@ -190,15 +192,16 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
                                  &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
+    const UA_ByteString *sent = TestConnectionManager_getLastSent(testCM);
     size_t offset = 0;
     UA_TcpMessageHeader header;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_UInt32 secureChannelId;
-    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
+    UA_UInt32_decodeBinary(sent, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &asymSecurityHeader, &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &asymSecurityHeader, &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_msg(UA_ByteString_equal(&testChannel.securityPolicy->policyUri,
@@ -216,37 +219,37 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
 
     /* Dummy encryption */
     for(size_t i = offset; i < header.messageSize; ++i) {
-        sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
+        sent->data[i] = (UA_Byte)((sent->data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 
     UA_SequenceHeader sequenceHeader;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %u but was %u",
                   requestId,
                   sequenceHeader.requestId);
 
     UA_NodeId requestTypeId;
-    UA_NodeId_decodeBinary(&sentData, &offset, &requestTypeId);
+    UA_NodeId_decodeBinary(sent, &offset, &requestTypeId);
     ck_assert_msg(UA_NodeId_equal(&UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId, &requestTypeId), "Expected nodeIds to be equal");
 
     UA_OpenSecureChannelResponse sentResponse;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &sentResponse, &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &sentResponse, &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_msg(memcmp(&sentResponse, &dummyResponse, sizeof(UA_OpenSecureChannelResponse)) == 0,
                   "Expected the sent response to be equal to the one supplied to the send function");
 
-    UA_Byte paddingByte = sentData.data[offset];
+    UA_Byte paddingByte = sent->data[offset];
     size_t paddingSize = (size_t)paddingByte;
 
     for(size_t i = 0; i <= paddingSize; ++i) {
-        ck_assert_msg(sentData.data[offset + i] == paddingByte,
+        ck_assert_msg(sent->data[offset + i] == paddingByte,
                       "Expected padding byte %i to be %i but got value %i",
-                      (int)i, paddingByte, sentData.data[offset + i]);
+                      (int)i, paddingByte, sent->data[offset + i]);
     }
 
-    ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
+    ck_assert_msg(sent->data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
 
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymSecurityHeader);
     UA_SequenceHeader_clear(&sequenceHeader);
@@ -269,15 +272,16 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                                  &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
+    const UA_ByteString *sent = TestConnectionManager_getLastSent(testCM);
     size_t offset = 0;
     UA_TcpMessageHeader header;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_UInt32 secureChannelId;
-    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
+    UA_UInt32_decodeBinary(sent, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &asymSecurityHeader, &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &asymSecurityHeader, &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_msg(UA_ByteString_equal(&dummyCertificate, &asymSecurityHeader.senderCertificate),
                   "Expected the certificate to be equal to the one used  by the secureChannel");
@@ -291,27 +295,27 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "in the secureChannel");
 
     for(size_t i = offset; i < header.messageSize; ++i) {
-        sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
+        sent->data[i] = (UA_Byte)((sent->data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 
     UA_SequenceHeader sequenceHeader;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %u but was %u",
                   requestId, sequenceHeader.requestId);
 
     UA_NodeId requestTypeId;
-    UA_NodeId_decodeBinary(&sentData, &offset, &requestTypeId);
+    UA_NodeId_decodeBinary(sent, &offset, &requestTypeId);
     ck_assert_msg(UA_NodeId_equal(&UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId, &requestTypeId), "Expected nodeIds to be equal");
 
     UA_OpenSecureChannelResponse sentResponse;
-    retval = UA_decodeBinaryInternal(&sentData, &offset, &sentResponse, &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
+    retval = UA_decodeBinaryInternal(sent, &offset, &sentResponse, &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_msg(memcmp(&sentResponse, &dummyResponse, sizeof(UA_OpenSecureChannelResponse)) == 0,
                   "Expected the sent response to be equal to the one supplied to the send function");
 
-    UA_Byte paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 1];
+    UA_Byte paddingByte = sent->data[sent->length - keySizes.asym_lcl_sig_size - 1];
     size_t paddingSize = (size_t)paddingByte;
     UA_Boolean extraPadding =
         (testChannel.securityPolicy->asymEncryptionAlgorithm.getRemoteKeyLength(
@@ -319,25 +323,25 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     UA_Byte extraPaddingByte = 0;
     if(extraPadding) {
         extraPaddingByte = paddingByte;
-        paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 2];
+        paddingByte = sent->data[sent->length - keySizes.asym_lcl_sig_size - 2];
         paddingSize = ((size_t)extraPaddingByte << 8u) + paddingByte;
         paddingSize += 1;
     }
 
     for(size_t i = 0; i < paddingSize; ++i) {
-        ck_assert_msg(sentData.data[offset + i] == paddingByte,
+        ck_assert_msg(sent->data[offset + i] == paddingByte,
                       "Expected padding byte %i to be %i but got value %i",
-                      (int)i, paddingByte, sentData.data[offset + i]);
+                      (int)i, paddingByte, sent->data[offset + i]);
     }
 
     if(extraPadding) {
-        ck_assert_msg(sentData.data[offset + paddingSize] == extraPaddingByte,
+        ck_assert_msg(sent->data[offset + paddingSize] == extraPaddingByte,
                       "Expected extra padding byte to be %i but got %i",
-                      extraPaddingByte, sentData.data[offset + paddingSize]);
+                      extraPaddingByte, sent->data[offset + paddingSize]);
     }
-    ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*',
+    ck_assert_msg(sent->data[offset + paddingSize + 1] == '*',
                   "Expected first byte 42 of signature but got %i",
-                  sentData.data[offset + paddingSize + 1]);
+                  sent->data[offset + paddingSize + 1]);
 
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymSecurityHeader);
     UA_SequenceHeader_clear(&sequenceHeader);

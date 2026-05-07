@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_
@@ -158,12 +159,24 @@ typedef struct {
      *         is known. */
     size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *policy,
                                           const void *channelContext);
+
+    /* Returns the IV (initialization vector) length for symmetric encryption.
+     * For AEAD ciphers (e.g. ChaCha20-Poly1305) the IV length differs from the
+     * block size. If NULL, the block size is used as the IV length (which is
+     * correct for traditional block ciphers like AES-CBC).
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to retrieve data from.
+     * @return The IV length in bytes. */
+    size_t (*getLocalIvLength)(const UA_SecurityPolicy *policy,
+                               const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
 typedef enum {
     UA_SECURITYPOLICYTYPE_NONE = 0,
     UA_SECURITYPOLICYTYPE_RSA = 1,
-    UA_SECURITYPOLICYTYPE_ECC = 2
+    UA_SECURITYPOLICYTYPE_ECC = 2,
+    UA_SECURITYPOLICYTYPE_ECC_AEAD = 3
 } UA_SecurityPolicyType;
 
 struct UA_SecurityPolicy {
@@ -265,6 +278,22 @@ struct UA_SecurityPolicy {
     UA_StatusCode (*setRemoteSymIv)(const UA_SecurityPolicy *policy,
                                     void *channelContext,
                                     const UA_ByteString *iv);
+
+    /* Sets the message security parameters for AEAD nonce derivation.
+     * Called before each symmetric encrypt/decrypt for ECC_AEAD policies.
+     * NULL for non-AEAD policies.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param tokenId The SecurityToken ID for nonce masking.
+     * @param previousSequenceNumber The previous sequence number for nonce masking.
+     * @param additionalAuthData The header bytes used as AAD for AEAD. */
+    UA_StatusCode (*setMessageSecurityParameters)(
+        const UA_SecurityPolicy *policy,
+        void *channelContext,
+        UA_UInt32 tokenId,
+        UA_UInt32 previousSequenceNumber,
+        const UA_ByteString *additionalAuthData);
 
     /* Compares the supplied certificate with the remote certificate stored in
      * the channel context.

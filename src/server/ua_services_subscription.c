@@ -71,8 +71,10 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
     };
     UA_KeyValueMap createSubMap = {8, createSubData};
 
-    UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
-    UA_Boolean enabled = (sub->state = UA_SUBSCRIPTIONSTATE_ENABLED);
+    static UA_THREAD_LOCAL UA_NodeId sessionId;
+    sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
+    static UA_THREAD_LOCAL UA_Boolean enabled;
+    enabled = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED);
 
     UA_Variant_setScalar(&createSubData[0].value, &sessionId,
                          &UA_TYPES[UA_TYPES_NODEID]);

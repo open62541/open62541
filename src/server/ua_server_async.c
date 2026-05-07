@@ -216,7 +216,7 @@ directOpCallback(UA_Server *server, UA_AsyncOperation *op) {
 /* Called from the EventLoop via a delayed callback */
 static void
 UA_AsyncManager_processReady(UA_Server *server, UA_AsyncManager *am) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Reset the delayed callback */
     UA_atomic_xchg((void**)&am->dc.callback, NULL);
@@ -238,7 +238,7 @@ UA_AsyncManager_processReady(UA_Server *server, UA_AsyncManager *am) {
         UA_AsyncResponse_delete(ar);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void

@@ -87,7 +87,7 @@ set(test_plugin_sources
 
 # Network replay tests currently require a Linux environment.
 # Also only do it for 64bit builds, as there is a bug in the Debian multi-arch installation.
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND NOT UA_ARCHITECTURE_LWIP)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
     list(APPEND test_plugin_sources
                 ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
     list(APPEND LIBS pcap)
@@ -334,6 +334,7 @@ if(UA_ENABLE_RBAC)
     ua_add_test(server/check_server_rbac.c)
     ua_add_test(server/check_server_rbac_permissions.c)
     ua_add_test(server/check_server_rbac_client.c)
+    ua_add_test(server/check_server_rbac_interlocked.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -444,7 +445,9 @@ endif()
 if(UA_ENABLE_ENCRYPTION)
     ua_add_test(client/check_client_encryption.c)
     ua_add_test(encryption/check_crl_validation.c)
+    ua_add_test(encryption/check_cert_validation_client_response.c)
     ua_add_test(encryption/check_ca_chain.c)
+    ua_add_test(server/check_server_getendpoints.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)
@@ -491,8 +494,19 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_certificategroup.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
     ua_add_test(encryption/check_encryption_eccnistp256.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
+    ua_add_test(encryption/check_encryption_ecc.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
+    ua_add_test(encryption/check_ecc_config.c)
 endif()
 
 # Tests for Nodeset Compiler
@@ -510,6 +524,28 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 endif()
 
 # Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_FORCE_32BIT)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
     ua_add_test(network_replay/check_network_replay.c)
+endif()
+
+# Cross-SDK interoperability test binaries (standalone, no check framework)
+if(UA_BUILD_INTEROP_TESTS)
+    if(NOT TARGET interop_server)
+        add_executable(interop_server interop/interop_server.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(interop_server ${LIBS})
+        set_target_properties(interop_server PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+    if(NOT TARGET check_interop_client)
+        add_executable(check_interop_client interop/check_interop_client.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_interop_client ${LIBS})
+        set_target_properties(check_interop_client PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
 endif()

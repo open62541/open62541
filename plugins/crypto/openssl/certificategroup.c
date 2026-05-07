@@ -538,13 +538,6 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
     if(depth == UA_OPENSSL_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
 
-    /* Verification Step: Validity Period */
-    ASN1_TIME *notBefore = X509_get_notBefore(cert);
-    ASN1_TIME *notAfter = X509_get_notAfter(cert);
-    if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
-            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
-
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
     X509 *issuer = NULL;
@@ -612,9 +605,20 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
     /* Is the certificate in the trust list? If yes, then we are done. */
     if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
         for(int i = 0; i < sk_X509_num(ctx->trustedCertificates); i++) {
-            if(X509_cmp(cert, sk_X509_value(ctx->trustedCertificates, i)) == 0)
-                return UA_STATUSCODE_GOOD;
+            if(X509_cmp(cert, sk_X509_value(ctx->trustedCertificates, i)) == 0) {
+                ret = UA_STATUSCODE_GOOD;
+                break;
+            }
         }
+    }
+
+    if (ret == UA_STATUSCODE_GOOD) {
+        /* Verification Step: Validity Period */
+        ASN1_TIME *notBefore = X509_get_notBefore(cert);
+        ASN1_TIME *notAfter = X509_get_notAfter(cert);
+        if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
+            return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
+                UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
     }
 
     return ret;

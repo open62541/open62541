@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SECURITYPOLICIES_H_
@@ -57,6 +58,41 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_ByteString localCertificate,
                             const UA_ByteString localPrivateKey,
                             const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
+                              const UA_ApplicationType applicationType,
+                              const UA_ByteString localCertificate,
+                              const UA_ByteString localPrivateKey,
+                              const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *policy,
+                                     const UA_ApplicationType applicationType,
+                                     const UA_ByteString localCertificate,
+                                     const UA_ByteString localPrivateKey,
+                                     const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *policy,
+                                     const UA_ApplicationType applicationType,
+                                     const UA_ByteString localCertificate,
+                                     const UA_ByteString localPrivateKey,
+                                     const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccCurve25519(UA_SecurityPolicy *policy,
+                                const UA_ApplicationType applicationType,
+                                const UA_ByteString localCertificate,
+                                const UA_ByteString localPrivateKey,
+                                const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *policy,
+                              const UA_ApplicationType applicationType,
+                              const UA_ByteString localCertificate,
+                              const UA_ByteString localPrivateKey,
+                              const UA_Logger *logger);
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 UA_EXPORT UA_StatusCode

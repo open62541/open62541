@@ -962,8 +962,11 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
      * That check makes it possible to set ackedState/Id to false, without triggering an event */
     if(*((UA_Boolean *)data->value.data) == false) {
         /* Set unacknowledging time */
+        UA_DateTime eventTime = data->sourceTimestamp;
+        if (eventTime == 0)
+            eventTime = UA_DateTime_now();
         retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                      &data->sourceTimestamp,
+                                                      &eventTime,
                                                       &UA_TYPES[UA_TYPES_DATETIME]);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set deactivating Time failed",
                                      UA_NodeId_clear(&conditionNode););
@@ -1055,8 +1058,11 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
      * That check makes it possible to set ConfirmedState/Id to false, without triggering an event */
     if(*((UA_Boolean *)data->value.data) == false) {
         /* Set unconfirming time */
+        UA_DateTime eventTime = data->sourceTimestamp;
+        if (eventTime == 0)
+            eventTime = UA_DateTime_now();
         retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                      &data->sourceTimestamp,
+                                                      &eventTime,
                                                       &UA_TYPES[UA_TYPES_DATETIME]);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set deactivating Time failed",
                                      UA_NodeId_clear(&conditionNode););
@@ -1084,8 +1090,11 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
     }
 
     /* Set confirming time */
+    UA_DateTime confirmingTime = data->sourceTimestamp;
+    if (confirmingTime == 0)
+        confirmingTime = UA_DateTime_now();
     retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                  &data->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
+                                                  &confirmingTime, &UA_TYPES[UA_TYPES_DATETIME]);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Confirming Time failed",
                                  UA_NodeId_clear(&conditionNode););
 
@@ -1194,8 +1203,11 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
         if(UA_Server_isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) &&
            UA_Server_isRetained(server, &conditionNode)) {
             /* Set activating time */
+            UA_DateTime activatingTime = data->sourceTimestamp;
+            if (activatingTime == 0)
+                activatingTime = UA_DateTime_now();
             retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                          &data->sourceTimestamp,
+                                                          &activatingTime,
                                                           &UA_TYPES[UA_TYPES_DATETIME]);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set activating Time failed",
                                          UA_NodeId_clear(&conditionNode);
@@ -1250,8 +1262,11 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
                                      UA_NodeId_clear(&conditionSource););
 
         /* Set deactivating time */
+        UA_DateTime deactivatingTime = data->sourceTimestamp;
+        if (deactivatingTime == 0)
+            deactivatingTime = UA_DateTime_now();
         retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                      &data->sourceTimestamp,
+                                                      &deactivatingTime,
                                                       &UA_TYPES[UA_TYPES_DATETIME]);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set deactivating Time failed",
                                      UA_NodeId_clear(&conditionNode);
@@ -1334,8 +1349,10 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     UA_NodeId_clear(&conditionSource););
 
     /* Set Time (Time of Value Change) */
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)((const UA_DateTime*)&data->sourceTimestamp),
-                         &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_DateTime severityTime = data->sourceTimestamp;
+    if (severityTime == 0)
+        severityTime = UA_DateTime_now();
+    UA_Variant_setScalar(&value, &severityTime, &UA_TYPES[UA_TYPES_DATETIME]);
     retval = UA_Server_setConditionField(server, condition, &value, fieldTimeQN);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Time failed",
                                  UA_NodeId_clear(&condition););

@@ -4,6 +4,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/client_highlevel.h>
@@ -17,6 +18,10 @@
 
 #include <signal.h>
 #include <stdlib.h>
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#include <mbedtls/version.h>
+#endif
 
 #include "common.h"
 
@@ -33,6 +38,29 @@ int main(int argc, char* argv[]) {
     UA_ByteString privateKey = UA_BYTESTRING_NULL;
     bool onlySecure = false;
     bool allowDiscovery = false;
+    bool useEcc = false;
+    const char *eccCertDir = NULL;
+
+    /* Parse flags first so they are available during cert generation */
+    for(int argpos = 1; argpos < argc; argpos++) {
+        if(strcmp(argv[argpos], "--onlySecure") == 0) {
+            onlySecure = true;
+            continue;
+        }
+        if(strcmp(argv[argpos], "--allowDiscovery") == 0) {
+            allowDiscovery = true;
+            continue;
+        }
+        if(strcmp(argv[argpos], "--ecc") == 0) {
+            useEcc = true;
+            continue;
+        }
+        if(strcmp(argv[argpos], "--ecc-cert-dir") == 0 && argpos + 1 < argc) {
+            eccCertDir = argv[++argpos];
+            continue;
+        }
+    }
+
     if(argc >= 3) {
         /* Load certificate and private key */
         certificate = loadFile(argv[1]);
@@ -43,9 +71,12 @@ int main(int argc, char* argv[]) {
                      "<server-certificate.der> <private-key.der> "
                      "[<trustlist1.crl>, ...] "
                      "[--onlySecure] "
-                     "[--allowDiscovery]");
+                     "[--allowDiscovery] "
+                     "[--ecc] "
+                     "[--ecc-cert-dir <dir>]");
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Trying to create a certificate.");
+
         UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
                             UA_STRING_STATIC("O=SampleOrganization"),
                             UA_STRING_STATIC("CN=Open62541Server@localhost")};
@@ -59,6 +90,16 @@ int main(int argc, char* argv[]) {
         UA_UInt16 expiresIn = 14;
         UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
                                  (void *)&expiresIn, &UA_TYPES[UA_TYPES_UINT16]);
+        if(useEcc) {
+            UA_String keyType = UA_STRING_STATIC("EC");
+            UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-type"),
+                                     (void *)&keyType, &UA_TYPES[UA_TYPES_STRING]);
+            UA_String eccCurve = UA_STRING_STATIC("prime256v1");
+            UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "ecc-curve"),
+                                     (void *)&eccCurve, &UA_TYPES[UA_TYPES_STRING]);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                        "Generating ECC (NIST P-256) certificate...");
+        }
         UA_StatusCode statusCertGen = UA_CreateCertificate(
             UA_Log_Stdout, subject, lenSubject, subjectAltName, lenSubjectAltName,
             UA_CERTIFICATEFORMAT_DER, kvm, &privateKey, &certificate);
@@ -69,17 +110,6 @@ int main(int argc, char* argv[]) {
                 "Generating Certificate failed: %s",
                 UA_StatusCode_name(statusCertGen));
             return EXIT_SUCCESS;
-        }
-    }
-
-    for(int argpos = 1; argpos < argc; argpos++) {
-        if(strcmp(argv[argpos], "--onlySecure") == 0) {
-            onlySecure = true;
-            continue;
-        }
-        if(strcmp(argv[argpos], "--allowDiscovery") == 0) {
-            allowDiscovery = true;
-            continue;
         }
     }
 
@@ -124,6 +154,67 @@ int main(int argc, char* argv[]) {
         UA_ServerConfig_addSecurityPolicyNone(config, &certificate);
         config->securityPolicyNoneDiscoveryOnly = true;
     }
+
+    /* --- ECC security policies from a certificate directory ---
+     * Each ECC curve requires its own certificate/key pair. Place DER files in
+     * a directory with names: server_c_<curve>.cert.der / server_c_<curve>.key.der
+     * where <curve> is one of: nistP256, nistP384, brainpoolP256r1,
+     * brainpoolP384r1, curve25519, curve448. */
+    (void)eccCertDir; /* may be unused when ECC policies are compiled out */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
+    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && defined(MBEDTLS_VERSION_NUMBER) && \
+     MBEDTLS_VERSION_NUMBER >= 0x03000000)
+    if(eccCertDir) {
+        struct {
+            const char *curve;
+            UA_StatusCode (*addPolicy)(UA_ServerConfig *,
+                                       const UA_ByteString *,
+                                       const UA_ByteString *);
+        } eccPolicies[] = {
+            {"nistP256",        UA_ServerConfig_addSecurityPolicyEccNistP256},
+            {"nistP384",        UA_ServerConfig_addSecurityPolicyEccNistP384},
+            {"brainpoolP256r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1},
+            {"brainpoolP384r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1},
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+            {"curve25519",      UA_ServerConfig_addSecurityPolicyEccCurve25519},
+            {"curve448",        UA_ServerConfig_addSecurityPolicyEccCurve448}
+#endif
+        };
+        size_t numEcc = sizeof(eccPolicies) / sizeof(eccPolicies[0]);
+
+        for(size_t i = 0; i < numEcc; i++) {
+            char certPath[512], keyPath[512];
+            snprintf(certPath, sizeof(certPath),
+                     "%s/server_c_%s.cert.der", eccCertDir, eccPolicies[i].curve);
+            snprintf(keyPath, sizeof(keyPath),
+                     "%s/server_c_%s.key.der", eccCertDir, eccPolicies[i].curve);
+
+            UA_ByteString eccCert = loadFile(certPath);
+            UA_ByteString eccKey  = loadFile(keyPath);
+            if(eccCert.length == 0 || eccKey.length == 0) {
+                UA_ByteString_clear(&eccCert);
+                UA_ByteString_clear(&eccKey);
+                continue;
+            }
+
+            UA_StatusCode rv = eccPolicies[i].addPolicy(config, &eccCert, &eccKey);
+            if(rv == UA_STATUSCODE_GOOD) {
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                            "Added ECC security policy: %s", eccPolicies[i].curve);
+            } else {
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                               "Could not add ECC_%s: %s",
+                               eccPolicies[i].curve, UA_StatusCode_name(rv));
+            }
+            UA_ByteString_clear(&eccCert);
+            UA_ByteString_clear(&eccKey);
+        }
+
+        /* Create endpoints for the newly added ECC policies.
+         * addAllEndpoints has built-in duplicate detection. */
+        UA_ServerConfig_addAllEndpoints(config);
+    }
+#endif
 
     /* Accept all certificates */
     config->secureChannelPKI.clear(&config->secureChannelPKI);

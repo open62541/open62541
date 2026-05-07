@@ -790,14 +790,15 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
         nsMapping->remote2local[i] = nsIndex;
     }
 
-    nsMapping->local2remote = (UA_UInt16*)UA_calloc( nsSize, sizeof(UA_UInt16));
+    size_t l2rSize = client->namespacesSize > nsSize ? client->namespacesSize : nsSize;
+    nsMapping->local2remote = (UA_UInt16*)UA_calloc(l2rSize, sizeof(UA_UInt16));
     if(!nsMapping->local2remote) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Namespace mapping creation failed. Out of Memory.");
         UA_NamespaceMapping_delete(nsMapping);
         return;
     }
-    nsMapping->local2remoteSize = nsSize;
+    nsMapping->local2remoteSize = l2rSize;
     nsMapping->local2remote[0] = 0;
     nsMapping->local2remote[1] = 1;
 

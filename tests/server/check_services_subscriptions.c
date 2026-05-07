@@ -89,6 +89,50 @@ static void teardown(void) {
 
 static UA_UInt32 subscriptionId;
 static UA_UInt32 monitoredItemId;
+static UA_Boolean subscriptionNotificationCalled = false;
+static UA_ApplicationNotificationType subscriptionNotificationType;
+static UA_UInt32 subscriptionNotificationId = 0;
+static UA_Boolean subscriptionNotificationEnabled = false;
+static size_t subscriptionNotificationMapSize = 0;
+
+static const UA_Variant *
+findNotificationValue(const UA_KeyValueMap *map, const char *key) {
+    if(!map || !map->map)
+        return NULL;
+
+    size_t keylen = strlen(key);
+    for(size_t i = 0; i < map->mapSize; i++) {
+        const UA_String *name = &map->map[i].key.name;
+        if(name->length == keylen &&
+           memcmp(name->data, key, keylen) == 0)
+            return &map->map[i].value;
+    }
+
+    return NULL;
+}
+
+static void
+testSubscriptionNotificationCallback(UA_Server *server,
+                                     UA_ApplicationNotificationType type,
+                                     UA_KeyValueMap data) {
+    (void)server;
+
+    subscriptionNotificationCalled = true;
+    subscriptionNotificationType = type;
+    subscriptionNotificationMapSize = data.mapSize;
+
+    const UA_Variant *sid =
+        findNotificationValue(&data, "subscription-id");
+    ck_assert_ptr_ne(sid, NULL);
+    ck_assert_ptr_ne(sid->data, NULL);
+    subscriptionNotificationId = *(const UA_UInt32*)sid->data;
+
+    const UA_Variant *enabled =
+        findNotificationValue(&data, "publishing-enabled");
+    ck_assert_ptr_ne(enabled, NULL);
+    ck_assert_ptr_ne(enabled->data, NULL);
+    subscriptionNotificationEnabled = *(const UA_Boolean*)enabled->data;
+}
 
 static void
 createSubscription(void) {
@@ -1350,6 +1394,39 @@ START_TEST(Server_transferSubscription_sendInitialValues) {
     unlockServer(server);
 } END_TEST
 
+
+START_TEST(Server_createSubscription_notificationCallback) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    subscriptionNotificationCalled = false;
+    subscriptionNotificationType = (UA_ApplicationNotificationType)0;
+    subscriptionNotificationId = 0;
+    subscriptionNotificationEnabled = false;
+    subscriptionNotificationMapSize = 0;
+
+    config->subscriptionNotificationCallback = testSubscriptionNotificationCallback;
+
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionRequest_init(&request);
+    request.publishingEnabled = true;
+
+    UA_CreateSubscriptionResponse response;
+    UA_CreateSubscriptionResponse_init(&response);
+
+    lockServer(server);
+    Service_CreateSubscription(server, session, &request, &response);
+    unlockServer(server);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(subscriptionNotificationCalled == true);
+    ck_assert_uint_gt(subscriptionNotificationMapSize, 0);
+    ck_assert_uint_eq(subscriptionNotificationId, response.subscriptionId);
+    ck_assert(subscriptionNotificationEnabled == true);
+
+    config->subscriptionNotificationCallback = NULL;
+    UA_CreateSubscriptionResponse_clear(&response);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -1358,6 +1435,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_createSubscription);
+    tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
     tcase_add_test(tc_server, Server_negativeSamplingInterval);

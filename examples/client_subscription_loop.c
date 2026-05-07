@@ -14,18 +14,6 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
-#include "common.h"
-
-#include <signal.h>
-#include <stdlib.h>
-
-static UA_Boolean running = true;
-
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Received Ctrl-C");
-    running = 0;
-}
-
 static void
 handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
                            UA_UInt32 monId, void *monContext, UA_DataValue *value) {
@@ -35,19 +23,23 @@ handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
-                    dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
+                    dts.day, dts.month, dts.year, dts.hour, dts.min,
+                    dts.sec, dts.milliSec);
     }
 }
 
 static void
-deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext) {
+deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId,
+                           void *subscriptionContext) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Subscription Id %u was deleted", subscriptionId);
 }
 
 static void
-subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subContext) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Inactivity for subscription %u", subId);
+subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId,
+                                void *subContext) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                "Inactivity for subscription %u", subId);
 }
 
 static void
@@ -85,14 +77,16 @@ createSubscriptionCallback(UA_Client *client, void *userdata,
         req.itemsToCreateSize = 1;
         req.subscriptionId = r->subscriptionId;
 
-        UA_Client_DataChangeNotificationCallback dataChangeNotificationCallback[1] = { handler_currentTimeChanged };
+        UA_Client_DataChangeNotificationCallback dataChangeNotificationCallback[1] =
+            { handler_currentTimeChanged };
         UA_StatusCode retval =
             UA_Client_MonitoredItems_createDataChanges_async(client, req, NULL,
                                                              dataChangeNotificationCallback, NULL,
                                                              monCallback, NULL, NULL);
         if (retval != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                "UA_Client_MonitoredItems_createDataChanges_async ", UA_StatusCode_name(retval));
+                "UA_Client_MonitoredItems_createDataChanges_async ",
+                         UA_StatusCode_name(retval));
     }
 }
 
@@ -101,16 +95,20 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     switch(channelState) {
     case UA_SECURECHANNELSTATE_CLOSED:
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "The client is disconnected");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "The client is disconnected");
         break;
     case UA_SECURECHANNELSTATE_HEL_SENT:
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Waiting for ack");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "Waiting for ack");
         break;
     case UA_SECURECHANNELSTATE_OPN_SENT:
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Waiting for OPN Response");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "Waiting for OPN Response");
         break;
     case UA_SECURECHANNELSTATE_OPEN:
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "A SecureChannel to the server is open");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "A SecureChannel to the server is open");
         break;
     default:
         break;
@@ -118,55 +116,41 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
 
     switch(sessionState) {
     case UA_SESSIONSTATE_ACTIVATED: {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "A session with the server is activated");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "A session with the server is activated");
         /* A new session was created. We need to create the subscription. */
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-        UA_StatusCode retval = 
-            UA_Client_Subscriptions_create_async(client, request, NULL, NULL, deleteSubscriptionCallback, 
-                                                 createSubscriptionCallback, NULL, NULL);
+        UA_StatusCode retval =
+            UA_Client_Subscriptions_create_async(client, request, NULL, NULL,
+                                                 deleteSubscriptionCallback,
+                                                 createSubscriptionCallback,
+                                                 NULL, NULL);
         if (retval != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                "UA_Client_Subscriptions_create_async ", UA_StatusCode_name(retval));
+                "UA_Client_Subscriptions_create_async ",
+                         UA_StatusCode_name(retval));
         }
         break;
     case UA_SESSIONSTATE_CLOSED:
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Session disconnected");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                    "Session disconnected");
         break;
     default:
         break;
     }
 }
 
-int
-main(void) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
-
+int main(void) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
 
-    /* Set stateCallback */
+    /* Set callbacks */
     cc->stateCallback = stateCallback;
     cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
 
-    /* Endless loop runAsync */
-    while(running) {
-        /* if already connected, this will return GOOD and do nothing */
-        /* if the connection is closed/errored, the connection will be reset and then reconnected */
-        /* Alternatively you can also use UA_Client_getState to get the current state */
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                         "Not connected. Retrying to connect in 1 second");
-            /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
-            /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
-            sleep_ms(1000);
-            continue;
-        }
-
-        UA_Client_run_iterate(client, 1000);
-    }
+    /* Run the client until ctrl-c */
+    UA_Client_runUntilInterrupt(client);
 
     /* Clean up */
     UA_Client_delete(client); /* Disconnects the client internally */

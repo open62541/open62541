@@ -1436,6 +1436,10 @@ UA_Byte CERT_P256_PEM_DATA[CERT_P256_PEM_LENGTH] = {
     0x49, 0x43, 0x41, 0x54, 0x45, 0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x0a
 };
 
+/* ECC P-384 / BrainpoolP256r1 / BrainpoolP384r1 test certificates are
+ * included from a separate generated header */
+#include "ecc_certificates.h"
+
 _UA_END_DECLS
 
 #endif /* CERTIFICATES_H_ */

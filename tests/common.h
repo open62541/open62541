@@ -21,11 +21,28 @@ loadFile(const char *const path) {
     }
 
     /* Get the file length, allocate the data and read */
-    fseek(fp, 0, SEEK_END);
-    fileContents.length = (size_t)ftell(fp);
+    if(fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        errno = 0;
+        return fileContents;
+    }
+
+    long length = ftell(fp);
+    if(length < 0) {
+        fclose(fp);
+        errno = 0;
+        return fileContents;
+    }
+
+    fileContents.length = (size_t)length;
     fileContents.data = (UA_Byte *)UA_malloc(fileContents.length * sizeof(UA_Byte));
     if(fileContents.data) {
-        fseek(fp, 0, SEEK_SET);
+        if(fseek(fp, 0, SEEK_SET) != 0) {
+            fclose(fp);
+            UA_ByteString_clear(&fileContents);
+            errno = 0;
+            return fileContents;
+        }
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
         if(read != fileContents.length)
             UA_ByteString_clear(&fileContents);

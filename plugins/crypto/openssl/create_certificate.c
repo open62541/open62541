@@ -4,6 +4,7 @@
  *
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2022 (c) Wind River Systems, Inc.
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  *
  */
 
@@ -94,12 +95,60 @@ add_x509V3ext(const UA_Logger *logger, X509 *x509, int nid, char *value) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Check if a UA_String equals a C string literal (case-insensitive) */
+static UA_Boolean
+uaStringEqualsCI(const UA_String *uaStr, const char *cStr) {
+    size_t cLen = strlen(cStr);
+    if(uaStr->length != cLen)
+        return false;
+    for(size_t i = 0; i < cLen; i++) {
+        char a = (char)uaStr->data[i];
+        char b = cStr[i];
+        if(a >= 'A' && a <= 'Z') a = (char)(a + 32);
+        if(b >= 'A' && b <= 'Z') b = (char)(b + 32);
+        if(a != b) return false;
+    }
+    return true;
+}
+
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
 
 /* generate the RSA key */
 
 static EVP_PKEY * UA_RSA_Generate_Key (size_t keySizeBits){
     return EVP_RSA_gen(keySizeBits);
+}
+
+/* Generate an ECC key for the given curve name.
+ * Returns NULL on failure. */
+static EVP_PKEY *
+UA_ECC_Generate_Key(const UA_Logger *logger, const UA_String *curveName) {
+    /* EdDSA curves use a different keygen path */
+    if(uaStringEqualsCI(curveName, "ed25519"))
+        return EVP_PKEY_Q_keygen(NULL, NULL, "ED25519");
+    if(uaStringEqualsCI(curveName, "ed448"))
+        return EVP_PKEY_Q_keygen(NULL, NULL, "ED448");
+
+    /* ECDSA curves: map name to OpenSSL curve name */
+    const char *osslCurve = NULL;
+    if(uaStringEqualsCI(curveName, "prime256v1") ||
+       uaStringEqualsCI(curveName, "nistp256"))
+        osslCurve = "prime256v1";
+    else if(uaStringEqualsCI(curveName, "secp384r1") ||
+            uaStringEqualsCI(curveName, "nistp384"))
+        osslCurve = "secp384r1";
+    else if(uaStringEqualsCI(curveName, "brainpoolp256r1"))
+        osslCurve = "brainpoolP256r1";
+    else if(uaStringEqualsCI(curveName, "brainpoolp384r1"))
+        osslCurve = "brainpoolP384r1";
+
+    if(!osslCurve) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Create Certificate: Unsupported ECC curve.");
+        return NULL;
+    }
+
+    return EVP_EC_gen(osslCurve);
 }
 
 #endif
@@ -119,6 +168,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_UInt16 keySizeBits = 4096;
     /* Default to 1 year */
     UA_UInt16 expiresInDays = 365;
+    /* Key type: 0 = RSA (default), 1 = EC */
+    int keyTypeEC = 0;
+    UA_String eccCurve = UA_STRING_STATIC("prime256v1");
 
     if(params) {
         const UA_UInt16 *keySizeBitsValue = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
@@ -130,6 +182,16 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             params, UA_QUALIFIEDNAME(0, "expires-in-days"), &UA_TYPES[UA_TYPES_UINT16]);
         if(expiresInDaysValue)
             expiresInDays = *expiresInDaysValue;
+
+        const UA_String *keyTypeValue = (const UA_String *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "key-type"), &UA_TYPES[UA_TYPES_STRING]);
+        if(keyTypeValue && uaStringEqualsCI(keyTypeValue, "ec"))
+            keyTypeEC = 1;
+
+        const UA_String *eccCurveValue = (const UA_String *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "ecc-curve"), &UA_TYPES[UA_TYPES_STRING]);
+        if(eccCurveValue && eccCurveValue->length > 0)
+            eccCurve = *eccCurveValue;
     }
 
     UA_ByteString_init(outPrivateKey);
@@ -148,12 +210,30 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     X509 *x509 = X509_new();
 
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    EVP_PKEY *pkey = UA_RSA_Generate_Key(keySizeBits);
+    EVP_PKEY *pkey = NULL;
+    if(keyTypeEC) {
+        pkey = UA_ECC_Generate_Key(logger, &eccCurve);
+        if(!pkey) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "Create Certificate: ECC key generation failed.");
+            errRet = UA_STATUSCODE_BADINTERNALERROR;
+            X509_free(x509);
+            return errRet;
+        }
+    } else {
+        pkey = UA_RSA_Generate_Key(keySizeBits);
+    }
     if((pkey == NULL) || (x509 == NULL)) {
         errRet = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }    
 #else
+    if(keyTypeEC) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Create Certificate: ECC key generation requires OpenSSL >= 3.0");
+        X509_free(x509);
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
     BIGNUM *exponent = BN_new();
     EVP_PKEY *pkey = EVP_PKEY_new();
     RSA *rsa = RSA_new();
@@ -277,9 +357,11 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     }
 
     /* See https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3 for
-     * possible values */
-    errRet = add_x509V3ext(logger, x509, NID_key_usage,
-                           "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment,keyCertSign");
+     * possible values. ECC certificates need keyAgreement for ECDH. */
+    const char *keyUsageStr = keyTypeEC
+        ? "digitalSignature,nonRepudiation,keyAgreement,keyCertSign"
+        : "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment,keyCertSign";
+    errRet = add_x509V3ext(logger, x509, NID_key_usage, (char*)(uintptr_t)keyUsageStr);
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'Key Usage' failed.");
@@ -314,7 +396,22 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    if(X509_sign(x509, pkey, EVP_sha256()) == 0) {
+    /* Select the digest for signing.
+     * EdDSA (Ed25519/Ed448): pass NULL (intrinsic hash).
+     * ECDSA P-384 / brainpoolP384r1: SHA-384.
+     * Everything else (RSA, P-256, brainpoolP256r1): SHA-256. */
+    const EVP_MD *signMd = EVP_sha256();
+    if(keyTypeEC) {
+        if(uaStringEqualsCI(&eccCurve, "ed25519") ||
+           uaStringEqualsCI(&eccCurve, "ed448"))
+            signMd = NULL; /* EdDSA uses intrinsic hash */
+        else if(uaStringEqualsCI(&eccCurve, "secp384r1") ||
+                uaStringEqualsCI(&eccCurve, "nistp384") ||
+                uaStringEqualsCI(&eccCurve, "brainpoolp384r1"))
+            signMd = EVP_sha384();
+    }
+
+    if(X509_sign(x509, pkey, signMd) == 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Signing failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;

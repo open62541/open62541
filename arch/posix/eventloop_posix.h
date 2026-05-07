@@ -270,9 +270,9 @@ typedef int SOCKET;
 #include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
-#ifndef __APPLE__
+#ifdef __linux__
 # include <sys/inotify.h>
-#endif /* !__APPLE__ */
+#endif /* __linux__ */
 #include <sys/stat.h>
 
 #define UA_STAT stat

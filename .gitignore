@@ -97,3 +97,5 @@ nbbuild/
 dist/
 nbdist/
 .nb-gradle/
+tests/interop/node-opcua/node_modules/
+tests/interop/node-opcua/package-lock.json

@@ -11,6 +11,7 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/types.h>
@@ -93,11 +94,14 @@ UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
 static void
 hideErrors(UA_TcpErrorMessage *const error) {
     switch(error->error) {
+    case UA_STATUSCODE_BADCERTIFICATEINVALID:
+    case UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE:
+    case UA_STATUSCODE_BADCERTIFICATEPOLICYCHECKFAILED:
     case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+    case UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN:
     case UA_STATUSCODE_BADCERTIFICATEREVOKED:
     case UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED:
-    case UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE:
-    case UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
@@ -438,8 +442,9 @@ sendSymmetricChunk(UA_MessageContext *mc) {
                          (long unsigned int)
                          ((uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data));
 
-    /* Add padding if the message is encrypted */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    /* Add padding if the message is encrypted (not for AEAD policies) */
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
+       sp->policyType != UA_SECURITYPOLICYTYPE_ECC_AEAD)
         padChunk(channel, &sp->symSignatureAlgorithm, &sp->symEncryptionAlgorithm,
                  &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &mc->buf_pos);
@@ -949,7 +954,7 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
 
     /* Validate the assembled message size */
     if(channel->config.localMaxMessageSize != 0 &&
-       channel->chunksLength > channel->config.localMaxMessageSize) {
+       messageSize > channel->config.localMaxMessageSize) {
         if(chunk.copied)
             UA_ByteString_clear(&chunk.bytes);
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;

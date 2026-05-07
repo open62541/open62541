@@ -317,6 +317,10 @@ Detailed SDK Features
    - ``OPENSSL`` Encryption support using OpenSSL
    - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
 
+   ECC security policies (NIST P-256/P-384, Brainpool) are available with OpenSSL
+   or mbedTLS ≥ 3.0.  Curve25519 and Curve448 require OpenSSL.  See
+   :ref:`ecc-security` for details.
+
 **UA_ENABLE_ENCRYPTION_TPM2**
    Enable TPM hardware for encryption. The possible options are:
       - ``OFF`` No TPM encryption support. (default)

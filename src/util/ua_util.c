@@ -1068,6 +1068,8 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
 
 static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
+#ifdef UA_TYPES_SIMPLEATTRIBUTEOPERAND
+
 UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String *out) {
     UA_RelativePathElement rpe;
@@ -1120,6 +1122,10 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String 
     return moveTmpToOut(&tmp, out);
 }
 
+#endif /* UA_TYPES_SIMPLEATTRIBUTEOPERAND */
+
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
+
 UA_StatusCode
 UA_AttributeOperand_print(const UA_AttributeOperand *ao,
                           UA_String *out) {
@@ -1164,6 +1170,8 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
 
     return moveTmpToOut(&tmp, out);
 }
+
+#endif /* UA_TYPES_ATTRIBUTEOPERAND */
 
 UA_StatusCode
 UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {

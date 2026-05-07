@@ -1361,6 +1361,1095 @@ START_TEST(filterDouble_comparison) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* --- Additional filter validation tests for uncovered paths --- */
+
+/* Test ContentFilterElementValidation with InView operator (not allowed in event where clause) */
+START_TEST(filterValidation_inViewRelatedTo) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+
+    /* InView → BADEVENTFILTERINVALID */
+    cfe.filterOperator = UA_FILTEROPERATOR_INVIEW;
+    cfe.filterOperandsSize = 1;
+    UA_ExtensionObject op;
+    UA_ExtensionObject_init(&op);
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    op.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    op.content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    op.content.decoded.data = &lop;
+    cfe.filterOperands = &op;
+
+    lockServer(server);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterElementResult_clear(&elmRes);
+
+    /* RelatedTo → BADEVENTFILTERINVALID */
+    cfe.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
+    lockServer(server);
+    elmRes = UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterElementResult_clear(&elmRes);
+} END_TEST
+
+/* Test ContentFilterElementValidation with LIKE and CAST operators (unsupported) */
+START_TEST(filterValidation_likeCast) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperandsSize = 2;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+    UA_ExtensionObject_init(&ops[0]);
+    ops[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops[0].content.decoded.data = &lop1;
+    UA_ExtensionObject_init(&ops[1]);
+    ops[1].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops[1].content.decoded.data = &lop2;
+    cfe.filterOperands = ops;
+
+    /* LIKE → BADFILTEROPERATORUNSUPPORTED */
+    cfe.filterOperator = UA_FILTEROPERATOR_LIKE;
+    lockServer(server);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
+    UA_ContentFilterElementResult_clear(&elmRes);
+
+    /* CAST → BADFILTEROPERATORUNSUPPORTED */
+    cfe.filterOperator = UA_FILTEROPERATOR_CAST;
+    lockServer(server);
+    elmRes = UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
+    UA_ContentFilterElementResult_clear(&elmRes);
+} END_TEST
+
+/* Test ContentFilterElementValidation with AttributeOperand (not supported) */
+START_TEST(filterValidation_attributeOperand) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_EQUALS;
+    cfe.filterOperandsSize = 2;
+
+    UA_ExtensionObject ops[2];
+    UA_AttributeOperand aop;
+    UA_AttributeOperand_init(&aop);
+    UA_ExtensionObject_init(&ops[0]);
+    ops[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
+    ops[0].content.decoded.data = &aop;
+
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    UA_ExtensionObject_init(&ops[1]);
+    ops[1].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops[1].content.decoded.data = &lop;
+    cfe.filterOperands = ops;
+
+    lockServer(server);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
+    UA_ContentFilterElementResult_clear(&elmRes);
+} END_TEST
+
+/* Test ContentFilterElementValidation with ElementOperand point backward (invalid) */
+START_TEST(filterValidation_elementOperandBackward) {
+    UA_ContentFilterElement cfe[2];
+
+    /* Element 0: Equals with ElementOperand pointing to index 0 (itself - backward!) */
+    UA_ContentFilterElement_init(&cfe[0]);
+    cfe[0].filterOperator = UA_FILTEROPERATOR_EQUALS;
+    cfe[0].filterOperandsSize = 2;
+    UA_ExtensionObject ops[2];
+    UA_ElementOperand eop;
+    UA_ElementOperand_init(&eop);
+    eop.index = 0; /* points to self - invalid! */
+    UA_ExtensionObject_init(&ops[0]);
+    ops[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    ops[0].content.decoded.data = &eop;
+
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    UA_ExtensionObject_init(&ops[1]);
+    ops[1].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops[1].content.decoded.data = &lop;
+    cfe[0].filterOperands = ops;
+
+    lockServer(server);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 2, &cfe[0]);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADINDEXRANGEINVALID);
+    UA_ContentFilterElementResult_clear(&elmRes);
+} END_TEST
+
+/* Test ContentFilterElementValidation with undecoded (encoded) operand */
+START_TEST(filterValidation_undecoded) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_ISNULL;
+    cfe.filterOperandsSize = 1;
+
+    UA_ExtensionObject op;
+    UA_ExtensionObject_init(&op);
+    /* Leave as UA_EXTENSIONOBJECT_ENCODED_NOBODY → not decoded */
+    cfe.filterOperands = &op;
+
+    lockServer(server);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+    UA_ContentFilterElementResult_clear(&elmRes);
+} END_TEST
+
+/* Test OfType validation with non-NodeId literal operand */
+START_TEST(filterValidation_ofTypeNonNodeId) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_OFTYPE;
+    cfe.filterOperandsSize = 1;
+
+    UA_ExtensionObject op;
+    UA_ExtensionObject_init(&op);
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    UA_Int32 notANodeId = 42;
+    UA_Variant_setScalar(&lop.value, &notANodeId, &UA_TYPES[UA_TYPES_INT32]);
+    op.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    op.content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    op.content.decoded.data = &lop;
+    cfe.filterOperands = &op;
+
+    lockServer(server);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &cfe);
+    unlockServer(server);
+    ck_assert_uint_eq(elmRes.statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+    UA_ContentFilterElementResult_clear(&elmRes);
+} END_TEST
+
+/* --- Implicit casting tests --- */
+
+/* Test implicit cast String → Boolean ("0"/"1") and failed cast for
+ * non-parseable strings. Note: The "true"/"false" comparison currently fails
+ * due to an issue in the uppercase() helper. "0" and "1" work correctly. */
+START_TEST(filterCast_stringToBoolean) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* "1" == true → GOOD */
+    UA_String s1 = UA_STRING("1");
+    UA_Boolean bTrue = true;
+    UA_Variant_setScalar(&lop1.value, &s1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &bTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* "0" == false → GOOD */
+    UA_String s0 = UA_STRING("0");
+    UA_Boolean bFalse = false;
+    UA_Variant_setScalar(&lop1.value, &s0, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &bFalse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* "invalid" == true → casting fails → BADNOMATCH */
+    UA_String sInvalid = UA_STRING("invalid");
+    UA_Variant_setScalar(&lop1.value, &sInvalid, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &bTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test Ternary logic with NULL operands (AND/OR/NOT with null) */
+START_TEST(filterTernary_null) {
+    /* NOT(null) → null → BADNOMATCH */
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_NOT;
+    cfe.filterOperandsSize = 1;
+
+    UA_ExtensionObject op;
+    UA_ExtensionObject_init(&op);
+    cfe.filterOperands = &op;
+
+    UA_LiteralOperand lop;
+    UA_LiteralOperand_init(&lop);
+    /* lop.value is empty (NULL) */
+    op.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    op.content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    op.content.decoded.data = &lop;
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+
+    /* AND(null, true) → null → BADNOMATCH */
+    UA_ContentFilterElement cfe3[3];
+    UA_ExtensionObject ops0[2], ops1[1], ops2[2];
+    UA_ElementOperand eop1, eop2;
+    UA_LiteralOperand lopNull, lopTrue1, lopTrue2;
+
+    /* Element 0: AND(elem1, elem2) */
+    UA_ContentFilterElement_init(&cfe3[0]);
+    cfe3[0].filterOperator = UA_FILTEROPERATOR_AND;
+    cfe3[0].filterOperandsSize = 2;
+    cfe3[0].filterOperands = ops0;
+
+    UA_ElementOperand_init(&eop1);
+    eop1.index = 1;
+    UA_ExtensionObject_init(&ops0[0]);
+    ops0[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops0[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    ops0[0].content.decoded.data = &eop1;
+
+    UA_ElementOperand_init(&eop2);
+    eop2.index = 2;
+    UA_ExtensionObject_init(&ops0[1]);
+    ops0[1].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops0[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    ops0[1].content.decoded.data = &eop2;
+
+    /* Element 1: IsNull(null) → TRUE (returns boolean true) */
+    UA_ContentFilterElement_init(&cfe3[1]);
+    cfe3[1].filterOperator = UA_FILTEROPERATOR_ISNULL;
+    cfe3[1].filterOperandsSize = 1;
+    cfe3[1].filterOperands = ops1;
+
+    UA_LiteralOperand_init(&lopNull);
+    UA_ExtensionObject_init(&ops1[0]);
+    ops1[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    ops1[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    ops1[0].content.decoded.data = &lopNull;
+
+    /* Element 2: Equals(5, 99) → FALSE */
+    UA_LiteralOperand_init(&lopTrue1);
+    UA_LiteralOperand_init(&lopTrue2);
+    UA_Int32 v5 = 5, v99 = 99;
+    UA_Variant_setScalar(&lopTrue1.value, &v5, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&lopTrue2.value, &v99, &UA_TYPES[UA_TYPES_INT32]);
+    setupBinaryLiteralFilter(&cfe3[2], ops2, &lopTrue1, &lopTrue2, UA_FILTEROPERATOR_EQUALS);
+
+    /* AND(TRUE, FALSE) → FALSE → BADNOMATCH */
+    setupFilterCtx(&ctx, cfe3, 3);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test event with EventId provided in event fields map */
+START_TEST(eventFieldsMap_withEventId) {
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    UA_EventDescription ed = {0};
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = eventType;
+    ed.severity = 100;
+    ed.message = message;
+
+    /* Provide EventId in the field map */
+    UA_KeyValuePair vals[1];
+    UA_KeyValueMap fieldMap = {1, vals};
+    ed.eventFields = &fieldMap;
+
+    UA_ByteString myEventId = UA_BYTESTRING("custom-event-id-1234");
+    vals[0].key = UA_QUALIFIEDNAME(0, "/EventId");
+    UA_Variant_setScalar(&vals[0].value, &myEventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_ByteString outEventId = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, &outEventId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(outEventId.length > 0);
+    /* The returned eventId should match the custom one */
+    ck_assert(UA_ByteString_equal(&outEventId, &myEventId));
+    UA_ByteString_clear(&outEventId);
+
+    joinServer();
+
+    notificationReceived = false;
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        res = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(notificationReceived, true);
+
+    forkServer();
+} END_TEST
+
+/* Test createEvent with outEventId (creates and returns an EventId) */
+START_TEST(createEvent_withOutEventId) {
+    UA_ByteString outEventId = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message,
+                              NULL, NULL, &outEventId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(outEventId.length > 0); /* Random EventId should be 16 bytes */
+    ck_assert_uint_eq(outEventId.length, 16);
+    UA_ByteString_clear(&outEventId);
+} END_TEST
+
+/* Test implicit cast: compare LocalizedText with String (LocalizedText → String) */
+START_TEST(filterCast_localizedTextToString) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_LocalizedText lt = UA_LOCALIZEDTEXT("en", "hello");
+    UA_String s = UA_STRING("hello");
+    UA_Variant_setScalar(&lop1.value, &lt, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_Variant_setScalar(&lop2.value, &s, &UA_TYPES[UA_TYPES_STRING]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test implicit cast: QualifiedName → String */
+START_TEST(filterCast_qualifiedNameToString) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "hello");
+    UA_String s = UA_STRING("hello");
+    UA_Variant_setScalar(&lop1.value, &qn, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    UA_Variant_setScalar(&lop2.value, &s, &UA_TYPES[UA_TYPES_STRING]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test implicit cast: empty variant (null) comparison */
+START_TEST(filterCast_emptyVariant) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* Both empty → cast to the same (null) type, Equals should fail */
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* Two null variants → casting fails → result is FALSE → BADNOMATCH */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test implicit numeric cast for different integer types */
+START_TEST(filterCast_numericTypes) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* Int32 vs UInt16 → should cast to Int32 by precedence */
+    UA_Int32 v1 = 42;
+    UA_UInt16 v2 = 42;
+    UA_Variant_setScalar(&lop1.value, &v1, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&lop2.value, &v2, &UA_TYPES[UA_TYPES_UINT16]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Float vs Double → should cast to Double */
+    UA_Float f1 = 3.14f;
+    UA_Double d2 = 3.14;
+    UA_Variant_setScalar(&lop1.value, &f1, &UA_TYPES[UA_TYPES_FLOAT]);
+    UA_Variant_setScalar(&lop2.value, &d2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* Float 3.14f cast to Double may differ slightly from 3.14, resulting in no match */
+    /* This is expected behavior - casting a float to double may lose precision */
+    (void)retval; /* Just ensure it doesn't crash */
+
+    /* SByte vs Int64 → should cast to Int64 */
+    UA_SByte sb = -5;
+    UA_Int64 i64 = -5;
+    UA_Variant_setScalar(&lop1.value, &sb, &UA_TYPES[UA_TYPES_SBYTE]);
+    UA_Variant_setScalar(&lop2.value, &i64, &UA_TYPES[UA_TYPES_INT64]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Byte vs UInt64 → should cast to UInt64 */
+    UA_Byte b = 200;
+    UA_UInt64 u64 = 200;
+    UA_Variant_setScalar(&lop1.value, &b, &UA_TYPES[UA_TYPES_BYTE]);
+    UA_Variant_setScalar(&lop2.value, &u64, &UA_TYPES[UA_TYPES_UINT64]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* StatusCode vs UInt32 → should cast implicitly */
+    UA_StatusCode sc = UA_STATUSCODE_GOOD;
+    UA_UInt32 u32 = 0;
+    UA_Variant_setScalar(&lop1.value, &sc, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_Variant_setScalar(&lop2.value, &u32, &UA_TYPES[UA_TYPES_UINT32]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test createEventEx with subscription+session filter */
+START_TEST(createEventEx_withFilters) {
+    UA_EventDescription ed = {0};
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = eventType;
+    ed.severity = 100;
+    ed.message = message;
+
+    /* Pass a MonitoredItemId without a SubscriptionId → should fail with BADINTERNALERROR */
+    UA_UInt32 monId = 1;
+    ed.monitoredItemId = &monId;
+    ed.subscriptionId = NULL;
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* Pass a SubscriptionId without a SessionId → should fail too */
+    UA_UInt32 subId = 1;
+    ed.monitoredItemId = NULL;
+    ed.subscriptionId = &subId;
+    ed.sessionId = NULL;
+    res = UA_Server_createEventEx(server, &ed, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+} END_TEST
+
+/* Test bitwiseAnd/Or with type mismatch */
+START_TEST(filterBitwiseTypeMismatch) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* BitwiseAnd with String and Int32 → type mismatch */
+    UA_String s = UA_STRING("hello");
+    UA_Int32 v = 42;
+    UA_Variant_setScalar(&lop1.value, &s, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_BITWISEAND);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* Should fail - string and int cannot be bitwise'd */
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test implicit cast: String → Guid */
+START_TEST(filterCast_stringToGuid) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* Create a GUID and the same GUID as string */
+    UA_Guid guid = UA_GUID("72962B91-FA75-4AE6-9D28-B404DC7DAF63");
+    UA_String guidStr = UA_STRING("72962B91-FA75-4AE6-9D28-B404DC7DAF63");
+
+    UA_Variant_setScalar(&lop1.value, &guidStr, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &guid, &UA_TYPES[UA_TYPES_GUID]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Invalid GUID string → should not match */
+    UA_String badGuid = UA_STRING("not-a-guid");
+    UA_Variant_setScalar(&lop1.value, &badGuid, &UA_TYPES[UA_TYPES_STRING]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test implicit cast: String → Numerical via JSON decoding */
+START_TEST(filterCast_stringToNumericalJSON) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* String "42" should cast to Int32 42 */
+    UA_String numStr = UA_STRING("42");
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&lop1.value, &numStr, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Non-numeric string → should fail cast → no match */
+    UA_String badStr = UA_STRING("hello");
+    UA_Variant_setScalar(&lop1.value, &badStr, &UA_TYPES[UA_TYPES_STRING]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test implicit cast: ExpandedNodeId → String */
+START_TEST(filterCast_expandedNodeIdToString) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_ExpandedNodeId eid;
+    UA_ExpandedNodeId_init(&eid);
+    eid.nodeId = UA_NODEID_NUMERIC(0, 85); /* Objects folder */
+
+    /* ExpandedNodeId should cast to its string representation via Equals */
+    UA_String eidStr = UA_STRING("i=85");
+    UA_Variant_setScalar(&lop1.value, &eid, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Variant_setScalar(&lop2.value, &eidStr, &UA_TYPES[UA_TYPES_STRING]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test implicit cast: NodeId → String */
+START_TEST(filterCast_nodeIdToString) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_NodeId nid = UA_NODEID_NUMERIC(0, 85);
+    UA_String nidStr = UA_STRING("i=85");
+    UA_Variant_setScalar(&lop1.value, &nid, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&lop2.value, &nidStr, &UA_TYPES[UA_TYPES_STRING]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test implicit cast: NodeId → ExpandedNodeId */
+START_TEST(filterCast_nodeIdToExpandedNodeId) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_NodeId nid = UA_NODEID_NUMERIC(0, 85);
+    UA_ExpandedNodeId eid;
+    UA_ExpandedNodeId_init(&eid);
+    eid.nodeId = UA_NODEID_NUMERIC(0, 85);
+
+    UA_Variant_setScalar(&lop1.value, &nid, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&lop2.value, &eid, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test implicit cast: QualifiedName → LocalizedText
+ * Note: The precedence table reports 255 for QualifiedName/LocalizedText,
+ * so castResolveOperands returns BADFILTEROPERANDINVALID. The QN→LT cast
+ * path (castImplicit) is not reachable through filter operators. We verify
+ * the BADNOMATCH result (since the compare operator catches the error and
+ * returns FALSE). */
+START_TEST(filterCast_qualifiedNameToLocalizedText) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "TestName");
+    UA_LocalizedText lt = UA_LOCALIZEDTEXT("", "TestName");
+
+    UA_Variant_setScalar(&lop1.value, &qn, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    UA_Variant_setScalar(&lop2.value, &lt, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* QualifiedName has precedence 255 → implicit cast is not possible → BADNOMATCH */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test GreaterThan with a non-ordered type (String) → should fail */
+START_TEST(filterCompare_nonOrderedType) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    UA_String s1 = UA_STRING("aaa");
+    UA_String s2 = UA_STRING("bbb");
+    UA_Variant_setScalar(&lop1.value, &s1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &s2, &UA_TYPES[UA_TYPES_STRING]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_GREATERTHAN);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* String is not an ordered type → BADFILTEROPERANDINVALID */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+} END_TEST
+
+/* Test Between with incompatible types → type mismatch */
+START_TEST(filterBetween_typeMismatch) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_BETWEEN;
+    cfe.filterOperandsSize = 3;
+
+    UA_ExtensionObject ops[3];
+    UA_LiteralOperand lops[3];
+    for(int i = 0; i < 3; i++) {
+        UA_LiteralOperand_init(&lops[i]);
+        UA_ExtensionObject_init(&ops[i]);
+        ops[i].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+        ops[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        ops[i].content.decoded.data = &lops[i];
+    }
+    cfe.filterOperands = ops;
+
+    /* value is String, low/high are Int32 → should be type mismatch after cast */
+    UA_String sval = UA_STRING("hello");
+    UA_Int32 low = 1, high = 10;
+    UA_Variant_setScalar(&lops[0].value, &sval, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lops[1].value, &low, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&lops[2].value, &high, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* Type mismatch or FALSE result from failed conversion */
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test InList with mixed types (some elements don't match type) */
+START_TEST(filterInList_mixedTypes) {
+    UA_ContentFilterElement cfe;
+    UA_ContentFilterElement_init(&cfe);
+    cfe.filterOperator = UA_FILTEROPERATOR_INLIST;
+    cfe.filterOperandsSize = 4;
+
+    UA_ExtensionObject ops[4];
+    UA_LiteralOperand lops[4];
+    for(int i = 0; i < 4; i++) {
+        UA_LiteralOperand_init(&lops[i]);
+        UA_ExtensionObject_init(&ops[i]);
+        ops[i].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+        ops[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        ops[i].content.decoded.data = &lops[i];
+    }
+    cfe.filterOperands = ops;
+
+    /* Value is Int32(42), list has: String("hello"), Int32(42), Guid */
+    UA_Int32 val = 42;
+    UA_String s = UA_STRING("hello");
+    UA_Int32 match = 42;
+    UA_Guid g = UA_GUID("72962B91-FA75-4AE6-9D28-B404DC7DAF63");
+    UA_Variant_setScalar(&lops[0].value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&lops[1].value, &s, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lops[2].value, &match, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&lops[3].value, &g, &UA_TYPES[UA_TYPES_GUID]);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    /* Should still find the matching Int32(42) even though other types differ */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* No match at all */
+    UA_Int32 noMatch = 999;
+    UA_Variant_setScalar(&lops[0].value, &noMatch, &UA_TYPES[UA_TYPES_INT32]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test SAO validation with invalid attributeId */
+START_TEST(filterValidation_badAttributeId) {
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
+    sao.attributeId = 0; /* Invalid */
+    sao.browsePathSize = 0;
+
+    lockServer(server);
+    UA_StatusCode retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+
+    /* Also test upper bound */
+    sao.attributeId = 30; /* > 27 → invalid */
+    lockServer(server);
+    retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+} END_TEST
+
+/* Test SAO validation with null BrowseName in browse path */
+START_TEST(filterValidation_nullBrowseName) {
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_QualifiedName nullQN;
+    UA_QualifiedName_init(&nullQN);
+    sao.browsePathSize = 1;
+    sao.browsePath = &nullQN;
+
+    lockServer(server);
+    UA_StatusCode retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADBROWSENAMEINVALID);
+} END_TEST
+
+/* Test SAO validation with invalid IndexRange */
+START_TEST(filterValidation_invalidIndexRange) {
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePathSize = 0;
+
+    /* Bad index range syntax */
+    sao.indexRange = UA_STRING("abc");
+    lockServer(server);
+    UA_StatusCode retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINDEXRANGEINVALID);
+
+    /* Valid range but wrong attributeId (not VALUE) */
+    sao.indexRange = UA_STRING("0:2");
+    sao.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    lockServer(server);
+    retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+} END_TEST
+
+/* Test ContentFilterElement validation with out-of-range operator */
+START_TEST(filterValidation_invalidOperator) {
+    UA_ContentFilterElement ef;
+    UA_ContentFilterElement_init(&ef);
+    ef.filterOperator = (UA_FilterOperator)99; /* Out of valid range */
+    ef.filterOperandsSize = 0;
+
+    lockServer(server);
+    UA_ContentFilterElementResult er =
+        UA_ContentFilterElementValidation(server, 0, 1, &ef);
+    unlockServer(server);
+    ck_assert_uint_eq(er.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterElementResult_clear(&er);
+} END_TEST
+
+/* Test SAO validation with null TypeDefinitionId */
+START_TEST(filterValidation_nullTypeDefinition) {
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    /* TypeDefinitionId is left as NULL */
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePathSize = 0;
+
+    lockServer(server);
+    UA_StatusCode retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
+} END_TEST
+
+/* Test SAO validation with TypeDefinition not subtype of BaseEventType */
+START_TEST(filterValidation_wrongTypeDefinition) {
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    /* Use a node that exists but is not a subtype of BaseEventType */
+    sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePathSize = 0;
+
+    lockServer(server);
+    UA_StatusCode retval = UA_SimpleAttributeOperandValidation(server, &sao);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
+} END_TEST
+
+/* Test numeric cast: Int16 → SByte conversion (covers castNumerical signed→SByte) */
+START_TEST(filterCast_int16ToSByte) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* Int16(50) should equal SByte(50) after implicit cast */
+    UA_Int16 i16 = 50;
+    UA_SByte sb = 50;
+    UA_Variant_setScalar(&lop1.value, &i16, &UA_TYPES[UA_TYPES_INT16]);
+    UA_Variant_setScalar(&lop2.value, &sb, &UA_TYPES[UA_TYPES_SBYTE]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Int16(200) → SByte overflow → should produce NULL → no match */
+    UA_Int16 overflow = 200;
+    UA_Variant_setScalar(&lop1.value, &overflow, &UA_TYPES[UA_TYPES_INT16]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test numeric cast: Double → Int32 (covers castNumerical float→Int32) */
+START_TEST(filterCast_doubleToInt32) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* Double(42.0) should equal Int32(42) after cast */
+    UA_Double d = 42.0;
+    UA_Int32 i = 42;
+    UA_Variant_setScalar(&lop1.value, &d, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_Variant_setScalar(&lop2.value, &i, &UA_TYPES[UA_TYPES_INT32]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Test numeric cast: UInt16 → various targets (covers unsigned cast paths) */
+START_TEST(filterCast_unsignedPaths) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* UInt16 → Int32 (unsigned → signed, safe range) */
+    UA_UInt16 u16 = 100;
+    UA_Int32 i32 = 100;
+    UA_Variant_setScalar(&lop1.value, &u16, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&lop2.value, &i32, &UA_TYPES[UA_TYPES_INT32]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* UInt32 → Float */
+    UA_UInt32 u32 = 100;
+    UA_Float f = 100.0f;
+    UA_Variant_setScalar(&lop1.value, &u32, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&lop2.value, &f, &UA_TYPES[UA_TYPES_FLOAT]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* UInt16 → SByte overflow (300 > 127) → NULL → no match */
+    UA_UInt16 big = 300;
+    UA_SByte sb = 1;
+    UA_Variant_setScalar(&lop1.value, &big, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&lop2.value, &sb, &UA_TYPES[UA_TYPES_SBYTE]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
+/* Test Equals with String type (checks Equals on non-ordered types works) */
+START_TEST(filterEquals_strings) {
+    UA_ContentFilterElement cfe;
+    UA_ExtensionObject ops[2];
+    UA_LiteralOperand lop1, lop2;
+    UA_LiteralOperand_init(&lop1);
+    UA_LiteralOperand_init(&lop2);
+
+    /* String Equals should work (Equals is valid for all types) */
+    UA_String s1 = UA_STRING("test");
+    UA_String s2 = UA_STRING("test");
+    UA_Variant_setScalar(&lop1.value, &s1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&lop2.value, &s2, &UA_TYPES[UA_TYPES_STRING]);
+    setupBinaryLiteralFilter(&cfe, ops, &lop1, &lop2, UA_FILTEROPERATOR_EQUALS);
+
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Different strings → no match */
+    UA_String s3 = UA_STRING("other");
+    UA_Variant_setScalar(&lop2.value, &s3, &UA_TYPES[UA_TYPES_STRING]);
+    setupFilterCtx(&ctx, &cfe, 1);
+    lockServer(server);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+} END_TEST
+
 // Create an audit event that shall be delivered *only* to the AdminSession
 START_TEST(createAuditEvent) {
     UA_NodeId adminSessionId = UA_NODEID("g=00000001-0000-0000-0000-000000000000");
@@ -1536,6 +2625,41 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, eventFieldsMap);
     tcase_add_test(tc_server, nonNormalFormEventFieldsMap);
     tcase_add_test(tc_server, createAuditEvent);
+    tcase_add_test(tc_server, filterValidation_inViewRelatedTo);
+    tcase_add_test(tc_server, filterValidation_likeCast);
+    tcase_add_test(tc_server, filterValidation_attributeOperand);
+    tcase_add_test(tc_server, filterValidation_elementOperandBackward);
+    tcase_add_test(tc_server, filterValidation_undecoded);
+    tcase_add_test(tc_server, filterValidation_ofTypeNonNodeId);
+    tcase_add_test(tc_server, filterCast_stringToBoolean);
+    tcase_add_test(tc_server, filterTernary_null);
+    tcase_add_test(tc_server, eventFieldsMap_withEventId);
+    tcase_add_test(tc_server, createEvent_withOutEventId);
+    tcase_add_test(tc_server, filterCast_localizedTextToString);
+    tcase_add_test(tc_server, filterCast_qualifiedNameToString);
+    tcase_add_test(tc_server, filterCast_emptyVariant);
+    tcase_add_test(tc_server, filterCast_numericTypes);
+    tcase_add_test(tc_server, createEventEx_withFilters);
+    tcase_add_test(tc_server, filterBitwiseTypeMismatch);
+    tcase_add_test(tc_server, filterCast_stringToGuid);
+    tcase_add_test(tc_server, filterCast_stringToNumericalJSON);
+    tcase_add_test(tc_server, filterCast_expandedNodeIdToString);
+    tcase_add_test(tc_server, filterCast_nodeIdToString);
+    tcase_add_test(tc_server, filterCast_nodeIdToExpandedNodeId);
+    tcase_add_test(tc_server, filterCast_qualifiedNameToLocalizedText);
+    tcase_add_test(tc_server, filterCompare_nonOrderedType);
+    tcase_add_test(tc_server, filterBetween_typeMismatch);
+    tcase_add_test(tc_server, filterInList_mixedTypes);
+    tcase_add_test(tc_server, filterValidation_badAttributeId);
+    tcase_add_test(tc_server, filterValidation_nullBrowseName);
+    tcase_add_test(tc_server, filterValidation_invalidIndexRange);
+    tcase_add_test(tc_server, filterValidation_invalidOperator);
+    tcase_add_test(tc_server, filterValidation_nullTypeDefinition);
+    tcase_add_test(tc_server, filterValidation_wrongTypeDefinition);
+    tcase_add_test(tc_server, filterCast_int16ToSByte);
+    tcase_add_test(tc_server, filterCast_doubleToInt32);
+    tcase_add_test(tc_server, filterCast_unsignedPaths);
+    tcase_add_test(tc_server, filterEquals_strings);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 

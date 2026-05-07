@@ -743,7 +743,7 @@ START_TEST(Client_subscription_createDataChanges_async) {
     UA_Server_run_iterate(server, true);
     runServer();
 
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);

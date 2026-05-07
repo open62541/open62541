@@ -92,7 +92,7 @@ if(UA_ENABLE_HISTORIZING)
     add_example(client_historical client_historical.c)
 endif()
 
-if(UA_ENABLE_METHODCALLS AND UA_MULTITHREADING GREATER_EQUAL 100)
+if(UA_ENABLE_METHODCALLS)
     add_example(client_method_async client_method_async.c)
 endif()
 
@@ -116,7 +116,6 @@ add_example(custom_datatype_server custom_datatype/server_types_custom.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     add_example(server_events_random events/server_random_events.c)
-    add_example(client_event_filter events/client_eventfilter.c)
     add_example(client_event_filter_queries events/client_filter_queries.c)
 endif()
 

@@ -502,6 +502,37 @@ START_TEST(Session_createSession_certIgnored_on_none_policy) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Session_createSession_noServerCertOnNonePolicy) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+
+    /* Even if the client provides an application certificate, a channel with
+     * SecurityPolicy None must not return a server certificate in the
+     * CreateSession response. */
+    UA_Byte dummyCert[] = {0x30, 0x82, 0x01, 0x00};
+    createReq.clientCertificate.data = dummyCert;
+    createReq.clientCertificate.length = sizeof(dummyCert);
+
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createRes.serverCertificate.length, 0);
+    ck_assert_ptr_eq(createRes.serverCertificate.data, NULL);
+
+    createReq.clientCertificate = UA_BYTESTRING_NULL;
+    UA_CreateSessionResponse_clear(&createRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -524,6 +555,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session_ext, Session_getSessionAttribute);
     tcase_add_test(tc_session_ext, Session_deleteSessionAttribute);
     tcase_add_test(tc_session_ext, Session_createSession_certIgnored_on_none_policy);
+    tcase_add_test(tc_session_ext, Session_createSession_noServerCertOnNonePolicy);
 
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);

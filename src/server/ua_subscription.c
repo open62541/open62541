@@ -283,6 +283,14 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
 
     UA_EventLoop *el = server->config.eventLoop;
 
+    /* Delete monitored Items */
+    UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
+    UA_MonitoredItem *mon, *tmp_mon;
+    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
+        UA_MonitoredItem_delete(server, mon);
+    }
+    UA_assert(sub->monitoredItemsSize == 0);
+
     /* Unregister the publish callback and possible delayed callback */
     Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_REMOVING);
 
@@ -317,14 +325,6 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
             server->serverDiagnosticsSummary.currentSubscriptionCount--;
         }
     }
-
-    /* Delete monitored Items */
-    UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
-    UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        UA_MonitoredItem_delete(server, mon);
-    }
-    UA_assert(sub->monitoredItemsSize == 0);
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
@@ -1305,7 +1305,7 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
 }
 
 static void
-UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(!mon->registered)
@@ -1413,7 +1413,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Deregister in Server and Subscription */
     if(mon->registered)
-        UA_Server_unregisterMonitoredItem(server, mon);
+        unregisterMonitoredItem(server, mon);
 
     /* Cancel outstanding async reads. The status code avoids the sample being
      * processed. Call _processReady to ensure that the callbacks have been

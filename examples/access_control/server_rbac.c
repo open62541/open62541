@@ -4,8 +4,9 @@
  * This example demonstrates how to configure Role-Based Access Control (RBAC)
  * in an OPC UA server using:
  * 1. User authentication via username/password
- * 2. Role identity mapping (UserName criteria) for automatic role assignment
- * 3. Runtime role management via Server API
+ * 2. Identity mapping to well-known roles (e.g. ConfigureAdmin)
+ * 3. Namespace default role permissions (OPC UA Part 5, 6.3.13)
+ * 4. Explicit per-node role permissions with recursive flag
  *
  * The default access control plugin (ua_accesscontrol_default.c) implements
  * automatic role assignment by evaluating IdentityCriteriaType:
@@ -33,20 +34,9 @@ int main(void) {
     /* Allow username/password authentication over unencrypted connection (for demo) */
     config.allowNonePolicyPassword = true;
 
-    /* Configure RBAC mode: allPermissionsForAnonymous
-     * This controls the default role permissions applied to namespace 0 (NS0)
-     * per OPC UA Part 18.
-     *
-     * If FALSE (recommended for production):
-     *   - Anonymous role: BROWSE only
-     *   - AuthenticatedUser role: BROWSE | READ
-     *   - ConfigureAdmin role: All permissions (BROWSE, READ, WRITE, CALL, etc.)
-     *
-     * If TRUE (INSECURE - for testing/development only):
-     *   - Anonymous role: All permissions
-     *
-     * These defaults apply to all nodes in NS0 that don't have explicit RolePermissions.
-     * Change this to 'true' for testing without authentication. */
+    /* When allPermissionsForAnonymous is false, access is denied for nodes
+     * without explicit RolePermissions or namespace defaults.
+     * Set to true for development/testing to skip permission checks. */
     config.allPermissionsForAnonymous = false;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "RBAC Mode: allPermissionsForAnonymous = %s",
@@ -71,49 +61,51 @@ int main(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Configured users: admin, operator, guest and anonymous");
 
-    /* Step 2: Create a custom role via ServerConfig with UserName identity mapping.
-     * This role will be automatically assigned to users named "admin". */
-    UA_Role adminRole;
-    UA_Role_init(&adminRole);
-
-    adminRole.roleName = UA_QUALIFIEDNAME_ALLOC(0, "AdminRole");
-
-    /* Define identity mapping: match username "admin" */
-    adminRole.identityMappingRules = (UA_IdentityMappingRuleType*)
-        UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!adminRole.identityMappingRules) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Failed to allocate identity mapping rule");
-        UA_Role_clear(&adminRole);
-        UA_ServerConfig_clear(&config);
-        return EXIT_FAILURE;
-    }
-    adminRole.identityMappingRulesSize = 1;
-    UA_IdentityMappingRuleType_init(&adminRole.identityMappingRules[0]);
-    adminRole.identityMappingRules[0].criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
-    adminRole.identityMappingRules[0].criteria = UA_STRING_ALLOC("admin");
-
-    /* Add the role to the server configuration */
-    config.rolesSize = 1;
-    config.roles = (UA_Role*)UA_malloc(sizeof(UA_Role));
-    if(!config.roles) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Failed to allocate roles array");
-        UA_Role_clear(&adminRole);
-        UA_ServerConfig_clear(&config);
-        return EXIT_FAILURE;
-    }
-    config.roles[0] = adminRole;
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "AdminRole configured with UserName criteria for 'admin'");
-
-    /* Create the server (roles are initialized during server creation) */
+    /* Create the server (well-known roles are initialized during creation) */
     UA_Server *server = UA_Server_newWithConfig(&config);
     if(!server) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Failed to create server");
         return EXIT_FAILURE;
+    }
+
+    /* Step 2: Map 'admin' user to the standard ConfigureAdmin role.
+     * ConfigureAdmin is a well-known role defined in OPC UA Part 18.
+     * Its permissions are assigned indirectly via namespace defaults (Step 4). */
+    UA_NodeId configureAdminRoleId = UA_NODEID_NULL;
+    {
+        UA_Role confAdminRole;
+        retval = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "ConfigureAdmin"),
+                                   &confAdminRole);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_NodeId_copy(&confAdminRole.roleId, &configureAdminRoleId);
+            UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType*)
+                UA_realloc(confAdminRole.identityMappingRules,
+                           (confAdminRole.identityMappingRulesSize + 1) *
+                           sizeof(UA_IdentityMappingRuleType));
+            if(rules) {
+                confAdminRole.identityMappingRules = rules;
+                UA_IdentityMappingRuleType_init(
+                    &rules[confAdminRole.identityMappingRulesSize]);
+                rules[confAdminRole.identityMappingRulesSize].criteriaType =
+                    UA_IDENTITYCRITERIATYPE_USERNAME;
+                rules[confAdminRole.identityMappingRulesSize].criteria =
+                    UA_STRING_ALLOC("admin");
+                confAdminRole.identityMappingRulesSize++;
+                retval = UA_Server_updateRole(server, &confAdminRole);
+            } else {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            UA_Role_clear(&confAdminRole);
+        }
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Mapped 'admin' user to standard ConfigureAdmin role");
+        } else {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Failed to map admin to ConfigureAdmin: %s",
+                         UA_StatusCode_name(retval));
+        }
     }
 
     /* Step 3: Add an OperatorRole at runtime with UserName identity mapping */
@@ -164,7 +156,32 @@ int main(void) {
         }
     }
 
-    /* Step 4: Configure permissions for the roles */
+    /* Step 4: Set namespace default permissions for NS0.
+     * Per OPC UA Part 5 (6.3.13), if a node has no explicit RolePermissions,
+     * the DefaultRolePermissions from the NamespaceMetadata apply.
+     * This gives well-known roles their baseline permissions indirectly. */
+    {
+        UA_RolePermission nsDefaults[3];
+        nsDefaults[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+        nsDefaults[0].permissions = UA_PERMISSIONTYPE_BROWSE;
+        nsDefaults[1].roleId =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+        nsDefaults[1].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+        nsDefaults[2].roleId =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
+        nsDefaults[2].permissions = UA_PERMISSIONTYPE_ALL;
+
+        retval = UA_Server_setNamespaceDefaultRolePermissions(server, 0, 3, nsDefaults);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "NS0 defaults set: Anonymous=BROWSE, "
+                        "AuthenticatedUser=BROWSE|READ, ConfigureAdmin=ALL");
+        }
+    }
+
+    /* Step 5: Configure explicit permissions on ServerStatus.
+     * Explicit RolePermissions override namespace defaults for the node.
+     * ALL roles that need access must be listed. */
     UA_NodeId serverStatusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
     UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
                             UA_PERMISSIONTYPE_READROLEPERMISSIONS;
@@ -178,7 +195,18 @@ int main(void) {
                     "OperatorRole on ServerStatus");
     }
 
-    /* Step 5: Configure permissions on BuildInfo node with recursive flag */
+    /* ConfigureAdmin needs explicit listing since node-level overrides defaults */
+    if(!UA_NodeId_isNull(&configureAdminRoleId)) {
+        retval = UA_Server_addRolePermissions(server, serverStatusId,
+                                              configureAdminRoleId,
+                                              UA_PERMISSIONTYPE_ALL, false, false);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Added ALL permissions for ConfigureAdmin on ServerStatus");
+        }
+    }
+
+    /* Step 6: Configure permissions on BuildInfo node with recursive flag */
     UA_NodeId buildInfoId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
     UA_UInt32 buildInfoPermissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
                                      UA_PERMISSIONTYPE_READROLEPERMISSIONS |
@@ -195,6 +223,18 @@ int main(void) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Failed to add recursive permissions for OperatorRole on BuildInfo: %s",
                      UA_StatusCode_name(retval));
+    }
+
+    /* Add all permissions for ConfigureAdmin on BuildInfo and children (recursive) */
+    if(!UA_NodeId_isNull(&configureAdminRoleId)) {
+        retval = UA_Server_addRolePermissions(server, buildInfoId,
+                                              configureAdminRoleId,
+                                              UA_PERMISSIONTYPE_ALL, false, true);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Added ALL permissions for ConfigureAdmin on BuildInfo "
+                        "(recursive)");
+        }
     }
 
     /* Verify one child node has permissions set (recursive example) */
@@ -264,10 +304,10 @@ int main(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "\n=== Role Assignment ===\n"
                 "When clients connect, roles are automatically assigned based on:\n"
-                "  - Anonymous login -> Anonymous role + any role with AuthenticatedUser criteria\n"
-                "  - user 'admin'    -> AdminRole + any role with AuthenticatedUser criteria\n"
-                "  - user 'operator' -> OperatorRole + any role with AuthenticatedUser criteria\n"
-                "  - user 'guest'    -> Only roles with AuthenticatedUser criteria");
+                "  - Anonymous login -> Anonymous role\n"
+                "  - user 'admin'    -> ConfigureAdmin + AuthenticatedUser\n"
+                "  - user 'operator' -> OperatorRole + AuthenticatedUser\n"
+                "  - user 'guest'    -> AuthenticatedUser only");
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "\nServer is running...\n"
@@ -278,6 +318,7 @@ int main(void) {
     UA_Server_runUntilInterrupt(server);
 
     UA_NodeId_clear(&operatorRoleId);
+    UA_NodeId_clear(&configureAdminRoleId);
     retval = UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 
