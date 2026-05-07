@@ -286,6 +286,8 @@ DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *type,
     }
 
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
+    if(length > UA_UINT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     UA_String *fieldNames = (UA_String*)UA_calloc(length, sizeof(UA_String));
     dsm->data.keyFrameData.fieldNames = fieldNames;
     dsm->data.keyFrameData.fieldCount = (UA_UInt16)length;
