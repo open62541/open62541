@@ -352,7 +352,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED)
+        if(ret < 0 && UA_ERRNO == UA_INTERRUPTED)
             return;
 
         /* Orderly shutdown of the socket. We can immediately close as no method
