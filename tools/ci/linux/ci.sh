@@ -531,10 +531,18 @@ function build_clang_analyzer {
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
+    # Disable checkers that produce false positives in the posix eventloop code
+    local checker_flags=""
+    if [ "$version" = "21" ]; then
+        checker_flags="-disable-checker unix.Errno -disable-checker unix.BlockInCriticalSection"
+    fi
     scan-build-$version \
           --status-bugs \
           --exclude ../src/util \
           --exclude ../tests \
+          --exclude ../examples \
+          --exclude ../deps \
+          $checker_flags \
           make ${MAKEOPTS}
 }
 
