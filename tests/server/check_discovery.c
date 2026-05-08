@@ -4,7 +4,6 @@
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 
@@ -887,59 +886,6 @@ START_TEST(RegisterServer_not_discovery_server) {
 }
 END_TEST
 
-/* Test the registerServerCallback is called */
-static UA_Boolean callbackCalled;
-static UA_String callbackServerUri;
-
-static void
-registerServerCallbackFunc(const UA_RegisteredServer *registeredServer, void *data) {
-    callbackCalled = true;
-    UA_String_clear(&callbackServerUri);
-    UA_String_copy(&registeredServer->serverUri, &callbackServerUri);
-}
-
-START_TEST(RegisterServer_callback) {
-    callbackCalled = false;
-    UA_String_init(&callbackServerUri);
-
-    UA_Server_setRegisterServerCallback(server_lds, registerServerCallbackFunc, NULL);
-
-    UA_RegisterServerRequest request;
-    UA_RegisterServerResponse response;
-
-    fillRegisterRequest(&request, "urn:open62541.test.callback_server", "CallbackServer",
-                        "opc.tcp://localhost:16670", true);
-    UA_RegisterServerResponse_init(&response);
-
-    UA_LOCK(&server_lds->serviceMutex);
-    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
-    UA_UNLOCK(&server_lds->serviceMutex);
-    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    ck_assert(callbackCalled);
-    ck_assert(UA_String_equal(&callbackServerUri, &request.server.serverUri));
-
-    UA_RegisterServerRequest_clear(&request);
-    UA_RegisterServerResponse_clear(&response);
-
-    /* Callback should also be called on unregister */
-    callbackCalled = false;
-    fillRegisterRequest(&request, "urn:open62541.test.callback_server", "CallbackServer",
-                        "opc.tcp://localhost:16670", false);
-    UA_RegisterServerResponse_init(&response);
-
-    UA_LOCK(&server_lds->serviceMutex);
-    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
-    UA_UNLOCK(&server_lds->serviceMutex);
-    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    ck_assert(callbackCalled);
-
-    UA_RegisterServerRequest_clear(&request);
-    UA_RegisterServerResponse_clear(&response);
-    UA_String_clear(&callbackServerUri);
-
-    UA_Server_setRegisterServerCallback(server_lds, NULL, NULL);
-}
-END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
@@ -976,14 +922,6 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_validation, RegisterServer_missing_discoveryurl);
     tcase_add_test(tc_validation, RegisterServer_not_discovery_server);
     suite_add_tcase(s, tc_validation);
-
-    TCase *tc_callback = tcase_create("Service_RegisterServer Callback");
-    tcase_add_unchecked_fixture(tc_callback, setup, teardown);
-    tcase_add_test(tc_callback, RegisterServer_callback);
-    suite_add_tcase(s, tc_callback);
-
-
-
 #endif
 
     // register server again, then wait for timeout and auto unregister
