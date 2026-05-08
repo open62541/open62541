@@ -710,9 +710,9 @@ START_TEST(RegisterServer_register_ok) {
                         "opc.tcp://localhost:16664", true);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
 
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
@@ -730,17 +730,17 @@ START_TEST(RegisterServer_register_twice) {
                         "opc.tcp://localhost:16665", true);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_RegisterServerResponse_clear(&response);
 
     /* Register again with the same URI */
     UA_RegisterServerResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
     UA_RegisterServerRequest_clear(&request);
@@ -758,9 +758,9 @@ START_TEST(RegisterServer_unregister_ok) {
                         "opc.tcp://localhost:16666", true);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_RegisterServerRequest_clear(&request);
     UA_RegisterServerResponse_clear(&response);
@@ -770,9 +770,9 @@ START_TEST(RegisterServer_unregister_ok) {
                         "opc.tcp://localhost:16666", false);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
     UA_RegisterServerRequest_clear(&request);
@@ -789,9 +789,9 @@ START_TEST(RegisterServer_unregister_notfound) {
                         "opc.tcp://localhost:16667", false);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult,
                       UA_STATUSCODE_BADNOTHINGTODO);
 
@@ -818,9 +818,9 @@ START_TEST(RegisterServer_missing_servername) {
 
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult,
                       UA_STATUSCODE_BADSERVERNAMEMISSING);
 
@@ -847,9 +847,9 @@ START_TEST(RegisterServer_missing_discoveryurl) {
 
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult,
                       UA_STATUSCODE_BADDISCOVERYURLMISSING);
 
@@ -910,9 +910,9 @@ START_TEST(RegisterServer_callback) {
                         "opc.tcp://localhost:16670", true);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert(callbackCalled);
     ck_assert(UA_String_equal(&callbackServerUri, &request.server.serverUri));
@@ -926,9 +926,9 @@ START_TEST(RegisterServer_callback) {
                         "opc.tcp://localhost:16670", false);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
-    Service_RegisterServer(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
+    Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
+    UA_UNLOCK(&server_lds->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert(callbackCalled);
 
@@ -936,7 +936,7 @@ START_TEST(RegisterServer_callback) {
     UA_RegisterServerResponse_clear(&response);
     UA_String_clear(&callbackServerUri);
 
-    UA_Server_setRegisterServerCallback(server, NULL, NULL);
+    UA_Server_setRegisterServerCallback(server_lds, NULL, NULL);
 }
 END_TEST
 
