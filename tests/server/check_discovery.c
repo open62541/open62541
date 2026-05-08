@@ -710,7 +710,7 @@ START_TEST(RegisterServer_register_ok) {
                         "opc.tcp://localhost:16664", true);
     UA_RegisterServerResponse_init(&response);
 
-    UA_LOCK(&->serviceMutex);
+    UA_LOCK(&server_lds->serviceMutex);
     Service_RegisterServer(server_lds, &server_lds->adminSession, &request, &response);
     UA_UNLOCK(&server_lds->serviceMutex);
 
@@ -901,7 +901,7 @@ START_TEST(RegisterServer_callback) {
     callbackCalled = false;
     UA_String_init(&callbackServerUri);
 
-    UA_Server_setRegisterServerCallback(server, registerServerCallbackFunc, NULL);
+    UA_Server_setRegisterServerCallback(server_lds, registerServerCallbackFunc, NULL);
 
     UA_RegisterServerRequest request;
     UA_RegisterServerResponse response;
