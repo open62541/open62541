@@ -239,6 +239,27 @@ unregisterServer(void) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 }
 
+static void
+fillRegisterRequest(UA_RegisterServerRequest *request, const char *serverUri,
+                    const char *serverName, const char *discoveryUrl,
+                    UA_Boolean isOnline) {
+    UA_RegisterServerRequest_init(request);
+    request->server.serverUri = UA_STRING_ALLOC(serverUri);
+    request->server.productUri = UA_STRING_ALLOC("urn:open62541.test.product");
+    request->server.serverNamesSize = 1;
+    request->server.serverNames =
+        (UA_LocalizedText *)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    request->server.serverNames[0] = UA_LOCALIZEDTEXT_ALLOC("en", serverName);
+    request->server.serverType = UA_APPLICATIONTYPE_SERVER;
+    request->server.discoveryUrlsSize = 1;
+    request->server.discoveryUrls =
+        (UA_String *)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    request->server.discoveryUrls[0] = UA_STRING_ALLOC(discoveryUrl);
+    request->server.isOnline = isOnline;
+}
+
+
+
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
 
 static void
@@ -680,6 +701,245 @@ START_TEST(Server_registerFindServers) {
 END_TEST
 #endif
 
+/* Register a server successfully */
+START_TEST(RegisterServer_register_ok) {
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    fillRegisterRequest(&request, "urn:open62541.test.server1", "TestServer",
+                        "opc.tcp://localhost:16664", true);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+}
+END_TEST
+
+/* Register same server twice (update) should succeed */
+START_TEST(RegisterServer_register_twice) {
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    fillRegisterRequest(&request, "urn:open62541.test.server2", "TestServer2",
+                        "opc.tcp://localhost:16665", true);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerResponse_clear(&response);
+
+    /* Register again with the same URI */
+    UA_RegisterServerResponse_init(&response);
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+}
+END_TEST
+
+/* Unregister a registered server */
+START_TEST(RegisterServer_unregister_ok) {
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    /* First register */
+    fillRegisterRequest(&request, "urn:open62541.test.server3", "TestServer3",
+                        "opc.tcp://localhost:16666", true);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+
+    /* Now unregister (isOnline = false) */
+    fillRegisterRequest(&request, "urn:open62541.test.server3", "TestServer3",
+                        "opc.tcp://localhost:16666", false);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+}
+END_TEST
+
+/* Unregister a server that was never registered => BADNOTHINGTODO */
+START_TEST(RegisterServer_unregister_notfound) {
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    fillRegisterRequest(&request, "urn:open62541.test.unknown_server", "UnknownServer",
+                        "opc.tcp://localhost:16667", false);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+}
+END_TEST
+
+/* Register with missing server name => BADSERVERNAMEMISSING */
+START_TEST(RegisterServer_missing_servername) {
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    UA_RegisterServerRequest_init(&request);
+    request.server.serverUri = UA_STRING_ALLOC("urn:open62541.test.noname");
+    request.server.productUri = UA_STRING_ALLOC("urn:open62541.test.product");
+    /* No serverNames set */
+    request.server.serverType = UA_APPLICATIONTYPE_SERVER;
+    request.server.discoveryUrlsSize = 1;
+    request.server.discoveryUrls =
+        (UA_String *)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    request.server.discoveryUrls[0] = UA_STRING_ALLOC("opc.tcp://localhost:16668");
+    request.server.isOnline = true;
+
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSERVERNAMEMISSING);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+}
+END_TEST
+
+/* Register with missing discovery URL => BADDISCOVERYURLMISSING */
+START_TEST(RegisterServer_missing_discoveryurl) {
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    UA_RegisterServerRequest_init(&request);
+    request.server.serverUri = UA_STRING_ALLOC("urn:open62541.test.nourl");
+    request.server.productUri = UA_STRING_ALLOC("urn:open62541.test.product");
+    request.server.serverNamesSize = 1;
+    request.server.serverNames =
+        (UA_LocalizedText *)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    request.server.serverNames[0] = UA_LOCALIZEDTEXT_ALLOC("en", "NoUrlServer");
+    request.server.serverType = UA_APPLICATIONTYPE_SERVER;
+    /* No discoveryUrls set */
+    request.server.isOnline = true;
+
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADDISCOVERYURLMISSING);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+}
+END_TEST
+
+/* Register on a non-discovery server => BADSERVICEUNSUPPORTED */
+START_TEST(RegisterServer_not_discovery_server) {
+    /* Create a regular (non-discovery) server */
+    UA_Server *regularServer = UA_Server_newForUnitTest();
+    UA_Server_run_startup(regularServer);
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    fillRegisterRequest(&request, "urn:open62541.test.server_x", "RegularServer",
+                        "opc.tcp://localhost:16669", true);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&regularServer->serviceMutex);
+    Service_RegisterServer(regularServer, &regularServer->adminSession, &request,
+                           &response);
+    UA_UNLOCK(&regularServer->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+
+    UA_Server_run_shutdown(regularServer);
+    UA_Server_delete(regularServer);
+}
+END_TEST
+
+/* Test the registerServerCallback is called */
+static UA_Boolean callbackCalled;
+static UA_String callbackServerUri;
+
+static void
+registerServerCallbackFunc(const UA_RegisteredServer *registeredServer, void *data) {
+    callbackCalled = true;
+    UA_String_clear(&callbackServerUri);
+    UA_String_copy(&registeredServer->serverUri, &callbackServerUri);
+}
+
+START_TEST(RegisterServer_callback) {
+    callbackCalled = false;
+    UA_String_init(&callbackServerUri);
+
+    UA_Server_setRegisterServerCallback(server, registerServerCallbackFunc, NULL);
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerResponse response;
+
+    fillRegisterRequest(&request, "urn:open62541.test.callback_server", "CallbackServer",
+                        "opc.tcp://localhost:16670", true);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(callbackCalled);
+    ck_assert(UA_String_equal(&callbackServerUri, &request.server.serverUri));
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+
+    /* Callback should also be called on unregister */
+    callbackCalled = false;
+    fillRegisterRequest(&request, "urn:open62541.test.callback_server", "CallbackServer",
+                        "opc.tcp://localhost:16670", false);
+    UA_RegisterServerResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_RegisterServer(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(callbackCalled);
+
+    UA_RegisterServerRequest_clear(&request);
+    UA_RegisterServerResponse_clear(&response);
+    UA_String_clear(&callbackServerUri);
+
+    UA_Server_setRegisterServerCallback(server, NULL, NULL);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
 
@@ -700,6 +960,29 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register_find, setup_register, teardown_register);
     tcase_add_test(tc_register_find, Server_registerFindServers);
     suite_add_tcase(s,tc_register_find);
+
+    TCase *tc_basic = tcase_create("Service_RegisterServer Basic");
+    tcase_add_unchecked_fixture(tc_basic, setup, teardown);
+    tcase_add_test(tc_basic, RegisterServer_register_ok);
+    tcase_add_test(tc_basic, RegisterServer_register_twice);
+    tcase_add_test(tc_basic, RegisterServer_unregister_ok);
+    tcase_add_test(tc_basic, RegisterServer_unregister_notfound);
+    suite_add_tcase(s, tc_basic);
+
+    TCase *tc_validation = tcase_create("Service_RegisterServer Validation");
+    tcase_add_unchecked_fixture(tc_validation, setup, teardown);
+    tcase_add_test(tc_validation, RegisterServer_missing_servername);
+    tcase_add_test(tc_validation, RegisterServer_missing_discoveryurl);
+    tcase_add_test(tc_validation, RegisterServer_not_discovery_server);
+    suite_add_tcase(s, tc_validation);
+
+    TCase *tc_callback = tcase_create("Service_RegisterServer Callback");
+    tcase_add_unchecked_fixture(tc_callback, setup, teardown);
+    tcase_add_test(tc_callback, RegisterServer_callback);
+    suite_add_tcase(s, tc_callback);
+
+
+
 #endif
 
     // register server again, then wait for timeout and auto unregister
