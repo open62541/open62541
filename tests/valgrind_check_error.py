@@ -57,7 +57,7 @@ if len(log_content) == 0:
 # --16672-- Read the file README_MISSING_SYSCALL_OR_IOCTL.
 # --16672-- Nevertheless we consider this a bug.  Please report
 # --16672-- it at http://valgrind.org/support/bug_reports.html.
-replace_re = re.compile(r"^--(\d+)--\s+run: .*-- it at http://valgrind.org/support/bug_reports.html\.\$\n", re.MULTILINE | re.DOTALL)
+replace_re = re.compile(r"^--(\d+)--\s+run: .*-- it at http://valgrind.org/support/bug_reports.html\.$\n", re.MULTILINE | re.DOTALL)
 log_content = replace_re.sub('', log_content)
 
 # Try to parse the output. Look for the following line:
