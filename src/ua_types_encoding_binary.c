@@ -1000,8 +1000,17 @@ ENCODE_BINARY(Variant) {
     const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     if(isArray) {
         encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
-        if(hasDimensions)
+        if(hasDimensions) {
             encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+            size_t totalRequiredSize = 1;
+            for(size_t i = 0; i < src->arrayDimensionsSize; ++i) {
+                if(src->arrayDimensions[i] != 0 &&
+                   totalRequiredSize > SIZE_MAX / src->arrayDimensions[i])
+                    return UA_STATUSCODE_BADENCODINGERROR;
+                totalRequiredSize *= src->arrayDimensions[i];
+            }
+            if(totalRequiredSize != src->arrayLength) return UA_STATUSCODE_BADENCODINGERROR;
+        }
     }
 
     /* Encode the encoding byte */
@@ -1116,9 +1125,13 @@ DECODE_BINARY(Variant) {
         /* Validate array length against array dimensions */
         size_t totalSize = 1;
         for(size_t i = 0; i < dst->arrayDimensionsSize; ++i) {
-            if(dst->arrayDimensions[i] == 0)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            totalSize *= dst->arrayDimensions[i];
+            if(dst->arrayDimensions[i] == 0) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+            } else if(totalSize > SIZE_MAX / dst->arrayDimensions[i]) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+            } else {
+                totalSize *= dst->arrayDimensions[i];
+            }
         }
         UA_CHECK(totalSize == dst->arrayLength, ret = UA_STATUSCODE_BADDECODINGERROR);
     }
