@@ -835,6 +835,55 @@ START_TEST(Async_service_write_toomanyoperations) {
     UA_Client_delete(client);
 } END_TEST
 
+static UA_Boolean directCallCompleted = false;
+static UA_StatusCode directCallResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+static void
+directCallCompletionCb(UA_Server *s, void *ctx, const UA_CallMethodResult *result) {
+    directCallResultCode = result->statusCode;
+    directCallCompleted = true;
+}
+
+START_TEST(Async_direct_call_method_result) {
+    /* Regression test for the CALL_DIRECT union bug in UA_Server_setAsyncCallMethodResult.
+     * UA_Server_call_async stores the pending operation as CALL_DIRECT, with the output
+     * embedded inline in op->output.directCall (not behind op->output.call, which is a
+     * pointer sharing the same union storage as directCall.statusCode).
+     *
+     * The pre-patch code dereferenced op->output.call without first checking
+     * op->asyncOperationType.  For a CALL_DIRECT operation the statusCode field at union
+     * offset 0 is 0 after init, so op->output.call aliases a NULL pointer and
+     * op->output.call->outputArguments crashes immediately. */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    directCallCompleted = false;
+    directCallResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    req.methodId = UA_NODEID_STRING(1, "asyncMethod");
+
+    /* Invoke the async method directly on the server (CALL_DIRECT path) */
+    UA_StatusCode retval =
+        UA_Server_call_async(server, &req, directCallCompletionCb, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Advance fake time past the 1-second timed callback scheduled by
+     * methodCallback_async.  That callback calls UA_Server_setAsyncCallMethodResult
+     * which is the function containing the buggy union branch selection. */
+    UA_fakeSleep(1100);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(directCallCompleted == true);
+    ck_assert_uint_eq(directCallResultCode, UA_STATUSCODE_GOOD);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
@@ -859,6 +908,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_service_read_toomanyoperations);
     tcase_add_test(tc_manager, Async_service_write_validation_paths);
     tcase_add_test(tc_manager, Async_service_write_toomanyoperations);
+    tcase_add_test(tc_manager, Async_direct_call_method_result);
     suite_add_tcase(s, tc_manager);
 
     return s;
