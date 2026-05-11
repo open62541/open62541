@@ -84,6 +84,11 @@ verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
     if(doValidate) {
         size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
             signatureAlgorithm.getLocalSignatureSize(channelContext);
+        if(buffer->length < sigSize) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "PubSub receive. Message too short for signature");
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
         UA_ByteString toBeVerified = {buffer->length - sigSize, buffer->data};
         UA_ByteString signature = {sigSize, buffer->data + buffer->length - sigSize};
 
