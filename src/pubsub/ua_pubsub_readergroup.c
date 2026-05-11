@@ -699,6 +699,11 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     /* Validate the signature */
     if(doValidate) {
         size_t sigSize = sp->getSignatureSize(sp, cc);
+        if(buffer.length < sigSize) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "PubSub receive. Message too short for signature");
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
