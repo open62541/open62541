@@ -549,6 +549,15 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     }
     sub->monitoredItemsSize = 0;
 
+    /* Move over the samplingMonitoredItems and adjust the backpointers */
+    LIST_INIT(&newSub->samplingMonitoredItems);
+    UA_MonitoredItem *smon, *smon_tmp;
+    LIST_FOREACH_SAFE(smon, &sub->samplingMonitoredItems, sampling.samplingListEntry, smon_tmp) {
+        LIST_REMOVE(smon, sampling.samplingListEntry);
+        LIST_INSERT_HEAD(&newSub->samplingMonitoredItems, smon,
+                         sampling.samplingListEntry);
+    }
+
     /* Move over the notification queue */
     TAILQ_INIT(&newSub->notificationQueue);
     UA_Notification *nn, *nn_tmp;
