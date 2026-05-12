@@ -775,6 +775,13 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
+/* External data either from a datasource callback or with a _beforeRead
+ * callback where fresh values get switched in on demand. Variables with an
+ * external data source require monitoring with a sampling interval. As we
+ * cannot just hook into the write service to get all changes. */
+UA_Boolean
+VariableNode_externalDataSource(const UA_VariableNode *vn);
+
 /************/
 /* AddNodes */
 /************/
