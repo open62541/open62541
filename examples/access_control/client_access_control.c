@@ -5,7 +5,6 @@
  * Using access_control_server
  */
 
-#include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 
 #include <stdlib.h>

@@ -5,7 +5,6 @@
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
 
 #include <open62541/client.h>

@@ -6,7 +6,6 @@
  */
 
 #include <open62541/client.h>
-#include <open62541/client_config_default.h>
 #include <open62541/plugin/historydata/history_data_backend.h>
 #include <open62541/plugin/historydata/history_data_backend_memory.h>
 #include <open62541/plugin/historydata/history_data_gathering_default.h>

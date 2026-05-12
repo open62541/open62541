@@ -1071,7 +1071,6 @@ set(plugin_headers ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol_
                    ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log_stdout.h
                    ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore_default.h
                    ${PROJECT_SOURCE_DIR}/include/open62541/server_config_default.h
-                   ${PROJECT_SOURCE_DIR}/include/open62541/client_config_default.h
                    ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy_default.h
                    ${PROJECT_SOURCE_DIR}/include/open62541/plugin/create_certificate.h)
 

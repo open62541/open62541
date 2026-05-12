@@ -7,7 +7,6 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
-#include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>

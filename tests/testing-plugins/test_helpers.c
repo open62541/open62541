@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "test_helpers.h"
-#include <open62541/client_config_default.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
