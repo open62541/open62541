@@ -1,6 +1,11 @@
 name: Coverity Scan
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+    branches-ignore:
+      - 'dependabot/**'
 
 jobs:
   coverity:
