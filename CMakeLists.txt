@@ -1066,14 +1066,14 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
 endif()
 
 # Plugins
-set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/certificategroup_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h)
+set(plugin_headers ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol_default.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/plugin/certificategroup_default.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log_stdout.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore_default.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/server_config_default.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/client_config_default.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy_default.h
+                   ${PROJECT_SOURCE_DIR}/include/open62541/plugin/create_certificate.h)
 
 set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
@@ -1156,11 +1156,11 @@ endif()
 
 if(UA_ENABLE_HISTORIZING)
     list(APPEND plugin_headers
-         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_backend.h
-         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_gathering.h
-         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_database_default.h
-         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_gathering_default.h
-         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_backend_memory.h)
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydata/history_data_backend.h
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydata/history_data_gathering.h
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydata/history_database_default.h
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydata/history_data_gathering_default.h
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydata/history_data_backend_memory.h)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
@@ -1169,7 +1169,7 @@ endif()
 
 # Syslog-logging on Linux and Unices
 if(UNIX)
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_syslog.h)
+    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log_syslog.h)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_syslog.c)
 endif()
 
@@ -1243,7 +1243,7 @@ if(UA_ENABLE_NODESETLOADER)
     add_subdirectory(${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
 
     list(APPEND lib_sources ${NODESETLOADER_SOURCES})
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
+    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodesetloader.h)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
     list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
 endif()
@@ -1524,7 +1524,6 @@ function(include_directories_public)
 endfunction()
 
 include_directories_public("${PROJECT_SOURCE_DIR}/include"
-                           "${PROJECT_SOURCE_DIR}/plugins/include"
                            "${PROJECT_BINARY_DIR}/src_generated")
 
 if(UA_ENABLE_NODESETLOADER)
@@ -1723,7 +1722,6 @@ install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_di
 # Recreate the include folder structure from the source also in /usr/include/open62541
 set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
 set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
-set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
 set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
 set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
 
@@ -1731,7 +1729,6 @@ foreach ( file ${FILES_TO_INSTALL} )
     # Construct a relative path by replacing any occurence of the absolute path
     set(full_path ${file})
     string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
-    string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
     string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
     string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
     get_filename_component(dir ${file} DIRECTORY)
