@@ -647,6 +647,11 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         check_add_cc_flag("-Wno-c2y-extensions")
     endif()
 
+    # Newer glibc versions use _Generic in string.h headers
+    # for const-qualified overloads. Clang reports this as
+    # -Wc11-extensions when compiling in -std=c99 mode.
+    check_add_cc_flag("-Wno-c11-extensions")
+
     # Overlength strings may occur in generated code and are not harmful
     check_add_cc_flag("-Wno-overlength-strings")
 

@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04]
         build:
           - name: "Debug Build & Unit Tests (gcc)"
             cmd_action: unit_tests
@@ -15,7 +15,7 @@ jobs:
             cmd_deps: |
               sudo dpkg --add-architecture i386
               sudo apt-get update
-              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
+              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386 libcrypt-dev:i386
             cmd_action: unit_tests_32
 
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
@@ -82,12 +82,6 @@ jobs:
 
         include:          
           # Clang builds for specific Ubuntu versions
-          - os: ubuntu-20.04
-            build:
-              name: "Debug Build & Unit Tests (clang-11)"
-              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
-              cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
-
           - os: ubuntu-22.04
             build:
               name: "Debug Build & Unit Tests (clang-15)"
@@ -99,6 +93,12 @@ jobs:
               name: "Debug Build & Unit Tests (clang-18)"
               cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
+
+          - os: ubuntu-26.04
+            build:
+              name: "Debug Build & Unit Tests (clang-21)"
+              cmd_deps: sudo apt-get install -y -qq clang-21 clang-tools-21 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-21 CXX=clang++-21 unit_tests
 
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04
@@ -147,34 +147,6 @@ jobs:
               cmd_action: unit_tests_lwip
           
           # TPM Tool Builds for specific Ubuntu versions
-          - os: ubuntu-20.04
-            build:
-              name: "TPM Tool Build ubuntu-20.04"
-              cmd_deps: |
-                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
-                cd ${HOME}
-                git clone https://github.com/tpm2-software/tpm2-tss.git
-                cd ${HOME}/tpm2-tss
-                git checkout 3.2.3
-                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
-                make -j$(nproc)
-                sudo make install
-                sudo ldconfig
-                sudo udevadm control --reload-rules && sudo udevadm trigger
-                sudo apt-get install -y -qq tpm2-tools opensc
-                cd ${HOME}
-                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
-                cd ${HOME}/tpm2-pkcs11
-                git checkout 1.7.0
-                ./bootstrap && ./configure
-                make -j$(nproc)
-                sudo make install
-                sudo ldconfig
-                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
-                cd ${HOME}/tpm2-pkcs11/tools/
-                sudo pip3 install pyasn1_modules
-                pip3 install .
-              cmd_action: build_tpm_tool          
           - os: ubuntu-22.04
             build:
               name: "TPM Tool Build ubuntu-22.04"
@@ -207,7 +179,7 @@ jobs:
             build:
               name: "TPM Tool Build ubuntu-24.04"
               cmd_deps: |
-                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules python3-pkcs11
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
@@ -221,7 +193,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-pkcs11.git
                 cd ${HOME}/tpm2-pkcs11
-                git checkout 1.9.1
+                git checkout 1.9.2
                 ./bootstrap && ./configure
                 make -j$(nproc)
                 sudo make install
@@ -229,7 +201,34 @@ jobs:
                 sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
                 cd ${HOME}/tpm2-pkcs11/tools/
                 pip3 install --break-system-packages .
-              cmd_action: build_tpm_tool   
+              cmd_action: build_tpm_tool          
+          - os: ubuntu-26.04
+            build:
+              name: "TPM Tool Build ubuntu-26.04"
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libcrypt-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules python3-pkcs11
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 4.1.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools python3-tpm2-pytss opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.9.2
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                pip3 install --break-system-packages .
+              cmd_action: build_tpm_tool
 
           # Run examples for specific Ubuntu versions
           - os: ubuntu-24.04
@@ -264,11 +263,6 @@ jobs:
               cmd_action: examples_valgrind OPENSSL AVAHI          
 
           # Clang Static Analyzer Builds
-          - os: ubuntu-20.04
-            build:
-              name: "Clang Static Analyzer (clang11)"
-              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
-              cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11          
           - os: ubuntu-22.04
             build:
               name: "Clang Static Analyzer (clang15)"
@@ -278,13 +272,18 @@ jobs:
             build:
               name: "Clang Static Analyzer (clang18)"
               cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
-              cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
+              cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18          
+          - os: ubuntu-26.04
+            build:
+              name: "Clang Static Analyzer (clang21)"
+              cmd_deps: sudo apt-get install -y -qq clang-21 clang-tools-21 libmbedtls-dev
+              cmd_action: CC=clang-21 CXX=clang++-21 build_clang_analyzer 21
 
     name: ${{ matrix.os }}-${{ matrix.build.name }}
     runs-on: ubuntu-latest
     # runs-on: self-hosted
     container:
-      image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
+      image: ghcr.io/open62541/open62541-ci:${{ matrix.os }}
       options: --privileged
     services:
       mosquitto:
@@ -308,7 +307,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev libcrypt-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash

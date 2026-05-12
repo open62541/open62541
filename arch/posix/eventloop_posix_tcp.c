@@ -283,9 +283,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED ||
-           UA_ERRNO == UA_WOULDBLOCK ||
-           UA_ERRNO == UA_AGAIN)
+        if(ret < 0 && (UA_ERRNO == UA_INTERRUPTED ||
+                        UA_ERRNO == UA_WOULDBLOCK ||
+                        UA_ERRNO == UA_AGAIN))
             return; /* Temporary error on an non-blocking socket */
 
         /* Orderly shutdown of the socket */
