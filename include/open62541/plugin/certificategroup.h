@@ -126,6 +126,26 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey);
 
+/* OPC UA Part 6 defines requirements for Application Instance Certificates
+ * and User Certificates:
+ * https://reference.opcfoundation.org/Core/Part6/v105/docs/6.2.2
+ * https://reference.opcfoundation.org/Core/Part6/v105/docs/6.2.3
+ *
+ * Application Instance certificate and User certificate types contain a subject
+ * field, which is a distinguished name defined by RFC 5280:
+ * https://www.ietf.org/rfc/rfc5280.txt
+ *
+ * According to the OPC UA specification, the Common Name (CN) attribute shall
+ * be specified in the subject field for both Application Instance Certificates
+ * and User Certificates.
+ *
+ * Other subject attributes may also be specified, so the Common Name must be
+ * extracted as a single subject attribute instead of parsing all characters
+ * after "CN=" from the subject string.
+ */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate,
+                                      UA_String *commonName);
 _UA_END_DECLS
 
 #endif /* UA_PLUGIN_CERTIFICATEGROUP_H */
