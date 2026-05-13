@@ -364,11 +364,6 @@ sendRequest(UA_Client *client, const void *request,
             const UA_DataType *requestType, UA_UInt32 *requestId) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    /* Renew SecureChannel if necessary */
-    __Client_renewSecureChannel(client);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
-
     UA_EventLoop *el = client->config.eventLoop;
 
     /* Adjusting the request header. The const attribute is violated, but we
@@ -677,6 +672,14 @@ __Client_Service(UA_Client *client, const void *request,
      * reconnection within the EventLoop run method. */
     UA_UInt32 channelId = client->channel.securityToken.channelId;
 
+    /* Renew SecureChannel if necessary */
+    __Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+        notifyClientState(client);
+        respHeader->serviceResult = client->connectStatus;
+        return;
+    }
+
     /* Send the request */
     UA_UInt32 requestId = 0;
     UA_StatusCode retval = sendRequest(client, request, requestType, &requestId);
@@ -819,6 +822,13 @@ __Client_AsyncService(UA_Client *client, const void *request,
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "SecureChannel must be connected to send request");
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+    }
+
+    /* Renew SecureChannel if necessary */
+    __Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+        notifyClientState(client);
+        return client->connectStatus;
     }
 
     /* Prepare the entry for the linked list */

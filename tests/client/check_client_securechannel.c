@@ -4,6 +4,7 @@
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel_async.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -222,6 +223,66 @@ START_TEST(SecureChannel_cableunplugged) {
 }
 END_TEST
 
+START_TEST(SecureChannel_sync_badconnectstatus) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(isFullyConnected(client));
+    ck_assert_uint_eq(client->channel.state, UA_SECURECHANNELSTATE_OPEN);
+
+    /* Reproduce the split state where the logical client status is bad but the
+     * SecureChannel still appears open. */
+    client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(client->channel.state, UA_SECURECHANNELSTATE_OPEN);
+
+    UA_Variant_clear(&val);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(SecureChannel_async_badconnectstatus) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(isFullyConnected(client));
+    ck_assert_uint_eq(client->channel.state, UA_SECURECHANNELSTATE_OPEN);
+
+    /* Reproduce the split state where the logical client status is bad but the
+     * SecureChannel still appears open. */
+    client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = &rvi;
+    request.nodesToReadSize = 1;
+
+    retval = __UA_Client_AsyncService(client, &request,
+                                      &UA_TYPES[UA_TYPES_READREQUEST],
+                                      NULL,
+                                      &UA_TYPES[UA_TYPES_READRESPONSE],
+                                      NULL, NULL);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(client->channel.state, UA_SECURECHANNELSTATE_OPEN);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Some servers have a certificate in their endpoint which they do not use for
  * #None SecureChannels. To be compatible with them, only check if the
  * certificate matches IF it gets sent in th asymHeader of the OPN message. */
@@ -284,6 +345,8 @@ int main(void) {
     tcase_add_test(tc_sc, SecureChannel_networkfail);
     tcase_add_test(tc_sc, SecureChannel_reconnect);
     tcase_add_test(tc_sc, SecureChannel_cableunplugged);
+    tcase_add_test(tc_sc, SecureChannel_sync_badconnectstatus);
+    tcase_add_test(tc_sc, SecureChannel_async_badconnectstatus);
     tcase_add_test(tc_sc, SecureChannel_serverCert);
     tcase_add_test(tc_sc, SecureChannel_differentMonotonicClock);
 
