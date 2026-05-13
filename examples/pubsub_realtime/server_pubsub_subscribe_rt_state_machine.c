@@ -19,6 +19,7 @@
 #include <poll.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
