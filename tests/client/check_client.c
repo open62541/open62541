@@ -317,6 +317,13 @@ START_TEST(Client_delete_without_connect) {
 }
 END_TEST
 
+START_TEST(Client_new_default) {
+    UA_Client *client = UA_Client_new();
+    ck_assert(client != NULL);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_activateSessionClose) {
     // restart server
     teardown();
@@ -765,6 +772,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);
+    tcase_add_test(tc_client, Client_new_default);
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
