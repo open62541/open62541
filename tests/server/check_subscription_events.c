@@ -8,8 +8,6 @@
  */
 
 #include <open62541/client_subscriptions.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"

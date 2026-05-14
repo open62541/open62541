@@ -5,7 +5,6 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"

@@ -5,8 +5,6 @@
  * Copyright 2019 (c) basysKom GmbH <opensource@basyskom.com> (Author: Frank Meerkötter)
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
 #include "server/ua_server_internal.h"

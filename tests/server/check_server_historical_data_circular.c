@@ -12,8 +12,6 @@
 #include <open62541/plugin/historydata/history_data_gathering_default.h>
 #include <open62541/plugin/historydata/history_database_default.h>
 #include <open62541/plugin/historydatabase.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include <check.h>
 #include <stdlib.h>

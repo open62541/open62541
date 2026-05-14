@@ -5,8 +5,6 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"

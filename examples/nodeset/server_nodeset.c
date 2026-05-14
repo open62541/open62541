@@ -2,8 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */

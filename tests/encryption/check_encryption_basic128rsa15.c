@@ -9,7 +9,6 @@
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/certificategroup_default.h>
-#include <open62541/server_config_default.h>
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include "crypto/openssl/securitypolicy_common.h"

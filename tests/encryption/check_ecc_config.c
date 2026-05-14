@@ -8,8 +8,6 @@
 /* Test the UA_ServerConfig_addSecurityPolicyEcc*() public API functions.
  * These are the entry points users call to add individual ECC policies. */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/certificategroup_default.h>
 

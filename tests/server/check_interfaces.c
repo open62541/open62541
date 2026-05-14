@@ -7,8 +7,6 @@
 
 #include <namespace_tests_interfaces_generated.h>
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
 #include "test_helpers.h"

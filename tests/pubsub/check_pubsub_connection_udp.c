@@ -6,7 +6,6 @@
  * Copyright (c) 2021 Linutronix GmbH (Author: Kurt Kanzenbach)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"

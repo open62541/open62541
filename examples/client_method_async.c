@@ -3,7 +3,6 @@
 
 #include <open62541/client_highlevel_async.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server_config_default.h>
 
 static void
 methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,

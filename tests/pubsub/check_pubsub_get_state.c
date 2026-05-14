@@ -5,7 +5,6 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
 

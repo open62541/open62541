@@ -7,8 +7,6 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include "test_helpers.h"
 #include "ua_pubsub_internal.h"

@@ -7,8 +7,6 @@
 
 #include <open62541/client.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
 

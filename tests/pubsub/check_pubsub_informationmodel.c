@@ -6,7 +6,6 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/types.h>
 #include <open62541/types_generated.h>

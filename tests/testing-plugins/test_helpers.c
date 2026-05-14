@@ -5,7 +5,6 @@
 #include "test_helpers.h"
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server_config_default.h>
 
 #define TESTING_LOGLEVEL UA_LOGLEVEL_INFO
 

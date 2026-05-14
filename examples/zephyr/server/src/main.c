@@ -12,8 +12,6 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(open62541_test, LOG_LEVEL_DBG);
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 int main(void) {
   k_sleep(K_MSEC(1000));

@@ -5,7 +5,6 @@
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
 

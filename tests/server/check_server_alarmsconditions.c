@@ -5,8 +5,6 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include "test_helpers.h"
 
 #include <check.h>

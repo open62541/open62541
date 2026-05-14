@@ -41,8 +41,6 @@
  *      - $(OPEN62541_NODESET_DIR)Scales/Opc.Ua.Scales.NodeSet2.xml
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/nodesetloader.h>
 
 #include "check.h"

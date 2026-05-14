@@ -16,7 +16,6 @@
  * TargetVariables of Subscriber Information Model. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
 #include <stdio.h>

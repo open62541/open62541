@@ -8,7 +8,6 @@
 #include "custom_memory_manager.h"
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
 /*

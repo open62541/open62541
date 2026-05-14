@@ -5,7 +5,6 @@
  * Copyright (c) 2014 Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"

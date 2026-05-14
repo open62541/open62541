@@ -1,7 +1,6 @@
 #ifndef OPEN62541_MT_TESTING_H
 #define OPEN62541_MT_TESTING_H
 
-#include <open62541/server_config_default.h>
 #include "test_helpers.h"
 
 typedef struct {
