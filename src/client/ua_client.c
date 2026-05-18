@@ -313,6 +313,17 @@ static const char *sessionStateTexts[6] =
 #endif
 
 void
+setConnectStatus(UA_Client *client, UA_StatusCode status) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+
+    client->connectStatus = status;
+    if(status != UA_STATUSCODE_GOOD)
+        closeSecureChannel(client);
+
+    notifyClientState(client);
+}
+
+void
 notifyClientState(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
@@ -1487,8 +1498,8 @@ UA_Client_Service_queryFirst(UA_Client *client,
 UA_QueryNextResponse
 UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request) {
     UA_QueryNextResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYNEXTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_QUERYNEXTRESPONSE]);
     return response;
 }
 

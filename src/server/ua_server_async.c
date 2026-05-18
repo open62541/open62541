@@ -597,6 +597,13 @@ read_async(UA_Server *server, UA_Session *session, const UA_ReadValueId *operati
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
+
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
         UA_EventLoop *el = server->config.eventLoop;
@@ -712,6 +719,13 @@ write_async(UA_Server *server, UA_Session *session, const UA_WriteValue *operati
     UA_AsyncOperation *op = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
@@ -832,6 +846,13 @@ call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *o
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
+
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
         UA_EventLoop *el = server->config.eventLoop;
@@ -871,15 +892,18 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
-        if(op->output.call->outputArguments == output) {
-            op->output.call->statusCode = result;
-            processOperationResult(server, op);
-            break;
-        }
-        if(op->output.directCall.outputArguments == output) {
-            op->output.directCall.statusCode = result;
-            processOperationResult(server, op);
-            break;
+        if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+            if(op->output.call->outputArguments == output) {
+                op->output.call->statusCode = result;
+                processOperationResult(server, op);
+                break;
+            }
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+            if(op->output.directCall.outputArguments == output) {
+                op->output.directCall.statusCode = result;
+                processOperationResult(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);

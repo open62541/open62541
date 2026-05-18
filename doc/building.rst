@@ -22,7 +22,7 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install libmbedtls-dev       # for encryption support
    sudo apt-get install check libsubunit-dev # for unit tests
    sudo apt-get install libpcap-dev          # for network-replay unit tests
-   sudo apt-get install python3-sphinx graphviz  # for documentation generation
+   sudo apt-get install python3-sphinx  # for documentation generation
    sudo apt-get install python3-sphinx-rtd-theme # documentation style
    sudo apt-get install libavahi-client-dev libavahi-common-dev # for LDS-ME (multicast discovery)
 
@@ -142,7 +142,6 @@ Building on OS X
    brew install cmake
    pip install sphinx # for documentation generation
    pip install sphinx_rtd_theme # documentation style
-   brew install graphviz # for graphics in the documentation
    brew install check # for unit tests
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
