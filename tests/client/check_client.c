@@ -317,6 +317,13 @@ START_TEST(Client_delete_without_connect) {
 }
 END_TEST
 
+START_TEST(Client_new_default) {
+    UA_Client *client = UA_Client_new();
+    ck_assert(client != NULL);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_activateSessionClose) {
     // restart server
     teardown();
@@ -757,6 +764,49 @@ START_TEST(Client_setAuthenticationUsername) {
 }
 END_TEST
 
+START_TEST(Client_newWithConfig_NULL) {
+    UA_Client *client = UA_Client_newWithConfig(NULL);
+    ck_assert_ptr_eq(client, NULL);
+}
+END_TEST
+
+START_TEST(Client_getNamespaceUri_outOfBounds) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String nsUri;
+    UA_String_init(&nsUri);
+    retval = UA_Client_getNamespaceUri(client, UINT16_MAX, &nsUri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(nsUri.length, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+#ifdef UA_ENABLE_QUERY
+START_TEST(Client_queryNext_emptyContinuation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QueryNextRequest request;
+    UA_QueryNextRequest_init(&request);
+    request.releaseContinuationPoint = false;
+    request.continuationPoint = UA_BYTESTRING_NULL;
+
+    UA_QueryNextResponse response = UA_Client_Service_queryNext(client, request);
+    ck_assert_uint_ne(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_QueryNextResponse_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+#endif
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -765,6 +815,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);
+    tcase_add_test(tc_client, Client_new_default);
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
@@ -798,6 +849,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_ext, Client_cancelByRequestHandle);
     tcase_add_test(tc_ext, Client_cancelByRequestId_notFound);
     tcase_add_test(tc_ext, Client_setAuthenticationUsername);
+    tcase_add_test(tc_ext, Client_newWithConfig_NULL);
+    tcase_add_test(tc_ext, Client_getNamespaceUri_outOfBounds);
+#ifdef UA_ENABLE_QUERY
+    tcase_add_test(tc_ext, Client_queryNext_emptyContinuation);
+#endif
     suite_add_tcase(s, tc_ext);
 
     return s;

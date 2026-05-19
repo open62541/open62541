@@ -389,6 +389,7 @@ UA_Client_browse(UA_Client *client, const UA_ViewDescription *view,
     UA_BrowseResult res;
     UA_BrowseRequest request;
     UA_BrowseResponse response;
+    UA_BrowseResponse_init(&response);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!nodesToBrowse) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
@@ -460,6 +461,7 @@ UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
     UA_BrowsePathResult res;
     UA_TranslateBrowsePathsToNodeIdsRequest request;
     UA_TranslateBrowsePathsToNodeIdsResponse response;
+    UA_TranslateBrowsePathsToNodeIdsResponse_init(&response);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!browsePath) {
         retval = UA_STATUSCODE_BADINTERNALERROR;

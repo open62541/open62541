@@ -1216,6 +1216,33 @@ START_TEST(Highlevel_CallMethod_Error) {
 END_TEST
 #endif
 
+START_TEST(Highlevel_browse_nullDescription) {
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 0, NULL);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    UA_BrowseResult_clear(&br);
+}
+END_TEST
+
+START_TEST(Highlevel_browseNext_emptyContinuation) {
+    UA_BrowseResult br = UA_Client_browseNext(client, false, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_BrowseResult_clear(&br);
+}
+END_TEST
+
+START_TEST(Highlevel_translateBrowsePath_null) {
+    UA_BrowsePathResult bpr = UA_Client_translateBrowsePathToNodeIds(client, NULL);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    UA_BrowsePathResult_clear(&bpr);
+}
+END_TEST
+
+START_TEST(Highlevel_write_nullWriteValue) {
+    UA_StatusCode retval = UA_Client_write(client, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Client Highlevel");
     TCase *tc_misc = tcase_create("Client Highlevel Misc");
@@ -1275,6 +1302,10 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_ext, Highlevel_ForEachChildNode_InvalidNode);
     tcase_add_test(tc_ext, Highlevel_WriteRead_Direct);
     tcase_add_test(tc_ext, Highlevel_BrowseSimplified);
+    tcase_add_test(tc_ext, Highlevel_browse_nullDescription);
+    tcase_add_test(tc_ext, Highlevel_browseNext_emptyContinuation);
+    tcase_add_test(tc_ext, Highlevel_translateBrowsePath_null);
+    tcase_add_test(tc_ext, Highlevel_write_nullWriteValue);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, Highlevel_CallMethod_Error);
 #endif
