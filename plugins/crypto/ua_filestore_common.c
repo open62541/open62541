@@ -16,7 +16,11 @@
  * implementation working with correct input data. */
 char *
 _UA_dirname_minimal(char *path) {
+    if(path == NULL || *path == '\0')
+        return ".";
     char *lastSlash = strrchr(path, '/');
+    if(lastSlash == NULL)
+        return ".";
     *lastSlash = 0;
     return path;
 }
