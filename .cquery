@@ -1,8 +1,0 @@
-%clang
-%c -std=c99
-
-# Includes
--I./include
--I./src
--I./deps
--I./plugins
