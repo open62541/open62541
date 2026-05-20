@@ -196,8 +196,18 @@ START_TEST(set_rejectlist_remove_from_rejectlist) {
     retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rejectedListSize, 2);
-    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
-    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+    /* Check existence but omit the order */
+    UA_Boolean cert1exist = false;
+    UA_Boolean cert2exist = false;
+    for(unsigned i = 0; i < rejectedListSize; ++i) {
+        if(UA_ByteString_equal(&rejectedList[i], &certificate1))
+            cert1exist = true;
+        if(UA_ByteString_equal(&rejectedList[i], &certificate2))
+            cert2exist = true;
+    }
+    ck_assert(cert1exist);
+    ck_assert(cert2exist);
+
     // free rejectedList
     UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     rejectedList = NULL;
@@ -355,8 +365,17 @@ START_TEST(rejectedlist_filestore_persistence) {
                                                       &rejectedListSize);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rejectedListSize, 2);
-    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
-    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+    /* Check existence but omit the order */
+    UA_Boolean cert1exist = false;
+    UA_Boolean cert2exist = false;
+    for(unsigned i = 0; i < rejectedListSize; ++i) {
+        if(UA_ByteString_equal(&rejectedList[i], &certificate1))
+            cert1exist = true;
+        if(UA_ByteString_equal(&rejectedList[i], &certificate2))
+            cert2exist = true;
+    }
+    ck_assert(cert1exist);
+    ck_assert(cert2exist);
 
     UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     rejectedList = NULL;
@@ -434,8 +453,17 @@ START_TEST(get_rejectlist_twice) {
                                                       &rejectedListSize);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rejectedListSize, 2);
-    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
-    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+    /* Check existence but omit the order */
+    UA_Boolean cert1exist = false;
+    UA_Boolean cert2exist = false;
+    for(unsigned i = 0; i < rejectedListSize; ++i) {
+        if(UA_ByteString_equal(&rejectedList[i], &certificate1))
+            cert1exist = true;
+        if(UA_ByteString_equal(&rejectedList[i], &certificate2))
+            cert2exist = true;
+    }
+    ck_assert(cert1exist);
+    ck_assert(cert2exist);
 
     UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     rejectedList = NULL;
@@ -448,8 +476,17 @@ START_TEST(get_rejectlist_twice) {
                                                       &rejectedListSize);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rejectedListSize, 2);
-    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
-    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+    /* Check existence but omit the order */
+    cert1exist = false;
+    cert2exist = false;
+    for(unsigned i = 0; i < rejectedListSize; ++i) {
+        if(UA_ByteString_equal(&rejectedList[i], &certificate1))
+            cert1exist = true;
+        if(UA_ByteString_equal(&rejectedList[i], &certificate2))
+            cert2exist = true;
+    }
+    ck_assert(cert1exist);
+    ck_assert(cert2exist);
 
     UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     rejectedList = NULL;
