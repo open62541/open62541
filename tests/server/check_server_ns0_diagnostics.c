@@ -399,11 +399,27 @@ START_TEST(read_enabledFlag) {
 } END_TEST
 
 START_TEST(read_subscriptionDiagnosticsArray) {
+    const UA_NodeId subDiagArrayNodeId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
+
+    UA_NodeId dataType;
+    UA_NodeId_init(&dataType);
+    UA_StatusCode res = UA_Server_readDataType(server, subDiagArrayNodeId, &dataType);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&dataType,
+                              &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE].typeId));
+    UA_NodeId_clear(&dataType);
+
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_StatusCode res = readNodeValue(
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), &out);
+    res = readNodeValue(subDiagArrayNodeId, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* In some CI environments this diagnostics array is reported as an empty
+     * variant until diagnostics providers become active. */
+    ck_assert(UA_Variant_hasArrayType(&out,
+                                      &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]) ||
+              UA_Variant_isEmpty(&out));
+    ck_assert_uint_eq(out.arrayLength, 0);
     UA_Variant_clear(&out);
 } END_TEST
 
@@ -413,7 +429,10 @@ START_TEST(read_samplingIntervalDiagnosticsArray) {
     /* SamplingIntervalDiagnosticsArray - may not exist in all builds */
     UA_StatusCode res = readNodeValue(
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), &out);
-    (void)res;
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert(out.type == &UA_TYPES[UA_TYPES_SAMPLINGINTERVALDIAGNOSTICSDATATYPE]);
+        ck_assert_uint_eq(out.arrayLength, 0);
+    }
     UA_Variant_clear(&out);
 } END_TEST
 
@@ -424,6 +443,8 @@ START_TEST(read_sessionDiagnosticsArray) {
     UA_StatusCode res = readNodeValue(
         UA_NODEID_NUMERIC(0, 3707), &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
+    ck_assert_uint_eq(out.arrayLength, 0);
     UA_Variant_clear(&out);
 } END_TEST
 
@@ -433,6 +454,8 @@ START_TEST(read_sessionSecurityDiagnosticsArray) {
     UA_StatusCode res = readNodeValue(
         UA_NODEID_NUMERIC(0, 3708), &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE]);
+    ck_assert_uint_eq(out.arrayLength, 0);
     UA_Variant_clear(&out);
 } END_TEST
 

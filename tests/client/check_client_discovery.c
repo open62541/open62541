@@ -145,6 +145,72 @@ START_TEST(Client_findServers_connected) {
 }
 END_TEST
 
+START_TEST(Client_findServersOnNetwork) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    size_t serverOnNetworkSize = 0;
+    UA_ServerOnNetwork *servers = NULL;
+
+    UA_StatusCode retval = UA_Client_findServersOnNetwork(client,
+        "opc.tcp://localhost:4840", 0, 0, 0, NULL,
+        &serverOnNetworkSize, &servers);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(serverOnNetworkSize > 0)
+            ck_assert_ptr_ne(servers, NULL);
+        UA_Array_delete(servers, serverOnNetworkSize,
+                        &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    } else {
+        ck_assert_uint_eq(serverOnNetworkSize, 0);
+        ck_assert_ptr_eq(servers, NULL);
+    }
+
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_findServersOnNetwork_badUrl_connected) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t serverOnNetworkSize = 123;
+    UA_ServerOnNetwork *servers = (UA_ServerOnNetwork*)(uintptr_t)0x1;
+    retval = UA_Client_findServersOnNetwork(client, "opc.tcp://invalidhost:9999",
+                                            0, 0, 0, NULL,
+                                            &serverOnNetworkSize, &servers);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(serverOnNetworkSize, 0);
+    ck_assert_ptr_eq(servers, NULL);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getEndpoints_badUrl_connected) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t endpointCount = 0;
+    UA_EndpointDescription *endpoints = NULL;
+    retval = UA_Client_getEndpoints(client, "opc.tcp://invalidhost:9999",
+                                    &endpointCount, &endpoints);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ck_assert(endpointCount > 0);
+        ck_assert_ptr_ne(endpoints, NULL);
+        UA_Array_delete(endpoints, endpointCount,
+                        &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    } else {
+        ck_assert_uint_eq(endpointCount, 0);
+        ck_assert_ptr_eq(endpoints, NULL);
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Discovery");
@@ -154,6 +220,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_findServers);
     tcase_add_test(tc_client, Client_getEndpoints_connected);
     tcase_add_test(tc_client, Client_findServers_connected);
+    tcase_add_test(tc_client, Client_findServersOnNetwork);
+    tcase_add_test(tc_client, Client_findServersOnNetwork_badUrl_connected);
+    tcase_add_test(tc_client, Client_getEndpoints_badUrl_connected);
     suite_add_tcase(s,tc_client);
     return s;
 }

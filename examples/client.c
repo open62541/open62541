@@ -31,6 +31,11 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse,
 }
 
 int main(int argc, char *argv[]) {
+    char *ua_server = "opc.tcp://localhost:4840";
+    if(argc > 1) {
+        ua_server = argv[1];
+    }
+
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
@@ -38,7 +43,7 @@ int main(int argc, char *argv[]) {
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval =
-        UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
+        UA_Client_getEndpoints(client, ua_server,
                                &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
         printf("Could not get the endpoints\n");
@@ -58,8 +63,8 @@ int main(int argc, char *argv[]) {
     /* Create a client and connect */
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    /* Anonymous connect: UA_Client_connect(client, "opc.tcp://localhost:4840"); */
-    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+    /* Anonymous connect: UA_Client_connect(client, ua_server); */
+    retval = UA_Client_connectUsername(client, ua_server,
                                        "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         printf("Could not connect\n");

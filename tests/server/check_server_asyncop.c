@@ -512,6 +512,12 @@ serverAsyncReadCallback(UA_Server *s, void *asyncOpContext,
     serverReadResultReceived = true;
 }
 
+static void
+serverAsyncReadNoopCallback(UA_Server *s, void *asyncOpContext,
+                            const UA_DataValue *result) {
+    (void)s; (void)asyncOpContext; (void)result;
+}
+
 START_TEST(Async_server_read) {
     /* Use the server-side async read API directly */
     running = false;
@@ -624,6 +630,64 @@ START_TEST(Async_read_timeout_server) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_setResult_badnotfound) {
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_StatusCode retval = UA_Server_setAsyncReadResult(server, &dv);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    UA_UInt32 v = 1;
+    UA_Variant_setScalar(&value.value, &v, &UA_TYPES[UA_TYPES_UINT32]);
+    value.hasValue = true;
+    retval = UA_Server_setAsyncWriteResult(server, &value, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+
+#ifdef UA_ENABLE_METHODCALLS
+    UA_Variant output;
+    UA_Variant_init(&output);
+    UA_Int32 outVal = 42;
+    UA_Variant_setScalar(&output, &outVal, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_setAsyncCallMethodResult(server, &output, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+#endif
+} END_TEST
+
+START_TEST(Async_queue_limit_read_direct) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    const UA_UInt32 oldLimit = config->maxAsyncOperationQueueSize;
+    config->maxAsyncOperationQueueSize = 1;
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = UA_NODEID_STRING(1, "asyncVar");
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_StatusCode retval =
+        UA_Server_read_async(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH,
+                             serverAsyncReadNoopCallback, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval =
+        UA_Server_read_async(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH,
+                             serverAsyncReadNoopCallback, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+
+    config->maxAsyncOperationQueueSize = oldLimit;
+
+    /* Let the first queued async op complete and be cleaned up before teardown. */
+    UA_fakeSleep(1000);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
 START_TEST(Async_sync_method_call) {
     /* Call a synchronous method via the async path - it should complete immediately */
     UA_Client *client = UA_Client_newForUnitTest();
@@ -666,6 +730,186 @@ START_TEST(Async_read_sync_variable) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_service_read_validation_paths) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+
+    /* Invalid timestampsToReturn */
+    req.timestampsToReturn = (UA_TimestampsToReturn)99;
+    UA_ReadResponse rr = UA_Client_Service_read(client, req);
+    ck_assert_uint_eq(rr.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID);
+    UA_ReadResponse_clear(&rr);
+
+    /* Invalid maxAge */
+    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    req.maxAge = -1.0;
+    rr = UA_Client_Service_read(client, req);
+    ck_assert_uint_eq(rr.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADMAXAGEINVALID);
+    UA_ReadResponse_clear(&rr);
+
+    /* Nothing to do */
+    req.maxAge = 0.0;
+    req.nodesToReadSize = 0;
+    req.nodesToRead = NULL;
+    rr = UA_Client_Service_read(client, req);
+    ck_assert_uint_eq(rr.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNOTHINGTODO);
+    UA_ReadResponse_clear(&rr);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_service_read_toomanyoperations) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UInt32 oldMaxNodesPerRead = config->maxNodesPerRead;
+    config->maxNodesPerRead = 1;
+
+    UA_ReadValueId nodes[2];
+    UA_ReadValueId_init(&nodes[0]);
+    nodes[0].nodeId = UA_NODEID_STRING(1, "syncVar");
+    nodes[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_ReadValueId_init(&nodes[1]);
+    nodes[1].nodeId = UA_NODEID_STRING(1, "asyncVar");
+    nodes[1].attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    req.maxAge = 0.0;
+    req.nodesToReadSize = 2;
+    req.nodesToRead = nodes;
+
+    UA_ReadResponse rr = UA_Client_Service_read(client, req);
+    ck_assert_uint_eq(rr.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    UA_ReadResponse_clear(&rr);
+
+    config->maxNodesPerRead = oldMaxNodesPerRead;
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_service_write_validation_paths) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_WriteRequest req;
+    UA_WriteRequest_init(&req);
+
+    /* Nothing to do */
+    req.nodesToWriteSize = 0;
+    req.nodesToWrite = NULL;
+    UA_WriteResponse wr = UA_Client_Service_write(client, req);
+    ck_assert_uint_eq(wr.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNOTHINGTODO);
+    UA_WriteResponse_clear(&wr);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_service_write_toomanyoperations) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UInt32 oldMaxNodesPerWrite = config->maxNodesPerWrite;
+    config->maxNodesPerWrite = 1;
+
+    UA_WriteValue values[2];
+    UA_WriteValue_init(&values[0]);
+    values[0].nodeId = UA_NODEID_STRING(1, "syncVar");
+    values[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_UInt32 v0 = 11;
+    UA_Variant_setScalar(&values[0].value.value, &v0, &UA_TYPES[UA_TYPES_UINT32]);
+    values[0].value.hasValue = true;
+
+    UA_WriteValue_init(&values[1]);
+    values[1].nodeId = UA_NODEID_STRING(1, "asyncVar");
+    values[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_UInt32 v1 = 22;
+    UA_Variant_setScalar(&values[1].value.value, &v1, &UA_TYPES[UA_TYPES_UINT32]);
+    values[1].value.hasValue = true;
+
+    UA_WriteRequest req;
+    UA_WriteRequest_init(&req);
+    req.nodesToWriteSize = 2;
+    req.nodesToWrite = values;
+
+    UA_WriteResponse wr = UA_Client_Service_write(client, req);
+    ck_assert_uint_eq(wr.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    UA_WriteResponse_clear(&wr);
+
+    config->maxNodesPerWrite = oldMaxNodesPerWrite;
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+static UA_Boolean directCallCompleted = false;
+static UA_StatusCode directCallResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+static void
+directCallCompletionCb(UA_Server *s, void *ctx, const UA_CallMethodResult *result) {
+    directCallResultCode = result->statusCode;
+    directCallCompleted = true;
+}
+
+START_TEST(Async_direct_call_method_result) {
+    /* Regression test for the CALL_DIRECT union bug in UA_Server_setAsyncCallMethodResult.
+     * UA_Server_call_async stores the pending operation as CALL_DIRECT, with the output
+     * embedded inline in op->output.directCall (not behind op->output.call, which is a
+     * pointer sharing the same union storage as directCall.statusCode).
+     *
+     * The pre-patch code dereferenced op->output.call without first checking
+     * op->asyncOperationType.  For a CALL_DIRECT operation the statusCode field at union
+     * offset 0 is 0 after init, so op->output.call aliases a NULL pointer and
+     * op->output.call->outputArguments crashes immediately. */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    directCallCompleted = false;
+    directCallResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    req.methodId = UA_NODEID_STRING(1, "asyncMethod");
+
+    /* Invoke the async method directly on the server (CALL_DIRECT path) */
+    UA_StatusCode retval =
+        UA_Server_call_async(server, &req, directCallCompletionCb, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Advance fake time past the 1-second timed callback scheduled by
+     * methodCallback_async.  That callback calls UA_Server_setAsyncCallMethodResult
+     * which is the function containing the buggy union branch selection. */
+    UA_fakeSleep(1100);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(directCallCompleted == true);
+    ck_assert_uint_eq(directCallResultCode, UA_STATUSCODE_GOOD);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
@@ -682,8 +926,15 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_server_read);
     tcase_add_test(tc_manager, Async_server_write);
     tcase_add_test(tc_manager, Async_read_timeout_server);
+    tcase_add_test(tc_manager, Async_setResult_badnotfound);
+    tcase_add_test(tc_manager, Async_queue_limit_read_direct);
     tcase_add_test(tc_manager, Async_sync_method_call);
     tcase_add_test(tc_manager, Async_read_sync_variable);
+    tcase_add_test(tc_manager, Async_service_read_validation_paths);
+    tcase_add_test(tc_manager, Async_service_read_toomanyoperations);
+    tcase_add_test(tc_manager, Async_service_write_validation_paths);
+    tcase_add_test(tc_manager, Async_service_write_toomanyoperations);
+    tcase_add_test(tc_manager, Async_direct_call_method_result);
     suite_add_tcase(s, tc_manager);
 
     return s;

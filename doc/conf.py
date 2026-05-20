@@ -34,7 +34,6 @@ author = 'The open62541 authors'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.graphviz',
     'sphinx_rtd_theme',
 ]
 

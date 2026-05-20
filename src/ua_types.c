@@ -167,6 +167,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             *(void**)(uintptr_t)&m2->memberName = mName;
 #endif
         }
+        t2->membersSize = t1->membersSize;
     }
 
  errout:
