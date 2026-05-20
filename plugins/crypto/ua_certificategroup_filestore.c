@@ -235,6 +235,21 @@ readTrustStore(UA_CertificateGroup *certGroup, UA_TrustListDataType *trustList) 
 }
 
 static UA_StatusCode
+readRejectStore(UA_CertificateGroup *certGroup, UA_ByteString **rejectedList, size_t *rejectedListSize) {
+    if(certGroup == NULL || rejectedList == NULL || rejectedListSize == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+    if(context == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    *rejectedList = NULL;
+    *rejectedListSize = 0;
+
+    return readCertificates(rejectedList, rejectedListSize, context->rejectedCertFolder);
+}
+
+static UA_StatusCode
 reloadAndWriteTrustStore(UA_CertificateGroup *certGroup) {
     FileCertStore *context = (FileCertStore *)certGroup->context;
 
@@ -250,6 +265,25 @@ reloadAndWriteTrustStore(UA_CertificateGroup *certGroup) {
 
     retval = context->store->setTrustList(context->store, &trustList);
     UA_TrustListDataType_clear(&trustList);
+
+    return retval;
+}
+
+static UA_StatusCode
+reloadAndWriteRejectStore(UA_CertificateGroup *certGroup) {
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+
+    UA_StatusCode retval = readRejectStore(certGroup, &rejectedList, &rejectedListSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        return retval;
+    }
+
+    retval = context->store->setRejectedList(context->store, rejectedList, rejectedListSize);
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     return retval;
 }
@@ -279,6 +313,33 @@ reloadTrustStore(UA_CertificateGroup *certGroup) {
         return UA_STATUSCODE_GOOD;
 
     return reloadAndWriteTrustStore(certGroup);
+}
+
+static UA_StatusCode
+reloadRejectedStore(UA_CertificateGroup *certGroup) {
+    if(certGroup == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+ #ifdef __linux__
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+
+    char buffer[BUF_LEN];
+    const ssize_t length = read(context->inotifyFd, buffer, BUF_LEN );
+    if(length == -1 && errno != EAGAIN)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#else
+    /* TODO: Implement a way to check for changes in the pki folder */
+    const ssize_t length = 0;
+#endif /* __linux__ */
+
+    /* No events, which means no changes to the pki folder */
+    /* If the nonblocking read() found no events to read, then
+     * it returns -1 with errno set to EAGAIN. In that case,
+     * we exit the loop. */
+    if(length <= 0)
+        return UA_STATUSCODE_GOOD;
+
+    return reloadAndWriteRejectStore(certGroup);
 }
 
 static UA_StatusCode
@@ -368,6 +429,47 @@ writeTrustStore(UA_CertificateGroup *certGroup, const UA_UInt32 trustListMask) {
     UA_TrustListDataType_clear(&trustList);
 
     return retval;
+}
+
+static UA_StatusCode
+writeRejectStore(UA_CertificateGroup *certGroup) {
+    /* Check parameter */
+    if(certGroup == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString *rejectedList;
+    size_t rejectedListSize;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+
+    context->store->getRejectedList(context->store, &rejectedList, &rejectedListSize);
+
+    /* reuse writeTrustList and redirect to the rejectedCertFolder */
+    retval = writeTrustList(certGroup, rejectedList, rejectedListSize, context->rejectedCertFolder);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        return retval;
+    }
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    return retval;
+}
+
+static UA_StatusCode
+FileCertStore_setRejectedList(UA_CertificateGroup *certGroup, const UA_ByteString *rejectedList, size_t rejectedListSize) {
+    /* Check parameter */
+    if(certGroup == NULL || (rejectedList == NULL && rejectedListSize > 0))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+
+    retval = context->store->setRejectedList(context->store, rejectedList, rejectedListSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    return writeRejectStore(certGroup);
 }
 
 static UA_StatusCode
@@ -560,6 +662,25 @@ FileCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_Trust
 }
 
 static UA_StatusCode
+FileCertStore_removeFromRejectedList(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+    /* It will only re-read the Cert store on the file system if there have been changes to files. */
+    UA_StatusCode retval = reloadRejectedStore(certGroup);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = context->store->removeFromRejectedList(context->store, certificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    return writeRejectStore(certGroup);
+}
+
+static UA_StatusCode
 FileCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **rejectedList, size_t *rejectedListSize) {
     /* Check parameter */
     if(certGroup == NULL || rejectedList == NULL || rejectedListSize == NULL)
@@ -671,6 +792,8 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = FileCertStore_addToTrustList;
     certGroup->removeFromTrustList = FileCertStore_removeFromTrustList;
     certGroup->getRejectedList = FileCertStore_getRejectedList;
+    certGroup->setRejectedList = FileCertStore_setRejectedList;
+    certGroup->removeFromRejectedList = FileCertStore_removeFromRejectedList;
     certGroup->getCertificateCrls = FileCertStore_getCertificateCrls;
     certGroup->verifyCertificate = FileCertStore_verifyCertificate;
     certGroup->clear = FileCertStore_clear;
@@ -702,6 +825,11 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
 #endif /* __linux__ */
 
     retval = reloadAndWriteTrustStore(certGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        goto cleanup;
+    }
+
+    retval = reloadAndWriteRejectStore(certGroup);
     if(retval != UA_STATUSCODE_GOOD) {
         goto cleanup;
     }

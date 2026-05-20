@@ -70,6 +70,43 @@ MemoryCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_Tru
 }
 
 static UA_StatusCode
+MemoryCertStore_removeFromRejectedList(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+    UA_ByteString *newRejectedList = NULL;
+    size_t newRejectedListSize = 0;
+
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+
+    for(size_t i = 0; i < context->rejectedCertificatesSize; i++) {
+        if(UA_ByteString_equal(certificate, &context->rejectedCertificates[i]))
+            continue; /* if certificate equals to given certificate continue */
+
+        UA_StatusCode retval = UA_Array_appendCopy((void**)&newRejectedList, &newRejectedListSize,
+                                                    &context->rejectedCertificates[i],
+                                                    &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(newRejectedList, newRejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            return retval;
+        }
+    }
+
+    /* Delete old rejected list */
+    UA_Array_delete(context->rejectedCertificates,
+                    context->rejectedCertificatesSize,
+                    &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    /* Add new list as rejected list */
+    context->rejectedCertificates = newRejectedList;
+    context->rejectedCertificatesSize = newRejectedListSize;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 MemoryCertStore_getTrustList(UA_CertificateGroup *certGroup, UA_TrustListDataType *trustList) {
     /* Check parameter */
     if(certGroup == NULL || trustList == NULL) {
@@ -247,6 +284,36 @@ MemoryCertStore_addToRejectedList(UA_CertificateGroup *certGroup, const UA_ByteS
     context->rejectedCertificatesSize = 0;
     return UA_Array_appendCopy((void**)&context->rejectedCertificates, &context->rejectedCertificatesSize,
                                certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+}
+
+static UA_StatusCode
+MemoryCertStore_setRejectedList(UA_CertificateGroup *certGroup, const UA_ByteString *rejectedList, size_t rejectedListSize) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Check parameter */
+    if(certGroup == NULL || (rejectedList == NULL && rejectedListSize > 0))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+    if(!context)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Delete all from rejected list */
+    UA_Array_delete(context->rejectedCertificates, context->rejectedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    context->rejectedCertificates = NULL;
+    context->rejectedCertificatesSize = 0;
+
+    /* Add new certificates to rejected list */
+    for(size_t i=0; i<rejectedListSize; ++i) {
+        retval = MemoryCertStore_addToRejectedList(certGroup, &rejectedList[i]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                            "Could not append certificate to rejected list");
+            return retval;
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -656,6 +723,8 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = MemoryCertStore_addToTrustList;
     certGroup->removeFromTrustList = MemoryCertStore_removeFromTrustList;
     certGroup->getRejectedList = MemoryCertStore_getRejectedList;
+    certGroup->setRejectedList = MemoryCertStore_setRejectedList;
+    certGroup->removeFromRejectedList = MemoryCertStore_removeFromRejectedList;
     certGroup->getCertificateCrls = MemoryCertStore_getCertificateCrls;
     certGroup->verifyCertificate = MemoryCertStore_verifyCertificate;
     certGroup->clear = MemoryCertStore_clear;

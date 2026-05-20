@@ -155,6 +155,339 @@ START_TEST(set_trustlist) {
 }
 END_TEST
 
+/* Add 2 certificates to reject list. 
+ * Check if rejectListSize == 2
+ * remove 1 certificate and check size 
+ * remove 2 certificate and check size
+ */
+START_TEST(set_rejectlist_remove_from_rejectlist) {
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Load rejected certificates */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+    UA_ByteString certificate1;
+    certificate1.length = CERT_DER_LENGTH;
+    certificate1.data = CERT_DER_DATA;
+    UA_ByteString certificate2;
+    certificate2.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    certificate2.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    /* add certificate1 to the rejectedList*/
+    retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize, &certificate1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+
+    /* add certificate2 to the rejectedList*/
+    retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize, &certificate2, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+
+    /* set rejected list */
+    retval = config->secureChannelPKI.setRejectedList(&config->secureChannelPKI, rejectedList, rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* get reject list and reuse rejectedList and rejectedListSize */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
+    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+    // free rejectedList
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove certificate1 from rejected list */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* remove certificate1 and verify certificate2 remains */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate2));
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove certificate2 from rejected list */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* check if it is indeed removed */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 0);
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+}
+END_TEST
+
+/* Try to add empty reject list */
+START_TEST(set_rejectlist_null) {
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+
+    /* Load rejected certificates */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* set rejected list */
+    retval = config->secureChannelPKI.setRejectedList(&config->secureChannelPKI, NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* get reject list and reuse rejectedList and rejectedListSize */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 0);
+}
+END_TEST
+
+/* Try to remove certificate which is not in the list */
+START_TEST(set_rejectlist_remove_non_existent_cert_from_rejectlist) {
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Load rejected certificates */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString certificate_to_remove;
+    certificate_to_remove.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    certificate_to_remove.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    /* add certificate to the rejectedList*/
+    retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize, &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+
+    /* set rejected list */
+    retval = config->secureChannelPKI.setRejectedList(&config->secureChannelPKI, rejectedList, rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* get reject list and reuse rejectedList and rejectedListSize */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+    // free rejectedList
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove non existent certificate from rejected list so it doesn't influence on following tests */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate_to_remove);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* check that added certificate is not removed */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove existing certificate from rejected list so it doesn't influence on following tests */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+/* Check rejectlist persistance between server restarts */
+START_TEST(rejectedlist_filestore_persistence) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+
+    UA_ByteString certificate1;
+    certificate1.length = CERT_DER_LENGTH;
+    certificate1.data = CERT_DER_DATA;
+    UA_ByteString certificate2;
+    certificate2.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    certificate2.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    /* Add certificate 1 */
+    UA_StatusCode retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize,
+                                                &certificate1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add certificate 2 */
+    retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize,
+                                 &certificate2, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* set rejected list */
+    retval = config->secureChannelPKI.setRejectedList(&config->secureChannelPKI,
+                                                      rejectedList,
+                                                      rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* Recreate the server with the same pki filestore path. */
+    teardown();
+    setup2();
+
+    /* Get rejected list and check if previously added certificates are still present */
+    config = UA_Server_getConfig(server);
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI,
+                                                      &rejectedList,
+                                                      &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
+    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove certificate1 from rejected list */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* remove certificate1 and verify certificate2 remains */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate2));
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove certificate2 from rejected list */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* check if it is indeed removed */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 0);
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+}
+END_TEST
+
+/* Add 2 certificates to reject list, confirm that were added. Fetch reject list
+and check its content, delete list and fetch again to confirm that it is copied correctly */
+START_TEST(get_rejectlist_twice) {
+   UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+
+    UA_ByteString certificate1;
+    certificate1.length = CERT_DER_LENGTH;
+    certificate1.data = CERT_DER_DATA;
+    UA_ByteString certificate2;
+    certificate2.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    certificate2.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    /* Add certificate 1 */
+    UA_StatusCode retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize,
+                                                &certificate1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add certificate 2 */
+    retval = UA_Array_appendCopy((void**)&rejectedList, &rejectedListSize,
+                                 &certificate2, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* set rejected list */
+    retval = config->secureChannelPKI.setRejectedList(&config->secureChannelPKI,
+                                                      rejectedList,
+                                                      rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* Get rejected list and check if previously added certificates are still present */
+    config = UA_Server_getConfig(server);
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI,
+                                                      &rejectedList,
+                                                      &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
+    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* Get rejected list again to confirm that copy is returned */
+    config = UA_Server_getConfig(server);
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI,
+                                                      &rejectedList,
+                                                      &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate1));
+    ck_assert(UA_ByteString_equal(&rejectedList[1], &certificate2));
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove certificate1 from rejected list */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* remove certificate1 and verify certificate2 remains */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 1);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &certificate2));
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+
+    /* remove certificate2 from rejected list */
+    retval = config->secureChannelPKI.removeFromRejectedList(&config->secureChannelPKI, &certificate2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* check if it is indeed removed */
+    retval = config->secureChannelPKI.getRejectedList(&config->secureChannelPKI, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 0);
+
+    UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    rejectedList = NULL;
+    rejectedListSize = 0;
+}
+END_TEST
+
 START_TEST(add_to_trustlist) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -427,6 +760,10 @@ static Suite* testSuite_encryption(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption_memorystore, get_trustlist);
     tcase_add_test(tc_encryption_memorystore, set_trustlist);
+    tcase_add_test(tc_encryption_memorystore, set_rejectlist_remove_from_rejectlist);
+    tcase_add_test(tc_encryption_memorystore, set_rejectlist_null);
+    tcase_add_test(tc_encryption_memorystore, set_rejectlist_remove_non_existent_cert_from_rejectlist);
+    tcase_add_test(tc_encryption_memorystore, get_rejectlist_twice);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_memorystore, check_cert_common_name);
@@ -442,6 +779,11 @@ static Suite* testSuite_encryption(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption_filestore, get_trustlist);
     tcase_add_test(tc_encryption_filestore, set_trustlist);
+    tcase_add_test(tc_encryption_filestore, set_rejectlist_remove_from_rejectlist);
+    tcase_add_test(tc_encryption_filestore, set_rejectlist_null);
+    tcase_add_test(tc_encryption_filestore, set_rejectlist_remove_non_existent_cert_from_rejectlist);
+    tcase_add_test(tc_encryption_filestore, get_rejectlist_twice);
+    tcase_add_test(tc_encryption_filestore, rejectedlist_filestore_persistence);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_filestore, check_cert_common_name);
