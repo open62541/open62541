@@ -721,6 +721,8 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
     (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
 # define UA_FLOAT_LITTLE_ENDIAN 1
+#elif defined(__clang__) && (UA_LITTLE_ENDIAN == 1)
+# define UA_FLOAT_LITTLE_ENDIAN 1 /* Clang assumption (ARM64, x86_64, ...) */
 #endif
 #ifndef UA_FLOAT_LITTLE_ENDIAN
 # define UA_FLOAT_LITTLE_ENDIAN 0
