@@ -1954,8 +1954,6 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_THREAD_LOCAL UA_Boolean preventAuditEventRecursion = false;
-
 UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
@@ -1964,16 +1962,16 @@ Operation_Write(UA_Server *server, UA_Session *session,
     /* Get the old value for the audit event */
 #ifdef UA_ENABLE_AUDITING
     UA_DataValue oldValue;
-    if(!preventAuditEventRecursion && server->config.auditingEnabled &&
+    if(!server->preventAuditEventRecursion && server->config.auditingEnabled &&
        server->config.auditWriteUpdateEnabled) {
-        preventAuditEventRecursion = true;
+        server->preventAuditEventRecursion = true;
         UA_ReadValueId rvi;
         UA_ReadValueId_init(&rvi);
         rvi.nodeId = wv->nodeId;
         rvi.attributeId = wv->attributeId;
         rvi.indexRange = wv->indexRange;
         oldValue = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-        preventAuditEventRecursion = false;
+        server->preventAuditEventRecursion = false;
     } else {
         UA_DataValue_init(&oldValue);
     }
