@@ -21,6 +21,11 @@
 
 #include <pthread.h>
 
+__thread void * (*UA_mallocSingleton)(size_t size) = malloc;
+__thread void (*UA_freeSingleton)(void *ptr) = free;
+__thread void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+__thread void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+
 pthread_mutex_t mutex;
 
 struct UA_mm_entry {
