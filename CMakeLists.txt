@@ -14,6 +14,7 @@ if(ZEPHYR_BASE)
     return()
   endif()
   include(arch/zephyr/zephyr.cmake)
+  add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr_arch.h")
 endif()
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
