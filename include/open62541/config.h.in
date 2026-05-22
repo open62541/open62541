@@ -18,7 +18,13 @@
 /**
  * Architecture
  * ------------
- * Macro flags to enable/disable architecture-specific includes and features. */
+ * Definitions to enable architecture-specific includes and features. */
+
+/* Define the UA_ARCH_HEADER externally and it will get included here.
+ * Such as this: gcc -DUA_ARCH_HEADER=#include \"my-arch/arch-header.h\" */
+#if defined(UA_ARCH_HEADER)
+#include UA_ARCH_HEADER
+#endif
 
 #cmakedefine UA_ARCHITECTURE_WIN32
 #cmakedefine UA_ARCHITECTURE_POSIX
@@ -26,9 +32,16 @@
 #cmakedefine UA_ARCHITECTURE_LWIP
 #cmakedefine UA_ARCHITECTURE_FREERTOS
 
-/* Select default architecture if none is selected */
-#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX) &&      \
-    !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
+/* Is a well-known architecture selected? Manually set UA_ARCHITECTURE_DEFINED
+ * to prevent the selection of a default below. */
+#if defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_POSIX) || \
+    defined(UA_ARCHITECTURE_ZEPHYR) || defined(UA_ARCHITECTURE_LWIP) || \
+    defined(UA_ARCHITECTURE_FREERTOS)
+# define UA_ARCHITECTURE_DEFINED
+#endif
+
+/* No architecture selected - detect and use defaults */
+#if !defined(UA_ARCHITECTURE_DEFINED)
 # ifdef _WIN32
 #  define UA_ARCHITECTURE_WIN32
 # else
