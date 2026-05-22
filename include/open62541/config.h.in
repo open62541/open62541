@@ -18,7 +18,7 @@
 /**
  * Architecture
  * ------------
- * Define one of the following. */
+ * Macro flags to enable/disable architecture-specific includes and features. */
 
 #cmakedefine UA_ARCHITECTURE_WIN32
 #cmakedefine UA_ARCHITECTURE_POSIX
@@ -134,19 +134,9 @@
 # endif
 #endif
 
-
 /**
  * QNX Flags
- * -------------------
- * Defining _QNX_SOURCE will ensure proper qnx types and other features 
- * are available. */
-#if defined(__QNX__)
-# define _QNX_SOURCE 1
-#endif
-
-/**
- * QNX Flags
- * -------------------
+ * ---------
  * Defining _QNX_SOURCE will ensure proper qnx types and other features 
  * are available. */
 #if defined(__QNX__)
@@ -183,8 +173,8 @@
 #  define _GNU_SOURCE
 # endif
 
-#define UA_HAS_GETIFADDR 1
-#endif
+# define UA_HAS_GETIFADDR 1
+#endif /* UA_ARCHITECTURE_POSIX */
 
 /**
  * C99 Definitions
