@@ -554,7 +554,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
 
     /* Prepare the notification payload */
     UA_ApplicationNotificationType nt;
-    static UA_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
         {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("request-id")}, {0}},

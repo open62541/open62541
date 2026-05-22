@@ -241,7 +241,7 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
         return;
 
     /* Prepare the payload */
-    static UA_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
         {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
         {{0, UA_STRING_STATIC("connection-manager-name")}, {0}},
         {{0, UA_STRING_STATIC("connection-id")}, {0}},

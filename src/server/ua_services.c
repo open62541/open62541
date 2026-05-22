@@ -321,7 +321,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
 
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
     UA_ServerConfig *config = &server->config;
-    static UA_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
         {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("request-id")}, {0}},

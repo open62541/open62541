@@ -172,7 +172,7 @@ void
 auditOpenSecureChannelEvent(UA_Server *server, UA_SecureChannel *channel,
                             const UA_OpenSecureChannelRequest *req,
                             const UA_OpenSecureChannelResponse *resp) {
-    static UA_THREAD_LOCAL UA_KeyValuePair channelAuditPayload[14] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair channelAuditPayload[14] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -213,7 +213,7 @@ auditOpenSecureChannelEvent(UA_Server *server, UA_SecureChannel *channel,
 
 void
 auditCloseSecureChannelEvent(UA_Server *server, UA_SecureChannel *channel) {
-    static UA_THREAD_LOCAL UA_KeyValuePair closeAuditPayload[8] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair closeAuditPayload[8] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -258,7 +258,7 @@ auditSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
 void
 auditCreateSessionEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                         const UA_CreateSessionRequest *req, const UA_CreateSessionResponse *resp) {
-    static UA_THREAD_LOCAL UA_KeyValuePair sessionCreateAuditPayload[12] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair sessionCreateAuditPayload[12] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -327,7 +327,7 @@ auditActivateSessionEvent(UA_Server *server,
                           UA_SecureChannel *channel, UA_Session *session,
                           const UA_ActivateSessionRequest *req,
                           const UA_ActivateSessionResponse *resp) {
-    static UA_THREAD_LOCAL UA_KeyValuePair sessionActivateAuditPayload[11] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair sessionActivateAuditPayload[11] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -374,7 +374,7 @@ auditActivateSessionEvent(UA_Server *server,
 
 void
 auditCloseSessionEvent(UA_Server *server, UA_Session *session) {
-    static UA_THREAD_LOCAL UA_KeyValuePair sessionCloseAuditPayload[8] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair sessionCloseAuditPayload[8] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -393,7 +393,7 @@ auditCloseSessionEvent(UA_Server *server, UA_Session *session) {
 void
 auditCancelEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                  UA_Boolean status, UA_StatusCode statusCodeId, UA_UInt32 requestHandle) {
-    static UA_THREAD_LOCAL UA_KeyValuePair sessionCancelAuditPayload[9] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair sessionCancelAuditPayload[9] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -437,7 +437,7 @@ auditCertificateDataMismatchEvent(UA_Server *server,
                                   UA_SecureChannel *channel, UA_Session *session,
                                   const char *serviceName, UA_StatusCode statusCodeId,
                                   UA_ByteString certificate, UA_String invalidUri) {
-    static UA_THREAD_LOCAL UA_KeyValuePair mismatchAuditPayload[9] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair mismatchAuditPayload[9] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -465,7 +465,7 @@ auditCertificateEvent(UA_Server *server, UA_ApplicationNotificationType type,
                       UA_SecureChannel *channel, UA_Session *session,
                       const char *serviceName, UA_StatusCode statusCodeId,
                       UA_ByteString certificate, UA_String message) {
-    static UA_THREAD_LOCAL UA_KeyValuePair certAuditPayload[9] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair certAuditPayload[9] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -504,7 +504,7 @@ auditNodeManagementEvent(UA_Server *server, UA_ApplicationNotificationType type,
 void
 auditAddNodesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                    UA_Boolean status, size_t itemsSize, UA_AddNodesItem *items) {
-    static UA_THREAD_LOCAL UA_KeyValuePair addNodesPayload[7] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair addNodesPayload[7] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -526,7 +526,7 @@ auditAddNodesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *ses
 void
 auditDeleteNodesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                       UA_Boolean status, size_t itemsSize, UA_DeleteNodesItem *items) {
-    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[7] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[7] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -548,7 +548,7 @@ auditDeleteNodesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
 void
 auditAddReferencesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                         UA_Boolean status, size_t itemsSize, UA_AddReferencesItem *items) {
-    static UA_THREAD_LOCAL UA_KeyValuePair addReferencesPayload[7] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair addReferencesPayload[7] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -570,7 +570,7 @@ auditAddReferencesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session
 void
 auditDeleteReferencesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                            UA_Boolean status, size_t itemsSize, UA_DeleteReferencesItem *items) {
-    static UA_THREAD_LOCAL UA_KeyValuePair deleteReferencesPayload[7] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair deleteReferencesPayload[7] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -610,7 +610,7 @@ auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
                       UA_Boolean status, const UA_NodeId *sourceNode,
                       UA_UInt32 attributeId, const UA_String indexRange,
                       const UA_Variant *newValue, const UA_Variant *oldValue) {
-    static UA_THREAD_LOCAL UA_KeyValuePair writeUpdatePayload[10] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair writeUpdatePayload[10] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -653,7 +653,7 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                        const UA_NodeId *methodNode, UA_StatusCode statusCodeId,
                        size_t inputsSize, UA_Variant *inputs,
                        size_t outputsSize, UA_Variant *outputs) {
-    static UA_THREAD_LOCAL UA_KeyValuePair methodUpdatePayload[10] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair methodUpdatePayload[10] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
