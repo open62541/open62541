@@ -236,6 +236,12 @@ struct UA_Server {
     UA_Lock serviceMutex;
 #endif
 
+    /* If we emit audit events for every write, we need to prevent recursions.
+     * For the write-audit-event we first need to read the old value. This in
+     * turn might trigger another write if a beforeRead-callback is attached to
+     * the variable. */
+    UA_Boolean preventAuditEventRecursion;
+
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
