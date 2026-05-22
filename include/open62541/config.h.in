@@ -112,7 +112,6 @@
 #define UA_ENABLE_DISCOVERY_MULTICAST
 #endif
 #cmakedefine UA_ENABLE_QUERY
-#cmakedefine UA_ENABLE_MALLOC_SINGLETON
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO_FULL
@@ -335,52 +334,37 @@ UA_atomic_load(void **addr) {
 /**
  * Memory Management
  * -----------------
- *
- * The flag ``UA_ENABLE_MALLOC_SINGLETON`` enables singleton (global) variables
- * with method pointers for memory management (malloc et al.). The method
- * pointers can be switched out at runtime. Use-cases for this are testing of
- * constrained memory conditions and arena-based custom memory management.
- *
- * If the flag is undefined, then ``UA_malloc`` etc. are set to the default
- * malloc, as defined in ``/arch/<architecture>/ua_architecture.h``.
- */
+ * Custom memory-management can be defined for OS integration, arena-based
+ * malloc, etc. Defaults are set if UA_malloc is not already defined. */
 
-#ifdef UA_ENABLE_MALLOC_SINGLETON
-extern UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size);
-extern UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr);
-extern UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize);
-extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
-# define UA_malloc(size) UA_mallocSingleton(size)
-# define UA_free(ptr) UA_freeSingleton(ptr)
-# define UA_calloc(num, size) UA_callocSingleton(num, size)
-# define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
-#else
-# ifdef UA_ARCHITECTURE_ZEPHYR /* try to use zephyr's k_malloc and k_alloc */
-/*cant use <zephyr/version.h> since v2.7.0 and older stores the file in another place*/
-#  include <version.h> /* zephyr version. */
+#if !defined(UA_malloc)
+#ifdef UA_ARCHITECTURE_ZEPHYR
+/* Can't use <zephyr/version.h> since v2.7.0 and older stores the file in
+ * another place */
+# include <version.h>
 /* must be 3.7.0 or higher */
-#  if (KERNEL_VERSION_MAJOR >= 4 || \
-      (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
-#   include <zephyr/kernel.h>
-#   define UA_free k_free
-#   define UA_malloc k_malloc
-#   define UA_calloc k_calloc
-#   define UA_realloc k_realloc
-#  else
-#   include <stdlib.h>
-#   define UA_free free
-#   define UA_malloc malloc
-#   define UA_calloc calloc
-#   define UA_realloc realloc
-#  endif
+# if (KERNEL_VERSION_MAJOR >= 4 || \
+     (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
+#  include <zephyr/kernel.h>
+#  define UA_free k_free
+#  define UA_malloc k_malloc
+#  define UA_calloc k_calloc
+#  define UA_realloc k_realloc
 # else
 #  include <stdlib.h>
 #  define UA_free free
 #  define UA_malloc malloc
 #  define UA_calloc calloc
 #  define UA_realloc realloc
-# endif /*UA_ARCHITECTURE_ZEPHYR*/
-#endif
+# endif
+#else
+# include <stdlib.h>
+# define UA_free free
+# define UA_malloc malloc
+# define UA_calloc calloc
+# define UA_realloc realloc
+#endif /* UA_ARCHITECTURE_ZEPHYR */
+#endif /* !defined(UA_malloc) */
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
  * Otherwise revert to alloca. Note that alloca is not supported on some
