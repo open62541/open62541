@@ -225,20 +225,28 @@
 #endif
 
 /**
- * Thread-local variables
- * ---------------------- */
+ * Thread-Local Variables
+ * ----------------------
+ * Not all platforms have thread-local variables. When available we use them to
+ * get speed-ups by pre-populating data structures with the following pattern:
+ *
+ * (Only) inside a function we define some variable with UA_STATIC_THREAD_LOCAL.
+ * If thread-local storage is available the variable is created and initially
+ * populated once per thread. If thread-local storage is not available, then the
+ * variable is always newly created on the stack. This allows the same code for
+ * both cases with and without thread-local storage. */
+
 #if UA_MULTITHREADING >= 100
 # if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#  define UA_THREAD_LOCAL _Thread_local /* C11 or newer */
+#  define UA_STATIC_THREAD_LOCAL static _Thread_local /* C11 or newer */
 # elif defined(__GNUC__) || defined(__clang__)
-#  define UA_THREAD_LOCAL __thread
+#  define UA_STATIC_THREAD_LOCAL static __thread
 # elif defined(_MSC_VER)
-#  define UA_THREAD_LOCAL __declspec(thread)
-# else
-#  error "No thread-local storage keyword available on this compiler."
+#  define UA_STATIC_THREAD_LOCAL static __declspec(thread)
 # endif
-#else
-# define UA_THREAD_LOCAL
+#endif
+#ifndef UA_STATIC_THREAD_LOCAL
+# define UA_STATIC_THREAD_LOCAL /* No __thread and (ALSO!!) no static */
 #endif
 
 /**

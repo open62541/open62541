@@ -59,7 +59,7 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
        !server->config.globalNotificationCallback)
         return;
 
-    static UA_THREAD_LOCAL UA_KeyValuePair createSubData[8] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair createSubData[8] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
         {{0, UA_STRING_STATIC("publishing-interval")}, {0}},
@@ -71,10 +71,8 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
     };
     UA_KeyValueMap createSubMap = {8, createSubData};
 
-    static UA_THREAD_LOCAL UA_NodeId sessionId;
-    sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
-    static UA_THREAD_LOCAL UA_Boolean enabled;
-    enabled = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED);
+    UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
+    UA_Boolean enabled = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED);
 
     UA_Variant_setScalar(&createSubData[0].value, &sessionId,
                          &UA_TYPES[UA_TYPES_NODEID]);
