@@ -90,64 +90,6 @@ setBinaryProtocolManagerState(UA_ReverseBinaryProtocolManager *bpm,
     bpm->sc.state = state;
 }
 
-static void
-deleteServerSecureChannel(UA_ReverseBinaryProtocolManager *bpm,
-                          UA_SecureChannel *channel) {
-    UA_Server *server = bpm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    /* Clean up the SecureChannel. This is the only place where
-     * UA_SecureChannel_clear must be called within the server code-base.
-     *
-     * First detach all Sessions from the SecureChannel. This also removes
-     * outstanding Publish requests whose RequestId is valid only for the
-     * SecureChannel. */
-    while(channel->sessions)
-        UA_Session_detachFromSecureChannel(server, channel->sessions);
-
-    /* Detach the channel from the server list */
-    TAILQ_REMOVE(&server->channels, channel, serverEntry);
-    TAILQ_REMOVE(&bpm->channels, channel, componentEntry);
-
-    /* Update the statistics */
-    UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
-    scs->currentChannelCount--;
-    switch(channel->shutdownReason) {
-    case UA_SHUTDOWNREASON_CLOSE:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed");
-        break;
-    case UA_SHUTDOWNREASON_TIMEOUT:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed due to timeout");
-        scs->channelTimeoutCount++;
-        break;
-    case UA_SHUTDOWNREASON_PURGE:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was purged");
-        scs->channelPurgeCount++;
-        break;
-    case UA_SHUTDOWNREASON_REJECT:
-    case UA_SHUTDOWNREASON_SECURITYREJECT:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was rejected");
-        scs->rejectedChannelCount++;
-        break;
-    case UA_SHUTDOWNREASON_ABORT:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was aborted");
-        scs->channelAbortCount++;
-        break;
-    default:
-        UA_assert(false);
-        break;
-    }
-
-    /* Notify the application */
-    notifySecureChannel(server, channel,
-                        UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED);
-
-    /* Clean up the SecureChannel. This is the only place where
-     * UA_SecureChannel_clear must be called within the server code-base. */
-    UA_SecureChannel_clear(channel);
-    UA_free(channel);
-}
-
 UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
                  UA_UInt32 requestId, UA_UInt32 requestHandle,
@@ -315,7 +257,8 @@ serverReverseConnectionCallbackLocked(UA_ConnectionManager *cm, uintptr_t connec
     /* The connection is closing. This is the last callback for it. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
         if(context->channel) {
-            deleteServerSecureChannel(bpm, context->channel);
+            TAILQ_REMOVE(&bpm->channels, context->channel, componentEntry);
+            deleteServerSecureChannel(bpm->sc.server, context->channel);
             context->channel = NULL;
         }
 
