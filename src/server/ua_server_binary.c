@@ -562,14 +562,14 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
-/* remove the first channel that has no session attached */
+/* Remove the first channel that has no session attached */
 static UA_Boolean
-purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
+purgeFirstChannelWithoutSession(UA_Server *server) {
     UA_SecureChannel *channel;
-    TAILQ_FOREACH(channel, &bpm->channels, componentEntry) {
+    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->sessions)
             continue;
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel,
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Channel was purged since maxSecureChannels was "
                             "reached and channel had no session attached");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_PURGE);
@@ -578,23 +578,21 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
     return false;
 }
 
-static UA_StatusCode
-createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *cm,
+UA_StatusCode
+createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
                           uintptr_t connectionId, const UA_KeyValueMap *params,
                           UA_SecureChannel **outChannel) {
-    UA_Server *server = bpm->sc.server;
-    UA_ServerConfig *config = &server->config;
     UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ServerConfig *config = &server->config;
 
-    /* Check if we have space for another SC, otherwise try to find an SC
-     * without a session and purge it */
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
     if(scs->currentChannelCount >= config->maxSecureChannels &&
-       !purgeFirstChannelWithoutSession(bpm))
+       !purgeFirstChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Allocate memory for the SecureChannel */
-    UA_SecureChannel *channel = (UA_SecureChannel*)UA_calloc(1, sizeof(UA_SecureChannel));
+    UA_SecureChannel *channel = (UA_SecureChannel*)
+        UA_calloc(1, sizeof(UA_SecureChannel));
     if(!channel)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -664,11 +662,10 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
 
     /* Add to the server's list */
     TAILQ_INSERT_TAIL(&server->channels, channel, serverEntry);
-    TAILQ_INSERT_TAIL(&bpm->channels, channel, componentEntry);
 
     /* Update the statistics */
-    server->secureChannelStatistics.currentChannelCount++;
-    server->secureChannelStatistics.cumulatedChannelCount++;
+    scs->currentChannelCount++;
+    scs->cumulatedChannelCount++;
 
     *outChannel = channel;
     return UA_STATUSCODE_GOOD;
@@ -797,7 +794,9 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(serverSocket) {
         /* A new connection is opening. This is the only place where
          * createSecureChannel is used. */
-        retval = createServerSecureChannel(bpm, cm, connectionId, params, &channel);
+        retval = createServerSecureChannel(bpm->sc.server, cm, connectionId,
+                                           params, &channel);
+
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the connection with status %s",
@@ -806,6 +805,9 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
             cm->closeConnection(cm, connectionId);
             return;
         }
+
+        /* Keep a reference to the channel in the ConnectionManager */
+        TAILQ_INSERT_TAIL(&bpm->channels, channel, componentEntry);
 
         /* Set the new channel as the new context for the connection */
         *connectionContext = (void*)channel;
@@ -1265,8 +1267,8 @@ serverReverseConnectCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectio
      * createSecureChannel is used. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!context->channel) {
-        retval = createServerSecureChannel(bpm, cm, connectionId, params,
-                                           &context->channel);
+        retval = createServerSecureChannel(bpm->sc.server, cm, connectionId,
+                                           params, &context->channel);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the reverse "
@@ -1276,6 +1278,9 @@ serverReverseConnectCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectio
             cm->closeConnection(cm, connectionId);
             return;
         }
+
+        /* Keep a reference to the channel in the ConnectionManager */
+        TAILQ_INSERT_TAIL(&bpm->channels, context->channel, componentEntry);
 
         /* Send the RHE message */
         retval = sendRHEMessage(bpm->sc.server, connectionId, cm);
