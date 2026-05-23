@@ -890,6 +890,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_gds.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary_reverse.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_auditing.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c

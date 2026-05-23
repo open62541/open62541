@@ -499,7 +499,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. */
-static UA_StatusCode
+UA_StatusCode
 processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message) {
