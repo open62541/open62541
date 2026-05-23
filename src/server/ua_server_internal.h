@@ -727,6 +727,11 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message);
 
+UA_StatusCode
+createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
+                          uintptr_t connectionId, const UA_KeyValueMap *params,
+                          UA_SecureChannel **outChannel);
+
 void
 deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
