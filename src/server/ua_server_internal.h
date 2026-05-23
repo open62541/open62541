@@ -720,6 +720,13 @@ UA_ServerComponent * UA_DiscoveryManager_new(void);
 
 UA_ServerComponent * UA_BinaryProtocolManager_new(void);
 
+UA_ServerComponent * UA_ReverseBinaryProtocolManager_new(void);
+
+UA_StatusCode
+processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
+                            UA_MessageType messagetype, UA_UInt32 requestId,
+                            UA_ByteString *message);
+
 #ifdef UA_ENABLE_PUBSUB
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
