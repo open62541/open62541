@@ -102,10 +102,8 @@ setBinaryProtocolManagerState(UA_BinaryProtocolManager *bpm,
     bpm->sc.state = state;
 }
 
-static void
-deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
-                          UA_SecureChannel *channel) {
-    UA_Server *server = bpm->sc.server;
+void
+deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Clean up the SecureChannel. This is the only place where
@@ -119,30 +117,31 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
 
     /* Detach the channel from the server list */
     TAILQ_REMOVE(&server->channels, channel, serverEntry);
-    TAILQ_REMOVE(&bpm->channels, channel, componentEntry);
+
+    UA_ServerConfig *sc = &server->config;
 
     /* Update the statistics */
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
     scs->currentChannelCount--;
     switch(channel->shutdownReason) {
     case UA_SHUTDOWNREASON_CLOSE:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed");
+        UA_LOG_INFO_CHANNEL(sc->logging, channel, "SecureChannel closed");
         break;
     case UA_SHUTDOWNREASON_TIMEOUT:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed due to timeout");
+        UA_LOG_INFO_CHANNEL(sc->logging, channel, "SecureChannel closed due to timeout");
         scs->channelTimeoutCount++;
         break;
     case UA_SHUTDOWNREASON_PURGE:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was purged");
+        UA_LOG_INFO_CHANNEL(sc->logging, channel, "SecureChannel was purged");
         scs->channelPurgeCount++;
         break;
     case UA_SHUTDOWNREASON_REJECT:
     case UA_SHUTDOWNREASON_SECURITYREJECT:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was rejected");
+        UA_LOG_INFO_CHANNEL(sc->logging, channel, "SecureChannel was rejected");
         scs->rejectedChannelCount++;
         break;
     case UA_SHUTDOWNREASON_ABORT:
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was aborted");
+        UA_LOG_INFO_CHANNEL(sc->logging, channel, "SecureChannel was aborted");
         scs->channelAbortCount++;
         break;
     default:
@@ -779,7 +778,8 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         } else {
             /* A connection attached to a SecureChannel is closing. This is the
              * only place where deleteSecureChannel must be used. */
-            deleteServerSecureChannel(bpm, channel);
+            TAILQ_REMOVE(&bpm->channels, channel, componentEntry);
+            deleteServerSecureChannel(bpm->sc.server, channel);
         }
 
         /* Set BinaryProtocolManager to STOPPED if it is STOPPING and the last
@@ -1230,7 +1230,8 @@ serverReverseConnectCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectio
     /* The connection is closing. This is the last callback for it. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
         if(context->channel) {
-            deleteServerSecureChannel(bpm, context->channel);
+            TAILQ_REMOVE(&bpm->channels, context->channel, componentEntry);
+            deleteServerSecureChannel(bpm->sc.server, context->channel);
             context->channel = NULL;
         }
 

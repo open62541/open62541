@@ -727,6 +727,9 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message);
 
+void
+deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
+
 #ifdef UA_ENABLE_PUBSUB
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
