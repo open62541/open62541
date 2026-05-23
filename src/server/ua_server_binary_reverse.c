@@ -402,7 +402,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
                             void *callbackContext, UA_UInt64 *handle) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ReverseBinaryProtocolManager *rpm =
-        (UA_ReverseBinaryProtocolManager*)server->binarySC;
+        (UA_ReverseBinaryProtocolManager*)server->reverseBinarySC;
     if(!rpm) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
@@ -456,7 +456,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
     lockServer(server);
 
     UA_ReverseBinaryProtocolManager *rpm =
-        (UA_ReverseBinaryProtocolManager*)server->binarySC;
+        (UA_ReverseBinaryProtocolManager*)server->reverseBinarySC;
     if(!rpm) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
