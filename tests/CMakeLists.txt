@@ -487,6 +487,10 @@ if(UA_ENABLE_ENCRYPTION)
     endif()
 endif()
 
+if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    ua_add_test(server/check_discovery_mdnsd.c)
+endif()
+
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_encryption_basic128rsa15.c)
     ua_add_test(encryption/check_encryption_basic256.c)
