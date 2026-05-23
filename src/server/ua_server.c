@@ -630,9 +630,14 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
-    /* Initialize the binay protocol support */
+    /* Initialize the binary protocol support */
     server->binarySC = UA_BinaryProtocolManager_new();
     res = addServerComponent(server, server->binarySC);
+    UA_CHECK_STATUS(res, goto cleanup);
+
+    /* Initialize the reverse connect binary protocol support */
+    server->reverseBinarySC = UA_ReverseBinaryProtocolManager_new();
+    res = addServerComponent(server, server->reverseBinarySC);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */

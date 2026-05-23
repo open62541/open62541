@@ -180,6 +180,7 @@ struct UA_Server {
     /* Server Components with individual life cycles */
     UA_ServerComponent *components; /* linked-list of all SC */
     UA_ServerComponent *binarySC;
+    UA_ServerComponent *reverseBinarySC;
     UA_ServerComponent *discoverySC;
     UA_ServerComponent *pubSubSC;
 
