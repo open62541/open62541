@@ -2,7 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
 
 static void reverseConnectStateCallback(UA_Server *server, UA_UInt64 handle,
                                         UA_SecureChannelState state, void *context) {

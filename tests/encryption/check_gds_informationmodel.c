@@ -5,9 +5,7 @@
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/create_certificate.h>
-#include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "ua_server_internal.h"

@@ -26,7 +26,6 @@
  * variable. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
 
 static void
 updateCurrentTime(UA_Server *server) {

@@ -5,7 +5,6 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <check.h>
 #include <time.h>

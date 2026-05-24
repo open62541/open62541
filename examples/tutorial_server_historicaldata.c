@@ -9,7 +9,6 @@
 #include <open62541/plugin/historydata/history_database_default.h>
 #include <open62541/plugin/historydatabase.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
 
 int main(void) {
     UA_Server *server = UA_Server_new();

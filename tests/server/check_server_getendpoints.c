@@ -1,6 +1,4 @@
 #include <open62541/client.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/accesscontrol_default.h>

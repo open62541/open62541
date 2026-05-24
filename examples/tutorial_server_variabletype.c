@@ -19,7 +19,6 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
 
 static UA_NodeId pointTypeId;
 

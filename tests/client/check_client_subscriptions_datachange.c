@@ -5,11 +5,8 @@
 /* Client subscription operation tests */
 
 #include <open62541/client.h>
-#include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"

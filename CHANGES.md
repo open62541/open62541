@@ -3,6 +3,16 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Plugin headers in /include folder
+
+Before the plugin headers were defined in the /plugins/include folder. This lead
+to some confusion. Now the default plugin headers are in the usual /include
+folder. In the future, some of the plugin implementations will not have
+dedicated header files, but get moved into the respective plugin API header
+(possibly behind ifdef build flags).
+
+# Release 1.5
+
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
 Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section

@@ -4,7 +4,6 @@
 /* This example is just to see how fast we can monitor value changes. The server does
    not open a TCP port. */
 
-#include <open62541/server_config_default.h>
 
 #include "server/ua_subscription.h"
 #include "ua_server_internal.h"

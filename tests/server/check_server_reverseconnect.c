@@ -5,11 +5,8 @@
  * Copyright 2022 (c) basysKom GmbH <opensource@basyskom.com> (Author: Jannis Völker)
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/types.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/client_config_default.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"

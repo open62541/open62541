@@ -6,8 +6,6 @@
  *
  */
 
-#include <../../plugins/include/open62541/client_config_default.h>
-
 #include <check.h>
 #include <limits.h>
 #include <stdlib.h>

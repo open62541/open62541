@@ -7,7 +7,6 @@
 
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_internal.h"

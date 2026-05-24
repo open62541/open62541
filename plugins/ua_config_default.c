@@ -20,10 +20,9 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/server_config_default.h>
+#include <open62541/server.h>
 #if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 #include <open62541/client.h>
-#include <open62541/client_config_default.h>
 #endif
 
 #include "../deps/mp_printf.h"

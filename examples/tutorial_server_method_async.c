@@ -30,8 +30,6 @@
  * prepended. The type and length of the input arguments is checked internally
  * by the SDK, so that we don't have to verify the arguments in the callback. */
 
-#include <open62541/client_config_default.h>
-#include <open62541/server.h>
 #include <open62541/plugin/log.h>
 
 /* The example mocks up a work queue for worker threads with a single slot. The

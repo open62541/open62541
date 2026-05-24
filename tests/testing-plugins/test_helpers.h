@@ -6,7 +6,6 @@
 #define TEST_HELPERS_H_
 
 #include <open62541/client.h>
-#include <open62541/server.h>
 #include "testing_clock.h"
 
 UA_Server *

@@ -20,7 +20,6 @@
  * you have the ``open62541.c/.h`` files in the current folder. Now create a new
  * C source-file called ``myServer.c`` with the following content: */
 
-#include <open62541/server.h>
 
 int main(void) {
     UA_Server *server = UA_Server_new();

@@ -4,7 +4,6 @@
 /* This example is just to see how fast we can process messages. The server does
    not open a TCP port. */
 
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/nodestore_default.h>
 
 #include "server/ua_services.h"

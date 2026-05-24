@@ -56,17 +56,8 @@ _UA_BEGIN_DECLS
  * Client Lifecycle
  * ---------------- */
 
-/* Create a new client with a default configuration that adds plugins for
- * networking, security, logging and so on. See `client_config_default.h` for
- * more detailed options.
- *
- * The default configuration can be used as the starting point to adjust the
- * client configuration to individual needs. UA_Client_new is implemented in the
- * /plugins folder under the CC0 license. Furthermore the client confiugration
- * only uses the public server API.
- *
- * @return Returns the configured client or NULL if an error occurs. */
-UA_EXPORT UA_Client * UA_Client_new(void);
+/* UA_Client_new() is defined below. It makes use of UA_ClientConfig_setDefault
+ * and is defined next to it. */
 
 /* Creates a new client. Moves the config into the client with a shallow copy.
  * The config content is cleared together with the client. */
@@ -820,6 +811,39 @@ UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
                                           const char *username,
                                           const char *password);
 
+/**
+ * Initialize Client / Configuration with Defaults
+ * -----------------------------------------------
+ * The typical pattern to set up the client configuration is to apply a default
+ * initial configuration and to make further refinements manually.
+ *
+ * The client configuration is part of the public API. The implementation of the
+ * following methods is in the /plugins folder. It is encouraged to fork +
+ * modify both the plugin implementations and the client configuration setup to
+ * meet any additional requirements. */
+
+/* Create a new client with a default configuration from
+ * UA_ClientConfig_setDefault that adds plugins for networking, security,
+ * logging and so on. Returns the client or NULL if an error occurs. */
+UA_EXPORT UA_Client * UA_Client_new(void);
+
+/* Basic client configuration. The SecurityPolicy #None is created if none
+ * exists before. All remote certificates are accepted. */
+UA_StatusCode UA_EXPORT
+UA_ClientConfig_setDefault(UA_ClientConfig *config);
+
+/* Additionally adds encrypted SecurityPolicies and certificate validation
+ * against the trustlist/revocationlist. */
+#ifdef UA_ENABLE_ENCRYPTION
+UA_StatusCode UA_EXPORT
+UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
+                                     UA_ByteString localCertificate,
+                                     UA_ByteString privateKey,
+                                     const UA_ByteString *trustList,
+                                     size_t trustListSize,
+                                     const UA_ByteString *revocationList,
+                                     size_t revocationListSize);
+
 /* This method operates on the client config in two ways:
  *
  * - Sets the certificate as a X509IdentityToken for authentication.
@@ -838,7 +862,8 @@ UA_StatusCode UA_EXPORT
 UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                                       UA_ByteString certificateAuth,
                                       UA_ByteString privateKeyAuth);
-#endif
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL || UA_ENABLE_ENCRYPTION_MBEDTLS */
+#endif /* UA_ENABLE_ENCRYPTION */
 
 /**
  * .. _client-json-config:

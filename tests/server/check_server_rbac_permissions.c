@@ -7,7 +7,6 @@
 
 /* RBAC effective permissions API tests */
 
-#include <open62541/server_config_default.h>
 #include <open62541/nodeids.h>
 
 #include "test_helpers.h"

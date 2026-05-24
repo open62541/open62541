@@ -22,8 +22,6 @@
  * end-to-end test belongs in check_server_rbac_client.c.
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/nodeids.h>
 
 #include "test_helpers.h"

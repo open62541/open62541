@@ -4,7 +4,6 @@
 
 #include <open62541/transport_generated.h>
 #include <open62541/types_generated.h>
-#include <open62541/server_config_default.h>
 
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"

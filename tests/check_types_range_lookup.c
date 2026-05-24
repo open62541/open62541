@@ -5,7 +5,6 @@
 /* Additional type and utility coverage tests */
 #include <open62541/types.h>
 #include <open62541/util.h>
-#include <open62541/server.h>
 #include <check.h>
 #include <stdlib.h>
 #include <string.h>

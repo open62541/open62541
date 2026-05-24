@@ -12,6 +12,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *    Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
@@ -71,18 +72,8 @@ _UA_BEGIN_DECLS
  * connections and processes received messages. Furthermore, timed (cyclic)
  * callbacks are executed. */
 
-/* Create a new server with a default configuration that adds plugins for
- * networking, security, logging and so on. See the "server_config_default.h"
- * for more detailed options.
- *
- * The default configuration can be used as the starting point to adjust the
- * server configuration to individual needs. UA_Server_new is implemented in the
- * /plugins folder under the CC0 license. Furthermore the server confiugration
- * only uses the public server API.
- *
- * Returns the configured server or NULL if an error occurs. */
-UA_EXPORT UA_Server *
-UA_Server_new(void);
+/* UA_Server_new() is defined below. It uses UA_ServerConfig_setDefault
+ * internally and is thus defined next to it. */
 
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
@@ -2934,9 +2925,262 @@ UA_Server_newFromFile(const UA_ByteString jsonConfig);
  * @param jsonConfig The configuration in json5 format.
  */
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString jsonConfig);
+UA_ServerConfig_loadFromFile(UA_ServerConfig *config,
+                             const UA_ByteString jsonConfig);
 
 #endif /* UA_ENABLE_JSON_ENCODING */
+
+/**
+ * Initialize Server / Configuration with Defaults
+ * -----------------------------------------------
+ * The typical pattern to set up the server configuration is to apply a default
+ * initial configuration and to make further refinements manually.
+ *
+ * The server configuration is part of the public API. The implementation of the
+ * following methods is in the /plugins folder. It is encouraged to fork +
+ * modify both the plugin implementations and the server configuration setup to
+ * meet any additional requirements. */
+
+/* Create a new server with a default configuration (UA_ServerConfig_setDefault)
+ * that adds plugins for networking, security, logging and so on. Returns the
+ * configured server or NULL if an error occurs. */
+UA_EXPORT UA_Server * UA_Server_new(void);
+
+/* Creates a new server config with one endpoint and custom buffer size.
+ *
+ * The config will set the tcp network layer to the given port and adds a single
+ * endpoint with the security policy ``SecurityPolicy#None`` to the server.
+ * If the port is set to 0, it will be dynamically assigned.
+ * A server certificate may be supplied but is optional.
+ * Additionally you can define a custom buffer size for send and receive buffer.
+ *
+ * @param portNumber The port number for the tcp network layer
+ * @param certificate Optional certificate for the server endpoint. Can be
+ *        ``NULL``.
+ * @param sendBufferSize The size in bytes for the network send buffer
+ * @param recvBufferSize The size in bytes for the network receive buffer */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config,
+                                       UA_UInt16 portNumber,
+                                       const UA_ByteString *certificate,
+                                       UA_UInt32 sendBufferSize,
+                                       UA_UInt32 recvBufferSize);
+
+/* Creates a new server config with one endpoint.
+ *
+ * The config will set the tcp network layer to the given port and adds a single
+ * endpoint with the security policy ``SecurityPolicy#None`` to the server. A
+ * server certificate may be supplied but is optional. */
+UA_INLINABLE( UA_StatusCode
+UA_ServerConfig_setMinimal(UA_ServerConfig *config, UA_UInt16 portNumber,
+                           const UA_ByteString *certificate) ,{
+    return UA_ServerConfig_setMinimalCustomBuffer(config, portNumber,
+                                                  certificate, 0, 0);
+})
+
+/* Creates a server config on the default port 4840 with no server
+ * certificate. */
+UA_INLINABLE( UA_StatusCode
+UA_ServerConfig_setDefault(UA_ServerConfig *config) ,{
+    return UA_ServerConfig_setMinimal(config, 4840, NULL);
+})
+
+/* Creates a new server config with no security policies and no endpoints.
+ *
+ * It initializes reasonable defaults for many things, but does not
+ * add any security policies and endpoints.
+ * Use the various UA_ServerConfig_addXxx functions to add them.
+ * The config will set the tcp network layer to the default port 4840 if the
+ * eventloop is not already set. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setBasics(UA_ServerConfig *conf);
+
+/* Creates a new server config with no security policies and no endpoints.
+ *
+ * It initializes reasonable defaults for many things, but does not add any
+ * security policies and endpoints. Use the various UA_ServerConfig_addXxx
+ * functions to add them. The config will set the tcp network layer to the given
+ * port if the eventloop is not already set. If the port is set to 0, it will be
+ * dynamically assigned. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setBasics_withPort(UA_ServerConfig *conf,
+                                   UA_UInt16 portNumber);
+
+#ifdef UA_ENABLE_ENCRYPTION
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
+                                               UA_UInt16 portNumber,
+                                               const UA_ByteString *certificate,
+                                               const UA_ByteString *privateKey,
+                                               const UA_ByteString *trustList,
+                                               size_t trustListSize,
+                                               const UA_ByteString *issuerList,
+                                               size_t issuerListSize,
+                                               const UA_ByteString *revocationList,
+                                               size_t revocationListSize);
+
+/* This function adds only secure security policies to the policy list,
+ * explicitly excluding the 'None' policy. Because of this, clients cannot
+ * retrieve the server certificate or access the server’s exposed endpoints. As
+ * a result, connections can only be established in 'direct' way. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
+                                                     UA_UInt16 portNumber,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey,
+                                                     const UA_ByteString *trustList,
+                                                     size_t trustListSize,
+                                                     const UA_ByteString *issuerList,
+                                                     size_t issuerListSize,
+                                                     const UA_ByteString *revocationList,
+                                                     size_t revocationListSize);
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
+                                        UA_UInt16 portNumber,
+                                        const UA_ByteString *certificate,
+                                        const UA_ByteString *privateKey,
+                                        const UA_String storePath);
+
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+#endig /* UA_ENABLE_ENCRYPTION */
+
+/**
+ * Endpoint Configuration
+ * ~~~~~~~~~~~~~~~~~~~~~~ */
+
+/* Adds an endpoint for the given SecurityPolicy and mode. The security policy
+ * has to be added to the configuration before. See UA_ServerConfig_addXxx
+ * functions.
+ *
+ * @param config The configuration to manipulate
+ * @param securityPolicyUri The security policy for which to add the endpoint.
+ * @param securityMode The security mode for which to add the endpoint. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPolicyUri,
+                            UA_MessageSecurityMode securityMode);
+
+/* Adds endpoints for all configured security policies in each mode. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllEndpoints(UA_ServerConfig *config);
+
+/* Adds endpoints for all secure configured security policies in each mode. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecureEndpoints(UA_ServerConfig *config);
+
+/**
+ * Security Policies
+ * ~~~~~~~~~~~~~~~~~ */
+
+/* Adds the security policy ``SecurityPolicy#None`` to the server. A
+ * server certificate may be supplied but is optional. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
+                                      const UA_ByteString *certificate);
+
+#ifdef UA_ENABLE_ENCRYPTION
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config,
+                                               const UA_ByteString *certificate,
+                                               const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config,
+                                          const UA_ByteString *certificate,
+                                          const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
+                                                const UA_ByteString *certificate,
+                                                const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve25519(UA_ServerConfig *config,
+                                               const UA_ByteString *certificate,
+                                               const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccCurve448(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
+                                       const UA_ByteString *certificate,
+                                       const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey);
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+
+/* Adds a filestore security policy based on a given security policy to the
+ * server.
+ *
+ * @param config The configuration to manipulate.
+ * @param innerPolicy The policy that should be used as the base.
+ * @param storePath The path to the pki folder. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicy_Filestore(UA_ServerConfig *config,
+                                            UA_SecurityPolicy *innerPolicy,
+                                            const UA_String storePath);
+
+/* Adds all supported security policies and sets up certificate validation
+ * procedures.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
+                                              const UA_ByteString *certificate,
+                                              const UA_ByteString *privateKey,
+                                              const UA_String storePath);
+
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+#endif /* UA_ENABLE_ENCRYPTION */
+
+/* Default Connection Configuration */
+extern const UA_EXPORT
+UA_ConnectionConfig UA_ConnectionConfig_default;
 
 _UA_END_DECLS
 

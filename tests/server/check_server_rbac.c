@@ -5,8 +5,6 @@
  *    Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/nodeids.h>
 

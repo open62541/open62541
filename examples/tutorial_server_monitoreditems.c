@@ -20,7 +20,6 @@
  */
 
 #include <open62541/client_subscriptions.h>
-#include <open62541/server.h>
 #include <open62541/plugin/log_stdout.h>
 
 static void
