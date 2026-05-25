@@ -247,6 +247,7 @@ int main(int argc, char **argv) {
     // For deployment in LAN or across multiple devices, replace "127.0.0.1" with the IP of your network interface,
     // such as "192.168.1.100" or the IP of wlan0/eth0.
     config->mdnsInterfaceIP = UA_String_fromChars("127.0.0.1");
+    config->mdnsSendToAllInterfaces = true;  // send to all interfaces
 #endif
 
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
