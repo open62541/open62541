@@ -1085,7 +1085,12 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
 
     /* Write the DER-encoded key into a local buffer */
     unsigned char buf[1 << 14];
-    size_t pos = (size_t)mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
+    int written = mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
+    if(written <= 0) {
+        mbedtls_pk_free(&ctx);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+    size_t pos = (size_t)written;
 
     /* Allocate memory */
     UA_StatusCode res = UA_ByteString_allocBuffer(outDerKey, pos);
