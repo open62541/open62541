@@ -110,12 +110,16 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
         if(retval != UA_STATUSCODE_GOOD){
             UA_ByteString_clear(&A_and_seed);
             UA_ByteString_clear(&ANext_and_seed);
+            if(bufferAllocated)
+                UA_ByteString_clear(&outSegment);
             return retval;
         }
         retval = mbedtls_hmac(context, secret, &A, ANext.data);
         if(retval != UA_STATUSCODE_GOOD){
             UA_ByteString_clear(&A_and_seed);
             UA_ByteString_clear(&ANext_and_seed);
+            if(bufferAllocated)
+                UA_ByteString_clear(&outSegment);
             return retval;
         }
 
