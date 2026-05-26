@@ -297,7 +297,7 @@ typedef struct {
 
 /**
  * PubSub Custom State Machine
- * -----------------
+ * ---------------------------
  * All PubSubComponents (Connection, Reader, ReaderGroup, ...) have a two
  * configuration items in common: A void context-pointer and a callback to
  * override the default state machine with a custom implementation.
