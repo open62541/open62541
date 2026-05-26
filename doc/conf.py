@@ -35,6 +35,7 @@ author = 'The open62541 authors'
 
 extensions = [
     'sphinx_rtd_theme',
+    'sphinx.ext.graphviz',
 ]
 
 templates_path = ['_templates']
