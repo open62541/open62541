@@ -787,7 +787,6 @@ PARSE_JSON(SecurityPkiField) {
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     /* Currently not supported! */
     (void)config;
-    return UA_STATUSCODE_GOOD;
 #else
     /* Set up the parameters */
     UA_KeyValuePair params[2];
