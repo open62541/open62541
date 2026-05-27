@@ -747,14 +747,10 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 static void
 flushSelfPipe(UA_SOCKET s) {
     char buf[128];
-#ifdef UA_ARCHITECTURE_WIN32
-    recv(s, buf, 128, 0);
-#else
-    ssize_t i;
+    int i;
     do {
-        i = read(s, buf, 128);
+        i = UA_recv(s, buf, 128, 0);
     } while(i > 0);
-#endif
 }
 
 #if !defined(UA_HAVE_EPOLL)
@@ -1061,7 +1057,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
 #endif /* defined(UA_HAVE_EPOLL) */
 
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#ifdef UA_ARCHITECTURE_WIN32
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
@@ -1081,12 +1077,7 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
     int err = connect(fds[0], (struct sockaddr*)&addr, len);
     fds[1] = accept(lst, 0, 0);
-#ifdef UA_ARCHITECTURE_WIN32
-    closesocket(lst);
-#endif
-#ifdef __APPLE__
-    close(lst);
-#endif
+    UA_close(lst);
 
     UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
     UA_EventLoopPOSIX_setReusable(fds[0]);
@@ -1096,18 +1087,16 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     UA_EventLoopPOSIX_setNonBlocking(fds[1]);
     return err;
 }
-#elif defined(__QNX__)
-int UA_EventLoopPOSIX_pipe(int fds[2]) {
-    int err = pipe(fds); 
-    if(err == -1) {
-      return err;
-    }
-
-    err = fcntl(fds[0], F_SETFL, O_NONBLOCK);
-    if(err == -1) {
-      return err;
-    }
-    return err;
+#else
+int UA_EventLoopPOSIX_pipe(UA_FD fds[2]) {
+    int err = socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+    if(err != 0)
+        return err;
+    UA_EventLoopPOSIX_setNonBlocking(fds[0]);
+    UA_EventLoopPOSIX_setNonBlocking(fds[1]);
+    UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
+    UA_EventLoopPOSIX_setNoSigPipe(fds[1]);
+    return 0;
 }
 #endif
 
@@ -1118,11 +1107,7 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
         return;
 
     /* Trigger the self-pipe */
-#ifdef UA_ARCHITECTURE_WIN32
-    int err = send(el->selfpipe[1], ".", 1, 0);
-#else
-    ssize_t err = write(el->selfpipe[1], ".", 1);
-#endif
+    int err = (int)UA_send(el->selfpipe[1], ".", 1, 0);
     if(err <= 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
