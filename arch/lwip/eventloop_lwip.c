@@ -130,7 +130,7 @@ resetDelayedQueue(UA_EventLoopLWIP *el,
 static void
 UA_EventLoopLWIP_removeDelayedCallback(UA_EventLoop *public_el,
                                         UA_DelayedCallback *dc) {
-    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)el;
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     UA_LOCK(&el->elMutex);
 
     /* Reset and get the old head and tail */
