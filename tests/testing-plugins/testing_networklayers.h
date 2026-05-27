@@ -32,6 +32,9 @@ typedef struct {
  *   open  → createConnection + inject ESTABLISHED immediately
  *   send  → steal the buffer into an internal lastSent slot (see getLastSent)
  *   close → inject CLOSING + removeConnection
+ * Optional event-source parameter:
+ *   log-events (Boolean): if true, network events are logged to stdout
+ *   with a fixed prefix and message payloads encoded as base64.
  * Pass non-NULL overloads only when custom behaviour is required (e.g. pcap). */
 UA_ConnectionManager *
 TestConnectionManager_new(const char *protocol,

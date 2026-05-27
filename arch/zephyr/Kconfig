@@ -147,11 +147,6 @@ config OPEN62541_ENABLE_DETERMINISTIC_RNG
     default n
     help
         Do not seed the random number generator (e.g. for unit tests).
-config OPEN62541_ENABLE_MALLOC_SINGLETON
-    bool "Enable malloc singleton"
-    default n
-    help
-        Use a global variable pointer for malloc (and free, ...) that can be switched at runtime
 config OPEN62541_FILE_NS0
     string "Namespace zero xml file"
     help

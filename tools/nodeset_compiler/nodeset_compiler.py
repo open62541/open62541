@@ -219,7 +219,7 @@ if args.blacklistFiles:
 # Figure out from the references which is the parent for each node
 ns.setNodeParent()
 
-logger.info("Generating Code for Backend: %s", args.backend)
+logger.info("Generating Code for Backend: %s (%i Nodes)", args.backend, len(ns.nodes))
 
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler

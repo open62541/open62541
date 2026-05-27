@@ -375,7 +375,7 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
         return;
 
     /* Set up the key-value map */
-    static UA_THREAD_LOCAL UA_KeyValuePair notifyMonData[13] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyMonData[13] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
         {{0, UA_STRING_STATIC("monitoreditem-id")}, {0}},

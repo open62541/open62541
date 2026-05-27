@@ -229,9 +229,7 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     certGroup->getTrustList((UA_CertificateGroup*)(uintptr_t)certGroup, &trustList);
 
     /* Set up the parameters */
-    static UA_THREAD_LOCAL UA_KeyValuePair params[1] = {
-        {{0, UA_STRING_STATIC("max-trust-listsize")}, {0}}
-    };
+    UA_KeyValuePair params[1] = {{{0, UA_STRING_STATIC("max-trust-listsize")}, {0}}};
     UA_KeyValueMap paramsMap = {1, params};
 
     UA_ServerConfig *config = UA_Server_getConfig(transaction->server);
@@ -239,7 +237,8 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
                          &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_CertificateGroup_Memorystore(&transaction->certGroups[transaction->certGroupSize-1],
-        (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId, &trustList, certGroup->logging, &paramsMap);
+                                    (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId,
+                                    &trustList, certGroup->logging, &paramsMap);
 
     UA_TrustListDataType_clear(&trustList);
 
@@ -631,9 +630,14 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
-    /* Initialize the binay protocol support */
+    /* Initialize the binary protocol support */
     server->binarySC = UA_BinaryProtocolManager_new();
     res = addServerComponent(server, server->binarySC);
+    UA_CHECK_STATUS(res, goto cleanup);
+
+    /* Initialize the reverse connect binary protocol support */
+    server->reverseBinarySC = UA_ReverseBinaryProtocolManager_new();
+    res = addServerComponent(server, server->reverseBinarySC);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */

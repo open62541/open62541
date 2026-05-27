@@ -193,6 +193,11 @@ function(ua_add_test test_path_relative)
     add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(${TEST_NAME} open62541-testplugins)
     target_link_libraries(${TEST_NAME} ${LIBS} ${arg_EXTRALIBS})
+    if(MSVC)
+        target_compile_options(${TEST_NAME} PRIVATE /FI${PROJECT_SOURCE_DIR}/tests/testing-plugins/check_subtest_logging.h)
+    else()
+        target_compile_options(${TEST_NAME} PRIVATE -include ${PROJECT_SOURCE_DIR}/tests/testing-plugins/check_subtest_logging.h)
+    endif()
     target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
     set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
@@ -272,7 +277,9 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP)
+if((${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR
+     ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin") AND
+   NOT UA_ARCHITECTURE_LWIP)
     ua_add_test(check_eventloop_interrupt.c)
 endif()
 
@@ -480,6 +487,10 @@ if(UA_ENABLE_ENCRYPTION)
     if(UA_ENABLE_GDS_PUSHMANAGEMENT)
         ua_add_test(encryption/check_gds_informationmodel.c)
     endif()
+endif()
+
+if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    ua_add_test(server/check_discovery_mdnsd.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)

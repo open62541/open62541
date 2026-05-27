@@ -14,6 +14,7 @@ if(ZEPHYR_BASE)
     return()
   endif()
   include(arch/zephyr/zephyr.cmake)
+  add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/arch/zephyr/zephyr_arch.h")
 endif()
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -290,7 +291,11 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     set(UA_ENABLE_DISCOVERY_MULTICAST MDNSD CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON CACHE STRING "" FORCE)
     set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
-    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
+    if(APPLE)
+        set(UA_ENABLE_ENCRYPTION_OPENSSL ON CACHE STRING "" FORCE)
+    else()
+        set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
+    endif()
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -393,10 +398,6 @@ mark_as_advanced(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS)
 
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
-
-option(UA_ENABLE_MALLOC_SINGLETON
-       "Use a global variable pointer for malloc (and free, ...) that can be switched at runtime" OFF)
-mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
 
 option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
 mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
@@ -613,7 +614,7 @@ function(add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
+if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
     NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
 
     check_add_cc_flag("-std=c99")   # C99 mode
@@ -632,7 +633,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
 
     # Clang 22 added -Wcast-function-type-mismatch to -Wextra; suppress the parent group.
     # add_cc_flag bypasses check_c_compiler_flag which can give false negatives under -Werror.
-    if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
        CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "13.0")
         add_cc_flag("-Wno-cast-function-type")
     else()
@@ -640,7 +641,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     endif()
 
     # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic -std=c99
-    if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
        CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "22.0")
         add_cc_flag("-Wno-c2y-extensions")
     else()
@@ -718,7 +719,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Coverage
     if(UA_ENABLE_COVERAGE)
         check_add_cc_flag("--coverage")
-        if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        if(CMAKE_C_COMPILER_ID MATCHES "Clang")
             check_add_cc_flag("-fprofile-instr-generate")
             check_add_cc_flag("-fcoverage-mapping")
             check_add_cc_flag("-fprofile-arcs")
@@ -749,11 +750,11 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
 
     # Debug
     if(UA_ENABLE_DEBUG_SANITIZER AND BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
-       CMAKE_C_COMPILER_ID STREQUAL "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+       CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
         message(STATUS "Sanitizer enabled")
-        set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
+        set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=undefined")
         if(CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
             set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
         endif()
@@ -804,7 +805,7 @@ if(MSVC)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    set(UA_ENABLE_MALLOC_SINGLETON ON)
+    add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_arch.h")
 endif()
 
 #########################
@@ -889,6 +890,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_gds.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary_reverse.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_auditing.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
