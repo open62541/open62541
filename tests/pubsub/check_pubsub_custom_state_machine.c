@@ -49,15 +49,15 @@ static UA_String transportProfile =
  * next with atomic operations. */
 UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
+UA_atomic(UA_DataValue *)dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
 
 static void
 valueUpdateCallback(UA_Server *server, void *data) {
     for(int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i) {
         if(dvPointers[i] < &dvStore[PUBSUB_CONFIG_FIELD_COUNT - 1])
-            UA_atomic_xchg((void**)&dvPointers[i], dvPointers[i]+1);
+            UA_atomic_store(&dvPointers[i], dvPointers[i]+1);
         else
-            UA_atomic_xchg((void**)&dvPointers[i], &dvStore[0]);
+            UA_atomic_store(&dvPointers[i], &dvStore[0]);
     }
 }
 

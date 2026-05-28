@@ -219,7 +219,7 @@ UA_AsyncManager_processReady(UA_Server *server, UA_AsyncManager *am) {
     lockServer(server);
 
     /* Reset the delayed callback */
-    UA_atomic_xchg((void**)&am->dc.callback, NULL);
+    UA_atomic_store((UA_atomic(void*)*)&am->dc.callback, NULL);
 
     /* Process ready direct operations and free them */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;

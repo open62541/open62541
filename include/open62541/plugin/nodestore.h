@@ -346,7 +346,7 @@ struct UA_NodeHead {
             UA_ValueSourceNotifications notifications;                  \
         } internal;                                                     \
         struct {                                                        \
-            UA_DataValue **value; /* double-pointer */                  \
+            UA_atomic(UA_DataValue *)* value; /* double-pointer */      \
             UA_ValueSourceNotifications notifications;                  \
         } external;                                                     \
         UA_CallbackValueSource callback;                                \
