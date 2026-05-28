@@ -189,6 +189,23 @@
 #endif /* UA_ARCHITECTURE_POSIX */
 
 /**
+ * Win32 Includes
+ * --------------
+ * Load default definitions for locks, atomic intrinsics, etc.
+ * Prevent duplicate definitions via winsock2. */
+#ifdef UA_ARCHITECTURE_WIN32
+# ifndef _WINSOCKAPI_
+#  define _NO_WINSOCKAPI_
+# endif
+# define _WINSOCKAPI_
+# include <windows.h>
+# include <intrin.h>
+# ifdef _NO_WINSOCKAPI_
+#  undef _WINSOCKAPI_
+# endif
+#endif
+
+/**
  * C99 Definitions
  * --------------- */
 #include <stddef.h>
@@ -254,90 +271,85 @@
  * -----------------
  *
  * Atomic operations synchronize across processor cores and enable lockless
- * multi-threading. */
+ * multi-threading. The following macro definitions generalize the C11 atomic
+ * operations for integers and pointers. But we only support void-ptr /
+ * uintptr_t elements to help maintaining portable code. Explicit casting to
+ * uintptr_t is done on platforms that require it.
+ *
+ * - T UA_atomic_load(T* addr);
+ * - void UA_atomic_store(T *addr, T newval);
+ * - void UA_atomic_xchg(T *addr, T newval, T* old);
+ * - void UA_atomic_cmpxchg(T *addr, T *expected, T newval); */
 
-/* Intrinsic atomic operations are not available everywhere for MSVC.
- * Use the win32 API. Prevent duplicate definitions by via winsock2. */
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32)
-#  ifndef _WINSOCKAPI_
-#   define _NO_WINSOCKAPI_
-#  endif
-#  define _WINSOCKAPI_
-#  include <windows.h>
-#  ifdef _NO_WINSOCKAPI_
-#   undef _WINSOCKAPI_
-#  endif
-# elif defined(__has_include) && __has_include(<stdatomic.h>)
-#  define UA_HAVE_C11_ATOMICS
-#  ifdef __cplusplus
-#    include <atomic>
-#    define _Atomic(T) std::atomic<T>
-#    define atomic_uintptr_t std::atomic_uintptr_t
-#  else
-#    include <stdatomic.h>
-#  endif
-# elif !defined(HAVE_GCC_SYNC_BUILTINS)
-#  error Atomic operations not implemented
+#if UA_MULTITHREADING < 100
+/* Naive definitions without multithreading */
+# define UA_atomic(T) T
+# define UA_atomic_load(addr) (*(addr))
+# define UA_atomic_store(addr, newval) do { *addr = newval; } while(0)
+# define UA_atomic_xchg(addr, newval, old)                              \
+    do { *old = *addr; *addr = newval; } while(0)
+# define UA_atomic_cmpxchg(addr, expected, newval)                      \
+    do { if(*addr == *expected) { *addr = newval; }                     \
+         else                   { *expected = *addr; } } while(0)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && \
+     !defined(__STDC_NO_ATOMICS__)
+/* C11 Atomics */
+# ifdef __cplusplus
+#  include <atomic>
+#  define UA_atomic(T) std::atomic<T>
+# else
+#  include <stdatomic.h>
+#  define UA_atomic(T) _Atomic(T)
 # endif
-#endif
-
-static UA_INLINE void *
-UA_atomic_xchg(void **addr, void *newptr) {
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32) /* Visual Studio */
-    return InterlockedExchangePointer((void * volatile *)(uintptr_t)addr, newptr);
-# elif defined(UA_HAVE_C11_ATOMICS)
-    return (void *)atomic_exchange((volatile atomic_uintptr_t *)addr,
-                                   (uintptr_t)newptr);
-# else /* HAVE_GCC_SYNC_BUILTINS */
-    return __sync_lock_test_and_set(addr, newptr);
-# endif
+# define UA_atomic_load(addr) atomic_load(addr)
+# define UA_atomic_store(addr, newval) atomic_store(addr, newval)
+# define UA_atomic_xchg(addr, newval, old)                              \
+    do { *old = atomic_exchange(addr, newval); } while(0)
+# define UA_atomic_cmpxchg(addr, expected, newval)                      \
+    atomic_compare_exchange_strong(addr, expected, newval);
+#elif defined(__GNUC__) || defined(__clang__)
+/* GCC and Clang intrinsics */
+# define UA_atomic(T) T
+# define UA_atomic_load(addr)                                           \
+    __atomic_load_n(addr, __ATOMIC_SEQ_CST)
+# define UA_atomic_store(addr, newval)                                  \
+    __atomic_store_n(addr, newval, __ATOMIC_SEQ_CST)
+# define UA_atomic_xchg(addr, newval, old)                              \
+    do {                                                                \
+        *old = __atomic_exchange_n(addr, newval, __ATOMIC_SEQ_CST);     \
+    } while(0)
+# define UA_atomic_cmpxchg(addr, expected, newval)                      \
+    __atomic_compare_exchange_n(addr, expected, newval, false,          \
+                                __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#elif defined(_WIN32)
+/* Integer / pointer are atomic loads on Win32. */
+# define UA_atomic(T) T
+# define UA_atomic_load(addr) (_ReadBarrier(), *(addr))
+# define UA_atomic_store(addr, newval)                                  \
+    do {                                                                \
+        UA_assert(sizeof(*addr) == sizeof(void*));                      \
+        InterlockedExchangePointer((void * volatile *)addr,             \
+                                   (void*)(uintptr_t)(newval));         \
+    } while(0)
+# define UA_atomic_xchg(addr, newval, old)                              \
+    do {                                                                \
+        UA_assert(sizeof(*addr) == sizeof(void*));                      \
+        *(uintptr_t*)old = (uintptr_t)                                  \
+            InterlockedExchangePointer((void * volatile *)addr,         \
+                                       (void*)(uintptr_t)(newval));     \
+    } while (0)
+# define UA_atomic_cmpxchg(addr, expected, newval)                      \
+    do {                                                                \
+        UA_assert(sizeof(*addr) == sizeof(void*));                      \
+        void *exp_val = (void*)(uintptr_t)*(expected);                  \
+        void *new_val = (void*)(uintptr_t)(newval);                     \
+        void *old_val = InterlockedCompareExchangePointer(              \
+            (void * volatile *)addr, new_val, exp_val);                 \
+        *(uintptr_t*)(expected) = (uintptr_t)old_val;                   \
+    } while (0)
 #else
-    void *old = *addr;
-    *addr = newptr;
-    return old;
+# error Atomic operations not implemented
 #endif
-}
-
-static UA_INLINE void *
-UA_atomic_cmpxchg(void **addr, void *expected, void *newptr) {
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32) /* Visual Studio */
-    return InterlockedCompareExchangePointer((void *volatile *)(uintptr_t)addr,
-                                             newptr, expected);
-# elif defined(UA_HAVE_C11_ATOMICS)
-    atomic_compare_exchange_strong((volatile atomic_uintptr_t *)addr,
-                                   (uintptr_t *)&expected, (uintptr_t)newptr);
-    return expected;
-# else /* HAVE_GCC_SYNC_BUILTINS */
-    return __sync_val_compare_and_swap(addr, expected, newptr);
-# endif
-#else
-    void *old = *addr;
-    if(old == expected)
-        *addr = newptr;
-    return old;
-#endif
-}
-
-static UA_INLINE void *
-UA_atomic_load(void **addr) {
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32) /* Visual Studio */
-    /* Assume x86 for Win32 builds. There we only need to lock stores. Reads are
-     * always atomic: "Locked operations are atomic with respect to all other
-     * memory operations and all externally visible events." */
-    return *addr;
-# elif defined(UA_HAVE_C11_ATOMICS)
-    return (void*)atomic_load((volatile atomic_uintptr_t *)addr);
-# else /* HAVE_GCC_SYNC_BUILTINS */
-    return __sync_fetch_and_or(addr, (void*)0);
-# endif
-#else
-    return *addr;
-#endif
-}
 
 /**
  * Memory Management

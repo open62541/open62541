@@ -272,8 +272,7 @@ readExternalValueAttribute(UA_Server *server, UA_Session *session,
                    vn->head.context, rangeptr, *vn->valueSource.external.value);
 
     /* Reload the value pointer */
-    const UA_DataValue *val = (const UA_DataValue*)
-        UA_atomic_load((void**)vn->valueSource.external.value);
+    const UA_DataValue *val = UA_atomic_load(vn->valueSource.external.value);
 
     /* Set the result */
     return (!rangeptr) ? UA_DataValue_copy(val, v) : UA_DataValue_copyRange(val, v, *rangeptr);
@@ -1586,8 +1585,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     case UA_VALUESOURCETYPE_EXTERNAL:
     case UA_VALUESOURCETYPE_INTERNAL: {
         UA_DataValue *oldValue = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
-            &node->valueSource.internal.value :
-            (UA_DataValue*)UA_atomic_load((void**)node->valueSource.external.value);
+            &node->valueSource.internal.value : UA_atomic_load(node->valueSource.external.value);
         retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
         if(retval == UA_STATUSCODE_GOOD &&
            node->valueSource.internal.notifications.onWrite)

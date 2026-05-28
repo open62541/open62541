@@ -168,7 +168,7 @@ typedef struct {
     UA_Timer timer;
 
     /* Linked List of Delayed Callbacks */
-    UA_DelayedCallback *delayedCallbacks;
+    UA_atomic(UA_DelayedCallback*) delayedCallbacks;
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */

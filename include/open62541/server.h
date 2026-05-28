@@ -968,7 +968,7 @@ UA_Server_setVariableNode_internalValueSource(UA_Server *server,
  * source. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_externalValueSource(UA_Server *server,
-    const UA_NodeId nodeId, UA_DataValue **value,
+    const UA_NodeId nodeId, UA_DataValue** value,
     const UA_ValueSourceNotifications *notifications);
 
 /* It is expected that the read callback is implemented. Whenever the value

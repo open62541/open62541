@@ -56,11 +56,13 @@ UA_EventLoopZephyr_removeTimer(UA_EventLoop *public_el, UA_UInt64 callbackId) {
 void
 UA_EventLoopZephyr_addDelayedCallback(UA_EventLoop *public_el, UA_DelayedCallback *dc) {
     UA_EventLoopZephyr *el = (UA_EventLoopZephyr *)public_el;
-    UA_DelayedCallback *old;
-    do {
-        old = el->delayedCallbacks;
+    for(;;) {
+        UA_DelayedCallback *old = el->delayedCallbacks;
         dc->next = old;
-    } while(UA_atomic_cmpxchg((void *volatile *)&el->delayedCallbacks, old, dc) != old);
+        UA_atomic_cmpxchg(&el->delayedCallbacks, &old, dc);
+        if(old == dc->next)
+            break;
+    }
 }
 
 static void

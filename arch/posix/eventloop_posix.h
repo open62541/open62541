@@ -403,9 +403,9 @@ typedef struct {
      * finished before.
      *
      * The currently unused head gets marked with the 0x01 sentinel. */
-    UA_DelayedCallback *delayedHead1;
-    UA_DelayedCallback *delayedHead2;
-    UA_DelayedCallback **delayedTail;
+    UA_atomic(UA_DelayedCallback *) delayedHead1;
+    UA_atomic(UA_DelayedCallback *) delayedHead2;
+    UA_atomic(UA_atomic(UA_DelayedCallback *)*) delayedTail;
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
