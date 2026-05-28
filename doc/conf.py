@@ -53,19 +53,21 @@ numfig = True
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
-html_logo = 'open62541_html.png'
+html_logo = 'open62541_logo.svg'
 
 pygments_style = 'sphinx' # TODO makes code blocks ugly (overrides sphinx_rtd_theme)
 
 # -- Options for LaTeX output ---------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-latex-output
 
-latex_logo = 'open62541.png'
+latex_logo = 'open62541_logo.png'
 
 latex_documents = [
   # (startdocname,   targetname,      title,                     author, theme,    toctree_only)
     (master_doc,     'open62541.tex', 'open62541 Documentation', author, 'manual', False),
 ]
+
+latex_engine = 'lualatex'
 
 latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
