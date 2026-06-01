@@ -1348,6 +1348,9 @@ openFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -1379,6 +1382,9 @@ readFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -1410,6 +1416,9 @@ writeFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -1441,6 +1450,9 @@ closeFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -1472,6 +1484,9 @@ getPositionFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -1503,6 +1518,9 @@ setPositionFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
