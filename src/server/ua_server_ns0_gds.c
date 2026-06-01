@@ -253,6 +253,8 @@ checkSessionActive(UA_Server *server, void *data) {
         removingCallback = false;
 
         UA_CertificateGroup *certGroup = getCertGroup(server, &fileInfoContext->certificateGroupId);
+        if(!certGroup)
+            continue;
 
         UA_FileContext *fileContext, *fileContextTmp;
         LIST_FOREACH_SAFE(fileContext, &fileInfo.fileContext, listEntry, fileContextTmp) {
