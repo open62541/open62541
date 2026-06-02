@@ -706,6 +706,8 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     check_add_cc_flag("-Wstrict-prototypes")
     check_add_cc_flag("-Wredundant-decls")
 
+    check_add_cc_flag("-Wno-c2y-extensions")
+    check_add_cc_flag("-Wno-implicit-void-ptr-cast")
     check_add_cc_flag("-Wuninitialized")
     check_add_cc_flag("-Winit-self")
     check_add_cc_flag("-Wcast-qual")
