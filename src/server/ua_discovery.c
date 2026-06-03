@@ -39,19 +39,19 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
     }
 
     /* No change */
-    if(state == dm->sc.state)
+    if(state == dm->drv.state)
         return;
 
     /* Set the new state and notify */
-    dm->sc.state = state;
+    dm->drv.state = state;
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_free(struct UA_ServerComponent *sc) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+UA_DiscoveryManager_free(struct UA_Driver *drv) {
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)drv;
 
-    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(sc->server->config.logging, UA_LOGCATEGORY_SERVER,
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(drv->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the DiscoveryManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -68,7 +68,7 @@ UA_DiscoveryManager_free(struct UA_ServerComponent *sc) {
     UA_DiscoveryManager_clearMdns(dm);
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
-    UA_free(sc);
+    UA_free(drv);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -141,17 +141,17 @@ UA_DiscoveryManager_cyclicTimer(UA_Server *server, void *data) {
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_start(struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_start(struct UA_Driver *drv) {
     /* Check that the server backpointer is set */
-    UA_Server *server = sc->server;
+    UA_Server *server = drv->server;
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Cannot start an already started DiscoveryManager */
-    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)drv;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_DiscoveryManager_resetServerOnNetworkRecordCounter(dm);
@@ -173,18 +173,18 @@ UA_DiscoveryManager_start(struct UA_ServerComponent *sc) {
 }
 
 static void
-UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
-    if(sc->state != UA_LIFECYCLESTATE_STARTED)
+UA_DiscoveryManager_stop(struct UA_Driver *drv) {
+    if(drv->state != UA_LIFECYCLESTATE_STARTED)
         return;
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)drv;
 
     /* Set STOPPING early so that CLOSING callbacks (fired by stopMulticast
      * below) do not trigger UA_DiscoveryManager_startMulticast and re-open
      * connections that would prevent the DM from reaching STOPPED. */
-    sc->state = UA_LIFECYCLESTATE_STOPPING;
+    drv->state = UA_LIFECYCLESTATE_STOPPING;
 
-    removeCallback(dm->sc.server, dm->discoveryCallbackId);
+    removeCallback(drv->server, dm->discoveryCallbackId);
 
     /* Cancel all outstanding register requests */
     for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
@@ -194,25 +194,25 @@ UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(sc->server->config.mdnsEnabled)
+    if(drv->server->config.mdnsEnabled)
         UA_DiscoveryManager_stopMulticast(dm);
 #endif
 
     UA_DiscoveryManager_setState(dm, UA_LIFECYCLESTATE_STOPPED);
 }
 
-UA_ServerComponent *
+UA_Driver *
 UA_DiscoveryManager_new(void) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         UA_calloc(1, sizeof(UA_DiscoveryManager));
     if(!dm)
         return NULL;
 
-    dm->sc.name = UA_STRING("discovery");
-    dm->sc.start = UA_DiscoveryManager_start;
-    dm->sc.stop = UA_DiscoveryManager_stop;
-    dm->sc.free = UA_DiscoveryManager_free;
-    return &dm->sc;
+    dm->drv.name = UA_STRING("discovery");
+    dm->drv.start = UA_DiscoveryManager_start;
+    dm->drv.stop = UA_DiscoveryManager_stop;
+    dm->drv.free = UA_DiscoveryManager_free;
+    return &dm->drv;
 }
 
 /********************************/
@@ -230,7 +230,7 @@ asyncRegisterRequest_clear(void *_, void *context) {
     memset(ar, 0, sizeof(asyncRegisterRequest));
 
     /* The Discovery manager is fully stopped? */
-    UA_DiscoveryManager_setState(dm, dm->sc.state);
+    UA_DiscoveryManager_setState(dm, dm->drv.state);
 }
 
 static void
@@ -248,7 +248,7 @@ asyncRegisterRequest_clearAsync(asyncRegisterRequest *ar) {
 static void
 setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
                      UA_RegisteredServer *rs) {
-    UA_ServerConfig *sc = &ar->dm->sc.server->config;
+    UA_ServerConfig *sc = &ar->dm->drv.server->config;
 
     rh->timeoutHint = 10000;
 
@@ -272,7 +272,7 @@ static void
 registerAsyncResponse(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    const UA_ServerConfig *sc = &ar->dm->sc.server->config;
+    const UA_ServerConfig *sc = &ar->dm->drv.server->config;
     UA_Response *response = (UA_Response*)resp;
     const char *regtype = (ar->register2) ? "RegisterServer2" : "RegisterServer";
 
@@ -330,7 +330,7 @@ discoveryClientStateCallback(UA_Client *client,
                              UA_StatusCode connectStatus) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)
         UA_Client_getContext(client);
-    UA_ServerConfig *sc = &ar->dm->sc.server->config;
+    UA_ServerConfig *sc = &ar->dm->drv.server->config;
 
     /* Connection failed */
     if(connectStatus != UA_STATUSCODE_GOOD) {
@@ -424,7 +424,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
                    const UA_String discoveryServerUrl,
                    const UA_String semaphoreFilePath) {
     /* Get the discovery manager */
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm) {
         UA_ClientConfig_clear(cc);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -432,7 +432,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
 
     /* Check that the discovery manager is running */
     UA_ServerConfig *sc = &server->config;
-    if(dm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+    if(dm->drv.state != UA_LIFECYCLESTATE_STARTED) {
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "The server must be started for registering");
         UA_ClientConfig_clear(cc);

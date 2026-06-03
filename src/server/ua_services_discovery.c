@@ -117,7 +117,7 @@ Service_FindServers(UA_Server *server, UA_Session *session,
 
     response->serversSize = 1;
 #else
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return true;
@@ -231,7 +231,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              UA_FindServersOnNetworkResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return true;
@@ -602,7 +602,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                        UA_DiagnosticInfo *responseDiagnosticInfos) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm)
         return;
 

@@ -56,14 +56,14 @@ UA_WriterGroup_canConnect(UA_WriterGroup *wg) {
 
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Already registered */
     if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_GOOD;
 
     /* Use EventLoop for cyclic callbacks */
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     return el->addTimer(el, (UA_Callback)UA_WriterGroup_publishCallback,
                         psm, wg, wg->config.publishingInterval,
                         NULL /* TODO: use basetime */,
@@ -75,7 +75,7 @@ void
 UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->publishCallbackId == 0)
         return;
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     if(UA_LIKELY(el != NULL))
         el->removeTimer(el, wg->publishCallbackId);
     wg->publishCallbackId = 0;
@@ -191,7 +191,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
     /* Add representation / create unique identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res = addWriterGroupRepresentation(psm->sc.server, wg);
+    res = addWriterGroupRepresentation(psm->drv.server, wg);
     if(res != UA_STATUSCODE_GOOD) {
         UA_WriterGroup_remove(psm, wg);
         return res;
@@ -229,7 +229,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
     /* Notify the application that a new WriterGroup was created.
      * This may internally adjust the config */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
         res = server->config.pubSubConfig.
             componentLifecycleCallback(server, wg->head.identifier,
@@ -261,10 +261,10 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
 UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Check with the application if we can remove */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, wg->head.identifier,
@@ -308,7 +308,7 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
         /* Actually remove the WriterGroup */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-        deleteNode(psm->sc.server, wg->head.identifier, true);
+        deleteNode(psm->drv.server, wg->head.identifier, true);
 #endif
 
         UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup deleted");
@@ -407,7 +407,7 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                               UA_PubSubState targetState) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(wg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
@@ -417,7 +417,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Callback to modify the WriterGroup config and change the targetState
      * before the state machine executes */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.beforeStateChangeCallback) {
         server->config.pubSubConfig.
             beforeStateChangeCallback(server, wg->head.identifier, &targetState);
@@ -453,7 +453,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
         /* PAUSED has no open connections and periodic callbacks */
-        if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+        if(psm->drv.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
                 UA_LOG_WARNING_PUBSUB(psm->logging, wg,
@@ -539,7 +539,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
      * the last socket has closed. */
-    UA_PubSubManager_setState(psm, psm->sc.state);
+    UA_PubSubManager_setState(psm, psm->drv.state);
 
     return ret;
 }
@@ -918,7 +918,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     UA_LOG_DEBUG_PUBSUB(psm->logging, wg, "Publish Callback");
 
-    lockServer(psm->sc.server);
+    lockServer(psm->drv.server);
 
     /* Find the connection associated with the writer */
     UA_PubSubConnection *connection = wg->linkedConnection;
@@ -926,7 +926,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Publish failed. PubSubConnection invalid");
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
-        unlockServer(psm->sc.server);
+        unlockServer(psm->drv.server);
         return;
     }
 
@@ -967,7 +967,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(enabledWriters == 0) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Cannot publish -- No Writers are enabled");
-        unlockServer(psm->sc.server);
+        unlockServer(psm->drv.server);
         return;
     }
 
@@ -995,7 +995,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
 
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     for(size_t i = 0; i < enabledWriters; i++) {
         dsw = writers[i];
 
@@ -1042,7 +1042,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
 
-    unlockServer(psm->sc.server);
+    unlockServer(psm->drv.server);
 }
 
 /***********************/
@@ -1087,7 +1087,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Get the context pointers */
     UA_WriterGroup *wg = (UA_WriterGroup*)*connectionContext;
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
 
     lockServer(server);
 
@@ -1115,7 +1115,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
-        UA_PubSubManager_setState(psm, psm->sc.state);
+        UA_PubSubManager_setState(psm, psm->drv.state);
 
         unlockServer(server);
         return;
@@ -1140,7 +1140,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                  UA_Boolean validate) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Already connected? */
     if(wg->sendChannel != 0 && !validate)
@@ -1218,7 +1218,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
 static UA_StatusCode
 UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
                            UA_Boolean validate) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PubSubConnection *c = wg->linkedConnection;
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -1283,7 +1283,7 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
 static UA_StatusCode
 UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
                        UA_Boolean validate) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Check if already connected or no WG TransportSettings */
     if(!UA_WriterGroup_canConnect(wg) && !validate)
@@ -1294,7 +1294,7 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "No EventLoop configured");
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);

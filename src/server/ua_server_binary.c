@@ -40,7 +40,7 @@ typedef struct {
 
 /* Binary Protocol Manager */
 typedef struct {
-    UA_ServerComponent sc;
+    UA_Driver drv;
     const UA_Logger *logging; /* shortcut */
     UA_UInt64 houseKeepingCallbackId;
 
@@ -57,9 +57,9 @@ typedef struct {
 static void
 setBinaryProtocolManagerState(UA_BinaryProtocolManager *bpm,
                               UA_LifecycleState state) {
-    if(state == bpm->sc.state)
+    if(state == bpm->drv.state)
         return;
-    bpm->sc.state = state;
+    bpm->drv.state = state;
 }
 
 void
@@ -676,7 +676,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
                             const UA_KeyValueMap *params,
                             UA_ByteString msg) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)application;
-    UA_LOCK_ASSERT(&bpm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&bpm->drv.server->serviceMutex);
 
     /* A server socket that is not yet registered in the server. Register it and
      * set the connection context to the pointer in the
@@ -715,7 +715,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
             UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "listen-address"),
                                      &UA_TYPES[UA_TYPES_STRING]);
         if(port && address)
-            addDiscoveryUrl(bpm->sc.server, *address, *port);
+            addDiscoveryUrl(bpm->drv.server, *address, *port);
         return;
     }
 
@@ -736,12 +736,12 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
             /* A connection attached to a SecureChannel is closing. This is the
              * only place where deleteSecureChannel must be used. */
             TAILQ_REMOVE(&bpm->channels, channel, componentEntry);
-            deleteServerSecureChannel(bpm->sc.server, channel);
+            deleteServerSecureChannel(bpm->drv.server, channel);
         }
 
         /* Set BinaryProtocolManager to STOPPED if it is STOPPING and the last
          * socket just closed */
-        if(bpm->sc.state == UA_LIFECYCLESTATE_STOPPING &&
+        if(bpm->drv.state == UA_LIFECYCLESTATE_STOPPING &&
            bpm->serverConnectionsSize == 0 && TAILQ_EMPTY(&bpm->channels)) {
            setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
         }
@@ -752,7 +752,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(serverSocket) {
         /* A new connection is opening. This is the only place where
          * createSecureChannel is used. */
-        retval = createServerSecureChannel(bpm->sc.server, cm, connectionId,
+        retval = createServerSecureChannel(bpm->drv.server, cm, connectionId,
                                            params, &channel);
 
         if(retval != UA_STATUSCODE_GOOD) {
@@ -784,7 +784,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
-    UA_EventLoop *el = bpm->sc.server->config.eventLoop;
+    UA_EventLoop *el = bpm->drv.server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
 
     /* Process all complete messages */
@@ -798,7 +798,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
                                                      &payload, &copied, nowMonotonic);
         if(retval != UA_STATUSCODE_GOOD || payload.length == 0)
             break;
-        retval = processSecureChannelMessage(bpm->sc.server, channel,
+        retval = processSecureChannelMessage(bpm->drv.server, channel,
                                              messageType, requestId, &payload);
         if(copied)
             UA_ByteString_clear(&payload);
@@ -826,15 +826,15 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       const UA_KeyValueMap *params,
                       UA_ByteString msg) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)application;
-    lockServer(bpm->sc.server);
+    lockServer(bpm->drv.server);
     serverNetworkCallbackLocked(cm, connectionId, application, connectionContext,
                                 state, params, msg);
-    unlockServer(bpm->sc.server);
+    unlockServer(bpm->drv.server);
 }
 
 static UA_StatusCode
 createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl) {
-    UA_Server *server = bpm->sc.server;
+    UA_Server *server = bpm->drv.server;
     UA_ServerConfig *config = &server->config;
 
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -917,10 +917,10 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
 /***************************/
 
 static UA_StatusCode
-UA_BinaryProtocolManager_start(UA_ServerComponent *sc) {
-    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
+UA_BinaryProtocolManager_start(UA_Driver *drv) {
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)drv;
 
-    UA_Server *server = sc->server;
+    UA_Server *server = drv->server;
     UA_ServerConfig *config = &server->config;
 
     /* Set the logging shortcut */
@@ -993,11 +993,11 @@ UA_BinaryProtocolManager_start(UA_ServerComponent *sc) {
 }
 
 static void
-UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
-    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)comp;
+UA_BinaryProtocolManager_stop(UA_Driver *drv) {
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)drv;
 
     /* Stop the Housekeeping Task */
-    removeCallback(bpm->sc.server, bpm->houseKeepingCallbackId);
+    removeCallback(bpm->drv.server, bpm->houseKeepingCallbackId);
     bpm->houseKeepingCallbackId = 0;
 
     /* Stop all SecureChannels */
@@ -1023,18 +1023,18 @@ UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
 }
 
 static UA_StatusCode
-UA_BinaryProtocolManager_free(UA_ServerComponent *sc) {
-    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(sc->server->config.logging, UA_LOGCATEGORY_SERVER,
+UA_BinaryProtocolManager_free(UA_Driver *drv) {
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(drv->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the BinaryProtocolManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_free(sc);
+    UA_free(drv);
     return UA_STATUSCODE_GOOD;
 }
 
-UA_ServerComponent *
+UA_Driver *
 UA_BinaryProtocolManager_new(void) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)
         UA_calloc(1, sizeof(UA_BinaryProtocolManager));
@@ -1043,13 +1043,13 @@ UA_BinaryProtocolManager_new(void) {
 
     TAILQ_INIT(&bpm->channels);
 
-    bpm->sc.name = UA_STRING("binary");
-    bpm->sc.start = UA_BinaryProtocolManager_start;
-    bpm->sc.stop = UA_BinaryProtocolManager_stop;
-    bpm->sc.free = UA_BinaryProtocolManager_free;
+    bpm->drv.name = UA_STRING("binary");
+    bpm->drv.start = UA_BinaryProtocolManager_start;
+    bpm->drv.stop = UA_BinaryProtocolManager_stop;
+    bpm->drv.free = UA_BinaryProtocolManager_free;
 
     /* Gets set during start */
-    /* bpm->sc.server = server; */
+    /* bpm->drv.server = server; */
 
-    return &bpm->sc;
+    return &bpm->drv;
 }

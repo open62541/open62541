@@ -92,7 +92,7 @@ extractPubSubConfigFromExtensionObject(UA_PubSubManager *psm,
 static UA_StatusCode
 updatePubSubConfig(UA_PubSubManager *psm,
                    const UA_PubSubConfigurationDataType *configurationParameters) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(configurationParameters == NULL) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
@@ -101,7 +101,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
     }
 
     /* Check if the PubSubManager is in an active state and has connections attached. */
-    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED && psm->connectionsSize > 0) {
+    if(psm->drv.state != UA_LIFECYCLESTATE_STOPPED && psm->connectionsSize > 0) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "[UA_PubSubManager_updatePubSubConfig] PubSub configured and active. "
                        "Disable the PublishSubscribe state before loading a pubsub configuration");
@@ -109,7 +109,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
     }
 
     /* Ensure the PubSubManager is stopped before clearing */
-    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
+    if(psm->drv.state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                     "[UA_PubSubManager_updatePubSubConfig] Stopping PubSubManager before loading configuration");
         UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
@@ -229,7 +229,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
     if(configurationParameters->enabled) {
         UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "[UA_PubSubManager_updatePubSubConfig] PubSubManager is enabled");
-        UA_assert(psm->sc.state == UA_LIFECYCLESTATE_STOPPED);
+        UA_assert(psm->drv.state == UA_LIFECYCLESTATE_STOPPED);
         psm->pubSubInitialSetupMode = true;
         UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
         psm->pubSubInitialSetupMode = false;
@@ -243,7 +243,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
 static UA_StatusCode
 createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType *connParams,
                        UA_UInt32 pdsCount, UA_NodeId *pdsIdent, UA_NodeId *connectionIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PubSubConnectionConfig config;
     memset(&config, 0, sizeof(UA_PubSubConnectionConfig));
@@ -347,7 +347,7 @@ createWriterGroup(UA_PubSubManager *psm,
                   const UA_WriterGroupDataType *writerGroupParameters,
                   UA_NodeId connectionIdent, UA_UInt32 pdsCount,
                   const UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_WriterGroupConfig config;
     memset(&config, 0, sizeof(UA_WriterGroupConfig));
@@ -397,7 +397,7 @@ createDataSetWriter(UA_PubSubManager *psm,
                     const UA_DataSetWriterDataType *dataSetWriterParameters,
                     UA_NodeId writerGroupIdent, UA_UInt32 pdsCount,
                     const UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Search the PDS among the supplied PDS-NodeIds.
      * The name must match the configured one. */
@@ -452,7 +452,7 @@ static UA_StatusCode
 createReaderGroup(UA_PubSubManager *psm,
                   const UA_ReaderGroupDataType *readerGroupParameters,
                   UA_NodeId connectionIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_ReaderGroupConfig config;
     memset(&config, 0, sizeof(UA_ReaderGroupConfig));
@@ -483,7 +483,7 @@ createReaderGroup(UA_PubSubManager *psm,
 static UA_StatusCode
 addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
                      const UA_ExtensionObject *subscribedDataSet) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]) {
@@ -520,7 +520,7 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
 static UA_StatusCode
 createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrParams,
                     UA_NodeId readerGroupIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Prepare the config parameters */
     UA_DataSetReaderConfig config;
@@ -597,7 +597,7 @@ static UA_StatusCode
 createPublishedDataSet(UA_PubSubManager *psm,
                        const UA_PublishedDataSetDataType *pdsParams,
                        UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PublishedDataSetConfig config;
     memset(&config, 0, sizeof(UA_PublishedDataSetConfig));
@@ -635,7 +635,7 @@ createPublishedDataSet(UA_PubSubManager *psm,
 static UA_StatusCode
 addDataSetFieldVariables(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
                          const UA_PublishedDataSetDataType *pdsParams) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PublishedDataItemsDataType *pdItems = (UA_PublishedDataItemsDataType *)
         pdsParams->dataSetSource.content.decoded.data;
@@ -675,7 +675,7 @@ addDataSetFieldVariables(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
 static UA_StatusCode
 createDataSetFields(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
                     const UA_PublishedDataSetDataType *pdsParams) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(pdsParams->dataSetSource.encoding != UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1092,7 +1092,7 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
 static UA_StatusCode
 generatePubSubConfigurationDataType(UA_PubSubManager *psm,
                                     UA_PubSubConfigurationDataType *configDT) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PubSubConfigurationDataType_init(configDT);
     configDT->publishedDataSets = (UA_PublishedDataSetDataType*)

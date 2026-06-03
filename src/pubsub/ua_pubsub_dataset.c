@@ -136,7 +136,7 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
         fmd->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
 
     /* DataType */
-    res = readWithReadValue(psm->sc.server, &var->publishParameters.publishedVariable,
+    res = readWithReadValue(psm->drv.server, &var->publishParameters.publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fmd->dataType);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, pds,
@@ -147,7 +147,7 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
     /* BuiltinType */
     const UA_DataType *type =
         UA_findDataTypeWithCustom(&fmd->dataType,
-                                  psm->sc.server->config.customDataTypes);
+                                  psm->drv.server->config.customDataTypes);
     if(!type) {
         /* (1) Abstract types always have the built-in type Variant since they
          * can result in different concrete types in a DataSetMessage. */
@@ -174,7 +174,7 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
     fmd->builtInType++; /* Go from UA_DataTypeKind to the builtin type index from Part 6 */
 
     /* ValueRank */
-    res = readWithReadValue(psm->sc.server, &var->publishParameters.publishedVariable,
+    res = readWithReadValue(psm->drv.server, &var->publishParameters.publishedVariable,
                             UA_ATTRIBUTEID_VALUERANK, &fmd->valueRank);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, pds,
@@ -185,7 +185,7 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
     /* ArrayDimensions */
     UA_Variant value;
     UA_Variant_init(&value);
-    res = readWithReadValue(psm->sc.server, &var->publishParameters.publishedVariable,
+    res = readWithReadValue(psm->drv.server, &var->publishParameters.publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, pds,
@@ -308,7 +308,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
         currDS->promotedFieldsCount++;
 
     /* Update major version of parent published data set */
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     currDS->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
@@ -374,7 +374,7 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
     UA_free(currentField);
 
     /* Update major version of PublishedDataSet */
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     pds->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
@@ -440,7 +440,7 @@ UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm, UA_DataSetField *field,
     rvid.nodeId = params->publishedVariable;
     rvid.attributeId = params->attributeId;
     rvid.indexRange = params->indexRange;
-    *value = readWithSession(psm->sc.server, &psm->sc.server->adminSession,
+    *value = readWithSession(psm->drv.server, &psm->drv.server->adminSession,
                              &rvid, UA_TIMESTAMPSTORETURN_BOTH);
 }
 
@@ -511,7 +511,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     }
 
     /* Fill the DataSetMetaData */
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     result.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
     result.configurationVersion.minorVersion =
@@ -552,7 +552,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Create representation and unique id */
-    addPublishedDataItemsRepresentation(psm->sc.server, newPDS);
+    addPublishedDataItemsRepresentation(psm->drv.server, newPDS);
 #else
     /* Generate unique nodeId */
     UA_PubSubManager_generateUniqueNodeId(psm, &newPDS->head.identifier);
@@ -594,7 +594,7 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(psm->sc.server, pds->head.identifier, true);
+    deleteNode(psm->drv.server, pds->head.identifier, true);
 #endif
 
     UA_LOG_INFO_PUBSUB(psm->logging, pds, "PublishedDataSet deleted");
@@ -672,7 +672,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(!sdsConfig) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
@@ -708,7 +708,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     psm->subscribedDataSetsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addSubscribedDataSetRepresentation(psm->sc.server, newSubscribedDataSet);
+    addSubscribedDataSetRepresentation(psm->drv.server, newSubscribedDataSet);
 #else
     UA_PubSubManager_generateUniqueNodeId(psm, &newSubscribedDataSet->head.identifier);
 #endif
@@ -737,7 +737,7 @@ UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(psm->sc.server, sds->head.identifier, true);
+    deleteNode(psm->drv.server, sds->head.identifier, true);
 #endif
 
     /* Unlink from the server */
