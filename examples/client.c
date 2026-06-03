@@ -76,6 +76,9 @@ int main(int argc, char *argv[]) {
     bReq.nodesToBrowseSize = 1;
     bReq.nodesToBrowse[0].nodeId = UA_NS0ID(OBJECTSFOLDER); /* browse objects folder */
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
+    /* NOTE: If using a string or bytestring NodeId, use UA_NodeId_copy or
+     * UA_NODEID_STRING_ALLOC instead of UA_NODEID_STRING, as
+     * UA_BrowseRequest_clear will try to free the string memory. */
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID",
            "BROWSE NAME", "DISPLAY NAME");
