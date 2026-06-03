@@ -477,6 +477,10 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
+void
+notifyApplication(UA_Server *server, UA_ApplicationNotificationType type,
+                  const UA_KeyValueMap payload);
+
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 

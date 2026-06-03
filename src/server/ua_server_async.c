@@ -106,11 +106,6 @@ UA_AsyncResponse_delete(UA_AsyncResponse *ar) {
 static void
 notifyServiceEnd(UA_Server *server, UA_AsyncResponse *ar,
                  UA_Session *session, UA_SecureChannel *sc) {
-    /* Nothing to do? */
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    if(!config->globalNotificationCallback && !config->serviceNotificationCallback)
-        return;
-
     /* Collect the payload */
     UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
     UA_UInt32 secureChannelId = (sc) ? sc->securityToken.channelId : 0;
@@ -131,22 +126,17 @@ notifyServiceEnd(UA_Server *server, UA_AsyncResponse *ar,
         {{0, UA_STRING_STATIC("service-type")}, {0}}
     };
     UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
-    if(config->serviceNotificationCallback || config->globalNotificationCallback) {
-        UA_Variant_setScalar(&notifyPayload[0].value, &secureChannelId,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
-                             &UA_TYPES[UA_TYPES_NODEID]);
-        UA_Variant_setScalar(&notifyPayload[2].value, &ar->requestId,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&notifyPayload[3].value, &serviceTypeId,
-                             &UA_TYPES[UA_TYPES_NODEID]);
-    }
+    UA_Variant_setScalar(&notifyPayload[0].value, &secureChannelId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&notifyPayload[2].value, &ar->requestId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifyPayload[3].value, &serviceTypeId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
 
     UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
-    if(config->serviceNotificationCallback)
-        config->serviceNotificationCallback(server, nt, notifyPayloadMap);
-    if(config->globalNotificationCallback)
-        config->globalNotificationCallback(server, nt, notifyPayloadMap);
+    notifyApplication(server, nt, notifyPayloadMap);
 }
 
 static void
