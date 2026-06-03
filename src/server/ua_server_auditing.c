@@ -55,11 +55,8 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
     UA_Variant_setScalar(&payload.map[4].value, &clientUserId,
                          &UA_TYPES[UA_TYPES_STRING]);
 
-    /* Call the server notification callback */
-    if(config->auditNotificationCallback)
-        config->auditNotificationCallback(server, type, payload);
-    if(config->globalNotificationCallback)
-        config->globalNotificationCallback(server, type, payload);
+    /* Notify the application */
+    notifyApplication(server, type, payload);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     /* Create the Event in the information model */

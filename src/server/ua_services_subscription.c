@@ -55,10 +55,6 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
 static void
 notifySubscription(UA_Server *server, UA_Subscription *sub,
                    UA_ApplicationNotificationType type) {
-    if(!server->config.subscriptionNotificationCallback &&
-       !server->config.globalNotificationCallback)
-        return;
-
     UA_STATIC_THREAD_LOCAL UA_KeyValuePair createSubData[8] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
@@ -91,10 +87,8 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
     UA_Variant_setScalar(&createSubData[7].value, &enabled,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-    if(server->config.subscriptionNotificationCallback)
-        server->config.subscriptionNotificationCallback(server, type, createSubMap);
-    if(server->config.globalNotificationCallback)
-        server->config.globalNotificationCallback(server, type, createSubMap);
+    /* Notify the application */
+    notifyApplication(server, type, createSubMap);
 }
 
 UA_Boolean

@@ -344,6 +344,44 @@ editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     return retval;
 }
 
+void
+notifyApplication(UA_Server *server, UA_ApplicationNotificationType type,
+                  const UA_KeyValueMap payload) {
+    /* Notify the drivers */
+    UA_UInt64 filter = type & 0xFFFFFFFF00000000ULL; /* Only the high 32bit */
+    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
+        if((drv->notificationFilter & filter) != 0 && drv->notificationCallback)
+            drv->notificationCallback(drv, type, payload);
+    }
+
+    /* Specialized application notification callbacks */
+    UA_ServerConfig *config = &server->config;
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE) != 0 &&
+       config->lifecycleNotificationCallback)
+        config->lifecycleNotificationCallback(server, type, payload);
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL) != 0 &&
+       config->secureChannelNotificationCallback)
+        config->secureChannelNotificationCallback(server, type, payload);
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_SESSION) != 0 &&
+       config->sessionNotificationCallback)
+        config->sessionNotificationCallback(server, type, payload);
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_SERVICE) != 0 &&
+       config->serviceNotificationCallback)
+        config->serviceNotificationCallback(server, type, payload);
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION) != 0 &&
+       config->subscriptionNotificationCallback)
+        config->subscriptionNotificationCallback(server, type, payload);
+#ifdef UA_ENABLE_AUDITING
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_AUDIT) != 0 &&
+       config->auditNotificationCallback)
+        config->auditNotificationCallback(server, type, payload);
+#endif
+
+    /* Global application notification */
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(server, type, payload);
+}
+
 /**************************/
 /* Certificate Validation */
 /**************************/

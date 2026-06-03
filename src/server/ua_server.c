@@ -738,16 +738,12 @@ setServerShutdown(UA_Server *server) {
                    (int)server->config.shutdownDelay);
 
     UA_EventLoop *el = server->config.eventLoop;
-    server->endTime = el->dateTime_now(el) + (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+    server->endTime = el->dateTime_now(el) +
+        (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
 
-    /* Call the application notification callback */
-    UA_ServerConfig *config = &server->config;
-    if(config->lifecycleNotificationCallback)
-        config->lifecycleNotificationCallback(server, UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN,
-                                              UA_KEYVALUEMAP_NULL);
-    if(config->globalNotificationCallback)
-        config->globalNotificationCallback(server, UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN,
-                                           UA_KEYVALUEMAP_NULL);
+    /* Call the application notification callbacks */
+    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN;
+    notifyApplication(server, nt, UA_KEYVALUEMAP_NULL);
 
     return false;
 }
@@ -1230,19 +1226,13 @@ setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
     server->state = state; /* Apply the state change */
 
     /* Call the application notification callback */
-    UA_ServerConfig *config = &server->config;
-    if(config->globalNotificationCallback || config->lifecycleNotificationCallback) {
-        UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED;
-        switch(state) {
-        case UA_LIFECYCLESTATE_STOPPED: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING; break;
-        case UA_LIFECYCLESTATE_STOPPING: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING; break;
-        default: break;
-        }
-        if(config->lifecycleNotificationCallback)
-            config->lifecycleNotificationCallback(server, nt, UA_KEYVALUEMAP_NULL);
-        if(config->globalNotificationCallback)
-            config->globalNotificationCallback(server, nt, UA_KEYVALUEMAP_NULL);
+    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED;
+    switch(state) {
+    case UA_LIFECYCLESTATE_STOPPED: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING; break;
+    case UA_LIFECYCLESTATE_STOPPING: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING; break;
+    default: break;
     }
+    notifyApplication(server, nt, UA_KEYVALUEMAP_NULL);
 
     /* Call the (legacy) notification callback */
     if(server->config.notifyLifecycleState)

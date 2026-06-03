@@ -234,12 +234,6 @@ Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
 void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type) {
-    UA_ServerConfig *sc = &server->config;
-
-    /* Nothing to do? */
-    if(!sc->globalNotificationCallback && !sc->secureChannelNotificationCallback)
-        return;
-
     /* Prepare the payload */
     UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
         {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
@@ -297,8 +291,5 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     /* Notify the application */
-    if(sc->secureChannelNotificationCallback)
-        sc->secureChannelNotificationCallback(server, type, notifySCMap);
-    if(sc->globalNotificationCallback)
-        sc->globalNotificationCallback(server, type, notifySCMap);
+    notifyApplication(server, type, notifySCMap);
 }

@@ -25,11 +25,6 @@
 void
 notifySession(UA_Server *server, UA_Session *session,
               UA_ApplicationNotificationType type) {
-    /* Nothing to do */
-    if(!server->config.globalNotificationCallback &&
-       !server->config.sessionNotificationCallback)
-        return;
-
     /* Set up the payload */
     size_t payloadSize = 6 + session->attributes.mapSize;
     UA_STACKARRAY(UA_KeyValuePair, payloadData, payloadSize);
@@ -60,11 +55,8 @@ notifySession(UA_Server *server, UA_Session *session,
         memcpy(&payloadData[6], session->attributes.map,
                sizeof(UA_KeyValuePair) * session->attributes.mapSize);
 
-    /* Call the notification callback */
-    if(server->config.sessionNotificationCallback)
-        server->config.sessionNotificationCallback(server, type, payloadMap);
-    if(server->config.globalNotificationCallback)
-        server->config.globalNotificationCallback(server, type, payloadMap);
+    /* Notify the application */
+    notifyApplication(server, type, payloadMap);
 }
 
 /* Delayed callback to free the session memory */
