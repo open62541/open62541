@@ -32,22 +32,50 @@ typedef struct UA_Driver UA_Driver;
  * implementation. */
 
 /* Type-tag for some well-known extensions of the general Driver
- * structure. See below. */
+ * structure. To be expanded in the future. */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0
 } UA_DriverType;
 
+/* Callback through which the server notifies the driver
+ * about runtime changes and internal events. */
+typedef void
+(*UA_DriverNotificationCallback)(UA_Driver *drv,
+                                 UA_ApplicationNotificationType type,
+                                 const UA_KeyValueMap payload);
+
 struct UA_Driver {
     UA_Driver *next; /* linked-list */
-    UA_DriverType driverType;
 
+    /*
+     * Configuration
+     */
+
+    UA_DriverType driverType;
     UA_String name;
-    UA_LifecycleState state;
+
+    /* See the driver-specific documentation for possible parameters.
+     * The params need to be cleaned up within the _free method. */
+    UA_KeyValueMap params;
 
     /* Backpointer to the server. Must be set before _start is called. If NULL
      * this is set by the server during registering. Generally the server must
      * not be switched out once the driver has been started. */
     UA_Server *server;
+
+    /* The server forwards its internal notifications to all drivers. In order
+     * to avoid overload, the filter must be set. The top 32bit are ANDed with
+     * the notification type to see if the driver is interested in the
+     * notification. See the common.h for details on the notification types and
+     * their payload. */
+    UA_DriverNotificationCallback notificationCallback;
+    UA_ApplicationNotificationType notificationFilter;
+
+    /*
+     * Lifecycle management
+     */
+
+    UA_LifecycleState state;
 
     /* Start the Driver. It will typically register timers/connections in the
      * EventLoop and may add nodes in the server's information model. Starting
