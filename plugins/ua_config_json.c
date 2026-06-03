@@ -785,10 +785,7 @@ PARSE_JSON(SecurityPkiField) {
         return retval;
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
-    /* Currently not supported! */
-    (void)config;
-#else
-    /* Set up the parameters */
+    /* Set up the parameters for the filestore certificate store */
     UA_KeyValuePair params[2];
     size_t paramsSize = 2;
 
@@ -822,7 +819,16 @@ PARSE_JSON(SecurityPkiField) {
 
     /* Clean up */
     UA_String_clear(&pkiFolder);
+#else
+    (void)config;
+    UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                   "pkiFolder is not supported on this platform. "
+                   "Trusted clients will not be verified.");
 #endif
+#else
+    UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                   "pkiFolder is set in the config but UA_ENABLE_ENCRYPTION "
+                   "is not enabled. Trusted clients will not be verified.");
 #endif
     return UA_STATUSCODE_GOOD;
 }

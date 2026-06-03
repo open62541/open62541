@@ -200,6 +200,9 @@ if(UA_ENABLE_JSON_ENCODING)
 
     configure_file(${CMAKE_SOURCE_DIR}/tests/server/server_json_config.json5 ${CMAKE_BINARY_DIR}/tests/server_json_config.json5 COPYONLY)
     ua_add_test(server/check_json_config.c)
+    if(UA_ENABLE_ENCRYPTION)
+        ua_add_test(server/check_json_config_pki.c)
+    endif()
 
     if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encoding_json.c)
