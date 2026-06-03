@@ -617,7 +617,7 @@ typedef struct UA_ReserveId {
 typedef ZIP_HEAD(UA_ReserveIdTree, UA_ReserveId) UA_ReserveIdTree;
 
 struct UA_PubSubManager {
-    UA_ServerComponent sc;
+    UA_Driver drv;
 
     UA_Logger *logging; /* shortcut to sc->server.logging */
 
@@ -655,7 +655,7 @@ struct UA_PubSubManager {
 
 static UA_INLINE UA_PubSubManager *
 getPSM(UA_Server *server) {
-    return (UA_PubSubManager*)server->pubSubSC;
+    return (UA_PubSubManager*)server->pubSubDriver;
 }
 
 UA_StatusCode

@@ -48,7 +48,7 @@ typedef struct {
 #define UA_MAXREGISTERREQUESTS 4
 
 struct UA_DiscoveryManager {
-    UA_ServerComponent sc;
+    UA_Driver drv;
 
     UA_UInt64 discoveryCallbackId;
 

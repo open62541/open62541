@@ -32,9 +32,9 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyU
     if(!psm || !securityPolicyUri)
         return NULL;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    UA_ServerConfig *config = &psm->sc.server->config;
+    UA_ServerConfig *config = &psm->drv.server->config;
     for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
         if(UA_String_equal(securityPolicyUri,
                            &config->pubSubConfig.securityPolicies[i].policyUri))
@@ -59,11 +59,11 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
 
 void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Remove callback */
     if(!ks->callBackId) {
-        removeCallback(psm->sc.server, ks->callBackId);
+        removeCallback(psm->drv.server, ks->callBackId);
         ks->callBackId = 0;
     }
 
@@ -165,9 +165,9 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
     if(!psm || !ks || !callback || timeToNextMs <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
 
     if(*callbackID != 0)
         el->removeTimer(el, *callbackID);
@@ -213,7 +213,7 @@ static UA_StatusCode
 setPubSubGroupEncryptingKey(UA_PubSubManager *psm, UA_NodeId PubSubGroupId,
                             UA_UInt32 securityTokenId, UA_ByteString signingKey,
                             UA_ByteString encryptingKey, UA_ByteString keyNonce) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, PubSubGroupId);
     if(wg)
         return UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId, signingKey,
@@ -234,7 +234,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_PubSubManager *psm,
                                                       UA_ByteString signingKey,
                                                       UA_ByteString encryptingKey,
                                                       UA_ByteString keyNonce) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
@@ -271,7 +271,7 @@ UA_StatusCode
 UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
                                                 UA_NodeId pubSubGroupId,
                                                 UA_String securityGroupId) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
     if(securityGroupId.data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -328,7 +328,7 @@ nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     /* Callbacks from the EventLoop are initially unlocked */
-    lockServer(psm->sc.server);
+    lockServer(psm->drv.server);
 
     UA_StatusCode retval =
         UA_PubSubKeyStorage_addKeyRolloverCallback(psm, ks,
@@ -354,18 +354,18 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
         /* Publishers using a central SKS shall call GetSecurityKeys at a period
          * of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = ks->keyLifeTime / 2;
-        UA_EventLoop *el = psm->sc.server->config.eventLoop;
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
         retval = el->addTimer(el, (UA_Callback)nextGetSecuritykeysCallback, psm,
                               ks, msTimeToNextGetSecurityKeys, NULL,
                               UA_TIMERPOLICY_ONCE, NULL);
     }
 
-    unlockServer(psm->sc.server);
+    unlockServer(psm->drv.server);
 }
 
 void
 UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
     ks->referenceCount--;
     if(ks->referenceCount == 0) {
         LIST_REMOVE(ks, keyStorageList);
@@ -441,7 +441,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_PubSubManager *psm = ctx->psm;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
-    lockServer(psm->sc.server);
+    lockServer(psm->drv.server);
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
@@ -484,8 +484,8 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
      * callback, the previous callback must be removed so that the keyRollover
      * does not happen twice */
     if(ks->callBackId != 0) {
-        psm->sc.server->config.eventLoop->removeTimer(psm->sc.server->config.eventLoop,
-                                                      ks->callBackId);
+        psm->drv.server->config.eventLoop->removeTimer(psm->drv.server->config.eventLoop,
+                                                       ks->callBackId);
         ks->callBackId = 0;
     }
 
@@ -506,12 +506,12 @@ cleanup:
 
     /* Call user callback to notify about the status */
     if(ks->sksConfig.userNotifyCallback)
-        ks->sksConfig.userNotifyCallback(psm->sc.server, retval, ks->sksConfig.context);
+        ks->sksConfig.userNotifyCallback(psm->drv.server, retval, ks->sksConfig.context);
     ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
 
-    unlockServer(psm->sc.server);
+    unlockServer(psm->drv.server);
 }
 
 static UA_StatusCode
@@ -564,7 +564,7 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
         UA_PubSubKeyStorage *ks = ctx->ks;
         if(ks->sksConfig.userNotifyCallback)
-            ks->sksConfig.userNotifyCallback(ctx->psm->sc.server, connectStatus,
+            ks->sksConfig.userNotifyCallback(ctx->psm->drv.server, connectStatus,
                                              ks->sksConfig.context);
         UA_Client_disconnectAsync(client);
         addDelayedSksClientCleanupCb(client, ctx);
@@ -598,7 +598,7 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    setServerEventloopOnSksClient(&cc, psm->sc.server->config.eventLoop);
+    setServerEventloopOnSksClient(&cc, psm->drv.server->config.eventLoop);
 
     /* this is cleanedup in sksClientCleanupCb */
     sksClientContext *ctx   = (sksClientContext *)UA_calloc(1, sizeof(sksClientContext));

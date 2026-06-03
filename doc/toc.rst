@@ -16,4 +16,5 @@ open62541 Documentation
    util
    nodeset_compiler
    statuscodes
+   server_driver
    plugin

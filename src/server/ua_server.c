@@ -348,67 +348,68 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager) {
 }
 #endif
 
-/*********************/
-/* Server Components */
-/*********************/
+/***********/
+/* Drivers */
+/***********/
 
 static UA_StatusCode
-addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
+addDriver(UA_Server *server, UA_Driver *drv) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    /* Did the allocation of the ServerComponent fail? */
-    if(!sc)
+    /* Did the allocation of the driver fail? */
+    if(!drv)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* If undefined, set the backpointer to the current server */
-    if(!sc->server)
-        sc->server = server;
+    if(!drv->server)
+        drv->server = server;
 
-    /* Check that the ServerComponent is not configured for a different server */
-    if(sc->server != server) {
+    /* Check that the driver is not configured for a different server */
+    if(drv->server != server) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Cannot add the ServerComponent \"%S\". "
-                     "The ServerComponent is configured for a different server",
-                     sc->name);
+                     "Cannot add the driver \"%S\". "
+                     "It is configured for a different server",
+                     drv->name);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Add to the linked list */
-    sc->next = server->components;
-    server->components = sc;
+    drv->next = server->drivers;
+    server->drivers = drv;
 
     /* Start the component if the server is started */
-    if(server->state == UA_LIFECYCLESTATE_STARTED && sc->start)
-        sc->start(sc);
+    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start)
+        drv->start(drv);
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Server_addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
+UA_Server_addDriver(UA_Server *server, UA_Driver *drv) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addServerComponent(server, sc);
+    UA_StatusCode res = addDriver(server, drv);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
-UA_Server_removeServerComponent(UA_Server *server, UA_ServerComponent *sc) {
+UA_Server_removeDriver(UA_Server *server, UA_Driver *drv) {
     UA_LOCK(&server->serviceMutex);
 
-    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Cannot remove the ServerComponent \"%S\". "
-                     "It is not fully stopped.", sc->name);
+                     "Cannot remove the driver \"%S\". "
+                     "It is not fully stopped.", drv->name);
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    UA_ServerComponent **prev = &server->components;
-    for(UA_ServerComponent *sc2 = server->components; sc2; prev = &sc2->next, sc2 = sc2->next) {
-        if(sc2 == sc) {
-            *prev = sc->next;
+    UA_Driver **prev = &server->drivers;
+    for(UA_Driver *drv2 = server->drivers; drv2;
+        prev = &drv2->next, drv2 = drv2->next) {
+        if(drv2 == drv) {
+            *prev = drv->next;
             res = UA_STATUSCODE_GOOD;
             break;
         }
@@ -419,17 +420,17 @@ UA_Server_removeServerComponent(UA_Server *server, UA_ServerComponent *sc) {
 }
 
 static void
-stopServerComponents(UA_Server *server) {
-    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
-        sc->stop(sc);
+stopDrivers(UA_Server *server) {
+    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
+        drv->stop(drv);
     }
 }
 
 static UA_Boolean
 testStoppedCondition(UA_Server *server) {
-    /* Check if there are remaining server components that did not fully stop */
-    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
-        if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+    /* Check if there are remaining drivers that did not fully stop */
+    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
+        if(drv->state != UA_LIFECYCLESTATE_STOPPED)
             return false;
     }
     return true;
@@ -484,10 +485,10 @@ UA_Server_delete(UA_Server *server) {
     UA_assert(server->subscriptionsSize == 0);
 #endif
 
-    /* Remove all server components (all stopped by now) */
-    UA_ServerComponent *top;
-    while((top = server->components)) {
-        server->components = top->next;
+    /* Remove all drivers (all stopped by now) */
+    UA_Driver *top;
+    while((top = server->drivers)) {
+        server->drivers = top->next;
         UA_assert(top->state == UA_LIFECYCLESTATE_STOPPED);
         top->free(top);
     }
@@ -631,27 +632,27 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize the binary protocol support */
-    server->binarySC = UA_BinaryProtocolManager_new();
-    res = addServerComponent(server, server->binarySC);
+    server->binaryDriver = UA_BinaryProtocolManager_new();
+    res = addDriver(server, server->binaryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialize the reverse connect binary protocol support */
-    server->reverseBinarySC = UA_ReverseBinaryProtocolManager_new();
-    res = addServerComponent(server, server->reverseBinarySC);
+    server->reverseBinaryDriver = UA_ReverseBinaryProtocolManager_new();
+    res = addDriver(server, server->reverseBinaryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    server->discoverySC = UA_DiscoveryManager_new();
-    res = addServerComponent(server, server->discoverySC);
+    server->discoveryDriver = UA_DiscoveryManager_new();
+    res = addDriver(server, server->discoveryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
     /* Initialize PubSub */
 #ifdef UA_ENABLE_PUBSUB
     if(server->config.pubsubEnabled) {
-        server->pubSubSC = UA_PubSubManager_new(server);
-        res = addServerComponent(server, server->pubSubSC);
+        server->pubSubDriver = UA_PubSubManager_new(server);
+        res = addDriver(server, server->pubSubDriver);
         UA_CHECK_STATUS(res, goto cleanup);
     }
 #endif
@@ -1368,9 +1369,9 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start all ServerComponents */
-    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
-        sc->start(sc);
+    /* Start all drivers */
+    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
+        drv->start(drv);
     }
 
     /* Set the server to STARTED. From here on, only use
@@ -1439,8 +1440,8 @@ UA_Server_run_shutdown(UA_Server *server) {
         server->houseKeepingCallbackId = 0;
     }
 
-    /* Stop all ServerComponents */
-    stopServerComponents(server);
+    /* Stop all drivers */
+    stopDrivers(server);
 
     /* Are we already stopped? */
     if(testStoppedCondition(server)) {

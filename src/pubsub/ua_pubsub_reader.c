@@ -138,7 +138,7 @@ validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
              * yet applied for strings nested inside structures. */
             const UA_DataType *type =
                 UA_findDataTypeWithCustom(&field->dataType,
-                                          psm->sc.server->config.customDataTypes);
+                                          psm->drv.server->config.customDataTypes);
             if(type &&
                (type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
                 type->typeKind == UA_DATATYPEKIND_UNION ||
@@ -172,7 +172,7 @@ disconnectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 
     /* Remove the references in the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    disconnectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier);
+    disconnectDataSetReaderToDataSet(psm->drv.server, dsr->head.identifier);
 #endif
 }
 
@@ -231,7 +231,7 @@ connectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 
     /* Make the connection visible in the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    return connectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier,
+    return connectDataSetReaderToDataSet(psm->drv.server, dsr->head.identifier,
                                          sds->head.identifier);
 #else
     return UA_STATUSCODE_GOOD;
@@ -245,7 +245,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(!psm || !dataSetReaderConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Search the reader group by the given readerGroupIdentifier */
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdentifier);
@@ -291,7 +291,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    retVal = addDataSetReaderRepresentation(psm->sc.server, dsr);
+    retVal = addDataSetReaderRepresentation(psm->drv.server, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg,
                             "Adding the DataSetReader to the information model failed");
@@ -326,7 +326,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
     /* Notify the application that a new Reader was created.
      * This may internally adjust the config */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, dsr->head.identifier,
@@ -353,7 +353,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
@@ -367,7 +367,7 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     }
 
     /* Check with the application if we can remove */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, dsr->head.identifier,
@@ -382,7 +382,7 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 
     /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(psm->sc.server, dsr->head.identifier, true);
+    deleteNode(psm->drv.server, dsr->head.identifier, true);
 #endif
 
     /* Check if a Standalone-SubscribedDataSet is associated with this reader
@@ -455,7 +455,7 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Callback to modify the WriterGroup config and change the targetState
      * before the state machine executes */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.beforeStateChangeCallback) {
         server->config.pubSubConfig.
             beforeStateChangeCallback(server, dsr->head.identifier, &targetState);
@@ -505,7 +505,7 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     /* Only keep the timeout callback if the reader is operational */
     if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->msgRcvTimeoutTimerId != 0) {
-        UA_EventLoop *el = psm->sc.server->config.eventLoop;
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
         el->removeTimer(el, dsr->msgRcvTimeoutTimerId);
         dsr->msgRcvTimeoutTimerId = 0;
     }
@@ -535,7 +535,7 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                     size_t tvsSize, const UA_FieldTargetDataType *tvs) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(UA_PubSubState_isEnabled(dsr->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
@@ -567,10 +567,10 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_PubSubManager *psm,
 
     UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Message receive timeout occurred");
 
-    lockServer(psm->sc.server);
+    lockServer(psm->drv.server);
     UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR,
                                     UA_STATUSCODE_BADTIMEOUT);
-    unlockServer(psm->sc.server);
+    unlockServer(psm->drv.server);
 }
 
 void
@@ -618,7 +618,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Configure / Update the timeout callback */
     if(dsr->config.messageReceiveTimeout > 0.0) {
-        UA_EventLoop *el = psm->sc.server->config.eventLoop;
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
             el->addTimer(el, (UA_Callback)UA_DataSetReader_handleMessageReceiveTimeout,
                          psm, dsr, dsr->config.messageReceiveTimeout, NULL,
@@ -659,7 +659,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.indexRange = tv->receiverIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = *field;
-        Operation_Write(psm->sc.server, &psm->sc.server->adminSession, &writeVal, &res);
+        Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",

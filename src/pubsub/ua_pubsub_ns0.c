@@ -167,7 +167,7 @@ pubSubStateVariableDataSourceRead(UA_Server *server, const UA_NodeId *sessionId,
     
     if(isPublishSubscribeObject) {
         UA_PubSubManager *psm = (UA_PubSubManager*)component;
-        state = (psm->sc.state == UA_LIFECYCLESTATE_STARTED) ? 
+        state = (psm->drv.state == UA_LIFECYCLESTATE_STARTED) ? 
                 UA_PUBSUBSTATE_OPERATIONAL : UA_PUBSUBSTATE_DISABLED;
     } else {
         switch(componentType) {
@@ -225,7 +225,7 @@ enablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *se
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(isPublishSubscribeObject) {
-        if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED)
+        if(psm->drv.state != UA_LIFECYCLESTATE_STOPPED)
             return UA_STATUSCODE_BADINVALIDSTATE;
         UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
         return UA_STATUSCODE_GOOD;
@@ -307,7 +307,7 @@ disablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *s
     /* Handle PublishSubscribe object separately */
     if(isPublishSubscribeObject) {
         /* For PublishSubscribe object, check PubSubManager lifecycle state */
-        if(psm->sc.state == UA_LIFECYCLESTATE_STOPPED)
+        if(psm->drv.state == UA_LIFECYCLESTATE_STOPPED)
             return UA_STATUSCODE_BADINVALIDSTATE;
         /* Disable the PubSubManager by stopping it */
         UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
@@ -2260,10 +2260,10 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
 
 static void
 deletePubSubConfigMethodFinalize(void *application, void *context) {
-    UA_PubSubManager *manager = (UA_PubSubManager *) application;
-    UA_Server *server = manager->sc.server;
-    lockServer(manager->sc.server);
-    UA_PubSubManager_clear(manager);
+    UA_PubSubManager *psm = (UA_PubSubManager *) application;
+    UA_Server *server = psm->drv.server;
+    lockServer(psm->drv.server);
+    UA_PubSubManager_clear(psm);
     unlockServer(server);
     UA_free(context);
 }
@@ -2280,14 +2280,14 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
     if(psm) {
-        psm->sc.stop(&psm->sc);
+        psm->drv.stop(&psm->drv);
         UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
         if(!dc)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         dc->callback = deletePubSubConfigMethodFinalize;
         dc->application = psm;
         dc->context = dc;
-        server->config.eventLoop->addDelayedCallback(psm->sc.server->config.eventLoop, dc);
+        server->config.eventLoop->addDelayedCallback(psm->drv.server->config.eventLoop, dc);
     }
 
     return UA_STATUSCODE_GOOD;

@@ -26,10 +26,10 @@ static const char *pubSubStateNames[6] = {
 };
 
 static void
-UA_PubSubManager_stop(UA_ServerComponent *sc);
+UA_PubSubManager_stop(UA_Driver *drv);
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc);
+UA_PubSubManager_start(UA_Driver *drv);
 
 const char *
 UA_PubSubState_name(UA_PubSubState state) {
@@ -245,11 +245,11 @@ removeInactiveReserveId(void *context, UA_ReserveId *elem) {
     struct RemoveInactiveReserveIdContext *ctx =
         (struct RemoveInactiveReserveIdContext*)context;
 
-    if(UA_NodeId_equal(&ctx->psm->sc.server->adminSession.sessionId, &elem->sessionId))
+    if(UA_NodeId_equal(&ctx->psm->drv.server->adminSession.sessionId, &elem->sessionId))
         goto still_active;
 
     session_list_entry *session;
-    LIST_FOREACH(session, &ctx->psm->sc.server->sessions, pointers) {
+    LIST_FOREACH(session, &ctx->psm->drv.server->sessions, pointers) {
         if(UA_NodeId_equal(&session->session.sessionId, &elem->sessionId))
             goto still_active;
     }
@@ -326,10 +326,10 @@ UA_Guid
 UA_PubSubManager_generateUniqueGuid(UA_PubSubManager *psm) {
     while(true) {
         UA_NodeId testId = UA_NODEID_GUID(1, UA_Guid_random());
-        const UA_Node *testNode = UA_NODESTORE_GET(psm->sc.server, &testId);
+        const UA_Node *testNode = UA_NODESTORE_GET(psm->drv.server, &testId);
         if(!testNode)
             return testId.identifier.guid;
-        UA_NODESTORE_RELEASE(psm->sc.server, testNode);
+        UA_NODESTORE_RELEASE(psm->drv.server, testNode);
     }
 }
 
@@ -353,7 +353,7 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_PubSubManager_start(&psm->sc);
+    UA_StatusCode res = UA_PubSubManager_start(&psm->drv);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -417,7 +417,7 @@ UA_Server_disableAllPubSubComponents(UA_Server *server) {
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     if(psm)
-        UA_PubSubManager_stop(&psm->sc); /* Calls disableAll internally */
+        UA_PubSubManager_stop(&psm->drv); /* Calls disableAll internally */
     unlockServer(server);
 }
 
@@ -699,9 +699,9 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     }
 
  set_state:
-    if(state == psm->sc.state)
+    if(state == psm->drv.state)
         return;
-    psm->sc.state = state;
+    psm->drv.state = state;
 
     /* When we just started, trigger all connections to go from PAUSED to
      * OPERATIONAL */
@@ -718,18 +718,18 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
 }
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc) {
+UA_PubSubManager_start(UA_Driver *drv) {
     /* Check that the server backpointer is set */
-    UA_Server *server = sc->server;
+    UA_Server *server = drv->server;
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Re-cache logging for the case that the configuration has been updated */
-    UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    UA_PubSubManager *psm = (UA_PubSubManager*)drv;
     psm->logging = server->config.logging;
 
     /* Cannot start an already started PubSubManager */
-    if(psm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
+    if(psm->drv.state == UA_LIFECYCLESTATE_STOPPING) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "The PubSubManager is still stopping");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -741,22 +741,22 @@ UA_PubSubManager_start(UA_ServerComponent *sc) {
 }
 
 static void
-UA_PubSubManager_stop(UA_ServerComponent *sc) {
-    UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+UA_PubSubManager_stop(UA_Driver *drv) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)drv;
     disableAllPubSubComponents(psm);
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
 }
 
 UA_StatusCode
 UA_PubSubManager_clear(UA_PubSubManager *psm) {
-    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
+    if(psm->drv.state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Cannot delete the PubSubManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Remove Connections - this also remove WriterGroups and ReaderGroups */
     UA_PubSubConnection *c, *tmpC;
@@ -798,24 +798,25 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
 }
 
 static UA_StatusCode
-UA_PubSubManager_free(UA_PubSubManager *psm) {
+UA_PubSubManager_free(UA_Driver *drv) {
+    UA_PubSubManager *psm = (UA_PubSubManager *)drv;
     UA_StatusCode res = UA_PubSubManager_clear(psm);
     if(res == UA_STATUSCODE_GOOD)
         UA_free(psm);
     return res;
 }
 
-UA_ServerComponent *
+UA_Driver *
 UA_PubSubManager_new(UA_Server *server) {
     UA_PubSubManager *psm = (UA_PubSubManager*)UA_calloc(1, sizeof(UA_PubSubManager));
     if(!psm)
         return NULL;
 
-    psm->sc.server = server;
-    psm->sc.name = UA_STRING("pubsub");
-    psm->sc.start = UA_PubSubManager_start;
-    psm->sc.stop = UA_PubSubManager_stop;
-    psm->sc.free = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_free;
+    psm->drv.server = server;
+    psm->drv.name = UA_STRING("pubsub");
+    psm->drv.start = UA_PubSubManager_start;
+    psm->drv.stop = UA_PubSubManager_stop;
+    psm->drv.free = UA_PubSubManager_free;
 
     /* Set the logging shortcut */
     psm->logging = server->config.logging;
@@ -837,7 +838,7 @@ UA_PubSubManager_new(UA_Server *server) {
     initPubSubNS0(server);
 #endif
 
-    return &psm->sc;
+    return &psm->drv;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

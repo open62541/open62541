@@ -86,7 +86,7 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     /* Assign the connection identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Internally create a unique id */
-    addPubSubConnectionRepresentation(psm->sc.server, c);
+    addPubSubConnectionRepresentation(psm->drv.server, c);
 #else
     /* Create a unique NodeId that does not correspond to a Node */
     UA_PubSubManager_generateUniqueNodeId(psm, &c->head.identifier);
@@ -113,7 +113,7 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
 
     /* Notify the application that a new Connection was created.
      * This may internally adjust the config */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, c->head.identifier,
@@ -142,7 +142,7 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
 static void
 delayedPubSubConnection_delete(void *application, void *context) {
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     UA_PubSubConnection *c = (UA_PubSubConnection*)context;
     lockServer(server);
     UA_PubSubConnection_delete(psm, c);
@@ -154,10 +154,10 @@ delayedPubSubConnection_delete(void *application, void *context) {
  * the connection callback. */
 UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Check with the application if we can remove */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, c->head.identifier,
@@ -200,7 +200,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
     if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
-        UA_EventLoop *el = psm->sc.server->config.eventLoop;
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
         c->dc.callback = delayedPubSubConnection_delete;
         c->dc.application = psm;
         c->dc.context = c;
@@ -210,7 +210,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
     /* Remove from the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(psm->sc.server, c->head.identifier, true);
+    deleteNode(psm->drv.server, c->head.identifier, true);
 #endif
 
     /* Unlink from the server */
@@ -297,7 +297,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
     /* Callback to modify the WriterGroup config and change the targetState
      * before the state machine executes */
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.beforeStateChangeCallback) {
         server->config.pubSubConfig.
             beforeStateChangeCallback(server, c->head.identifier, &targetState);
@@ -329,7 +329,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         case UA_PUBSUBSTATE_PREOPERATIONAL:
         case UA_PUBSUBSTATE_OPERATIONAL:
             /* Cannot go operational if the PubSubManager is not started */
-            if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+            if(psm->drv.state != UA_LIFECYCLESTATE_STARTED) {
                 /* Avoid repeat warnings */
                 if(oldState != UA_PUBSUBSTATE_PAUSED) {
                     UA_LOG_WARNING_PUBSUB(psm->logging, c,
@@ -405,7 +405,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
      * the last socket has closed. */
-    UA_PubSubManager_setState(psm, psm->sc.state);
+    UA_PubSubManager_setState(psm, psm->drv.state);
 
     return ret;
 }
@@ -536,7 +536,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Get the context pointers */
     UA_PubSubConnection *psc = (UA_PubSubConnection*)*connectionContext;
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
-    UA_Server *server = psm->sc.server;
+    UA_Server *server = psm->drv.server;
 
     UA_LOG_TRACE_PUBSUB(psm->logging, psc,
                         "Connection Callback with state %i", state);
@@ -565,7 +565,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
-        UA_PubSubManager_setState(psm, psm->sc.state);
+        UA_PubSubManager_setState(psm, psm->drv.state);
 
         unlockServer(server);
         return;
@@ -615,7 +615,7 @@ PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -706,7 +706,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
 static UA_StatusCode
 UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -780,9 +780,9 @@ UA_PubSubConnection_canConnect(UA_PubSubConnection *c) {
 static UA_StatusCode
 UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;
