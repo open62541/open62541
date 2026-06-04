@@ -335,6 +335,14 @@ typedef struct {
                            * background. Only dynamic variables conserve source
                            * and server timestamp for the value attribute.
                            * Static variables have timestamps of "now". */
+
+    /* Cached source timestamp for data-source variables
+     * (UA_ServerConfig::stableDataSourceTimestamps). */
+    UA_Variant cachedSourceValue;
+    UA_StatusCode cachedSourceStatus;
+    UA_Boolean cachedSourceHasStatus;
+    UA_DateTime cachedSourceTimestamp;
+    UA_Boolean hasCachedSourceTimestamp;
 } UA_VariableNode;
 
 /**

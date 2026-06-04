@@ -2105,6 +2105,14 @@ struct UA_ServerConfig {
 
     UA_RuleHandling allowAllCertificateUris;
 
+    /* When a data source read callback does not set hasSourceTimestamp, the
+     * server normally fills in the current time on every read. With
+     * StatusValueTimestamp subscriptions this causes spurious notifications
+     * even when the value has not changed. When this flag is set, the server
+     * caches the last value and status per data-source variable node and
+     * only updates the source timestamp when one of them changes. */
+    UA_Boolean stableDataSourceTimestamps;
+
     /* Custom Data Types
      * ~~~~~~~~~~~~~~~~~
      * The following is a linked list of arrays with custom data types. All data

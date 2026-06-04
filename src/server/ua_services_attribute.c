@@ -281,7 +281,26 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     /* If not defined return a source timestamp of "now".
      * Static nodes always have the current time as source-time. */
     if(!v->hasSourceTimestamp) {
-        v->sourceTimestamp = el->dateTime_now(el);
+        if(server->config.stableDataSourceTimestamps &&
+           vn->valueSourceType == UA_VALUESOURCETYPE_CALLBACK) {
+            UA_VariableNode *mut_vn = (UA_VariableNode *)(uintptr_t)vn;
+            UA_Boolean changed = !mut_vn->hasCachedSourceTimestamp ||
+                v->hasStatus != mut_vn->cachedSourceHasStatus ||
+                v->status != mut_vn->cachedSourceStatus ||
+                !UA_equal(&v->value, &mut_vn->cachedSourceValue,
+                          &UA_TYPES[UA_TYPES_VARIANT]);
+            if(changed) {
+                mut_vn->cachedSourceTimestamp = el->dateTime_now(el);
+                UA_Variant_clear(&mut_vn->cachedSourceValue);
+                UA_Variant_copy(&v->value, &mut_vn->cachedSourceValue);
+                mut_vn->cachedSourceHasStatus = v->hasStatus;
+                mut_vn->cachedSourceStatus = v->status;
+                mut_vn->hasCachedSourceTimestamp = true;
+            }
+            v->sourceTimestamp = mut_vn->cachedSourceTimestamp;
+        } else {
+            v->sourceTimestamp = el->dateTime_now(el);
+        }
         v->hasSourceTimestamp = true;
     }
 

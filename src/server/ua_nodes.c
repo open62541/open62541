@@ -427,6 +427,8 @@ void UA_Node_clear(UA_Node *node) {
         p->arrayDimensionsSize = 0;
         if(p->valueSourceType == UA_VALUESOURCETYPE_INTERNAL)
             UA_DataValue_clear(&p->valueSource.internal.value);
+        if(head->nodeClass == UA_NODECLASS_VARIABLE)
+            UA_Variant_clear(&p->cachedSourceValue);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
@@ -476,6 +478,12 @@ UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
     dst->isDynamic = src->isDynamic;
+    dst->hasCachedSourceTimestamp = src->hasCachedSourceTimestamp;
+    dst->cachedSourceTimestamp = src->cachedSourceTimestamp;
+    dst->cachedSourceHasStatus = src->cachedSourceHasStatus;
+    dst->cachedSourceStatus = src->cachedSourceStatus;
+    if(src->hasCachedSourceTimestamp)
+        UA_Variant_copy(&src->cachedSourceValue, &dst->cachedSourceValue);
     return UA_CommonVariableNode_copy(src, dst);
 }
 
