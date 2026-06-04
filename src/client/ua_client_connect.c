@@ -1870,18 +1870,20 @@ connectSync(UA_Client *client) {
     UA_EventLoop *el = client->config.eventLoop;
     UA_assert(el);
 
-    /* Run the EventLoop until connected, connect fail or timeout. Write the
-     * iterate result to the connectStatus. So we do not attempt to restore a
-     * failed connection during the sync connect. */
-    while(client->connectStatus == UA_STATUSCODE_GOOD && !isFullyConnected(client)) {
+    /* Run the EventLoop until connected, connect fail or timeout. Continue
+     * to iterate when the channel is in CLOSING state so that the pending
+     * close callback is processed and the channel fully transitions to CLOSED
+     * before returning to the caller. */
+    while((client->connectStatus == UA_STATUSCODE_GOOD && !isFullyConnected(client)) ||
+          client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
         /* Timeout -> abort */
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
             setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
-            /* Continue to run. So the SecureChannel is fully closed in the next
-             * EventLoop iteration. */
+            /* Continue to run. The loop continues while the channel is
+             * CLOSING so the close callback is processed. */
         }
 
         /* Drop into the EventLoop */
@@ -1941,8 +1943,11 @@ activateSessionSync(UA_Client *client) {
     /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
     UA_EventLoop *el = client->config.eventLoop;
     UA_assert(el);
-    while(client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
-          client->connectStatus == UA_STATUSCODE_GOOD) {
+    /* Continue iterating while the session is being activated or the
+     * channel is draining (CLOSING) after a timeout. */
+    while((client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
+          client->connectStatus == UA_STATUSCODE_GOOD) ||
+          client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
 
         /* Timeout -> abort */
         now = UA_DateTime_nowMonotonic();
@@ -1950,8 +1955,8 @@ activateSessionSync(UA_Client *client) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
             setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
-            /* Continue to run. So the SecureChannel is fully closed in the next
-             * EventLoop iteration. */
+            /* Continue to run. The loop continues while the channel is
+             * CLOSING so the close callback is processed. */
         }
 
         /* Drop into the EventLoop */
