@@ -337,9 +337,7 @@ END_TEST
 /* Issue #14: A NULL or empty UserIdentityToken should be treated as Anonymous
  * (OPC UA Part 4, Section 5.6.3.2, Table 17) */
 START_TEST(Client_activateSession_nullToken) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

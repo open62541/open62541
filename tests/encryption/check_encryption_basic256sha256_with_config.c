@@ -6,6 +6,7 @@
 #include "certificates.h"
 #include "check.h"
 #include "thread_wrapper.h"
+#include "test_helpers.h"
 
 UA_Server *server;
 UA_Boolean running;
@@ -80,7 +81,7 @@ START_TEST(encryption_connect) {
     const UA_ByteString certificate = {APPLICATION_CERT_DER_LENGTH, APPLICATION_CERT_DER_DATA};
     const UA_ByteString privateKey = {APPLICATION_KEY_DER_LENGTH, APPLICATION_KEY_DER_DATA};
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
 
     UA_ClientConfig *config = UA_Client_getConfig(client);
