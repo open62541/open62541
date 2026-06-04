@@ -164,6 +164,75 @@ START_TEST(Server_LocalMonitoredItem_dataSource) {
 }
 END_TEST
 
+static size_t stableCallbackCount = 0;
+
+static void
+stableDataChangeCallback(UA_Server *thisServer,
+                         UA_UInt32 monitoredItemId,
+                         void *monitoredItemContext,
+                         const UA_NodeId *nodeId,
+                         void *nodeContext,
+                         UA_UInt32 attributeId,
+                         const UA_DataValue *value) {
+    stableCallbackCount++;
+}
+
+/* stableDataSourceTimestamps: no spurious notifications when value is unchanged */
+START_TEST(Server_LocalMonitoredItem_stableDataSourceTimestamp) {
+    stableCallbackCount = 0;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->stableDataSourceTimestamps = true;
+
+    UA_DataSource ds = {readDataSource, NULL};
+    UA_Server_setVariableNode_dataSource(server, outNodeId, ds);
+
+    UA_MonitoredItemCreateRequest monitorRequest =
+            UA_MonitoredItemCreateRequest_default(outNodeId);
+    monitorRequest.requestedParameters.samplingInterval = (double)100;
+    monitorRequest.monitoringMode = UA_MONITORINGMODE_REPORTING;
+
+    UA_DataChangeFilter filter;
+    UA_DataChangeFilter_init(&filter);
+    filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP;
+    monitorRequest.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    monitorRequest.requestedParameters.filter.content.decoded.type =
+        &UA_TYPES[UA_TYPES_DATACHANGEFILTER];
+    monitorRequest.requestedParameters.filter.content.decoded.data = &filter;
+
+    UA_MonitoredItemCreateResult result =
+            UA_Server_createDataChangeMonitoredItem(server,
+                                                    UA_TIMESTAMPSTORETURN_BOTH,
+                                                    monitorRequest,
+                                                    NULL,
+                                                    &stableDataChangeCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(stableCallbackCount, 1);
+
+    /* 10 sampling intervals with unchanged value: no extra notifications */
+    for(size_t i = 0; i < 10; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, 1);
+    }
+    ck_assert_uint_eq(stableCallbackCount, 1);
+
+    /* Change the value: exactly one new notification */
+    staticUInt32 = 9999;
+    UA_fakeSleep(100);
+    UA_Server_run_iterate(server, 1);
+    ck_assert_uint_eq(stableCallbackCount, 2);
+
+    /* Another 5 intervals unchanged: still 2 */
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, 1);
+    }
+    ck_assert_uint_eq(stableCallbackCount, 2);
+
+    config->stableDataSourceTimestamps = false;
+}
+END_TEST
+
 /* Custom datatype with a String NodeId */
 typedef struct {
     UA_Float p;
@@ -329,6 +398,7 @@ static Suite * testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_stableDataSourceTimestamp);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
     suite_add_tcase(s, tc_server);
 
