@@ -579,8 +579,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     if(response.serverNonce.length < client->channel.securityPolicy->nonceLength) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server nonce is too short");
-        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
 
@@ -924,8 +923,7 @@ responseActivateSession(UA_Client *client, void *userdata,
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Session cannot be activated with a nonce "
                      "that is too short");
-        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
 
