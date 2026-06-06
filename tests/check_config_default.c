@@ -1,6 +1,19 @@
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* Coverage tests for plugins/ua_config_default.c.
+ *
+ * These tests exercise the small public-API entry points
+ *   - UA_ServerConfig_setBasics / setBasics_withPort
+ *   - UA_ServerConfig_addSecurityPolicyNone
+ *   - UA_ServerConfig_addEndpoint (success + bad-policy URI)
+ *   - UA_ServerConfig_addAllEndpoints / addAllSecureEndpoints
+ *   - UA_ServerConfig_addAllSecurityPolicies / addAllSecureSecurityPolicies
+ * using a freshly-zeroed UA_ServerConfig instance. The tests do not start a
+ * server and do not require a network or a certificate. */
+
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
