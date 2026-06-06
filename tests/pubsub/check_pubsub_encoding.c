@@ -1734,12 +1734,6 @@ int main(void) {
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DataSetClassIdRoundtrip);
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DiscoveryRequestType);
 
-    TCase *tc_nm_optional = tcase_create("NetworkMessage optional headers");
-    tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_PicosecondsRoundtrip);
-    tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_GroupHeaderSequenceNumber);
-    tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_SecurityHeaderAndFooter);
-    tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DataSetClassIdRoundtrip);
-    tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DiscoveryRequestType);
 
     Suite *s = suite_create("PubSub NetworkMessage");
     suite_add_tcase(s, tc_encode);
