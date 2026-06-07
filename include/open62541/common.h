@@ -228,7 +228,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  * 0:connection-id [UInt64]
  *    Identifier of the connection in the context of the EventLoop. This is
  *    often the socket identifier, but that is not necessarily the case.
- * 0:remote-addresss [String]
+ * 0:remote-address [String]
  *   Address (hostname or IP that opened the SecureChannel.
  *
  * 0:protocol-version [UInt32]
