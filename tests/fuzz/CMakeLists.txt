@@ -76,6 +76,7 @@ endmacro()
 
 # Add new fuzzers here
 add_fuzzer(fuzz_server_services fuzz_server_services.cc)
+add_fuzzer(fuzz_process_request fuzz_process_request.cc)
 add_fuzzer(fuzz_client fuzz_client.cc)
 add_fuzzer(fuzz_pubsub_connection_config fuzz_pubsub_connection_config.cc)
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
