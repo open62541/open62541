@@ -1624,16 +1624,14 @@ UA_Server_createEventEx(UA_Server *server,
 #ifdef UA_ENABLE_DISCOVERY
 
 /**
- * Discovery
- * ---------
- *
- * Registering at a Discovery Server
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+ * Remote Discovery Server Registration
+ * ------------------------------------
+ * The current server can register itself at a discovery. For that it requires
+ * to open a client connection. */
 
-/* Register the given server instance at the discovery server. This should be
+/* Register the given server instance at a discovery server. This should be
  * called periodically, for example every 10 minutes, depending on the
- * configuration of the discovery server. You should also call
- * _unregisterDiscovery when the server shuts down.
+ * configuration of the discovery server.
  *
  * The supplied client configuration is used to create a new client to connect
  * to the discovery server. The client configuration is moved over to the server
@@ -1654,58 +1652,74 @@ UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl);
 
 /**
- * Operating a Discovery Server
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
-/* Callback for RegisterServer. Data is passed from the register call */
-typedef void
-(*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer,
-                                    void* data);
-
-/* Set the callback which is called if another server registeres or unregisters
- * with this instance. This callback is called every time the server gets a
- * register call. This especially means that for every periodic server register
- * the callback will be called.
+ * Local Discovery Server Records
+ * ------------------------------
+ * The Discovery Service-Set allows the registering of local (for FindServers)
+ * and also remote servers (for FindServersOnNetwork).
  *
- * @param server
- * @param cb the callback
- * @param data data passed to the callback
- * @return ``UA_STATUSCODE_SUCCESS`` on success */
-void UA_EXPORT UA_THREADSAFE
-UA_Server_setRegisterServerCallback(UA_Server *server,
-                                    UA_Server_registerServerCallback cb, void* data);
+ * We uniquely identify records by their combination of ServerUri + one matching
+ * DiscoveryUrl. */
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_findServers(UA_Server *server, UA_String endpointUrl,
+                      size_t localeIdsSize, UA_LocaleId *localeIds,
+                      size_t serverUrisSize, UA_String *serverUris,
+                      size_t *outServersSize,
+                      UA_ApplicationDescription **outServers);
+
+/* Local API for the RegisterServer2 service. If configurationResults is
+ * non-Null, then it must point to an array of discoveryConfigurationSize
+ * length. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_registerServer(UA_Server *server,
+                         const UA_RegisteredServer *registeredServer,
+                         const size_t discoveryConfigurationSize,
+                         const UA_ExtensionObject *discoveryConfiguration,
+                         UA_StatusCode *configurationResults);
+
+/* Remove the servers matching the ServerUri and at least one of the
+ * provided DiscoveryUrls */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_deregisterServer(UA_Server *server, const UA_String serverUri,
+                           size_t discoveryUrlsSize,
+                           const UA_String *discoveryUrls);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-/* Callback for server detected through mDNS. Data is passed from the register
- * call
- *
- * @param isServerAnnounce indicates if the server has just been detected. If
- *        set to false, this means the server is shutting down.
- * @param isTxtReceived indicates if we already received the corresponding TXT
- *        record with the path and caps data */
-typedef void
-(*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork,
-                                     UA_Boolean isServerAnnounce,
-                                     UA_Boolean isTxtReceived, void* data);
+/**
+ * The server internally manager the ServersOnNetwork list. Multicast discovery
+ * is implemented on top in a driver outside of the core library. */
 
-/* Set the callback which is called if another server is found through mDNS or
- * deleted. It will be called for any mDNS message from the remote server, thus
- * it may be called multiple times for the same instance. Also the SRV and TXT
- * records may arrive later, therefore for the first call the server
- * capabilities may not be set yet. If called multiple times, previous data will
- * be overwritten.
- *
- * @param server
- * @param cb the callback
- * @param data data passed to the callback
- * @return ``UA_STATUSCODE_SUCCESS`` on success */
-void UA_EXPORT UA_THREADSAFE
-UA_Server_setServerOnNetworkCallback(UA_Server *server,
-                                     UA_Server_serverOnNetworkCallback cb,
-                                     void* data);
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_findServersOnNetwork(UA_Server *server, UA_String endpointUrl,
+                               UA_UInt32 startingRecordId,
+                               UA_UInt32 maxRecordsToReturn,
+                               size_t serverCapabilityFilterSize,
+                               const UA_String *serverCapabilityFilter,
+                               UA_DateTime *outLastCounterResetTime,
+                               size_t *outServersSize,
+                               UA_ServerOnNetwork **outServers);
 
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+/* Register a remote server. If the server name was previously known, the
+ * existing entry gets updated. The parameter kv-map can be extended with
+ * additional parameters in the future. Currently supported are:
+ *
+ * 0:remote-address [String]
+ *    IP-address or other host identifier from which the information
+ *    was received.
+ * 0:ttl [UInt32]
+ *    Time-to-live of DNS information. Zero means infinite. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_registerServerOnNetwork(UA_Server *server,
+                                  const UA_ServerOnNetwork *son,
+                                  const UA_KeyValueMap params);
+
+/* Remove the entry of the remote server with the matching ServerName */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_deregisterServerOnNetwork(UA_Server *server,
+                                    UA_String serverName);
+
+#endif
 
 #endif /* UA_ENABLE_DISCOVERY */
 
@@ -2222,6 +2236,7 @@ struct UA_ServerConfig {
     UA_ServerNotificationCallback sessionNotificationCallback;
     UA_ServerNotificationCallback serviceNotificationCallback;
     UA_ServerNotificationCallback subscriptionNotificationCallback;
+    UA_ServerNotificationCallback discoveryNotificationCallback;
 #ifdef UA_ENABLE_AUDITING
     UA_ServerNotificationCallback auditNotificationCallback;
 #endif
@@ -2351,25 +2366,29 @@ struct UA_ServerConfig {
     /* Discovery
      * ~~~~~~~~~ */
 #ifdef UA_ENABLE_DISCOVERY
+    /* Enable the internal management of RegisteredServers (besides the local
+     * server itself) via the RegisterServer and FindServer services. */
+    UA_Boolean registeredServersEnabled;
+
     /* Timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value
      * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
      * bigger than 10 seconds, because cleanup is only triggered approximately
      * every 10 seconds. The server will still be removed depending on the
      * state of the semaphore file. */
-    UA_UInt32 discoveryCleanupTimeout;
+    UA_UInt32 registeredServerCleanupTimeout;
 
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_Boolean mdnsEnabled;
-    UA_MdnsDiscoveryConfiguration mdnsConfig;
-#  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    UA_String mdnsInterfaceIP;
-#   if !defined(UA_HAS_GETIFADDR)
-    size_t mdnsIpAddressListSize;
-    UA_UInt32 *mdnsIpAddressList;
-#   endif
-#  endif
-# endif
+    /* mDNS based Announcement and Discovery is implemented in drivers that
+     * attach to a server outside the main configuration (cf. server_driver.h).
+     * The FindServersOnNetwork Server is however implemented by the server
+     * itself. The drivers interact with the server via the Discovery API. For
+     * example to add/update/remove a ServerOnNetwork structure. */
+
+    /* Enable the internal management of ServerOnNetwork entries and the
+     * FindServersOnNetwork Service. This is used in conjunction with mDNS to
+     * implement a Discovery Server that detects other servers on the
+     * network. */
+    UA_Boolean serversOnNetworkEnabled;
 #endif
 
     /* Subscriptions

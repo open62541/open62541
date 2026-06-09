@@ -132,6 +132,7 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager);
 /********************/
 
 #ifdef UA_ENABLE_RBAC
+
 /* Internal role-permission entry with reference counting.
  * Multiple nodes can share the same entry via the permissionIndex stored
  * in the node head. Entries originating from the server configuration
@@ -157,7 +158,18 @@ void UA_Server_cleanupRBAC(UA_Server *server);
 
 /* Initialize RBAC information model (NS0 role representations and methods) */
 UA_StatusCode initNS0RBAC(UA_Server *server);
+
 #endif /* UA_ENABLE_RBAC */
+
+#ifdef UA_ENABLE_DISCOVERY
+
+typedef struct RegisteredServerRecord {
+    LIST_ENTRY(RegisteredServerRecord) pointers;
+    UA_RegisteredServer registeredServer;
+    UA_DateTime lastSeen;
+} RegisteredServerRecord;
+
+#endif /* UA_ENABLE_DISCOVERY */
 
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
@@ -269,6 +281,19 @@ struct UA_Server {
     size_t namespaceMetadataSize;
     UA_NamespaceMetadata *namespaceMetadata;
 #endif
+
+#ifdef UA_ENABLE_DISCOVERY
+    /* Registered Servers */
+    LIST_HEAD(, RegisteredServerRecord) registeredServers;
+    size_t registeredServersSize;
+
+    /* Servers On Network
+     * TODO: Use a TAILQ for easier updates */
+    UA_UInt32 serversOnNetworkRecordCounter;
+    UA_DateTime lastCounterResetTime;
+    size_t serversOnNetworkSize;
+    UA_ServerOnNetwork *serversOnNetwork;
+#endif /* UA_ENABLE_DISCOVERY */
 };
 
 /* In case the configuration was updated. Make the ->next pointer in the
@@ -722,6 +747,7 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 #ifdef UA_ENABLE_DISCOVERY
 UA_Driver * UA_DiscoveryManager_new(void);
+void cleanupRegisteredServers(UA_Server *server);
 #endif
 
 UA_Driver * UA_BinaryProtocolManager_new(void);

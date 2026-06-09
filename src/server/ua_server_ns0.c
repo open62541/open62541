@@ -1123,16 +1123,9 @@ configureNS0(UA_Server *server) {
 
     /* ServerConfiguration - MulticastDnsEnabled */
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
-                               &server->config.mdnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-#else
-    {
-        UA_Boolean mdnsEnabled = false;
-        retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
-                                   &mdnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    }
-#endif
+                               &server->config.serversOnNetworkEnabled,
+                               &UA_TYPES[UA_TYPES_BOOLEAN]);
 #endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
