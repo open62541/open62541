@@ -567,9 +567,10 @@ endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     find_package(PkgConfig REQUIRED)
-    pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
+    pkg_search_module(AVAHI REQUIRED avahi-client)
     include_directories(${AVAHI_INCLUDE_DIRS})
     list(APPEND open62541_PUBLIC_LIBRARIES "${AVAHI_LIBRARIES}")
+    list(APPEND open62541_LIBRARIES ${AVAHI_LIBRARIES})
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
@@ -1043,7 +1044,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/sdtxt.h
         ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
-        #${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_mdnsd.c
+        ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_mdnsd.c
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
@@ -1052,8 +1053,8 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    #list(APPEND lib_sources
-    #     ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_avahi.c)
+    list(APPEND lib_sources
+         ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_avahi.c)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)

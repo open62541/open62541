@@ -236,31 +236,6 @@ int main(int argc, char **argv) {
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_multicast");
 
-    // Enable the mDNS announce and response functionality
-    config->mdnsEnabled = true;
-
-    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
-
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    // Use loopback interface for mDNS announcements by default.
-    // This only works when the LDS and this server run on the same device.
-    // For deployment in LAN or across multiple devices, replace "127.0.0.1" with the IP of your network interface,
-    // such as "192.168.1.100" or the IP of wlan0/eth0.
-    config->mdnsInterfaceIP = UA_String_fromChars("127.0.0.1");
-#endif
-
-    // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
-    // For a LDS server, you should only indicate the LDS capability.
-    // If this instance is an LDS and at the same time a normal OPC UA server, you also have to indicate
-    // the additional capabilities.
-    // NOTE: UaExpert does not show LDS-only servers in the list.
-    // See also: https://forum.unified-automation.com/topic1987.html
-
-    config->mdnsConfig.serverCapabilitiesSize = 1;
-    UA_String *caps = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-    caps[0] = UA_String_fromChars("LDS");
-    config->mdnsConfig.serverCapabilities = caps;
-
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);
 

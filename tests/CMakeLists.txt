@@ -493,7 +493,8 @@ if(UA_ENABLE_ENCRYPTION)
     endif()
 endif()
 
-if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+if(UA_ENABLE_DISCOVERY AND (UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR
+                            UA_ENABLE_DISCOVERY_MULTICAST_AVAHI))
     ua_add_test(server/check_discovery_mdnsd.c)
 endif()
 
