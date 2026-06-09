@@ -1043,7 +1043,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/sdtxt.h
         ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
-        #${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_mdnsd.c
+        ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_mdnsd.c
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
