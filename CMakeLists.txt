@@ -1036,10 +1036,6 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/log.c
         PROPERTIES COMPILE_FLAGS
             "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast")
-    # ua_discovery_mdns.c includes mdnsd.h which has GCC-style named variadic macros
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
-        PROPERTIES COMPILE_FLAGS "-Wno-variadic-macros")
 
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     list(APPEND lib_headers
@@ -1048,7 +1044,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/sdtxt.h
         ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
-        ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_mdnsd.c
+        #${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_mdnsd.c
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
@@ -1057,8 +1053,8 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    list(APPEND lib_sources
-         ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_avahi.c)
+    #list(APPEND lib_sources
+    #     ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_avahi.c)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
