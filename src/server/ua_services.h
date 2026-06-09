@@ -65,14 +65,10 @@ Service_RegisterServer2(UA_Server *server, UA_Session *session,
                         const UA_RegisterServer2Request *request,
                         UA_RegisterServer2Response *response);
 
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-
 UA_Boolean
 Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              const UA_FindServersOnNetworkRequest *request,
                              UA_FindServersOnNetworkResponse *response);
-
-# endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
 #endif /* UA_ENABLE_DISCOVERY */
 
