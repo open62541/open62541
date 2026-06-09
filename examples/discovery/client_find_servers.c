@@ -14,8 +14,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <string.h>
+#ifdef UA_ARCHITECTURE_WIN32
+# include <winsock2.h>
+#else
+# include <unistd.h>
+#endif
 
 int main(void) {
 

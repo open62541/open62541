@@ -82,25 +82,6 @@
   asyncOperationTimeout: 120000,
   maxAsyncOperationQueueSize: 1000000,
 
-  // Discovery Multicast
-  mdnsEnabled: false,
-  mdns: {
-    mdnsServerName: "mdnsServerName",
-    // See https://reference.opcfoundation.org/GDS/v105/docs/D
-    serverCapabilities: [
-      // "NA" should be first and only server capability:
-      //"NA"
-      "LDS",
-      "GDS"
-    ],
-    mdnsInterfaceIP: "127.0.0.1",
-    mdnsIpAddressList: [
-      1,
-      2,
-      3
-    ]
-  },
-
   subscriptionsEnabled: true,
   subscriptions: {
     // Limits for Subscriptions
