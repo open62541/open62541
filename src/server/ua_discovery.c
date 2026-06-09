@@ -209,12 +209,6 @@ discoveryClientStateCallback(UA_Client *client,
         respType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
         request = &reg2;
 
-        /* /\* Set the configuration that is only available for */
-        /*  * UA_RegisterServer2Request *\/ */
-        /* UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsSelfConfig, */
-        /*                                     &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]); */
-        /* reg2.discoveryConfigurationSize = 1; */
-        /* reg2.discoveryConfiguration = &mdnsConfig; */
     } else {
         UA_RegisterServerRequest_init(&reg1);
         setupRegisterRequest(ar, &reg1.requestHeader, &reg1.server);

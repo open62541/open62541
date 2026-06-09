@@ -48,29 +48,7 @@ int main(void) {
     config->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en-US", "Open62541 Local Discovery Server");
 
-    // Enable the mDNS announce and response functionality
-    config->mdnsEnabled = true;
-
-    config->mdnsConfig.mdnsServerName = UA_String_fromChars("LDS");
-
-    // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
-    // For a LDS server, you should only indicate the LDS capability.
-    // If this instance is an LDS and at the same time a normal OPC UA server, you also have to indicate
-    // the additional capabilities.
-    // NOTE: UaExpert does not show LDS-only servers in the list.
-    // See also: https://forum.unified-automation.com/topic1987.html
-
-    // E.g. here we only set LDS, and you will not see it in UaExpert
-    config->mdnsConfig.serverCapabilitiesSize = 1;
-    UA_String *caps = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-    if(!caps) {
-        /* Allocation failed for server capabilities array.
-         * Clean up and exit to avoid running with invalid config. */
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-    caps[0] = UA_String_fromChars("LDS");
-    config->mdnsConfig.serverCapabilities = caps;
+    config->serversOnNetworkEnabled = true;
 
     /* timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value

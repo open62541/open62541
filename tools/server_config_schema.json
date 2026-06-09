@@ -137,15 +137,6 @@
       "description": "Discovery cleanup timeout in milliseconds (only if discovery enabled)",
       "minimum": 0
     },
-    "mdnsEnabled": {
-      "type": "boolean",
-      "description": "Enable mDNS discovery (only if multicast discovery enabled)",
-      "default": false
-    },
-    "mdns": {
-      "$ref": "#/definitions/MdnsConfiguration",
-      "description": "mDNS configuration (only if multicast discovery enabled)"
-    },
     "subscriptionsEnabled": {
       "type": "boolean",
       "description": "Enable subscriptions (only if subscriptions enabled)",
@@ -310,33 +301,6 @@
           "type": "integer",
           "description": "TCP maximum chunks",
           "minimum": 0
-        }
-      }
-    },
-    "MdnsConfiguration": {
-      "type": "object",
-      "properties": {
-        "mdnsServerName": {
-          "type": "string",
-          "description": "mDNS server name"
-        },
-        "serverCapabilities": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Server capabilities"
-        },
-        "mdnsInterfaceIP": {
-          "type": "string",
-          "description": "mDNS interface IP address"
-        },
-        "mdnsIpAddressList": {
-          "type": "array",
-          "items": {
-            "type": "integer"
-          },
-          "description": "mDNS IP address list (only if UA_HAS_GETIFADDR not defined)"
         }
       }
     },
