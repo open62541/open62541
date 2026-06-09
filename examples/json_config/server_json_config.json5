@@ -109,25 +109,9 @@
   maxAsyncOperationQueueSize: 1000000,
 
   // Only available when discovery support is enabled.
-  discoveryCleanupTimeout: 60,
-
-  // mDNS / LDS-ME support (UA_ENABLE_DISCOVERY_MULTICAST).
-  // mdnsEnabled: false,
-  // mdns: {
-  //   mdnsServerName: "open62541-json5-server",
-  //   // Common capability tags: "LDS", "DA", "HD", "GDS".
-  //   // Use ["NA"] if no capability should be advertised.
-  //   serverCapabilities: [
-  //     "DA",
-  //     "HD"
-  //   ],
-  //   // Bind to one interface or leave empty for the default.
-  //   mdnsInterfaceIP: "127.0.0.1",
-  //   // Raw IPv4 addresses as unsigned integers. Leave empty to auto-detect.
-  //   mdnsIpAddressList: [
-  //     2130706433
-  //   ]
-  // },
+  registeredServersEnabled: true,
+  registeredServerCleanupTimeout: 600,
+  serversOnNetworkEnabled: false,
 
   // Subscription and MonitoredItem limits (UA_ENABLE_SUBSCRIPTIONS).
   subscriptionsEnabled: true,
