@@ -184,6 +184,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
             getRemoteBlockSize(sp, cc);
 
         /* Padding always fills up the last block */
+        UA_assert(plainTextBlockSize > 0);
         UA_assert(dataToEncryptLength % plainTextBlockSize == 0);
         size_t blocks = dataToEncryptLength / plainTextBlockSize;
         *encryptedLength = totalLength + blocks * (encryptedBlockSize - plainTextBlockSize);
@@ -248,6 +249,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
         sp->asymEncryptionAlgorithm.getRemoteBlockSize(sp, cc);
 
     size_t max_encrypted = (size_t)(*buf_end - *buf_start);
+    UA_assert(encryptedBlockSize > 0);
     size_t max_blocks = max_encrypted / encryptedBlockSize;
     size_t max_plaintext = max_blocks * plainTextBlockSize;
 
@@ -280,6 +282,7 @@ padChunk(UA_SecureChannel *channel,
     UA_Boolean extraPadding = (ea->getRemoteKeyLength(sp, cc) > 2048);
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
 
+    UA_assert(plainTextBlockSize > 0);
     size_t lastBlock = ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
     size_t paddingLength = (lastBlock != 0) ? plainTextBlockSize - lastBlock : 0;
 
@@ -457,6 +460,7 @@ setBufPos(UA_MessageContext *mc) {
 
     /* Leave enough space for the signature and padding */
     mc->buf_end -= sigsize;
+    UA_assert(plainBlockSize > 0);
     mc->buf_end -= mc->messageBuffer.length % plainBlockSize;
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {

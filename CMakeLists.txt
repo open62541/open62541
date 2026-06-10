@@ -1718,7 +1718,8 @@ install(DIRECTORY ${UA_SCHEMA_DIR}/
 set(UA_install_tools_files "tools/generate_bsd.py"
                            "tools/generate_datatypes.py"
                            "tools/generate_nodeid_header.py"
-                           "tools/generate_statuscode_descriptions.py")
+                           "tools/generate_statuscode_descriptions.py"
+                           "tools/generate_bsd.py")
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 

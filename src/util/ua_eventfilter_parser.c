@@ -115,8 +115,11 @@ create_operator(EFParseContext *ctx, UA_FilterOperator fo) {
 void
 append_operand(Operand *op, Operand *on) {
     Operator *optr = &op->operand.op;
-    optr->children = (Operand**)
+    Operand **children_tmp = (Operand **)
         UA_realloc(optr->children, (optr->childrenSize + 1) * sizeof(Operand*));
+    if(!children_tmp)
+        return;
+    optr->children = children_tmp;
     optr->children[optr->childrenSize] = on;
     optr->childrenSize++;
 }
