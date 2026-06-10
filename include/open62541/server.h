@@ -22,7 +22,6 @@
 #include <open62541/common.h>
 #include <open62541/util.h>
 #include <open62541/types.h>
-#include <open62541/server_driver.h>
 #ifdef UA_ENABLE_DISCOVERY
 #include <open62541/client.h>
 #endif
@@ -1724,6 +1723,102 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
 #endif /* UA_ENABLE_DISCOVERY */
 
 /**
+ * Drivers
+ * -------
+ * Drivers are different from other "plugins" in that they have an explicit
+ * stateful lifecycle and can be started/stopped at runtime. Their lifecycle is
+ * however dependent on the server into which the drivers are embedded. When the
+ * server shuts down, the drivers are also stopped.
+ *
+ * Drivers can use the server's public API to the full extend. For example
+ * add/remove nodes, or register connections and timers in the server's
+ * EventLoop.
+ *
+ * Some drivers define core functionality and are added internally in the server
+ * implementation. */
+
+typedef enum {
+    UA_DRIVERTYPE_GENERIC = 0
+} UA_DriverType;
+
+struct UA_Driver;
+typedef struct UA_Driver UA_Driver;
+
+/* Callback through which the server notifies the driver
+ * about runtime changes and internal events. */
+typedef void
+(*UA_DriverNotificationCallback)(UA_Driver *drv,
+                                 UA_ApplicationNotificationType type,
+                                 const UA_KeyValueMap payload);
+
+struct UA_Driver {
+    UA_Driver *next; /* linked-list */
+
+    /*
+     * Configuration
+     */
+
+    UA_DriverType driverType;
+    UA_String name;
+
+    /* See the driver-specific documentation for possible parameters.
+     * The params need to be cleaned up within the _free method. */
+    UA_KeyValueMap params;
+
+    /* Backpointer to the server. Must be set before _start is called. If NULL
+     * this is set by the server during registering. Generally the server must
+     * not be switched out once the driver has been started. */
+    UA_Server *server;
+
+    /* The server forwards its internal notifications to all drivers. In order
+     * to avoid overload, the filter must be set. The top 32bit are ANDed with
+     * the notification type to see if the driver is interested in the
+     * notification. See the common.h for details on the notification types and
+     * their payload. */
+    UA_DriverNotificationCallback notificationCallback;
+    UA_ApplicationNotificationType notificationFilter;
+
+    /*
+     * Lifecycle management
+     */
+
+    UA_LifecycleState state;
+
+    /* Start the Driver. It will typically register timers/connections in the
+     * EventLoop and may add nodes in the server's information model. Starting
+     * can fail if the server is not already started also.
+     *
+     * During startup, the server calls start on all registered drivers. */
+    UA_StatusCode (*start)(UA_Driver *sc);
+
+    /* Stopping is asynchronous and might need a few iterations of the eventloop
+     * to succeed. All Drivers are stopped during the shutdown of the server.
+     * Once fully stopped, the Driver must no longer rely on the server
+     * backpointer. So it can be detached and _free'd at runtime of the
+     * server. */
+    void (*stop)(UA_Driver *sc);
+
+    /* Clean up and delete the Driver. Can fail if it is not fully stopped. When
+     * successfully removed, the Driver must no longer be accessed from the
+     * server.
+     *
+     * Drivers are all free'd when the server is deleted. If a Driver is
+     * manually removed before, then it needs to be unlinked from the server's
+     * internal linked-list before. */
+    UA_StatusCode (*free)(UA_Driver *sc);
+};
+
+/* Adds the Driver to the server. Starts the driver if the server is already
+ * started. */
+UA_StatusCode
+UA_Server_addDriver(UA_Server *server, UA_Driver *drv);
+
+/* Remove the Driver from the server. This will fail if the driver is not fully
+ * stopped. */
+UA_StatusCode
+UA_Server_removeDriver(UA_Server *server, UA_Driver *drv);
+
+/**
  * Alarms & Conditions (Experimental)
  * ---------------------------------- */
 
@@ -2378,11 +2473,11 @@ struct UA_ServerConfig {
      * state of the semaphore file. */
     UA_UInt32 registeredServerCleanupTimeout;
 
-    /* mDNS based Announcement and Discovery is implemented in drivers that
-     * attach to a server outside the main configuration (cf. server_driver.h).
-     * The FindServersOnNetwork Server is however implemented by the server
-     * itself. The drivers interact with the server via the Discovery API. For
-     * example to add/update/remove a ServerOnNetwork structure. */
+    /* mDNS based Announcement and Discovery is implemented in a driver that
+     * attach to a server outside the main configuration. The
+     * FindServersOnNetwork Server is however implemented by the server itself.
+     * The drivers interact with the server via the Discovery API. For example
+     * to add/update/remove a ServerOnNetwork structure. */
 
     /* Enable the internal management of ServerOnNetwork entries and the
      * FindServersOnNetwork Service. This is used in conjunction with mDNS to
