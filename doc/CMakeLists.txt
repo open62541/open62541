@@ -1,5 +1,6 @@
 find_package(Sphinx)
 find_package(LATEX)
+find_program(LUALATEX_COMPILER NAMES lualatex)
 
 set(DOC_LATEX_DIR ${PROJECT_BINARY_DIR}/doc_latex)
 set(DOC_HTML_DIR ${PROJECT_BINARY_DIR}/doc)
@@ -102,11 +103,11 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
                   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
-add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
+add_custom_target(doc_pdf ${LUALATEX_COMPILER} -interaction=batchmode "open62541.tex"
                   WORKING_DIRECTORY ${DOC_LATEX_DIR}
                   # compile it twice so that the contents pages are correct
-                  COMMAND ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
-                  DEPENDS ${PDFLATEX_COMPILER}
+                  COMMAND ${LUALATEX_COMPILER} -interaction=batchmode "open62541.tex"
+                  DEPENDS ${LUALATEX_COMPILER}
                   COMMENT "Generating PDF documentation from LaTeX sources")
 add_dependencies(doc_pdf doc_latex)
 

@@ -171,7 +171,7 @@ customGetUserAccessLevel(UA_Server *server, UA_AccessControl *ac,
 }
 
 START_TEST(Server_setSessionParameter) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     setCustomAccessControl(config);
     config->accessControl.getUserAccessLevel = customGetUserAccessLevel;

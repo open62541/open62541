@@ -490,22 +490,28 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
  * - Converting a value that is outside the range of the target type causes a
  *   conversion error. */
 
-#define UA_CAST_SIGNED(t, T)                                         \
-    if(i < (UA_Int64)T##_MIN || i > (UA_Int64)T##_MAX)               \
-        return;                                                      \
-    *(t*)data = (t)i;                                                \
+#define UA_CAST_SIGNED(t, T)                                           \
+    if(i < (UA_Int64)T##_MIN || i > (UA_Int64)T##_MAX) {               \
+        UA_free(data);                                                 \
+        return;                                                        \
+    }                                                                  \
+    *(t*)data = (t)i;                                                  \
     do { } while(0)
 
-#define UA_CAST_UNSIGNED(t, T)                                       \
-    if(u > T##_MAX)                                                  \
-        return;                                                      \
-    *(t*)data = (t)u;                                                \
+#define UA_CAST_UNSIGNED(t, T)                                         \
+    if(u > T##_MAX) {                                                  \
+        UA_free(data);                                                 \
+        return;                                                        \
+    }                                                                  \
+    *(t*)data = (t)u;                                                  \
     do { } while(0)
 
-#define UA_CAST_FLOAT(t, T)                                          \
-    if(f + 0.5 < (UA_Double)T##_MIN || f + 0.5 > (UA_Double)T##_MAX) \
-        return;                                                      \
-    *(t*)data = (t)(f + 0.5);                                        \
+#define UA_CAST_FLOAT(t, T)                                            \
+    if(f + 0.5 < (UA_Double)T##_MIN || f + 0.5 > (UA_Double)T##_MAX) { \
+        UA_free(data);                                                 \
+        return;                                                        \
+    }                                                                  \
+    *(t*)data = (t)(f + 0.5);                                          \
     do { } while(0)
 
 /* We can cast between any numerical type. So this can be reused for explicit casting. */

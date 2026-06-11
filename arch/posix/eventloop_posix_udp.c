@@ -1181,6 +1181,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
     if(!conn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP\t| Error allocating memory for the socket, closing");
+        UA_freeaddrinfo(info);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
