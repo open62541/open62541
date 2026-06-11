@@ -540,36 +540,51 @@ removeCertificate(UA_Server *server,
 
     UA_String thumbprint = *(UA_String *)input[0].data;
     UA_Boolean isTrustedCertificate = *(UA_Boolean *)input[1].data;
+    UA_Boolean hasIssuer = false;
 
+    /* The OPC specification states that this Method cannot be called while
+     * a transaction is in progress, see:
+     * Part 12: Discovery and Global Services
+     * Certificate Management > Common Information Model > TrustLists
+     * > RemoveCertificate
+     * https://reference.opcfoundation.org/specs/OPC-10000-12/v1.05.07/7.8.2.7
+     */
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    /* When a certificate is removed, a transaction is created which is then executed directly.
-     * No apply cahnges is required */
-    UA_StatusCode retval = UA_GDSTransaction_init(transaction, server, *sessionId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
+    /* This Method cannot be called if the containing TrustList Object is open
+     * for Write */
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* This Method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(fileInfo->openCount > 0)
-        return UA_STATUSCODE_BADINVALIDSTATE;
+    UA_FileContext *fileContext = NULL;
+    LIST_FOREACH(fileContext, &fileInfo->fileContext, listEntry) {
+        if(fileContext->openFileMode != UA_OPENFILEMODE_READ)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+    }
 
+    /* The removal of a particular certificate and any CRLs that belong to it
+     * is already implemented in the UA_Server_removeCertificates() function
+     * (ua_server.c), so we will re-use this function to do the actual work.
+     */
     UA_TrustListDataType trustList;
-    memset(&trustList, 0, sizeof(UA_TrustListDataType));
+    UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
 
     UA_ByteString *certificates;
     size_t certificatesSize = 0;
-    certGroup->getTrustList(certGroup, &trustList);
+
+    /* check return value and abort on error */
+    UA_StatusCode retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     if(isTrustedCertificate) {
         certificates = trustList.trustedCertificates;
@@ -579,73 +594,118 @@ removeCertificate(UA_Server *server,
         certificatesSize = trustList.issuerCertificatesSize;
     }
 
-    UA_TrustListDataType list;
-    memset(&list, 0, sizeof(UA_TrustListDataType));
-
-    UA_ByteString *crls = NULL;
-    size_t crlsSize = 0;
-
-    UA_ByteString certificate = UA_BYTESTRING_NULL;
-
     UA_String thumbpr = UA_STRING_NULL;
     thumbpr.length = (UA_SHA1_LENGTH * 2);
     thumbpr.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbpr.length);
+    if (NULL == thumbpr.data) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
 
+    UA_ByteString certificate;
+    UA_ByteString_init(&certificate);
     for(size_t i = 0; i < certificatesSize; i++) {
-        UA_CertificateUtils_getThumbprint( &certificates[i], &thumbpr);
+        UA_CertificateUtils_getThumbprint(&certificates[i], &thumbpr);
         /* Compare thumbprint */
         if(!UA_String_equal_ignorecase(&thumbprint, &thumbpr))
             continue;
 
         certificate = certificates[i];
-        retval = certGroup->getCertificateCrls(certGroup, &certificate, isTrustedCertificate,
-                                               &crls, &crlsSize);
-        /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
-         * not have an associated CRL. */
-        if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_BADNOMATCH)) {
-            goto cleanup;
-        }
-
-        if(isTrustedCertificate) {
-            list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-            list.trustedCertificates = &certificate;
-            list.trustedCertificatesSize = 1;
-            list.trustedCrls = crls;
-            list.trustedCrlsSize = crlsSize;
-        } else {
-            list.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCRLS;
-            list.issuerCertificates = &certificate;
-            list.issuerCertificatesSize = 1;
-            list.issuerCrls = crls;
-            list.issuerCrlsSize = crlsSize;
-        }
         break;
     }
 
-    UA_CertificateGroup *transactionCertGroup =
-        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCertGroup) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-
-    if(list.specifiedLists != UA_TRUSTLISTMASKS_NONE) {
-        retval = transactionCertGroup->removeFromTrustList(transactionCertGroup, &list);
-        if(retval != UA_STATUSCODE_GOOD) {
-            goto cleanup;
-        }
-    } else {
+    /* no certificate matching the given fingerprint found */
+    if(certificate.data == NULL) {
         UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER, "The certificate to remove was not found");
         retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         goto cleanup;
     }
 
-    retval = applyChangesToServer(server);
+    /* A certificate may only be removed when no other certificates depend on
+     * (i.e. are signed by) it.
+     * The OPC specification says on this:
+     * "This Method returns Bad_CertificateChainIncomplete if the Certificate
+     * is a CA Certificate needed to validate another Certificate in the
+     * TrustList.", see:
+     * Part 12: Discovery and Global Services
+     * Certificate Management > Common Information Model > TrustLists
+     * > RemoveCertificate
+     * https://reference.opcfoundation.org/specs/OPC-10000-12/v1.05.07/7.8.2.7
+     */
+    hasIssuer = false;
+
+    /* check "list of trusted certificates" */
+    for(size_t i = 0; i < trustList.trustedCertificatesSize; i++) {
+        /* skip the check against the certificate itself so self-signed
+         * certificates are not mistaken as an issuer (of itself) */
+        if(certificate.data != trustList.trustedCertificates[i].data) {
+            /* test if "certificate", i.e. the certificate to be removed, is
+             * the issuer of the i-th certificate in the "list of trusted
+             * certificates */
+            retval = UA_CertificateUtils_isIssuer(&certificate,
+                                                  &(trustList.trustedCertificates[i]),
+                                                  &hasIssuer);
+            if(retval != UA_STATUSCODE_GOOD) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            /* exit early when we we found a depending certificate */
+            if(hasIssuer)
+                break;
+        }
+    }
+    if(hasIssuer) {
+        /* The OPC specification states that when the certificate is the issuer
+         * of another certificate still inside the TrustList, the Method shall
+         * return Bad_CertificateChainIncomplete, see:
+         * Part 12: Discovery and Global Services
+         * Certificate Management > Common Information Model > TrustLists
+         * > RemoveCertificate
+         * https://reference.opcfoundation.org/specs/OPC-10000-12/v1.05.07/7.8.2.7
+         */
+        retval = UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+        goto cleanup;
+    }
+
+    /* check "list of issuer certificates" */
+    for(size_t i = 0; i < trustList.issuerCertificatesSize; i++) {
+        /* skip the check against the certificate itself so self-signed
+         * certificates are not mistaken as an issuer (of itself) */
+        if(certificate.data != trustList.issuerCertificates[i].data) {
+            /* test if "certificate", i.e. the certificate to be removed, is
+             * the issuer of the i-th certificate in the "list of issuer
+             * certificates */
+            retval = UA_CertificateUtils_isIssuer(&certificate,
+                                                  &(trustList.issuerCertificates[i]),
+                                                  &hasIssuer);
+            if(retval != UA_STATUSCODE_GOOD) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            /* exit early when we we found a depending certificate */
+            if(hasIssuer)
+                break;
+        }
+    }
+    if(hasIssuer) {
+        retval = UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+        goto cleanup;
+    }
+
+    /* all checks okay - remove the certificate */
+    UA_ByteString certsToRemove[1];
+    certsToRemove[0] = certificate;
+
+    retval = UA_Server_removeCertificates(server,
+                                          certGroup->certificateGroupId,
+                                          certsToRemove, 1,
+                                          isTrustedCertificate);
 
 cleanup:
     UA_String_clear(&thumbpr);
     UA_TrustListDataType_clear(&trustList);
-    UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     return retval;
 }
