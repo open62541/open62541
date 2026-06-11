@@ -2,30 +2,34 @@
 
 ## Supported Versions
 
-The following versions of open62541 are monitored for vulnerabilities and are part of our vulnerability handling and release process.
+The open62541 releases are organized into release families. The following table
+shows the current nomenclature concerning development and stable release
+families.
 
-| Version   | Community Support   | Commercial Support Available |
-| --------- | ------------------- | ---------------------------- |
-| master    | :heavy_check_mark:  | :heavy_check_mark:           |
-| v1.4.x    | :heavy_check_mark:  | :heavy_check_mark:           |
-| v1.3.x    | :last_quarter_moon: | :heavy_check_mark:           |
-| <= v1.2.x | :last_quarter_moon: | :heavy_check_mark:           |
-| <= v1.0.x | :x:                 | :last_quarter_moon:          |
+| Release Family | Status              | Branch      |
+| -------------- | ------------------- | ----------- |
+| -              | development         | master      |
+| v1.5.x         | stable              | 1.5         |
+| v1.4.x         | oldstable           | 1.4         |
+| v1.3.x         | oldoldstable        | 1.3         |
+
+Beyond the public Github, you can get professional support for open62541 from
+*o6 Automation GmbH* (https://www.o6-automation.com/services). This includes our
+**Vulnerability Management Process** and **Long-Term Support** for older stable
+release families. So software based on open62541 can be deployed and supported
+in the field for many years.
 
 ## Reporting a Vulnerability
 
-Security vulnerabilities can be disclosed privately to the mailing list open62541-security@googlegroups.com.
+You are invited to disclose your findings privately with one of the following
+mechanisms. **DO NOT OPEN PUBLIC GITHUB ISSUES FOR POTENTIAL VULNERABILITIES.**
+This only gives the bad guys a head-start and does not speed up the
+vulnerability handling.
 
-The disclosure triggers an evaluation of the vulnerability.
-Depending on the criticality, the follow-up comprises of the following steps:
+- Via email to the mailing list open62541-security@googlegroups.com
+- Via the Github disclosure mechanism at https://github.com/open62541/open62541/security/advisories
 
-- Responsible disclosure of the vulnerability to critical professional users (with an embargo period)
-- Commit of the fix to the public repository
-- Backporting of the fix to past release families
-- Preparation of patch releases
-- Public disclosure of the vulnerability
-
-You can send us encrypted email with PGP using this public key:
+You can encrypt emails to us with this PGP key:
 
 ```
 -----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -43,3 +47,29 @@ tfp1v8HATMXKB65FmujmBg==
 =Juz6
 -----END PGP PUBLIC KEY BLOCK-----
 ```
+
+## Vulnerability Management Process
+
+The disclosure of a potential vulnerability triggers our Vulnerability
+Management Process. It comprises of the following steps:
+
+1. Evaluation of the disclosure (CVSS score)
+2. If relevant, preparation of mitigations (patches) for the impacted open62541
+   release families together with a non-public Vulnerability Advisory
+3. Dissemination to commercial users and operators of critical infrastructure
+4. Embargo time (typically 30 days)
+5. Merge of the mitigations into the impacted open62541 release family branches
+6. Preparation of open62541 patch releases for the impacted release families
+
+## Acknowledgement and Public CVE
+
+**We do not endorse public CVE advisories for open62541.** With todays AI-based
+coding tools, a public CVE has roughly the same impact as releasing a working
+exploit. Professional users and operators of critical installations receive
+non-public Vulnerability Advisories via the Professional Support Services. Then,
+after an embargo time to fix critical installations, we prepare public patch
+releases for the impacted versions of open62541.
+
+If the person disclosing a vulnerability wishes so, we can give a personal
+acknowledgement of the disclosure both in the non-public Vulnerability Advisory
+and in the commits that are eventually merged into the public git branches.
