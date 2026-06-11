@@ -26,7 +26,7 @@ jobs:
             cc_name: "Clang"
             cc_shortname: clang-mingw
             generator: "Ninja"
-    runs-on: windows-latest
+    runs-on: windows-2022
     env:
       CC_NAME: ${{ matrix.cc_name }}
       CC_SHORTNAME: ${{ matrix.cc_shortname }}
