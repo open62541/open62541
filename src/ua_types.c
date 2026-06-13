@@ -3009,6 +3009,12 @@ UA_NamespaceMapping_clear(UA_NamespaceMapping *nm) {
     UA_Array_delete(nm->namespaceUris, nm->namespaceUrisSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(nm->local2remote, nm->local2remoteSize, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Array_delete(nm->remote2local, nm->remote2localSize, &UA_TYPES[UA_TYPES_UINT16]);
+    nm->namespaceUris = NULL;
+    nm->local2remote = NULL;
+    nm->remote2local = NULL;
+    nm->namespaceUrisSize = 0;
+    nm->local2remoteSize = 0;
+    nm->remote2localSize = 0;
 }
 
 void
