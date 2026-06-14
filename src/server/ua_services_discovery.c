@@ -284,6 +284,16 @@ notifyServerOnNetwork(UA_Server *server,
     notifyApplication(server,
                       UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK,
                       kvm);
+
+    /* Specialized application callback for discovery notifications. Called
+     * directly (not via notifyApplication) to avoid recursion: the driver's
+     * own notification callback may itself trigger a register/deregister
+     * that flows back into notifyServerOnetwork. */
+    UA_ServerConfig *config = &server->config;
+    if(config->discoveryNotificationCallback)
+        config->discoveryNotificationCallback(server,
+                                              UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK,
+                                              kvm);
 }
 
 static void

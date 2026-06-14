@@ -191,14 +191,17 @@ removeSON(MdnsdDriver *md, UA_String serverName) {
     if(!entry)
         return;
 
+    /* Remove from linked list first to break the recursion. The driver's
+     * notification callback can be triggered by UA_Server_deregisterServerOnNetwork
+     * and would otherwise re-enter removeSON with the same entry. */
+    LIST_REMOVE(entry, listPointers);
+
     /* Deregister received entries. Locally created entries are getting removed
      * via a notification from inside UA_Server_deregisterServerOnNetwork.*/
     if(entry->received)
         UA_Server_deregisterServerOnNetwork(md->drv.server,
                                             entry->serverOnNetwork.serverName);
 
-    /* Remove from linked list and clean up */
-    LIST_REMOVE(entry, listPointers);
     ServerOnNetworkRecord_delete(entry);
 }
 
@@ -328,6 +331,7 @@ processRecord(const struct resource *r, void *data) {
 
     /* Find an existing entry or create a new one */
     ServerOnNetworkRecord *entry = findSON(md, serverName);
+    UA_Boolean isNewEntry = false;
     if(!entry) {
         if(r->ttl == 0)
             return;
@@ -337,11 +341,15 @@ processRecord(const struct resource *r, void *data) {
         UA_StatusCode res = addSON(md, &son, &entry);
         if(res != UA_STATUSCODE_GOOD)
             return;
+        isNewEntry = true;
+    } else {
+        /* Existing entry that we have not sent out ourselves can be
+         * processed (received from the network). For entries we created
+         * locally (received == false) we ignore incoming records to avoid
+         * mirroring our own announcements back. */
+        if(!entry->received)
+            return;
     }
-
-    /* We have sent out the entry ourselves */
-    if(!entry->received)
-        return;
 
     /* If TTL == 0, the entry is retracted. */
     if(r->ttl == 0) {
@@ -358,7 +366,7 @@ processRecord(const struct resource *r, void *data) {
     /* Set TTL until we require the next received value */
     if(r->ttl > entry->ttl)
         entry->ttl = r->ttl;
-       
+
     /* Update nextAction. If no update is received until then the record is
      * deleted */
     UA_EventLoop *el = UA_Server_getConfig(md->drv.server)->eventLoop;
@@ -521,12 +529,13 @@ announceTXT(MdnsdDriver *md, UA_String path, const char *serviceDomain,
     if(son->serverCapabilitiesSize > 0) {
         size_t idx = 0;
         for(size_t i = 0; i < son->serverCapabilitiesSize; i++) {
+            if(i > 0)
+                caps[idx++] = ',';
             memcpy(caps + idx, son->serverCapabilities[i].data,
                    son->serverCapabilities[i].length);
-            idx += son->serverCapabilities[i].length + 1;
-            caps[idx - 1] = ',';
+            idx += son->serverCapabilities[i].length;
         }
-        caps[capsLen] = '\0';
+        caps[idx] = '\0';
         xht_set(h, "caps", caps);
     } else {
         xht_set(h, "caps", "NA"); /* NA - Not Available */
@@ -1204,10 +1213,11 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
 
     /* Remove record */
     if(removed) {
-        /* Retract if we haven't received the entry the entry from mDNS */
-        if((!entry || !entry->received))
+        /* Retract if we haven't received the entry from mDNS */
+        if(!entry || !entry->received)
             retractRecord(md, son);
-        removeSON(md, entry->serverOnNetwork.serverName); /* Remove entry */
+        if(entry)
+            removeSON(md, entry->serverOnNetwork.serverName);
     }
 }
 
