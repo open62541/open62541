@@ -922,6 +922,9 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 
     ctx.logging = config->logging;
 
+    /* Buffer for the field name */
+    char field[256];
+
     size_t serverConfigSize = 0;
     if(ctx.tokens)
         serverConfigSize = (ctx.tokens[ctx.index-1].size/2);
@@ -930,9 +933,18 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
         cj5_token tok = ctx.tokens[ctx.index];
         switch (tok.type) {
             case CJ5_TOKEN_STRING: {
-                char *field = (char*)UA_malloc(tok.size + 1);
+                if(tok.size >= 255) {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Configuration field name too long");
+                    continue;
+                }
                 unsigned int str_len = 0;
-                cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                cj5_error_code res = cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                if(res != CJ5_ERROR_NONE) {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Configuration field name not a valid string");
+                    continue;
+                }
                 if(strcmp(field, "buildInfo") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BUILDINFO](&ctx, &config->buildInfo, NULL);
                 else if(strcmp(field, "applicationDescription") == 0)
@@ -1028,7 +1040,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
-                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled.", field);
                     /* skip the name of item */
                     ++ctx.index;
                     /* skip value of unknown item */
@@ -1038,9 +1050,9 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                        still set index to the right position (name of the following item) */
                     --ctx.index;
                 }
-                UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                 "An error occurred while parsing the configuration field %s", field);
                     return retval;
                 }
                 break;
