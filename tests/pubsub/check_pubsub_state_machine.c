@@ -408,7 +408,7 @@ START_TEST(RemoveWriterGroup_UnknownReturnsBadNotFound) {
     UA_StatusCode res =
         UA_Server_removeWriterGroup(server, UA_NODEID_NUMERIC(0, 9999));
     ck_assert_int_eq(res, UA_STATUSCODE_BADNOTFOUND);
-}
+} END_TEST
 
 START_TEST(RemoveReaderGroup_UnknownReturnsBadNotFound) {
     UA_StatusCode res =
