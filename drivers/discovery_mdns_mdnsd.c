@@ -1138,7 +1138,11 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
     const UA_UInt32 *_ttl = (const UA_UInt32*)
         UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "ttl"),
                                  &UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32 ttl = (_ttl) ? *_ttl : announceTTL(md);
+    /* A TTL of zero means "unspecified"; fall back to the driver's default
+     * (e.g. configured announce-ttl, or 600s). The notification always
+     * carries a ttl key (possibly zero), so the only way to detect
+     * "unspecified" is to check for zero explicitly. */
+    UA_UInt32 ttl = (_ttl && *_ttl > 0) ? *_ttl : announceTTL(md);
 
     const UA_Boolean *_added = (const UA_Boolean*)
         UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "server-added"),
@@ -1166,9 +1170,14 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
             if(res != UA_STATUSCODE_GOOD)
                 return;
         } else {
-            /* Abort if identical to what we have already */
+            /* Abort if the mDNS-relevant fields are identical. The recordId is
+             * bumped server-side (e.g. by resetDiscoveryResetIds) and must
+             * not be part of the equality check. Use a shallow copy on the
+             * stack so the string pointers of `son` stay valid. */
+            UA_ServerOnNetwork sonForCmp = *son;
+            sonForCmp.recordId = entry->serverOnNetwork.recordId;
             UA_Order same =
-                UA_order(son, &entry->serverOnNetwork,
+                UA_order(&sonForCmp, &entry->serverOnNetwork,
                          &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
             if(same == UA_ORDER_EQ)
                 return;
