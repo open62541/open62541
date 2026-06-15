@@ -16,6 +16,26 @@ list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/CMakeLists.txt")
 string(REPLACE "${PROJECT_SOURCE_DIR}/doc" "${DOC_SRC_DIR}" DOC_TARGET "${DOC_SRC}")
 file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
 
+# Recursively copy sub-directories (e.g. doc/security/) so nested RST
+# sources are picked up by the Sphinx build.
+file(GLOB DOC_SUBDIR_SRC "${PROJECT_SOURCE_DIR}/doc/*/")
+set(DOC_SUBDIR_TARGET "")
+foreach(SUBDIR ${DOC_SUBDIR_SRC})
+    get_filename_component(SUBDIR_NAME "${SUBDIR}" NAME)
+    file(GLOB_RECURSE SUBDIR_FILES "${SUBDIR}*")
+    foreach(SRC_FILE ${SUBDIR_FILES})
+        string(REPLACE "${PROJECT_SOURCE_DIR}/doc/" "" SRC_REL "${SRC_FILE}")
+        set(DST_FILE "${DOC_SRC_DIR}/${SRC_REL}")
+        list(APPEND DOC_SUBDIR_TARGET "${DST_FILE}")
+        add_custom_command(OUTPUT "${DST_FILE}"
+                           COMMAND ${CMAKE_COMMAND} -E copy
+                                   "${SRC_FILE}" "${DST_FILE}"
+                           DEPENDS "${SRC_FILE}"
+                           COMMENT "Copy ${SRC_REL} to doc_src")
+    endforeach()
+endforeach()
+list(APPEND DOC_TARGET ${DOC_SUBDIR_TARGET})
+
 configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
 
 list(APPEND GENERATED_RST "")
