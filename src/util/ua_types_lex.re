@@ -25,6 +25,8 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
+#define UA_MAXPATHLENGTH 128 /* Maximum relative path depth */
+
 #define YYCURSOR pos
 #define YYMARKER context.marker
 #define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0 /* The lexer sees a stream of
@@ -289,6 +291,10 @@ UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
 
 static UA_StatusCode
 relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
+    /* Check for unrealistic path lengths */
+    if(rp->elementsSize >= UA_MAXPATHLENGTH)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Allocate memory */
     UA_RelativePathElement *newArray = (UA_RelativePathElement*)
         UA_realloc(rp->elements, sizeof(UA_RelativePathElement) * (rp->elementsSize + 1));
