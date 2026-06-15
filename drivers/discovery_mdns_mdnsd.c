@@ -1241,6 +1241,16 @@ MdnsdDriver_stop(UA_Driver *drv) {
     UA_Server_removeRepeatedCallback(server, md->sendCallbackId);
     md->sendCallbackId = 0;
 
+    /* Retract all locally-announced records so that goodbyes (TTL=0) are
+     * flushed before the UDP sockets are closed. Only retract entries we
+     * created locally; received entries will be cleaned up by the server
+     * via the normal deregister path. */
+    ServerOnNetworkRecord *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &md->serverList, listPointers, son_tmp) {
+        if(!son->received)
+            retractRecord(md, &son->serverOnNetwork);
+    }
+
     /* Flush queued goodbye packets before the UDP sockets are closed. This is
      * the last point where the component still owns live connections but no
      * further periodic queries will be scheduled. */
