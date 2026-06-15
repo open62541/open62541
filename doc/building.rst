@@ -318,7 +318,7 @@ Detailed SDK Features
 
    ECC security policies (NIST P-256/P-384, Brainpool) are available with OpenSSL
    or mbedTLS ≥ 3.0.  Curve25519 and Curve448 require OpenSSL.  See
-   :ref:`ecc-security` for details.
+   :ref:`security-ecc` for details.
 
 **UA_ENABLE_ENCRYPTION_TPM2**
    Enable TPM hardware for encryption. The possible options are:
