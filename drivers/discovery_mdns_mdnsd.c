@@ -1214,8 +1214,12 @@ MdnsdDriverNotificationCallback(UA_Driver *drv,
     /* Remove record */
     if(removed) {
         /* Retract if we haven't received the entry from mDNS */
-        if(!entry || !entry->received)
+        if(!entry || !entry->received) {
             retractRecord(md, son);
+            /* Send the goodbye message immediately so the
+             * public-api tests observe the deregister packet. */
+            flushMulticastMessages(md);
+        }
         if(entry)
             removeSON(md, entry->serverOnNetwork.serverName);
     }
