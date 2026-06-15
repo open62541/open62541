@@ -454,16 +454,19 @@ async function t9() {
 }
 
 // ---------------------------------------------------------------------------
-// T-10..T-15: ECC Security Policies (expected to SKIP in node-opcua)
+// T-10..T-17: ECC Security Policies (expected to SKIP in node-opcua).
+// Labels and ordering match check_interop_client.c.
 // ---------------------------------------------------------------------------
 
 const eccPolicies = [
     { label: "T-10", name: "ECC_nistP256", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256" },
-    { label: "T-11", name: "ECC_nistP384", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384" },
-    { label: "T-12", name: "ECC_brainpoolP256r1", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1" },
-    { label: "T-13", name: "ECC_brainpoolP384r1", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1" },
-    { label: "T-14", name: "ECC_curve25519", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519" },
-    { label: "T-15", name: "ECC_curve448", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448" },
+    { label: "T-11", name: "ECC_nistP256_AesGcm", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm" },
+    { label: "T-12", name: "ECC_nistP256_ChaChaPoly", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly" },
+    { label: "T-13", name: "ECC_nistP384", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384" },
+    { label: "T-14", name: "ECC_brainpoolP256r1", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1" },
+    { label: "T-15", name: "ECC_brainpoolP384r1", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1" },
+    { label: "T-16", name: "ECC_curve25519", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519" },
+    { label: "T-17", name: "ECC_curve448", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448" },
 ];
 
 async function runEccTests() {

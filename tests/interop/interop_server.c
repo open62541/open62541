@@ -250,10 +250,10 @@ int main(int argc, char *argv[]) {
         goto cleanup;
 
     /* --- ECC security policies (optional) ---
-     * ECC policy APIs are only available with OpenSSL, LibreSSL or
-     * mbedTLS >= 3.0.  Guard with the same condition as the
-     * implementation in ua_config_default.c. */
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) || \
+     * The ECC policy APIs are only available with OpenSSL or mbedTLS >= 3.0.
+     * Guard with the same condition as the implementation in
+     * ua_config_default.c. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
     (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && defined(MBEDTLS_VERSION_NUMBER) && \
      MBEDTLS_VERSION_NUMBER >= 0x03000000)
     {
@@ -261,25 +261,34 @@ int main(int argc, char *argv[]) {
         if(eccDir) {
             struct {
                 const char *curve;
+                const char *certName;  /* cert/key file stem; defaults to curve */
                 UA_StatusCode (*addPolicy)(UA_ServerConfig *,
                                           const UA_ByteString *,
                                           const UA_ByteString *);
             } eccPolicies[] = {
-                {"nistP256",        UA_ServerConfig_addSecurityPolicyEccNistP256},
-                {"nistP384",        UA_ServerConfig_addSecurityPolicyEccNistP384},
-                {"brainpoolP256r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1},
-                {"brainpoolP384r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1},
-                {"curve25519",      UA_ServerConfig_addSecurityPolicyEccCurve25519},
-                {"curve448",        UA_ServerConfig_addSecurityPolicyEccCurve448}
+                {"nistP256",            "nistP256", UA_ServerConfig_addSecurityPolicyEccNistP256},
+/* The AEAD (AesGcm/ChaChaPoly) and Curve25519/448 policies are only
+ * implemented in the OpenSSL backend. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+                {"nistP256_AesGcm",     "nistP256", UA_ServerConfig_addSecurityPolicyEccNistP256AesGcm},
+                {"nistP256_ChaChaPoly", "nistP256", UA_ServerConfig_addSecurityPolicyEccNistP256ChaChaPoly},
+#endif
+                {"nistP384",            "nistP384", UA_ServerConfig_addSecurityPolicyEccNistP384},
+                {"brainpoolP256r1",     "brainpoolP256r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1},
+                {"brainpoolP384r1",     "brainpoolP384r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1},
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+                {"curve25519",          "curve25519", UA_ServerConfig_addSecurityPolicyEccCurve25519},
+                {"curve448",            "curve448", UA_ServerConfig_addSecurityPolicyEccCurve448}
+#endif
             };
             size_t numEcc = sizeof(eccPolicies) / sizeof(eccPolicies[0]);
 
             for(size_t i = 0; i < numEcc; i++) {
                 char certPath[512], keyPath[512];
                 snprintf(certPath, sizeof(certPath),
-                         "%s/server_c_%s.cert.der", eccDir, eccPolicies[i].curve);
+                         "%s/server_c_%s.cert.der", eccDir, eccPolicies[i].certName);
                 snprintf(keyPath, sizeof(keyPath),
-                         "%s/server_c_%s.key.der", eccDir, eccPolicies[i].curve);
+                         "%s/server_c_%s.key.der", eccDir, eccPolicies[i].certName);
 
                 UA_ByteString eccCert = loadFile(certPath);
                 UA_ByteString eccKey  = loadFile(keyPath);

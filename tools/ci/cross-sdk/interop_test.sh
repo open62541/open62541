@@ -176,9 +176,8 @@ if ! wait_for_server "localhost:$C_PORT"; then
     RESULT=1
 else
     echo "Running C interop client against C server (self-test)..."
-    # Only require ECC tests to pass when the server actually loaded
-    # ECC policies (e.g. not when built with mbedTLS < 3.0 which does
-    # not support ECC security policies).
+    # Set when the C server offers ECC. Honoured by both the C and .NET
+    # clients so neither side can silently skip all ECC tests.
     if grep -q "Added ECC policy" "$C_LOG"; then
         export INTEROP_REQUIRE_ECC=1
     fi
@@ -192,7 +191,6 @@ else
         echo "FAIL: Scenario A - C client self-test failed"
         RESULT=1
     fi
-    unset INTEROP_REQUIRE_ECC 2>/dev/null || true
 
     echo ""
     echo "Running .NET interop tests against C server..."
@@ -208,6 +206,7 @@ else
     fi
     unset OPCUA_INTEROP_SERVER_URL
     unset OPCUA_INTEROP_CERT_DIR
+    unset INTEROP_REQUIRE_ECC 2>/dev/null || true
 
     echo ""
     echo "Running node-opcua interop client against C server..."
