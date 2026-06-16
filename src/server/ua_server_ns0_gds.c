@@ -828,6 +828,8 @@ readTrustList(UA_Server *server,
 
     UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
     UA_Int32 length = *(UA_Int32*)input[1].data;
+    if(length < 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
