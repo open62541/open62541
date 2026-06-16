@@ -652,6 +652,50 @@ START_TEST(rw_trustlist) {
 }
 END_TEST
 
+START_TEST(read_trustlist_reject_negative_length) {
+    UA_Client *client = createSecureClient();
+
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_READ;
+    UA_StatusCode retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    UA_Int32 lengthToRead = -1;
+    UA_Variant inputArguments[2];
+    UA_Variant_setScalar(&inputArguments[0], &fd, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputArguments[1], &lengthToRead, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 2;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ);
+
+    UA_CallRequest callReadTrustList;
+    UA_CallRequest_init(&callReadTrustList);
+    callReadTrustList.methodsToCallSize = 1;
+    callReadTrustList.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callReadTrustList);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_CallResponse_clear(&response);
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_clear(&fileHandler);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static void teardown(void) {
     running = false;
     THREAD_JOIN(server_thread);
@@ -665,6 +709,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
+    tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
