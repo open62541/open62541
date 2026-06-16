@@ -2317,6 +2317,17 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
             *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
             return;
         }
+        if(item->targetNodeClass != UA_NODECLASS_UNSPECIFIED &&
+           item->targetNodeClass != targetNode->head.nodeClass) {
+            UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                                 "Cannot add reference - target %N has NodeClass %u "
+                                 "but request expects %u",
+                                 item->targetNodeId.nodeId, (unsigned)targetNode->head.nodeClass,
+                                 (unsigned)item->targetNodeClass);
+            UA_NODESTORE_RELEASE(server, targetNode);
+            *retval = UA_STATUSCODE_BADNODECLASSINVALID;
+            return;
+        }
     }
 
     UA_Node *sourceNode =
