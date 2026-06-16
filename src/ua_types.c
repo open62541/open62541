@@ -288,7 +288,8 @@ String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
 }
 
 static void
-String_clear(UA_String *s, const UA_DataType *_) {
+String_clear(void *p, const UA_DataType *_) {
+    UA_String *s = (UA_String*)p;
     UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
@@ -390,8 +391,9 @@ QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
 }
 
 static void
-QualifiedName_clear(UA_QualifiedName *p, const UA_DataType *_) {
-    String_clear(&p->name, NULL);
+QualifiedName_clear(void *p, const UA_DataType *_) {
+    UA_QualifiedName *qn = (UA_QualifiedName*)p;
+    String_clear(&qn->name, NULL);
 }
 
 u32
@@ -770,11 +772,12 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
 
 /* NodeId */
 static void
-NodeId_clear(UA_NodeId *p, const UA_DataType *_) {
-    switch(p->identifierType) {
+NodeId_clear(void *p, const UA_DataType *_) {
+    UA_NodeId *id = (UA_NodeId*)p;
+    switch(id->identifierType) {
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
-        String_clear(&p->identifier.string, NULL);
+        String_clear(&id->identifier.string, NULL);
         break;
     default: break;
     }
@@ -1068,9 +1071,10 @@ UA_NodeId UA_NODEID(const char *chars) {
 
 /* ExpandedNodeId */
 static void
-ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
-    NodeId_clear(&p->nodeId, _);
-    String_clear(&p->namespaceUri, NULL);
+ExpandedNodeId_clear(void *p, const UA_DataType *_) {
+    UA_ExpandedNodeId *id = (UA_ExpandedNodeId*)p;
+    NodeId_clear(&id->nodeId, NULL);
+    String_clear(&id->namespaceUri, NULL);
 }
 
 static UA_StatusCode
@@ -1239,17 +1243,18 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
 
 /* ExtensionObject */
 static void
-ExtensionObject_clear(UA_ExtensionObject *p, const UA_DataType *_) {
-    switch(p->encoding) {
+ExtensionObject_clear(void *p, const UA_DataType *_) {
+    UA_ExtensionObject *eo = (UA_ExtensionObject *)p;
+    switch(eo->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
-        NodeId_clear(&p->content.encoded.typeId, NULL);
-        String_clear(&p->content.encoded.body, NULL);
+        NodeId_clear(&eo->content.encoded.typeId, NULL);
+        String_clear(&eo->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
-        if(p->content.decoded.data)
-            UA_delete(p->content.decoded.data, p->content.decoded.type);
+        if(eo->content.decoded.data)
+            UA_delete(eo->content.decoded.data, eo->content.decoded.type);
         break;
     default:
         break;
@@ -1367,22 +1372,24 @@ UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
 }
 
 static void
-Variant_clear(UA_Variant *p, const UA_DataType *_) {
+Variant_clear(void *p, const UA_DataType *_) {
+    UA_Variant *v = (UA_Variant *)p;
+
     /* The content is "borrowed" */
-    if(p->storageType == UA_VARIANT_DATA_NODELETE)
+    if(v->storageType == UA_VARIANT_DATA_NODELETE)
         return;
 
     /* Delete the value */
-    if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
-        if(p->arrayLength == 0)
-            p->arrayLength = 1;
-        UA_Array_delete(p->data, p->arrayLength, p->type);
-        p->data = NULL;
+    if(v->type && v->data > UA_EMPTY_ARRAY_SENTINEL) {
+        if(v->arrayLength == 0)
+            v->arrayLength = 1;
+        UA_Array_delete(v->data, v->arrayLength, v->type);
+        v->data = NULL;
     }
 
     /* Delete the array dimensions */
-    if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
-        UA_free(p->arrayDimensions);
+    if((void*)v->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
+        UA_free(v->arrayDimensions);
 }
 
 static UA_StatusCode
@@ -1810,9 +1817,10 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
 }
 
 static void
-LocalizedText_clear(UA_LocalizedText *p, const UA_DataType *_) {
-    String_clear(&p->locale, NULL);
-    String_clear(&p->text, NULL);
+LocalizedText_clear(void *p, const UA_DataType *_) {
+    UA_LocalizedText *lt = (UA_LocalizedText *)p;
+    String_clear(&lt->locale, NULL);
+    String_clear(&lt->text, NULL);
 }
 
 static UA_StatusCode
@@ -1825,8 +1833,9 @@ LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst,
 
 /* DataValue */
 static void
-DataValue_clear(UA_DataValue *p, const UA_DataType *_) {
-    Variant_clear(&p->value, NULL);
+DataValue_clear(void *p, const UA_DataType *_) {
+    UA_DataValue *dv = (UA_DataValue *)p;
+    Variant_clear(&dv->value, NULL);
 }
 
 static UA_StatusCode
@@ -1853,11 +1862,13 @@ UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
 
 /* DiagnosticInfo */
 static void
-DiagnosticInfo_clear(UA_DiagnosticInfo *p, const UA_DataType *_) {
-    String_clear(&p->additionalInfo, NULL);
-    if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
-        DiagnosticInfo_clear(p->innerDiagnosticInfo, NULL);
-        UA_free(p->innerDiagnosticInfo);
+DiagnosticInfo_clear(void *p, const UA_DataType *_) {
+    UA_DiagnosticInfo *di = (UA_DiagnosticInfo *)p;
+
+    String_clear(&di->additionalInfo, NULL);
+    if(di->hasInnerDiagnosticInfo && di->innerDiagnosticInfo) {
+        DiagnosticInfo_clear(di->innerDiagnosticInfo, NULL);
+        UA_free(di->innerDiagnosticInfo);
     }
 }
 
@@ -2125,37 +2136,37 @@ static void nopClear(void *p, const UA_DataType *type) { }
 
 const
 UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
-    (UA_clearSignature)nopClear, /* Boolean */
-    (UA_clearSignature)nopClear, /* SByte */
-    (UA_clearSignature)nopClear, /* Byte */
-    (UA_clearSignature)nopClear, /* Int16 */
-    (UA_clearSignature)nopClear, /* UInt16 */
-    (UA_clearSignature)nopClear, /* Int32 */
-    (UA_clearSignature)nopClear, /* UInt32 */
-    (UA_clearSignature)nopClear, /* Int64 */
-    (UA_clearSignature)nopClear, /* UInt64 */
-    (UA_clearSignature)nopClear, /* Float */
-    (UA_clearSignature)nopClear, /* Double */
-    (UA_clearSignature)String_clear, /* String */
-    (UA_clearSignature)nopClear, /* DateTime */
-    (UA_clearSignature)nopClear, /* Guid */
-    (UA_clearSignature)String_clear, /* ByteString */
-    (UA_clearSignature)String_clear, /* XmlElement */
-    (UA_clearSignature)NodeId_clear,
-    (UA_clearSignature)ExpandedNodeId_clear,
-    (UA_clearSignature)nopClear, /* StatusCode */
-    (UA_clearSignature)QualifiedName_clear,
-    (UA_clearSignature)LocalizedText_clear,
-    (UA_clearSignature)ExtensionObject_clear,
-    (UA_clearSignature)DataValue_clear,
-    (UA_clearSignature)Variant_clear,
-    (UA_clearSignature)DiagnosticInfo_clear,
-    (UA_clearSignature)nopClear, /* Decimal, not implemented */
-    (UA_clearSignature)nopClear, /* Enumeration */
-    (UA_clearSignature)clearStructure,
-    (UA_clearSignature)clearStructure, /* Struct with Optional Fields*/
-    (UA_clearSignature)clearUnion, /* Union*/
-    (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
+    nopClear, /* Boolean */
+    nopClear, /* SByte */
+    nopClear, /* Byte */
+    nopClear, /* Int16 */
+    nopClear, /* UInt16 */
+    nopClear, /* Int32 */
+    nopClear, /* UInt32 */
+    nopClear, /* Int64 */
+    nopClear, /* UInt64 */
+    nopClear, /* Float */
+    nopClear, /* Double */
+    String_clear, /* String */
+    nopClear, /* DateTime */
+    nopClear, /* Guid */
+    String_clear, /* ByteString */
+    String_clear, /* XmlElement */
+    NodeId_clear,
+    ExpandedNodeId_clear,
+    nopClear, /* StatusCode */
+    QualifiedName_clear,
+    LocalizedText_clear,
+    ExtensionObject_clear,
+    DataValue_clear,
+    Variant_clear,
+    DiagnosticInfo_clear,
+    nopClear, /* Decimal, not implemented */
+    nopClear, /* Enumeration */
+    clearStructure,
+    clearStructure, /* Struct with Optional Fields*/
+    clearUnion, /* Union*/
+    nopClear /* BitfieldCluster, not implemented*/
 };
 
 void
