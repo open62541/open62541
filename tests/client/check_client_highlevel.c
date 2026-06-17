@@ -213,7 +213,7 @@ START_TEST(Node_Add) {
 
     // Add 'Top' to view
     retval = UA_Client_addReference(client, newViewId, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                    UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_VARIABLE);
+                                    UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_OBJECT);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
