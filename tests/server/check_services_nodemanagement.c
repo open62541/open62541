@@ -925,6 +925,42 @@ START_TEST(AddReference_InvalidRefType) {
     ck_assert_int_ne(st, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(AddReference_InvalidTargetNodeClass) {
+    UA_NodeId refTypeId = registerRefType("HasTypedRef", "IsTypedRefOf");
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "typedRefSrc");
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "typedRefTgt");
+
+    UA_AddReferencesItem item;
+    UA_AddReferencesItem_init(&item);
+    item.sourceNodeId = sourceId;
+    item.referenceTypeId = refTypeId;
+    item.isForward = true;
+    item.targetNodeId.nodeId = targetId;
+    item.targetNodeClass = UA_NODECLASS_VARIABLE;
+
+    UA_AddReferencesRequest request;
+    UA_AddReferencesRequest_init(&request);
+    request.referencesToAddSize = 1;
+    request.referencesToAdd = &item;
+
+    UA_AddReferencesResponse response;
+    UA_AddReferencesResponse_init(&response);
+
+    lockServer(server);
+    Service_AddReferences(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0], UA_STATUSCODE_BADNODECLASSINVALID);
+
+    UA_NodeId targetCheckId = findReference(sourceId, refTypeId);
+    ck_assert(UA_NodeId_isNull(&targetCheckId));
+
+    UA_AddReferencesResponse_clear(&response);
+} END_TEST
+
 START_TEST(SetNodeTypeLifecycle) {
     /* Set a lifecycle callback on BaseObjectType */
     UA_NodeTypeLifecycle nlc;
@@ -1019,6 +1055,7 @@ int main(void) {
     tcase_add_test(tc_addreferences, AddDoubleReference);
     tcase_add_test(tc_addreferences, DeleteReference);
     tcase_add_test(tc_addreferences, AddReference_InvalidRefType);
+    tcase_add_test(tc_addreferences, AddReference_InvalidTargetNodeClass);
     suite_add_tcase(s, tc_addreferences);
 
     TCase *tc_ext = tcase_create("extendedCoverage");

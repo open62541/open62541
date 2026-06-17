@@ -2105,6 +2105,10 @@ DECODE_JSON(ExtensionObject) {
     /* No need to keep the TypeId */
     UA_NodeId_clear(&typeId);
 
+    /* Disallow directly nested ExtensionObjects */
+    if(type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Allocate memory for the decoded data */
     dst->content.decoded.data = UA_new(type);
     if(!dst->content.decoded.data)

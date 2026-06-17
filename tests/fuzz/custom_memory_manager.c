@@ -166,10 +166,8 @@ int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
     if(size <4)
         return 0;
     // just cast the last 4 bytes to uint32
-    const uint32_t *newLimit = (const uint32_t*)(uintptr_t)&(data[size-4]);
     uint32_t limit;
-    // use memcopy to avoid asan complaining on misaligned memory
-    memcpy(&limit, newLimit, sizeof(uint32_t));
+    memcpy(&limit, &data[size-4], sizeof(uint32_t));
     memoryLimit = limit;
     return 1;
 }
