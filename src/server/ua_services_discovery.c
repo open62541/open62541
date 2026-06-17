@@ -439,8 +439,7 @@ updateEndpointUserIdentityToken(UA_Server *server,
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
-                         const UA_String endpointUrl,
+setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize) {
     UA_ServerConfig *sc = &server->config;
@@ -484,11 +483,6 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
                            "%S which is not available", ep->securityPolicyUri);
             continue;
         }
-
-        /* Coming from CreateSession we have a channel already. Only return
-         * Endpoints where SecurityPolicy is an exact match. */
-        if(channel && channel->securityPolicy != sp)
-            continue;
 
         /* Copy into the results */
         for(size_t i = 0; i < clone_times; ++i) {
@@ -584,7 +578,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
     response->responseHeader.serviceResult =
-        setCurrentEndPointsArray(server, NULL, request->endpointUrl,
+        setCurrentEndpointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
     return true;

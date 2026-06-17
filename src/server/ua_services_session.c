@@ -628,8 +628,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                                 &response->serverCertificate);
 
     /* Copy the server's endpointdescriptions into the response */
-    rh->serviceResult |= setCurrentEndPointsArray(server, channel,
-                                                  request->endpointUrl,
+    rh->serviceResult |= setCurrentEndpointsArray(server, request->endpointUrl,
                                                   NULL, 0,
                                                   &response->serverEndpoints,
                                                   &response->serverEndpointsSize);
@@ -777,7 +776,7 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
             identityToken->content.decoded.data;
 
-        /* In setCurrentEndPointsArray we prepend the PolicyId with the
+        /* In setCurrentEndpointsArray we prepend the PolicyId with the
          * SecurityMode of the endpoint and the postfix of the
          * SecurityPolicyUri to make it unique. Check the PolicyId. */
         if(pol->policyId.length > token->policyId.length)
