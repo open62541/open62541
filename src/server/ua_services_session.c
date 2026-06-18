@@ -623,7 +623,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
                                             &response->serverNonce);
-    if(sessionSp && channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+    /* The CreateSessionResponse carries the Server's application instance
+     * certificate so the Client can encrypt the UserIdentityToken with it. This
+     * is needed even on a #None SecureChannel when the user token is encrypted
+     * "on top" (sessionSp is then the user-token encryption policy, whose
+     * localCertificate is the Server certificate; the #None channel policy has
+     * no certificate). So copy it whenever a session-auth SecurityPolicy was
+     * instantiated, regardless of the channel SecurityMode. */
+    if(sessionSp)
         rh->serviceResult |= UA_ByteString_copy(&sessionSp->localCertificate,
                                                 &response->serverCertificate);
 
