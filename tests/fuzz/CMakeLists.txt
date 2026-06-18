@@ -34,14 +34,14 @@ if(NOT UA_BUILD_OSS_FUZZ)
 
     # oss-fuzz builds already include these flags
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fsanitize=address")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fsanitize=address")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fsanitize=address,undefined,fuzzer-no-link")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fsanitize=address,undefined,fuzzer-no-link")
     elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -fsanitize=address,undefined,fuzzer-no-link")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address,undefined,fuzzer-no-link")
     else()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -fsanitize=address,undefined,fuzzer-no-link")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address,undefined,fuzzer-no-link")
     endif()
 
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
@@ -54,7 +54,7 @@ else()
 endif()
 
 list(APPEND LIBS "${open62541_LIBRARIES}")
-link_libraries("-fsanitize=fuzzer")
+link_libraries("-fsanitize=address,undefined,fuzzer")
 
 # the fuzzer test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
@@ -76,6 +76,7 @@ endmacro()
 
 # Add new fuzzers here
 add_fuzzer(fuzz_server_services fuzz_server_services.cc)
+add_fuzzer(fuzz_process_request fuzz_process_request.cc)
 add_fuzzer(fuzz_client fuzz_client.cc)
 add_fuzzer(fuzz_pubsub_connection_config fuzz_pubsub_connection_config.cc)
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)

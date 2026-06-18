@@ -825,9 +825,8 @@ START_TEST(Client_connectTimeoutRecovery) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cconfig);
 
     /* Connect and disconnect to establish clean CLOSED state */
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");

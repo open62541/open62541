@@ -333,6 +333,59 @@ START_TEST(Client_subscription_async) {
 }
 END_TEST
 
+START_TEST(Client_subscription_delete_async_noCallback) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create a subscription synchronously */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Delete the subscription asynchronously without a userland callback.
+     * This must not dereference a NULL callback pointer. */
+    UA_UInt32 requestId = 0;
+    UA_DeleteSubscriptionsRequest subDeleteRequest;
+    UA_DeleteSubscriptionsRequest_init(&subDeleteRequest);
+    subDeleteRequest.subscriptionIds = &subId;
+    subDeleteRequest.subscriptionIdsSize = 1;
+    retval = UA_Client_Subscriptions_delete_async(client, subDeleteRequest,
+                                                  NULL, NULL, &requestId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Run until the async response has been processed and the subscription
+     * has been removed from the internal representation. A missing NULL-check
+     * on the userland callback would crash here. */
+    void *ctx = NULL;
+    UA_DateTime maxStop = UA_DateTime_nowMonotonic() + (UA_DateTime)(2 * UA_DATETIME_SEC);
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(UA_Client_Subscriptions_getContext(client, subId, &ctx) ==
+            UA_STATUSCODE_GOOD &&
+            UA_DateTime_nowMonotonic() < maxStop);
+
+    /* The subscription has been removed from the internal representation */
+    retval = UA_Client_Subscriptions_getContext(client, subId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    /* run the server in an independent thread again */
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_createDataChanges) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2000,6 +2053,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription);
     tcase_add_test(tc_client, Client_subscription_async);
+    tcase_add_test(tc_client, Client_subscription_delete_async_noCallback);
     tcase_add_test(tc_client, Client_subscription_statusChange);
     tcase_add_test(tc_client, Client_subscription_timeout);
     tcase_add_test(tc_client, Client_subscription_detach);
