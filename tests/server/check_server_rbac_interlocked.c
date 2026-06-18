@@ -35,15 +35,14 @@
 
 static UA_Server *server = NULL;
 
-/* The well-known admin session id installed by UA_Server_new() so test
+/* The well-known admin session id installed by UA_Server_newForUnitTest() so test
  * code can act as that session via the session-attribute API. */
 static const UA_NodeId adminSessionId =
     {0, UA_NODEIDTYPE_GUID, {.guid = {1, 0, 0, {0,0,0,0,0,0,0,0}}}};
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 }
 
 static void teardown(void) {
