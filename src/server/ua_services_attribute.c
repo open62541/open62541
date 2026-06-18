@@ -1780,8 +1780,12 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
-            /* Writing the StatusCode requires the StatusWrite bit */
-            if(wvalue->value.hasStatus) {
+            /* Writing a StatusCode different to "Good" requires the
+             * StatusWrite bit (see OPC specification 10000-3: AccessLevelType;
+             * https://reference.opcfoundation.org/specs/OPC-10000-3/v1.05.06/8.57)
+             */
+            if(   (wvalue->value.hasStatus)
+               && (wvalue->value.status != UA_STATUSCODE_GOOD)) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -1793,8 +1797,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                     break;
                 }
             }
-            /* Writing the SourceTimestamp requires the TimestampWrite bit */
-            if(wvalue->value.hasSourceTimestamp) {
+            /* Writing a SourceTimestamp different to NULL requires the
+             * TimestampWrite bit (see OPC specification 10000-3:
+             * AccessLevelType;
+             * https://reference.opcfoundation.org/specs/OPC-10000-3/v1.05.06/8.57)
+             */
+            if(   (wvalue->value.hasSourceTimestamp)
+               && (wvalue->value.sourceTimestamp != (UA_DateTime)(0))) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
