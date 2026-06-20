@@ -172,25 +172,37 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         return retval;
     }
 
-    /* Length of the encrypted content. If the InitializationVectorLength is
-     * less than 16 bytes, then 16 bytes are used instead. */
-    size_t encryptedLength =
-        UA_ByteString_calcSizeBinary(&secret.nonce) +
-        UA_ByteString_calcSizeBinary(&secret.secret) + 2; /* Incl padding length */
-    size_t paddingIvLen = ivLen;
-    if(paddingIvLen < 16)
-        paddingIvLen = 16;
-    size_t paddingLen = paddingIvLen - (encryptedLength % paddingIvLen);
-    encryptedLength += paddingLen;
+    /* Compute the padding. the alignment block is 16 bytes for AEAD (AES-GCM)
+     * and the IV/block size for CBC. The padding region is `paddingCount` bytes
+     * of value paddingCount, followed by a 2-byte padding-size field
+     * (PaddingSize | ExtraPaddingSize); those 2 bytes are included in the
+     * alignment. */
+    size_t blockSize = aead ? 16 : ivLen;
+    size_t baseLen = UA_ByteString_calcSizeBinary(&secret.nonce) +
+                     UA_ByteString_calcSizeBinary(&secret.secret);
+    size_t modLen = (baseLen + 2) % blockSize;
+    size_t paddingCount = (modLen == 0) ? 0 : (blockSize - modLen);
+    if(paddingCount + secret.secret.length < blockSize)
+        paddingCount += blockSize;
+    size_t encryptedLength = baseLen + paddingCount + 2;
 
     /* Compute the total length including the headers and the signature */
     size_t signatureLen = sp->asymSignatureAlgorithm.
         getLocalSignatureSize(sp, spContext);
     secret.keyDataLen = (UA_UInt16)
         UA_EccEncryptedSecret_getPolicyHeaderSize(&secret);
-    size_t totalLength = encryptedLength + secret.keyDataLen +
+    size_t totalLength = encryptedLength + tagLen + secret.keyDataLen +
         UA_EccEncryptedSecret_getCommonHeaderSize(&secret) + signatureLen;
-    secret.length = (UA_UInt32)totalLength;
+
+    /* The EncryptedSecret "Length" field is the number of bytes that FOLLOW the
+     * Length field, not the full serialized size. Subtract the common-header
+     * prefix (TypeId NodeId + EncodingByte + the Length field itself = 9
+     * bytes). */
+    size_t headerPrefix =
+        UA_calcSizeBinary(&secret.typeId, &UA_TYPES[UA_TYPES_NODEID], NULL) +
+        UA_calcSizeBinary(&secret.encodingMask, &UA_TYPES[UA_TYPES_BYTE], NULL) +
+        UA_calcSizeBinary(&secret.length, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    secret.length = (UA_UInt32)(totalLength - headerPrefix);
 
     /* Compute the symmetric key to encrypt */
     UA_ByteString symEncKeyMaterial;
@@ -328,9 +340,25 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         goto cleanecc;
     }
 
+    /* The "Length" field counts the bytes following the Length field, so the
+     * end of the secret is (Length + the common-header prefix: TypeId NodeId +
+     * EncodingByte + Length field). Validate it and use it (instead of the
+     * whole ByteString size) for the payload/signature bounds. */
+    size_t headerPrefix =
+        UA_calcSizeBinary(&esd.typeId, &UA_TYPES[UA_TYPES_NODEID], NULL) +
+        UA_calcSizeBinary(&esd.encodingMask, &UA_TYPES[UA_TYPES_BYTE], NULL) +
+        UA_calcSizeBinary(&esd.length, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    size_t endOfSecret = (size_t)esd.length + headerPrefix;
+    if(endOfSecret > es->length || endOfSecret <= offset) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                             "Inconsistent Length field");
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        goto cleanecc;
+    }
+
     /* Verify signature */
     size_t sigLen = sp->asymSignatureAlgorithm.getRemoteSignatureSize(sp, spContext);
-    size_t signedDataLen = es->length - sigLen;
+    size_t signedDataLen = endOfSecret - sigLen;
     UA_ByteString signedData = {signedDataLen, es->data};
     UA_ByteString signature = {sigLen, &es->data[signedDataLen]};
     res = sp->asymSignatureAlgorithm.verify(sp, spContext, &signedData, &signature);
@@ -358,13 +386,13 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
     }
 
     /* Check the payload length */
-    if(es->length <= offset + sigLen) {
+    if(endOfSecret <= offset + sigLen) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Inconstent payload / signature length");
         res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         goto cleanecc;
     }
-    UA_ByteString payload = {es->length - offset - sigLen, es->data + offset};
+    UA_ByteString payload = {endOfSecret - offset - sigLen, es->data + offset};
 
     /* Deriving (remote) symmetric encryption key to decrypt the payload */
     size_t symKeyLen = sp->symEncryptionAlgorithm.getRemoteKeyLength(sp, spContext);
