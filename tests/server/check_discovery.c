@@ -193,11 +193,7 @@ registerServer(void) {
     privateKey.data = KEY_DER_DATA;
 
     UA_ClientConfig cc;
-    memset(&cc, 0, sizeof(UA_ClientConfig));
-    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
-    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
-    cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
-    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -224,11 +220,7 @@ unregisterServer(void) {
     privateKey.data = KEY_DER_DATA;
 
     UA_ClientConfig cc;
-    memset(&cc, 0, sizeof(UA_ClientConfig));
-    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
-    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
-    cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
-    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -269,11 +261,7 @@ Server_register_semaphore(void) {
     privateKey.data = KEY_DER_DATA;
 
     UA_ClientConfig cc;
-    memset(&cc, 0, sizeof(UA_ClientConfig));
-    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
-    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
-    cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
-    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
