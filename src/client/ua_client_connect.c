@@ -1640,6 +1640,42 @@ createSessionCallback(UA_Client *client, void *userdata,
         client->sessionState = UA_SESSIONSTATE_CLOSED;
 }
 
+/* OPC UA Part 6 ECC: request an ephemeral ECDH key from the server by adding an
+ * "ECDHPolicyUri" entry (value = the user-token SecurityPolicy URI) to the
+ * request's AdditionalHeader. The server returns its ephemeral public key under
+ * "ECDHKey" in the response AdditionalHeader, which the client needs to encrypt
+ * an ECC UserIdentityToken. For non-ECC user-token policies this is a no-op.
+ * The caller must clear the AdditionalHeader after sending. */
+static UA_StatusCode
+requestServerEphemeralKey(UA_Client *client, UA_RequestHeader *rh) {
+    UA_SecurityPolicy *utpSp = client->utpSp;
+    if(!utpSp || (utpSp->policyType != UA_SECURITYPOLICYTYPE_ECC &&
+                  utpSp->policyType != UA_SECURITYPOLICYTYPE_ECC_AEAD))
+        return UA_STATUSCODE_GOOD;
+
+    UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
+    if(!ap)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    ap->parameters = (UA_KeyValuePair*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(!ap->parameters) {
+        UA_AdditionalParametersType_delete(ap);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    ap->parametersSize = 1;
+    ap->parameters[0].key = UA_QUALIFIEDNAME_ALLOC(0, "ECDHPolicyUri");
+    UA_StatusCode res =
+        UA_Variant_setScalarCopy(&ap->parameters[0].value, &utpSp->policyUri,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_AdditionalParametersType_delete(ap);
+        return res;
+    }
+    UA_ExtensionObject_setValue(&rh->additionalHeader, ap,
+                                &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 createSessionAsync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -1698,11 +1734,20 @@ createSessionAsync(UA_Client *client) {
      * ApplicationCertificate */
     request.clientCertificate = client->channel.securityPolicy->localCertificate;
 
+    /* For ECC policies, request the server's ephemeral ECDH key (needed to
+     * encrypt the UserIdentityToken in ActivateSession). */
+    res = requestServerEphemeralKey(client, &request.requestHeader);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Send the request */
     res = __Client_AsyncService(client, &request,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                                 (UA_ClientAsyncServiceCallback)createSessionCallback,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
+
+    /* The request is encoded+sent synchronously; release the AdditionalHeader. */
+    UA_ExtensionObject_clear(&request.requestHeader.additionalHeader);
 
     if(res == UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CREATE_REQUESTED;
