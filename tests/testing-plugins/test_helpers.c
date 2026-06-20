@@ -4,6 +4,7 @@
 
 #include "test_helpers.h"
 #include <open62541/client_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
@@ -110,4 +111,24 @@ UA_Client_newForUnitTest(void) {
     config->globalNotificationCallback = testClientNotificationCallback;
 
     return client;
+}
+
+UA_StatusCode
+UA_ClientConfig_newForUnitTestWithEncryption(UA_ClientConfig *config,
+                                             const UA_ByteString certificate,
+                                             const UA_ByteString privateKey) {
+    memset(config, 0, sizeof(UA_ClientConfig));
+    config->logging = UA_Log_Stdout_new(TESTING_LOGLEVEL);
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ClientConfig_setDefaultEncryption(config, certificate, privateKey,
+                                         NULL, 0, NULL, 0);
+#endif
+    UA_CertificateGroup_AcceptAll(&config->certificateVerification);
+    config->eventLoop->dateTime_now = UA_DateTime_now_fake;
+    config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    config->tcpReuseAddr = true;
+    config->allowNonePolicyPassword = true;
+    config->timeout = 10 * 60 * 1000; /* increased for valgrind CI */
+    config->globalNotificationCallback = testClientNotificationCallback;
+    return UA_STATUSCODE_GOOD;
 }
