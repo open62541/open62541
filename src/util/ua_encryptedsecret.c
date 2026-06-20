@@ -127,9 +127,17 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                             UA_ByteString *tokenData,
                             const UA_ByteString serverSessionNonce,
                             const UA_ByteString serverEphemeralPubKey) {
-    /* Extract some basic information from the SecurityPolicy */
+    /* Extract some basic information from the SecurityPolicy. AEAD policies
+     * (AES-GCM) expose a dedicated IV length (12 bytes) and append an
+     * authentication tag after the ciphertext; legacy CBC policies use the
+     * cipher block size as the IV length and have no tag. */
+    UA_Boolean aead = UA_SecurityPolicy_isAead(sp);
     size_t symKeyLen = sp->symEncryptionAlgorithm.getLocalKeyLength(sp, spContext);
-    size_t ivLen = sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
+    size_t ivLen = (aead && sp->symEncryptionAlgorithm.getLocalIvLength) ?
+        sp->symEncryptionAlgorithm.getLocalIvLength(sp, spContext) :
+        sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
+    size_t tagLen = aead ?
+        sp->symSignatureAlgorithm.getLocalSignatureSize(sp, spContext) : 0;
     size_t sigLen = sp->asymSignatureAlgorithm.getRemoteSignatureSize(sp, spContext);
     UA_assert(symKeyLen > 0 && ivLen > 0);
 
@@ -260,21 +268,32 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
     UA_Byte* payloadPos = bufPos;
     retval |= UA_ByteString_encodeBinary(&secret.nonce, &bufPos, bufEnd);
     retval |= UA_ByteString_encodeBinary(&secret.secret, &bufPos, bufEnd);
-    UA_Byte pad = paddingLen & 0xFF;
-    for(size_t i = 0; i < paddingLen; i++) {
+    UA_Byte pad = (UA_Byte)(paddingCount & 0xFF);
+    for(size_t i = 0; i < paddingCount; i++) {
         *bufPos = pad;
         bufPos++;
     }
-    UA_UInt16 paddingLen16 = (UA_UInt16)paddingLen;
-    retval |= UA_UInt16_encodeBinary(&paddingLen16, &bufPos, bufEnd);
+    /* 2-byte padding-size field: PaddingSize byte + ExtraPaddingSize byte.
+     * For paddingCount < 256 this equals the little-endian UInt16. */
+    UA_UInt16 paddingCount16 = (UA_UInt16)paddingCount;
+    retval |= UA_UInt16_encodeBinary(&paddingCount16, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_EccEncryptedSecretStruct_clear(&secret);
         UA_ByteString_clear(&output);
         return retval;
     }
 
-    /* Encrypt the payload part in-situ */
-    UA_ByteString payload = {(size_t)(bufPos - payloadPos), payloadPos};
+    /* Encrypt the payload region in-situ. For AEAD (AES-GCM) the GCM primitive
+     * writes the authentication tag into the last `tagLen` bytes of the buffer
+     * it is given, so the region passed in spans the plaintext plus the
+     * reserved tag bytes. The AAD is the EccEncryptedSecret header preceding
+     * the encrypted region, and the IV is used unmasked (tokenId / sequence
+     * number = 0). */
+    UA_ByteString payload = {(size_t)(bufPos - payloadPos) + tagLen, payloadPos};
+    if(aead) {
+        UA_ByteString aad = {(size_t)(payloadPos - output.data), output.data};
+        retval |= sp->setMessageSecurityParameters(sp, spContext, 0, 0, &aad);
+    }
     retval |= sp->symEncryptionAlgorithm.encrypt(sp, spContext, &payload);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel,
@@ -284,9 +303,12 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         return retval;
     }
 
+    /* The authentication tag (if any) now occupies the next tagLen bytes;
+     * advance past it to the signature slot. */
+    bufPos += tagLen;
     UA_assert(bufPos + sigLen == bufEnd);
 
-    /* Compute the overall signature */
+    /* Compute the overall signature over everything except the signature. */
     UA_ByteString sigContent = {(size_t)(bufPos - output.data), output.data};
     UA_ByteString signature = {sigLen, bufPos};
     retval = sp->asymSignatureAlgorithm.sign(sp, spContext, &sigContent, &signature);
@@ -312,7 +334,7 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                     UA_ByteString sessionServerNonce,
                     UA_EccEncryptedSecret *es) {
     /* ECC usage verified before calling into this function */
-    UA_assert(sp->policyType == UA_SECURITYPOLICYTYPE_ECC);
+    UA_assert(UA_SecurityPolicy_isEcc(sp));
 
     /* Define and initialize in case of clean-up */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -394,9 +416,14 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
     }
     UA_ByteString payload = {endOfSecret - offset - sigLen, es->data + offset};
 
-    /* Deriving (remote) symmetric encryption key to decrypt the payload */
+    /* Deriving (remote) symmetric encryption key to decrypt the payload.
+     * AEAD policies (AES-GCM) use a dedicated 12-byte IV length; legacy CBC
+     * uses the cipher block size. */
+    UA_Boolean aead = UA_SecurityPolicy_isAead(sp);
     size_t symKeyLen = sp->symEncryptionAlgorithm.getRemoteKeyLength(sp, spContext);
-    size_t ivLen = sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
+    size_t ivLen = (aead && sp->symEncryptionAlgorithm.getLocalIvLength) ?
+        sp->symEncryptionAlgorithm.getLocalIvLength(sp, spContext) :
+        sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
     res = UA_ByteString_allocBuffer(&symEncKeyMaterial, symKeyLen+ivLen);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanecc;
@@ -432,6 +459,20 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Failed to set IV/RemoteSymEncryptingKey");
         goto cleanecc;
+    }
+
+    /* For AEAD (AES-GCM), the AAD is the EccEncryptedSecret header that
+     * precedes the encrypted region and the IV is used unmasked (tokenId /
+     * sequence number = 0). The 16-byte tag at the end of the payload is
+     * verified (and stripped) by the decrypt. */
+    if(aead) {
+        UA_ByteString aad = {(size_t)(payload.data - es->data), es->data};
+        res = sp->setMessageSecurityParameters(sp, spContext, 0, 0, &aad);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                                 "Failed to set AEAD parameters");
+            goto cleanecc;
+        }
     }
 
     /* Decrypt payload (password) */
