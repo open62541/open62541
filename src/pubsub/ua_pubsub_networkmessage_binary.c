@@ -722,11 +722,11 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
         if(nm->payloadHeaderEnabled) {
             /* Decode from the message */
             for(size_t i = 0; i < nm->messageCount; i++) {
-                rv |= _DECODE_BINARY(&dataSetMessageSizes[i], UINT16);
+                rv = _DECODE_BINARY(&dataSetMessageSizes[i], UINT16);
+                UA_CHECK_STATUS(rv, return rv);
                 if(dataSetMessageSizes[i] == 0)
                     return UA_STATUSCODE_BADDECODINGERROR;
             }
-            UA_CHECK_STATUS(rv, return rv);
         } else {
             /* If no PayloadHeader is defined, then assume the EncodingOptions
              * reflect the DataSetMessages */

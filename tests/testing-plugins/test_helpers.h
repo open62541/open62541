@@ -33,4 +33,9 @@ UA_Server_newForUnitTestWithSecurityPolicies_Filestore(UA_UInt16 portNumber,
 
 UA_Client * UA_Client_newForUnitTest(void);
 
+UA_StatusCode
+UA_ClientConfig_newForUnitTestWithEncryption(UA_ClientConfig *config,
+                                             const UA_ByteString certificate,
+                                             const UA_ByteString privateKey);
+
 #endif /* TEST_HELPERS_H_ */
