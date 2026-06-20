@@ -283,7 +283,12 @@ START_TEST(client_connect_none_username_eccpnist256) {
 
     UA_StatusCode retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "admin", "admin");
 
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* ECC (and RSA-DH) policies must NOT be used to secure a UserIdentityToken
+     * over a #None SecureChannel: they rely on ephemeral key agreement that
+     * must be bound to a secured channel. With only an ECC policy available the
+     * server has no static-RSA policy to encrypt the password, so it does not
+     * offer the username UserTokenPolicy and the connect is rejected. */
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
