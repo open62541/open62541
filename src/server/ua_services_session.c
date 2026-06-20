@@ -240,24 +240,38 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     /* Prepare the signature */
     const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
     size_t signatureSize = signAlg->getLocalSignatureSize(sp, cc);
-    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* OPC UA Part 4 v1.05.07: for SecurityPolicies with
+     * secureChannelEnhancements = true, the algorithm field in
+     * SignatureData shall be NULL or empty and receivers shall
+     * ignore the value. */
+    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+        retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Allocate a temp buffer */
-    size_t dataToSignSize =
-        request->clientCertificate.length + request->clientNonce.length;
-    UA_ByteString dataToSign;
-    retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
+    /* Build the data to sign. */
+    UA_ByteString dataToSign = UA_BYTESTRING_NULL;
+    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+        /* Channel-bound v1.05.07 signature (see the cert-role table at
+         * UA_SecureChannel_buildCreateSessionSignatureData). */
+        retval = UA_SecureChannel_buildCreateSessionSignatureData(
+            channel, &request->clientNonce, &response->serverNonce,
+            &sp->localCertificate, &channel->remoteCertificate, &dataToSign);
+    } else {
+        retval = UA_ByteString_allocBuffer(&dataToSign,
+            request->clientCertificate.length + request->clientNonce.length);
+        if(retval == UA_STATUSCODE_GOOD) {
+            memcpy(dataToSign.data, request->clientCertificate.data,
+                   request->clientCertificate.length);
+            memcpy(dataToSign.data + request->clientCertificate.length,
+                   request->clientNonce.data, request->clientNonce.length);
+        }
+    }
     if(retval != UA_STATUSCODE_GOOD)
         return retval; /* signatureData->signature is cleaned up with the response */
 
-    /* Sign the signature */
-    memcpy(dataToSign.data, request->clientCertificate.data,
-           request->clientCertificate.length);
-    memcpy(dataToSign.data + request->clientCertificate.length,
-           request->clientNonce.data, request->clientNonce.length);
     retval = signAlg->sign(sp, cc, &dataToSign, &signatureData->signature);
 
     /* Clean up */
@@ -522,28 +536,20 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
     }
 
-    /* According to the spec, the ClientNonce needs a length between 32 and 128
-     * bytes inclusive. Some deprecated SecurityPolicies have 16 byte. If both
-     * sides still allow that, proceed to connect to legacy devices. */
+    /* According to the spec, the (session) ClientNonce needs a length between
+     * 32 and 128 bytes inclusive. This is the application nonce length and is
+     * independent of the SecurityPolicy's SecureChannel nonce length (for ECC
+     * policies that is the 64-byte ephemeral key, which is NOT the session
+     * nonce). */
     if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
-       (request->clientNonce.length < sp->nonceLength ||
-        request->clientNonce.length > 128)) {
-        /* Workaround: Give a warning (but allow) if the nonce length is between
-         * 32 and sp->nonceLength */
-        if(request->clientNonce.length >= 32 &&
-           request->clientNonce.length < sp->nonceLength) {
-            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                                   "CreateSession: The nonce provided by the client "
-                                   "has the wrong length (but at least 32 bytes)");
-        } else {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "CreateSession: The nonce provided by the client "
-                                 "has the wrong length");
-            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-            server->serverDiagnosticsSummary.rejectedSessionCount++;
-            rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
-            return;
-        }
+       (request->clientNonce.length < 32 || request->clientNonce.length > 128)) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "CreateSession: The nonce provided by the client "
+                             "has the wrong length");
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+        server->serverDiagnosticsSummary.rejectedSessionCount++;
+        rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        return;
     }
 
     /* Create the Session */
@@ -574,6 +580,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(channel->remoteCertificate.length == 0)
         rh->serviceResult |= UA_ByteString_copy(&request->clientCertificate,
                                                 &newSession->clientCertificate);
+
+    /* Retain the clientNonce for the v1.05.07 channel-bound
+     * ActivateSession ClientSignature verification
+     * (secureChannelEnhancements). */
+    rh->serviceResult |= UA_ByteString_copy(&request->clientNonce,
+                                            &newSession->clientNonce);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     rh->serviceResult |= UA_String_copy(&request->serverUri,
@@ -627,8 +639,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * The private part of the ephemeral key is persisted in the
      * Session-SecurityPolicy context. Until it gets overridden during
      * ActivateSession. */
-    if(sessionSp && (sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC ||
-                     sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) &&
+    if(sessionSp && UA_SecurityPolicy_isEcc(sessionSp) &&
        clientRequestedEphemeralKey(&request->requestHeader.additionalHeader)) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, newSession,
                                                             &rh->additionalHeader);
@@ -908,10 +919,35 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
         return res;
     }
 
-    /* Check the user token signature */
-    res = checkCertificateSignature(server, tokenSp, tempChannelContext, &session->serverNonce,
-                                    tokenSignature, true,
-                                    (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
+    /* Check the user token signature. The channel-bound v1.05.07 layout (see
+     * the cert-role table at UA_SecureChannel_buildUserTokenSignatureData) is
+     * used only when BOTH the SecureChannel AND the user-token SecurityPolicy
+     * are enhanced; a legacy RSA / old-ECC user token uses the legacy layout
+     * even over an enhanced (AesGcm) SecureChannel. */
+    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
+       UA_SecurityPolicy_isEnhancedSecurity(tokenSp)) {
+        if(tokenSignature->signature.length == 0) {
+            res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
+            goto out;
+        }
+        UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
+        res = UA_SecureChannel_buildUserTokenSignatureData(
+            channel, &session->serverNonce, &session->clientNonce,
+            &channel->securityPolicy->localCertificate,
+            &channel->securityPolicy->localCertificate,
+            &channel->remoteCertificate, &channel->remoteCertificate, &dataToVerify);
+        if(res == UA_STATUSCODE_GOOD) {
+            res = tokenSp->asymSignatureAlgorithm.verify(
+                tokenSp, tempChannelContext, &dataToVerify, &tokenSignature->signature);
+            if(res != UA_STATUSCODE_GOOD)
+                res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
+        }
+        UA_ByteString_clear(&dataToVerify);
+    } else {
+        res = checkCertificateSignature(server, tokenSp, tempChannelContext, &session->serverNonce,
+                                        tokenSignature, true,
+                                        (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
+    }
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: User token signature check "
@@ -970,7 +1006,7 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
     /* Decrypt the token. Differentiate between secret encryptions (ECC,
      * legacy).
      * TODO: Implement "modern" RSA secret encryption */
-    if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    if(UA_SecurityPolicy_isEcc(tokenSp)) {
         res = decryptUserTokenEcc(server->config.logging, channel,
                                 session->sessionSp, session->sessionSpContext,
                                 session->serverNonce, token);
@@ -1051,10 +1087,34 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Check the client signature */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        rh->serviceResult =
-            checkCertificateSignature(server, channel->securityPolicy,
-                                      channel->channelContext, &session->serverNonce,
-                                      &req->clientSignature, false, false);
+        const UA_SecurityPolicy *csp = channel->securityPolicy;
+        if(UA_SecurityPolicy_isEnhancedSecurity(csp)) {
+            /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
+             * UA_SecureChannel_buildActivateSessionSignatureData). clientNonce is
+             * the ClientNonce stored at CreateSession. */
+            if(req->clientSignature.signature.length == 0) {
+                rh->serviceResult = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+            } else {
+                UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
+                rh->serviceResult = UA_SecureChannel_buildActivateSessionSignatureData(
+                    channel, &session->serverNonce, &session->clientNonce,
+                    &csp->localCertificate, &csp->localCertificate,
+                    &channel->remoteCertificate, &dataToVerify);
+                if(rh->serviceResult == UA_STATUSCODE_GOOD) {
+                    rh->serviceResult = csp->asymSignatureAlgorithm.verify(
+                        csp, channel->channelContext, &dataToVerify,
+                        &req->clientSignature.signature);
+                    if(rh->serviceResult != UA_STATUSCODE_GOOD)
+                        rh->serviceResult = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+                }
+                UA_ByteString_clear(&dataToVerify);
+            }
+        } else {
+            rh->serviceResult =
+                checkCertificateSignature(server, channel->securityPolicy,
+                                          channel->channelContext, &session->serverNonce,
+                                          &req->clientSignature, false, false);
+        }
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "ActivateSession: Client signature check failed "
@@ -1184,8 +1244,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * ActivateSession response */
     const UA_SecurityPolicy *sessionSp = session->sessionSp;
     if(sessionSp && session->sessionSpContext &&
-       (sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC ||
-        sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) &&
+       UA_SecurityPolicy_isEcc(sessionSp) &&
        clientRequestedEphemeralKey(&req->requestHeader.additionalHeader)) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
                                                             &rh->additionalHeader);

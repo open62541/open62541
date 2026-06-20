@@ -59,6 +59,11 @@ struct UA_Session {
 
     UA_ByteString serverNonce;
 
+    /* The clientNonce from the CreateSession request. Retained for the
+     * v1.05.07 channel-bound ActivateSession ClientSignature verification
+     * (secureChannelEnhancements). */
+    UA_ByteString clientNonce;
+
     UA_ApplicationDescription clientDescription;
     UA_ByteString clientCertificate; /* Must be the same as for the
                                       * SecureChannel. If the SecureChannel is
