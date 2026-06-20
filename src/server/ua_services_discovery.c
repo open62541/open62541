@@ -312,15 +312,20 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
     UA_SecurityPolicy *best = NULL;
     UA_Byte securityLevel = 0;
 
+    (void)type;
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
             continue;
-        if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
-           type == UA_SECURITYPOLICYTYPE_ECC)
-            continue;
-        if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC &&
-           type == UA_SECURITYPOLICYTYPE_RSA)
+        /* This SecurityPolicy is used to secure a UserIdentityToken on top of a
+         * #None SecureChannel (the only situation this function is called for).
+         * ECC and RSA-DH policies use ephemeral key agreement that must be
+         * bound to a secured SecureChannel - they must never be used to secure
+         * an auth token over #None. Only the static-RSA encryption policies
+         * (e.g. Basic256Sha256, Aes*_RsaOaep/RsaPss) qualify. */
+        UA_Boolean spIsEcc = (sp->policyType == UA_SECURITYPOLICYTYPE_ECC ||
+                              sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD);
+        if(spIsEcc || UA_SecurityPolicy_isEnhancedSecurity(sp))
             continue;
         /* Return early with Basic256Sha256 when available. "Secure enough" and
          * most clients support it.*/
