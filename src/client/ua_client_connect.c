@@ -918,8 +918,10 @@ responseActivateSession(UA_Client *client, void *userdata,
         return;
     }
 
-    /* Check the nonce length */
-    if(ar->serverNonce.length < client->utpSp->nonceLength) {
+    /* Check the (session) nonce length. The session nonce is the application
+     * nonce (>= 32 bytes), independent of the SecurityPolicy's SecureChannel
+     * nonce length (e.g. the 64-byte ECC ephemeral key). */
+    if(ar->serverNonce.length < 32) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Session cannot be activated with a nonce "
                      "that is too short");
@@ -1606,8 +1608,10 @@ createSessionCallback(UA_Client *client, void *userdata,
     UA_NodeId_clear(&client->sessionId);
     res |= UA_NodeId_copy(&csr->sessionId, &client->sessionId);
 
-    /* Check the nonce length */
-    if(csr->serverNonce.length < client->utpSp->nonceLength) {
+    /* Check the (session) nonce length. The session nonce is the application
+     * nonce (>= 32 bytes), independent of the SecurityPolicy's SecureChannel
+     * nonce length (e.g. the 64-byte ECC ephemeral key). */
+    if(csr->serverNonce.length < 32) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Session cannot be created with a nonce "
                      "that is too short");
