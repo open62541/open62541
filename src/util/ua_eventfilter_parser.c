@@ -8,6 +8,11 @@
 
 #include "ua_eventfilter_parser.h"
 
+/* Maximum nesting depth of the operand tree. Bounds the recursion when
+ * resolving references and walking the tree, so that deeply nested expressions
+ * (e.g. long operator chains) cannot overflow the native stack. */
+#define UA_EVENTFILTER_MAXDEPTH 64
+
 void
 pos2lines(const UA_ByteString content, size_t pos,
           unsigned *outLine, unsigned *outCol) {
@@ -54,7 +59,7 @@ findOperand(EFParseContext *ctx, char *ref) {
 
 static Operand *
 resolveOperandRef(EFParseContext *ctx, Operand *op, size_t depth) {
-    if(depth > ctx->operandsSize)
+    if(depth > UA_EVENTFILTER_MAXDEPTH || depth > ctx->operandsSize)
         return NULL; /* prevent infinite recursion */
     if(!op)
         return NULL;
@@ -127,7 +132,11 @@ append_operand(Operand *op, Operand *on) {
 /* Count the number of elements for the filter. Mark all required elements that
  * appear in the hierarchy from the top element. */
 static size_t
-markPrinted(EFParseContext *ctx, Operand *top, UA_StatusCode *res) {
+markPrinted(EFParseContext *ctx, Operand *top, size_t depth, UA_StatusCode *res) {
+    if(depth > UA_EVENTFILTER_MAXDEPTH) {
+        *res |= UA_STATUSCODE_BADINTERNALERROR; /* prevent stack overflow */
+        return 0;
+    }
     top = resolveOperandRef(ctx, top, 0);
     if(!top) {
         *res |= UA_STATUSCODE_BADINTERNALERROR;
@@ -140,7 +149,7 @@ markPrinted(EFParseContext *ctx, Operand *top, UA_StatusCode *res) {
     top->operand.op.required = true;
     size_t count = 1;
     for(size_t i = 0; i < top->operand.op.childrenSize; i++)
-        count += markPrinted(ctx, top->operand.op.children[i], res);
+        count += markPrinted(ctx, top->operand.op.children[i], depth+1, res);
     return count;
 }
 
@@ -260,7 +269,7 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    size_t count = markPrinted(ctx, top, &res); /* Count relevant filter elements */
+    size_t count = markPrinted(ctx, top, 0, &res); /* Count relevant filter elements */
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

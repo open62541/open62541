@@ -131,8 +131,10 @@ parse_nodeid_body(UA_NodeId *id, const u8 *body, const u8 *end, UA_Escaping esc)
         id->identifierType = UA_NODEIDTYPE_BYTESTRING;
         id->identifier.byteString.data =
             UA_unbase64(str.data, str.length, &id->identifier.byteString.length);
-        if(!id->identifier.byteString.data && str.length > 0)
-            res = UA_STATUSCODE_BADDECODINGERROR;
+        if(!id->identifier.byteString.data) {
+            UA_assert(id->identifier.byteString.length == 0);
+            res = UA_STATUSCODE_BADDECODINGERROR; /* Returned on error by UA_unbase64 */
+        }
         break;
     default:
         res = UA_STATUSCODE_BADDECODINGERROR;
@@ -960,10 +962,11 @@ parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
 
     /* Add current to the rp */
     res |= relativepath_addelem(rp, &current);
+
+ out:
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePathElement_clear(&current);
 
- out:
     /* Return the status */
     *ppos = pos;
     *done |= (res != UA_STATUSCODE_GOOD);

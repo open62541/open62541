@@ -1,3 +1,22 @@
+function Remove-BuildDir {
+    $procs = Get-Process | Where-Object { $_.Path -like "*\build\*" }
+    if ($procs) {
+        Write-Host -ForegroundColor Yellow "Waiting for processes to release build directory:"
+        $procs | Format-Table Id, Name, Path -AutoSize
+    }
+    $retries = 10
+    while ($retries -gt 0) {
+        try {
+            Remove-Item -Path build -Recurse -Force -ErrorAction Stop
+            return
+        } catch {
+            $retries--
+            if ($retries -eq 0) { throw }
+            Start-Sleep -Seconds 2
+        }
+    }
+}
+
 # cmake configuration command line
 $cmake_args = @('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake',
                 '-DVCPKG_TARGET_TRIPLET=x64-windows-static',
@@ -35,7 +54,7 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 cd ..
-Remove-Item -Path build -Recurse -Force
+Remove-BuildDir
 
 Write-Host -ForegroundColor Green "`n##### Building $env:CC_NAME examples #####`n"
 New-Item -ItemType directory -Path "build"
@@ -52,7 +71,7 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 cd ..
-Remove-Item -Path build -Recurse -Force
+Remove-BuildDir
 
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
 New-Item -ItemType directory -Path "build"
@@ -74,7 +93,7 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 cd ..
-Remove-Item -Path build -Recurse -Force
+Remove-BuildDir
 
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME (.dll) #####`n"
 New-Item -ItemType directory -Path "build"
@@ -90,4 +109,4 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 cd ..
-Remove-Item -Path build -Recurse -Force
+Remove-BuildDir
