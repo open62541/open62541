@@ -310,6 +310,28 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
     return res;
 }
 
+/* The client requests a server ephemeral ECDH key by adding an "ECDHPolicyUri"
+ * entry to the request's AdditionalHeader (an AdditionalParametersType). The
+ * server must return its ECDHKey only when this was requested. */
+static UA_Boolean
+clientRequestedEphemeralKey(const UA_ExtensionObject *additionalHeader) {
+    if(additionalHeader->encoding != UA_EXTENSIONOBJECT_DECODED &&
+       additionalHeader->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return false;
+    if(additionalHeader->content.decoded.type !=
+       &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE])
+        return false;
+    const UA_AdditionalParametersType *ap = (const UA_AdditionalParametersType*)
+        additionalHeader->content.decoded.data;
+    UA_String ecdhPolicyUri = UA_STRING("ECDHPolicyUri");
+    for(size_t i = 0; i < ap->parametersSize; i++) {
+        if(ap->parameters[i].key.namespaceIndex == 0 &&
+           UA_String_equal(&ap->parameters[i].key.name, &ecdhPolicyUri))
+            return true;
+    }
+    return false;
+}
+
 static UA_StatusCode
 addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
                                 UA_ExtensionObject *ah) {
@@ -605,7 +627,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * The private part of the ephemeral key is persisted in the
      * Session-SecurityPolicy context. Until it gets overridden during
      * ActivateSession. */
-    if(sessionSp && sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    if(sessionSp && (sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC ||
+                     sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) &&
+       clientRequestedEphemeralKey(&request->requestHeader.additionalHeader)) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, newSession,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
@@ -1160,7 +1184,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * ActivateSession response */
     const UA_SecurityPolicy *sessionSp = session->sessionSp;
     if(sessionSp && session->sessionSpContext &&
-       sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+       (sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC ||
+        sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) &&
+       clientRequestedEphemeralKey(&req->requestHeader.additionalHeader)) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
