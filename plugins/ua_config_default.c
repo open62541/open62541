@@ -215,7 +215,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define APPLICATION_URI "urn:open62541.unconfigured.application"
 
 /* Upper bound */
-#define SECURITY_POLICY_SIZE 12
+#define SECURITY_POLICY_SIZE 14
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -905,6 +905,80 @@ UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
     return UA_STATUSCODE_GOOD;
 }
 
+/* The AEAD ECC policies (AesGcm / ChaChaPoly) are only implemented in the
+ * OpenSSL backend; their constructors do not exist for mbedTLS. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256AesGcm(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccNistP256AesGcm(&config->securityPolicies[config->securityPoliciesSize],
+                                              UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                              localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccNistP256ChaChaPoly(&config->securityPolicies[config->securityPoliciesSize],
+                                                UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                                localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL (AEAD ECC policies) */
+
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
@@ -1118,6 +1192,30 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        "Could not add SecurityPolicy#EccNistP256 with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+    /* The AEAD ECC policies (AesGcm / ChaChaPoly) are only implemented in the
+     * OpenSSL backend; their constructors do not exist for mbedTLS. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    /* EccNistP256AesGcm */
+    retval = UA_SecurityPolicy_EccNistP256AesGcm(sp + *length, applicationType,
+                                                  certificate, privateKey, logging);
+    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
+                       "Could not add SecurityPolicy#EccNistP256_AesGcm with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    /* EccNistP256ChaChaPoly */
+    retval = UA_SecurityPolicy_EccNistP256ChaChaPoly(sp + *length, applicationType,
+                                                     certificate, privateKey, logging);
+    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
+                       "Could not add SecurityPolicy#EccNistP256_ChaChaPoly with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+#endif
 
     /* EccNistP384 */
     retval = UA_SecurityPolicy_EccNistP384(sp + *length, applicationType,
@@ -1807,7 +1905,39 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
                        "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
                        UA_StatusCode_name(retval));
-        eccnistp256Policy->clear(eccnistp256Policy);
+
+    /* EccNistP256AesGcm (OpenSSL-only AEAD policy; see note above). The block is
+     * brace-neutral, so excluding it for mbedTLS leaves the surrounding
+     * nistP256 if/else structure intact. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    UA_SecurityPolicy *eccnistp256AesGcmPolicy =
+        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
+    if(!eccnistp256AesGcmPolicy) {
+        UA_ByteString_memZero(&decryptedPrivateKey);
+        UA_ByteString_clear(&decryptedPrivateKey);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    retval = UA_SecurityPolicy_EccNistP256AesGcm(eccnistp256AesGcmPolicy,
+                                                  UA_APPLICATIONTYPE_SERVER,
+                                                  localCertificate, decryptedPrivateKey,
+                                                  config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                       "Could not add SecurityPolicy#ECC_nistP256_AesGcm with error code %s",
+                       UA_StatusCode_name(retval));
+        eccnistp256AesGcmPolicy->clear(eccnistp256AesGcmPolicy);
+        UA_free(eccnistp256AesGcmPolicy);
+        eccnistp256AesGcmPolicy = NULL;
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256AesGcmPolicy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#ECC_nistP256_AesGcm with error code %s",
+                           UA_StatusCode_name(retval));
+        }
+    }
+#endif
+    eccnistp256Policy->clear(eccnistp256Policy);
         UA_free(eccnistp256Policy);
         eccnistp256Policy = NULL;
     } else {

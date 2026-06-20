@@ -60,6 +60,20 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP256AesGcm(UA_SecurityPolicy *policy,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *policy,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_ByteString localCertificate,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
                               const UA_ApplicationType applicationType,
                               const UA_ByteString localCertificate,
