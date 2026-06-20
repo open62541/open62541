@@ -26,6 +26,25 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 
 _UA_BEGIN_DECLS
 
+/* True for the ECC SecurityPolicy family, including the AEAD variants
+ * (ECC_nistP256_AesGcm/ChaChaPoly, ECC_curve25519/448). Use this instead of
+ * spelling out the policyType enum pair at each call site. */
+static UA_INLINE UA_Boolean
+UA_SecurityPolicy_isEcc(const UA_SecurityPolicy *policy) {
+    return policy != NULL &&
+        (policy->policyType == UA_SECURITYPOLICYTYPE_ECC ||
+         policy->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD);
+}
+
+/* True for AEAD SecurityPolicies (AES-GCM / ChaCha20-Poly1305). These derive a
+ * combined encryption key + IV (no separate signing key) and authenticate via
+ * the cipher tag; the SecureChannel and EccEncryptedSecret code use this to
+ * switch on the AEAD message layout. */
+static UA_INLINE UA_Boolean
+UA_SecurityPolicy_isAead(const UA_SecurityPolicy *policy) {
+    return policy != NULL && policy->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD;
+}
+
 /* Forward-Declaration so the SecureChannel can point to a singly-linked list of
  * Sessions. This is only used in the server, not in the client. */
 struct UA_Session;
@@ -128,6 +147,38 @@ struct UA_SecureChannel {
     UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
 
+    /* Properties derived from the SecurityPolicy URI, cached when the policy is
+     * set (it is fixed for the channel's lifetime). This avoids re-evaluating
+     * UA_SecurityPolicy_isEnhancedSecurity / _useLegacySequenceNumbers (which
+     * scan the policy URI) on the per-chunk send and receive paths. */
+    UA_Boolean enhancedSecurity;      /* UA_SecurityPolicy_isEnhancedSecurity */
+    UA_Boolean legacySequenceNumbers; /* UA_SecurityPolicy_useLegacySequenceNumbers */
+
+    /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" for
+     * SecurityPolicies with secureChannelEnhancements = true.
+     * The first OPN request signature is appended to the data signed by
+     * the OPN response (and vice versa). Set on send, consumed on
+     * receive, then cleared. Never used on OPN renewals. */
+    UA_ByteString firstRequestSignature;
+
+    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" IKM chaining
+     * accumulator for SecurityPolicies with secureChannelEnhancements =
+     * true. The IKM is the size of the policy's shared secret (e.g. 32
+     * bytes for P-256). On each renewal, the policy's generateKey
+     * wrapper XORs the new shared secret with this value and writes the
+     * result back. The SecureChannel passes this value as a prefix of
+     * the `secret` ByteString to the policy's generateKey, where the
+     * policy strips and updates it. Zero-length on the first OPN. */
+    UA_ByteString currentIKM;
+
+    /* OPC UA Part 6 v1.05.07 ChannelThumbprint: the (verified) signature
+     * of the first OpenSecureChannel *response*. Captured once on the
+     * first OPN (client: on response verify; server: on response sign)
+     * and preserved across renewals. Used to bind the CreateSession /
+     * ActivateSession SignatureData to this SecureChannel. Only set for
+     * SecurityPolicies with secureChannelEnhancements = true. */
+    UA_ByteString channelThumbprint;
+
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
     UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
@@ -209,10 +260,50 @@ UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 
 UA_StatusCode
-UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel);
+UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel);
 
 UA_StatusCode
-generateRemoteKeys(const UA_SecureChannel *channel);
+generateRemoteKeys(UA_SecureChannel *channel);
+
+/* OPC UA Part 6 v1.05.07 (secureChannelEnhancements): build the
+ * channel-bound CreateSession ServerSignature data
+ *   channelThumbprint | clientNonce | H(serverChannelCert) |
+ *   H(clientChannelCert) | serverNonce
+ * Both the server (sign) and client (verify) call this with the same
+ * logical values. `out` is allocated by the callee. */
+UA_StatusCode
+UA_SecureChannel_buildCreateSessionSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *clientNonce,
+    const UA_ByteString *serverNonce, const UA_ByteString *serverChannelCert,
+    const UA_ByteString *clientChannelCert, UA_ByteString *out);
+
+/* OPC UA Part 6 v1.05.07: build the channel-bound ActivateSession
+ * ClientSignature data
+ *   channelThumbprint | serverNonce | H(serverAppCert) |
+ *   H(serverChannelCert) | H(clientChannelCert) | clientNonce
+ * `out` is allocated by the callee. */
+UA_StatusCode
+UA_SecureChannel_buildActivateSessionSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+    const UA_ByteString *serverChannelCert, const UA_ByteString *clientChannelCert,
+    UA_ByteString *out);
+
+/* OPC UA Part 6 v1.05.07: build the channel-bound ActivateSession
+ * user-token (X.509) signature data
+ *   channelThumbprint | serverNonce | H(serverAppCert) | H(serverChannelCert) |
+ *   H(clientAppCert) | H(clientChannelCert) | clientNonce
+ * This is the ClientSignature layout with an extra H(clientAppCert) - the
+ * CLIENT's APPLICATION instance certificate - inserted before
+ * H(clientChannelCert). NOTE: the user/X509-token certificate does NOT appear
+ * in the signed data (it is conveyed and validated separately); the signature
+ * only proves possession of the user key over the channel-bound data. */
+UA_StatusCode
+UA_SecureChannel_buildUserTokenSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+    const UA_ByteString *serverChannelCert, const UA_ByteString *clientAppCert,
+    const UA_ByteString *clientChannelCert, UA_ByteString *out);
 
 /**
  * Sending Messages
@@ -319,7 +410,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
  * The offset argument points to the start of the encrypted content (beginning
  * with the SequenceHeader).*/
 UA_StatusCode
-decryptAndVerifyChunk(const UA_SecureChannel *channel,
+decryptAndVerifyChunk(UA_SecureChannel *channel,
                       const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
                       const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
                       UA_MessageType messageType, UA_ByteString *chunk, size_t offset);
@@ -332,6 +423,13 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
                    const UA_Byte *buf_end, size_t totalLength,
                    size_t securityHeaderLength, UA_UInt32 requestId,
                    size_t *const finalLength);
+
+/* Advance and return the next SequenceNumber to put into an outgoing chunk
+ * (asymmetric OPN and symmetric MSG/CLO alike). Part 6 §6.7.2.4: the legacy
+ * policies start at 1 and roll over to 1; the v1.05.07 enhanced/ECC policies
+ * (LegacySequenceNumbers = false) start at 0 and roll over to 0. */
+UA_UInt32
+UA_SecureChannel_nextSequenceNumber(UA_SecureChannel *channel);
 
 void
 setBufPos(UA_MessageContext *mc);

@@ -497,6 +497,149 @@ START_TEST(SecureChannel_assemblePartialChunks) {
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST
 
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
+/* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining on
+ * SecureChannel renewal. This exercises the OpenSSL helper directly
+ * to verify the chained-IKM semantics end-to-end. */
+
+#include "crypto/openssl/securitypolicy_common.h"
+#include <openssl/evp.h>
+#include <openssl/ec.h>
+
+/* Generate a fresh P-256 ephemeral key pair. The public key is
+ * returned in uncompressed X9.62 form (65 bytes, leading 0x04). */
+static EVP_PKEY *
+makeP256Key(void) {
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+    if(!pctx) return NULL;
+    if(EVP_PKEY_keygen_init(pctx) != 1 ||
+       EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, NID_X9_62_prime256v1) != 1) {
+        EVP_PKEY_CTX_free(pctx);
+        return NULL;
+    }
+    EVP_PKEY *kp = NULL;
+    if(EVP_PKEY_keygen(pctx, &kp) != 1) {
+        EVP_PKEY_CTX_free(pctx);
+        return NULL;
+    }
+    EVP_PKEY_CTX_free(pctx);
+    return kp;
+}
+
+/* Extract the local public key as the 64-byte x||y form used by
+ * UA_OpenSSL_ECC_DeriveKeys. */
+static UA_StatusCode
+exportP256PublicXY(EVP_PKEY *kp, UA_Byte *out64) {
+    UA_Byte *enc = NULL;
+#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    size_t encLen = EVP_PKEY_get1_encoded_public_key(kp, &enc);
+#else
+    size_t encLen = EVP_PKEY_get1_tls_encodedpoint(kp, &enc);
+#endif
+    if(encLen != 65 || enc[0] != 0x04) {
+        OPENSSL_free(enc);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    memcpy(out64, enc + 1, 64);
+    OPENSSL_free(enc);
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
+    /* Two ephemeral key pairs (P-256). The helper detects the
+     * prepend by checking if `key1` is longer than the expected
+     * ephemeral public key, XORs the prepend with the raw shared
+     * secret, and writes the chained IKM back to the prepend slot.
+     * We exercise the helper twice with different prepends on the
+     * same ephemeral key pair, and verify that the XOR difference
+     * of the two resulting slot values equals the XOR difference
+     * of the two prepends (the shared secret is identical in both
+     * calls, so it cancels out: (P1^SS) XOR (P2^SS) = P1 XOR P2). */
+    EVP_PKEY *localKp = makeP256Key();
+    EVP_PKEY *remoteKp = makeP256Key();
+    ck_assert_ptr_ne(localKp, NULL);
+    ck_assert_ptr_ne(remoteKp, NULL);
+
+    UA_Byte localPubXY[64];
+    UA_Byte remotePubXY[64];
+    ck_assert_int_eq(exportP256PublicXY(localKp, localPubXY), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(exportP256PublicXY(remoteKp, remotePubXY), UA_STATUSCODE_GOOD);
+
+    /* Build two distinct 32-byte prepends. */
+    UA_Byte prepend1[32];
+    UA_Byte prepend2[32];
+    for(int i = 0; i < 32; i++) {
+        prepend1[i] = (UA_Byte)(0xA0 + i);
+        prepend2[i] = (UA_Byte)(0x40 + i);
+    }
+    /* Slot buffers = [prepend | local ephemeral public key]. The
+     * helper identifies which arg is local by matching against the
+     * localEphemeralKeyPair's public key. So we put localPubXY as
+     * the suffix of the prepend, and the helper will then take
+     * key2 (== remotePubXY) as the remote ephemeral public key for
+     * the ECDH computation. */
+    UA_Byte slot1[32 + 64];
+    UA_Byte slot2[32 + 64];
+    memcpy(slot1, prepend1, 32);
+    memcpy(slot1 + 32, localPubXY, 64);
+    memcpy(slot2, prepend2, 32);
+    memcpy(slot2 + 32, localPubXY, 64);
+
+    UA_ByteString secret1 = {32 + 64, slot1};
+    UA_ByteString secret2 = {32 + 64, slot2};
+    /* seed (= key2) is the remote ephemeral public key — it must be
+     * the un-prefixed form because the helper uses it both for the
+     * salt and for ECDH when the prepend suffix matches local. */
+    UA_ByteString seed1 = {64, remotePubXY};
+    UA_ByteString seed2 = {64, remotePubXY};
+
+    UA_ByteString out;
+    ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
+
+    /* First call: prepend1 -> chained IKM written back to slot1. */
+    ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
+                         EC_curve_nist2nid("P-256"), "SHA256",
+                         UA_APPLICATIONTYPE_CLIENT, localKp,
+                         &secret1, &seed1, &out),
+                     UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&out);
+    ck_assert_int_eq(UA_ByteString_allocBuffer(&out, 32), UA_STATUSCODE_GOOD);
+
+    /* Second call: prepend2 -> chained IKM written back to slot2.
+     * Same ephemeral keys => same shared secret as call 1. */
+    ck_assert_int_eq(UA_OpenSSL_ECC_DeriveKeys(
+                         EC_curve_nist2nid("P-256"), "SHA256",
+                         UA_APPLICATIONTYPE_CLIENT, localKp,
+                         &secret2, &seed2, &out),
+                     UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&out);
+
+    /* slot1[i] = prepend1[i] XOR sharedSecret[i]
+     * slot2[i] = prepend2[i] XOR sharedSecret[i]
+     *   => slot1[i] XOR slot2[i] = prepend1[i] XOR prepend2[i] */
+    for(int i = 0; i < 32; i++) {
+        UA_Byte xorSlots   = (UA_Byte)(slot1[i] ^ slot2[i]);
+        UA_Byte xorPrepends = (UA_Byte)(prepend1[i] ^ prepend2[i]);
+        ck_assert_msg(xorSlots == xorPrepends,
+                      "IKM chaining invariant violated at byte %d: "
+                      "slot1^slot2=0x%02x, prepend1^prepend2=0x%02x",
+                      i, xorSlots, xorPrepends);
+    }
+
+    /* Also: the slots must have changed (i.e. XOR actually happened).
+     * Compare the buffers as a whole — a *per-byte* "changed" assertion
+     * would be flaky, since slot[i] == prepend[i] whenever the shared
+     * secret byte ss[i] is 0x00 (a ~1/256 event per byte). The XOR only
+     * leaves the whole 32-byte buffer unchanged in the astronomically
+     * unlikely case that the entire shared secret is zero. */
+    ck_assert_msg(memcmp(slot1, prepend1, 32) != 0, "slot1 was not XORed");
+    ck_assert_msg(memcmp(slot2, prepend2, 32) != 0, "slot2 was not XORed");
+
+    EVP_PKEY_free(localKp);
+    EVP_PKEY_free(remoteKp);
+} END_TEST
+
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL && !LIBRESSL_VERSION_NUMBER */
 
 static Suite *
 testSuite_SecureChannel(void) {
@@ -538,6 +681,12 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
     suite_add_tcase(s, tc_processBuffer);
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
+    TCase *tc_ikmChaining = tcase_create("v1.05.07 IKM chaining on renewal");
+    tcase_add_test(tc_ikmChaining, SecureChannel_IKMChaining_prependChainsOnRenewal);
+    suite_add_tcase(s, tc_ikmChaining);
+#endif
 
     return s;
 }
