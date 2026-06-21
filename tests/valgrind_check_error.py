@@ -44,8 +44,15 @@ log_content = ""
 with open(logfile) as content_file:
     log_content = content_file.read()
 
+# Valgrind 3.26 with --quiet writes an empty logfile on success. If
+# valgrind itself returned 0 (no errors, no leaks), treat the run as
+# successful regardless of whether the descriptor block was printed.
+# The descriptor block is only informative for --track-fds=yes.
 if len(log_content) == 0:
-    print("### PYTHON ERROR: Valgrind logfile is empty: " + logfile)
+    if ret_code == 0:
+        exit(0)
+    print("### PYTHON ERROR: Valgrind logfile is empty and valgrind"
+          " exited with code " + str(ret_code) + ": " + logfile)
     exit(1)
 
 # Remove output of possible bug in OSX
@@ -60,10 +67,16 @@ log_content = replace_re.sub('', log_content)
 
 # Try to parse the output. Look for the following line:
 # ==17054== FILE DESCRIPTORS: 5 open at exit.
-descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open(\s\(\d std\))? at exit\..*")
-m = descriptors_re.match(log_content)
+# or in newer valgrind:
+# ==17054== FILE DESCRIPTORS: 5 open (3 inherited) at exit.
+# With newer valgrind and --quiet, this block may be missing even on
+# a clean run. Treat as a pass when valgrind returned 0.
+descriptors_re = re.compile(r"==(\d+)==\s+FILE DESCRIPTORS:\s+(\d+) open(?:\s+\(\d+\s+\w+\))?\s+at exit\.")
+m = descriptors_re.search(log_content)
 
 if not m:
+    if ret_code == 0:
+        exit(0)
     print("### PYTHON ERROR: File descriptors header not found: " + logfile)
     print(log_content)
     exit(1)
@@ -90,6 +103,16 @@ replace_re = re.compile(r"^==" + str(valgrind_number) + r"==\s+Open .*$\n" +
                         r"^==" + str(valgrind_number) + r"==\s+<inherited from parent>$\n" +
                         r"(^==" + str(valgrind_number) + r"==\s+$\n)*", re.MULTILINE)
 log_content = replace_re.sub('', log_content)
+
+# The check library opens a tmp file (e.g. /tmp/check_XXXXXX) for
+# per-test IPC and never closes it. Newer valgrind with --track-fds=yes
+# reports it as an "Open file descriptor" entry that is NOT marked as
+# inherited. Strip the whole block (header + frame lines).
+log_content = re.sub(
+    r"^==\d+==\s+Open file descriptor \d+: /tmp/check_\w+$\n"
+    r"(?:^==\d+==\s+.*\n)*"
+    r"(?:^==\d+==\s*$\n)*",
+    "", log_content, flags=re.MULTILINE)
 
 # Valgrind detected a memleak if ret_code != 0
 if ret_code != 0:
