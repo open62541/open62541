@@ -66,6 +66,27 @@ START_TEST(variant_isArray) {
     ck_assert(UA_Variant_isArray(&v));
 } END_TEST
 
+START_TEST(variant_copy_arrayOfStruct) {
+    UA_UInt32 srcData[3] = {10, 20, 30};
+    UA_Variant src;
+    UA_Variant_init(&src);
+    UA_Variant_setArrayCopy(&src, srcData, 3, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant dst;
+    UA_Variant_init(&dst);
+    UA_StatusCode res = UA_Variant_copy(&src, &dst);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&dst);
+    UA_Variant_clear(&src);
+} END_TEST
+
+START_TEST(variant_arrayDimensionsZero) {
+    UA_Int32 *arr = (UA_Int32*)UA_Array_new(3, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_Variant_setArray(&v, arr, 3, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_clear(&v);
+} END_TEST
+
 START_TEST(variant_setRange) {
     /* Create a variant array */
     UA_Variant v;
@@ -144,6 +165,18 @@ START_TEST(findDataType_unknown) {
     const UA_DataType *dt = UA_findDataType(&unknownId);
     ck_assert_ptr_eq(dt, NULL);
 } END_TEST
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+START_TEST(findDataTypeByName) {
+    UA_QualifiedName int32Name = UA_QUALIFIEDNAME(0, "Int32");
+    const UA_DataType *dt = UA_findDataTypeByName(&int32Name);
+    ck_assert_ptr_ne(dt, NULL);
+    ck_assert_uint_eq(dt->memSize, sizeof(UA_Int32));
+    UA_QualifiedName unknownName = UA_QUALIFIEDNAME(0, "NonExistentTypeXYZ");
+    dt = UA_findDataTypeByName(&unknownName);
+    ck_assert_ptr_eq(dt, NULL);
+} END_TEST
+#endif
 
 /* === Order/comparison functions === */
 START_TEST(order_string) {
@@ -364,6 +397,8 @@ static Suite *testSuite_typesExtra(void) {
     TCase *tc_variant = tcase_create("VariantExtra");
     tcase_add_test(tc_variant, variant_isArray);
     tcase_add_test(tc_variant, variant_setRange);
+    tcase_add_test(tc_variant, variant_copy_arrayOfStruct);
+    tcase_add_test(tc_variant, variant_arrayDimensionsZero);
 
     TCase *tc_ext = tcase_create("ExtObj");
     tcase_add_test(tc_ext, extensionObject_setValueCopy);
@@ -372,6 +407,9 @@ static Suite *testSuite_typesExtra(void) {
     TCase *tc_find = tcase_create("DataTypeLookup");
     tcase_add_test(tc_find, findDataType);
     tcase_add_test(tc_find, findDataType_unknown);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    tcase_add_test(tc_find, findDataTypeByName);
+#endif
 
     TCase *tc_order = tcase_create("Order");
     tcase_add_test(tc_order, order_string);

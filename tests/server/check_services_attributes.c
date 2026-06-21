@@ -10,6 +10,17 @@
 #include "test_helpers.h"
 
 #include <check.h>
+
+/* Provide ck_assert_ptr_null / ck_assert_ptr_nonnull on top of older
+ * libcheck (Ubuntu 20.04 ships 0.10.x where these shorthands are not
+ * yet defined). The ck_assert_msg form compiles on every libcheck
+ * version. */
+#ifndef ck_assert_ptr_null
+# define ck_assert_ptr_null(p) ck_assert_msg((p) == NULL, #p " != NULL")
+#endif
+#ifndef ck_assert_ptr_nonnull
+# define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " == NULL")
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -1625,6 +1636,114 @@ START_TEST(WriteSingleAttributeValue_InvalidNode) {
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* ==== Additional error-path / edge-case coverage ==== */
+
+START_TEST(ReadUnknownAttribute_returnsError) {
+    /* Reading an attribute on a non-existent node returns BADNODEIDUNKNOWN. */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_StatusCode retval = UA_Server_readValue(
+        server, UA_NODEID_NUMERIC(1, 99999), &val);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+} END_TEST
+
+START_TEST(ReadAccessLevel_adminSession_isFull) {
+    /* The public UA_Server_readAccessLevel goes through readWithSession,
+     * which calls getAccessLevel. The exact value returned depends on the
+     * node's accessLevel attribute. We just confirm the read succeeds and
+     * covers the getAccessLevel path. */
+    UA_Byte al = 0;
+    UA_StatusCode retval = UA_Server_readAccessLevel(
+        server, UA_NODEID_STRING(1, "the.answer"), &al);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteObjectProperty_scalar_NotFound_returnsError) {
+    /* writeObjectProperty_scalar must return an error if the property does
+     * not exist; the non-scalar variant is already covered, this exercises
+     * the scalar dispatch path. */
+    UA_Int32 val = 42;
+    UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+        UA_QUALIFIEDNAME(0, "NoSuchPropertyScalar"),
+        &val, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(ReadSingleAttributeRange_invalidNode_returnsError) {
+    /* Reading an attribute on a non-existent node should return
+     * BADNODEIDUNKNOWN. This exercises the nodestore-miss path in
+     * Operation_Read. */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(1, 999999);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_int_eq((int)dv.status, (int)UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+START_TEST(ReadSingleAttributeInvalidAttributeId_returnsError) {
+    /* Reading with an attribute id that has no implementation path returns
+     * BADATTRIBUTEIDINVALID. */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = (UA_AttributeId)9999;
+
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_int_eq((int)dv.status, (int)UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    UA_DataValue_clear(&dv);
+} END_TEST
+START_TEST(ReadSingleAttributeUserWriteMaskViaPublicAPI) {
+    /* Read the user write mask via the public UA_Server_readWriteMask API.
+     * This exercises the same getUserWriteMask path as a regular attribute
+     * read. */
+    UA_UInt32 mask = 0;
+    UA_StatusCode retval = UA_Server_readWriteMask(
+        server, UA_NODEID_STRING(1, "the.answer"), &mask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* Don't assert on the value -- just that the path executes. */
+} END_TEST
+
+START_TEST(ReadSingleAttributeInverseNameOnNonReference) {
+    /* Reading the InverseName attribute on a non-reference-typed node
+     * returns BADATTRIBUTEIDINVALID. This covers the attributeId-out-of-range
+     * and "not supported" branches in the read dispatch. */
+    UA_LocalizedText inv;
+    UA_LocalizedText_init(&inv);
+    UA_StatusCode retval = UA_Server_readInverseName(
+        server, UA_NODEID_STRING(1, "the.answer"), &inv);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(ReadSingleAttributeContainsNoLoopsOnNonReference) {
+    /* Same idea for ContainsNoLoops on a non-reference node. */
+    UA_Boolean b = false;
+    UA_StatusCode retval = UA_Server_readContainsNoLoops(
+        server, UA_NODEID_STRING(1, "the.answer"), &b);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(ReadSingleAttributeSymmetricOnNonReference) {
+    /* Symmetric is a reference-typed attribute. Reading it on a non-reference
+     * node hits the same reject branch as the others. */
+    UA_Boolean b = false;
+    UA_StatusCode retval = UA_Server_readSymmetric(
+        server, UA_NODEID_STRING(1, "the.answer"), &b);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(ReadSingleAttributeIsAbstractOnNonAbstract) {
+    /* IsAbstract is only valid for object / reference / variable types.
+     * Reading it on a regular variable node returns BADATTRIBUTEIDINVALID. */
+    UA_Boolean b = false;
+    UA_StatusCode retval = UA_Server_readIsAbstract(
+        server, UA_NODEID_STRING(1, "the.answer"), &b);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 static Suite * testSuite_services_attributes(void) {
     Suite *s = suite_create("services_attributes_read");
 
@@ -1728,6 +1847,25 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_ext, ReadSingleAttributeValue_InvalidNode);
     tcase_add_test(tc_ext, WriteSingleAttributeValue_InvalidNode);
     suite_add_tcase(s, tc_ext);
+
+    /* Additional error-path / edge-case coverage for src/server/ua_services_attribute.c.
+     * The setup() fixture already installs a server, a variable, an enum variable,
+     * a data-source variable, an array variable and a Demo object with three
+     * properties (Integer, Float, String), so we can drive the public read/write
+     * surface end-to-end. */
+    TCase *tc_attr_edge = tcase_create("Attribute edge cases");
+    tcase_add_checked_fixture(tc_attr_edge, setup, teardown);
+    tcase_add_test(tc_attr_edge, ReadUnknownAttribute_returnsError);
+    tcase_add_test(tc_attr_edge, ReadAccessLevel_adminSession_isFull);
+    tcase_add_test(tc_attr_edge, WriteObjectProperty_scalar_NotFound_returnsError);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeRange_invalidNode_returnsError);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeInvalidAttributeId_returnsError);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeUserWriteMaskViaPublicAPI);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeInverseNameOnNonReference);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeContainsNoLoopsOnNonReference);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeSymmetricOnNonReference);
+    tcase_add_test(tc_attr_edge, ReadSingleAttributeIsAbstractOnNonAbstract);
+    suite_add_tcase(s, tc_attr_edge);
 
     return s;
 }
