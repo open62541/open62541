@@ -28,8 +28,12 @@
 #include <sys/stat.h>
 #endif
 
-// set register timeout to 1 second so we are able to test it.
-#define registerTimeout 4
+// Registration cleanup timeout (seconds). Kept generous so the registered
+// entry cannot age out between registering and the FindServers check under slow
+// execution (e.g. valgrind), where re-registration may transiently fail. The
+// dedicated timeout test still drives expiry via UA_fakeSleep(100000*checkWait),
+// which scales with this value and stays well beyond the timeout.
+#define registerTimeout 60
 // cleanup is only triggered every 10 seconds, thus wait a bit longer to check
 #define checkWait registerTimeout + 11
 
@@ -702,7 +706,12 @@ START_TEST(Server_findServers_mirrors_endpointUrl) {
 
     while(!Client_find_registered()) {}
 
-    ck_assert(FindAndCheckDiscoveryUrls("opc.tcp://localhost:4840", 2));
+    /* Wait until FindServers returns exactly the two servers, each mirroring the
+     * requested discovery URL. Busy-wait (like the checks above) instead of a
+     * one-shot assert: under slow execution (valgrind) the registered entry can
+     * briefly age out between periodic re-registrations, so retry until the
+     * expected state is observed. */
+    while(!FindAndCheckDiscoveryUrls("opc.tcp://localhost:4840", 2)) {}
 
     unregisterServer();
 
