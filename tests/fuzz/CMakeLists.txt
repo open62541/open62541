@@ -78,6 +78,13 @@ endmacro()
 add_fuzzer(fuzz_server_services fuzz_server_services.cc)
 add_fuzzer(fuzz_process_request fuzz_process_request.cc)
 add_fuzzer(fuzz_client fuzz_client.cc)
+# fuzz_client uses UA_Client_newForUnitTest from test_helpers.c (introduced by the
+# 1.5 refactor in commit 391de16e3). testing_clock.c is the transitive dependency
+# of test_helpers.c (UA_DateTime_now_fake). Link both only into this fuzzer so
+# the other fuzzers don't pull in unrelated plugin/eventloop code.
+target_sources(fuzz_client PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/test_helpers.c
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c)
 add_fuzzer(fuzz_pubsub_connection_config fuzz_pubsub_connection_config.cc)
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_tcp_message fuzz_tcp_message.cc)
