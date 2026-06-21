@@ -961,6 +961,188 @@ START_TEST(AddReference_InvalidTargetNodeClass) {
     UA_AddReferencesResponse_clear(&response);
 } END_TEST
 
+START_TEST(AddReference_NonRefTypeAsRefType_rejected) {
+    /* src/server/ua_services_nodemanagement.c:2284-2291:
+     *   if(refType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
+     *     *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+     * Use a Variable node as the refType argument. */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "refSrcNR");
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "refTgtNR");
+
+    /* Add a Variable node to be used as a (non-)refType */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 val = 1;
+    UA_Variant_setScalar(&vAttr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId varId;
+    UA_StatusCode st = UA_Server_addVariableNode(
+        server, UA_NODEID_NULL, objectsNodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "NotARefType"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vAttr, NULL, &varId);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = targetId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    st = UA_Server_addReference(server, sourceId, varId, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADREFERENCETYPEIDINVALID);
+} END_TEST
+
+START_TEST(AddReference_SourceNodeUnknown_rejected) {
+    /* src/server/ua_services_nodemanagement.c:2328-2332:
+     *   if(!sourceNode) { *retval = UA_STATUSCODE_BADSOURCENODEIDINVALID; }
+     * Use a known refType + known target, but a non-existent source. */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "refTgtSU");
+    UA_NodeId refTypeId = registerRefType("HasSrcUnk", "IsSrcUnkOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = targetId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    UA_StatusCode st = UA_Server_addReference(
+        server, UA_NODEID_NUMERIC(1, 99999), refTypeId, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADSOURCENODEIDINVALID);
+} END_TEST
+
+START_TEST(AddReference_TargetNodeUnknown_rejected) {
+    /* src/server/ua_services_nodemanagement.c:2313-2318:
+     *   if(!targetNode) { *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID; }
+     * A local target that does not exist. */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "refSrcTU");
+    UA_NodeId refTypeId = registerRefType("HasTgtUnk", "IsTgtUnkOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = UA_NODEID_NUMERIC(1, 88888);
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    UA_StatusCode st = UA_Server_addReference(
+        server, sourceId, refTypeId, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADTARGETNODEIDINVALID);
+} END_TEST
+
+START_TEST(AddReference_SourceEqualsTarget_isNoop) {
+    /* src/server/ua_services_nodemanagement.c:2300-2306:
+     *   if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
+     *     *retval = UA_STATUSCODE_GOOD;
+     *     return;
+     * The function returns GOOD without doing anything. */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "refSrcET");
+    UA_NodeId refTypeId = registerRefType("HasEqTgt", "IsEqTgtOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = sourceId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    UA_StatusCode st = UA_Server_addReference(
+        server, sourceId, refTypeId, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(DeleteReference_InvalidRefType_rejected) {
+    /* src/server/ua_services_nodemanagement.c:2444-2446 and 2449-2452:
+     *   if(!refType) { *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID; }
+     *   if(refType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) { ... } */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "delRefSrcIR");
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "delRefTgtIR");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = targetId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    /* Unknown refType */
+    UA_StatusCode st = UA_Server_deleteReference(
+        server, sourceId, UA_NODEID_NUMERIC(1, 77777), true,
+        targetExpId, false);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADREFERENCETYPEIDINVALID);
+
+    /* Non-ReferenceType node used as refType */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 val = 1;
+    UA_Variant_setScalar(&vAttr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId varId;
+    st = UA_Server_addVariableNode(
+        server, UA_NODEID_NULL, objectsNodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "NotARefTypeForDel"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vAttr, NULL, &varId);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+
+    st = UA_Server_deleteReference(
+        server, sourceId, varId, true, targetExpId, false);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADREFERENCETYPEIDINVALID);
+} END_TEST
+
+START_TEST(DeleteReference_SourceNodeUnknown_rejected) {
+    /* src/server/ua_services_nodemanagement.c:2468-2470:
+     *   if(!firstNode) { *retval = UA_STATUSCODE_BADNODEIDUNKNOWN; } */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "delRefTgtSU");
+    UA_NodeId refTypeId = registerRefType("HasDelSU", "IsDelSUOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = targetId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    UA_StatusCode st = UA_Server_deleteReference(
+        server, UA_NODEID_NUMERIC(1, 66666), refTypeId, true,
+        targetExpId, false);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADNODEIDUNKNOWN);
+} END_TEST
+
+START_TEST(DeleteReference_BidirectionalSecondDirection) {
+    /* src/server/ua_services_nodemanagement.c:2475-2491:
+     *   if(!item->deleteBidirectional || item->targetNodeId.serverIndex != 0)
+     *     return;
+     *   if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+     *     secondNode = UA_NODESTORE_GET_EDIT_SELECTIVE(...);
+     *     ...
+     *     UA_Node_deleteReference(secondNode, ...);
+     *   }
+     * Verify that deleteBidirectional=true on a local target exercises
+     * the second-direction delete. The existing DeleteReference test
+     * asserts GOOD but does not check the second-direction branch. */
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "delRefBiSrc");
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "delRefBiTgt");
+    UA_NodeId refTypeId = registerRefType("HasBiDel", "IsBiDelOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = targetId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    /* Add bidirectional reference (deleteBidirectional=true means add
+     * also goes the other way) */
+    UA_StatusCode st = UA_Server_addReference(
+        server, sourceId, refTypeId, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+
+    /* Now delete with deleteBidirectional=true -- second direction
+     * branch should be hit */
+    st = UA_Server_deleteReference(
+        server, sourceId, refTypeId, true, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+
+    /* A second delete should fail since neither direction exists */
+    st = UA_Server_deleteReference(
+        server, sourceId, refTypeId, true, targetExpId, true);
+    ck_assert_uint_ne(st, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(SetNodeTypeLifecycle) {
     /* Set a lifecycle callback on BaseObjectType */
     UA_NodeTypeLifecycle nlc;
@@ -1024,6 +1206,184 @@ START_TEST(SetVariableValueSource) {
     UA_DataValue_delete(externalValuePtr);
 } END_TEST
 
+/* === Context API tests === */
+
+START_TEST(Context_GetSetNodeContext) {
+    /* Add a variable node with context */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInt = 42;
+    UA_Variant_setScalar(&attr.value, &myInt, &UA_TYPES[UA_TYPES_INT32]);
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "CtxTestVar");
+    UA_NodeId varId = UA_NODEID_STRING(1, "ctx.testvar");
+    int nodeCtx = 12345;
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, varId,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "CtxTestVar"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, &nodeCtx, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get node context - should return what we set */
+    void *ctx = NULL;
+    retval = UA_Server_getNodeContext(server, varId, &ctx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(ctx, &nodeCtx);
+
+    /* Set node context to a different value */
+    int newCtx = 67890;
+    retval = UA_Server_setNodeContext(server, varId, &newCtx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the context was updated */
+    ctx = NULL;
+    retval = UA_Server_getNodeContext(server, varId, &ctx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(ctx, &newCtx);
+} END_TEST
+
+START_TEST(Context_SetNodeContext_InvalidNodeId) {
+    /* Setting context on a non-existent node should fail */
+    int ctx = 0;
+    UA_StatusCode retval =
+        UA_Server_setNodeContext(server, UA_NODEID_NUMERIC(1, 99999), &ctx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDINVALID);
+} END_TEST
+
+START_TEST(Context_GetNodeContext_UnknownNodeId) {
+    /* Getting context from a non-existent node should fail */
+    void *ctx = NULL;
+    UA_StatusCode retval =
+        UA_Server_getNodeContext(server, UA_NODEID_NUMERIC(1, 99999), &ctx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+} END_TEST
+
+START_TEST(FindChildByBrowsename_NotFound) {
+    /* Look for a child that doesn't exist under the Objects folder */
+    UA_NodeId outChildId;
+    UA_QualifiedName nonExistentName = UA_QUALIFIEDNAME(0, "NonExistentChild_XYZ_123");
+    UA_StatusCode retval =
+        findChildByBrowsename(server, NULL,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODECLASS_OBJECT,
+                              UA_REFERENCETYPEINDEX_ORGANIZES,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              &nonExistentName, &outChildId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+} END_TEST
+
+/* ==== Service_AddNodes / Service_DeleteNodes maxNodes guard ==== */
+
+START_TEST(Service_AddNodes_maxNodesPerNodeManagement_exceeded) {
+    /* src/server/ua_services_nodemanagement.c:1703-1706:
+     *   if(maxNodesPerNodeManagement != 0 &&
+     *      request->nodesToAddSize > maxNodesPerNodeManagement) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+     *     return true;
+     *   }
+     * White-box: set maxNodesPerNodeManagement = 2 and call
+     * Service_AddNodes directly with 3 items. The early-return
+     * branch is never reached by any existing test (the default
+     * maxNodesPerNodeManagement is 0 = unlimited). */
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 origLimit = cfg->maxNodesPerNodeManagement;
+    cfg->maxNodesPerNodeManagement = 2;
+
+    UA_AddNodesRequest request;
+    UA_AddNodesRequest_init(&request);
+    request.nodesToAddSize = 3; /* exceeds 2 */
+    request.nodesToAdd = (UA_AddNodesItem*)
+        UA_Array_new(3, &UA_TYPES[UA_TYPES_ADDNODESITEM]);
+
+    UA_AddNodesResponse response;
+    UA_AddNodesResponse_init(&response);
+
+    lockServer(server);
+    UA_Boolean ok = Service_AddNodes(server, &server->adminSession,
+                                     &request, &response);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    /* No items were processed */
+    ck_assert_uint_eq(response.resultsSize, 0);
+
+    /* Restore the limit and clean up */
+    cfg->maxNodesPerNodeManagement = origLimit;
+    UA_Array_delete(request.nodesToAdd, 3, &UA_TYPES[UA_TYPES_ADDNODESITEM]);
+    UA_AddNodesResponse_clear(&response);
+} END_TEST
+
+START_TEST(Service_AddNodes_maxNodesPerNodeManagement_atLimit) {
+    /* The boundary case: exactly maxNodesPerNodeManagement items is
+     * NOT rejected; the check is strictly greater-than. */
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 origLimit = cfg->maxNodesPerNodeManagement;
+    cfg->maxNodesPerNodeManagement = 2;
+
+    UA_AddNodesRequest request;
+    UA_AddNodesRequest_init(&request);
+    request.nodesToAddSize = 2; /* exactly at limit */
+    request.nodesToAdd = (UA_AddNodesItem*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_ADDNODESITEM]);
+    for(size_t i = 0; i < 2; i++) {
+        UA_AddNodesItem_init(&request.nodesToAdd[i]);
+    }
+
+    UA_AddNodesResponse response;
+    UA_AddNodesResponse_init(&response);
+
+    lockServer(server);
+    UA_Boolean ok = Service_AddNodes(server, &server->adminSession,
+                                     &request, &response);
+    unlockServer(server);
+
+    ck_assert(ok);
+    /* The overall serviceResult is GOOD (no early return); the
+     * per-item results carry the actual add errors. */
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 2);
+
+    cfg->maxNodesPerNodeManagement = origLimit;
+    UA_Array_delete(request.nodesToAdd, 2, &UA_TYPES[UA_TYPES_ADDNODESITEM]);
+    UA_AddNodesResponse_clear(&response);
+} END_TEST
+
+START_TEST(Service_DeleteNodes_maxNodesPerNodeManagement_exceeded) {
+    /* src/server/ua_services_nodemanagement.c:2211-2214: the same
+     * guard for DeleteNodesRequest. */
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 origLimit = cfg->maxNodesPerNodeManagement;
+    cfg->maxNodesPerNodeManagement = 2;
+
+    UA_DeleteNodesRequest request;
+    UA_DeleteNodesRequest_init(&request);
+    request.nodesToDeleteSize = 3;
+    request.nodesToDelete = (UA_DeleteNodesItem*)
+        UA_Array_new(3, &UA_TYPES[UA_TYPES_DELETENODESITEM]);
+
+    UA_DeleteNodesResponse response;
+    UA_DeleteNodesResponse_init(&response);
+
+    lockServer(server);
+    UA_Boolean ok = Service_DeleteNodes(server, &server->adminSession,
+                                        &request, &response);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(response.resultsSize, 0);
+
+    cfg->maxNodesPerNodeManagement = origLimit;
+    UA_Array_delete(request.nodesToDelete, 3,
+                    &UA_TYPES[UA_TYPES_DELETENODESITEM]);
+    UA_DeleteNodesResponse_clear(&response);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("services_nodemanagement");
 
@@ -1042,12 +1402,15 @@ int main(void) {
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
     tcase_add_test(tc_addnodes, ObjectWithDynamicVariableChild);
+    tcase_add_test(tc_addnodes, Service_AddNodes_maxNodesPerNodeManagement_exceeded);
+    tcase_add_test(tc_addnodes, Service_AddNodes_maxNodesPerNodeManagement_atLimit);
     suite_add_tcase(s, tc_addnodes);
 
     TCase *tc_deletenodes = tcase_create("deletenodes");
     tcase_add_checked_fixture(tc_deletenodes, setup, teardown);
     tcase_add_test(tc_deletenodes, DeleteObjectWithDestructor);
     tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
+    tcase_add_test(tc_deletenodes, Service_DeleteNodes_maxNodesPerNodeManagement_exceeded);
     suite_add_tcase(s, tc_deletenodes);
 
     TCase *tc_addreferences = tcase_create("addreferences");
@@ -1056,6 +1419,13 @@ int main(void) {
     tcase_add_test(tc_addreferences, DeleteReference);
     tcase_add_test(tc_addreferences, AddReference_InvalidRefType);
     tcase_add_test(tc_addreferences, AddReference_InvalidTargetNodeClass);
+    tcase_add_test(tc_addreferences, AddReference_NonRefTypeAsRefType_rejected);
+    tcase_add_test(tc_addreferences, AddReference_SourceNodeUnknown_rejected);
+    tcase_add_test(tc_addreferences, AddReference_TargetNodeUnknown_rejected);
+    tcase_add_test(tc_addreferences, AddReference_SourceEqualsTarget_isNoop);
+    tcase_add_test(tc_addreferences, DeleteReference_InvalidRefType_rejected);
+    tcase_add_test(tc_addreferences, DeleteReference_SourceNodeUnknown_rejected);
+    tcase_add_test(tc_addreferences, DeleteReference_BidirectionalSecondDirection);
     suite_add_tcase(s, tc_addreferences);
 
     TCase *tc_ext = tcase_create("extendedCoverage");
@@ -1071,6 +1441,10 @@ int main(void) {
     tcase_add_test(tc_ext, SetNodeTypeLifecycle);
     tcase_add_test(tc_ext, SetAdminSessionContext);
     tcase_add_test(tc_ext, SetVariableValueSource);
+    tcase_add_test(tc_ext, Context_GetSetNodeContext);
+    tcase_add_test(tc_ext, Context_SetNodeContext_InvalidNodeId);
+    tcase_add_test(tc_ext, Context_GetNodeContext_UnknownNodeId);
+    tcase_add_test(tc_ext, FindChildByBrowsename_NotFound);
     suite_add_tcase(s, tc_ext);
 
     SRunner *sr = srunner_create(s);
