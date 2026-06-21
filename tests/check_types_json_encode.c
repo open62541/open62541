@@ -13,6 +13,15 @@
 #include <math.h>
 #include <float.h>
 
+/* On libcheck < 0.11 (ubuntu-20.04 ships 0.10), ck_assert_ptr_null /
+ * ck_assert_ptr_nonnull are missing. Shim them to ck_assert_msg. */
+#ifndef ck_assert_ptr_null
+# define ck_assert_ptr_null(p) ck_assert_msg((p) == NULL, #p " is not NULL")
+#endif
+#ifndef ck_assert_ptr_nonnull
+# define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " is NULL")
+#endif
+
 /* === Boolean JSON encoding === */
 START_TEST(json_encode_boolean_true) {
     UA_Boolean val = true;
@@ -633,6 +642,47 @@ START_TEST(json_encode_endpointdescription) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
+/* === JSON encoding NULL guards === */
+START_TEST(json_encode_nullSource_rejected) {
+    /* src/ua_types_encoding_json.c:1217-1218:
+     *   if(!src || !type) return UA_STATUSCODE_BADINTERNALERROR;
+     * The public UA_encodeJson must reject NULL source and NULL type. */
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(NULL, &UA_TYPES[UA_TYPES_INT32], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(buf.length, 0);
+    ck_assert_ptr_null(buf.data);
+
+    res = UA_encodeJson(NULL, NULL, &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+} END_TEST
+
+START_TEST(json_encode_nullType_rejected) {
+    UA_Int32 val = 42;
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&val, NULL, &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(buf.length, 0);
+    ck_assert_ptr_null(buf.data);
+} END_TEST
+
+START_TEST(json_encode_preAllocBufferTooSmall_keepsBuffer) {
+    /* src/ua_types_encoding_json.c:1255-1256:
+     *   else if(allocated) UA_ByteString_clear(outBuf);
+     * The pre-allocated-buffer path (length > 0) does not free the
+     * buffer on error -- the caller still owns it. */
+    UA_Int32 val = 123456789;
+    UA_ByteString buf;
+    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, 1); /* too small */
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_INT32], &buf, NULL);
+    ck_assert(res != UA_STATUSCODE_GOOD);
+    /* Caller still owns the buffer -- the library must not free it */
+    ck_assert_ptr_nonnull(buf.data);
+    UA_ByteString_clear(&buf);
+} END_TEST
+
 static Suite *testSuite_jsonEncoding(void) {
     TCase *tc_basic = tcase_create("BasicJsonEncoding");
     tcase_add_test(tc_basic, json_encode_boolean_true);
@@ -689,6 +739,11 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_struct, json_encode_applicationdescription);
     tcase_add_test(tc_struct, json_encode_endpointdescription);
 
+    TCase *tc_null = tcase_create("JsonEncodingNullGuards");
+    tcase_add_test(tc_null, json_encode_nullSource_rejected);
+    tcase_add_test(tc_null, json_encode_nullType_rejected);
+    tcase_add_test(tc_null, json_encode_preAllocBufferTooSmall_keepsBuffer);
+
     Suite *s = suite_create("JSON Encoding Extended");
     suite_add_tcase(s, tc_basic);
     suite_add_tcase(s, tc_string);
@@ -696,6 +751,7 @@ static Suite *testSuite_jsonEncoding(void) {
     suite_add_tcase(s, tc_complex);
     suite_add_tcase(s, tc_options);
     suite_add_tcase(s, tc_struct);
+    suite_add_tcase(s, tc_null);
     return s;
 }
 
