@@ -310,6 +310,8 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                               const UA_QualifiedName key, const UA_Variant *value) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -324,6 +326,8 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
@@ -341,6 +345,8 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                     UA_Boolean copy) {
     if(!outValue)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_Session *session = getSessionById(server, sessionId);
     if(!session)
