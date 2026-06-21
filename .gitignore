@@ -105,3 +105,8 @@ tests/interop/node-opcua/package-lock.json
 
 # Local doc-review helper (not part of the project)
 gen_review_docs.sh
+
+# Coverage artifacts
+*.gcov
+*.gcda
+*.gcno
