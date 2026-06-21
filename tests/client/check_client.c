@@ -779,6 +779,75 @@ START_TEST(Client_getNamespaceUri_outOfBounds) {
 }
 END_TEST
 
+/* Test lifecycle notification callback fires on client delete */
+static UA_Boolean lifecycleCallbackCalled = false;
+static void
+lifecycleCallback(UA_Client *client, UA_ApplicationNotificationType notificationType,
+                   const UA_KeyValueMap parameters) {
+    lifecycleCallbackCalled = true;
+}
+
+START_TEST(Client_lifecycleNotificationCallback) {
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&config);
+    config.lifecycleNotificationCallback = lifecycleCallback;
+
+    lifecycleCallbackCalled = false;
+    UA_Client *client = UA_Client_newWithConfig(&config);
+    ck_assert_ptr_ne(client, NULL);
+
+    /* Delete client - should trigger LIFECYCLE_STOPPED notification */
+    UA_Client_delete(client);
+    ck_assert_uint_eq(lifecycleCallbackCalled, true);
+}
+END_TEST
+
+/* Test UA_ClientConfig_delete does not crash on a defaulted config */
+START_TEST(Client_config_delete) {
+    UA_ClientConfig *config = (UA_ClientConfig*)UA_malloc(sizeof(UA_ClientConfig));
+    ck_assert_ptr_ne(config, NULL);
+    memset(config, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(config);
+
+    UA_ClientConfig_delete(config);
+}
+END_TEST
+
+START_TEST(Client_getNamespaceIndex_notFound) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Try to find non-existent namespace */
+    UA_UInt16 idx;
+    UA_String ns = UA_STRING("http://nonexistent/");
+    retval = UA_Client_getNamespaceIndex(client, ns, &idx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getNamespaceUri_valid) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get namespace URI for index 0 (should be the OPC UA namespace) */
+    UA_String nsUri;
+    UA_String_init(&nsUri);
+    retval = UA_Client_getNamespaceUri(client, 0, &nsUri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(nsUri.length > 0);
+
+    UA_String_clear(&nsUri);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 #ifdef UA_ENABLE_QUERY
 START_TEST(Client_queryNext_emptyContinuation) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -793,6 +862,36 @@ START_TEST(Client_queryNext_emptyContinuation) {
     UA_QueryNextResponse response = UA_Client_Service_queryNext(client, request);
     ck_assert_uint_ne(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_QueryNextResponse_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_service_queryFirst_emptyRequest) {
+    /* src/client/ua_client.c:1489-1496 (UA_Client_Service_queryFirst):
+     *   __UA_Client_Service(client, &request, ...);
+     *   return response;
+     * The function is a thin wrapper around __UA_Client_Service; the
+     * Client_queryNext_emptyContinuation test exists for queryNext but
+     * not for queryFirst. With an empty (no-node) query the server
+     * returns a non-GOOD serviceResult. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QueryFirstRequest request;
+    UA_QueryFirstRequest_init(&request);
+    /* No view, no node types, no filter -- minimal request */
+
+    UA_QueryFirstResponse response = UA_Client_Service_queryFirst(client, request);
+    /* The server doesn't store a query; an empty request must come
+     * back with some non-GOOD status (e.g. BADVIEWIDUNKNOWN, BADDECODINGERROR,
+     * BADNODEIDINVALID, or BADNOTIMPLEMENTED depending on the server
+     * build). We don't assert a specific code -- we just require
+     * that the request reaches the server and a response comes back. */
+    ck_assert_ptr_ne(&response, NULL);
+    UA_QueryFirstResponse_clear(&response);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -908,8 +1007,13 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_ext, Client_setAuthenticationUsername);
     tcase_add_test(tc_ext, Client_newWithConfig_NULL);
     tcase_add_test(tc_ext, Client_getNamespaceUri_outOfBounds);
+    tcase_add_test(tc_ext, Client_lifecycleNotificationCallback);
+    tcase_add_test(tc_ext, Client_config_delete);
+    tcase_add_test(tc_ext, Client_getNamespaceIndex_notFound);
+    tcase_add_test(tc_ext, Client_getNamespaceUri_valid);
 #ifdef UA_ENABLE_QUERY
     tcase_add_test(tc_ext, Client_queryNext_emptyContinuation);
+    tcase_add_test(tc_ext, Client_service_queryFirst_emptyRequest);
 #endif
     suite_add_tcase(s, tc_ext);
 

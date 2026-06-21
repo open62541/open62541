@@ -334,6 +334,46 @@ START_TEST(Client_switch) {
 }
 END_TEST
 
+START_TEST(Client_activateSession_alreadyActiveSession_returnsInternalError) {
+    /* src/client/ua_client_connect.c:2397-2402 (switchSession):
+     *   if(client->sessionState != UA_SESSIONSTATE_CLOSED) {
+     *     UA_LOG_ERROR(..., "Cannot activate a session with a
+     *                       different AuthenticationToken when the
+     *                       client already has a Session.");
+     *     return UA_STATUSCODE_BADINTERNALERROR;
+     *   }
+     * UA_Client_activateSession calls switchSession. The existing
+     * Client_switch exercises the GOOD path (client2 starts with
+     * CLOSED state). The "already active" branch is not covered. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the session is now ACTIVATED */
+    UA_SessionState ss;
+    UA_Client_getState(client, NULL, &ss, NULL);
+    ck_assert_uint_eq(ss, UA_SESSIONSTATE_ACTIVATED);
+
+    /* Calling activateSession again with a different token must
+     * return BADINTERNALERROR because the session is already active. */
+    UA_NodeId dummyToken = UA_NODEID_NUMERIC(1, 12345);
+    UA_ByteString dummyNonce = UA_BYTESTRING_NULL;
+    retval = UA_Client_activateSession(client, dummyToken, dummyNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* The async variant hits the same dispatch. */
+    retval = UA_Client_activateSessionAsync(client, dummyToken, dummyNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* The session state must still be ACTIVATED after the failed call. */
+    UA_Client_getState(client, NULL, &ss, NULL);
+    ck_assert_uint_eq(ss, UA_SESSIONSTATE_ACTIVATED);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Issue #14: A NULL or empty UserIdentityToken should be treated as Anonymous
  * (OPC UA Part 4, Section 5.6.3.2, Table 17) */
 START_TEST(Client_activateSession_nullToken) {
@@ -518,6 +558,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client_reconnect = tcase_create("Client Session Switch");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_switch);
+    tcase_add_test(tc_client_reconnect, Client_activateSession_alreadyActiveSession_returnsInternalError);
     suite_add_tcase(s,tc_client_reconnect);
     return s;
 }

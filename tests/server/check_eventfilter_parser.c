@@ -4,6 +4,7 @@
 
 #include "open62541/util.h"
 #include "open62541/plugin/log_stdout.h"
+#include "ua_eventfilter_parser.h"
 #include "check.h"
 
 static UA_EventFilter filter;
@@ -239,6 +240,57 @@ START_TEST(Case_19) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+/* ==== pos2lines line/column counter ==== */
+
+START_TEST(pos2lines_newlineAdvancesLine) {
+    /* src/util/ua_eventfilter_parser.c:11-25 (pos2lines):
+     *   for(size_t i = 0; i < pos; i++) {
+     *     if(content.data[i] == '\n') { line++; col = 1; }
+     *     else { col++; }
+     *   }
+     * The function is called internally on parse errors but never
+     * directly from any test. The new test exercises both branches
+     * via a small content string with mixed newlines and
+     * non-newline characters. */
+    unsigned line, col;
+    char buf1[] = "abc";
+    UA_ByteString c1 = {3, (UA_Byte*)buf1};
+    pos2lines(c1, 0, &line, &col);
+    ck_assert_uint_eq(line, 1);
+    ck_assert_uint_eq(col, 1);
+
+    pos2lines(c1, 1, &line, &col);
+    ck_assert_uint_eq(line, 1);
+    ck_assert_uint_eq(col, 2);
+
+    pos2lines(c1, 3, &line, &col);
+    ck_assert_uint_eq(line, 1);
+    ck_assert_uint_eq(col, 4);
+
+    /* With newlines: "a\nbc\nd" (5 chars) */
+    char buf2[] = "a\nbc\nd";
+    UA_ByteString c2 = {5, (UA_Byte*)buf2};
+    /* pos 0 -> line 1, col 1 */
+    pos2lines(c2, 0, &line, &col);
+    ck_assert_uint_eq(line, 1);
+    ck_assert_uint_eq(col, 1);
+    /* pos 1 -> the '\n' increments line and resets col to 1;
+     * the loop body executes once with i=0 ('a'), so line=1, col=2 */
+    pos2lines(c2, 1, &line, &col);
+    ck_assert_uint_eq(line, 1);
+    ck_assert_uint_eq(col, 2);
+    /* pos 2 -> 'a' then '\n' -> line=2, col=1 */
+    pos2lines(c2, 2, &line, &col);
+    ck_assert_uint_eq(line, 2);
+    ck_assert_uint_eq(col, 1);
+    /* pos 5 -> two '\n's seen, line=3, col=1. The loop body iterates
+     * i=0..4 (pos is exclusive), so char 4 ('\n') resets col to 1;
+     * the 'd' at index 5 is past the loop. */
+    pos2lines(c2, 5, &line, &col);
+    ck_assert_uint_eq(line, 3);
+    ck_assert_uint_eq(col, 1);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("EventFilter Parser");
     TCase *tc_call = tcase_create("eventfilter parser - basics");
@@ -262,6 +314,7 @@ int main(void) {
     tcase_add_test(tc_call, Case_17);
     tcase_add_test(tc_call, Case_18);
     tcase_add_test(tc_call, Case_19);
+    tcase_add_test(tc_call, pos2lines_newlineAdvancesLine);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);

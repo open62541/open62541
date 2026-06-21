@@ -88,11 +88,96 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(callbackCount, 3);
 } END_TEST
 
+/* ==== UA_Server_createEventMonitoredItemEx input-validation guards ==== */
+
+START_TEST(Server_createEventMonitoredItemEx_wrongAttribute) {
+    /* src/server/ua_services_monitoreditem.c:701-706:
+     *   if(item.itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER) {
+     *     result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+     *     return result;
+     *   }
+     * The createEventMonitoredItemEx creator requires the
+     * EventNotifier attribute. Using anything else (e.g. VALUE) is
+     * a mis-use and is rejected. */
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand *)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ef.selectClausesSize = 1;
+    UA_SimpleAttributeOperand_parse(&ef.selectClauses[0], UA_STRING("/Severity"));
+
+    UA_MonitoredItemCreateRequest request;
+    UA_MonitoredItemCreateRequest_init(&request);
+    request.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE; /* wrong */
+    request.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    request.requestedParameters.filter.content.decoded.data = &ef;
+    request.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+
+    UA_MonitoredItemCreateResult res =
+        UA_Server_createEventMonitoredItemEx(server, request, NULL, eventCallback);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(res.monitoredItemId, 0);
+
+    UA_Array_delete(ef.selectClauses, 1, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+} END_TEST
+
+START_TEST(Server_createEventMonitoredItemEx_wrongFilterType) {
+    /* src/server/ua_services_monitoreditem.c:708-716:
+     *   if((filter->encoding != DECODED && ... != DECODED_NODELETE) ||
+     *      filter->content.decoded.type != &UA_TYPES[EVENTFILTER]) {
+     *     result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+     *   }
+     * A non-EventFilter filter (e.g. an AFilter of a different
+     * type, or a NONE-encoded ExtensionObject) is rejected. */
+    UA_MonitoredItemCreateRequest request;
+    UA_MonitoredItemCreateRequest_init(&request);
+    request.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    request.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_ENCODED_NOBODY; /* not decoded */
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+
+    UA_MonitoredItemCreateResult res =
+        UA_Server_createEventMonitoredItemEx(server, request, NULL, eventCallback);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(res.monitoredItemId, 0);
+} END_TEST
+
+START_TEST(Server_createEventMonitoredItemEx_noSelectClauses) {
+    /* src/server/ua_services_monitoreditem.c:719-724:
+     *   if(ef->selectClausesSize == 0) {
+     *     result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+     *   }
+     * A valid EventFilter with zero select clauses is rejected. */
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClausesSize = 0;
+    ef.selectClauses = NULL;
+
+    UA_MonitoredItemCreateRequest request;
+    UA_MonitoredItemCreateRequest_init(&request);
+    request.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    request.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    request.requestedParameters.filter.content.decoded.data = &ef;
+    request.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+
+    UA_MonitoredItemCreateResult res =
+        UA_Server_createEventMonitoredItemEx(server, request, NULL, eventCallback);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(res.monitoredItemId, 0);
+} END_TEST
+
 static Suite *testSuite_event(void) {
     Suite *s = suite_create("Server Local Subscription Events");
     TCase *tc_server = tcase_create("Server Local Subscription Events");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEvents);
+    tcase_add_test(tc_server, Server_createEventMonitoredItemEx_wrongAttribute);
+    tcase_add_test(tc_server, Server_createEventMonitoredItemEx_wrongFilterType);
+    tcase_add_test(tc_server, Server_createEventMonitoredItemEx_noSelectClauses);
     suite_add_tcase(s, tc_server);
     return s;
 }

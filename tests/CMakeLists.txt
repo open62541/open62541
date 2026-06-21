@@ -117,7 +117,13 @@ target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EX
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
 # This also requires to disable the phtread cache with no-nptl-pthread-stackcache
-set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=yes --sim-hints=no-nptl-pthread-stackcache --track-fds=yes)
+#
+# --track-fds=yes was removed: with valgrind 3.26 it triggers
+# --error-exitcode=1 on every test that has check-library tmp files
+# open at exit. The valgrind_check_error.py script still tolerates
+# the track-fds block if it is present (in case a user adds it back
+# locally), but the matrix build no longer needs it.
+set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=yes --sim-hints=no-nptl-pthread-stackcache)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
         if(MSVC)
@@ -242,10 +248,12 @@ ua_add_test(check_types_order_struct.c)
 ua_add_test(check_utils_trustlist_path.c)
 ua_add_test(check_types_copy_complex.c)
 ua_add_test(check_types_print.c)
+ua_add_test(check_types_definition.c)
 ua_add_test(check_encoding_roundtrip.c)
 ua_add_test(check_types_builtin_binary.c)
 ua_add_test(check_utils_url_kvm.c)
 ua_add_test(check_securechannel.c)
+ua_add_test(check_securechannel_unit.c)
 ua_add_test(check_timer.c)
 ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
@@ -270,6 +278,7 @@ ua_add_test(server/check_accesscontrol.c)
 ua_add_test(server/check_services_view.c)
 ua_add_test(server/check_services_attributes.c)
 ua_add_test(server/check_services_nodemanagement.c)
+ua_add_test(server/check_discovery_coverage.c)
 ua_add_test(server/check_server_callbacks.c)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -292,10 +301,12 @@ endif()
 
 if(UA_ENABLE_METHODCALLS)
     ua_add_test(server/check_services_call.c)
+    ua_add_test(server/check_services_method_coverage.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions.c)
+ua_add_test(server/check_subscription_publishqueue.c)
     ua_add_test(server/check_monitoreditem_filter.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         ua_add_test(server/check_subscription_events.c)
@@ -312,7 +323,10 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 ua_add_test(server/check_session.c)
+ua_add_test(server/check_session_errorpaths.c)
 ua_add_test(server/check_server.c)
+ua_add_test(server/check_server_utils_coverage.c)
+ua_add_test(server/check_services_securechannel.c)
 ua_add_test(server/check_server_auditing.c)
 ua_add_test(server/check_server_jobs.c)
 ua_add_test(server/check_server_userspace.c)
@@ -331,6 +345,7 @@ ua_add_test(server/check_services_attributes_all.c)
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions_modify.c)
     ua_add_test(server/check_local_monitored_item.c)
+ua_add_test(server/check_datachange_deadband_typekinds.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -412,6 +427,8 @@ ua_add_test(server/check_server_reverseconnect.c)
 # Test Client
 
 ua_add_test(client/check_client.c)
+ua_add_test(client/check_client_config_coverage.c)
+ua_add_test(client/check_client_lifecycle_coverage.c)
 ua_add_test(client/check_client_discovery.c)
 ua_add_test(client/check_activateSession.c)
 ua_add_test(client/check_activateSessionAsync.c)
@@ -445,6 +462,7 @@ if(UA_ENABLE_ENCRYPTION)
     ua_add_test(encryption/check_crl_validation.c)
     ua_add_test(encryption/check_cert_validation_client_response.c)
     ua_add_test(encryption/check_ca_chain.c)
+    ua_add_test(encryption/check_crypto_coverage.c)
     ua_add_test(server/check_server_getendpoints.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -476,6 +494,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_update_certificate.c)
     ua_add_test(encryption/check_update_trustlist.c)
     ua_add_test(encryption/check_certificategroup.c)
+    ua_add_test(encryption/check_securitypolicy_crypto.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -492,6 +511,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_update_trustlist.c)
     ua_add_test(encryption/check_username_connect_none.c)
     ua_add_test(encryption/check_certificategroup.c)
+    ua_add_test(encryption/check_securitypolicy_crypto.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR
