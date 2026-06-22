@@ -184,7 +184,17 @@ START_TEST(read_auditing) {
     UA_StatusCode res = readNodeValue(
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(out.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(UA_Variant_hasScalarType(&out, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert_uint_eq(*(UA_Boolean*)out.data, false);
+    UA_Variant_clear(&out);
+
+    UA_Server_getConfig(server)->auditingEnabled = true;
+
+    UA_Variant_init(&out);
+    res = readNodeValue(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), &out);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&out, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert_uint_eq(*(UA_Boolean*)out.data, true);
     UA_Variant_clear(&out);
 } END_TEST
 
