@@ -52,6 +52,8 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccNistP256AesGcm / EccNistP256ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_ApplicationType applicationType,
@@ -73,6 +75,8 @@ UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *policy,
                                         const UA_ByteString localPrivateKey,
                                         const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccNistP384AesGcm / EccNistP384ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
                               const UA_ApplicationType applicationType,
@@ -80,6 +84,8 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
                               const UA_ByteString localPrivateKey,
                               const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccBrainpoolP256r1AesGcm / EccBrainpoolP256r1ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *policy,
                                      const UA_ApplicationType applicationType,
@@ -87,6 +93,8 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *policy,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccBrainpoolP384r1AesGcm / EccBrainpoolP384r1ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *policy,
                                      const UA_ApplicationType applicationType,

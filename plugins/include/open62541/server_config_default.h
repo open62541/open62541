@@ -231,6 +231,10 @@ UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
 /* Adds the security policy ``SecurityPolicy#EccNistP256`` to the server. A
  * server certificate may be supplied but is optional.
  *
+ * Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccNistP256_AesGcm`` / ``EccNistP256_ChaChaPoly``. No longer part of the
+ * default policy set; call this function to add it explicitly.
+ *
  * Certificate verification should be configured before calling this
  * function. See PKI plugin.
  *
@@ -263,16 +267,25 @@ UA_ServerConfig_addSecurityPolicyEccNistP256ChaChaPoly(UA_ServerConfig *config,
                                                        const UA_ByteString *certificate,
                                                        const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccNistP384_AesGcm`` / ``EccNistP384_ChaChaPoly``. No longer part of the
+ * default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
                                              const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccBrainpoolP256r1_AesGcm`` / ``EccBrainpoolP256r1_ChaChaPoly``. No longer
+ * part of the default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1(UA_ServerConfig *config,
                                                     const UA_ByteString *certificate,
                                                     const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccBrainpoolP384r1_AesGcm`` / ``EccBrainpoolP384r1_ChaChaPoly``. No longer
+ * part of the default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1(UA_ServerConfig *config,
                                                     const UA_ByteString *certificate,
