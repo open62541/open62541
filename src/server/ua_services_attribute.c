@@ -19,6 +19,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) Precitec GmbH & Co. KG (Author: Eric Supernok)
  */
 
 #include "ua_server_internal.h"
@@ -422,6 +423,97 @@ addMissingTimestamps(UA_Server *server, UA_DataValue *v,
     }
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+/* Status codes meaning the optional property is absent: fall through to the
+ * next candidate instead of failing. */
+static UA_Boolean
+enumPropertyMissing(UA_StatusCode s) {
+    return s == UA_STATUSCODE_BADNOMATCH ||
+           s == UA_STATUSCODE_BADNOTFOUND ||
+           s == UA_STATUSCODE_BADNODEIDUNKNOWN;
+}
+
+/* Build the EnumDefinition of a member-less Enumeration DataType from its
+ * EnumValues or EnumStrings property (OPC UA Part 3 v1.05, 5.8.3). BadNotFound
+ * if neither exists. Reads via adminSession, like the compiled-enum path. */
+static UA_StatusCode
+buildEnumDefinitionFromProperties(UA_Server *server, const UA_NodeId *dataTypeId,
+                                  UA_EnumDefinition *def) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EnumDefinition_init(def);
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Variant v;
+    UA_Variant_init(&v);
+
+    /* Prefer the EnumValues property (explicit values) */
+    UA_StatusCode found =
+        readObjectProperty(server, *dataTypeId,
+                           UA_QUALIFIEDNAME(0, "EnumValues"), &v);
+    if(!enumPropertyMissing(found) && found != UA_STATUSCODE_GOOD) {
+        res = found; /* Genuine read error, propagate */
+        goto out;
+    }
+    if(UA_Variant_hasArrayType(&v, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]) &&
+       v.arrayLength > 0) {
+        def->fields = (UA_EnumField*)
+            UA_Array_new(v.arrayLength, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+        if(!def->fields) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto out;
+        }
+        def->fieldsSize = v.arrayLength;
+        const UA_EnumValueType *ev = (const UA_EnumValueType*)v.data;
+        for(size_t i = 0; i < v.arrayLength && res == UA_STATUSCODE_GOOD; i++) {
+            UA_EnumField *f = &def->fields[i];
+            f->value = ev[i].value;
+            res = UA_String_copy(&ev[i].displayName.text, &f->name);
+            if(res == UA_STATUSCODE_GOOD)
+                res = UA_LocalizedText_copy(&ev[i].displayName, &f->displayName);
+            if(res == UA_STATUSCODE_GOOD)
+                res = UA_LocalizedText_copy(&ev[i].description, &f->description);
+        }
+        goto out;
+    }
+
+    /* Fall back to the EnumStrings property (implicit values 0..n-1) */
+    UA_Variant_clear(&v);
+    found = readObjectProperty(server, *dataTypeId,
+                               UA_QUALIFIEDNAME(0, "EnumStrings"), &v);
+    if(!enumPropertyMissing(found) && found != UA_STATUSCODE_GOOD) {
+        res = found; /* Genuine read error, propagate */
+        goto out;
+    }
+    if(UA_Variant_hasArrayType(&v, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) &&
+       v.arrayLength > 0) {
+        def->fields = (UA_EnumField*)
+            UA_Array_new(v.arrayLength, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+        if(!def->fields) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto out;
+        }
+        def->fieldsSize = v.arrayLength;
+        const UA_LocalizedText *lt = (const UA_LocalizedText*)v.data;
+        for(size_t i = 0; i < v.arrayLength && res == UA_STATUSCODE_GOOD; i++) {
+            UA_EnumField *f = &def->fields[i];
+            f->value = (UA_Int64)i;
+            res = UA_String_copy(&lt[i].text, &f->name);
+            if(res == UA_STATUSCODE_GOOD)
+                res = UA_LocalizedText_copy(&lt[i], &f->displayName);
+        }
+        goto out;
+    }
+
+    res = UA_STATUSCODE_BADNOTFOUND; /* Neither property present */
+
+ out:
+    UA_Variant_clear(&v);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_EnumDefinition_clear(def);
+    return res;
+}
+#endif
+
 /* Returns whether the operation is done or an async operation has been
  * triggered. */
 static UA_Boolean
@@ -626,17 +718,42 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             UA_QualifiedName_clear(&sd->name);
             memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
             UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION] && type->membersSize > 0) {
-            /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
-               can be read but has no fields. This breaks its method call dialog for enum parameters. */
+        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
+            if(type->membersSize > 0) {
+                /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
+                   can be read but has no fields. This breaks its method call dialog for enum parameters. */
 
-            UA_EnumDescription *ed = (UA_EnumDescription*)
-                typeDescr.content.decoded.data;
-            UA_NodeId_clear(&ed->dataTypeId);
-            UA_QualifiedName_clear(&ed->name);
-            memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
-            UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+                UA_EnumDescription *ed = (UA_EnumDescription*)
+                    typeDescr.content.decoded.data;
+                UA_NodeId_clear(&ed->dataTypeId);
+                UA_QualifiedName_clear(&ed->name);
+                memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
+                UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+            } else {
+                /* No compiled members: build from the EnumValues/EnumStrings
+                 * property (OPC UA Part 3 v1.05, Section 5.8.3) */
+                UA_ExtensionObject_clear(&typeDescr);
+                UA_EnumDefinition *enumDef = UA_EnumDefinition_new();
+                if(!enumDef) {
+                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                UA_StatusCode res =
+                    buildEnumDefinitionFromProperties(server, &node->head.nodeId,
+                                                      enumDef);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_EnumDefinition_delete(enumDef);
+                    /* No property: BadAttributeIdInvalid; else propagate */
+                    retval = (res == UA_STATUSCODE_BADNOTFOUND) ?
+                        UA_STATUSCODE_BADATTRIBUTEIDINVALID : res;
+                    break;
+                }
+                UA_Variant_setScalar(&v->value, enumDef,
+                                     &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+            }
         } else {
+            /* E.g. SimpleTypeDescription: no DataTypeDefinition encoding */
+            UA_ExtensionObject_clear(&typeDescr);
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         }
 #else
