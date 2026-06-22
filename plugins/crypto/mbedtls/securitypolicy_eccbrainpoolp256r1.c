@@ -620,6 +620,9 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_brainpoolP256r1 is deprecated (OPC UA Part 7); "
+                   "use ECC_brainpoolP256r1_AesGcm or ECC_brainpoolP256r1_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);

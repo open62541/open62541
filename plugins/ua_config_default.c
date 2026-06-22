@@ -1181,20 +1181,10 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        UA_StatusCode_name(retval));
     }
 
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
-    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER >= 0x03000000)
-    /* EccNistP256 */
-    retval = UA_SecurityPolicy_EccNistP256(sp + *length, applicationType,
-                                           certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccNistP256 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* The AEAD ECC policies (AesGcm / ChaChaPoly) are only implemented in the
-     * OpenSSL backend; their constructors do not exist for mbedTLS. */
+    /* The non-deprecated ECC SecurityPolicies are the AEAD profiles, which are
+     * implemented only in the OpenSSL backend. The deprecated non-AEAD ECC
+     * policies (EccNistP256/P384, EccBrainpoolP256r1/P384r1) are not part of the
+     * default set; add them explicitly via UA_ServerConfig_addSecurityPolicyEcc*. */
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     /* EccNistP256AesGcm */
     retval = UA_SecurityPolicy_EccNistP256AesGcm(sp + *length, applicationType,
@@ -1215,40 +1205,7 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        "Could not add SecurityPolicy#EccNistP256_ChaChaPoly with error code %s",
                        UA_StatusCode_name(retval));
     }
-#endif
 
-    /* EccNistP384 */
-    retval = UA_SecurityPolicy_EccNistP384(sp + *length, applicationType,
-                                           certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccNistP384 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccBrainpoolP256r1 */
-    retval = UA_SecurityPolicy_EccBrainpoolP256r1(sp + *length, applicationType,
-                                                   certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccBrainpoolP256r1 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccBrainpoolP384r1 */
-    retval = UA_SecurityPolicy_EccBrainpoolP384r1(sp + *length, applicationType,
-                                                   certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccBrainpoolP384r1 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-#endif /* UA_ENABLE_ENCRYPTION_OPENSSL || mbedTLS ECC */
-
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     /* EccCurve25519 */
     retval = UA_SecurityPolicy_EccCurve25519(sp + *length, applicationType,
                                              certificate, privateKey, logging);
@@ -1302,6 +1259,12 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        UA_StatusCode_name(retval));
     }
 #endif
+
+    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
+     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
+     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+     * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
+     * them explicitly. */
 }
 
 static UA_StatusCode
@@ -1888,27 +1851,7 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         }
     }
 
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
-    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER >= 0x03000000)
-    /* EccNistP256 */
-    UA_SecurityPolicy *eccnistp256Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccnistp256Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccNistP256(eccnistp256Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
-                       UA_StatusCode_name(retval));
-
-    /* EccNistP256AesGcm (OpenSSL-only AEAD policy; see note above). The block is
-     * brace-neutral, so excluding it for mbedTLS leaves the surrounding
-     * nistP256 if/else structure intact. */
+    /* EccNistP256AesGcm (OpenSSL-only AEAD policy) */
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     UA_SecurityPolicy *eccnistp256AesGcmPolicy =
         (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
@@ -1937,99 +1880,12 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         }
     }
 #endif
-    eccnistp256Policy->clear(eccnistp256Policy);
-        UA_free(eccnistp256Policy);
-        eccnistp256Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
 
-    /* EccNistP384 */
-    UA_SecurityPolicy *eccnistp384Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccnistp384Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccNistP384(eccnistp384Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_nistP384 with error code %s",
-                       UA_StatusCode_name(retval));
-        eccnistp384Policy->clear(eccnistp384Policy);
-        UA_free(eccnistp384Policy);
-        eccnistp384Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp384Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_nistP384 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
-
-    /* EccBrainpoolP256r1 */
-    UA_SecurityPolicy *eccbrainpoolp256r1Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccbrainpoolp256r1Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccBrainpoolP256r1(eccbrainpoolp256r1Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_brainpoolP256r1 with error code %s",
-                       UA_StatusCode_name(retval));
-        eccbrainpoolp256r1Policy->clear(eccbrainpoolp256r1Policy);
-        UA_free(eccbrainpoolp256r1Policy);
-        eccbrainpoolp256r1Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccbrainpoolp256r1Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_brainpoolP256r1 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
-
-    /* EccBrainpoolP384r1 */
-    UA_SecurityPolicy *eccbrainpoolp384r1Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccbrainpoolp384r1Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccBrainpoolP384r1(eccbrainpoolp384r1Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_brainpoolP384r1 with error code %s",
-                       UA_StatusCode_name(retval));
-        eccbrainpoolp384r1Policy->clear(eccbrainpoolp384r1Policy);
-        UA_free(eccbrainpoolp384r1Policy);
-        eccbrainpoolp384r1Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccbrainpoolp384r1Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_brainpoolP384r1 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
-#endif
+    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
+     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
+     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+     * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
+     * them explicitly. */
 
     UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
