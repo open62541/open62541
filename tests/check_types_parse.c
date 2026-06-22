@@ -265,6 +265,42 @@ START_TEST(parseRelativePath) {
     UA_String_clear(&ex9out);
 } END_TEST
 
+START_TEST(parseRelativePathMalformed) {
+    /* src/util/ua_types_lex.c:981-991 (UA_RelativePath_parse):
+     *   res = parse_relativepath(rp, &pos, end, NULL, UA_ESCAPING_AND, 0);
+     *   if(pos != end) res = UA_STATUSCODE_BADDECODINGERROR;
+     * The existing parseRelativePath test (line 153) covers only valid
+     * inputs. The pre-existing test reaches this code path via the
+     * empty-string case, but only the GOOD branch. The new test
+     * exercises the BADDECODINGERROR branch by feeding inputs that
+     * parse_relativepathElement silently stops on (the default branch
+     * at line 872 sets *done=true and returns GOOD with pos still
+     * pointing to the unconsumed prefix), so pos != end trips. */
+    UA_RelativePath rp;
+    UA_StatusCode res;
+
+    /* No leading '/' / '.' / '<' -> parse_relativepathElement
+     * immediately hits the default branch, done=true, pos=0 < end. */
+    UA_String bad1 = UA_STRING("Foo");
+    res = UA_RelativePath_parse(&rp, bad1);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_RelativePath_clear(&rp);
+
+    /* Same: starts with a digit that isn't '/' / '.' / '<'. */
+    UA_String bad2 = UA_STRING("1:Foo");
+    res = UA_RelativePath_parse(&rp, bad2);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_RelativePath_clear(&rp);
+
+    /* Lone '<' is consumed (parse_relativepathElement takes the '<'-
+     * branch and produces an empty target) but the suffix is left
+     * untouched, so pos != end trips. */
+    UA_String bad3 = UA_STRING("<HasChild");
+    res = UA_RelativePath_parse(&rp, bad3);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_RelativePath_clear(&rp);
+} END_TEST
+
 START_TEST(parseRelativePathWithServer) {
     UA_Server *server = UA_Server_newForUnitTest();
 
@@ -423,6 +459,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
     tcase_add_test(tc, parseRelativePath);
+    tcase_add_test(tc, parseRelativePathMalformed);
     tcase_add_test(tc, parseRelativePathWithServer);
     tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);

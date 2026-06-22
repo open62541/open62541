@@ -10,6 +10,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* On libcheck < 0.11 (ubuntu-20.04 ships 0.10), ck_assert_ptr_null /
+ * ck_assert_ptr_nonnull are missing. Shim them to ck_assert_msg. */
+#ifndef ck_assert_ptr_null
+# define ck_assert_ptr_null(p) ck_assert_msg((p) == NULL, #p " is not NULL")
+#endif
+#ifndef ck_assert_ptr_nonnull
+# define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " is NULL")
+#endif
+
 /* === NumericRange tests === */
 START_TEST(numericRange_parse_simple) {
     UA_NumericRange nr;
@@ -232,6 +241,54 @@ START_TEST(variant_setRangeCopy_test) {
     UA_Variant_clear(&v);
 } END_TEST
 
+/* === Variant setRange on edge cases === */
+START_TEST(variant_setRangeCopy_emptyVariant_rejected) {
+    /* src/ua_types.c:1730: if(!v->type) return UA_STATUSCODE_BADINVALIDARGUMENT;
+     * The existing variant_setRange_test / variant_setRangeCopy_test only
+     * cover the populated-variant path. */
+    UA_Variant v;
+    UA_Variant_init(&v);
+    ck_assert(v.type == NULL);
+    ck_assert_ptr_null(v.data);
+    ck_assert_uint_eq(v.arrayLength, 0);
+
+    UA_Int32 newVals[] = {1, 2, 3};
+    UA_NumericRange nr = UA_NUMERICRANGE("0:2");
+    UA_StatusCode res = UA_Variant_setRangeCopy(&v, newVals, 3, nr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* setRange (no copy) should also be rejected */
+    res = UA_Variant_setRange(&v, newVals, 3, nr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* The variant must remain empty after a rejected setRange */
+    ck_assert(v.type == NULL);
+    ck_assert_ptr_null(v.data);
+    UA_free(nr.dimensions);
+} END_TEST
+
+START_TEST(variant_setRangeCopy_arraySizeMismatch_rejected) {
+    /* src/ua_types.c:1749-1750:
+     *   if(count != arraySize) return UA_STATUSCODE_BADINDEXRANGEINVALID;
+     * The existing variant_setRangeCopy_test uses arraySize matching the
+     * numeric range; exercise the mismatch branch. */
+    UA_Int32 arr[] = {1, 2, 3, 4, 5};
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_Variant_setArrayCopy(&v, arr, 5, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_Int32 newVals[] = {77, 88};  /* arraySize = 2 */
+    UA_NumericRange nr = UA_NUMERICRANGE("0:4");  /* range covers 5 elements */
+    UA_StatusCode res = UA_Variant_setRangeCopy(&v, newVals, 2, nr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINDEXRANGEINVALID);
+
+    /* Variant contents unchanged */
+    ck_assert_int_eq(((UA_Int32 *)v.data)[0], 1);
+    ck_assert_int_eq(((UA_Int32 *)v.data)[4], 5);
+    UA_free(nr.dimensions);
+    UA_Variant_clear(&v);
+} END_TEST
+
 /* === StatusCode name === */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
 START_TEST(statusCode_name) {
@@ -403,6 +460,93 @@ START_TEST(array_resize) {
     ck_assert_uint_eq(size, 0);
 } END_TEST
 
+/* === NamespaceMapping clear / delete === */
+START_TEST(namespaceMapping_clearNull_isNoop) {
+    /* clear on NULL must be a safe no-op (early return) */
+    UA_NamespaceMapping_clear(NULL);
+
+    /* delete on NULL must be a safe no-op (clear(NULL) + UA_free(NULL)) */
+    UA_NamespaceMapping_delete(NULL);
+} END_TEST
+
+START_TEST(namespaceMapping_clearEmpty_freesNothing) {
+    /* A zero-initialized mapping has NULL array pointers and 0 sizes.
+     * clear must not dereference the NULL pointers. */
+    UA_NamespaceMapping nm;
+    memset(&nm, 0, sizeof(UA_NamespaceMapping));
+    UA_NamespaceMapping_clear(&nm);
+
+    /* Sizes stay at 0 and pointers stay NULL after clear */
+    ck_assert_uint_eq(nm.namespaceUrisSize, 0);
+    ck_assert_uint_eq(nm.local2remoteSize, 0);
+    ck_assert_uint_eq(nm.remote2localSize, 0);
+    ck_assert(nm.namespaceUris == NULL);
+    ck_assert(nm.local2remote == NULL);
+    ck_assert(nm.remote2local == NULL);
+} END_TEST
+
+START_TEST(namespaceMapping_clearNonEmpty_freesMembers) {
+    /* Build a populated mapping by hand. clear must free the three
+     * member arrays via UA_Array_delete. After clear, the struct is
+     * in the empty state. */
+    UA_NamespaceMapping nm;
+    memset(&nm, 0, sizeof(UA_NamespaceMapping));
+
+    UA_String uris[3] = {
+        UA_STRING("http://opcfoundation.org/UA/"),
+        UA_STRING("urn:test:ns1"),
+        UA_STRING("urn:test:ns2"),
+    };
+    UA_StatusCode res = UA_Array_copy(uris, 3, (void**)&nm.namespaceUris,
+                                      &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    nm.namespaceUrisSize = 3;
+
+    UA_UInt16 l2r[3] = {0, 1, 2};
+    res = UA_Array_copy(l2r, 3, (void**)&nm.local2remote,
+                        &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    nm.local2remoteSize = 3;
+
+    UA_UInt16 r2l[3] = {0, 1, 2};
+    res = UA_Array_copy(r2l, 3, (void**)&nm.remote2local,
+                        &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    nm.remote2localSize = 3;
+
+    UA_NamespaceMapping_clear(&nm);
+
+    /* All three arrays are freed and the sizes reset */
+    ck_assert_uint_eq(nm.namespaceUrisSize, 0);
+    ck_assert_uint_eq(nm.local2remoteSize, 0);
+    ck_assert_uint_eq(nm.remote2localSize, 0);
+    ck_assert(nm.namespaceUris == NULL);
+    ck_assert(nm.local2remote == NULL);
+    ck_assert(nm.remote2local == NULL);
+} END_TEST
+
+START_TEST(namespaceMapping_delete_allocatedStruct) {
+    /* delete must free both the struct and its members. The struct is
+     * allocated via UA_calloc/UA_malloc (mirror of how
+     * UA_NamespaceMapping_new is implemented elsewhere). */
+    UA_NamespaceMapping *nm = (UA_NamespaceMapping*)
+        UA_calloc(1, sizeof(UA_NamespaceMapping));
+    ck_assert_ptr_nonnull(nm);
+
+    UA_String uri = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    UA_StatusCode res = UA_Array_copy(&uri, 1, (void**)&nm->namespaceUris,
+                                      &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    nm->namespaceUrisSize = 1;
+    /* Free the stack-allocated source string -- UA_Array_copy made
+     * a deep copy into nm->namespaceUris, so uri is now a duplicate
+     * that the valgrind check would otherwise flag as leaked. */
+    UA_String_clear(&uri);
+
+    /* delete must not crash, and a NULL out-pointer would not see anything */
+    UA_NamespaceMapping_delete(nm);
+} END_TEST
+
 /* === DataType copy === */
 START_TEST(datatype_copy_test) {
     UA_DataType src = UA_TYPES[UA_TYPES_INT32];
@@ -440,10 +584,16 @@ static Suite *testSuite_Types2(void) {
     tcase_add_test(tc_ns, nsMapping_remote2Local);
     tcase_add_test(tc_ns, nsMapping_uri2Index);
     tcase_add_test(tc_ns, nsMapping_index2Uri);
+    tcase_add_test(tc_ns, namespaceMapping_clearNull_isNoop);
+    tcase_add_test(tc_ns, namespaceMapping_clearEmpty_freesNothing);
+    tcase_add_test(tc_ns, namespaceMapping_clearNonEmpty_freesMembers);
+    tcase_add_test(tc_ns, namespaceMapping_delete_allocatedStruct);
 
     TCase *tc_var = tcase_create("VariantRange");
     tcase_add_test(tc_var, variant_setRange_test);
     tcase_add_test(tc_var, variant_setRangeCopy_test);
+    tcase_add_test(tc_var, variant_setRangeCopy_emptyVariant_rejected);
+    tcase_add_test(tc_var, variant_setRangeCopy_arraySizeMismatch_rejected);
     tcase_add_test(tc_var, array_resize);
 
     TCase *tc_kvm = tcase_create("KeyValueMap");

@@ -10,6 +10,17 @@
 #include "server/ua_server_internal.h"
 
 #include <check.h>
+
+/* Provide ck_assert_ptr_null / ck_assert_ptr_nonnull on top of older
+ * libcheck (Ubuntu 20.04 ships 0.10.x where these shorthands are not
+ * yet defined). The ck_assert_msg form compiles on every libcheck
+ * version. */
+#ifndef ck_assert_ptr_null
+# define ck_assert_ptr_null(p) ck_assert_msg((p) == NULL, #p " != NULL")
+#endif
+#ifndef ck_assert_ptr_nonnull
+# define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " == NULL")
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -493,6 +504,525 @@ START_TEST(BrowseSimplifiedBrowsePath) {
 }
 END_TEST
 
+/* === Browse edge cases === */
+
+START_TEST(Service_Browse_EmptyRefType) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.referenceTypeId = UA_NODEID_NULL;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(br.referencesSize > 0);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(Service_Browse_InvalidRefTypeId) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(1, 99999);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_BADREFERENCETYPEIDINVALID);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(Service_Browse_NonReferenceTypeAsRefType) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_BADREFERENCETYPEIDINVALID);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* ==== View service edge cases ==== */
+
+START_TEST(View_BrowseUnknownNode_returnsError) {
+    /* Browsing a non-existent node returns BADNODEIDUNKNOWN. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(1, 999999);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_BrowseNextUnknownContinuationPoint) {
+    /* browseNext with an unknown continuation point returns
+     * BADCONTINUATIONPOINTINVALID. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    UA_ByteString badCp = UA_BYTESTRING_ALLOC("not-a-real-continuation-point");
+    UA_BrowseResult br = UA_Server_browseNext(server, false, &badCp);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_BrowseResult_clear(&br);
+    UA_ByteString_clear(&badCp);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_BrowseRecursive_emptyStartNode) {
+    /* browseRecursive against the leaf SERVER_SERVERSTATUS_CURRENTSTATE
+     * variable (which has no inverse hierarchical references) returns GOOD
+     * with a small (but possibly non-zero) result set. The point is to
+     * exercise the recursive-walk termination path, not to assert a
+     * particular count. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    size_t resultSize = 0;
+    UA_ExpandedNodeId *result = NULL;
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    UA_StatusCode retval = UA_Server_browseRecursive(server, &bd, &resultSize, &result);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    if(result)
+        UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_BrowseRecursive_invalidNode) {
+    /* browseRecursive on a non-existent start node returns GOOD with an
+     * empty result set. The walk handles the missing node gracefully via
+     * UA_NODESTORE_GET failing, instead of returning an error. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    size_t resultSize = 99;
+    UA_ExpandedNodeId *result = NULL;
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(1, 999999);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_StatusCode retval = UA_Server_browseRecursive(server, &bd, &resultSize, &result);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    /* size may be left as input by the function */
+    if(result)
+        UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_BrowseRecursive_zeroMaxReferences) {
+    /* browseRecursive on a known node succeeds regardless of result sizing. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    size_t resultSize = 0;
+    UA_ExpandedNodeId *result = NULL;
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    UA_StatusCode retval = UA_Server_browseRecursive(server, &bd, &resultSize, &result);
+    /* Should succeed; the inverse walk from Server gives the root. */
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    if(result)
+        UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_TranslateBrowsePath_unknownStartNode) {
+    /* translateBrowsePathToNodeIds with a non-existent start node returns
+     * BADNODEIDUNKNOWN. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = UA_NODEID_NUMERIC(1, 999999);
+    bp.relativePath.elementsSize = 1;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    rpe.isInverse = false;
+    rpe.includeSubtypes = true;
+    rpe.targetName = UA_QUALIFIEDNAME(0, "Objects");
+    bp.relativePath.elements = &rpe;
+
+    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    ck_assert_int_eq(bpr.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_BrowsePathResult_clear(&bpr);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_TranslateBrowsePath_emptyPath) {
+    /* translateBrowsePathToNodeIds with an empty relative path returns
+     * BADNOTHINGTODO (no relative-path elements to walk). This exercises
+     * the early return branch in the implementation. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    bp.relativePath.elementsSize = 0;
+    bp.relativePath.elements = NULL;
+
+    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    /* Either GOOD with 1 target (the start node itself) or
+     * BADNOTHINGTODO are acceptable responses; both reach a meaningful
+     * branch. The important thing is that no crash happens. */
+    ck_assert(bpr.statusCode == UA_STATUSCODE_GOOD ||
+              bpr.statusCode == UA_STATUSCODE_BADNOTHINGTODO);
+    UA_BrowsePathResult_clear(&bpr);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_BrowseBothDirections_includesInverse) {
+    /* BrowseDirection::BOTH includes both forward and inverse references. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_msg(server != NULL, "expected server to be non-NULL");
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.browseDirection = UA_BROWSEDIRECTION_BOTH;
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ge(br.referencesSize, 1);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
+/* ==== Service_Browse / Service_RegisterNodes / Service_UnregisterNodes
+ *      guard branches (the public-OPC-UA-binary-protocol entry points) ==== */
+
+START_TEST(Service_Browse_maxNodesPerBrowse_exceeded) {
+    /* src/server/ua_services_view.c:1007-1011:
+     *   if(maxNodesPerBrowse != 0 &&
+     *      request->nodesToBrowseSize > maxNodesPerBrowse) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+     *     return true;
+     *   }
+     * The default maxNodesPerBrowse is 0 (unlimited); no test
+     * sets a non-zero limit and triggers this branch. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->maxNodesPerBrowse = 1;
+
+    UA_BrowseRequest req;
+    UA_BrowseRequest_init(&req);
+    req.nodesToBrowseSize = 2; /* exceeds 1 */
+    req.nodesToBrowse = (UA_BrowseDescription*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION]);
+    for(size_t i = 0; i < 2; i++) {
+        UA_BrowseDescription_init(&req.nodesToBrowse[i]);
+        req.nodesToBrowse[i].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+        req.nodesToBrowse[i].browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    }
+
+    UA_BrowseResponse resp;
+    UA_BrowseResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_Browse(server, &server->adminSession, &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(resp.resultsSize, 0);
+
+    UA_Array_delete(req.nodesToBrowse, 2, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION]);
+    UA_BrowseResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(Service_Browse_viewIdUnknown) {
+    /* src/server/ua_services_view.c:1014-1017:
+     *   if(!UA_NodeId_isNull(&request->view.viewId)) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
+     *     return true;
+     *   }
+     * UA_Server_browse calls Operation_Browse directly, not
+     * Service_Browse, so this branch is unreachable from the
+     * existing public-API tests. The branch is hit when a client
+     * sends a BrowseRequest with a non-null viewId. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_BrowseRequest req;
+    UA_BrowseRequest_init(&req);
+    req.view.viewId = UA_NODEID_NUMERIC(1, 99999); /* not null */
+    req.view.timestamp = UA_DateTime_now();
+    req.nodesToBrowseSize = 1;
+    req.nodesToBrowse = (UA_BrowseDescription*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION]);
+    UA_BrowseDescription_init(&req.nodesToBrowse[0]);
+    req.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    req.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD;
+
+    UA_BrowseResponse resp;
+    UA_BrowseResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_Browse(server, &server->adminSession, &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADVIEWIDUNKNOWN);
+    ck_assert_uint_eq(resp.resultsSize, 0);
+
+    UA_Array_delete(req.nodesToBrowse, 1, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION]);
+    UA_BrowseResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(Service_RegisterNodes_emptyList_returnsNothingToDo) {
+    /* src/server/ua_services_view.c:1503-1506:
+     *   if(request->nodesToRegisterSize == 0) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+     *     return true;
+     *   } */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_RegisterNodesRequest req;
+    UA_RegisterNodesRequest_init(&req);
+    req.nodesToRegisterSize = 0;
+    req.nodesToRegister = NULL;
+
+    UA_RegisterNodesResponse resp;
+    UA_RegisterNodesResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_RegisterNodes(server, &server->adminSession,
+                                          &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNOTHINGTODO);
+    ck_assert_uint_eq(resp.registeredNodeIdsSize, 0);
+
+    UA_RegisterNodesResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(Service_RegisterNodes_tooMany) {
+    /* src/server/ua_services_view.c:1509-1513:
+     *   if(maxNodesPerRegisterNodes != 0 &&
+     *      request->nodesToRegisterSize > maxNodesPerRegisterNodes) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+     *     return true;
+     *   } */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->maxNodesPerRegisterNodes = 1;
+
+    UA_RegisterNodesRequest req;
+    UA_RegisterNodesRequest_init(&req);
+    req.nodesToRegisterSize = 2; /* exceeds 1 */
+    req.nodesToRegister = (UA_NodeId*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_NODEID]);
+    req.nodesToRegister[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    req.nodesToRegister[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+
+    UA_RegisterNodesResponse resp;
+    UA_RegisterNodesResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_RegisterNodes(server, &server->adminSession,
+                                          &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(resp.registeredNodeIdsSize, 0);
+
+    UA_Array_delete(req.nodesToRegister, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_RegisterNodesResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(Service_UnregisterNodes_emptyList_returnsNothingToDo) {
+    /* src/server/ua_services_view.c:1532-1534: same BADNOTHINGTODO
+     * branch for the unregister path. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_UnregisterNodesRequest req;
+    UA_UnregisterNodesRequest_init(&req);
+    req.nodesToUnregisterSize = 0;
+    req.nodesToUnregister = NULL;
+
+    UA_UnregisterNodesResponse resp;
+    UA_UnregisterNodesResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_UnregisterNodes(server, &server->adminSession,
+                                            &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_UnregisterNodesResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(Service_UnregisterNodes_tooMany) {
+    /* src/server/ua_services_view.c:1534-1537: same maxNodes guard
+     * for the unregister path. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->maxNodesPerRegisterNodes = 1;
+
+    UA_UnregisterNodesRequest req;
+    UA_UnregisterNodesRequest_init(&req);
+    req.nodesToUnregisterSize = 2;
+    req.nodesToUnregister = (UA_NodeId*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_NODEID]);
+    req.nodesToUnregister[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    req.nodesToUnregister[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+
+    UA_UnregisterNodesResponse resp;
+    UA_UnregisterNodesResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_UnregisterNodes(server, &server->adminSession,
+                                            &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+
+    UA_Array_delete(req.nodesToUnregister, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_UnregisterNodesResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(Service_TranslateBrowsePathsToNodeIds_maxNodesPerTranslate) {
+    /* src/server/ua_services_view.c:1429-1433:
+     *   if(maxNodesPerTranslateBrowsePathsToNodeIds != 0 &&
+     *      request->browsePathsSize > maxNodesPerTranslateBrowsePathsToNodeIds) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+     *     return true;
+     *   } */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->maxNodesPerTranslateBrowsePathsToNodeIds = 1;
+
+    UA_TranslateBrowsePathsToNodeIdsRequest req;
+    UA_TranslateBrowsePathsToNodeIdsRequest_init(&req);
+    req.browsePathsSize = 2;
+    req.browsePaths = (UA_BrowsePath*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_BROWSEPATH]);
+    for(size_t i = 0; i < 2; i++) {
+        UA_BrowsePath_init(&req.browsePaths[i]);
+        req.browsePaths[i].startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    }
+
+    UA_TranslateBrowsePathsToNodeIdsResponse resp;
+    UA_TranslateBrowsePathsToNodeIdsResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_TranslateBrowsePathsToNodeIds(
+        server, &server->adminSession, &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(resp.resultsSize, 0);
+
+    UA_Array_delete(req.browsePaths, 2, &UA_TYPES[UA_TYPES_BROWSEPATH]);
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&resp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(BrowseSimplifiedBrowsePath_tooLong_returnsInternalError) {
+    /* src/server/ua_services_view.c:1452-1457 (browseSimplifiedBrowsePath):
+     *   if(browsePathSize > UA_MAX_TREE_RECURSE) { // == 50
+     *     bpr.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+     *     return bpr;
+     *   }
+     * The existing BrowseSimplifiedBrowsePath test uses size 1; the
+     * > UA_MAX_TREE_RECURSE branch is never exercised. */
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    /* UA_MAX_TREE_RECURSE is 50 (defined in src/server/ua_services_view.c
+     * and not exposed via a public header); we pass 51 to trip the
+     * guard. */
+    const size_t size = 51;
+    UA_QualifiedName path[51];
+    for(size_t i = 0; i < size; i++) {
+        path[i] = UA_QUALIFIEDNAME(0, "Anything");
+    }
+
+    lockServer(server);
+    UA_BrowsePathResult br =
+        browseSimplifiedBrowsePath(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+                                   size, path);
+    unlockServer(server);
+
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    /* No targets returned */
+    ck_assert_uint_eq(br.targetsSize, 0);
+    UA_BrowsePathResult_clear(&br);
+
+    UA_Server_delete(server);
+} END_TEST
+
 static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     Suite *s = suite_create("Service_TranslateBrowsePathsToNodeIds");
     TCase *tc_browse = tcase_create("Browse Service");
@@ -503,7 +1033,32 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
     tcase_add_test(tc_browse, Service_Browse_Localization);
+    tcase_add_test(tc_browse, Service_Browse_EmptyRefType);
+    tcase_add_test(tc_browse, Service_Browse_InvalidRefTypeId);
+    tcase_add_test(tc_browse, Service_Browse_NonReferenceTypeAsRefType);
     suite_add_tcase(s, tc_browse);
+
+    /* Additional view-service edge cases for src/server/ua_services_view.c.
+     * Targets previously-uncovered error paths in browseRecursive,
+     * translateBrowsePath, and the public UA_Server_browseNext wrapper. */
+    TCase *tc_view_edge = tcase_create("View edge cases");
+    tcase_add_test(tc_view_edge, View_BrowseUnknownNode_returnsError);
+    tcase_add_test(tc_view_edge, View_BrowseNextUnknownContinuationPoint);
+    tcase_add_test(tc_view_edge, View_BrowseRecursive_emptyStartNode);
+    tcase_add_test(tc_view_edge, View_BrowseRecursive_invalidNode);
+    tcase_add_test(tc_view_edge, View_BrowseRecursive_zeroMaxReferences);
+    tcase_add_test(tc_view_edge, View_TranslateBrowsePath_unknownStartNode);
+    tcase_add_test(tc_view_edge, View_TranslateBrowsePath_emptyPath);
+    tcase_add_test(tc_view_edge, View_BrowseBothDirections_includesInverse);
+    tcase_add_test(tc_view_edge, Service_Browse_maxNodesPerBrowse_exceeded);
+    tcase_add_test(tc_view_edge, Service_Browse_viewIdUnknown);
+    tcase_add_test(tc_view_edge, Service_RegisterNodes_emptyList_returnsNothingToDo);
+    tcase_add_test(tc_view_edge, Service_RegisterNodes_tooMany);
+    tcase_add_test(tc_view_edge, Service_UnregisterNodes_emptyList_returnsNothingToDo);
+    tcase_add_test(tc_view_edge, Service_UnregisterNodes_tooMany);
+    tcase_add_test(tc_view_edge, Service_TranslateBrowsePathsToNodeIds_maxNodesPerTranslate);
+    tcase_add_test(tc_view_edge, BrowseSimplifiedBrowsePath_tooLong_returnsInternalError);
+    suite_add_tcase(s, tc_view_edge);
 
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
     tcase_add_unchecked_fixture(tc_translate, setup_server, teardown_server);

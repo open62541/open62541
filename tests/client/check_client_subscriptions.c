@@ -2046,6 +2046,60 @@ START_TEST(Client_methodcall) {
 END_TEST
 #endif /* UA_ENABLE_METHODCALLS */
 
+START_TEST(Client_subscription_modifyAsync_invalidSubscriptionId) {
+    /* src/client/ua_client_subscriptions.c:280-283:
+     *   sub = findSubscriptionById(client, request.subscriptionId);
+     *   if(!sub) { unlockClient; return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID; }
+     * The sync UA_Client_Subscriptions_modify is tested for this path;
+     * the async variant is not. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Build a request with a clearly invalid subscriptionId */
+    UA_ModifySubscriptionRequest req;
+    UA_ModifySubscriptionRequest_init(&req);
+    req.subscriptionId = 99999;
+    req.requestedPublishingInterval = 500.0;
+    req.requestedLifetimeCount = 100;
+    req.requestedMaxKeepAliveCount = 10;
+
+    UA_ModifySubscriptionResponse resp;
+    UA_UInt32 requestId = 0;
+    retval = UA_Client_Subscriptions_modify_async(
+        client, req,
+        (UA_ClientAsyncModifySubscriptionCallback)NULL,
+        &resp, &requestId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Client_renewSecureChannel_returnsGoodCallAgain) {
+    /* src/client/ua_client_connect.c:712-715:
+     *   if(channel.state != OPEN || renewState == SENT || nextRenewal > now)
+     *     return UA_STATUSCODE_GOODCALLAGAIN;
+     * Right after a fresh connect, the channel is OPEN and the renewal
+     * timer is in the future, so the call returns GOODCALLAGAIN without
+     * sending anything. None of the existing tests call the public
+     * UA_Client_renewSecureChannel directly. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* First call: channel is fresh, so GOODCALLAGAIN */
+    retval = UA_Client_renewSecureChannel(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOODCALLAGAIN);
+
+    /* Second call: same -- channel is still fresh */
+    retval = UA_Client_renewSecureChannel(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOODCALLAGAIN);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client Subscription");
 
@@ -2077,6 +2131,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_setMonitoringMode);
     tcase_add_test(tc_client, Client_subscription_setTriggering);
     tcase_add_test(tc_client, Client_subscription_modifyAsync);
+    tcase_add_test(tc_client, Client_subscription_modifyAsync_invalidSubscriptionId);
+    tcase_add_test(tc_client, Client_renewSecureChannel_returnsGoodCallAgain);
     suite_add_tcase(s,tc_client);
 
 #ifdef UA_ENABLE_METHODCALLS

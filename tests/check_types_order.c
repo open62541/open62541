@@ -486,6 +486,100 @@ START_TEST(datetime_parse_just_date) {
     (void)dt;
 } END_TEST
 
+START_TEST(datetime_parse_truncatedYear) {
+    /* src/ua_types.c:548 / 551:
+     *   UA_CHECK(str.length - pos > 5, return BADDECODINGERROR);
+     *   UA_CHECK(len > 0 && pos < str.length, return BADDECODINGERROR);
+     * A year without the required date suffix and within length limits
+     * still fails because parseInt64 with 5 digits will overrun or
+     * because the year length is not exactly 4 and the next byte is
+     * not '-'. */
+    UA_DateTime dt = 0;
+    UA_StatusCode res = UA_DateTime_parse(&dt, UA_STRING("2025"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+
+    /* 3-digit year also fails the length == 4 check. */
+    res = UA_DateTime_parse(&dt, UA_STRING("202"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(datetime_parse_unterminatedTimezone) {
+    /* src/ua_types.c:646-670: the "+" or "-" timezone branch needs
+     * at least 2 digits after the sign. "+" alone is rejected at
+     * line 651. The fall-through else at line 670 returns
+     * BADDECODINGERROR for any other suffix character. */
+    UA_DateTime dt = 0;
+    UA_StatusCode res = UA_DateTime_parse(&dt,
+        UA_STRING("2025-01-15T12:30:45+"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+
+    /* A letter that is not Z/+/- hits the else branch. */
+    res = UA_DateTime_parse(&dt,
+        UA_STRING("2025-01-15T12:30:45X"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(datetime_parse_yearOverflow) {
+    /* src/ua_types.c:611-618: a year so large that sinceunix exceeds
+     * the DateTime range returns BADDECODINGERROR. The 5-digit year
+     * requires the '-' separator per line 552. */
+    UA_DateTime dt = 0;
+    UA_StatusCode res = UA_DateTime_parse(&dt,
+        UA_STRING("99999-01-15T12:30:45Z"));
+    ck_assert(res != UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(datetime_toStruct_negativeFraction) {
+    /* src/ua_types.c:487-491: if(frac < 0) { secSinceUnixEpoch--;
+     *   frac += UA_DATETIME_SEC; }
+     * A negative-fraction DateTime is created by subtracting less than
+     * one full second from a DateTime that is already on a second
+     * boundary. */
+    UA_DateTime base = 0;
+    UA_StatusCode res = UA_DateTime_parse(&base, UA_STRING("1970-01-01T00:00:00Z"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(base != 0);
+
+    /* Subtract 1 microsecond -> frac is negative, year stays at 1970 */
+    UA_DateTime negative = base - 1;
+
+    UA_DateTimeStruct ts = UA_DateTime_toStruct(negative);
+    ck_assert_int_eq(ts.year, 1970);
+    ck_assert_int_eq(ts.month, 1);
+    ck_assert_int_eq(ts.day, 1);
+    /* hour, min, sec, milliSec, microSec may be at boundary values
+     * but the day must still be 1. */
+    ck_assert(ts.microSec == 999);
+} END_TEST
+
+START_TEST(datetime_fromStruct_roundTrip) {
+    /* src/ua_types.c:510-529: round-trip a struct through
+     * fromStruct and back to verify the year/month/day arithmetic
+     * and the fractional accumulation. */
+    UA_DateTimeStruct in = {0};
+    in.year = 2025;
+    in.month = 6;
+    in.day = 15;
+    in.hour = 12;
+    in.min = 30;
+    in.sec = 45;
+    in.milliSec = 123;
+    in.microSec = 456;
+    in.nanoSec = 789;
+
+    UA_DateTime dt = UA_DateTime_fromStruct(in);
+    UA_DateTimeStruct out = UA_DateTime_toStruct(dt);
+
+    ck_assert_int_eq(out.year, 2025);
+    ck_assert_int_eq(out.month, 6);
+    ck_assert_int_eq(out.day, 15);
+    ck_assert_int_eq(out.hour, 12);
+    ck_assert_int_eq(out.min, 30);
+    ck_assert_int_eq(out.sec, 45);
+    ck_assert_int_eq(out.milliSec, 123);
+    ck_assert_int_eq(out.microSec, 456);
+} END_TEST
+
 /* === UA_String_format === */
 START_TEST(string_format_simple) {
     UA_String out = UA_STRING_NULL;
@@ -504,6 +598,53 @@ START_TEST(string_format_long) {
     UA_StatusCode res = UA_String_format(&out, "%s%s", longStr, longStr);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert(out.length > 128);
+    UA_String_clear(&out);
+} END_TEST
+
+START_TEST(string_format_truncatedBuffer_returnsLimitExceeded) {
+    /* src/ua_types.c:342-348:
+     *   if(str->length > 0) {
+     *     if((size_t)out < str->length) { str->length = (size_t)out; }
+     *     else { res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED; }
+     *   }
+     * A pre-allocated buffer that is too small for the formatted output
+     * returns BADENCODINGLIMITSEXCEEDED. None of the existing tests
+     * exercises the truncation path. */
+    UA_String out;
+    UA_StatusCode res = UA_ByteString_allocBuffer(&out, 8);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.length, 8);
+
+    /* 11-char output does not fit in 8-byte buffer */
+    res = UA_String_format(&out, "Hello %s", "world!!!");
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    /* The caller still owns the buffer; length was not modified by the
+     * failing call (the function returns early via goto errout). */
+    ck_assert_uint_eq(out.length, 8);
+    UA_ByteString_clear(&out);
+} END_TEST
+
+START_TEST(string_format_preAllocBufferFits) {
+    /* src/ua_types.c:343-345: if((size_t)out < str->length) the length
+     * is updated to out (truncated to fit, NOT an error). */
+    UA_String out;
+    UA_StatusCode res = UA_ByteString_allocBuffer(&out, 32);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    res = UA_String_format(&out, "Hi %s", "world");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* out.length is updated to the number of chars written (excluding \0) */
+    ck_assert_uint_eq(out.length, 8); /* "Hi world" = 8 chars */
+    UA_ByteString_clear(&out);
+} END_TEST
+
+START_TEST(string_format_emptyResult) {
+    /* src/ua_types.c:332-338: out == 0 returns GOOD with length 0 and
+     * a sentinel data pointer if the input was NULL. */
+    UA_String out = UA_STRING_NULL;
+    UA_StatusCode res = UA_String_format(&out, "%s", "");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.length, 0);
     UA_String_clear(&out);
 } END_TEST
 
@@ -631,10 +772,18 @@ static Suite *testSuite_types_order(void) {
     tcase_add_test(tc_datetime, datetime_parse_empty);
     tcase_add_test(tc_datetime, datetime_parse_invalid);
     tcase_add_test(tc_datetime, datetime_parse_just_date);
+    tcase_add_test(tc_datetime, datetime_parse_truncatedYear);
+    tcase_add_test(tc_datetime, datetime_parse_unterminatedTimezone);
+    tcase_add_test(tc_datetime, datetime_parse_yearOverflow);
+    tcase_add_test(tc_datetime, datetime_toStruct_negativeFraction);
+    tcase_add_test(tc_datetime, datetime_fromStruct_roundTrip);
 
     TCase *tc_format = tcase_create("StringFormat");
     tcase_add_test(tc_format, string_format_simple);
     tcase_add_test(tc_format, string_format_long);
+    tcase_add_test(tc_format, string_format_truncatedBuffer_returnsLimitExceeded);
+    tcase_add_test(tc_format, string_format_preAllocBufferFits);
+    tcase_add_test(tc_format, string_format_emptyResult);
     tcase_add_test(tc_format, string_format_numbers);
 
     TCase *tc_ops = tcase_create("TypeOps");

@@ -633,12 +633,17 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
         check_add_cc_flag("-Wno-cast-function-type")
     endif()
 
-    # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic -std=c99
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
-       CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "22.0")
+    # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic -std=c99.
+    # GCC 14 also added the flag. Older compilers (e.g. gcc 9 on Ubuntu 20.04)
+    # reject the flag as an unrecognized option, which becomes an error under
+    # -Werror. check_add_cc_flag uses try_compile without -Werror, so the
+    # unknown-option warning is silently accepted during the check and the flag
+    # leaks into the build. Gate it explicitly on the compilers that support it.
+    if((CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
+        CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "22.0") OR
+       (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND
+        CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0"))
         add_cc_flag("-Wno-c2y-extensions")
-    else()
-        check_add_cc_flag("-Wno-c2y-extensions")
     endif()
 
     # Overlength strings may occur in generated code and are not harmful
