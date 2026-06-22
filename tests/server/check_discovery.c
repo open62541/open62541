@@ -354,6 +354,51 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
     return found;
 }
 
+START_TEST(Server_registerServerDirect) {
+    /* Prepare a RegisteredServer entry */
+    UA_RegisteredServer registeredServer;
+    UA_RegisteredServer_init(&registeredServer);
+    registeredServer.serverUri = UA_STRING("urn:open62541.test.server_register");
+    registeredServer.productUri = UA_STRING("urn:open62541.test.server_register");
+
+    UA_LocalizedText serverName = UA_LOCALIZEDTEXT("en", "TestRegisterServer");
+    registeredServer.serverNames = &serverName;
+    registeredServer.serverNamesSize = 1;
+
+    registeredServer.serverType = UA_APPLICATIONTYPE_SERVER;
+
+    UA_String discoveryUrl = UA_STRING("opc.tcp://localhost:16664");
+    registeredServer.discoveryUrls = &discoveryUrl;
+    registeredServer.discoveryUrlsSize = 1;
+
+    registeredServer.isOnline = true;
+
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
+    mdnsConfig.mdnsServerName = UA_STRING("TestRegister_test");
+
+    /* Register */
+    UA_StatusCode res =
+        UA_Server_registerServer(server_lds, &registeredServer, &mdnsConfig);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Verify the server is found */
+    UA_String expectedUris[2];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
+    expectedUris[1] = UA_STRING("urn:open62541.test.server_register");
+    ck_assert(FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL));
+
+    /* Unregister by setting isOnline to false */
+    registeredServer.isOnline = false;
+    res = UA_Server_registerServer(server_lds, &registeredServer, &mdnsConfig);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Verify only the LDS remains */
+    UA_String expectedUrisAfter[1];
+    expectedUrisAfter[0] = UA_STRING("urn:open62541.test.local_discovery_server");
+    ck_assert(FindAndCheck(expectedUrisAfter, 1, NULL, NULL, NULL, NULL));
+}
+END_TEST
 static UA_Boolean
 FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
                           size_t expectedSize) {
@@ -747,6 +792,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register, Server_registerUnregister);
     tcase_add_test(tc_register, Server_findServers_mirrors_endpointUrl);
     suite_add_tcase(s,tc_register);
+
+    TCase *tc_register_direct = tcase_create("RegisterServerDirect");
+    tcase_add_unchecked_fixture(tc_register_direct, setup_lds, teardown_lds);
+    tcase_add_test(tc_register_direct, Server_registerServerDirect);
+    suite_add_tcase(s, tc_register_direct);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");
