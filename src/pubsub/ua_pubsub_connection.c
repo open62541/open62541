@@ -68,6 +68,10 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
     UA_KeyValueMap_clear(&connectionConfig->connectionProperties);
 }
 
+static void
+UA_PubSubConnection_freeWithoutLifecycleCallback(UA_PubSubManager *psm,
+                                                 UA_PubSubConnection *c);
+
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
@@ -102,7 +106,9 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Could not create the PubSubConnection. "
                      "The connection parameters did not validate.");
-        UA_PubSubConnection_delete(psm, c);
+        /* The lifecycle callback has not been called yet. Free without
+         * invoking it (we are not the result of a previous create). */
+        UA_PubSubConnection_freeWithoutLifecycleCallback(psm, c);
         return ret;
     }
 
@@ -119,7 +125,11 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
             componentLifecycleCallback(server, c->head.identifier,
                                        UA_PUBSUBCOMPONENT_CONNECTION, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_PubSubConnection_delete(psm, c);
+            /* The application refused the new component. Free the
+             * partially-constructed connection without asking the
+             * lifecycle callback a second time (it would re-reject the
+             * removal and leak the connection). */
+            UA_PubSubConnection_freeWithoutLifecycleCallback(psm, c);
             return res;
         }
     }
@@ -224,6 +234,37 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_free(c);
 
     return UA_STATUSCODE_GOOD;
+}
+
+/* Free the connection *without* asking the application's lifecycle
+ * callback for permission. This is used by UA_PubSubConnection_create when
+ * the lifecycle callback has just refused the new component -- asking a
+ * second time with remove=true would deadlock the callback and leak the
+ * partially-constructed connection (and its information-model node). */
+static void
+UA_PubSubConnection_freeWithoutLifecycleCallback(UA_PubSubManager *psm,
+                                                 UA_PubSubConnection *c) {
+    /* Close any open EventLoop channels. The connection may have been
+     * connected already if a connect succeeded but the lifecycle
+     * callback then refused the component. */
+    UA_PubSubConnection_disconnect(c);
+
+    /* The connection is freshly created so it cannot have any
+     * ReaderGroups/WriterGroups attached. The lists are empty by
+     * construction (see UA_PubSubConnection_create). */
+
+    /* Remove from the information model */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    deleteNode(psm->sc.server, c->head.identifier, true);
+#endif
+
+    /* Unlink from the server */
+    TAILQ_REMOVE(&psm->connections, c, listEntry);
+    psm->connectionsSize--;
+
+    UA_PubSubConnectionConfig_clear(&c->config);
+    UA_PubSubComponentHead_clear(&c->head);
+    UA_free(c);
 }
 
 static void

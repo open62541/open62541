@@ -223,6 +223,7 @@ function unit_tests {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_MULTITHREADING=${MULTITHREADING} \
           ..

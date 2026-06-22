@@ -65,7 +65,23 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
                               void **component, UA_Boolean *isPublishSubscribeObject) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     *isPublishSubscribeObject = false;
+
+    /* The top-level PublishSubscribe Status node may not always yield a
+     * browsable parent object in this path. Resolve it directly. */
+    UA_NodeId publishSubscribeStatusNodeId = UA_NS0ID(PUBLISHSUBSCRIBE_STATUS);
+    if(UA_NodeId_equal(statusObjectId, &publishSubscribeStatusNodeId)) {
+        *componentNodeId = UA_NS0ID(PUBLISHSUBSCRIBE);
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = psm;
+        *isPublishSubscribeObject = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Find the parent PubSub component by browsing up from the Status object */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -86,9 +102,15 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
     UA_NodeId parentTypeId = br.references[0].typeDefinition.nodeId;
     UA_BrowseResult_clear(&br);
 
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    /* For top-level PublishSubscribe/Status, fall back to the parent NodeId
+     * (NS0:PUBLISHSUBSCRIBE) to keep Enable/Disable deterministic. */
+    UA_NodeId publishSubscribeNodeId = UA_NS0ID(PUBLISHSUBSCRIBE);
+    if(UA_NodeId_equal(componentNodeId, &publishSubscribeNodeId)) {
+        *isPublishSubscribeObject = true;
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = psm;
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Identify component type and find the component */
     UA_NodeId pubsubconnectionTypeId = UA_NS0ID(PUBSUBCONNECTIONTYPE);

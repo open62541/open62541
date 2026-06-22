@@ -191,6 +191,12 @@ ua_add_test(check_parse_num.c)
 ua_add_test(check_pcg_basic.c)
 ua_add_test(check_utf8.c)
 ua_add_test(check_musl_inet_pton.c)
+ua_add_test(check_config_default.c)
+
+if(UNIX AND NOT APPLE)
+    ua_add_test(check_log_syslog.c)
+endif()
+
 
 if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
@@ -308,6 +314,7 @@ endif()
 
 ua_add_test(server/check_session.c)
 ua_add_test(server/check_server.c)
+ua_add_test(server/check_server_auditing.c)
 ua_add_test(server/check_server_jobs.c)
 ua_add_test(server/check_server_userspace.c)
 ua_add_test(server/check_node_inheritance.c)
@@ -331,6 +338,8 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
     ua_add_test(pubsub/check_pubsub_encoding_custom.c)
     ua_add_test(pubsub/check_pubsub_pds.c)
+    ua_add_test(pubsub/check_pubsub_state_machine.c)
+    ua_add_test(pubsub/check_pubsub_state_machine_extra.c)
     ua_add_test(pubsub/check_pubsub_connection_udp.c)
     ua_add_test(pubsub/check_pubsub_publish.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
@@ -351,6 +360,7 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encryption_aes256.c)
         ua_add_test(pubsub/check_pubsub_decryption.c)
         ua_add_test(pubsub/check_pubsub_subscribe_encrypted.c)
+        ua_add_test(encryption/check_pubsub_securitypolicy_crypto.c)
         if(UA_ENABLE_PUBSUB_SKS)
             ua_add_test(pubsub/check_pubsub_sks_keystorage.c)
             ua_add_test(pubsub/check_pubsub_sks_push.c)
@@ -426,6 +436,10 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 # Test Encryption and Authentication
+
+# Always-on coverage of the accept-all certificate group fallback (built into
+# every variant including the no-encryption build).
+ua_add_test(encryption/check_certificategroup_none.c)
 
 if(UA_ENABLE_ENCRYPTION)
     ua_add_test(client/check_client_encryption.c)
