@@ -473,7 +473,7 @@ readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     UA_Boolean *boolean = UA_Boolean_new();
     if(!boolean)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    *boolean = false;
+    *boolean = server->config.auditingEnabled;
     value->value.data = boolean;
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
@@ -1411,4 +1411,3 @@ initNS0_dataSources(UA_Server *server) {
 
     return UA_STATUSCODE_GOOD;
 }
-
