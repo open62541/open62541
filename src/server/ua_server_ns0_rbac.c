@@ -303,9 +303,9 @@ removeRoleMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 addIdentityMethodCallback(UA_Server *server,
-                          const UA_NodeId *objectId, void *objectContext,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
-                          const UA_NodeId *inputType, void *inputContext,
+                          const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
@@ -348,9 +348,9 @@ addIdentityMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 removeIdentityMethodCallback(UA_Server *server,
-                             const UA_NodeId *objectId, void *objectContext,
+                             const UA_NodeId *sessionId, void *sessionContext,
                              const UA_NodeId *methodId, void *methodContext,
-                             const UA_NodeId *inputType, void *inputContext,
+                             const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
@@ -397,9 +397,9 @@ removeIdentityMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 addApplicationMethodCallback(UA_Server *server,
-                             const UA_NodeId *objectId, void *objectContext,
+                             const UA_NodeId *sessionId, void *sessionContext,
                              const UA_NodeId *methodId, void *methodContext,
-                             const UA_NodeId *inputType, void *inputContext,
+                             const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
@@ -433,9 +433,9 @@ addApplicationMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 removeApplicationMethodCallback(UA_Server *server,
-                                const UA_NodeId *objectId, void *objectContext,
+                                const UA_NodeId *sessionId, void *sessionContext,
                                 const UA_NodeId *methodId, void *methodContext,
-                                const UA_NodeId *inputType, void *inputContext,
+                                const UA_NodeId *objectId, void *objectContext,
                                 size_t inputSize, const UA_Variant *input,
                                 size_t outputSize, UA_Variant *output) {
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
@@ -473,9 +473,9 @@ removeApplicationMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 addEndpointMethodCallback(UA_Server *server,
-                          const UA_NodeId *objectId, void *objectContext,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
-                          const UA_NodeId *inputType, void *inputContext,
+                          const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
@@ -514,9 +514,9 @@ addEndpointMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 removeEndpointMethodCallback(UA_Server *server,
-                             const UA_NodeId *objectId, void *objectContext,
+                             const UA_NodeId *sessionId, void *sessionContext,
                              const UA_NodeId *methodId, void *methodContext,
-                             const UA_NodeId *inputType, void *inputContext,
+                             const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
