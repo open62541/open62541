@@ -38,6 +38,10 @@ namespace Opc.Ua.Interop.Tests
         private ITelemetryContext _telemetry = null!;
         private string _pkiRoot = null!;
 
+        // ECC sessions that connected. Mirrors INTEROP_REQUIRE_ECC in check_interop_client.c.
+        private static int s_eccTestsPassed;
+        private static readonly object s_eccLock = new object();
+
         [OneTimeSetUp]
         public async Task OneTimeSetUp()
         {
@@ -87,6 +91,34 @@ namespace Opc.Ua.Interop.Tests
             await EnsureEccCertificatesAsync().ConfigureAwait(false);
 
             _sessionFactory = new DefaultSessionFactory(_telemetry);
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            // Fail when no ECC test actually ran. Mirrors INTEROP_REQUIRE_ECC.
+            var requireEcc = Environment.GetEnvironmentVariable(
+                "INTEROP_REQUIRE_ECC");
+            bool required = requireEcc != null && requireEcc != "0";
+
+            int passed;
+            lock (s_eccLock)
+            {
+                passed = s_eccTestsPassed;
+            }
+
+            TestContext.Out.WriteLine(
+                $"ECC interop summary: {passed} ECC test(s) passed");
+
+            if (required && passed == 0)
+            {
+                Assert.Fail(
+                    "INTEROP_REQUIRE_ECC is set but no ECC security " +
+                    "policy test established a session against the C server. " +
+                    "The open62541 ECC implementation is not being tested. " +
+                    "Check that INTEROP_ECC_CERT_DIR is set and the C server " +
+                    "logs 'Added ECC policy' on startup.");
+            }
         }
 
         private async Task<ConfiguredEndpoint> GetEndpointAsync(bool useSecurity)
@@ -257,7 +289,7 @@ namespace Opc.Ua.Interop.Tests
         {
             await ConnectWithSecurityPolicyAsync(
                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256",
-                "ECC_nistP256").ConfigureAwait(false);
+                "ECC_nistP256", isEcc: true).ConfigureAwait(false);
         }
 
         [Test, Order(31)]
@@ -265,7 +297,7 @@ namespace Opc.Ua.Interop.Tests
         {
             await ConnectWithSecurityPolicyAsync(
                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384",
-                "ECC_nistP384").ConfigureAwait(false);
+                "ECC_nistP384", isEcc: true).ConfigureAwait(false);
         }
 
         [Test, Order(32)]
@@ -273,7 +305,7 @@ namespace Opc.Ua.Interop.Tests
         {
             await ConnectWithSecurityPolicyAsync(
                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1",
-                "ECC_brainpoolP256r1").ConfigureAwait(false);
+                "ECC_brainpoolP256r1", isEcc: true).ConfigureAwait(false);
         }
 
         [Test, Order(33)]
@@ -281,7 +313,7 @@ namespace Opc.Ua.Interop.Tests
         {
             await ConnectWithSecurityPolicyAsync(
                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1",
-                "ECC_brainpoolP384r1").ConfigureAwait(false);
+                "ECC_brainpoolP384r1", isEcc: true).ConfigureAwait(false);
         }
 
         [Test, Order(34)]
@@ -289,7 +321,7 @@ namespace Opc.Ua.Interop.Tests
         {
             await ConnectWithSecurityPolicyAsync(
                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519",
-                "ECC_curve25519").ConfigureAwait(false);
+                "ECC_curve25519", isEcc: true).ConfigureAwait(false);
         }
 
         [Test, Order(35)]
@@ -297,7 +329,7 @@ namespace Opc.Ua.Interop.Tests
         {
             await ConnectWithSecurityPolicyAsync(
                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448",
-                "ECC_curve448").ConfigureAwait(false);
+                "ECC_curve448", isEcc: true).ConfigureAwait(false);
         }
 
         [Test, Order(20)]
@@ -454,9 +486,11 @@ namespace Opc.Ua.Interop.Tests
             return null;
         }
 
-        // Helper: connect with a given security policy (T-5/6/7)
+        // When isEcc, count successful sessions for the safety net.
+        // Curves the C server does not offer (e.g. curve25519 on mbedTLS)
+        // or the .NET SDK cannot connect to still IGNORE gracefully.
         private async Task ConnectWithSecurityPolicyAsync(
-            string policyUri, string policyName)
+            string policyUri, string policyName, bool isEcc = false)
         {
             var secureEndpoint = await FindSecureEndpointAsync(policyUri)
                 .ConfigureAwait(false);
@@ -517,6 +551,14 @@ namespace Opc.Ua.Interop.Tests
 
                 TestContext.Out.WriteLine(
                     $"Secure session established with {session.Endpoint.SecurityPolicyUri}");
+
+                if (isEcc)
+                {
+                    lock (s_eccLock)
+                    {
+                        s_eccTestsPassed++;
+                    }
+                }
 
                 await session.CloseAsync(CancellationToken.None).ConfigureAwait(false);
             }
