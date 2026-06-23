@@ -1038,6 +1038,66 @@ cleanup:
 }
 
 UA_StatusCode
+UA_CertificateUtils_isIssuer(const UA_ByteString *issuer,
+                             const UA_ByteString *certificate,
+                             UA_Boolean *isIssuer) {
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_x509_crt decodedIssuer;
+    mbedtls_x509_crt decodedCert;
+    char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int nameLen = 0;
+    UA_String certIssuerName;
+
+    /* check for mandatory parameters */
+    if(issuer == NULL || certificate == NULL || isIssuer == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_String_init(&certIssuerName);
+    mbedtls_x509_crt_init(&decodedIssuer);
+    mbedtls_x509_crt_init(&decodedCert);
+
+    /* parse both certificates */
+    retval = UA_mbedTLS_LoadCertificate(issuer, &decodedIssuer);
+    if(retval != UA_STATUSCODE_GOOD) {
+        retval = UA_STATUSCODE_BADINVALIDARGUMENT;
+        goto cleanup;
+    }
+    retval = UA_mbedTLS_LoadCertificate(certificate, &decodedCert);
+    if(retval != UA_STATUSCODE_GOOD) {
+        retval = UA_STATUSCODE_BADINVALIDARGUMENT;
+        goto cleanup;
+    }
+
+    /* extract the issuer name of "certificate" */
+    nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &decodedCert.issuer);
+    if(nameLen < 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    certIssuerName.length = (size_t)(nameLen);
+    certIssuerName.data = (UA_Byte*)(inbuf);
+
+    /* Compare issuer name of "certificate" with subject name of "issuer"
+     * and check if the private key of the issuer matches the signature in
+     * "certificate". */
+    if(mbedtlsSameName(certIssuerName, &decodedIssuer.subject) &&
+       mbedtls_pk_can_do(&decodedIssuer.pk, decodedCert.MBEDTLS_PRIVATE(sig_pk))) {
+        *isIssuer = true;
+    }
+    else {
+        *isIssuer = false;
+    }
+
+    retval = UA_STATUSCODE_GOOD;
+
+cleanup:
+    mbedtls_x509_crt_free(&decodedIssuer);
+    mbedtls_x509_crt_free(&decodedCert);
+
+    return retval;
+}
+
+UA_StatusCode
 UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey) {
