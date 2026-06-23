@@ -16,6 +16,23 @@
 #include "openssl/securitypolicy_common.h"
 #endif
 
+#ifndef UA_ENABLE_ENCRYPTION
+/* The URI-derived SecurityPolicy property helpers are normally provided by the
+ * crypto backend's securitypolicy_common.c. With no crypto backend the only
+ * SecurityPolicy is #None, so they reduce to constants. */
+UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
+    (void)policy;
+    return false;
+}
+
+UA_Boolean
+UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
+    (void)policy;
+    return true;
+}
+#endif
+
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *policy, void *channelContext,
             const UA_ByteString *message, const UA_ByteString *signature) {

@@ -391,6 +391,44 @@ struct UA_SecurityPolicy {
     void (*clear)(UA_SecurityPolicy *policy);
 };
 
+/* True if the SecurityPolicy requires the OPC UA Part 6 v1.05.07
+ * SecureChannelEnhancements behavior (see the conformance unit "Security
+ * SecureChannelEnhancements True"). The changed behavior is implemented in the
+ * core library, not in the SecurityPolicy itself. Detected from the policy URI
+ * so it does not depend on a struct member - this keeps the SecurityPolicy
+ * layout stable across the 1.5 release family. */
+UA_EXPORT UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy);
+
+/* True if the SecurityPolicy uses the legacy SequenceNumber handling (the OPC
+ * UA reference stack's LegacySequenceNumbers = true): the channel SequenceNumber
+ * starts at 1 and rolls over with the "< 1024" rule. This is the case for None
+ * and the RSA policies (Basic*, Aes*_RsaOaep/RsaPss). The ECC policies use the
+ * non-legacy scheme (start at 0, wrap UA_UINT32_MAX -> 0). Detected from the
+ * policy URI so it does not depend on a struct member - this keeps the
+ * SecurityPolicy layout stable across the 1.5 release family. A NULL policy is
+ * treated as legacy. */
+UA_EXPORT UA_Boolean
+UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy);
+
+/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
+ * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
+ * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
+ * CreateSession / ActivateSession SignatureData.
+ *
+ * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
+ * SecurityPolicy's CertificateThumbprintAlgorithm (SHA-1 by default) and is
+ * produced by makeCertThumbprint. The digest here is selected from the policy
+ * URI's curve; the implementation is provided by the crypto backend.
+ *
+ * @param policy The policy whose curve selects the hash algorithm.
+ * @param certificate The certificate to hash (DER; leaf is used).
+ * @param hash Output buffer; allocated by the callee. */
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
+                                  const UA_ByteString *certificate,
+                                  UA_ByteString *hash);
+
 /**
  * PubSub SecurityPolicy
  * ---------------------

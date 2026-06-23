@@ -132,9 +132,12 @@ START_TEST(Client_activateSession_async) {
     ck_assert_uint_eq(server->sessionCount, 1);
 
     /* Manual clock for unit tests */
-    for(size_t i = 0; i < 100; i++) {
+    UA_SessionState sessionState = UA_SESSIONSTATE_CLOSED;
+    do {
+        retval = UA_Client_run_iterate(client, 0);
+        UA_Client_getState(client, NULL, &sessionState, NULL);
         UA_Server_run_iterate(server, false);
-    }
+    } while(sessionState != UA_SESSIONSTATE_ACTIVATED);
 
     loc = LIST_FIRST(&server->sessions)->session.localeIds[0];
     convert = (char *)UA_malloc(sizeof(char) * loc.length + 1);

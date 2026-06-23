@@ -50,6 +50,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
+    UA_ByteString_clear(&session->clientNonce);
     struct ContinuationPoint *cp, *next = session->continuationPoints;
     while((cp = next)) {
         next = ContinuationPoint_clear(cp);
@@ -148,10 +149,11 @@ UA_Session_generateNonce(UA_Session *session) {
         spC = session->sessionSpContext;
     }
 
-    /* The nonce is at least 32 byte (force the #None SecurityPolicy) */
-    size_t nonceLength = sp->nonceLength;
-    if(nonceLength < 32)
-        nonceLength = 32;
+    /* The session ServerNonce is a 32-byte application nonce. This is
+     * independent of the SecurityPolicy's SecureChannel nonce length (for ECC
+     * policies that is the 64-byte ephemeral key, which is NOT the session
+     * nonce). */
+    size_t nonceLength = 32;
 
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != nonceLength) {
@@ -162,6 +164,9 @@ UA_Session_generateNonce(UA_Session *session) {
             return res;
     }
 
+    /* Generate plain random data. Ensure data[0] is not the 'e' of the "eph"
+     * trigger that some ECC policies use to produce an ephemeral key. */
+    session->serverNonce.data[0] = 0;
     return sp->generateNonce(sp, spC, &session->serverNonce);
 }
 
