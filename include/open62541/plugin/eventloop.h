@@ -708,6 +708,24 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 #endif
 
 /**
+ * WebSocket Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * The WebSocket ConnectionManager uses the libwebsockets library to accept
+ * WebSocket connections in server mode. It supports the opcua+uacp subprotocol
+ * and translates binary WebSocket frames to raw UA_ByteString messages.
+ *
+ * Open Connection Parameters:
+ * - 0:address [string | array of string]: Hostname or IP address to listen on.
+ *   If undefined, listen on all interfaces.
+ * - 0:port [uint16]: Port to listen on (required).
+ * - 0:listen [boolean]: Must be true (default: false).
+ * - 0:validate [boolean]: Dry-run parameter validation (default: false).
+ * - 0:reuse [boolean]: Allow address reuse (default: false).
+ * */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_WS(const UA_String eventSourceName);
+
+/**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~
  * The MQTT ConnectionManager reuses the TCP ConnectionManager that is
