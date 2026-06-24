@@ -104,6 +104,14 @@ jobs:
               cmd_deps: sudo apt-get install -y -qq clang-21 clang-tools-21 && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: CC=clang-21 CXX=clang++-21 unit_tests
 
+          # Libwebsockets Build for specific Ubuntu version
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests with libwebsockets (gcc)"
+              cmd_deps: |
+                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev libwebsockets-dev
+              cmd_action: unit_tests_libwebsockets
+
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04
             build:
@@ -276,7 +284,7 @@ jobs:
             build:
               name: "Clang Static Analyzer (clang18)"
               cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
-              cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18          
+              cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
           - os: ubuntu-26.04
             build:
               name: "Clang Static Analyzer (clang21)"
