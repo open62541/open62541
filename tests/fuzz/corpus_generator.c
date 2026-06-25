@@ -56,7 +56,7 @@ static void start_server(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
     config->mdnsEnabled = true;
-    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
+    config->mdnsSelfConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
 
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
@@ -203,7 +203,7 @@ registerServer2Request(UA_Client *client) {
     // Set to NODELETE so that we can just use a pointer to the mdns config
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-    request.discoveryConfiguration[0].content.decoded.data = &server->config.mdnsConfig;
+    request.discoveryConfiguration[0].content.decoded.data = &server->config.mdnsSelfConfig;
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;

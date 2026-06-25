@@ -298,9 +298,7 @@ typedef union {
     UA_FindServersRequest findServersRequest;
     UA_GetEndpointsRequest getEndpointsRequest;
 #ifdef UA_ENABLE_DISCOVERY
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_FindServersOnNetworkRequest findServersOnNetworkRequest;
-# endif
     UA_RegisterServerRequest registerServerRequest;
     UA_RegisterServer2Request registerServer2Request;
 #endif

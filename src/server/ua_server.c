@@ -22,6 +22,10 @@
 
 #include "ua_server_internal.h"
 
+#ifdef UA_ENABLE_DISCOVERY
+#include "ua_discovery.h"
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
@@ -495,9 +499,28 @@ UA_Server_delete(UA_Server *server) {
 
     unlockServer(server); /* The timer has its own mutex */
 
-#ifdef UA_ENABLE_RBAC
     /* Clean up internal RBAC state (before config clear) */
+#ifdef UA_ENABLE_RBAC
     UA_Server_cleanupRBAC(server);
+#endif
+
+    /* Clean up Discovery entries  */
+#ifdef UA_ENABLE_DISCOVERY
+    /* Remove registered servers. Don't notify the application here */
+    RegisteredServerRecord *rs, *rs_tmp;
+    LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
+        LIST_REMOVE(rs, pointers);
+        UA_RegisteredServer_clear(&rs->registeredServer);
+        UA_free(rs);
+    }
+    server->registeredServersSize = 0;
+
+    /* Remove ServersOnNetwork */
+    UA_Array_delete(server->serversOnNetwork,
+                    server->serversOnNetworkSize,
+                    &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    server->serversOnNetwork = NULL;
+    server->serversOnNetworkSize = 0;
 #endif
 
     /* Clean up the config */
@@ -532,6 +555,9 @@ serverHouseKeeping(UA_Server *server, void *_) {
     lockServer(server);
     UA_EventLoop *el = server->config.eventLoop;
     cleanupSessions(server, el->dateTime_nowMonotonic(el));
+#ifdef UA_ENABLE_DISCOVERY
+    cleanupRegisteredServers(server);
+#endif
     unlockServer(server);
 }
 
@@ -646,6 +672,12 @@ UA_Server_init(UA_Server *server) {
     server->discoveryDriver = UA_DiscoveryManager_new();
     res = addDriver(server, server->discoveryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    server->lastCounterResetTime = el->dateTime_now(el);
+    server->serversOnNetworkRecordCounter = 1;
+    server->serversOnNetworkSize = 0;
+    server->serversOnNetwork = NULL;
 #endif
 
     /* Initialize PubSub */

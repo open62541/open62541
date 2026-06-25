@@ -393,17 +393,6 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* conf->applicationDescription.discoveryUrlsSize = 0; */
     /* conf->applicationDescription.discoveryUrls = NULL; */
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    conf->mdnsInterfaceIP = UA_STRING_NULL;
-#  if !defined(UA_HAS_GETIFADDR)
-    conf->mdnsIpAddressList = NULL;
-    conf->mdnsIpAddressListSize = 0;
-#  endif
-# endif
-#endif
-
     /* Custom DataTypes */
     /* conf->customDataTypesSize = 0; */
     /* conf->customDataTypes = NULL; */
@@ -498,7 +487,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    conf->discoveryCleanupTimeout = 60 * 60;
+    conf->registeredServerCleanupTimeout = 60 * 60;
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING

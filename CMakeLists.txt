@@ -474,9 +474,6 @@ endif()
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
-  if(UA_ENABLE_DISCOVERY_MULTICAST)
-      set(MDNSD_DYNAMIC_LINKING ON)
-  endif()
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
@@ -566,7 +563,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     find_package(PkgConfig REQUIRED)
     pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
     include_directories(${AVAHI_INCLUDE_DIRS})
-    list(APPEND open62541_LIBRARIES "${AVAHI_LIBRARIES}")
+    list(APPEND open62541_PUBLIC_LIBRARIES "${AVAHI_LIBRARIES}")
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
@@ -832,7 +829,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server_driver.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
@@ -1033,10 +1029,6 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/log.c
         PROPERTIES COMPILE_FLAGS
             "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast")
-    # ua_discovery_mdns.c includes mdnsd.h which has GCC-style named variadic macros
-    set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
-        PROPERTIES COMPILE_FLAGS "-Wno-variadic-macros")
 
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     list(APPEND lib_headers
@@ -1045,16 +1037,17 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/sdtxt.h
         ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
-        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
+        ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_mdnsd.c
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
         ${MDNSD_GENERATED_DIR}/mdnsd.c
         ${MDNSD_GENERATED_DIR}/log.c)
-elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    list(APPEND lib_sources
-      ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns_avahi.c
-    )
+endif()
+
+if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    #list(APPEND lib_sources
+    #     ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_avahi.c)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
@@ -1539,10 +1532,6 @@ target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_NODESET_INJECTOR_NEEDS_ROLESET)
     target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_ROLESET)
 endif()
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-    target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
-    target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
-endif()
 
 # Prevent Wincrypt override warning.
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -1561,9 +1550,6 @@ SET_TARGET_PROPERTIES(open62541 PROPERTIES
 # DLL requires linking to dependencies
 target_link_libraries(open62541 PUBLIC ${open62541_PUBLIC_LIBRARIES})
 target_link_libraries(open62541 PRIVATE ${open62541_LIBRARIES})
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    target_link_libraries(open62541 PUBLIC ${AVAHI_LIBRARIES})
-endif()
 
 ##########################
 # Build Selected Targets #

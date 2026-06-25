@@ -86,16 +86,7 @@ configure_lds_server(UA_Server *pServer) {
     UA_LocalizedText_clear(&config_lds->applicationDescription.applicationName);
     config_lds->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    config_lds->mdnsEnabled = true;
-    config_lds->mdnsConfig.mdnsServerName = UA_String_fromChars("LDS_test");
-    config_lds->mdnsConfig.serverCapabilitiesSize = 2;
-    UA_String *caps = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-    caps[0] = UA_String_fromChars("LDS");
-    caps[1] = UA_String_fromChars("MyFancyCap");
-    config_lds->mdnsConfig.serverCapabilities = caps;
-#endif
-    config_lds->discoveryCleanupTimeout = registerTimeout;
+    config_lds->registeredServerCleanupTimeout = registerTimeout;
 }
 
 static void
@@ -169,10 +160,6 @@ setup_register(void) {
     UA_LocalizedText_clear(&config_register->applicationDescription.applicationName);
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    config_register->mdnsConfig.mdnsServerName = UA_String_fromChars("Register_test");
-#endif
-
     UA_Server_run_startup(server_register);
     THREAD_CREATE(server_thread_register, serverloop_register);
 }
@@ -413,67 +400,6 @@ FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
     return ok;
 }
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-
-static void
-FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
-                      const char *filterUri, const char *filterLocale,
-                      const char** filterCapabilities, size_t filterCapabilitiesSize) {
-    UA_Client *client = UA_Client_newForUnitTest();
-
-    UA_ServerOnNetwork* serverOnNetwork = NULL;
-    size_t serverOnNetworkSize = 0;
-
-    size_t  serverCapabilityFilterSize = 0;
-    UA_String *serverCapabilityFilter = NULL;
-
-    if(filterCapabilitiesSize) {
-        serverCapabilityFilterSize = filterCapabilitiesSize;
-        serverCapabilityFilter =
-            (UA_String*)UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
-        for(size_t i = 0; i < filterCapabilitiesSize; i++)
-            serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
-    }
-
-    UA_StatusCode retval =
-        UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4840", 0, 0,
-                                       serverCapabilityFilterSize, serverCapabilityFilter,
-                                       &serverOnNetworkSize, &serverOnNetwork);
-
-    if(serverCapabilityFilterSize)
-        UA_Array_delete(serverCapabilityFilter, serverCapabilityFilterSize,
-                        &UA_TYPES[UA_TYPES_STRING]);
-
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    // only the discovery server is expected
-    ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
-
-    if(expectedServerNamesSize > 0)
-        ck_assert_ptr_ne(serverOnNetwork, NULL);
-
-    if(serverOnNetwork != NULL) {
-        for(size_t i = 0; i < expectedServerNamesSize; i++) {
-            UA_Boolean expectedServerNameInServerOnNetwork = false;
-            for(size_t j = 0;
-                j < expectedServerNamesSize && !expectedServerNameInServerOnNetwork; j++) {
-                expectedServerNameInServerOnNetwork =
-                    UA_String_equal(&serverOnNetwork[j].serverName,
-                                    &expectedServerNames[i]);
-            }
-            ck_assert_msg(expectedServerNameInServerOnNetwork,
-                          "Expected %.*s in serverOnNetwork list, but not found",
-                          (int)expectedServerNames[i].length, expectedServerNames[i].data);
-        }
-    }
-
-    UA_Array_delete(serverOnNetwork, serverOnNetworkSize,
-                    &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-}
-
 static UA_StatusCode
 GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
              size_t* endpointDescriptionsSize,
@@ -565,44 +491,6 @@ Client_filter_locale(void) {
     return FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 }
 
-// Test if registered server is returned from LDS using FindServersOnNetwork
-static void
-Client_find_on_network_registered(void) {
-    char urls[2][384];
-    UA_String expectedUris[2];
-    char hostname[256];
-
-    ck_assert_int_eq(gethostname(hostname, 255), 0);
-
-    // DNS limits name to max 63 chars (+ \0). We need this ugly casting,
-    // otherwise gcc >7.2 will complain about format-truncation, but we want it
-    // here
-    void *hostnameVoid = (void*)hostname;
-    snprintf(urls[0], 384, "LDS_test-%s", (char*)hostnameVoid);
-    snprintf(urls[1], 384, "Register_test-%s", (char*)hostnameVoid);
-    expectedUris[0] = UA_STRING(urls[0]);
-    expectedUris[1] = UA_STRING(urls[1]);
-    FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);
-
-    // filter by Capabilities
-    const char* capsLDS[] = {"LDS"};
-    const char* capsNA[] = {"NA"};
-    const char* capsMultipleNone[] = {"LDS", "NA"};
-    const char* capsMultipleCustom[] = {"LDS", "MyFancyCap"};
-    const char* capsMultipleCustomIgnoreCase[] = {"LDS", "myfancycap"};
-
-    // only LDS expected
-    FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsLDS, 1);
-    // only register server expected
-    FindOnNetworkAndCheck(&expectedUris[1], 1, NULL, NULL, capsNA, 1);
-    // no server expected
-    FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultipleNone, 2);
-    // only LDS expected
-    FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsMultipleCustom, 2);
-    // only LDS expected
-    FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsMultipleCustomIgnoreCase, 2);
-}
-
 // Test if filtering with uris works
 static UA_Boolean
 Client_find_filter(void) {
@@ -629,8 +517,6 @@ Client_get_endpoints(void) {
                          "http://opcfoundation.org/UA-Profile/Transport/https-uabinary",
                          NULL);
 }
-
-#endif
 
 // Test if discovery server lists himself as registered server, before any other registration.
 static UA_Boolean
@@ -720,17 +606,12 @@ START_TEST(Server_findServers_mirrors_endpointUrl) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Server_registerFindServers) {
     while(!Client_find_discovery()) {}
 
     registerServer();
 
     while(!Client_find_registered()) {}
-
-    UA_fakeSleep(4000);
-
-    Client_find_on_network_registered();
 
     while(!Client_find_filter()) {}
 
@@ -745,7 +626,6 @@ START_TEST(Server_registerFindServers) {
     while(!Client_filter_discovery()) {}
 }
 END_TEST
-#endif
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
@@ -762,13 +642,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register, Server_findServers_mirrors_endpointUrl);
     suite_add_tcase(s,tc_register);
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");
     tcase_add_unchecked_fixture(tc_register_find, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register_find, setup_register, teardown_register);
     tcase_add_test(tc_register_find, Server_registerFindServers);
     suite_add_tcase(s,tc_register_find);
-#endif
 
     // register server again, then wait for timeout and auto unregister
     TCase *tc_register_timeout = tcase_create("RegisterServer timeout");

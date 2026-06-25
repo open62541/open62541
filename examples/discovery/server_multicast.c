@@ -239,7 +239,7 @@ int main(int argc, char **argv) {
     // Enable the mDNS announce and response functionality
     config->mdnsEnabled = true;
 
-    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
+    config->mdnsSelfConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     // Use loopback interface for mDNS announcements by default.
@@ -256,10 +256,10 @@ int main(int argc, char **argv) {
     // NOTE: UaExpert does not show LDS-only servers in the list.
     // See also: https://forum.unified-automation.com/topic1987.html
 
-    config->mdnsConfig.serverCapabilitiesSize = 1;
+    config->mdnsSelfConfig.serverCapabilitiesSize = 1;
     UA_String *caps = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
     caps[0] = UA_String_fromChars("LDS");
-    config->mdnsConfig.serverCapabilities = caps;
+    config->mdnsSelfConfig.serverCapabilities = caps;
 
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);

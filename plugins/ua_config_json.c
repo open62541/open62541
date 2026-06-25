@@ -526,84 +526,6 @@ PARSE_JSON(MessageSecurityMode) {
                     "Unknown MessageSecurityMode '%S'", rawToken);
     return UA_STATUSCODE_BAD;
 }
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) && !defined(UA_HAS_GETIFADDR)
-PARSE_JSON(UInt32ArrayField) {
-    if(configFieldSize == NULL) {
-        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
-        return UA_STATUSCODE_BADARGUMENTSMISSING;
-    }
-    cj5_token tok = ctx->result.tokens[++ctx->index];
-    UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);
-    size_t numberArraySize = 0;
-    for(size_t j = tok.size; j > 0; j--) {
-        UA_UInt32 value;
-        UA_StatusCode retval = UInt32Field_parseJson(ctx, &value, NULL);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(numberArray, numberArraySize, &UA_TYPES[UA_TYPES_UINT32]);
-            return retval;
-        }
-        numberArray[numberArraySize++] = value;
-    }
-    /* Add to the config */
-    UA_UInt32 **field = (UA_UInt32**)configField;
-    if(*configFieldSize > 0) {
-        UA_Array_delete(*field, *configFieldSize,
-                        &UA_TYPES[UA_TYPES_UINT32]);
-        *field = NULL;
-        *configFieldSize = 0;
-    }
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(numberArraySize > 0) {
-        retval = UA_Array_copy(numberArray, numberArraySize,
-                          (void **)field, &UA_TYPES[UA_TYPES_UINT32]);
-        *configFieldSize = numberArraySize;
-    }
-    /* Clean up */
-    UA_Array_delete(numberArray, numberArraySize, &UA_TYPES[UA_TYPES_UINT32]);
-    return retval;
-}
-#endif
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-PARSE_JSON(MdnsConfigurationField) {
-    UA_ServerConfig *config = (UA_ServerConfig*)configField;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    cj5_token tok = ctx->result.tokens[++ctx->index];
-    for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->result.tokens[++ctx->index];
-        switch (tok.type) {
-        case CJ5_TOKEN_STRING: {
-            char *field_str = (char*)UA_malloc(tok.size + 1);
-            unsigned int str_len = 0;
-            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
-            if(strcmp(field_str, "mdnsServerName") == 0)
-                retval = StringField_parseJson(ctx, &config->mdnsConfig.mdnsServerName, NULL);
-            else if(strcmp(field_str, "serverCapabilities") == 0)
-                retval = StringArrayField_parseJson(ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-            else if(strcmp(field_str, "mdnsInterfaceIP") == 0)
-                retval = StringField_parseJson(ctx, &config->mdnsInterfaceIP, NULL);
-            /* mdnsIpAddressList and mdnsIpAddressListSize are only available if UA_HAS_GETIFADDR is not defined: */
-# if !defined(UA_HAS_GETIFADDR)
-            else if(strcmp(field_str, "mdnsIpAddressList") == 0)
-                retval = UInt32ArrayField_parseJson(ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
-# endif
-#endif
-            else {
-                LOG_UNKNOWN_FIELD(ctx, field_str);
-            }
-            UA_free(field_str);
-            if(retval != UA_STATUSCODE_GOOD) {
-                return retval;
-            }
-            break;
-        }
-        default:
-        break;
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 PARSE_JSON(SubscriptionConfigurationField) {
@@ -1127,14 +1049,12 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-                else if(strcmp(field, "discoveryCleanupTimeout") == 0)
-                    retval = UInt32Field_parseJson(&ctx, &config->discoveryCleanupTimeout, NULL);
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-                else if(strcmp(field, "mdnsEnabled") == 0)
-                    retval = BooleanField_parseJson(&ctx, &config->mdnsEnabled, NULL);
-                else if(strcmp(field, "mdns") == 0)
-                    retval = MdnsConfigurationField_parseJson(&ctx, config, NULL);
-#endif
+                else if(strcmp(field, "registeredServersEnabled") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->registeredServersEnabled, NULL);
+                else if(strcmp(field, "registeredServerCleanupTimeout") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->registeredServerCleanupTimeout, NULL);
+                else if(strcmp(field, "serversOnNetworkEnabled") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->serversOnNetworkEnabled, NULL);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

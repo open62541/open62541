@@ -228,7 +228,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  * 0:connection-id [UInt64]
  *    Identifier of the connection in the context of the EventLoop. This is
  *    often the socket identifier, but that is not necessarily the case.
- * 0:remote-addresss [String]
+ * 0:remote-address [String]
  *   Address (hostname or IP that opened the SecureChannel.
  *
  * 0:protocol-version [UInt32]
@@ -402,8 +402,8 @@ typedef uint64_t UA_ApplicationNotificationType;
     ((0x20ULL << 32) | 0x04)
 
 /**
- * Auditing
- * --------
+ * (Server only) Signals the creation of an audit event.
+ *
  * The key-value map for audit application notifications follows the properties
  * defined for the AuditEventType and its subtypes. The key-string is the
  * human-readable encoding for the SimpleAttributeOperand of the event
@@ -498,6 +498,63 @@ typedef uint64_t UA_ApplicationNotificationType;
     ((0x40ULL << 32) | (0x08 << 16))
 #define UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               \
     ((0x40ULL << 32) | (0x08 << 16) | 0x01)
+
+/**
+ * (Server only) Signals for the Discovery service set.
+ *
+ * We uniquely identify servers by the combination of the following
+ * information. This is used to decide whether to update an existing
+ * record or whether to create a new one.
+ *
+ * - For FindServers: ServerUri + one matching DiscoveryUrl
+ * - For FindServerOnNetwork: ServerName + DiscoveryUrl
+ */
+
+#define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY (0x80UL << 32)
+
+/* A server was added via the RegisterServer service or the local API.
+ * Updates and removals are also notified.
+ *
+ * 0:registered-server [RegisteredServer]
+ *    Received server information.
+ * 0:discovery-configuration [Array of ExtensionObject]
+ *    Additional data, typically a UA_MdnsDiscoveryConfiguration.
+ * 0:server-added [Boolean]
+ *    They entry was newly added.
+ * 0:server-updated [Boolean]
+ *    An existing entry was updated.
+ * 0:server-removed [Boolean]
+ *    The entry was removed.
+ * 0:securechannel-id [UInt32]
+ *    Identifier of the SecureChannel from which the information was
+ *    recieved (0 for locally triggered operations).
+ * 0:session-id [NodeId]
+ *    Identifier of the Session that called the RegisterServer service.
+ *    The Null-NodeId if a SecureChannel without Session made the call. */
+#define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER \
+    ((0x80UL << 32) | 0x01)
+
+/* Information about a server over multicast DNS or the local API.
+ * Updates over time and removal is also notified (e.g after the DNS
+ * TTL (time-to-live) runs out).
+ *
+ * 0:server-on-network [ServerOnNetwork] Server information received.
+ *    (The RecordId datatype member is defined internally in the
+ *    server. It does not have semantic meaning here.)
+ * 0:remote-address [String]
+ *    IP-address or other host identifier from which the information
+ *    was received.
+ * 0:ttl [UInt32]
+ *    Time-to-live of DNS information. Zero means infinite
+ *    (if the server is not currently getting removed).
+ * 0:server-added [Boolean]
+ *    They entry was added.
+ * 0:server-updated [Boolean]
+ *    An existing entry was updated.
+ * 0:server-removed [Boolean]
+ *    The entry was removed. */
+#define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK \
+    ((0x80UL << 32) | 0x02)
 
 /**
  * Connection State

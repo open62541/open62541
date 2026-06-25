@@ -18,17 +18,6 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
     /* Server Description */
     UA_BuildInfo_clear(&config->buildInfo);
     UA_ApplicationDescription_clear(&config->applicationDescription);
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    UA_String_clear(&config->mdnsInterfaceIP);
-# if !defined(UA_HAS_GETIFADDR)
-    if (config->mdnsIpAddressListSize) {
-        UA_free(config->mdnsIpAddressList);
-    }
-# endif
-#endif
-#endif
 
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
