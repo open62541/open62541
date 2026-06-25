@@ -569,7 +569,11 @@ removeCertificate(UA_Server *server,
 
     UA_ByteString *certificates;
     size_t certificatesSize = 0;
-    certGroup->getTrustList(certGroup, &trustList);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     if(isTrustedCertificate) {
         certificates = trustList.trustedCertificates;
@@ -708,7 +712,11 @@ openTrustList(UA_Server *server,
     UA_TrustListDataType trustList;
     memset(&trustList, 0, sizeof(UA_TrustListDataType));
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-    certGroup->getTrustList(certGroup, &trustList);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
     retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList, NULL);
@@ -775,7 +783,11 @@ openTrustListWithMask(UA_Server *server,
     UA_TrustListDataType trustList;
     memset(&trustList, 0, sizeof(UA_TrustListDataType));
     trustList.specifiedLists = mask;
-    certGroup->getTrustList(certGroup, &trustList);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
     retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList, NULL);
@@ -1163,7 +1175,11 @@ applyChangesToServer(UA_Server *server) {
         UA_TrustListDataType trustList;
         UA_TrustListDataType_init(&trustList);
         trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-        transactionCertGroup.getTrustList(&transactionCertGroup, &trustList);
+        retval = transactionCertGroup.getTrustList(&transactionCertGroup, &trustList);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&trustList);
+            goto cleanup;
+        }
 
         UA_CertificateGroup *certGroup = getCertGroup(server, &transactionCertGroup.certificateGroupId);
         if(!certGroup) {
