@@ -436,6 +436,13 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
             UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
                                    "Receiving the response failed with StatusCode %s",
                                    UA_StatusCode_name(retval));
+            /* The receive itself can succeed while the channel was closed
+             * remotely (e.g. an ERR message during the handshake). Forward the
+             * detailed status code captured from the close so the reconnect is
+             * not silent. */
+            if(retval == UA_STATUSCODE_GOOD)
+                retval = (client->connectStatus != UA_STATUSCODE_GOOD) ?
+                    client->connectStatus : UA_STATUSCODE_BADCONNECTIONCLOSED;
             closeSecureChannel(client);
             break;
         }
