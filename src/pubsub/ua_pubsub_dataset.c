@@ -252,18 +252,25 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_DATASET(server->config.logging, pds,
-                             "MetaData creation: Found DataType %s",
-                             currentDataType->typeName);
+        if(currentDataType) {
+            UA_LOG_DEBUG_DATASET(server->config.logging, pds,
+                                "MetaData creation: Found DataType %s",
+                                currentDataType->typeName);
+        } else {
+            UA_LOG_DEBUG_DATASET(server->config.logging, pds,
+                                "MetaData creation: DataType not found for NodeId %d",
+                                fieldMetaData->dataType.identifier.numeric);
+        }
 #endif
         /* Check if the datatype is a builtInType, if yes set the builtinType. */
-        if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
+        if(currentDataType && currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
             fieldMetaData->builtInType = (UA_Byte)currentDataType->typeId.identifier.numeric;
         /* set the maxStringLength attribute */
         if(field->config.field.variable.maxStringLength != 0){
-            if(currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
+            if(currentDataType &&
+            (currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
             currentDataType->typeKind == UA_DATATYPEKIND_STRING ||
-            currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
+            currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT)) {
                 fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
             } else {
                 UA_LOG_WARNING_DATASET(server->config.logging, pds,
