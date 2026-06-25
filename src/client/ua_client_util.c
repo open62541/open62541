@@ -147,7 +147,7 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
         UA_DataTypeArray lookupTypes = *dta;
         lookupTypes.next = client->config.customDataTypes;
 
-        res = UA_DataType_fromDescription(&dta->types[dta->typesSize], &eo,
+        res = UA_DataType_fromDescription((UA_DataType*)(uintptr_t)&dta->types[dta->typesSize], &eo,
                                           &lookupTypes);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -167,7 +167,7 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
     UA_ReadResponse_clear(&rr);
     UA_ReadRequest_clear(req);
     if(dta->typesSize == 0) {
-        UA_free(dta->types);
+        UA_free((void*)(uintptr_t)dta->types);
         dta->types = NULL;
     }
     return UA_STATUSCODE_GOOD;

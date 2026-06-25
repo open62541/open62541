@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### UA_DataTypeArray.types is const
+
+The `types` field in `UA_DataTypeArray` changed from `UA_DataType *` to
+`const UA_DataType *`. Generated DataType arrays are now declared `const`
+as well. This enables placement in flash memory on embedded targets.
+
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
 Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section

@@ -651,16 +651,17 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     # Change namespaceIndex from the current namespace,
     # but only if it defines its own data types, otherwise it is not necessary.
+    needsNsPatch = False
     if len(typesArray) > 0:
         typeArr = typesArray[-1]
-        # Build the name of the TypeArray to compare if the current nodeset defines data types.
         currentTypeArr = '_'.join(outfilebase.upper().split('_')[1:-1])
         if typeArr != "UA_TYPES" and typeArr != "ns0" and typeArr == "UA_TYPES_"+currentTypeArr:
-            writec("/* Change namespaceIndex from current namespace */")
+            needsNsPatch = True
+            nsIdx = str(len(nodeset.namespaces)-1)
             writec("#if " + typeArr + "_COUNT" + " > 0")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
-            writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
-            writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
+            writec("    " + typeArr + "[i].typeId.namespaceIndex = ns[" + nsIdx + "];")
+            writec("    " + typeArr + "[i].binaryEncodingId.namespaceIndex = ns[" + nsIdx + "];")
             writec("}")
             writec("#endif")
 

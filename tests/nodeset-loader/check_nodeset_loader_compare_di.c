@@ -32,8 +32,8 @@ START_TEST(Server_compareDiNodeset) {
     UA_UInt16 nsIndex = UA_Server_addNamespace(server, "http://opcfoundation.org/UA/DI/");
 
     for(int i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; ++i) {
-        UA_TYPES_NODESETLOADER_DI[i].typeId.namespaceIndex = nsIndex;
-        UA_TYPES_NODESETLOADER_DI[i].binaryEncodingId.namespaceIndex = nsIndex;
+        ((UA_DataType*)(uintptr_t)UA_TYPES_NODESETLOADER_DI)[i].typeId.namespaceIndex = nsIndex;
+        ((UA_DataType*)(uintptr_t)UA_TYPES_NODESETLOADER_DI)[i].binaryEncodingId.namespaceIndex = nsIndex;
 
         const UA_DataType *compiledType = &UA_TYPES_NODESETLOADER_DI[i];
         const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
