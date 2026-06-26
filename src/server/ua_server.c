@@ -602,13 +602,13 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize namespace 0 */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
-    /* Standard configuration: generate NS0 nodes at runtime */
-    res = initNS0(server);
-#else
+#ifdef UA_NAMESPACE_ZERO_NONE
     /* NONE configuration: NS0 pre-loaded by external nodestore (e.g., ROM).
      * Only connect data sources for dynamic values like ServerTime, ServerStatus, etc. */
     res = initNS0_dataSources(server);
+#else
+    /* Standard configuration: generate NS0 nodes at runtime */
+    res = initNS0(server);
 #endif
     UA_CHECK_STATUS(res, goto cleanup);
 
