@@ -497,7 +497,8 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
      * sizeof(UA_DataValue) == 80 and an empty DataValue is encoded with just
      * one byte. We use 128 as the smallest power of 2 larger than 80. */
     size_t length = (size_t)signed_length;
-    UA_CHECK(ctx->pos + ((type->memSize * length) / 128) <= ctx->end,
+    size_t remaining = (size_t)(ctx->end - ctx->pos);
+    UA_CHECK(length / 128 <= remaining / type->memSize,
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Allocate memory */

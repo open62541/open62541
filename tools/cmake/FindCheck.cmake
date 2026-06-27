@@ -49,6 +49,19 @@ else()
     PKG_SEARCH_MODULE( CHECK check )
 endif()
 
+# pkg-config exports the plural CHECK_INCLUDE_DIRS and a bare library name.
+# Mirror them to the singular CHECK_INCLUDE_DIR and an absolute CHECK_LIBRARIES
+# that this module documents and the build expects.
+IF( CHECK_FOUND )
+	IF( NOT CHECK_INCLUDE_DIR )
+		SET( CHECK_INCLUDE_DIR ${CHECK_INCLUDE_DIRS} )
+	ENDIF()
+	FIND_LIBRARY( CHECK_LIBRARY NAMES check PATHS ${CHECK_LIBRARY_DIRS} )
+	IF( CHECK_LIBRARY )
+		SET( CHECK_LIBRARIES ${CHECK_LIBRARY} )
+	ENDIF()
+ENDIF()
+
 # Look for CHECK include dir and libraries
 IF( NOT CHECK_FOUND )
     IF ( CHECK_INSTALL_DIR )
