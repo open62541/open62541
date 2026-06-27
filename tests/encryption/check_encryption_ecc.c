@@ -650,11 +650,17 @@ static Suite* testSuite_encryption(void) {
         tcase_add_test(tc, encryption_connect);
         tcase_add_test(tc, encryption_connect_pem);
         tcase_add_test(tc, encryption_connect_sign_only);
-        tcase_add_test(tc, encryption_connect_write);
-        tcase_add_test(tc, encryption_reconnect);
-        tcase_add_test(tc, encryption_renew);
         tcase_add_test(tc, encryption_csr_generation);
-        tcase_add_test(tc, encryption_update_certificate);
+
+        /* These exercise generic SecureChannel/Session behavior and certificate
+         * update handling. Running them for every ECC curve adds many expensive
+         * full handshakes without increasing curve-specific coverage. */
+        if(i == 0) {
+            tcase_add_test(tc, encryption_connect_write);
+            tcase_add_test(tc, encryption_reconnect);
+            tcase_add_test(tc, encryption_renew);
+            tcase_add_test(tc, encryption_update_certificate);
+        }
 #endif /* UA_ENABLE_ENCRYPTION */
         suite_add_tcase(s, tc);
     }
