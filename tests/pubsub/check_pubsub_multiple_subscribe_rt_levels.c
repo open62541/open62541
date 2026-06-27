@@ -10,6 +10,7 @@
 #include <open62541/server_config_default.h>
 
 #include "ua_pubsub.h"
+#include "pubsub_test_helpers.h"
 #include "ua_pubsub_networkmessage.h"
 #include "testing_clock.h"
 
@@ -33,7 +34,7 @@ addMinimalPubSubConfiguration(void){
     connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.enabled = UA_TRUE;
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = 2234;

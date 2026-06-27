@@ -10,6 +10,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "ua_pubsub.h"
+#include "pubsub_test_helpers.h"
 #include "ua_server_internal.h"
 #include <check.h>
 #include <assert.h>
@@ -56,7 +57,7 @@ static void AddConnection(
     connectionConfig.name = UA_STRING(pName);
     connectionConfig.enabled = UA_TRUE;
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 

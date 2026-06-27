@@ -16,6 +16,7 @@
 
 #include "../encryption/certificates.h"
 #include "ua_pubsub.h"
+#include "pubsub_test_helpers.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
 
@@ -240,8 +241,7 @@ setup(void) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {
-        UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
