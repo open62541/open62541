@@ -49,16 +49,20 @@ else()
     PKG_SEARCH_MODULE( CHECK check )
 endif()
 
-# pkg-config exports the plural CHECK_INCLUDE_DIRS and a bare library name.
-# Mirror them to the singular CHECK_INCLUDE_DIR and an absolute CHECK_LIBRARIES
-# that this module documents and the build expects.
+# pkg-config exports the plural CHECK_INCLUDE_DIRS and linker flags with the
+# architecture-specific library directory. Mirror them to the singular
+# CHECK_INCLUDE_DIR and CHECK_LIBRARIES that this module documents and the build
+# expects. Do not resolve the library again with find_library(), because that can
+# pick a host-architecture library during multilib/cross builds.
 IF( CHECK_FOUND )
 	IF( NOT CHECK_INCLUDE_DIR )
 		SET( CHECK_INCLUDE_DIR ${CHECK_INCLUDE_DIRS} )
 	ENDIF()
-	FIND_LIBRARY( CHECK_LIBRARY NAMES check PATHS ${CHECK_LIBRARY_DIRS} )
-	IF( CHECK_LIBRARY )
-		SET( CHECK_LIBRARIES ${CHECK_LIBRARY} )
+	IF( CHECK_LDFLAGS )
+		SET( CHECK_LIBRARIES ${CHECK_LDFLAGS} )
+		IF( CHECK_LDFLAGS_OTHER )
+			LIST( APPEND CHECK_LIBRARIES ${CHECK_LDFLAGS_OTHER} )
+		ENDIF()
 	ENDIF()
 ENDIF()
 
