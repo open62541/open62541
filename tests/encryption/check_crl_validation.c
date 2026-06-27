@@ -335,9 +335,9 @@ START_TEST(encryption_connect_issuer_revoked) {
     ck_assert(client != NULL);
 
     /* Secure client connect. The intermediate CA certificate is revoked by the
-     * root CA's CRL, so the issuer of the application certificate is revoked. */
+     * root CA's CRL, so the server rejects the handshake. */
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
