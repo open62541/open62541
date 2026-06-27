@@ -26,6 +26,10 @@
 static UA_Server *server = NULL;
 static UA_Client *client = NULL;
 
+static UA_UInt16 reverseListenPort = 4841;
+static UA_UInt16 nextReverseListenPort = 4841;
+static char reverseConnectUrl[64];
+
 static int numServerCallbackCalled = 0;
 static UA_SecureChannelState serverCallbackStates[10];
 static UA_UInt64 reverseConnectHandle = 0;
@@ -66,6 +70,9 @@ static void setup(void) {
     numServerCallbackCalled = 0;
     reverseConnectHandle = 0;
     numClientCallbackCalled = 0;
+    reverseListenPort = nextReverseListenPort++;
+    snprintf(reverseConnectUrl, sizeof(reverseConnectUrl),
+             "opc.tcp://127.0.0.1:%u", (unsigned)reverseListenPort);
 
     server = UA_Server_newForUnitTest();
     UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -124,6 +131,20 @@ iterateClientUntilCallbacks(int callbacks, UA_UInt32 fakeSleep) {
 }
 
 static void
+listenForReverseConnect(void) {
+    const UA_String listenHost = UA_STRING("127.0.0.1");
+    UA_StatusCode ret =
+        UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                  reverseListenPort);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    iterateClientUntilCallbacks(numClientCallbackCalled + 1, 1);
+    ck_assert_int_gt(numClientCallbackCalled, 0);
+    ck_assert_int_eq(clientCallbackStates[numClientCallbackCalled - 1],
+                     UA_SECURECHANNELSTATE_REVERSE_LISTENING);
+}
+
+static void
 iterateClientServerUntilCallbacks(int serverCallbacks, int clientCallbacks,
                                   UA_UInt32 fakeSleep) {
     for(size_t i = 0; i < REVERSECONNECT_MAX_ITERATIONS &&
@@ -148,12 +169,14 @@ START_TEST(listenAndTeardown) {
     server = NULL;
 
     const UA_String listenHost = UA_STRING("127.0.0.1");
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                    reverseListenPort);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
     iterateClientUntilCallbacks(1, 1000);
 
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                    reverseListenPort);
     ck_assert_uint_eq(ret, UA_STATUSCODE_BADINVALIDSTATE);
 
     UA_Client_disconnect(client);
@@ -179,23 +202,23 @@ START_TEST(noListenWhileConnected) {
     ck_assert_int_eq(clientCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
 
     const UA_String listenHost = UA_STRING("127.0.0.1");
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                    reverseListenPort);
     ck_assert_uint_eq(ret, UA_STATUSCODE_BADINVALIDSTATE);
 
     UA_Client_disconnect(client);
 
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                    reverseListenPort);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(addBeforeStart) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_String listenHost = UA_STRING("127.0.0.1");
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
-    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    listenForReverseConnect();
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
                                       serverStateCallback, (void *)1234,
                                       &reverseConnectHandle);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -231,12 +254,13 @@ START_TEST(addAfterStart) {
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
     const UA_String listenHost = UA_STRING("127.0.0.1");
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                    reverseListenPort);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
     iterateClientServer(1);
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
                                       serverStateCallback, (void *)1234,
                                       &reverseConnectHandle);
 
@@ -262,16 +286,14 @@ START_TEST(addAfterStart) {
 START_TEST(checkReconnect) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    listenForReverseConnect();
+
+    ret = UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
                                       serverStateCallback, (void *)1234,
                                       &reverseConnectHandle);
 
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(reverseConnectHandle, 0);
-
-    const UA_String listenHost = UA_STRING("127.0.0.1");
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
-    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
     ret = UA_Server_run_startup(server);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -298,8 +320,7 @@ START_TEST(checkReconnect) {
             ck_assert_int_eq(serverCallbackStates[4], UA_SECURECHANNELSTATE_CLOSING);
             ck_assert_int_eq(serverCallbackStates[5], UA_SECURECHANNELSTATE_CONNECTING);
 
-            ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
-            ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+            listenForReverseConnect();
 
             UA_fakeSleep(UA_Server_getConfig(server)->reverseReconnectInterval + 1);
 
@@ -328,16 +349,14 @@ START_TEST(checkReconnect) {
 START_TEST(removeOnShutdownWithConnection) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    listenForReverseConnect();
+
+    ret = UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
                                       serverStateCallback, (void *)1234,
                                       &reverseConnectHandle);
 
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(reverseConnectHandle, 0);
-
-    const UA_String listenHost = UA_STRING("127.0.0.1");
-    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
-    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
     ret = UA_Server_run_startup(server);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -358,7 +377,7 @@ START_TEST(removeOnShutdownWithConnection) {
 START_TEST(removeOnShutdownWithoutConnection) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
                                       serverStateCallback, (void *)1234,
                                       &reverseConnectHandle);
 
