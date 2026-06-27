@@ -285,6 +285,9 @@ DataSetPayload_decodeJsonInternal(ParseCtx *ctx, void* dsmP, const UA_DataType *
     UA_assert(ctx->tokens[ctx->index].size % 2 == 0);
     size_t length = (size_t)(ctx->tokens[ctx->index].size) / 2;
 
+    if(length > UA_UINT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     UA_String *fieldNames = (UA_String*)UA_calloc(length, sizeof(UA_String));
     if(!fieldNames)
         return UA_STATUSCODE_BADOUTOFMEMORY;

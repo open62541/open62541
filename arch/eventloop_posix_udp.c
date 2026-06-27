@@ -216,20 +216,26 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
             break;
     }
 
-    freeifaddrs(ifaddr);
-    if(!ifa)
+    if(!ifa) {
+        freeifaddrs(ifaddr);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Write the interface index */
     if(info->ai_family == AF_INET) {
 #if defined(ip_mreqn)
         req->ipv4.imr_ifindex = idx;
+#elif defined(__APPLE__)
+        struct sockaddr_in *sin = (struct sockaddr_in*)ifa->ifa_addr;
+        req->ipv4.imr_interface = sin->sin_addr;
 #endif
 #if UA_IPV6
     } else { /* if(info->ai_family == AF_INET6) */
         req->ipv6.ipv6mr_interface = idx;
 #endif
     }
+
+    freeifaddrs(ifaddr);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -535,6 +541,8 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
 #ifdef UA_ARCHITECTURE_WIN32
                             (const char *)&req.ipv4.imr_interface,
                             sizeof(struct in_addr));
+#elif defined(__APPLE__)
+                            &req.ipv4.imr_interface, sizeof(struct in_addr));
 #else
                             &req.ipv4, sizeof(req.ipv4));
 #endif

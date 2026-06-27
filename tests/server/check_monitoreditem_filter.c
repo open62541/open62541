@@ -38,7 +38,7 @@ UA_DataValue lastValue;
 
 THREAD_CALLBACK(serverloop) {
     while(running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, false);
     return 0;
 }
 
@@ -174,14 +174,18 @@ setDouble(UA_Client *thisClient, UA_NodeId node, UA_Double value) {
 static UA_StatusCode
 waitForNotification(UA_UInt32 notifications, UA_UInt32 maxTries) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_UInt32 initialNotifications = countNotificationReceived;
     pauseServer();
     for(UA_UInt32 i = 0; i < maxTries; ++i) {
         UA_fakeSleep((UA_UInt32)publishingInterval + 100);
         UA_Server_run_iterate(server, false);
-        retval = UA_Client_run_iterate(client, 1);
+        retval = UA_Client_run_iterate(client, 0);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-        if(countNotificationReceived == notifications)
+        if(countNotificationReceived == notifications &&
+           (notifications == 0 ||
+            countNotificationReceived != initialNotifications ||
+            notificationReceived))
             break;
     }
     runServer();
@@ -967,7 +971,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterNULLValue) {
 
     notificationReceived = false;
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
