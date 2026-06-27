@@ -299,7 +299,47 @@ START_TEST(encryption_connect_revoked) {
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
-    /* Secure client connect */
+    /* Secure client connect. The application certificate is revoked by the
+     * intermediate CA's CRL, so the server rejects the handshake. */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(encryption_connect_issuer_revoked) {
+    UA_ByteString certificate;
+    certificate.length = APPLICATION_CERT_DER_LENGTH;
+    certificate.data = APPLICATION_CERT_DER_DATA;
+    ck_assert_uint_ne(certificate.length, 0);
+
+    UA_ByteString privateKey;
+    privateKey.length = APPLICATION_KEY_DER_LENGTH;
+    privateKey.data = APPLICATION_KEY_DER_DATA;
+    ck_assert_uint_ne(privateKey.length, 0);
+
+    /* Load the trustlist */
+    UA_ByteString *trustList = NULL;
+    size_t trustListSize = 0;
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+
+    /* Secure client initialization */
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         trustList, trustListSize,
+                                         revocationList, revocationListSize);
+    cc->certificateVerification.clear(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    ck_assert(client != NULL);
+
+    /* Secure client connect. The intermediate CA certificate is revoked by the
+     * root CA's CRL, so the server rejects the handshake. */
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
@@ -319,7 +359,7 @@ static Suite* testSuite_encryption(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption_valid, encryption_connect_valid);
     tcase_add_test(tc_encryption_revoked, encryption_connect_revoked);
-    tcase_add_test(tc_encryption_revoked2, encryption_connect_revoked);
+    tcase_add_test(tc_encryption_revoked2, encryption_connect_issuer_revoked);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_valid);
     suite_add_tcase(s,tc_encryption_revoked);

@@ -8,6 +8,8 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+
+#include "pubsub_test_helpers.h"
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
@@ -87,7 +89,7 @@ static UA_NodeId addPubSubConnection(void){
     pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
     UA_ExtensionObject eo;
-    UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING(""), UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressDataType = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
     UA_NetworkAddressUrlDataType_init(identityToken);
     UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
@@ -234,7 +236,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
         UA_ExtensionObject eo;
-        UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING(""), UA_STRING("opc.udp://224.0.0.22:4840/")};
+        UA_NetworkAddressUrlDataType networkAddressDataType = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
         UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
         UA_NetworkAddressUrlDataType_init(identityToken);
         UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
@@ -344,7 +346,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
         UA_ExtensionObject eo;
-        UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING(""), UA_STRING("opc.udp://224.0.0.22:4840/")};
+        UA_NetworkAddressUrlDataType networkAddressDataType = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
         UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
         UA_NetworkAddressUrlDataType_init(identityToken);
         UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
@@ -916,7 +918,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
         UA_ExtensionObject eo;
-        UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING(""), UA_STRING("opc.udp://224.0.0.22:4840/")};
+        UA_NetworkAddressUrlDataType networkAddressDataType = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
         UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
         UA_NetworkAddressUrlDataType_init(identityToken);
         UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
@@ -987,7 +989,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
         UA_ExtensionObject eo;
-        UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING(""), UA_STRING("opc.udp://224.0.0.22:4840/")};
+        UA_NetworkAddressUrlDataType networkAddressDataType = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
         UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
         UA_NetworkAddressUrlDataType_init(identityToken);
         UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
