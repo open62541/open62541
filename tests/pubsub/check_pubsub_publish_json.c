@@ -11,6 +11,7 @@
 
 #include "ua_pubsub_internal.h"
 #include "test_helpers.h"
+#include "pubsub_test_helpers.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -28,7 +29,7 @@ static void setup(void) {
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
@@ -56,6 +57,17 @@ START_TEST(SinglePublishDataSetField){
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+
+    UA_DatagramWriterGroupTransport2DataType udpTransportSettings;
+    memset(&udpTransportSettings, 0, sizeof(UA_DatagramWriterGroupTransport2DataType));
+    UA_NetworkAddressUrlDataType writerGroupAddress =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_ExtensionObject_setValue(&udpTransportSettings.address, &writerGroupAddress,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+
+    UA_ExtensionObject_setValue(&writerGroupConfig.transportSettings, &udpTransportSettings,
+                         &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]);
+
     UA_StatusCode retVal =
         UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -96,6 +108,16 @@ START_TEST(SinglePublishDataSetField){
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_Server_WriterGroup_publish(server, writerGroup1);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
+    ck_assert(wg != 0);
+    UA_WriterGroup_publishCallback(psm, wg);
+
+    UA_PubSubState state;
+    retVal = UA_Server_WriterGroup_getState(server, writerGroup1, &state);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(state, UA_PUBSUBSTATE_OPERATIONAL);
 } END_TEST
 
 int main(void) {
