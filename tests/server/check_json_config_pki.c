@@ -19,6 +19,12 @@
 # include <unistd.h>
 #endif
 
+#ifdef _WIN32
+# define TEST_PATH_MAX MAX_PATH
+#else
+# define TEST_PATH_MAX PATH_MAX
+#endif
+
 /* Create a temporary directory. Caller must free the returned string. */
 static char *
 createTempDir(void) {
@@ -72,7 +78,7 @@ removeDir(const char *path) {
         if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
-        char full[PATH_MAX];
+        char full[TEST_PATH_MAX];
         int n = snprintf(full, sizeof(full), "%s/%s", path, entry->d_name);
         if(n < 0 || (size_t)n >= sizeof(full))
             continue;
@@ -105,6 +111,11 @@ START_TEST(server_from_json_with_pkifolder) {
     char *pkiDir = createTempDir();
     ck_assert_ptr_ne(pkiDir, NULL);
 
+    char pkiFolder[TEST_PATH_MAX];
+    int pkiFolderLen = snprintf(pkiFolder, sizeof(pkiFolder), "%s/pki", pkiDir);
+    ck_assert_int_gt(pkiFolderLen, 0);
+    ck_assert_int_lt((size_t)pkiFolderLen, sizeof(pkiFolder));
+
     char *json = NULL;
     const size_t bufsize = 2048;
     json = (char *)UA_malloc(bufsize);
@@ -114,7 +125,7 @@ START_TEST(server_from_json_with_pkifolder) {
         "  \"serverUrls\": [\"opc.tcp://localhost:4840\"],\n"
         "  \"pkiFolder\": \"%s\"\n"
         "}\n",
-        pkiDir);
+        pkiFolder);
     ck_assert_int_gt(n, 0);
     ck_assert_int_lt((size_t)n, bufsize);
 
@@ -124,6 +135,13 @@ START_TEST(server_from_json_with_pkifolder) {
     ck_assert_ptr_ne(jsonBytes.data, NULL);
     memcpy(jsonBytes.data, json, jsonBytes.length);
     UA_free(json);
+
+    UA_ServerConfig probeConfig;
+    retval = UA_ServerConfig_loadFromFile(&probeConfig, jsonBytes);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(probeConfig.secureChannelPKI.context, NULL);
+    ck_assert_ptr_ne(probeConfig.sessionPKI.context, NULL);
+    UA_ServerConfig_clear(&probeConfig);
 
     /* Create server from config */
     UA_Server *server = UA_Server_newFromFile(jsonBytes);

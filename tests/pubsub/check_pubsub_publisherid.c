@@ -6,6 +6,7 @@
 #include "test_helpers.h"
 #include "testing_clock.h"
 #include "ua_server_internal.h"
+#include "pubsub_test_helpers.h"
 #include "ua_pubsub_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
@@ -43,10 +44,9 @@ AddConnection(char *pName, UA_PublisherId publisherId, UA_NodeId *opConnectionId
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING(pName);
-    connectionConfig.transportProfileUri =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    connectionConfig.enabled = UA_TRUE;
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
@@ -1133,8 +1133,9 @@ START_TEST(Test_string_publisherId_file_config) {
     connection->transportProfileUri = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_NetworkAddressUrlDataType *addr = UA_NetworkAddressUrlDataType_new();
     ck_assert(addr != 0);
-    UA_NetworkAddressUrlDataType_init(addr);
-    addr->url = UA_STRING_ALLOC("opc.udp://224.0.0.22:4840/");
+    ck_assert_int_eq(UA_STATUSCODE_GOOD,
+                     UA_PubSubTest_initNetworkAddressUrlAlloc(
+                         addr, UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840));
     connection->address.encoding = UA_EXTENSIONOBJECT_DECODED;
     connection->address.content.decoded.type = &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE];
     connection->address.content.decoded.data = addr;

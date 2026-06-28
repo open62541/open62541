@@ -328,6 +328,9 @@ DataSetPayload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, void *data, const UA
     UA_assert(ctx->ctx.tokens[ctx->ctx.index].size % 2 == 0);
     size_t length = (size_t)(ctx->ctx.tokens[ctx->ctx.index].size) / 2;
 
+    if(length > UA_UINT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     dsm->data.keyFrameFields = (UA_DataValue *)
         UA_Array_new(length, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(!dsm->data.keyFrameFields)

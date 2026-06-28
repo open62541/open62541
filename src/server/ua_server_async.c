@@ -4,9 +4,32 @@
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2019, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"
+
+/* The layout of the results array is is:
+ * [results-array] | padding | UA_AsyncResponse | padding | [UA_AsyncOperation]
+ *
+ * We need to take care about memory alignment (padding). */
+static void *
+allocateResultsArray(const UA_DataType *resultsType, size_t resultsLen,
+                     UA_AsyncResponse **resp, UA_AsyncOperation **ops) {
+    uintptr_t align = sizeof(size_t);
+    size_t arrEnd = resultsType->memSize * resultsLen;
+    uintptr_t responseBegin = (arrEnd + align - 1) & ~(align - 1);
+    uintptr_t responseEnd = responseBegin + sizeof(UA_AsyncResponse);
+    uintptr_t opsBegin = (responseEnd + align - 1) & ~(align - 1);
+    uintptr_t opsEnd =  opsBegin + (sizeof(UA_AsyncOperation) * resultsLen);
+    void *arr = UA_calloc(1, opsEnd);
+    if(!arr)
+        return NULL;
+    uintptr_t arrMem = (uintptr_t)arr;
+    *resp = (UA_AsyncResponse*)(arrMem + responseBegin);
+    *ops = (UA_AsyncOperation*)(arrMem + opsBegin);
+    return arr;
+}
 
 /* Cancel the operation, but don't _clear it here */
 static void
@@ -543,13 +566,12 @@ Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *reque
         return true;
     }
 
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically if none of the
-     * calls are async. */
-    size_t opsLen = sizeof(UA_DataValue) * request->nodesToReadSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
-        (sizeof(UA_AsyncOperation) * request->nodesToReadSize);
-    response->results = (UA_DataValue*)UA_calloc(1, len);
+    /* Allocate the results array */
+    UA_AsyncResponse *ar = NULL;
+    UA_AsyncOperation *aopArray = NULL;
+    response->results = (UA_DataValue*)
+        allocateResultsArray(&UA_TYPES[UA_TYPES_DATAVALUE],
+                             request->nodesToReadSize, &ar, &aopArray);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -557,8 +579,6 @@ Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *reque
     response->resultsSize = request->nodesToReadSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
-    UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->nodesToReadSize; i++) {
         UA_Boolean done = Operation_Read(server, session, request->timestampsToReturn,
                                          &request->nodesToRead[i], &response->results[i]);
@@ -662,13 +682,12 @@ Service_Write(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically if none of the
-     * calls are async. */
-    size_t opsLen = sizeof(UA_StatusCode) * request->nodesToWriteSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
-        (sizeof(UA_AsyncOperation) * request->nodesToWriteSize);
-    response->results = (UA_StatusCode*)UA_calloc(1, len);
+    /* Allocate the results array */
+    UA_AsyncResponse *ar = NULL;
+    UA_AsyncOperation *aopArray = NULL;
+    response->results = (UA_StatusCode*)
+        allocateResultsArray(&UA_TYPES[UA_TYPES_STATUSCODE],
+                             request->nodesToWriteSize, &ar, &aopArray);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -676,8 +695,6 @@ Service_Write(UA_Server *server, UA_Session *session,
     response->resultsSize = request->nodesToWriteSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
-    UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->nodesToWriteSize; i++) {
         /* Ensure a stable pointer for the writevalue. Doesn't get written to,
          * just used for the lookup of the async operation later on.
@@ -792,13 +809,12 @@ Service_Call(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically if none of the
-     * calls are async. */
-    size_t opsLen = sizeof(UA_CallMethodResult) * request->methodsToCallSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
-        (sizeof(UA_AsyncOperation) * request->methodsToCallSize);
-    response->results = (UA_CallMethodResult*)UA_calloc(1, len);
+    /* Allocate the results array */
+    UA_AsyncResponse *ar = NULL;
+    UA_AsyncOperation *aopArray = NULL;
+    response->results = (UA_CallMethodResult*)
+        allocateResultsArray(&UA_TYPES[UA_TYPES_CALLMETHODRESULT],
+                             request->methodsToCallSize, &ar, &aopArray);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -806,8 +822,6 @@ Service_Call(UA_Server *server, UA_Session *session,
     response->resultsSize = request->methodsToCallSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
-    UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->methodsToCallSize; i++) {
         UA_Boolean done = Operation_CallMethod(server, session, &request->methodsToCall[i],
                                                &response->results[i]);
