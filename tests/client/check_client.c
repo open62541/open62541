@@ -818,7 +818,7 @@ START_TEST(Client_connectTimeoutRecovery) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_ClientConfig_setDefault(cconfig);
 

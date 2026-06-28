@@ -327,7 +327,7 @@ START_TEST(encryption_connect_issuer_revoked) {
     size_t revocationListSize = 0;
 
     /* Secure client initialization */
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,

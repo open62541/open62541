@@ -192,20 +192,29 @@ waitForNotification(UA_UInt32 notifications) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_UInt32 initialNotifications = countNotificationReceived;
     pauseServer();
-#define MAXWAIT_TRIES 20
+#define MAXWAIT_TRIES 100
     for(UA_UInt32 i = 0; i < MAXWAIT_TRIES; ++i) {
         UA_fakeSleep((UA_UInt32)publishingInterval + 100);
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-        if(countNotificationReceived == notifications &&
+        if(countNotificationReceived >= notifications &&
            (notifications == 0 ||
             countNotificationReceived != initialNotifications ||
             notificationReceived))
             break;
     }
     runServer();
+    return retval;
+}
+
+static UA_StatusCode
+waitForNotificationCount(UA_UInt32 notifications) {
+    UA_StatusCode retval = waitForNotification(notifications);
+    if(retval == UA_STATUSCODE_GOOD &&
+       countNotificationReceived < notifications)
+        retval = UA_STATUSCODE_BADTIMEOUT;
     return retval;
 }
 
@@ -261,9 +270,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotificationCount(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotificationCount(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -272,9 +281,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotificationCount(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotificationCount(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 

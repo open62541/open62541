@@ -314,7 +314,8 @@ START_TEST(checkReconnect) {
             ret = UA_Client_disconnectAsync(client);
             ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
-            iterateClientServerUntilCallbacks(6, 0, 1);
+            iterateClientServerUntilCallbacks(
+                6, 0, UA_Server_getConfig(server)->reverseReconnectInterval + 1);
 
             ck_assert_int_eq(numServerCallbackCalled, 6);
             ck_assert_int_eq(serverCallbackStates[4], UA_SECURECHANNELSTATE_CLOSING);
