@@ -275,11 +275,9 @@ typedef int SOCKET;
 #endif /* __linux__ */
 #include <sys/stat.h>
 
-#ifndef __ANDROID__
-#ifndef __APPLE__
+#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(__OpenBSD__)
 #include <bits/stdio_lim.h>
-#endif /* !__APPLE__ */
-#endif /* !__ANDROID__ */
+#endif
 
 #define UA_STAT stat
 #define UA_DIR DIR
