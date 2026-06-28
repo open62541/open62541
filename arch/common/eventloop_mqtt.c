@@ -784,13 +784,13 @@ MQTT_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     MQTTConnectionManager *mcm = (MQTTConnectionManager*)cm;
     MQTTTopicConnection *tc = findTopicConnection(mcm, connectionId);
     if(!tc) {
-        UA_ByteString_clear(buf);
+        MQTT_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     MQTTBrokerConnection *bc = tc->brokerConnection;
     if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED) {
-        UA_ByteString_clear(buf);
+        MQTT_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
@@ -803,7 +803,7 @@ MQTT_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                        buf->data, buf->length, 0);
     if(UA_LIKELY(res == MQTT_OK))
         res = (enum MQTTErrors)__mqtt_send(&bc->client);
-    UA_ByteString_clear(buf);
+    MQTT_freeNetworkBuffer(cm, connectionId, buf);
     return (res == MQTT_OK) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
 }
 
