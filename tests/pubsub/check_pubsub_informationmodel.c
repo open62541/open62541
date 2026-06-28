@@ -8,6 +8,8 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+
+#include "pubsub_test_helpers.h"
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 
@@ -66,7 +68,8 @@ static void addPubSubConnection(UA_String connectionName, UA_String addressUrl, 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = connectionName;
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, addressUrl};
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_PubSubTest_getMulticastInterface(), addressUrl};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -132,8 +135,8 @@ findSingleChildNode(UA_Server *server_, UA_QualifiedName targetName, UA_NodeId r
 }
 
 static void setupBasicPubSubConfiguration(void){
-    addPubSubConnection(UA_STRING("Connection 1"), UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
-    addPubSubConnection(UA_STRING("Connection 2"), UA_STRING("opc.udp://224.0.0.22:4840/"), &connection2);
+    addPubSubConnection(UA_STRING("Connection 1"), UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
+    addPubSubConnection(UA_STRING("Connection 2"), UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection2);
     addPublishedDataSet(UA_STRING("PublishedDataSet 1"), &publishedDataSet1);
     addPublishedDataSet(UA_STRING("PublishedDataSet 2"), &publishedDataSet2);
     addWriterGroup(connection1, UA_STRING("WriterGroup 1"), 10, &writerGroup1);
@@ -154,7 +157,7 @@ static void setupBasicPubSubConfiguration(void){
 
 START_TEST(AddSignlePubSubConnectionAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_QualifiedName browseName;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_Server_readBrowseName(server, connection1, &browseName);
@@ -165,13 +168,13 @@ START_TEST(AddSignlePubSubConnectionAndCheckInformationModelRepresentation){
 
 START_TEST(AddRemoveAddSignlePubSubConnectionAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_QualifiedName browseName;
     UA_StatusCode retVal;
     ck_assert_int_eq(UA_Server_removePubSubConnection(server, connection1), UA_STATUSCODE_GOOD);
     retVal = UA_Server_readBrowseName(server, connection1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     retVal = UA_Server_readBrowseName(server, connection1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &connectionName), UA_TRUE);
@@ -229,7 +232,7 @@ START_TEST(AddRemoveAddSinglePublishedDataSetAndCheckInformationModelRepresentat
 
 START_TEST(AddSingleWriterGroupAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
@@ -256,7 +259,7 @@ START_TEST(AddSingleWriterGroupAndCheckInformationModelRepresentation){
 
 START_TEST(AddRemoveAddSingleWriterGroupAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
@@ -275,7 +278,7 @@ START_TEST(AddRemoveAddSingleWriterGroupAndCheckInformationModelRepresentation){
 
 START_TEST(AddSingleDataSetWriterAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
@@ -303,7 +306,7 @@ START_TEST(AddSingleDataSetWriterAndCheckInformationModelRepresentation){
 
 START_TEST(AddRemoveAddSingleDataSetWriterAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
@@ -376,7 +379,7 @@ START_TEST(ReadAddressAndCompareWithInternalValue){
 
 START_TEST(AddSingleDataSetReaderAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String rgName = UA_STRING("ReaderGroup 1");
     addReaderGroup(connection1, rgName, &readerGroup1);
     UA_String dsrName = UA_STRING("DataSetReader 1");
@@ -406,7 +409,7 @@ START_TEST(AddSingleDataSetReaderAndCheckInformationModelRepresentation){
 START_TEST(AddRemoveAddSingleDataSetReaderAndCheckInformationModelRepresentation){
     UA_StatusCode retVal;
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String rgName = UA_STRING("ReaderGroup 1");
     addReaderGroup(connection1,  rgName, &readerGroup1);
     UA_String dsrName = UA_STRING("DataSetReader 1");
@@ -424,7 +427,7 @@ START_TEST(AddRemoveAddSingleDataSetReaderAndCheckInformationModelRepresentation
 
 START_TEST(AddSingleReaderGroupAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String rgName = UA_STRING("ReaderGroup 1");
     addReaderGroup(connection1, rgName, &readerGroup1);
     UA_QualifiedName browseName;
@@ -449,7 +452,7 @@ START_TEST(AddSingleReaderGroupAndCheckInformationModelRepresentation){
 
 START_TEST(AddRemoveAddSingleReaderGroupAndCheckInformationModelRepresentation){
     UA_String connectionName = UA_STRING("Connection 1");
-    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    addPubSubConnection(connectionName, UA_STRING(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840), &connection1);
     UA_String rgName = UA_STRING("ReaderGroup 1");
     addReaderGroup(connection1, rgName, &readerGroup1);
     UA_QualifiedName browseName;
