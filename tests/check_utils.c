@@ -4,11 +4,20 @@
 
 #include <open62541/client.h>
 
-#include "util/ua_util_internal.h"
-
+#include <dtoa.h>
 #include <stdlib.h>
+#include <math.h>
 
+#include "util/ua_util_internal.h"
 #include "check.h"
+
+/* vs2008 does not have INFINITY and NAN defined */
+#ifndef INFINITY
+# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
+#endif
+#ifndef NAN
+# define NAN ((UA_Double)(INFINITY-INFINITY))
+#endif
 
 START_TEST(EndpointUrl_split) {
     UA_String hostname = UA_STRING_NULL;
@@ -199,6 +208,42 @@ START_TEST(readNumber) {
 
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"123456789", 9, &result), 9);
     ck_assert_uint_eq(result, 123456789);
+}
+END_TEST
+
+
+START_TEST(doubleToString) {
+    char buffer[256];
+
+    const double number_13_37 = 13.37;
+    const unsigned length_13_37 = dtoa(number_13_37, buffer);
+    buffer[length_13_37] = 0;
+    ck_assert_str_eq(buffer, "13.37");
+
+    const double number_neg_13_37 = -13.37;
+    const unsigned length_neg_13_37 = dtoa(number_neg_13_37, buffer);
+    buffer[length_neg_13_37] = 0;
+    ck_assert_str_eq(buffer, "-13.37");
+
+    const double number_inf = INFINITY;
+    const unsigned length_inf = dtoa(number_inf, buffer);
+    buffer[length_inf] = 0;
+    ck_assert_str_eq(buffer, "inf");
+
+    const double number_neginf = -INFINITY;
+    const unsigned length_neginf = dtoa(number_neginf, buffer);
+    buffer[length_neginf] = 0;
+    ck_assert_str_eq(buffer, "-inf");
+
+    const double number_nan = NAN;
+    const unsigned length_nan = dtoa(number_nan, buffer);
+    buffer[length_nan] = 0;
+    ck_assert_str_eq(buffer, "nan");
+
+    const double number_negnan = -NAN;
+    const unsigned length_negnan = dtoa(number_negnan, buffer);
+    buffer[length_negnan] = 0;
+    ck_assert_str_eq(buffer, "nan");
 }
 END_TEST
 
@@ -932,6 +977,7 @@ static Suite* testSuite_Utils(void) {
     TCase *tc_utils = tcase_create("Utils");
     tcase_add_test(tc_utils, readNumber);
     tcase_add_test(tc_utils, readNumberWithBase);
+    tcase_add_test(tc_utils, doubleToString);
     tcase_add_test(tc_utils, StatusCode_msg);
     tcase_add_test(tc_utils, stringCompare);
     suite_add_tcase(s,tc_utils);

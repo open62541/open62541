@@ -4,6 +4,7 @@
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  * based on
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -26,6 +27,22 @@ _UA_BEGIN_DECLS
 struct UA_AsyncResponse;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
+/* Synchronous and asynchronous operations go through the same initial control
+ * flow. Only inside the read/write/call callback can the return code
+ * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY be used to signal asynchronous
+ * processing.
+ *
+ * Also multiple operations come in at the same time from the same request. We
+ * do all of this with as little overhead as possible for the case that all
+ * operations are synchonous:
+ *
+ * The results-array for the response message is allocated "too long". After
+ * every regular entry follows enough space for another array of
+ * UA_AsyncOperation. This is used for ad-hoc asynchronous processing. Otherwise
+ * the additional bytes at the end are simply ignored. */
+
+/* REQUEST -> received over the network
+ * DIRECT -> local C API call */
 typedef enum {
     UA_ASYNCOPERATIONTYPE_CALL_REQUEST  = 0,
     UA_ASYNCOPERATIONTYPE_READ_REQUEST  = 1,

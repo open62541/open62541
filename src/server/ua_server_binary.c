@@ -570,12 +570,6 @@ createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
     connConfig.localMaxChunkCount = config->tcpMaxChunks;
     connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
 
-    /* Set 64kB buffer size if not configured */
-    if(connConfig.recvBufferSize == 0)
-        connConfig.recvBufferSize = 1 << 16; /* 64kB */
-    if(connConfig.sendBufferSize == 0)
-        connConfig.sendBufferSize = 1 << 16; /* 64kB */
-
     /* Further constrain the bufsize if the ConnectionManager has static rx/tx
      * buffers configured */
     const UA_UInt32 *bufSize = (const UA_UInt32 *)
@@ -590,6 +584,20 @@ createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(bufSize && *bufSize < connConfig.sendBufferSize)
         connConfig.sendBufferSize = *bufSize;
+
+    /* Set upper bounds if not configured */
+    if(connConfig.recvBufferSize == 0)
+        connConfig.recvBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.sendBufferSize == 0)
+        connConfig.sendBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.localMaxMessageSize == 0)
+        connConfig.localMaxMessageSize = 1 << 29; /* 512 MB */
+    if(connConfig.remoteMaxMessageSize == 0)
+        connConfig.remoteMaxMessageSize = 1 << 29; /* 512 MB */
+    if(connConfig.localMaxChunkCount == 0)
+        connConfig.localMaxChunkCount = 1 << 14; /* 16384 */
+    if(connConfig.remoteMaxChunkCount == 0)
+        connConfig.remoteMaxChunkCount = 1 << 14; /* 16384 */
 
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);

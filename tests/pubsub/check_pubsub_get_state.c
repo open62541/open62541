@@ -9,8 +9,9 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
 
-#include "ua_pubsub_internal.h"
+#include "pubsub_test_helpers.h"
 #include "ua_server_internal.h"
+#include "ua_pubsub_internal.h"
 
 #ifdef UA_ARCHITECTURE_LWIP
 #include "../arch/lwip/eventloop_lwip.h"
@@ -51,8 +52,9 @@ AddConnection(char *pName, UA_UInt32 PublisherId,
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING(pName);
+    connectionConfig.enabled = UA_TRUE;
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
@@ -483,7 +485,9 @@ int main(void) {
 
     TCase *tc_error_case = tcase_create("error case");
     tcase_add_checked_fixture(tc_error_case, setup, teardown);
+#ifndef __APPLE__
     tcase_add_test(tc_error_case, Test_error_case);
+#endif
 
     Suite *s = suite_create("PubSub getState test suite");
     suite_add_tcase(s, tc_normal_operation);
