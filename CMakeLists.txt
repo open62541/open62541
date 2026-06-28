@@ -741,13 +741,23 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
        CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
-        message(STATUS "Sanitizer enabled")
         set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -fsanitize=address,undefined")
         if(CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
             set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
         endif()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+        set(CMAKE_REQUIRED_FLAGS_BACKUP "${CMAKE_REQUIRED_FLAGS}")
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${SANITIZER_FLAGS}")
+        check_c_compiler_flag("${SANITIZER_FLAGS}" CC_HAS_DEBUG_SANITIZER)
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS_BACKUP}")
+        unset(CMAKE_REQUIRED_FLAGS_BACKUP)
+        if(CC_HAS_DEBUG_SANITIZER)
+            message(STATUS "Sanitizer enabled")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+        else()
+            message(STATUS "Sanitizer disabled: compiler does not support ${SANITIZER_FLAGS}")
+        endif()
+        unset(CC_HAS_DEBUG_SANITIZER CACHE)
     endif()
 
     # Strip release builds
