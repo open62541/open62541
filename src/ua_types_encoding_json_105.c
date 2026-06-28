@@ -359,18 +359,14 @@ ENCODE_JSON(Int64) {
 ENCODE_JSON(Float) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "\"NaN\"");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "\"Infinity\"");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "\"-Infinity\"");
-        len = strlen(buffer);
-    } else {
-        len = dtoa((UA_Double)*src, buffer);
-    }
+    if(*src != *src)
+        return writeChars(ctx, "\"NaN\"", 5);
+    if(*src == INFINITY)
+        return writeChars(ctx, "\"Infinity\"", 10);
+    if(*src == -INFINITY)
+        return writeChars(ctx, "\"-Infinity\"", 11);
+
+    len = dtoa((UA_Double)*src, buffer);
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -384,18 +380,14 @@ ENCODE_JSON(Float) {
 ENCODE_JSON(Double) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "\"NaN\"");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "\"Infinity\"");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "\"-Infinity\"");
-        len = strlen(buffer);
-    } else {
-        len = dtoa(*src, buffer);
-    }
+    if(*src != *src)
+        return writeChars(ctx, "\"NaN\"", 5);
+    if(*src == INFINITY)
+        return writeChars(ctx, "\"Infinity\"", 10);
+    if(*src == -INFINITY)
+        return writeChars(ctx, "\"-Infinity\"", 11);
+
+    len = dtoa(*src, buffer);
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;

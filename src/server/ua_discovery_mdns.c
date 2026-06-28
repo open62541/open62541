@@ -1420,7 +1420,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
     char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
-    strcpy(localDomain + maxHostnameLen, ".local.");
+    memcpy(localDomain + maxHostnameLen, ".local.", sizeof(".local."));
 
     /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].local. */
     r = mdnsd_unique(mdnsPrivateData.mdnsDaemon, fullServiceDomainBuf,

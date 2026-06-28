@@ -45,10 +45,11 @@ mkpath(char *dir, UA_MODE mode) {
     if(dir == NULL)
         return 1;
 
-    char *path = (char*)UA_malloc(strlen(dir) + 1);
+    size_t dirLen = strlen(dir);
+    char *path = (char*)UA_malloc(dirLen + 1);
     if(!path)
         return 1;
-    strcpy(path, dir);
+    memcpy(path, dir, dirLen + 1);
 
     char *pos = path;
     if(pos[0] == '/')
