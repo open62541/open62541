@@ -231,11 +231,64 @@ START_TEST(connectTCP) {
     el = NULL;
 } END_TEST
 
+/* The connection manager keeps a static send buffer (defaulting to the
+ * recv-bufsize). allocNetworkBuffer reuses it instead of allocating per send,
+ * and falls back to a fresh allocation for messages larger than the buffer. */
+START_TEST(staticSendBuffer) {
+    setupEL();
+
+    /* Configure a small static send buffer */
+    UA_UInt32 sendBufSize = 16;
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "send-bufsize"),
+                             &sendBufSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+    el->start(el);
+    /* Run once so the ConnectionManager eventSource starts its static buffers */
+    el->run(el, 1);
+
+    /* A message that fits is served from the static send buffer */
+    UA_ByteString a = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = cm->allocNetworkBuffer(cm, 0, &a, sendBufSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(a.length, sendBufSize);
+    UA_Byte *reused = a.data;
+    cm->freeNetworkBuffer(cm, 0, &a);
+
+    /* The next fitting allocation reuses the same static buffer (no per-send
+     * allocation) */
+    UA_ByteString b = UA_BYTESTRING_NULL;
+    retval = cm->allocNetworkBuffer(cm, 0, &b, sendBufSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(b.data, reused);
+    cm->freeNetworkBuffer(cm, 0, &b);
+
+    /* A message larger than the static buffer falls back to a fresh allocation
+     * instead of failing with BadOutOfMemory */
+    UA_ByteString big = UA_BYTESTRING_NULL;
+    retval = cm->allocNetworkBuffer(cm, 0, &big, sendBufSize * 64);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(big.length, sendBufSize * 64);
+    cm->freeNetworkBuffer(cm, 0, &big);
+
+    /* Stop the EventLoop */
+    int iteration = 0;
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED && iteration < 10) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+        iteration++;
+    }
+    ck_assert(el->state == UA_EVENTLOOPSTATE_STOPPED);
+    el->free(el);
+    el = NULL;
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test TCP EventLoop");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, listenTCP);
     tcase_add_test(tc, connectTCP);
+    tcase_add_test(tc, staticSendBuffer);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

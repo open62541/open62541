@@ -624,10 +624,9 @@ UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
-    if(pcm->txBuffer.length == 0)
-        return UA_ByteString_allocBuffer(buf, bufSize);
+    /* Reuse the static tx buffer; fall back to allocation for larger messages. */
     if(pcm->txBuffer.length < bufSize)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return UA_ByteString_allocBuffer(buf, bufSize);
     *buf = pcm->txBuffer;
     buf->length = bufSize;
     return UA_STATUSCODE_GOOD;
@@ -659,13 +658,19 @@ UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
         res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
 
-    const UA_UInt32 *txBufSize = (const UA_UInt32 *)
+    /* Default the tx buffer to the rx size so a dedicated static send buffer
+     * always exists. This avoids a malloc/free on every send without reusing
+     * the rx buffer (which may still hold unprocessed received data). */
+    UA_UInt32 txBufSize = rxBufSize;
+    const UA_UInt32 *configTxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
                                  UA_QUALIFIEDNAME(0, "send-bufsize"),
                                  &UA_TYPES[UA_TYPES_UINT32]);
-    if(txBufSize && pcm->txBuffer.length != *txBufSize) {
+    if(configTxBufSize)
+        txBufSize = *configTxBufSize;
+    if(pcm->txBuffer.length != txBufSize) {
         UA_ByteString_clear(&pcm->txBuffer);
-        res |= UA_ByteString_allocBuffer(&pcm->txBuffer, *txBufSize);
+        res |= UA_ByteString_allocBuffer(&pcm->txBuffer, txBufSize);
     }
     return res;
 }
