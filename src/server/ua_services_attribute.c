@@ -343,6 +343,147 @@ addMissingTimestamps(UA_Server *server, UA_DataValue *v,
     }
 }
 
+static UA_StatusCode
+resolveProperty(UA_Server *server, UA_NodeId dataTypeId,
+                const char *propName, UA_NodeId *outPropId)
+{
+    UA_BrowseDescription bd; UA_BrowseDescription_init(&bd);
+    bd.nodeId = dataTypeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = 0;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    /* 0 = no limit, so all HasProperty references are returned */
+    UA_BrowseResult resp = UA_Server_browse(server, 0, &bd);
+    if(resp.statusCode != UA_STATUSCODE_GOOD) {
+        UA_BrowseResult_clear(&resp);
+        return resp.statusCode;
+    }
+
+    UA_StatusCode rc = UA_STATUSCODE_BADNOTFOUND;
+    for(size_t i = 0; i < resp.referencesSize; ++i) {
+        const UA_ReferenceDescription *r = &resp.references[i];
+        if(r->browseName.namespaceIndex == 0 &&
+           r->browseName.name.length == strlen(propName) &&
+           memcmp(r->browseName.name.data, propName, r->browseName.name.length) == 0) {
+            rc = UA_NodeId_copy(&r->nodeId.nodeId, outPropId);
+            break;
+        }
+    }
+
+    UA_BrowseResult_clear(&resp);
+    return rc;
+}
+
+static UA_StatusCode
+Server_readEnumValues(UA_Server *server, const UA_NodeId dataTypeId,
+                      UA_EnumValueType **outArr, size_t *outSize) {
+    *outArr = NULL; *outSize = 0;
+
+    UA_NodeId propId; UA_StatusCode st =
+        resolveProperty(server, dataTypeId, "EnumValues", &propId);
+    if(st != UA_STATUSCODE_GOOD) return st;
+
+    UA_Variant v; UA_Variant_init(&v);
+    st = UA_Server_readValue(server, propId, &v);
+    if(st != UA_STATUSCODE_GOOD) { UA_Variant_clear(&v); return st; }
+
+    const UA_Boolean isArray =(v.arrayLength > 0 && v.data != NULL);
+    if(!isArray || v.type != &UA_TYPES[UA_TYPES_ENUMVALUETYPE]) {
+        UA_Variant_clear(&v);
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    size_t n = v.arrayLength;
+    UA_EnumValueType *src = (UA_EnumValueType*)v.data;
+
+    UA_EnumValueType *copy =
+        (UA_EnumValueType*)UA_Array_new(n, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
+    if(!copy) { UA_Variant_clear(&v); return UA_STATUSCODE_BADOUTOFMEMORY; }
+
+    for(size_t i = 0; i < n; ++i)
+        UA_EnumValueType_copy(&src[i], &copy[i]);
+
+    UA_Variant_clear(&v);
+    *outArr = copy; *outSize = n;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+Server_readEnumStrings(UA_Server *server, const UA_NodeId dataTypeId,
+                       UA_LocalizedText **outArr, size_t *outSize) {
+    *outArr = NULL; *outSize = 0;
+
+    UA_NodeId propId; UA_StatusCode st =
+        resolveProperty(server, dataTypeId, "EnumStrings", &propId);
+    if(st != UA_STATUSCODE_GOOD) return st;
+
+    UA_Variant v; UA_Variant_init(&v);
+    st = UA_Server_readValue(server, propId, &v);
+    if(st != UA_STATUSCODE_GOOD) { UA_Variant_clear(&v); return st; }
+
+    const UA_Boolean isArray =(v.arrayLength > 0 && v.data != NULL);
+    if(!isArray || v.type != &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) {
+        UA_Variant_clear(&v);
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    size_t n = v.arrayLength;
+    UA_LocalizedText *src = (UA_LocalizedText*)v.data;
+
+    UA_LocalizedText *copy =
+        (UA_LocalizedText*)UA_Array_new(n, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    if(!copy) { UA_Variant_clear(&v); return UA_STATUSCODE_BADOUTOFMEMORY; }
+
+    for(size_t i = 0; i < n; ++i)
+        UA_LocalizedText_copy(&src[i], &copy[i]);
+
+    UA_Variant_clear(&v);
+    *outArr = copy; *outSize = n;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+Server_readEnumUnified(UA_Server *server, const UA_NodeId dataTypeId, UA_EnumDefinition *out) {
+    UA_EnumDefinition_init(out);
+
+    UA_EnumValueType *ev = NULL; size_t n = 0;
+    UA_StatusCode st = Server_readEnumValues(server, dataTypeId, &ev, &n);
+    if(st == UA_STATUSCODE_GOOD) {
+        out->fields = (UA_EnumField*)UA_Array_new(n, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+        if(!out->fields) { UA_Array_delete(ev, n, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]); return UA_STATUSCODE_BADOUTOFMEMORY; }
+        out->fieldsSize = n;
+        for(size_t i = 0; i < n; ++i) {
+            out->fields[i].value = ev[i].value;
+            UA_String_copy(&ev[i].displayName.text, &out->fields[i].name);
+            UA_LocalizedText_copy(&ev[i].displayName, &out->fields[i].displayName);
+            UA_LocalizedText_copy(&ev[i].description, &out->fields[i].description);
+        }
+        UA_Array_delete(ev, n, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_LocalizedText *lt = NULL; n = 0;
+    st = Server_readEnumStrings(server, dataTypeId, &lt, &n);
+    if(st == UA_STATUSCODE_GOOD) {
+        out->fields = (UA_EnumField*)UA_Array_new(n, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+        if(!out->fields) { UA_Array_delete(lt, n, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); return UA_STATUSCODE_BADOUTOFMEMORY; }
+        out->fieldsSize = n;
+        for(size_t i = 0; i < n; ++i) {
+            out->fields[i].value = (UA_Int64)i;
+            UA_String_copy(&lt[i].text, &out->fields[i].name);
+            UA_LocalizedText_copy(&lt[i], &out->fields[i].displayName);
+            UA_LocalizedText_init(&out->fields[i].description);
+        }
+        UA_Array_delete(lt, n, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
 /* Returns whether the operation is done or an async operation has been
  * triggered. */
 static UA_Boolean
@@ -547,16 +688,37 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             UA_QualifiedName_clear(&sd->name);
             memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
             UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION] && type->membersSize > 0) {
-            /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
-               can be read but has no fields. This breaks its method call dialog for enum parameters. */
+        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
+            if(type->membersSize > 0) {
+                /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
+                   can be read but has no fields. This breaks its method call dialog for enum parameters. */
 
-            UA_EnumDescription *ed = (UA_EnumDescription*)
-                typeDescr.content.decoded.data;
-            UA_NodeId_clear(&ed->dataTypeId);
-            UA_QualifiedName_clear(&ed->name);
-            memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
-            UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+                UA_EnumDescription *ed = (UA_EnumDescription*)
+                    typeDescr.content.decoded.data;
+                UA_NodeId_clear(&ed->dataTypeId);
+                UA_QualifiedName_clear(&ed->name);
+                memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
+                UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+            } else {
+                /* Fallback for dynamically loaded enum types whose UA_DataType
+                 * entry has no compiled members (membersSize == 0). The
+                 * EnumDefinition is built dynamically from the EnumValues or
+                 * EnumStrings properties in the address space, as required by
+                 * OPC UA Specification Part 3, Section 5.8.5. */
+                UA_ExtensionObject_clear(&typeDescr);
+                UA_EnumDefinition *enumDef = (UA_EnumDefinition*)UA_new(&UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+                if(!enumDef) {
+                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                UA_StatusCode res = Server_readEnumUnified(server, node->head.nodeId, enumDef);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_delete(enumDef, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+                    retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+                    break;
+                }
+                UA_Variant_setScalar(&v->value, enumDef, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+            }
         } else {
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         }
