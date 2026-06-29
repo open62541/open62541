@@ -1302,6 +1302,19 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, false);
     }
+    /* Register the MonitoredItem in userland with the sampling interval */
+    if(server->config.monitoredItemRegisterCallbackEx) {
+        UA_Session *session = sub->session;
+        void *targetContext = NULL;
+        getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
+        server->config.monitoredItemRegisterCallbackEx(server,
+                                                       session ? &session->sessionId : NULL,
+                                                       session ? session->context : NULL,
+                                                       &mon->itemToMonitor.nodeId,
+                                                       targetContext,
+                                                       mon->itemToMonitor.attributeId,
+                                                       mon->parameters.samplingInterval, false);
+    }
 }
 
 static void
