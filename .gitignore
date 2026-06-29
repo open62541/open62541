@@ -70,6 +70,7 @@ doc_src/
 /src_generated/
 **/build
 **/build_*
+**/build-*
 /cmake-build*
 /tools/certs/certs/*
 Pipfile
