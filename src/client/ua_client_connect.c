@@ -127,23 +127,25 @@ isFullyConnected(UA_Client *client) {
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
         return false;
 
-    /* GetEndpoints handshake ongoing or not yet done */
-    if(client->endpointsHandshake || endpointUnconfigured(&client->endpoint))
-        return false;
-
     /* FindServers handshake ongoing or not yet done */
     if(client->findServersHandshake || client->discoveryUrl.length == 0)
         return false;
 
-    if(!client->config.noSession) {
-        /* No Session, but is required */
-        if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
-            return false;
+    /* SecureChannel-only discovery connect is complete */
+    if(client->config.noSession)
+        return true;
 
-        /* NamespaceArray not yet read */
-        if(client->namespacesHandshake || !client->haveNamespaces)
-            return false;
-    }
+    /* GetEndpoints handshake ongoing or not yet done */
+    if(client->endpointsHandshake || endpointUnconfigured(&client->endpoint))
+        return false;
+
+    /* No Session, but is required */
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
+        return false;
+
+    /* NamespaceArray not yet read */
+    if(client->namespacesHandshake || !client->haveNamespaces)
+        return false;
 
     return true;
 }
@@ -1953,16 +1955,16 @@ connectActivity(UA_Client *client) {
         return;
     }
 
+    /* Have the final SecureChannel but no session */
+    if(client->config.noSession)
+        return;
+
     /* GetEndpoints to identify the remote side and/or reset the SecureChannel
      * with encryption */
     if(endpointUnconfigured(&client->endpoint)) {
         setConnectStatus(client, requestGetEndpoints(client));
         return;
     }
-
-    /* Have the final SecureChannel but no session */
-    if(client->config.noSession)
-        return;
 
     /* Create and Activate the Session */
     switch(client->sessionState) {
