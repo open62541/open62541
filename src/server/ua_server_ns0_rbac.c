@@ -607,7 +607,7 @@ initNS0RBAC(UA_Server *server) {
         UA_QualifiedName_clear(&bn);
     }
 
-    /* Ensure the 8 well-known role instance nodes exist under the RoleSet */
+    /* Ensure the well-known role instance nodes exist under the RoleSet */
     struct { UA_UInt32 id; const char *name; } roles[] = {
         {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,         "Anonymous"},
         {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,  "AuthenticatedUser"},
@@ -617,8 +617,13 @@ initNS0RBAC(UA_Server *server) {
         {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR,         "Supervisor"},
         {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN,     "ConfigureAdmin"},
         {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN,      "SecurityAdmin"}
+#ifdef UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN
+        ,{UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN,  "SecurityKeyServerAdmin"}
+        ,{UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERPUSH,   "SecurityKeyServerPush"}
+        ,{UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERACCESS, "SecurityKeyServerAccess"}
+#endif
     };
-    for(size_t i = 0; i < 8; i++) {
+    for(size_t i = 0; i < sizeof(roles) / sizeof(roles[0]); i++) {
         UA_NodeId rId = UA_NODEID_NUMERIC(0, roles[i].id);
         if(UA_Server_readBrowseName(server, rId, &bn) != UA_STATUSCODE_GOOD) {
             UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;

@@ -1824,15 +1824,49 @@ initNS0PushManagement(UA_Server *server) {
     return retval;
 }
 
-/* OPC UA Part 12 §7.2: The ServerConfiguration Object shall restrict
- * access to the SecurityAdmin role. Set CALL permission on all GDS
- * method nodes so that getUserExecutableOnObject enforces the check. */
+#ifdef UA_ENABLE_RBAC
+static UA_StatusCode
+addGDSRolePermissions(UA_Server *server, UA_UInt32 nodeId,
+                      const UA_NodeId *roleId,
+                      UA_PermissionType permissions,
+                      UA_Boolean recursive) {
+    return UA_Server_addRolePermissions(server, UA_NODEID_NUMERIC(0, nodeId),
+                                        *roleId, permissions, false, recursive);
+}
+
+/* OPC UA Part 12 §7.2 and §7.10.4: PushManagement security changes are
+ * restricted to SecurityAdmin. The ServerConfiguration Object and its immediate
+ * children remain visible, while CertificateGroups children are visible only to
+ * SecurityAdmin. Part 3 §8.55 requires CALL on both the call object and method. */
 UA_StatusCode
 initGDSRolePermissions(UA_Server *server) {
     const UA_NodeId secAdmin =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    const UA_NodeId publicRoles[] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
+    };
 
-    /* All ServerConfiguration method node IDs that need protection */
+    const UA_UInt32 publicVisibleNodes[] = {
+        UA_NS0ID_SERVERCONFIGURATION,
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST,
+        UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST,
+        UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS
+    };
+
+    const UA_UInt32 protectedSubtrees[] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP
+    };
+
+    const UA_UInt32 callObjectIds[] = {
+        UA_NS0ID_SERVERCONFIGURATION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST
+    };
+
     const UA_UInt32 methodIds[] = {
         UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
         UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST,
@@ -1859,15 +1893,38 @@ initGDSRolePermissions(UA_Server *server) {
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION,
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION
     };
-    size_t count = sizeof(methodIds) / sizeof(methodIds[0]);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < count; i++) {
-        retval |= UA_Server_addRolePermissions(
-            server, UA_NODEID_NUMERIC(0, methodIds[i]),
-            secAdmin, UA_PERMISSIONTYPE_CALL, true, false);
+    for(size_t i = 0; i < sizeof(publicVisibleNodes) / sizeof(publicVisibleNodes[0]); i++) {
+        retval |= addGDSRolePermissions(server, publicVisibleNodes[i], &secAdmin,
+                                        UA_PERMISSIONTYPE_BROWSE |
+                                        UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                        false);
+        for(size_t j = 0; j < sizeof(publicRoles) / sizeof(publicRoles[0]); j++) {
+            retval |= addGDSRolePermissions(server, publicVisibleNodes[i], &publicRoles[j],
+                                            UA_PERMISSIONTYPE_BROWSE, false);
+        }
+    }
+
+    for(size_t i = 0; i < sizeof(protectedSubtrees) / sizeof(protectedSubtrees[0]); i++) {
+        retval |= addGDSRolePermissions(server, protectedSubtrees[i], &secAdmin,
+                                        UA_PERMISSIONTYPE_BROWSE |
+                                        UA_PERMISSIONTYPE_READ |
+                                        UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                        true);
+    }
+
+    for(size_t i = 0; i < sizeof(callObjectIds) / sizeof(callObjectIds[0]); i++) {
+        retval |= addGDSRolePermissions(server, callObjectIds[i], &secAdmin,
+                                        UA_PERMISSIONTYPE_CALL, false);
+    }
+
+    for(size_t i = 0; i < sizeof(methodIds) / sizeof(methodIds[0]); i++) {
+        retval |= addGDSRolePermissions(server, methodIds[i], &secAdmin,
+                                        UA_PERMISSIONTYPE_CALL, false);
     }
     return retval;
 }
+#endif
 
 #endif

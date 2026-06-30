@@ -935,8 +935,10 @@ UA_StatusCode initNS0_dataSources(UA_Server *server);
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
 
+#ifdef UA_ENABLE_RBAC
 UA_StatusCode
 initGDSRolePermissions(UA_Server *server);
+#endif
 #endif
 
 
