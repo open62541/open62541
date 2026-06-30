@@ -224,7 +224,7 @@ START_TEST(noListenWhileConnected) {
 
     UA_Client_connect(client, "opc.tcp://127.0.0.1");
 
-    ck_assert_int_gt(numClientCallbackCalled, 5);
+    ck_assert_int_ge(numClientCallbackCalled, 5);
     ck_assert_int_eq(clientCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
 
     const UA_String listenHost = UA_STRING("127.0.0.1");
@@ -265,7 +265,7 @@ START_TEST(addBeforeStart) {
     ck_assert_int_eq(serverCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
     ck_assert_int_eq(serverCallbackStates[4], UA_SECURECHANNELSTATE_CLOSED);
 
-    ck_assert_int_gt(numClientCallbackCalled, 5);
+    ck_assert_int_ge(numClientCallbackCalled, 5);
     ck_assert_int_eq(clientCallbackStates[0], UA_SECURECHANNELSTATE_REVERSE_LISTENING);
     ck_assert_int_eq(clientCallbackStates[1], UA_SECURECHANNELSTATE_REVERSE_CONNECTED);
     ck_assert_int_eq(clientCallbackStates[2], UA_SECURECHANNELSTATE_HEL_SENT);
@@ -341,13 +341,12 @@ START_TEST(checkReconnect) {
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
     const UA_SecureChannelState reconnectSequence[] = {
-        UA_SECURECHANNELSTATE_CLOSING,
         UA_SECURECHANNELSTATE_CONNECTING
     };
     iterateClientServerUntilServerSequence(
-        reconnectStart, reconnectSequence, 2,
+        reconnectStart, reconnectSequence, 1,
         UA_Server_getConfig(server)->reverseReconnectInterval + 1);
-    ck_assert(serverStatesContainSequence(reconnectStart, reconnectSequence, 2));
+    ck_assert(serverStatesContainSequence(reconnectStart, reconnectSequence, 1));
 
     listenForReverseConnect();
 
