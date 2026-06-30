@@ -1321,7 +1321,7 @@ UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo,
 
 UA_StatusCode
 UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
-                                void * UA_RESTRICT p,
+                                const void * UA_RESTRICT p,
                                 const UA_DataType *type) {
     UA_ExtensionObject_init(eo);
 
