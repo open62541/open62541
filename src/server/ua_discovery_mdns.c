@@ -11,6 +11,7 @@
 #include "ua_server_internal.h"
 #include <stdlib.h>
 #include "mdnsd.h"
+#include "inet.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
 #ifndef UA_ENABLE_AMALGAMATION
@@ -862,16 +863,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
 
     char portStr[16];
-    UA_UInt16 myPort = *port;
-    for(size_t i = 0; i < 16; i++) {
-        if(myPort == 0) {
-            portStr[i] = 0;
-            break;
-        }
-        unsigned char rem = (unsigned char)(myPort % 10);
-        portStr[i] = (char)(rem + 48); /* to ascii */
-        myPort = myPort / 10;
-    }
+    snprintf(portStr, sizeof(portStr), "%u", (unsigned)*port);
 
     struct addrinfo *infoptr;
     int res = getaddrinfo((const char*)address->data, portStr, NULL, &infoptr);
@@ -883,8 +875,10 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     memset(&mm, 0, sizeof(struct message));
     int rr = message_parse(&mm, (unsigned char*)msg.data);
     if(rr == 0) { /* 0 = success in new mdnsd API */
-        struct sockaddr_in *sa = (struct sockaddr_in*)infoptr->ai_addr;
-        mdnsd_in(mdnsPrivateData.mdnsDaemon, &mm, sa->sin_addr, sa->sin_port);
+        inet_addr_t from;
+        memset(&from, 0, sizeof(from));
+        memcpy(&from, infoptr->ai_addr, infoptr->ai_addrlen);
+        mdnsd_in(mdnsPrivateData.mdnsDaemon, &mm, &from);
     }
     freeaddrinfo(infoptr);
 }
@@ -895,14 +889,13 @@ UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     if(!dm->cm || mdnsPrivateData.mdnsSendConnection == 0)
         return;
 
-    struct in_addr ip;
-    memset(&ip, 0, sizeof(struct in_addr));
+    inet_addr_t to;
+    memset(&to, 0, sizeof(to));
 
     struct message mm;
     memset(&mm, 0, sizeof(struct message));
 
-    unsigned short sport = 0;
-    while(mdnsd_out(mdnsPrivateData.mdnsDaemon, &mm, &ip, &sport) > 0) {
+    while(mdnsd_out(mdnsPrivateData.mdnsDaemon, &mm, &to) > 0) {
         int len = message_packet_len(&mm);
         char* buf = (char*)message_packet(&mm);
         if(len <= 0)
