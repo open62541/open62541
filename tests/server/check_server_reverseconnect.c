@@ -31,7 +31,7 @@ static UA_UInt16 nextReverseListenPort = 4841;
 static char reverseConnectUrl[64];
 
 static int numServerCallbackCalled = 0;
-static UA_SecureChannelState serverCallbackStates[10];
+static UA_SecureChannelState serverCallbackStates[64];
 static UA_UInt64 reverseConnectHandle = 0;
 
 static int numClientCallbackCalled = 0;
@@ -100,6 +100,8 @@ static void teardown(void) {
 static void serverStateCallback(UA_Server *s, UA_UInt64 handle,
                           UA_SecureChannelState state,
                           void *context) {
+    ck_assert(numServerCallbackCalled <
+              (int)(sizeof(serverCallbackStates) / sizeof(UA_SecureChannelState)));
     serverCallbackStates[numServerCallbackCalled++] = state;
 
     ck_assert_ptr_eq(server, s);
@@ -160,6 +162,30 @@ iterateServerUntilCallbacks(int serverCallbacks, UA_UInt32 fakeSleep) {
         UA_Server_run_iterate(server, false);
         UA_fakeSleep(fakeSleep);
     }
+}
+
+static UA_Boolean
+serverStatesContainSequence(size_t start, const UA_SecureChannelState *states,
+                            size_t statesSize) {
+    size_t match = 0;
+    for(size_t i = start; i < (size_t)numServerCallbackCalled; ++i) {
+        if(serverCallbackStates[i] == states[match]) {
+            ++match;
+            if(match == statesSize)
+                return true;
+        }
+    }
+    return false;
+}
+
+static void
+iterateClientServerUntilServerSequence(size_t start,
+                                       const UA_SecureChannelState *states,
+                                       size_t statesSize,
+                                       UA_UInt32 fakeSleep) {
+    for(size_t i = 0; i < REVERSECONNECT_MAX_ITERATIONS &&
+        !serverStatesContainSequence(start, states, statesSize); ++i)
+        iterateClientServer(fakeSleep);
 }
 
 START_TEST(listenAndTeardown) {
@@ -298,53 +324,56 @@ START_TEST(checkReconnect) {
     ret = UA_Server_run_startup(server);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
-    for(size_t i = 0; i < REVERSECONNECT_MAX_ITERATIONS; ++i) {
-        iterateClientServer(1);
+    const UA_SecureChannelState openSequence[] = {
+        UA_SECURECHANNELSTATE_CONNECTING,
+        UA_SECURECHANNELSTATE_RHE_SENT,
+        UA_SECURECHANNELSTATE_ACK_SENT,
+        UA_SECURECHANNELSTATE_OPEN
+    };
+    iterateClientServerUntilServerSequence(0, openSequence, 4, 1);
+    ck_assert(serverStatesContainSequence(0, openSequence, 4));
 
-        if(numServerCallbackCalled == 4) {
-            ck_assert_int_eq(numServerCallbackCalled, 4);
-            ck_assert_int_eq(serverCallbackStates[0], UA_SECURECHANNELSTATE_CONNECTING);
-            ck_assert_int_eq(serverCallbackStates[1], UA_SECURECHANNELSTATE_RHE_SENT);
-            ck_assert_int_eq(serverCallbackStates[2], UA_SECURECHANNELSTATE_ACK_SENT);
-            ck_assert_int_eq(serverCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                "Stop listening and wait for reconnect");
 
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                        "Stop listening and wait for reconnect");
+    size_t reconnectStart = (size_t)numServerCallbackCalled;
+    ret = UA_Client_disconnectAsync(client);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
-            ret = UA_Client_disconnectAsync(client);
-            ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    const UA_SecureChannelState reconnectSequence[] = {
+        UA_SECURECHANNELSTATE_CLOSING,
+        UA_SECURECHANNELSTATE_CONNECTING
+    };
+    iterateClientServerUntilServerSequence(
+        reconnectStart, reconnectSequence, 2,
+        UA_Server_getConfig(server)->reverseReconnectInterval + 1);
+    ck_assert(serverStatesContainSequence(reconnectStart, reconnectSequence, 2));
 
-            iterateClientServerUntilCallbacks(
-                6, 0, UA_Server_getConfig(server)->reverseReconnectInterval + 1);
+    listenForReverseConnect();
 
-            ck_assert_int_eq(numServerCallbackCalled, 6);
-            ck_assert_int_eq(serverCallbackStates[4], UA_SECURECHANNELSTATE_CLOSING);
-            ck_assert_int_eq(serverCallbackStates[5], UA_SECURECHANNELSTATE_CONNECTING);
+    UA_fakeSleep(UA_Server_getConfig(server)->reverseReconnectInterval + 1);
 
-            listenForReverseConnect();
+    size_t reopenStart = (size_t)numServerCallbackCalled;
+    const UA_SecureChannelState reopenSequence[] = {
+        UA_SECURECHANNELSTATE_RHE_SENT,
+        UA_SECURECHANNELSTATE_ACK_SENT,
+        UA_SECURECHANNELSTATE_OPEN
+    };
+    iterateClientServerUntilServerSequence(reopenStart, reopenSequence, 3, 1);
+    ck_assert(serverStatesContainSequence(reopenStart, reopenSequence, 3));
 
-            UA_fakeSleep(UA_Server_getConfig(server)->reverseReconnectInterval + 1);
-
-            iterateClientServerUntilCallbacks(9, 0, 1);
-
-            ck_assert_int_eq(numServerCallbackCalled, 9);
-            ck_assert_int_eq(serverCallbackStates[6], UA_SECURECHANNELSTATE_RHE_SENT);
-            ck_assert_int_eq(serverCallbackStates[7], UA_SECURECHANNELSTATE_ACK_SENT);
-            ck_assert_int_eq(serverCallbackStates[8], UA_SECURECHANNELSTATE_OPEN);
-            break;
-
-        }
-    }
-
+    size_t removeStart = (size_t)numServerCallbackCalled;
     UA_Server_removeReverseConnect(server, reverseConnectHandle);
 
-    iterateClientServerUntilCallbacks(10, 0, 1);
+    const UA_SecureChannelState closeSequence[] = {
+        UA_SECURECHANNELSTATE_CLOSED
+    };
+    iterateClientServerUntilServerSequence(removeStart, closeSequence, 1, 1);
 
     ret = UA_Server_run_shutdown(server);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(numServerCallbackCalled, 10);
-    ck_assert_int_eq(serverCallbackStates[9], UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert(serverStatesContainSequence(removeStart, closeSequence, 1));
 } END_TEST
 
 START_TEST(removeOnShutdownWithConnection) {
