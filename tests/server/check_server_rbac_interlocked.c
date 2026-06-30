@@ -621,6 +621,65 @@ START_TEST(ReceiveEvents_grantedOnBothPropagates) {
 }
 END_TEST
 
+#if defined(UA_ENABLE_GDS_PUSHMANAGEMENT) && defined(UA_ENABLE_METHODCALLS) && \
+    defined(UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN)
+START_TEST(GDS_SecurityAdmin_call_and_visibility) {
+    UA_Server_getConfig(server)->allPermissionsForAnonymous = false;
+
+    UA_NodeId securityAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    UA_NodeId anonymous =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+
+    UA_NodeId serverConfig = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    UA_NodeId updateCertificate =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE);
+    UA_NodeId certificateGroups =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS);
+    UA_NodeId defaultApplicationGroup =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId trustList =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+    UA_NodeId openTrustList =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN);
+
+    UA_QualifiedName bn;
+    if(UA_Server_readBrowseName(server, serverConfig, &bn) != UA_STATUSCODE_GOOD)
+        return;
+    UA_QualifiedName_clear(&bn);
+
+    UA_AccessControl *ac = &UA_Server_getConfig(server)->accessControl;
+
+    assignRoleToAdminSession(securityAdmin);
+    ck_assert_msg(ac->getUserExecutableOnObject(server, ac,
+        &adminSessionId, NULL, &updateCertificate, NULL, &serverConfig, NULL),
+        "SecurityAdmin must be able to call ServerConfiguration methods");
+    ck_assert_msg(ac->getUserExecutableOnObject(server, ac,
+        &adminSessionId, NULL, &openTrustList, NULL, &trustList, NULL),
+        "SecurityAdmin must have CALL on TrustList object and method");
+    ck_assert_msg(ac->allowBrowseNode(server, ac,
+        &adminSessionId, NULL, &defaultApplicationGroup, NULL),
+        "SecurityAdmin must be able to browse CertificateGroups children");
+
+    assignRoleToAdminSession(anonymous);
+    ck_assert_msg(!ac->getUserExecutableOnObject(server, ac,
+        &adminSessionId, NULL, &updateCertificate, NULL, &serverConfig, NULL),
+        "Anonymous must not call ServerConfiguration security methods");
+    ck_assert_msg(!ac->getUserExecutableOnObject(server, ac,
+        &adminSessionId, NULL, &openTrustList, NULL, &trustList, NULL),
+        "Anonymous must not call TrustList methods");
+    ck_assert_msg(ac->allowBrowseNode(server, ac,
+        &adminSessionId, NULL, &certificateGroups, NULL),
+        "CertificateGroups is an immediate ServerConfiguration child and remains visible");
+    ck_assert_msg(!ac->allowBrowseNode(server, ac,
+        &adminSessionId, NULL, &defaultApplicationGroup, NULL),
+        "CertificateGroups children must be visible only to SecurityAdmin");
+
+    clearAdminSessionRoles();
+}
+END_TEST
+#endif
+
 /* --------------------------------------------------------------------- */
 /* 5. WriteHistorizing (Part 3 §8.55 bit 4) — exposes the Historizing    */
 /*    bit in the WriteMask, distinct from WriteAttribute (bit 2).        */
@@ -983,6 +1042,14 @@ static Suite *testSuite(void) {
     tcase_add_test(tc_evt, ReceiveEvents_storedSeparatelyOnEventTypeAndSource);
     tcase_add_test(tc_evt, ReceiveEvents_grantedOnBothPropagates);
     suite_add_tcase(s, tc_evt);
+
+#if defined(UA_ENABLE_GDS_PUSHMANAGEMENT) && defined(UA_ENABLE_METHODCALLS) && \
+    defined(UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN)
+    TCase *tc_gds = tcase_create("GDS SecurityAdmin permissions");
+    tcase_add_unchecked_fixture(tc_gds, setup, teardown);
+    tcase_add_test(tc_gds, GDS_SecurityAdmin_call_and_visibility);
+    suite_add_tcase(s, tc_gds);
+#endif
 
     return s;
 }
