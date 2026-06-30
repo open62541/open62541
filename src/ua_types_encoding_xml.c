@@ -109,6 +109,8 @@ xml_tokenize(const char *xml, unsigned int len,
             break;
         case YXML_ELEMEND:
         case YXML_ATTREND:
+            if(top == 0)
+                goto errout; /* more closes than opens */
             if(val_begin > 0) {
                 stack[top]->content.data = (UA_Byte*)(uintptr_t)xml + val_begin;
                 stack[top]->content.length = stack[top]->end + 1 - val_begin;

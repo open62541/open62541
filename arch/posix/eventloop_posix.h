@@ -403,9 +403,9 @@ typedef struct {
      * finished before.
      *
      * The currently unused head gets marked with the 0x01 sentinel. */
-    UA_DelayedCallback *delayedHead1;
-    UA_DelayedCallback *delayedHead2;
-    UA_DelayedCallback **delayedTail;
+    UA_atomic(UA_DelayedCallback *) delayedHead1;
+    UA_atomic(UA_DelayedCallback *) delayedHead2;
+    UA_atomic(UA_atomic(UA_DelayedCallback *)*) delayedTail;
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
@@ -481,13 +481,12 @@ UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
- * https://stackoverflow.com/a/3333565 */
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+ * https://stackoverflow.com/a/3333565
+ * On POSIX, use a socketpair (AF_UNIX) for uniform socket semantics. */
+#ifdef UA_ARCHITECTURE_WIN32
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
-#elif defined(__QNX__)
-int UA_EventLoopPOSIX_pipe(int fds[2]);
 #else
-# define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
+int UA_EventLoopPOSIX_pipe(UA_FD fds[2]);
 #endif
 
 /* Cancel the current _run by sending to the self-pipe */

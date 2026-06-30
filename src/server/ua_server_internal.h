@@ -177,11 +177,13 @@ struct UA_Server {
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
 
-    /* Server Components with individual life cycles */
-    UA_ServerComponent *components; /* linked-list of all SC */
-    UA_ServerComponent *binarySC;
-    UA_ServerComponent *discoverySC;
-    UA_ServerComponent *pubSubSC;
+    /* List of registered drivers. The internally created drivers furthermore
+     * have direct pointers for fast access below. */
+    UA_Driver *drivers; /* linked-list of all SC */
+    UA_Driver *binaryDriver;
+    UA_Driver *reverseBinaryDriver;
+    UA_Driver *discoveryDriver;
+    UA_Driver *pubSubDriver;
 
     UA_AsyncManager asyncManager;
 
@@ -235,6 +237,12 @@ struct UA_Server {
 #if UA_MULTITHREADING >= 100
     UA_Lock serviceMutex;
 #endif
+
+    /* If we emit audit events for every write, we need to prevent recursions.
+     * For the write-audit-event we first need to read the old value. This in
+     * turn might trigger another write if a beforeRead-callback is attached to
+     * the variable. */
+    UA_Boolean preventAuditEventRecursion;
 
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
@@ -469,6 +477,10 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
+void
+notifyApplication(UA_Server *server, UA_ApplicationNotificationType type,
+                  const UA_KeyValueMap payload);
+
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
@@ -673,8 +685,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
 /* If the channel is non-NULL, then only compatible endpoints are returned.
  * Depending on ECC/RSA for the SecurityPolicy of the existing channel. */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
-                         const UA_String endpointUrl,
+setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize);
 
@@ -709,13 +720,28 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 #ifdef UA_ENABLE_DISCOVERY
-UA_ServerComponent * UA_DiscoveryManager_new(void);
+UA_Driver * UA_DiscoveryManager_new(void);
 #endif
 
-UA_ServerComponent * UA_BinaryProtocolManager_new(void);
+UA_Driver * UA_BinaryProtocolManager_new(void);
+
+UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
+
+UA_StatusCode
+processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
+                            UA_MessageType messagetype, UA_UInt32 requestId,
+                            UA_ByteString *message);
+
+UA_StatusCode
+createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
+                          uintptr_t connectionId, const UA_KeyValueMap *params,
+                          UA_SecureChannel **outChannel);
+
+void
+deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 #ifdef UA_ENABLE_PUBSUB
-UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
+UA_Driver * UA_PubSubManager_new(UA_Server *server);
 #endif
 
 /***********/

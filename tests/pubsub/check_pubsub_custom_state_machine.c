@@ -7,6 +7,7 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/eventloop.h>
 
 #include "test_helpers.h"
 
@@ -29,12 +30,18 @@
 static int listenSocket;
 static UA_Server *server;
 static pthread_t listenThread;
-static timer_t writerGroupTimer;
+static UA_Boolean listenThreadStarted;
+static UA_Boolean listenThreadStop;
+static UA_UInt64 writerGroupTimer;
 static UA_DataSetReaderConfig readerConfig;
 static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent,
                  connectionIdentifier, readerGroupIdentifier, readerIdentifier;
 
 static void setup(void) {
+    listenSocket = 0;
+    listenThreadStarted = false;
+    listenThreadStop = false;
+    writerGroupTimer = 0;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
@@ -49,15 +56,15 @@ static UA_String transportProfile =
  * next with atomic operations. */
 UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
+UA_atomic(UA_DataValue *)dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
 
 static void
 valueUpdateCallback(UA_Server *server, void *data) {
     for(int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i) {
         if(dvPointers[i] < &dvStore[PUBSUB_CONFIG_FIELD_COUNT - 1])
-            UA_atomic_xchg((void**)&dvPointers[i], dvPointers[i]+1);
+            UA_atomic_store(&dvPointers[i], dvPointers[i]+1);
         else
-            UA_atomic_xchg((void**)&dvPointers[i], &dvStore[0]);
+            UA_atomic_store(&dvPointers[i], &dvStore[0]);
     }
 }
 
@@ -67,9 +74,10 @@ valueUpdateCallback(UA_Server *server, void *data) {
  * send out the packet without going through the server. */
 
 static void
-writerGroupPublishTrigger(union sigval signal) {
+writerGroupPublishTrigger(void *application, void *data) {
+    (void)data;
     printf("XXX Publish Callback\n");
-    UA_Server_triggerWriterGroupPublish(server, writerGroupIdent);
+    UA_Server_triggerWriterGroupPublish((UA_Server*)application, writerGroupIdent);
 }
 
 static UA_StatusCode
@@ -77,8 +85,6 @@ writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId,
                         void *componentContext, UA_PubSubState *state,
                         UA_PubSubState targetState) {
     UA_WriterGroupConfig config;
-    struct itimerspec interval;
-    memset(&interval, 0, sizeof(interval));
 
     if(targetState == *state)
         return UA_STATUSCODE_GOOD;
@@ -89,7 +95,11 @@ writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId,
         case UA_PUBSUBSTATE_DISABLED:
         case UA_PUBSUBSTATE_PAUSED:
             printf("XXX Disabling the WriterGroup\n");
-            timer_settime(writerGroupTimer, 0, &interval, NULL);
+            if(writerGroupTimer != 0) {
+                UA_ServerConfig *sc = UA_Server_getConfig(server);
+                sc->eventLoop->removeTimer(sc->eventLoop, writerGroupTimer);
+                writerGroupTimer = 0;
+            }
             *state = targetState;
             break;
 
@@ -100,13 +110,15 @@ writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId,
                 break;
             printf("XXX Enabling the WriterGroup\n");
             UA_Server_getWriterGroupConfig(server, writerGroupIdent, &config);
-            interval.it_interval.tv_sec = config.publishingInterval / 1000;
-            interval.it_interval.tv_nsec =
-                ((long long)(config.publishingInterval * 1000 * 1000)) % (1000 * 1000 * 1000);
-            interval.it_value = interval.it_interval;
+            UA_Double publishingInterval = config.publishingInterval;
             UA_WriterGroupConfig_clear(&config);
-            int res = timer_settime(writerGroupTimer, 0, &interval, NULL);
-            if(res != 0)
+
+            UA_ServerConfig *sc = UA_Server_getConfig(server);
+            UA_StatusCode res = sc->eventLoop->addTimer(
+                sc->eventLoop, writerGroupPublishTrigger, server, NULL,
+                publishingInterval, NULL, UA_TIMERPOLICY_CURRENTTIME,
+                &writerGroupTimer);
+            if(res != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADINTERNALERROR;
             *state = UA_PUBSUBSTATE_OPERATIONAL;
             break;
@@ -156,12 +168,7 @@ START_TEST(CustomPublisher) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->pubSubConfig.componentLifecycleCallback = testComponentLifecycleCallback;
 
-    /* Initialize the timer */
-    struct sigevent sigev;
-    memset(&sigev, 0, sizeof(sigev));
-    sigev.sigev_notify = SIGEV_THREAD;
-    sigev.sigev_notify_function = writerGroupPublishTrigger;
-    timer_create(CLOCK_REALTIME, &sigev, &writerGroupTimer);
+    writerGroupTimer = 0;
 
     /* Add a PubSubConnection */
     UA_PubSubConnectionConfig connectionConfig;
@@ -187,8 +194,12 @@ START_TEST(CustomPublisher) {
     /* Add DataSetFields with static value source to PDS */
     UA_DataSetFieldConfig dsfConfig;
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        /* TODO: Point to a variable in the information model */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dsfConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dsfConfig.field.variable.fieldNameAlias = UA_STRING("Server state");
+        dsfConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+        dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
@@ -248,10 +259,15 @@ START_TEST(CustomPublisher) {
     UA_Server_run_iterate(server, true);
 
     /* Cleanup */
+    if(writerGroupTimer != 0) {
+        UA_ServerConfig *cleanupConfig = UA_Server_getConfig(server);
+        cleanupConfig->eventLoop->removeTimer(cleanupConfig->eventLoop, writerGroupTimer);
+        writerGroupTimer = 0;
+    }
     UA_Server_run_shutdown(server);
     UA_StatusCode rv = UA_Server_delete(server);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
-    timer_delete(writerGroupTimer);
+    server = NULL;
 } END_TEST
 
 static void *
@@ -347,8 +363,12 @@ listenUDP(void *_) {
     struct pollfd pfd;
     pfd.fd = listenSocket;
     pfd.events = POLLIN;
-    while(true) {
-        result = poll(&pfd, 1, -1); /* infinite timeout */
+    while(!listenThreadStop) {
+        result = poll(&pfd, 1, 100);
+        if(result == 0)
+            continue;
+        if(result < 0)
+            break;
         if(pfd.revents & POLLERR || pfd.revents & POLLHUP || pfd.revents & POLLNVAL)
             break;
 
@@ -385,6 +405,7 @@ connectionStateMachine(UA_Server *server, const UA_NodeId componentId,
         case UA_PUBSUBSTATE_DISABLED:
         case UA_PUBSUBSTATE_PAUSED:
             printf("XXX Closing the UDP multicast connection\n");
+            listenThreadStop = true;
             if(listenSocket != 0)
                 shutdown(listenSocket, SHUT_RDWR);
             *state = targetState;
@@ -398,10 +419,12 @@ connectionStateMachine(UA_Server *server, const UA_NodeId componentId,
                 break;
             }
             printf("XXX Opening the UDP multicast connection\n");
+            listenThreadStop = false;
             *state = UA_PUBSUBSTATE_PREOPERATIONAL;
             int res = pthread_create(&listenThread, NULL, listenUDP, NULL);
             if(res != 0)
                 return UA_STATUSCODE_BADINTERNALERROR;
+            listenThreadStarted = true;
             break;
 
         /* Unknown state */
@@ -506,7 +529,7 @@ addSubscribedVariables (UA_Server *server) {
         UA_UInt32 intValue = 0;
         UA_Variant_setScalar(&value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
         vAttr.value = value;
-        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+        UA_Server_addVariableNode(server, UA_NODEID_NULL,
                                   folderId, UA_NS0ID(HASCOMPONENT),
                                   UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
                                   UA_NS0ID(BASEDATAVARIABLETYPE),
@@ -596,11 +619,20 @@ START_TEST(CustomSubscriber) {
     UA_fakeSleep(PUBSUB_CONFIG_PUBLISH_CYCLE_MS);
     UA_Server_run_iterate(server, true);
 
+    UA_Server_disablePubSubConnection(server, connectionIdentifier);
+    listenThreadStop = true;
+    if(listenSocket != 0)
+        shutdown(listenSocket, SHUT_RDWR);
+
+    if(listenThreadStarted) {
+        pthread_join(listenThread, NULL);
+        listenThreadStarted = false;
+    }
+
     UA_Server_run_shutdown(server);
 
-    pthread_join(listenThread, NULL);
-
     UA_Server_delete(server);
+    server = NULL;
 } END_TEST
 
 int main(void) {

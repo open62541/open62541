@@ -253,9 +253,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
         /* split into SAN type and value */
         char *sanType = NULL;
-        for(char *pos = subAlt; *pos != 0; pos++) {
-            if(*pos == ':') {
-                *pos = '\0';
+        for(char *char_pos = subAlt; *char_pos != 0; char_pos++) {
+            if(*char_pos == ':') {
+                *char_pos = '\0';
                 sanType = subAlt;
                 break;
             }

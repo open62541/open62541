@@ -55,10 +55,10 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     /* Get the binary server components */
     UA_String binStr = UA_STRING((char*)(uintptr_t)"binary");
-    UA_ServerComponent *bpm = NULL;
-    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
-        if(UA_String_equal(&binStr, &sc->name))
-            bpm = sc;
+    UA_Driver *bpm = NULL;
+    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
+        if(UA_String_equal(&binStr, &drv->name))
+            bpm = drv;
     }
     UA_assert(bpm != NULL);
 

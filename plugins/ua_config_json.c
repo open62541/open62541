@@ -962,12 +962,8 @@ PARSE_JSON(SecurityPkiField) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
-    /* Currently not supported! */
-    (void)config;
-    return UA_STATUSCODE_GOOD;
-#else
-    /* Set up the parameters */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+    /* Set up the parameters for the filestore certificate store */
     UA_KeyValuePair params[2];
     size_t paramsSize = 2;
 
@@ -1001,10 +997,16 @@ PARSE_JSON(SecurityPkiField) {
 
     /* Clean up */
     UA_String_clear(&pkiFolder);
+#else
+    (void)config;
+    UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                   "pkiFolder is not supported on this platform. "
+                   "Trusted clients will not be verified.");
 #endif
     return UA_STATUSCODE_GOOD;
 }
 #endif
+
 PARSE_JSON(RuleHandlingField) {
     UA_UInt32 enum_value;
     UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
@@ -1045,6 +1047,9 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 
     ctx.logging = config->logging;
 
+    /* Buffer for the field name */
+    char field[256];
+
     size_t serverConfigSize = 0;
     if(ctx.result.tokens)
         serverConfigSize = (ctx.result.tokens[ctx.index-1].size/2);
@@ -1053,9 +1058,18 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
         cj5_token tok = ctx.result.tokens[ctx.index];
         switch (tok.type) {
             case CJ5_TOKEN_STRING: {
-                char *field = (char*)UA_malloc(tok.size + 1);
+                if(tok.size >= 255) {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Configuration field name too long");
+                    continue;
+                }
                 unsigned int str_len = 0;
-                cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                cj5_error_code res = cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                if(res != CJ5_ERROR_NONE) {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Configuration field name not a valid string");
+                    continue;
+                }
                 if(strcmp(field, "buildInfo") == 0)
                     retval = BuildInfo_parseJson(&ctx, &config->buildInfo, NULL);
                 else if(strcmp(field, "applicationDescription") == 0)
@@ -1151,7 +1165,7 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
-                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled.", field);
                     /* skip the name of item */
                     ++ctx.index;
                     /* skip value of unknown item */
@@ -1161,9 +1175,9 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                        still set index to the right position (name of the following item) */
                     --ctx.index;
                 }
-                UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                 "An error occurred while parsing the configuration field %s", field);
                     return retval;
                 }
                 break;

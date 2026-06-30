@@ -3,256 +3,412 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2021, 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "eventloop_posix.h"
 #include <signal.h>
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
-/* Different implementation approaches:
- * - Linux: Use signalfd
- * - Other: Use the self-pipe trick (http://cr.yp.to/docs/selfpipe.html) */
 
-typedef struct UA_RegisteredSignal {
-#ifdef UA_HAVE_EPOLL
-    /* With epoll, register each signal with a socket.
-     * This has to be the first element of the struct to allow casting. */
-    UA_RegisteredFD rfd;
+#define UA_MAX_INTERRUPT_MANAGERS 8
+#ifdef NSIG
+# define UA_INTERRUPT_SIGNAL_SLOTS NSIG
+#else
+# define UA_INTERRUPT_SIGNAL_SLOTS 128
 #endif
 
+typedef struct UA_RegisteredSignal {
     LIST_ENTRY(UA_RegisteredSignal) listPointers;
+    UA_EventSource *eventSource;
 
     UA_InterruptCallback signalCallback;
     void *context;
     int signal; /* POSIX identifier of the interrupt signal */
 
     UA_Boolean active; /* Signals are only active when the EventLoop is started */
-    UA_Boolean triggered;
 } UA_RegisteredSignal;
 
-typedef struct {
+typedef struct UA_POSIXInterruptManager {
     UA_InterruptManager im;
 
     LIST_HEAD(, UA_RegisteredSignal) signals; /* Registered signals */
 
-#ifndef UA_HAVE_EPOLL
-    UA_DelayedCallback dc; /* Process all triggered signals */
-#endif
+    UA_RegisteredFD readfd;
+    UA_FD writefd;
+    UA_atomic(struct UA_POSIXInterruptManager*)* managerSlot;
 } UA_POSIXInterruptManager;
 
-/* The following methods have to be implemented for epoll/self-pipe each. */
-static void activateSignal(UA_RegisteredSignal *rs);
-static void deactivateSignal(UA_RegisteredSignal *rs);
+/* Signal handlers are process-global. Route each signal marker to all active
+ * interrupt managers so multiple EventLoops can coexist. */
+static UA_atomic(UA_POSIXInterruptManager*) interruptManagers[UA_MAX_INTERRUPT_MANAGERS];
+static UA_atomic(uintptr_t) interruptWriteFDs[UA_INTERRUPT_SIGNAL_SLOTS][UA_MAX_INTERRUPT_MANAGERS];
+static UA_atomic(uintptr_t) signalRefCounts[UA_INTERRUPT_SIGNAL_SLOTS];
 
-#ifdef UA_HAVE_EPOLL
-#include <sys/signalfd.h>
+/* Keep the previous action to restore when we deregister a signal */
+#ifdef UA_ARCHITECTURE_WIN32
+static void (*previousActions[UA_INTERRUPT_SIGNAL_SLOTS])(int);
+#else
+static struct sigaction previousActions[UA_INTERRUPT_SIGNAL_SLOTS];
+#endif
+
+static UA_Boolean
+signalIsSupported(int signal) {
+    return (signal >= 0 &&
+            signal < UA_INTERRUPT_SIGNAL_SLOTS &&
+            signal <= UCHAR_MAX);
+}
+
+static UA_Boolean
+registerInterruptManager(UA_POSIXInterruptManager *pim) {
+    for(size_t i = 0; i < UA_MAX_INTERRUPT_MANAGERS; i++) {
+        UA_POSIXInterruptManager *prev = NULL;
+        UA_atomic_cmpxchg(&interruptManagers[i], &prev, pim);
+        if(prev == NULL) {
+            pim->managerSlot = &interruptManagers[i];
+            return true;
+        }
+    }
+    return false;
+}
 
 static void
-handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
+unregisterInterruptManager(UA_POSIXInterruptManager *pim) {
+    UA_assert(*pim->managerSlot == pim);
+    UA_atomic_store(pim->managerSlot, NULL);
+    pim->managerSlot = NULL;
+}
+
+static void
+closeSignalPipe(UA_POSIXInterruptManager *pim) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pim->im.eventSource.eventLoop;
+    (void)el;
+    UA_LOCK_ASSERT(&el->elMutex);
+
+    if(pim->readfd.fd == UA_INVALID_FD)
+        return;
+
+    UA_EventLoopPOSIX_deregisterFD(el, &pim->readfd);
+    UA_close(pim->readfd.fd);
+    UA_close(pim->writefd);
+    pim->readfd.fd = UA_INVALID_FD;
+    pim->writefd = UA_INVALID_FD;
+}
+
+static void
+handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd,
+                          short event) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
     (void)el;
+    (void)event;
     UA_LOCK_ASSERT(&el->elMutex);
 
-    UA_RegisteredSignal *rs = (UA_RegisteredSignal*)rfd;
-    struct signalfd_siginfo fdsi;
-    ssize_t s = read(rfd->fd, &fdsi, sizeof(fdsi));
-    if(s < (ssize_t)sizeof(fdsi)) {
-        /* A problem occured */
-        deactivateSignal(rs);
+    UA_POSIXInterruptManager *pim = (UA_POSIXInterruptManager*)es;
+    unsigned char buf[32];
+
+    for(;;) {
+        ssize_t received = UA_recv(rfd->fd, (char*)buf, sizeof(buf), 0);
+        if(received > 0) {
+            for(ssize_t i = 0; i < received; i++) {
+                UA_RegisteredSignal *rs;
+                LIST_FOREACH(rs, &pim->signals, listPointers) {
+                    if(rs->signal == (int)buf[i] && rs->active)
+                        break;
+                }
+                if(!rs)
+                    continue;
+
+                UA_LOG_DEBUG(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+                             "Interrupt %u\t| Received signal %u",
+                             (unsigned)rfd->fd, (unsigned)rs->signal);
+                UA_UNLOCK(&el->elMutex);
+                rs->signalCallback((UA_InterruptManager *)es,
+                                   (uintptr_t)rs->signal, rs->context,
+                                   &UA_KEYVALUEMAP_NULL);
+                UA_LOCK(&el->elMutex);
+            }
+            continue;
+        }
+
+        if(received == 0) {
+            closeSignalPipe(pim);
+            return;
+        }
+
+        if(UA_ERRNO == UA_INTERRUPTED)
+            continue;
+
+        if(UA_ERRNO == UA_AGAIN || UA_ERRNO == UA_WOULDBLOCK)
+            return;
+
+        closeSignalPipe(pim);
         return;
     }
-
-    /* Signal received */
-    UA_LOG_DEBUG(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "Interrupt %u\t| Received a signal %u",
-                 (unsigned)rfd->fd, fdsi.ssi_signo);
-
-    UA_UNLOCK(&el->elMutex);
-    rs->signalCallback((UA_InterruptManager *)es, (uintptr_t)rfd->fd,
-                       rs->context, &UA_KEYVALUEMAP_NULL);
-    UA_LOCK(&el->elMutex);
 }
 
-static void
-activateSignal(UA_RegisteredSignal *rs) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
+static UA_StatusCode
+openSignalPipe(UA_POSIXInterruptManager *pim) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pim->im.eventSource.eventLoop;
     (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
-    if(rs->active)
-        return;
+    if(pim->readfd.fd != UA_INVALID_FD)
+        return UA_STATUSCODE_GOOD;
 
-    /* Block the normal signal handling */
-    UA_RESET_ERRNO;
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, rs->signal);
-    int res2 = sigprocmask(SIG_BLOCK, &mask, NULL);
-    if(res2 == -1) {
+    UA_FD fds[2];
+    int err = UA_EventLoopPOSIX_pipe(fds);
+    if(err != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Interrupt\t| Could not block the default "
-                           "signal handling with an error: %s",
-                           errno_str));
-        return;
+           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                          "Interrupt\t| Could not create the signal pipe: %s",
+                          errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Create the fd */
-    UA_RESET_ERRNO;
-    UA_FD newfd = signalfd(-1, &mask, 0);
-    if(newfd < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Interrupt\t| Could not create a signal file "
-                           "description with error: %s",
-                           errno_str));
-        sigprocmask(SIG_UNBLOCK, &mask, NULL); /* restore signal */
-        return;
-    }
+    pim->readfd.es = &pim->im.eventSource;
+    pim->readfd.eventSourceCB = handlePOSIXInterruptEvent;
+    pim->readfd.listenEvents = UA_FDEVENT_IN;
+    pim->readfd.fd = fds[0];
+    pim->writefd = fds[1];
 
-    rs->rfd.fd = newfd;
-    rs->rfd.eventSourceCB = handlePOSIXInterruptEvent;
-    rs->rfd.listenEvents = UA_FDEVENT_IN;
-
-    /* Register the fd in the EventLoop */
-    UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &rs->rfd);
+    UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &pim->readfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "Interrupt\t| Could not register the a signal file "
-                       "description in the EventLoop");
-        UA_close(newfd);
-        sigprocmask(SIG_UNBLOCK, &mask, NULL); /* restore signal */
-        return;
+                       "Interrupt\t| Could not register the signal pipe in "
+                       "the EventLoop");
+        UA_close(pim->readfd.fd);
+        UA_close(pim->writefd);
+        pim->readfd.fd = UA_INVALID_FD;
+        pim->writefd = UA_INVALID_FD;
+        return res;
     }
 
-    rs->active = true;
+    return UA_STATUSCODE_GOOD;
 }
 
-static void
-deactivateSignal(UA_RegisteredSignal *rs) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
-    (void)el;
-    UA_LOCK_ASSERT(&el->elMutex);
-
-    /* Only dectivate if active */
-    if(!rs->active)
-        return;
-    rs->active = false;
-
-    /* Stop receiving the signal on the FD */
-    UA_EventLoopPOSIX_deregisterFD(el, &rs->rfd);
-
-    /* Unblock the signal */
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, (int)rs->signal);
-    sigprocmask(SIG_UNBLOCK, &mask, NULL);
-
-    /* Clean up locally */
-    UA_close(rs->rfd.fd);
-}
-
-#else /* !UA_HAVE_EPOLL */
-
-/* When using signal() a global pointer to the interrupt manager is required.
- * We have no other we to get additional data with the interrupt. */
-static UA_POSIXInterruptManager *singletonIM = NULL;
-
-/* Execute all triggered interrupts in a delayed callback by the EventLoop */
-static void
-executeTriggeredPOSIXInterrupts(UA_POSIXInterruptManager *im, void *_) {
-    im->dc.callback = NULL; /* Allow to re-arm the delayed callback */
-
-    UA_RegisteredSignal *rs, *rs_tmp;
-    LIST_FOREACH_SAFE(rs, &im->signals, listPointers, rs_tmp) {
-        rs->triggered = false;
-        rs->signalCallback(&im->im, (uintptr_t)rs->signal,
-                           rs->context, &UA_KEYVALUEMAP_NULL);
-    }
-}
-
-/* Mark the signal entry as triggered and make the EventLoop process it "soon"
- * with a delayed callback. This is an interrupt handler and cannot take a
- * lock. */
+/* Signal handlers can only perform async-signal-safe operations. Writing one
+ * byte into the signal-specific pipe wakes up the EventLoop. */
 static void
 triggerPOSIXInterruptEvent(int sig) {
-    UA_assert(singletonIM != NULL);
-
-    /* Find the signal */
-    UA_RegisteredSignal *rs;
-    LIST_FOREACH(rs, &singletonIM->signals, listPointers) {
-        if(rs->signal == sig)
-            break;
-    }
-    if(!rs || rs->triggered || !rs->active)
+    if(!signalIsSupported(sig))
         return;
 
-    /* Mark as triggered */
-    rs->triggered = true;
-
 #ifdef UA_ARCHITECTURE_WIN32
-    /* On WIN32 we have to re-arm the signal or it will go back to SIG_DFL */
+    /* On Win32 the signal handler is one-shot and must be re-armed. */
     signal(sig, triggerPOSIXInterruptEvent);
 #endif
 
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
+    int savedErrno = errno;
+    unsigned char signalMarker = (unsigned char)sig;
 
-    /* Arm the delayed callback for processing the received signals */
-    if(!singletonIM->dc.callback) {
-        singletonIM->dc.callback = (UA_Callback)executeTriggeredPOSIXInterrupts;
-        singletonIM->dc.application = singletonIM;
-        singletonIM->dc.context = NULL;
-        UA_EventLoopPOSIX_addDelayedCallback(&el->eventLoop, &singletonIM->dc);
+    for(size_t i = 0; i < UA_MAX_INTERRUPT_MANAGERS; i++) {
+        uintptr_t encodedFD = UA_atomic_load(&interruptWriteFDs[sig][i]);
+        UA_FD writefd = UA_INVALID_FD;
+        if(encodedFD != 0)
+            writefd = (UA_FD)(encodedFD - 1u);
+        if(writefd == UA_INVALID_FD)
+            continue;
+
+        ssize_t res;
+        do {
+            res = UA_send(writefd, (const char*)&signalMarker, 1, 0);
+        } while(res == -1 && UA_ERRNO == UA_INTERRUPTED);
     }
 
-    /* Cancel the EventLoop if it is currently waiting with a timeout */
-    UA_EventLoopPOSIX_cancel(el);
+    errno = savedErrno;
 }
 
 static void
 activateSignal(UA_RegisteredSignal *rs) {
-    UA_assert(singletonIM != NULL);
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)rs->eventSource->eventLoop;
     (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
-    /* Register the signal on the OS level */
     if(rs->active)
         return;
 
-    UA_RESET_ERRNO;
-    void (*prev)(int);
-    prev = signal(rs->signal, triggerPOSIXInterruptEvent);
-    if(prev == SIG_ERR) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(singletonIM->im.eventSource.eventLoop->logger,
-                          UA_LOGCATEGORY_EVENTLOOP,
-                          "Error registering the signal: %s", errno_str));
-        return;
+    UA_POSIXInterruptManager *pim = (UA_POSIXInterruptManager*)rs->eventSource;
+    UA_assert(pim->managerSlot != NULL);
+
+    size_t managerSlot = (size_t)(pim->managerSlot - interruptManagers);
+
+    /* Store the fd to be picked up by triggerPOSIXInterruptEvent */
+    rs->active = true;
+    UA_atomic_store(&interruptWriteFDs[rs->signal][managerSlot],
+                    ((uintptr_t)pim->writefd) + 1u);
+
+    /* signalRefCounts is an atomic state machine:
+     *   0                         -> signal handler not installed
+     *   1..N                      -> installed and referenced by N managers
+     *   >= UINT16_MAX             -> handler is being installed (sentinel)
+     * Only the thread that flips 0 -> UINT16_MAX installs the handler.
+     * Other threads can increment the refcount even if the sentinel is present. */
+    for(;;) {
+        uintptr_t refCount = UA_atomic_load(&signalRefCounts[rs->signal]);
+
+        /* Interrupt installing or already installed. Just increment. */
+        if(refCount > 0) {
+            uintptr_t expected = refCount;
+            UA_atomic_cmpxchg(&signalRefCounts[rs->signal], &expected, refCount + 1);
+            if(expected != refCount)
+                continue; /* Another thread changed the refCount. Retry. */
+            return; /* Done */
+        }
+
+        /* Set the sentinel */
+        uintptr_t expected = 0;
+        UA_atomic_cmpxchg(&signalRefCounts[rs->signal], &expected, UINT16_MAX);
+        if(expected != 0)
+            continue;  /* Another thread changed the refCount. Retry. */
+        break; /* This thread installs the interrupt handler */
     }
 
-    rs->active = true;
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Register Wait %u", rs->signal,
+                 signalRefCounts[rs->signal]);
+
+    /* From here on we are the first (and only) thread to register the signal.
+     * There might still be an ongoing deactivateSignal which reached
+     * refCount==0 just before. Loop until previousAction is zeroed to make sure
+     * no deactivateSignal is ongoing. */
+    UA_atomic(uintptr_t)* action_sentinel =
+        (UA_atomic(uintptr_t)*)&previousActions[rs->signal];
+    for(;;) {
+        if(UA_atomic_load(action_sentinel) == 0)
+            break;
+    }
+
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Register Begin %u", rs->signal,
+                 signalRefCounts[rs->signal]);
+
+    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                "Interrupt\t| Registering the handler for signal %i", rs->signal);
+
+    /* Install the interrupt handler */
+#ifdef UA_ARCHITECTURE_WIN32
+    UA_RESET_ERRNO;
+    void (*prev)(int) = signal(rs->signal, triggerPOSIXInterruptEvent);
+    if(prev != SIG_ERR) {
+        /* Store previous action with non-NULL value.
+         * Use 0x01 to indicate no previous action was stored. */
+        if(prev == NULL)
+            prev = (void (*)(int))0x01;
+        previousActions[rs->signal] = prev;
+    } else {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                        "Interrupt\t| Could not register the signal handler: %s",
+                        errno_str));
+    }
+#else
+    struct sigaction previousAction;
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = triggerPOSIXInterruptEvent;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+    if(sigaction(rs->signal, &action, &previousAction) == 0) {
+        /* Store previous action with non-NULL value.
+         * Use 0x01 to indicate no previous action was stored. */
+        uintptr_t *prevContent = (uintptr_t*)&previousAction;
+        if(*prevContent == 0)
+            *prevContent = 0x01;
+        previousActions[rs->signal] = previousAction;
+    } else {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                        "Interrupt\t| Could not register the signal handler: %s",
+                        errno_str));
+    }
+#endif
+
+    /* Subtract UINT16_MAX - 1 for the final refcount */
+    for(;;) {
+        uintptr_t refCount = UA_atomic_load(&signalRefCounts[rs->signal]);
+        UA_assert(refCount >= UA_UINT16_MAX);
+        uintptr_t expected = refCount;
+        UA_atomic_cmpxchg(&signalRefCounts[rs->signal], &expected,
+                          refCount - (UA_UINT16_MAX - 1u));
+        if(expected == refCount)
+            break;
+    }
+
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Register End %u", rs->signal,
+                 signalRefCounts[rs->signal]);
 }
 
 static void
 deactivateSignal(UA_RegisteredSignal *rs) {
-    UA_assert(singletonIM != NULL);
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)rs->eventSource->eventLoop;
     (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
-    /* Only dectivate if active */
+    UA_POSIXInterruptManager *pim = (UA_POSIXInterruptManager*)rs->eventSource;
+    UA_assert(pim->managerSlot != NULL);
+
     if(!rs->active)
         return;
 
-    /* Stop receiving the signal */
-    signal(rs->signal, SIG_DFL);
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Register Decrease Begin %u", rs->signal,
+                 signalRefCounts[rs->signal]);
 
-    rs->triggered = false;
+    size_t managerSlot = (size_t)(pim->managerSlot - interruptManagers);
+
+    /* Stop routing new signals to this interrupt manager */
+    UA_atomic_store(&interruptWriteFDs[rs->signal][managerSlot], 0);
     rs->active = false;
-}
 
-#endif /* !UA_HAVE_EPOLL */
+    /* Decrease the refcount */
+    uintptr_t refCount;
+    for(;;) {
+        refCount = UA_atomic_load(&signalRefCounts[rs->signal]);
+        uintptr_t expected = refCount;
+        UA_atomic_cmpxchg(&signalRefCounts[rs->signal], &expected, refCount - 1);
+        if(expected == refCount)
+            break;
+    }
+    refCount--; /* Adjust, this is still the old refCount before decreasing */
+
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Register Decrease End %u", rs->signal,
+                 signalRefCounts[rs->signal]);
+
+    /* Another interrupt manager still uses the signal */
+    if(refCount > 0)
+        return;
+
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Deregister Begin", rs->signal);
+
+    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                "Interrupt\t| Deregistering the handler for signal %i", rs->signal);
+
+    /* Deactivate the signal, reset to the previous action */
+#ifdef UA_ARCHITECTURE_WIN32
+    void (*prev)(int) = previousActions[rs->signal];
+    if((uintptr_t)prev == (uintptr_t)0x01)
+        prev = NULL;
+    signal(rs->signal, prev);
+#else
+    struct sigaction prev = previousActions[rs->signal];
+    uintptr_t *prevContent = (uintptr_t*)&prev;
+    if(*prevContent == 0x01)
+        *prevContent = 0x0;
+    sigaction(rs->signal, &prev, NULL);
+#endif
+
+    /* Zero out the previousAction. So an activateSignal that has already
+     * started knows we are done. */
+    UA_atomic(uintptr_t)* action_sentinel =
+        (UA_atomic(uintptr_t)*)&previousActions[rs->signal];
+    UA_atomic_store(action_sentinel, 0);
+
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Interrupt %i\t| Deregister End", rs->signal);
+}
 
 static UA_StatusCode
 registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
@@ -291,9 +447,17 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-#ifdef UA_HAVE_EPOLL
-    rs->rfd.es = &im->eventSource;
-#endif
+    if(!signalIsSupported(signal)) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "Interrupt\t| Signal %u is out of range",
+                     (unsigned)interruptHandle);
+        UA_free(rs);
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Set the callback and context */
+    rs->eventSource = &im->eventSource;
     rs->signal = (int)interruptHandle;
     rs->signalCallback = callback;
     rs->context = interruptContext;
@@ -350,6 +514,12 @@ startPOSIXInterruptManager(UA_EventSource *es) {
     UA_LOG_DEBUG(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Interrupt\t| Starting the InterruptManager");
 
+    UA_StatusCode res = openSignalPipe(pim);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&el->elMutex);
+        return res;
+    }
+
     /* Activate the registered signal handlers */
     UA_RegisteredSignal*rs;
     LIST_FOREACH(rs, &pim->signals, listPointers) {
@@ -384,6 +554,8 @@ stopPOSIXInterruptManager(UA_EventSource *es) {
         deactivateSignal(rs);
     }
 
+    closeSignalPipe(pim);
+
     /* Immediately set to stopped */
     es->state = UA_EVENTSOURCESTATE_STOPPED;
 
@@ -413,31 +585,29 @@ freePOSIXInterruptmanager(UA_EventSource *es) {
     }
 
     UA_String_clear(&es->name);
+    unregisterInterruptManager(pim);
     UA_free(es);
-
-#ifndef UA_HAVE_EPOLL
-    singletonIM = NULL; /* Reset the global singleton pointer */
-#endif
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName) {
-#ifndef UA_HAVE_EPOLL
-    /* There can be only one InterruptManager if epoll is not present */
-    if(singletonIM)
-        return NULL;
-#endif
-
     UA_POSIXInterruptManager *pim = (UA_POSIXInterruptManager *)
         UA_calloc(1, sizeof(UA_POSIXInterruptManager));
     if(!pim)
         return NULL;
 
-#ifndef UA_HAVE_EPOLL
-    singletonIM = pim; /* Register the singleton singleton pointer */
-#endif
+    /* Initialize the FD as invalid before adding the interrupt manager to the
+     * global array */
+    pim->readfd.fd = UA_INVALID_FD;
+    pim->writefd = UA_INVALID_FD;
+    pim->managerSlot = NULL;
+
+    if(!registerInterruptManager(pim)) {
+        UA_free(pim);
+        return NULL;
+    }
 
     UA_InterruptManager *im = &pim->im;
     im->eventSource.eventSourceType = UA_EVENTSOURCETYPE_INTERRUPTMANAGER;

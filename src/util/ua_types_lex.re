@@ -25,6 +25,8 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
+#define UA_MAXPATHLENGTH 128 /* Maximum relative path depth */
+
 #define YYCURSOR pos
 #define YYMARKER context.marker
 #define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0 /* The lexer sees a stream of
@@ -137,8 +139,10 @@ parse_nodeid_body(UA_NodeId *id, const u8 *body, const u8 *end, UA_Escaping esc)
         id->identifierType = UA_NODEIDTYPE_BYTESTRING;
         id->identifier.byteString.data =
             UA_unbase64(str.data, str.length, &id->identifier.byteString.length);
-        if(!id->identifier.byteString.data && str.length > 0)
-            res = UA_STATUSCODE_BADDECODINGERROR;
+        if(!id->identifier.byteString.data) {
+            UA_assert(id->identifier.byteString.length == 0);
+            res = UA_STATUSCODE_BADDECODINGERROR; /* Returned on error by UA_unbase64 */
+        }
         break;
     default:
         res = UA_STATUSCODE_BADDECODINGERROR;
@@ -289,6 +293,10 @@ UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
 
 static UA_StatusCode
 relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
+    /* Check for unrealistic path lengths */
+    if(rp->elementsSize >= UA_MAXPATHLENGTH)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Allocate memory */
     UA_RelativePathElement *newArray = (UA_RelativePathElement*)
         UA_realloc(rp->elements, sizeof(UA_RelativePathElement) * (rp->elementsSize + 1));
@@ -482,10 +490,11 @@ parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
 
     /* Add current to the rp */
     res |= relativepath_addelem(rp, &current);
+
+ out:
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePathElement_clear(&current);
 
- out:
     /* Return the status */
     *ppos = pos;
     *done |= (res != UA_STATUSCODE_GOOD);
@@ -535,6 +544,7 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
  * the browse path when the namespace of the elements is not given explicitly.
  * This is used for parsing an expression from a QualifiedName that then defines
  * the default namespace-index (cf. the Event-field key-value map). */
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
 static UA_StatusCode
 parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str,
                       UA_NodeId defaultId, UA_UInt16 defaultNamespaceIndex) {
@@ -711,3 +721,5 @@ UA_ReadValueId_parse(UA_ReadValueId *rvi, const UA_String str) {
     rvi->indexRange = ao.indexRange;
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_TYPES_ATTRIBUTEOPERAND */

@@ -16,6 +16,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -35,6 +36,16 @@
 
 /* --- Curve parameter table --- */
 
+/* Constructor for the deprecated (non-AEAD) ECC SecurityPolicies. They are no
+ * longer part of the default policy set (OPC UA Part 7), so the test adds them
+ * explicitly. NULL for the AEAD curves (curve25519/curve448) that remain in the
+ * default set. */
+typedef UA_StatusCode (*EccPolicyCtor)(UA_SecurityPolicy *,
+                                       const UA_ApplicationType,
+                                       const UA_ByteString,
+                                       const UA_ByteString,
+                                       const UA_Logger *);
+
 typedef struct {
     const char *name;
     const char *policyUri;
@@ -42,6 +53,7 @@ typedef struct {
     UA_Byte *keyDer;   size_t keyDerLen;
     UA_Byte *certPem;  size_t certPemLen;
     UA_Byte *keyPem;   size_t keyPemLen;
+    EccPolicyCtor deprecatedCtor; /* non-NULL for the deprecated curves */
 } EccCurveTestData;
 
 static EccCurveTestData eccCurves[] = {
@@ -50,34 +62,69 @@ static EccCurveTestData eccCurves[] = {
      CERT_P384_DER_DATA, CERT_P384_DER_LENGTH,
      KEY_P384_DER_DATA, KEY_P384_DER_LENGTH,
      CERT_P384_PEM_DATA, CERT_P384_PEM_LENGTH,
-     KEY_P384_PEM_DATA, KEY_P384_PEM_LENGTH},
+     KEY_P384_PEM_DATA, KEY_P384_PEM_LENGTH,
+     UA_SecurityPolicy_EccNistP384},
     {"ECC_brainpoolP256r1",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1",
      CERT_BP256R1_DER_DATA, CERT_BP256R1_DER_LENGTH,
      KEY_BP256R1_DER_DATA, KEY_BP256R1_DER_LENGTH,
      CERT_BP256R1_PEM_DATA, CERT_BP256R1_PEM_LENGTH,
-     KEY_BP256R1_PEM_DATA, KEY_BP256R1_PEM_LENGTH},
+     KEY_BP256R1_PEM_DATA, KEY_BP256R1_PEM_LENGTH,
+     UA_SecurityPolicy_EccBrainpoolP256r1},
     {"ECC_brainpoolP384r1",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1",
      CERT_BP384R1_DER_DATA, CERT_BP384R1_DER_LENGTH,
      KEY_BP384R1_DER_DATA, KEY_BP384R1_DER_LENGTH,
      CERT_BP384R1_PEM_DATA, CERT_BP384R1_PEM_LENGTH,
-     KEY_BP384R1_PEM_DATA, KEY_BP384R1_PEM_LENGTH},
+     KEY_BP384R1_PEM_DATA, KEY_BP384R1_PEM_LENGTH,
+     UA_SecurityPolicy_EccBrainpoolP384r1},
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
     {"ECC_curve25519",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519",
      CERT_ED25519_DER_DATA, CERT_ED25519_DER_LENGTH,
      KEY_ED25519_DER_DATA, KEY_ED25519_DER_LENGTH,
      CERT_ED25519_PEM_DATA, CERT_ED25519_PEM_LENGTH,
-     KEY_ED25519_PEM_DATA, KEY_ED25519_PEM_LENGTH},
+     KEY_ED25519_PEM_DATA, KEY_ED25519_PEM_LENGTH,
+     NULL},
     {"ECC_curve448",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448",
      CERT_ED448_DER_DATA, CERT_ED448_DER_LENGTH,
      KEY_ED448_DER_DATA, KEY_ED448_DER_LENGTH,
      CERT_ED448_PEM_DATA, CERT_ED448_PEM_LENGTH,
-     KEY_ED448_PEM_DATA, KEY_ED448_PEM_LENGTH}
+     KEY_ED448_PEM_DATA, KEY_ED448_PEM_LENGTH,
+     NULL}
 #endif
 };
+
+/* Add the active curve's deprecated SecurityPolicy to a server config (no-op
+ * for the AEAD curves that are part of the default set). */
+static void
+addDeprecatedServerPolicy(UA_ServerConfig *config, EccCurveTestData *c,
+                          UA_ByteString cert, UA_ByteString key) {
+    if(!c->deprecatedCtor)
+        return;
+    config->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (config->securityPoliciesSize + 1));
+    c->deprecatedCtor(&config->securityPolicies[config->securityPoliciesSize],
+                      UA_APPLICATIONTYPE_SERVER, cert, key, config->logging);
+    config->securityPoliciesSize++;
+    UA_ServerConfig_addAllEndpoints(config);
+}
+
+/* Add the active curve's deprecated SecurityPolicy to a client config. */
+static void
+addDeprecatedClientPolicy(UA_ClientConfig *cc, EccCurveTestData *c,
+                          UA_ByteString cert, UA_ByteString key) {
+    if(!c->deprecatedCtor)
+        return;
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (cc->securityPoliciesSize + 1));
+    c->deprecatedCtor(&cc->securityPolicies[cc->securityPoliciesSize],
+                      UA_APPLICATIONTYPE_CLIENT, cert, key, cc->logging);
+    cc->securityPoliciesSize++;
+}
 
 #define NUM_ECC_CURVES (sizeof(eccCurves) / sizeof(eccCurves[0]))
 
@@ -117,6 +164,8 @@ static void setup_common(void) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
+
+    addDeprecatedServerPolicy(config, c, certificate, privateKey);
 
     /* Add a writable test variable */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -191,6 +240,7 @@ createEncryptedClient(void) {
                                          NULL, 0, NULL, 0);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    addDeprecatedClientPolicy(cc, c, certificate, privateKey);
     cc->securityPolicyUri = UA_STRING_ALLOC(c->policyUri);
 
     UA_String_clear(&cc->clientDescription.applicationUri);
@@ -235,6 +285,7 @@ START_TEST(encryption_connect) {
                                          NULL, 0, NULL, 0);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    addDeprecatedClientPolicy(cc, c, certificate, privateKey);
     cc->securityPolicyUri = UA_STRING_ALLOC(c->policyUri);
 
     UA_String_clear(&cc->clientDescription.applicationUri);
@@ -296,6 +347,7 @@ START_TEST(encryption_connect_pem) {
     cc->clientDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
+    addDeprecatedClientPolicy(cc, c, certificate, privateKey);
     cc->securityPolicyUri = UA_STRING_ALLOC(c->policyUri);
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -464,6 +516,7 @@ START_TEST(encryption_connect_sign_only) {
                                          NULL, 0, NULL, 0);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    addDeprecatedClientPolicy(cc, c, certificate, privateKey);
     cc->securityPolicyUri = UA_STRING_ALLOC(c->policyUri);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGN;
 
@@ -597,11 +650,17 @@ static Suite* testSuite_encryption(void) {
         tcase_add_test(tc, encryption_connect);
         tcase_add_test(tc, encryption_connect_pem);
         tcase_add_test(tc, encryption_connect_sign_only);
-        tcase_add_test(tc, encryption_connect_write);
-        tcase_add_test(tc, encryption_reconnect);
-        tcase_add_test(tc, encryption_renew);
         tcase_add_test(tc, encryption_csr_generation);
-        tcase_add_test(tc, encryption_update_certificate);
+
+        /* These exercise generic SecureChannel/Session behavior and certificate
+         * update handling. Running them for every ECC curve adds many expensive
+         * full handshakes without increasing curve-specific coverage. */
+        if(i == 0) {
+            tcase_add_test(tc, encryption_connect_write);
+            tcase_add_test(tc, encryption_reconnect);
+            tcase_add_test(tc, encryption_renew);
+            tcase_add_test(tc, encryption_update_certificate);
+        }
 #endif /* UA_ENABLE_ENCRYPTION */
         suite_add_tcase(s, tc);
     }

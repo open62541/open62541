@@ -4,11 +4,20 @@
 
 #include <open62541/client.h>
 
-#include "util/ua_util_internal.h"
-
+#include <dtoa.h>
 #include <stdlib.h>
+#include <math.h>
 
+#include "util/ua_util_internal.h"
 #include "check.h"
+
+/* vs2008 does not have INFINITY and NAN defined */
+#ifndef INFINITY
+# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
+#endif
+#ifndef NAN
+# define NAN ((UA_Double)(INFINITY-INFINITY))
+#endif
 
 START_TEST(EndpointUrl_split) {
     UA_String hostname = UA_STRING_NULL;
@@ -199,6 +208,42 @@ START_TEST(readNumber) {
 
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"123456789", 9, &result), 9);
     ck_assert_uint_eq(result, 123456789);
+}
+END_TEST
+
+
+START_TEST(doubleToString) {
+    char buffer[256];
+
+    const double number_13_37 = 13.37;
+    const unsigned length_13_37 = dtoa(number_13_37, buffer);
+    buffer[length_13_37] = 0;
+    ck_assert_str_eq(buffer, "13.37");
+
+    const double number_neg_13_37 = -13.37;
+    const unsigned length_neg_13_37 = dtoa(number_neg_13_37, buffer);
+    buffer[length_neg_13_37] = 0;
+    ck_assert_str_eq(buffer, "-13.37");
+
+    const double number_inf = INFINITY;
+    const unsigned length_inf = dtoa(number_inf, buffer);
+    buffer[length_inf] = 0;
+    ck_assert_str_eq(buffer, "inf");
+
+    const double number_neginf = -INFINITY;
+    const unsigned length_neginf = dtoa(number_neginf, buffer);
+    buffer[length_neginf] = 0;
+    ck_assert_str_eq(buffer, "-inf");
+
+    const double number_nan = NAN;
+    const unsigned length_nan = dtoa(number_nan, buffer);
+    buffer[length_nan] = 0;
+    ck_assert_str_eq(buffer, "nan");
+
+    const double number_negnan = -NAN;
+    const unsigned length_negnan = dtoa(number_negnan, buffer);
+    buffer[length_negnan] = 0;
+    ck_assert_str_eq(buffer, "nan");
 }
 END_TEST
 
@@ -831,6 +876,96 @@ START_TEST(byteStringMemZero) {
     UA_ByteString_memZero(&emptyBs); /* Should not crash */
 } END_TEST
 
+START_TEST(TrustListDataType_contains) {
+    /* Initialize trust list */
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+
+    /* Create test data for each trust list category */
+    UA_ByteString cert1 = UA_BYTESTRING("certificate1");
+    UA_ByteString cert2 = UA_BYTESTRING("certificate2");
+    UA_ByteString crl1 = UA_BYTESTRING("crl1");
+    UA_ByteString issuerCert1 = UA_BYTESTRING("issuerCert1");
+    UA_ByteString issuerCrl1 = UA_BYTESTRING("issuerCrl1");
+    UA_ByteString notInList = UA_BYTESTRING("notInList");
+
+    /* Define mask constants */
+    const UA_TrustListMasks maskAll = (UA_TrustListMasks)UA_TRUSTLISTMASKS_ALL;
+    const UA_TrustListMasks maskTrustedCerts = (UA_TrustListMasks)UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    const UA_TrustListMasks maskTrustedCrls = (UA_TrustListMasks)UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    const UA_TrustListMasks maskIssuerCerts = (UA_TrustListMasks)UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+    const UA_TrustListMasks maskIssuerCrls = (UA_TrustListMasks)UA_TRUSTLISTMASKS_ISSUERCRLS;
+    const UA_TrustListMasks maskCertsOrIssuer =
+        (UA_TrustListMasks)(UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCERTIFICATES);
+    const UA_TrustListMasks maskCrlsOrIssuerCrls =
+        (UA_TrustListMasks)(UA_TRUSTLISTMASKS_TRUSTEDCRLS | UA_TRUSTLISTMASKS_ISSUERCRLS);
+    const UA_TrustListMasks maskNone = (UA_TrustListMasks)0;
+
+    /* Test with NULL parameters */
+    ck_assert_int_eq(UA_TrustListDataType_contains(NULL, &cert1, maskAll), false);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, NULL, maskAll), false);
+
+    /* Populate trusted certificates */
+    trustList.trustedCertificates = (UA_ByteString *)UA_Array_new(2, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    trustList.trustedCertificatesSize = 2;
+    UA_ByteString_copy(&cert1, &trustList.trustedCertificates[0]);
+    UA_ByteString_copy(&cert2, &trustList.trustedCertificates[1]);
+    trustList.specifiedLists |= (UA_TrustListMasks)UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+
+    /* Populate trusted CRLs */
+    trustList.trustedCrls = (UA_ByteString *)UA_Array_new(1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    trustList.trustedCrlsSize = 1;
+    UA_ByteString_copy(&crl1, &trustList.trustedCrls[0]);
+    trustList.specifiedLists |= (UA_TrustListMasks)UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+
+    /* Populate issuer certificates */
+    trustList.issuerCertificates = (UA_ByteString *)UA_Array_new(1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    trustList.issuerCertificatesSize = 1;
+    UA_ByteString_copy(&issuerCert1, &trustList.issuerCertificates[0]);
+    trustList.specifiedLists |= (UA_TrustListMasks)UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+
+    /* Populate issuer CRLs */
+    trustList.issuerCrls = (UA_ByteString *)UA_Array_new(1, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    trustList.issuerCrlsSize = 1;
+    UA_ByteString_copy(&issuerCrl1, &trustList.issuerCrls[0]);
+    trustList.specifiedLists |= (UA_TrustListMasks)UA_TRUSTLISTMASKS_ISSUERCRLS;
+
+    /* Test with UA_TRUSTLISTMASKS_ALL */
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskAll), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert2, maskAll), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &crl1, maskAll), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &issuerCert1, maskAll), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &issuerCrl1, maskAll), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &notInList, maskAll), false);
+
+    /* Test with single mask flags */
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskTrustedCerts), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &crl1, maskTrustedCerts), false);
+
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &crl1, maskTrustedCrls), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskTrustedCrls), false);
+
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &issuerCert1, maskIssuerCerts), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &crl1, maskIssuerCerts), false);
+
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &issuerCrl1, maskIssuerCrls), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskIssuerCrls), false);
+
+    /* Test with OR'ed mask flags */
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskCertsOrIssuer), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &issuerCert1, maskCertsOrIssuer), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &crl1, maskCertsOrIssuer), false);
+
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &crl1, maskCrlsOrIssuerCrls), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &issuerCrl1, maskCrlsOrIssuerCrls), true);
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskCrlsOrIssuerCrls), false);
+
+    /* Test with empty mask (no lists specified) */
+    ck_assert_int_eq(UA_TrustListDataType_contains(&trustList, &cert1, maskNone), false);
+    /* Cleanup */
+    UA_TrustListDataType_clear(&trustList);
+} END_TEST
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -842,6 +977,7 @@ static Suite* testSuite_Utils(void) {
     TCase *tc_utils = tcase_create("Utils");
     tcase_add_test(tc_utils, readNumber);
     tcase_add_test(tc_utils, readNumberWithBase);
+    tcase_add_test(tc_utils, doubleToString);
     tcase_add_test(tc_utils, StatusCode_msg);
     tcase_add_test(tc_utils, stringCompare);
     suite_add_tcase(s,tc_utils);
@@ -886,6 +1022,10 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc7, constantTimeEqual);
     tcase_add_test(tc7, byteStringMemZero);
     suite_add_tcase(s, tc7);
+
+    TCase *tcTrustList = tcase_create("test trustlist contains");
+    tcase_add_test(tcTrustList, TrustListDataType_contains);
+    suite_add_tcase(s, tcTrustList);
 
     return s;
 }

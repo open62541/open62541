@@ -22,6 +22,7 @@
 #include <open62541/common.h>
 #include <open62541/util.h>
 #include <open62541/types.h>
+#include <open62541/server_driver.h>
 #ifdef UA_ENABLE_DISCOVERY
 #include <open62541/client.h>
 #endif
@@ -31,7 +32,6 @@
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/servercomponent.h>
 
 #ifdef UA_ENABLE_HISTORIZING
 #include <open62541/plugin/historydatabase.h>
@@ -968,7 +968,7 @@ UA_Server_setVariableNode_internalValueSource(UA_Server *server,
  * source. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_externalValueSource(UA_Server *server,
-    const UA_NodeId nodeId, UA_DataValue **value,
+    const UA_NodeId nodeId, UA_DataValue** value,
     const UA_ValueSourceNotifications *notifications);
 
 /* It is expected that the read callback is implemented. Whenever the value

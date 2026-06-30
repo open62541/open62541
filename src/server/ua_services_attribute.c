@@ -272,8 +272,7 @@ readExternalValueAttribute(UA_Server *server, UA_Session *session,
                    vn->head.context, rangeptr, *vn->valueSource.external.value);
 
     /* Reload the value pointer */
-    const UA_DataValue *val = (const UA_DataValue*)
-        UA_atomic_load((void**)vn->valueSource.external.value);
+    const UA_DataValue *val = UA_atomic_load(vn->valueSource.external.value);
 
     /* Set the result */
     return (!rangeptr) ? UA_DataValue_copy(val, v) : UA_DataValue_copyRange(val, v, *rangeptr);
@@ -1586,8 +1585,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     case UA_VALUESOURCETYPE_EXTERNAL:
     case UA_VALUESOURCETYPE_INTERNAL: {
         UA_DataValue *oldValue = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
-            &node->valueSource.internal.value :
-            (UA_DataValue*)UA_atomic_load((void**)node->valueSource.external.value);
+            &node->valueSource.internal.value : UA_atomic_load(node->valueSource.external.value);
         retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
         if(retval == UA_STATUSCODE_GOOD &&
            node->valueSource.internal.notifications.onWrite)
@@ -1834,8 +1832,12 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
-            /* Writing the StatusCode requires the StatusWrite bit */
-            if(wvalue->value.hasStatus) {
+            /* Writing a StatusCode different to "Good" requires the
+             * StatusWrite bit (see OPC specification 10000-3: AccessLevelType;
+             * https://reference.opcfoundation.org/specs/OPC-10000-3/v1.05.06/8.57)
+             */
+            if(   (wvalue->value.hasStatus)
+               && (wvalue->value.status != UA_STATUSCODE_GOOD)) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -1847,8 +1849,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                     break;
                 }
             }
-            /* Writing the SourceTimestamp requires the TimestampWrite bit */
-            if(wvalue->value.hasSourceTimestamp) {
+            /* Writing a SourceTimestamp different to NULL requires the
+             * TimestampWrite bit (see OPC specification 10000-3:
+             * AccessLevelType;
+             * https://reference.opcfoundation.org/specs/OPC-10000-3/v1.05.06/8.57)
+             */
+            if(   (wvalue->value.hasSourceTimestamp)
+               && (wvalue->value.sourceTimestamp != (UA_DateTime)(0))) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -1954,8 +1961,6 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_THREAD_LOCAL UA_Boolean preventAuditEventRecursion = false;
-
 UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
@@ -1964,16 +1969,16 @@ Operation_Write(UA_Server *server, UA_Session *session,
     /* Get the old value for the audit event */
 #ifdef UA_ENABLE_AUDITING
     UA_DataValue oldValue;
-    if(!preventAuditEventRecursion && server->config.auditingEnabled &&
+    if(!server->preventAuditEventRecursion && server->config.auditingEnabled &&
        server->config.auditWriteUpdateEnabled) {
-        preventAuditEventRecursion = true;
+        server->preventAuditEventRecursion = true;
         UA_ReadValueId rvi;
         UA_ReadValueId_init(&rvi);
         rvi.nodeId = wv->nodeId;
         rvi.attributeId = wv->attributeId;
         rvi.indexRange = wv->indexRange;
         oldValue = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-        preventAuditEventRecursion = false;
+        server->preventAuditEventRecursion = false;
     } else {
         UA_DataValue_init(&oldValue);
     }

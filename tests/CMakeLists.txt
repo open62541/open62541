@@ -193,6 +193,11 @@ function(ua_add_test test_path_relative)
     add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(${TEST_NAME} open62541-testplugins)
     target_link_libraries(${TEST_NAME} ${LIBS} ${arg_EXTRALIBS})
+    if(MSVC)
+        target_compile_options(${TEST_NAME} PRIVATE /FI${PROJECT_SOURCE_DIR}/tests/testing-plugins/check_subtest_logging.h)
+    else()
+        target_compile_options(${TEST_NAME} PRIVATE -include ${PROJECT_SOURCE_DIR}/tests/testing-plugins/check_subtest_logging.h)
+    endif()
     target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
     set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
@@ -229,6 +234,10 @@ if(UA_ENABLE_JSON_ENCODING)
     configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
+
+    if(UA_ENABLE_ENCRYPTION)
+        ua_add_test(server/check_json_config_pki.c)
+    endif()
 
     if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encoding_json.c)
@@ -272,7 +281,9 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP)
+if((${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR
+     ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin") AND
+   NOT UA_ARCHITECTURE_LWIP)
     ua_add_test(check_eventloop_interrupt.c)
 endif()
 
@@ -375,7 +386,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_publishspeed.c)
 
     ua_add_test(pubsub/check_pubsub_offset.c)
-    if(UA_ARCHITECTURE_POSIX)
+    if(UA_ARCHITECTURE_POSIX AND NOT APPLE)
         ua_add_test(pubsub/check_pubsub_custom_state_machine.c)
     endif()
 
@@ -482,6 +493,10 @@ if(UA_ENABLE_ENCRYPTION)
     endif()
 endif()
 
+if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    ua_add_test(server/check_discovery_mdnsd.c)
+endif()
+
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_encryption_basic128rsa15.c)
     ua_add_test(encryption/check_encryption_basic256.c)
@@ -519,6 +534,13 @@ endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR
    (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
     ua_add_test(encryption/check_encryption_eccnistp256.c)
+endif()
+
+# The AEAD ECC policies (AesGcm / ChaChaPoly) are implemented only in the
+# OpenSSL backend, so their tests are OpenSSL-only.
+if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    ua_add_test(encryption/check_encryption_eccnistp256_aesgcm.c)
+    ua_add_test(encryption/check_encryption_eccnistp256_chachapoly.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR

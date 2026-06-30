@@ -76,7 +76,7 @@ typedef void (*UA_Callback)(void *application, void *context);
 /* Delayed callbacks are executed not when they are registered, but in the
  * following EventLoop cycle */
 typedef struct UA_DelayedCallback {
-    struct UA_DelayedCallback *next;
+    UA_atomic(struct UA_DelayedCallback *)next;
     UA_Callback callback;
     void *application;
     void *context;

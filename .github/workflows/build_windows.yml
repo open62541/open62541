@@ -26,14 +26,14 @@ jobs:
             cc_name: "Clang"
             cc_shortname: clang-mingw
             generator: "Ninja"
-    runs-on: windows-latest
+    runs-on: windows-2022
     env:
       CC_NAME: ${{ matrix.cc_name }}
       CC_SHORTNAME: ${{ matrix.cc_shortname }}
       GENERATOR: ${{ matrix.generator }}
       ARCH: ${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
 

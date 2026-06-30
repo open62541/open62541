@@ -392,7 +392,8 @@ Subscriptions_delete_handler(UA_Client *client, void *data,
     __Client_Subscription_processDelete(client, &dsc->request, response);
 
     /* Userland Callback */
-    dsc->userCallback(client, dsc->userData, requestId, response);
+    if(dsc->userCallback)
+        dsc->userCallback(client, dsc->userData, requestId, response);
 
     /* Cleanup */
     UA_DeleteSubscriptionsRequest_clear(&dsc->request);

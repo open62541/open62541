@@ -11,6 +11,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -80,6 +81,11 @@ static void setup(void) {
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
+    /* ECC_nistP256 is deprecated (OPC UA Part 7) and no longer in the default
+     * policy set. Add it explicitly for this test. */
+    UA_ServerConfig_addSecurityPolicyEccNistP256(config, &certificate, &privateKey);
+    UA_ServerConfig_addAllEndpoints(config);
+
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
@@ -132,6 +138,11 @@ static void setup2(void) {
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
+    /* ECC_nistP256 is deprecated (OPC UA Part 7) and no longer in the default
+     * policy set. Add it explicitly for this test. */
+    UA_ServerConfig_addSecurityPolicyEccNistP256(config, &certificate, &privateKey);
+    UA_ServerConfig_addAllEndpoints(config);
+
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
@@ -176,6 +187,17 @@ createEncryptedClient_P256(void) {
                                          NULL, 0, NULL, 0);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    /* ECC_nistP256 is deprecated (OPC UA Part 7) and no longer in the default
+     * policy set. Add it explicitly to the client. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_EccNistP256(&cc->securityPolicies[cc->securityPoliciesSize],
+                                  UA_APPLICATIONTYPE_CLIENT, certificate, privateKey,
+                                  cc->logging);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
 
@@ -244,6 +266,17 @@ START_TEST(encryption_connect) {
                                          revocationList, revocationListSize);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    /* ECC_nistP256 is deprecated (OPC UA Part 7) and no longer in the default
+     * policy set. Add it explicitly to the client. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_EccNistP256(&cc->securityPolicies[cc->securityPoliciesSize],
+                                  UA_APPLICATIONTYPE_CLIENT, certificate, privateKey,
+                                  cc->logging);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
     ck_assert(client != NULL);
@@ -331,6 +364,16 @@ START_TEST(encryption_connect_pem) {
                                          revocationList, revocationListSize);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    /* ECC_nistP256 is deprecated (OPC UA Part 7) and no longer in the default
+     * policy set. Add it explicitly to the client. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_EccNistP256(&cc->securityPolicies[cc->securityPoliciesSize],
+                                  UA_APPLICATIONTYPE_CLIENT, certificate, privateKey,
+                                  cc->logging);
+    cc->securityPoliciesSize++;
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&cc->clientDescription.applicationUri);
@@ -509,6 +552,17 @@ START_TEST(encryption_connect_sign_only) {
                                          NULL, 0, NULL, 0);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    /* ECC_nistP256 is deprecated (OPC UA Part 7) and no longer in the default
+     * policy set. Add it explicitly to the client. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_EccNistP256(&cc->securityPolicies[cc->securityPoliciesSize],
+                                  UA_APPLICATIONTYPE_CLIENT, certificate, privateKey,
+                                  cc->logging);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGN;

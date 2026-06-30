@@ -117,7 +117,7 @@ Service_FindServers(UA_Server *server, UA_Session *session,
 
     response->serversSize = 1;
 #else
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return true;
@@ -231,7 +231,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              UA_FindServersOnNetworkResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return true;
@@ -310,15 +310,18 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
     UA_SecurityPolicy *best = NULL;
     UA_Byte securityLevel = 0;
 
+    (void)type;
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
             continue;
-        if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
-           type == UA_SECURITYPOLICYTYPE_ECC)
-            continue;
-        if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC &&
-           type == UA_SECURITYPOLICYTYPE_RSA)
+        /* This SecurityPolicy is used to secure a UserIdentityToken on top of a
+         * #None SecureChannel (the only situation this function is called for).
+         * ECC and RSA-DH policies use ephemeral key agreement that must be
+         * bound to a secured SecureChannel - they must never be used to secure
+         * an auth token over #None. Only the static-RSA encryption policies
+         * (e.g. Basic256Sha256, Aes*_RsaOaep/RsaPss) qualify. */
+        if(UA_SecurityPolicy_isEcc(sp) || UA_SecurityPolicy_isEnhancedSecurity(sp))
             continue;
         /* Return early with Basic256Sha256 when available. "Secure enough" and
          * most clients support it.*/
@@ -336,6 +339,7 @@ static const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+e
 
 UA_String
 securityPolicyUriPostfix(const UA_String uri) {
+    if(uri.length == 0) return uri;
     for(UA_Byte *b = uri.data + uri.length - 1; b >= uri.data; b--) {
         if(*b != '#')
             continue;
@@ -436,8 +440,7 @@ updateEndpointUserIdentityToken(UA_Server *server,
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
-                         const UA_String endpointUrl,
+setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize) {
     UA_ServerConfig *sc = &server->config;
@@ -481,11 +484,6 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
                            "%S which is not available", ep->securityPolicyUri);
             continue;
         }
-
-        /* Coming from CreateSession we have a channel already. Only return
-         * Endpoints where SecurityPolicy is an exact match. */
-        if(channel && channel->securityPolicy != sp)
-            continue;
 
         /* Copy into the results */
         for(size_t i = 0; i < clone_times; ++i) {
@@ -581,7 +579,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
     response->responseHeader.serviceResult =
-        setCurrentEndPointsArray(server, NULL, request->endpointUrl,
+        setCurrentEndpointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
     return true;
@@ -602,7 +600,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                        UA_DiagnosticInfo *responseDiagnosticInfos) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(!dm)
         return;
 

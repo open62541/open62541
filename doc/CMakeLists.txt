@@ -1,5 +1,6 @@
 find_package(Sphinx)
 find_package(LATEX)
+find_program(LUALATEX_COMPILER NAMES lualatex)
 
 set(DOC_LATEX_DIR ${PROJECT_BINARY_DIR}/doc_latex)
 set(DOC_HTML_DIR ${PROJECT_BINARY_DIR}/doc)
@@ -14,6 +15,26 @@ list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/conf.py")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/CMakeLists.txt")
 string(REPLACE "${PROJECT_SOURCE_DIR}/doc" "${DOC_SRC_DIR}" DOC_TARGET "${DOC_SRC}")
 file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
+
+# Recursively copy sub-directories (e.g. doc/security/) so nested RST
+# sources are picked up by the Sphinx build.
+file(GLOB DOC_SUBDIR_SRC "${PROJECT_SOURCE_DIR}/doc/*/")
+set(DOC_SUBDIR_TARGET "")
+foreach(SUBDIR ${DOC_SUBDIR_SRC})
+    get_filename_component(SUBDIR_NAME "${SUBDIR}" NAME)
+    file(GLOB_RECURSE SUBDIR_FILES "${SUBDIR}*")
+    foreach(SRC_FILE ${SUBDIR_FILES})
+        string(REPLACE "${PROJECT_SOURCE_DIR}/doc/" "" SRC_REL "${SRC_FILE}")
+        set(DST_FILE "${DOC_SRC_DIR}/${SRC_REL}")
+        list(APPEND DOC_SUBDIR_TARGET "${DST_FILE}")
+        add_custom_command(OUTPUT "${DST_FILE}"
+                           COMMAND ${CMAKE_COMMAND} -E copy
+                                   "${SRC_FILE}" "${DST_FILE}"
+                           DEPENDS "${SRC_FILE}"
+                           COMMENT "Copy ${SRC_REL} to doc_src")
+    endforeach()
+endforeach()
+list(APPEND DOC_TARGET ${DOC_SUBDIR_TARGET})
 
 configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
 
@@ -38,6 +59,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/common.h ${DOC_SRC_DIR}/com
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/util.h ${DOC_SRC_DIR}/util.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/server.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_driver.h ${DOC_SRC_DIR}/server_driver.rst)
 
 # PubSub docs are concatendated from multiple files
 add_custom_command(OUTPUT ${DOC_SRC_DIR}/pubsub.rst
@@ -101,11 +123,11 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
                   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
-add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
+add_custom_target(doc_pdf ${LUALATEX_COMPILER} -interaction=batchmode "open62541.tex"
                   WORKING_DIRECTORY ${DOC_LATEX_DIR}
                   # compile it twice so that the contents pages are correct
-                  COMMAND ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
-                  DEPENDS ${PDFLATEX_COMPILER}
+                  COMMAND ${LUALATEX_COMPILER} -interaction=batchmode "open62541.tex"
+                  DEPENDS ${LUALATEX_COMPILER}
                   COMMENT "Generating PDF documentation from LaTeX sources")
 add_dependencies(doc_pdf doc_latex)
 

@@ -2,7 +2,7 @@ name: "Documentation Upload"
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 1.5 ]
     tags:
       - v1.*
 
@@ -10,7 +10,7 @@ jobs:
   Documentation-Generation-And-Upload:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-python@v6
@@ -20,12 +20,12 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
+          sudo apt-get install -y -qq texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra texlive-luatex graphviz
           pip install -r doc/requirements.txt
       - name: Build Documentation
         run: source tools/ci/linux/ci.sh && build_docs_pdf
       - name: Checkout Website Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: open62541/open62541-www
           path: open62541-www

@@ -399,6 +399,23 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     UA_ByteString *data,
                                     UA_Boolean decryptData);
 
+/* AES-128-GCM AEAD encrypt/decrypt.
+ * If encryptData/decryptData is true, the data part is encrypted or decrypted.
+ * Otherwise, only the authentication tag is computed/verified. */
+UA_StatusCode
+UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               const UA_ByteString *aad,
+                               UA_ByteString *data,
+                               UA_Boolean encryptData);
+
+UA_StatusCode
+UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               const UA_ByteString *aad,
+                               UA_ByteString *data,
+                               UA_Boolean decryptData);
+
 
 /* EdDSA Ed448 signing and verification */
 UA_StatusCode

@@ -369,13 +369,8 @@ struct createMonContext {
 static void
 notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
                     UA_ApplicationNotificationType type) {
-    /* Nothing to do? */
-    if(!server->config.globalNotificationCallback &&
-       !server->config.subscriptionNotificationCallback)
-        return;
-
     /* Set up the key-value map */
-    static UA_THREAD_LOCAL UA_KeyValuePair notifyMonData[13] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyMonData[13] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
         {{0, UA_STRING_STATIC("monitoreditem-id")}, {0}},
@@ -428,10 +423,7 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Notify the application */
-    if(server->config.subscriptionNotificationCallback)
-        server->config.subscriptionNotificationCallback(server, type, notifyMonMap);
-    if(server->config.globalNotificationCallback)
-        server->config.globalNotificationCallback(server, type, notifyMonMap);
+    notifyApplication(server, type, notifyMonMap);
 }
 
 static void

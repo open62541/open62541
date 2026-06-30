@@ -305,7 +305,7 @@ jobs:
           IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
           echo "New IPv6 status on eth0: $IPV6"
           [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }      
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Install Dependencies
@@ -319,6 +319,6 @@ jobs:
         env:
           ETHERNET_INTERFACE: eth0
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

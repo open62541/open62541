@@ -66,7 +66,7 @@ static void
 UA_Discovery_multicastConflict(UA_String name, UA_DiscoveryManager *dm) {
     /* In case logging is disabled */
     (void)name;
-    UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                  "Multicast DNS name conflict detected: '%S'", name);
 }
 
@@ -111,7 +111,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
         return UA_STATUSCODE_BADALREADYEXISTS;
     }
 
-    UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(dm->drv.server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Multicast DNS: Add entry to ServersOnNetwork: (%S)", serverName);
 
     struct serverOnNetwork *listEntry = (serverOnNetwork*)
@@ -120,7 +120,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
 
-    UA_EventLoop *el = dm->sc.server->config.eventLoop;
+    UA_EventLoop *el = dm->drv.server->config.eventLoop;
     listEntry->created = el->dateTime_now(el);
     listEntry->pathTmp = NULL;
     listEntry->txtSet = false;
@@ -172,7 +172,7 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
         return;
     UA_DiscoveryManager *dm = (UA_DiscoveryManager *)userdata;
     if(!g) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "AvahiEntryGroup or userdata is NULL");
         return;
     }
@@ -187,12 +187,12 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
     }
     switch(state) {
         case AVAHI_ENTRY_GROUP_ESTABLISHED:
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Entry group established.");
             break;
         case AVAHI_ENTRY_GROUP_COLLISION: {
             if(!groupFound) {
-                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                              "Entry group collision for unknown group.");
                 break;
             }
@@ -201,7 +201,7 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
         }
         case AVAHI_ENTRY_GROUP_FAILURE:
             UA_LOG_ERROR(
-                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Entry group failure: %s",
                 avahi_strerror(avahi_client_errno(avahi_entry_group_get_client(g))));
 
@@ -212,7 +212,7 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
         case AVAHI_ENTRY_GROUP_REGISTERING:
             break;
         default:
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "Unknown entry group state");
             break;
     }
@@ -221,7 +221,7 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
 static UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
                                                     UA_String serverName) {
-    UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(dm->drv.server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Multicast DNS: Remove entry from ServersOnNetwork: %S",serverName);
 
     struct serverOnNetwork *entry =
@@ -268,7 +268,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
 UA_StatusCode
 UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm) {
     if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "DiscoveryManager is NULL");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -319,7 +319,7 @@ UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
 UA_UInt32
 UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm) {
     if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "DiscoveryManager is NULL");
         return 0;
     }
@@ -329,20 +329,20 @@ UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm) {
 UA_StatusCode
 UA_DiscoveryManager_resetServerOnNetworkRecordCounter(UA_DiscoveryManager *dm) {
     if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "DiscoveryManager is NULL");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     mdnsPrivateData.serverOnNetworkRecordIdCounter = 0;
-    mdnsPrivateData.serverOnNetworkRecordIdLastReset = dm->sc.server->config.eventLoop->dateTime_now(
-        dm->sc.server->config.eventLoop);
+    mdnsPrivateData.serverOnNetworkRecordIdLastReset =
+        dm->drv.server->config.eventLoop->dateTime_now(dm->drv.server->config.eventLoop);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_DateTime
 UA_DiscoveryManager_getServerOnNetworkCounterResetTime(UA_DiscoveryManager *dm) {
     if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "DiscoveryManager is NULL");
         return 0;
     }
@@ -388,7 +388,7 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     UA_StatusCode retval =
         UA_parseEndpointUrl(discoveryUrl, &hostname, &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Server url is invalid: %S", *discoveryUrl);
         return retval;
     }
@@ -397,17 +397,17 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
         /* get host name used by avahi */
         const char *hoststr = avahi_client_get_host_name(mdnsPrivateData.client);
         if(!hoststr) {
-            UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                            "Cannot get hostname from avahi");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         hostname = UA_String_fromChars(hoststr);
     }
     retval = UA_Discovery_addRecord(dm, serverName, hostname, port, path, UA_DISCOVERY_TCP, true,
-                                    dm->sc.server->config.mdnsConfig.serverCapabilities,
-                                    dm->sc.server->config.mdnsConfig.serverCapabilitiesSize, true);
+                                    dm->drv.server->config.mdnsConfig.serverCapabilities,
+                                    dm->drv.server->config.mdnsConfig.serverCapabilitiesSize, true);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Cannot add mDNS Record: %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -418,7 +418,7 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
 static
 void client_callback(AvahiClient *c, AvahiClientState state, void *userdata) {
     /* Handle state changes if necessary */
-    UA_LOG_INFO(((UA_DiscoveryManager *)userdata)->sc.server->config.logging,
+    UA_LOG_INFO(((UA_DiscoveryManager *)userdata)->drv.server->config.logging,
                 UA_LOGCATEGORY_DISCOVERY, "Avahi client state changed to %d", state);
 }
 
@@ -436,7 +436,7 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
     switch(event) {
         case AVAHI_RESOLVER_FAILURE:
             UA_LOG_ERROR(
-                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Failed to resolve service '%s' of type '%s' in domain '%s': %s", name,
                 type, domain,
                 avahi_strerror(avahi_client_errno(avahi_service_resolver_get_client(r))));
@@ -455,21 +455,21 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
             UA_StatusCode res =
                 UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
             if(res == UA_STATUSCODE_BADALREADYEXISTS) {
-                UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                UA_LOG_DEBUG(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                              "Server already in ServersOnNetwork: %s", name);
                 return;
             }
             if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                              "Failed to add server to ServersOnNetwork: %s",
                              UA_StatusCode_name(res));
                 return;
             }
 
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Service '%s' of type '%s' in domain '%s':", name, type, domain);
 
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "  %s:%u (%s)", host_name, port, a);
 
             /* Add discoveryUrl opc.tcp://[servername]:[port][path] */
@@ -496,14 +496,14 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
             UA_String_clear(&path);
 
             listEntry->lastSeen =
-                dm->sc.server->config.eventLoop->
-                dateTime_nowMonotonic(dm->sc.server->config.eventLoop);
+                dm->drv.server->config.eventLoop->
+                dateTime_nowMonotonic(dm->drv.server->config.eventLoop);
 
             break;
         }
 
         default:
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Invalid avahi resolver event %d", event);
             break;
 
@@ -520,7 +520,7 @@ browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, AvahiProtocol pr
     switch(event) {
         case AVAHI_BROWSER_FAILURE:
             UA_LOG_ERROR(
-                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Browser failure: %s",
                 avahi_strerror(avahi_client_errno(avahi_service_browser_get_client(b))));
             avahi_simple_poll_quit(mdnsPrivateData.simple_poll);
@@ -534,13 +534,13 @@ browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, AvahiProtocol pr
                    mdnsPrivateData.client, interface, protocol, name, type, domain, AVAHI_PROTO_INET,
                    AVAHI_LOOKUP_USE_MULTICAST, resolve_callback, dm))) {
                 UA_LOG_INFO(
-                    dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                    dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                     "Failed to resolve service '%s' of type '%s' in domain '%s': %s",
                     name, type, domain, avahi_strerror(avahi_client_errno(mdnsPrivateData.client)));
             }
             break;
         case AVAHI_BROWSER_REMOVE:
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Service '%s' of type '%s' in domain '%s' removed", name, type,
                         domain);
             UA_String nameStr = UA_STRING_ALLOC(name);
@@ -549,7 +549,7 @@ browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, AvahiProtocol pr
             break;
         case AVAHI_BROWSER_ALL_FOR_NOW:
         case AVAHI_BROWSER_CACHE_EXHAUSTED:
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Browser %s",
                         event == AVAHI_BROWSER_CACHE_EXHAUSTED ? "CACHE_EXHAUSTED"
                                                                : "ALL_FOR_NOW");
@@ -562,7 +562,7 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
     int error;
     mdnsPrivateData.simple_poll = avahi_simple_poll_new();
     if(!mdnsPrivateData.simple_poll) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to create avahi simple poll");
         return;
     }
@@ -570,14 +570,14 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
     mdnsPrivateData.client = avahi_client_new(avahi_simple_poll_get(mdnsPrivateData.simple_poll),
                                   AVAHI_CLIENT_NO_FAIL, client_callback, dm, &error);
     if(!mdnsPrivateData.client) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to create avahi client: %s", avahi_strerror(error));
         return;
     }
     /* Add record for the server itself */
-    UA_String appName = dm->sc.server->config.mdnsConfig.mdnsServerName;
-    for(size_t i = 0; i < dm->sc.server->config.serverUrlsSize; i++)
-        addMdnsRecordForNetworkLayer(dm, appName, &dm->sc.server->config.serverUrls[i]);
+    UA_String appName = dm->drv.server->config.mdnsConfig.mdnsServerName;
+    for(size_t i = 0; i < dm->drv.server->config.serverUrlsSize; i++)
+        addMdnsRecordForNetworkLayer(dm, appName, &dm->drv.server->config.serverUrls[i]);
 
     mdnsPrivateData.browser = avahi_service_browser_new(mdnsPrivateData.client, AVAHI_IF_UNSPEC, AVAHI_PROTO_INET,
                               "_opcua-tcp._tcp", NULL, AVAHI_LOOKUP_USE_MULTICAST,
@@ -586,7 +586,7 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
 
 void
 UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
-    UA_Server *server = dm->sc.server;
+    UA_Server *server = dm->drv.server;
     for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
         UA_String hostname = UA_STRING_NULL;
         UA_String path = UA_STRING_NULL;
@@ -656,7 +656,7 @@ UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String 
     UA_StatusCode retval =
         UA_parseEndpointUrl(&discoveryUrl, &hostname, &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Server url invalid: %S", discoveryUrl);
         return;
     }
@@ -666,7 +666,7 @@ UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String 
                 UA_Discovery_removeRecord(dm, serverName, hostname,
                                           port, updateTxt);
         if(removeRetval != UA_STATUSCODE_GOOD)
-            UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                            "Could not remove mDNS record for hostname %S", serverName);
         return;
     }
@@ -683,7 +683,7 @@ UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String 
                                port, path, UA_DISCOVERY_TCP, updateTxt,
                                capabilities, capabilitiesSize, false);
     if(addRetval != UA_STATUSCODE_GOOD)
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Could not add mDNS record for hostname %S", serverName);
 }
 
@@ -692,7 +692,7 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
     lockServer(server);
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
@@ -836,11 +836,11 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     /* Use a limit for the hostname length to make sure full string fits into 63
      * chars (limited by DNS spec) */
     if(hostname.length + servername.length + 1 > 63) { /* include dash between servername-hostname */
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: Combination of hostname+servername exceeds "
                        "maximum of 62 chars. It will be truncated.");
     } else if(hostname.length > 63) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: Hostname length exceeds maximum of 63 chars. "
                        "It will be truncated.");
     }
@@ -858,7 +858,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     if(exists == true)
         return UA_STATUSCODE_GOOD;
 
-    UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Multicast DNS: add record for domain: %S", serviceDomain);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -916,14 +916,14 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     AvahiStringList *txt = NULL;
     /* Handle 'path' */
     if(handle_path(&txt, path) != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to add TXT record for %S", serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     /* Handle 'caps' */
     if(capabilitiesSize > 0) {
         if(handle_capabilities(&txt, capabilites, capabilitiesSize) != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "Failed to add TXT record for %s", serviceDomain);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -935,7 +935,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     size_t hostnameLen = hostname.length + strlen(".local");
     char *hostnameStr = (char *)avahi_malloc(hostnameLen + 1);
     if(!hostnameStr) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to add TXT record for %s", serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -953,18 +953,18 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
         if(ret == AVAHI_ERR_COLLISION) {
             UA_Discovery_multicastConflict(serviceDomain, dm);
         } else {
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "Failed to add TXT record for %s", serviceDomain);
             goto cleanup;
         }
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to add TXT record for %s", serviceDomain);
         goto cleanup;
     }
     avahi_free(hostnameStr);
 
     if(avahi_entry_group_commit(listEntry->group) < 0) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to commit entry group for %s", serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -986,7 +986,7 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
         return UA_STATUSCODE_BADOUTOFRANGE;
 
     if(hostname.length + servername.length + 1 > 63) { /* include dash between servername-hostname */
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: Combination of hostname+servername exceeds "
                        "maximum of 62 chars. It will be truncated.");
     }
@@ -996,7 +996,7 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
     UA_String serviceDomain = {64, serviceDomainBuf};
     createServiceDomain(&serviceDomain, servername, hostname);
 
-    UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_INFO(dm->drv.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Multicast DNS: remove record for domain: %S", serviceDomain);
 
     return UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, serviceDomain);

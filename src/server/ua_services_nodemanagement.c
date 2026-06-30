@@ -2328,6 +2328,17 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
             *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
             return;
         }
+        if(item->targetNodeClass != UA_NODECLASS_UNSPECIFIED &&
+           item->targetNodeClass != targetNode->head.nodeClass) {
+            UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                                 "Cannot add reference - target %N has NodeClass %u "
+                                 "but request expects %u",
+                                 item->targetNodeId.nodeId, (unsigned)targetNode->head.nodeClass,
+                                 (unsigned)item->targetNodeClass);
+            UA_NODESTORE_RELEASE(server, targetNode);
+            *retval = UA_STATUSCODE_BADNODECLASSINVALID;
+            return;
+        }
     }
 
     UA_Node *sourceNode =
@@ -2646,7 +2657,7 @@ UA_Server_setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId
 /*****************************/
 
 struct SetExternalValueContext {
-    UA_DataValue **value;
+    UA_atomic(UA_DataValue *)* value;
     const UA_ValueSourceNotifications *notifications;
 };
 
@@ -2678,13 +2689,15 @@ setExternalValueSourceCB(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId nodeId,
-                                              UA_DataValue **value,
+                                              UA_DataValue** value,
                                               const UA_ValueSourceNotifications *notifications) {
     if(!server || !value || !*value)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     struct SetExternalValueContext ctx;
-    ctx.value = value;
+    /* Cast through uintptr_t to silence a compiler warnings. We do not expose
+     * "value" as atomic in the public API. The fallout is too much atm. */
+    ctx.value = (UA_atomic(UA_DataValue*)*)(uintptr_t)value;
     ctx.notifications = notifications;
     UA_StatusCode res = editNode(server, &server->adminSession, &nodeId,
                                  UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,

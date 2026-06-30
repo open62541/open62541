@@ -60,44 +60,44 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     dc->next = NULL;
 
-    /* el->delayedTail points either to prev->next or to the head.
-     * We need to update two locations:
-     * 1: el->delayedTail = &dc->next;
-     * 2: *oldtail = dc; (equal to &dc->next)
+    /* el->delayedTail points either to prev->next or to the head. In an atomic
+     * xchg-operation we make the tail point to dc. This also gives us
+     * prev->next. Then we make prev->next point to dc.
      *
-     * Once we have (1), we "own" the previous-to-last entry. No need to worry
-     * about (2), we can adjust it with a delay. This makes the queue
-     * "eventually consistent". */
-    UA_DelayedCallback **oldtail = (UA_DelayedCallback**)
-        UA_atomic_xchg((void**)&el->delayedTail, &dc->next);
-    UA_atomic_xchg((void**)oldtail, &dc->next);
+     * This is thread-safe. Another thread might retrieve dc from the tail.
+     * Then he can set dc->next while we are still updating prev->next.
+     * It is ensured that only on thread can updated dc->next. */
+    UA_atomic(UA_atomic(UA_DelayedCallback*)*) prev_next;
+    UA_atomic_xchg(&el->delayedTail, &dc->next, &prev_next);
+    UA_atomic_store(prev_next, dc);
 }
 
 /* Resets the delayed queue and returns the previous head and tail */
 static void
-resetDelayedQueue(UA_EventLoopPOSIX *el, UA_DelayedCallback **oldHead,
-                  UA_DelayedCallback **oldTail) {
+resetDelayedQueue(UA_EventLoopPOSIX *el,
+                  UA_atomic(UA_DelayedCallback*)* oldHead,
+                  UA_atomic(UA_atomic(UA_DelayedCallback*)*)* oldTail) {
     if(el->delayedHead1 <= (UA_DelayedCallback *)0x01 &&
        el->delayedHead2 <= (UA_DelayedCallback *)0x01)
         return; /* The queue is empty */
 
+    /* Get the location of the active and the inactive head */
     UA_Boolean active1 = (el->delayedHead1 != (UA_DelayedCallback*)0x01);
-    UA_DelayedCallback **activeHead = (active1) ? &el->delayedHead1 : &el->delayedHead2;
-    UA_DelayedCallback **inactiveHead = (active1) ? &el->delayedHead2 : &el->delayedHead1;
+    UA_atomic(UA_DelayedCallback*)* activeHead = (active1) ? &el->delayedHead1 : &el->delayedHead2;
+    UA_atomic(UA_DelayedCallback*)* inactiveHead = (active1) ? &el->delayedHead2 : &el->delayedHead1;
 
-    /* Switch active/inactive by resetting the sentinel values. The (old) active
-     * head points to an element which we return. Parallel threads continue to
-     * add elements to the queue "below" the first element. */
-    UA_atomic_xchg((void**)inactiveHead, NULL);
-    *oldHead = (UA_DelayedCallback *)
-        UA_atomic_xchg((void**)activeHead, (void*)0x01);
+    /* Set NULL to the inactive head. This indicates it is now active. */
+    UA_atomic_store(inactiveHead, NULL);
 
-    /* Make the tail point to the (new) active head. Return the value of last
-     * tail. When iterating over the queue elements, we need to find this tail
-     * as the last element. If we find a NULL next-pointer before hitting the
-     * tail spinlock until the pointer updates (eventually consistent). */
-    *oldTail = (UA_DelayedCallback*)
-        UA_atomic_xchg((void**)&el->delayedTail, inactiveHead);
+    /* Set a sentinel value to "inactivate" the active head. Return the old
+     * active head. Parallel threads may continue to add elements below the old
+     * "activeHead" if they already have a pointer. */
+    UA_atomic_xchg(activeHead, (UA_DelayedCallback*)0x01, oldHead);
+
+    /* Make the inactiveHead the new "active" by pointing to it from the tail.
+     * Also return the old tail. From the consumer-thread we can then iterate
+     * the linked-list until we find the old tail as the last element. */
+    UA_atomic_xchg(&el->delayedTail, inactiveHead, oldTail);
 }
 
 static void
@@ -107,8 +107,14 @@ UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
     UA_LOCK(&el->elMutex);
 
     /* Reset and get the old head and tail */
-    UA_DelayedCallback *cur = NULL, *tail = NULL;
+    UA_atomic(UA_DelayedCallback *) cur = NULL;
+    UA_atomic(UA_atomic(UA_DelayedCallback*)*) tail = NULL;
     resetDelayedQueue(el, &cur, &tail);
+
+    /* tail points to the location where the next element shall be inserted: The
+     * next-pointer of the last element. Since the next-pointer is the first
+     * struct member, we can directly cast to the last element. */
+    UA_DelayedCallback *last = (UA_DelayedCallback*)(uintptr_t)tail;
 
     /* Loop until we reach the tail (or head and tail are both NULL) */
     UA_DelayedCallback *next;
@@ -116,8 +122,8 @@ UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
         /* Spin-loop until the next-pointer of cur is updated.
          * The element pointed to by tail must appear eventually. */
         next = cur->next;
-        while(!next && cur != tail)
-            next = (UA_DelayedCallback *)UA_atomic_load((void**)&cur->next);
+        while(!next && cur != last)
+            next = UA_atomic_load(&cur->next);
         if(cur == dc)
             continue;
         UA_EventLoopPOSIX_addDelayedCallback(public_el, cur);
@@ -134,15 +140,21 @@ processDelayed(UA_EventLoopPOSIX *el) {
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Reset and get the old head and tail */
-    UA_DelayedCallback *dc = NULL, *tail = NULL;
+    UA_atomic(UA_DelayedCallback *) dc = NULL;
+    UA_atomic(UA_atomic(UA_DelayedCallback*)*) tail = NULL;
     resetDelayedQueue(el, &dc, &tail);
+
+    /* tail points to the location where the next element shall be inserted: The
+     * next-pointer of the last element. Since the next-pointer is the first
+     * struct member, we can directly cast to the last element. */
+    UA_DelayedCallback *last = (UA_DelayedCallback*)(uintptr_t)tail;
 
     /* Loop until we reach the tail (or head and tail are both NULL) */
     UA_DelayedCallback *next;
     for(; dc; dc = next) {
         next = dc->next;
-        while(!next && dc != tail)
-            next = (UA_DelayedCallback *)UA_atomic_load((void**)&dc->next);
+        while(!next && dc != last)
+            next = UA_atomic_load(&dc->next);
         if(!dc->callback)
             continue;
         dc->callback(dc->application, dc->context);
@@ -735,14 +747,10 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 static void
 flushSelfPipe(UA_SOCKET s) {
     char buf[128];
-#ifdef UA_ARCHITECTURE_WIN32
-    recv(s, buf, 128, 0);
-#else
-    ssize_t i;
+    int i;
     do {
-        i = read(s, buf, 128);
+        i = UA_recv(s, buf, 128, 0);
     } while(i > 0);
-#endif
 }
 
 #if !defined(UA_HAVE_EPOLL)
@@ -1049,7 +1057,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
 #endif /* defined(UA_HAVE_EPOLL) */
 
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#ifdef UA_ARCHITECTURE_WIN32
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
@@ -1069,12 +1077,7 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
     int err = connect(fds[0], (struct sockaddr*)&addr, len);
     fds[1] = accept(lst, 0, 0);
-#ifdef UA_ARCHITECTURE_WIN32
-    closesocket(lst);
-#endif
-#ifdef __APPLE__
-    close(lst);
-#endif
+    UA_close(lst);
 
     UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
     UA_EventLoopPOSIX_setReusable(fds[0]);
@@ -1084,18 +1087,16 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     UA_EventLoopPOSIX_setNonBlocking(fds[1]);
     return err;
 }
-#elif defined(__QNX__)
-int UA_EventLoopPOSIX_pipe(int fds[2]) {
-    int err = pipe(fds); 
-    if(err == -1) {
-      return err;
-    }
-
-    err = fcntl(fds[0], F_SETFL, O_NONBLOCK);
-    if(err == -1) {
-      return err;
-    }
-    return err;
+#else
+int UA_EventLoopPOSIX_pipe(UA_FD fds[2]) {
+    int err = socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+    if(err != 0)
+        return err;
+    UA_EventLoopPOSIX_setNonBlocking(fds[0]);
+    UA_EventLoopPOSIX_setNonBlocking(fds[1]);
+    UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
+    UA_EventLoopPOSIX_setNoSigPipe(fds[1]);
+    return 0;
 }
 #endif
 
@@ -1106,11 +1107,7 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
         return;
 
     /* Trigger the self-pipe */
-#ifdef UA_ARCHITECTURE_WIN32
-    int err = send(el->selfpipe[1], ".", 1, 0);
-#else
-    ssize_t err = write(el->selfpipe[1], ".", 1);
-#endif
+    int err = (int)UA_send(el->selfpipe[1], ".", 1, 0);
     if(err <= 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
