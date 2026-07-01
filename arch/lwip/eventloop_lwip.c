@@ -719,9 +719,16 @@ UA_EventLoopLWIP_allocateStaticBuffers(UA_LWIPConnectionManager *pcm) {
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(configRxBufSize)
         rxBufSize = *configRxBufSize;
+    else
+        /* Write the resolved default back into the CM params so the
+         * SecureChannel constraint logic in ua_server_binary.c caps the
+         * channel to the actual static-buffer size. */
+        res |= UA_KeyValueMap_setScalar(&pcm->cm.eventSource.params,
+                                        UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                        &rxBufSize, &UA_TYPES[UA_TYPES_UINT32]);
     if(pcm->rxBuffer.length != rxBufSize) {
         UA_ByteString_clear(&pcm->rxBuffer);
-        res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
+        res |= UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
 
     /* Default the tx buffer to the rx size so a dedicated static send buffer
@@ -734,6 +741,10 @@ UA_EventLoopLWIP_allocateStaticBuffers(UA_LWIPConnectionManager *pcm) {
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(configTxBufSize)
         txBufSize = *configTxBufSize;
+    else
+        res |= UA_KeyValueMap_setScalar(&pcm->cm.eventSource.params,
+                                        UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                        &txBufSize, &UA_TYPES[UA_TYPES_UINT32]);
     if(pcm->txBuffer.length != txBufSize) {
         UA_ByteString_clear(&pcm->txBuffer);
         res |= UA_ByteString_allocBuffer(&pcm->txBuffer, txBufSize);
