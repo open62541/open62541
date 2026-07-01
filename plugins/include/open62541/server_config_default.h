@@ -33,13 +33,22 @@ UA_ConnectionConfig UA_ConnectionConfig_default;
  * endpoint with the security policy ``SecurityPolicy#None`` to the server.
  * If the port is set to 0, it will be dynamically assigned.
  * A server certificate may be supplied but is optional.
- * Additionally you can define a custom buffer size for send and receive buffer.
+ *
+ * Note: a single buffer size is used for both send and receive. It is taken
+ * from ``recvBufferSize`` and stored in ``config->tcpBufSize``, which drives
+ * both ``connConfig.recvBufferSize`` and ``connConfig.sendBufferSize`` (see
+ * ua_server_binary.c). The ``sendBufferSize`` argument is accepted for
+ * signature stability but is not stored separately; pass the same value for
+ * both, or use ``UA_ServerConfig_setMinimal`` (which passes 0,0 and falls back
+ * to a 64kB default).
  *
  * @param portNumber The port number for the tcp network layer
  * @param certificate Optional certificate for the server endpoint. Can be
  *        ``NULL``.
- * @param sendBufferSize The size in bytes for the network send buffer
- * @param recvBufferSize The size in bytes for the network receive buffer
+ * @param sendBufferSize Unused (kept for ABI stability); pass the same value as
+ *        ``recvBufferSize``.
+ * @param recvBufferSize The size in bytes for the network send AND receive
+ *        buffer.
  *
  */
 UA_EXPORT UA_StatusCode

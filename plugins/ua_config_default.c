@@ -668,7 +668,11 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    /* Set the TCP settings */
+    /* Set the TCP settings.
+     * A single buffer size is used for both directions: this value drives both
+     * connConfig.recvBufferSize and connConfig.sendBufferSize (see
+     * ua_server_binary.c). The sendBufferSize argument is intentionally not
+     * stored separately. */
     config->tcpBufSize = recvBufferSize;
 
     /* Allocate the SecurityPolicies */
