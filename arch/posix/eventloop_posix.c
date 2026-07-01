@@ -646,7 +646,7 @@ UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
 UA_StatusCode
 UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
+    UA_UInt32 rxBufSize = 1u << 16; /* The default is 64 kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),

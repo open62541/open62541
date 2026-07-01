@@ -481,7 +481,7 @@ UA_EventLoopZephyr_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connect
 UA_StatusCode
 UA_EventLoopZephyr_allocateStaticBuffers(UA_ZephyrConnectionManager *pcm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_UInt32 rxBufSize = 2u << 13; /* The default is 64kb */
+    UA_UInt32 rxBufSize = 2u << 13; /* The default is 16 kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
         &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "recv-bufsize"),
         &UA_TYPES[UA_TYPES_UINT32]);
