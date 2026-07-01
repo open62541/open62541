@@ -16,10 +16,13 @@
  *
  * Known Limitations (OPC UA Part 18 / Part 3 / Part 5):
  *
- * - TrustedApplication role (i=18625) is not registered because the current
- *   nodeset version does not assign that node ID to the role and
- *   IdentityCriteriaType value 9 (TrustedApplication) is absent from
- *   the generated type definitions.
+ * - TrustedApplication is a required well-known role per Part 18 §4.3
+ *   (i=18625, default identity IdentityCriteriaType.TrustedApplication).
+ *   The node ID and the IdentityCriteriaType value 9 are both generated
+ *   under UA_NAMESPACE_ZERO=FULL, but this role is intentionally not
+ *   added to the standard role registration arrays (see
+ *   initializeStandardRoles / initNS0RBAC) because the trusted-application
+ *   session-assignment path is not yet evaluated during role resolution.
  *
  * - Writing RolePermissions via the OPC UA attribute service (Part 3
  *   §5.2.9) returns BadNotWritable.  Use the C API instead:
