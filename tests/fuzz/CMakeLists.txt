@@ -64,6 +64,14 @@ set(FUZZER_TARGETS)
 macro(add_fuzzer FUZZER_NAME FUZZER_SOURCE)
     add_executable(${FUZZER_NAME} ${FUZZER_SOURCE}
                                   ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+                                  # test_helpers.c is needed because fuzz_client.cc
+                                  # (and potentially others) call
+                                  # UA_Client_newForUnitTest / UA_Server_newForUnitTest,
+                                  # which the 1.5 refactor in commit 58cdcbe22 introduced.
+                                  # testing_clock.c is a transitive dependency of
+                                  # test_helpers.c (UA_DateTime_now_fake).
+                                  ${PROJECT_SOURCE_DIR}/tests/testing-plugins/test_helpers.c
+                                  ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                                   $<TARGET_OBJECTS:open62541-object>
                                   $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(${FUZZER_NAME} ${LIBS})
