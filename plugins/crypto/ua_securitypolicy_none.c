@@ -132,13 +132,21 @@ compareCertificate_none(const UA_SecurityPolicy *policy,
     return UA_STATUSCODE_GOOD;
 }
 
+static void policy_clear_none(UA_SecurityPolicy *policy);
+
 static UA_StatusCode
 updateCertificate_none(UA_SecurityPolicy *policy,
                        const UA_ByteString certificate,
                        const UA_ByteString privateKey) {
     UA_ByteString_clear(&policy->localCertificate);
-    UA_ByteString_copy(&certificate, &policy->localCertificate);
-    return UA_STATUSCODE_GOOD;
+    /* An empty certificate is valid for the #None policy (no crypto). Only
+     * treat an actual copy failure of a provided certificate as an error. */
+    if(certificate.length == 0)
+        return UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_ByteString_copy(&certificate, &policy->localCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        policy_clear_none(policy);
+    return retval;
 }
 
 
@@ -206,14 +214,24 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
     sp->createSigningRequest = NULL;
     sp->clear = policy_clear_none;
 
+    /* The #None policy does no crypto, so an empty local certificate is valid
+     * and is the common case (e.g. UA_ServerConfig_setMinimal with NULL cert).
+     * Only fail when a non-empty certificate was provided but could not be
+     * loaded. Otherwise the crypto backends return an error for empty input
+     * and server creation fails. */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(localCertificate.length > 0) {
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
+        retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
-                                    EVP_PKEY_NONE);
+        retval = UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
+                                                 EVP_PKEY_NONE);
 #else
-    UA_ByteString_copy(&localCertificate, &sp->localCertificate);
+        retval = UA_ByteString_copy(&localCertificate, &sp->localCertificate);
 #endif
+        if(retval != UA_STATUSCODE_GOOD)
+            policy_clear_none(sp);
+    }
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
