@@ -12,7 +12,36 @@
 
 /* RBAC implementation. Permission configurations are deduplicated internally;
  * nodes sharing the same role permissions reference a shared entry via a
- * compact permission index in the node head. */
+ * compact permission index in the node head.
+ *
+ * Known Limitations (OPC UA Part 18 / Part 3 / Part 5):
+ *
+ * - TrustedApplication is a required well-known role per Part 18 §4.3
+ *   (i=18625, default identity IdentityCriteriaType.TrustedApplication).
+ *   The node ID and the IdentityCriteriaType value 9 are both generated
+ *   under UA_NAMESPACE_ZERO=FULL, but this role is intentionally not
+ *   added to the standard role registration arrays (see
+ *   initializeStandardRoles / initNS0RBAC) because the trusted-application
+ *   session-assignment path is not yet evaluated during role resolution.
+ *
+ * - Writing RolePermissions via the OPC UA attribute service (Part 3
+ *   §5.2.9) returns BadNotWritable.  Use the C API instead:
+ *   UA_Server_addRolePermissions / UA_Server_setNodeRolePermissions.
+ *
+ * - AccessRestrictions attribute (Part 3 §5.2.11) and
+ *   DefaultAccessRestrictions in NamespaceMetadata are not implemented.
+ *
+ * - Identity criteria auto-assignment is limited to Anonymous and
+ *   AuthenticatedUser.  Username, Thumbprint, GroupId, Application and
+ *   X509Subject require explicit UA_Server_addRoleIdentity() calls.
+ *
+ * - Application / Endpoint role filters (and their Exclude variants)
+ *   defined on well-known role objects are not evaluated during role
+ *   resolution.
+ *
+ * - RBAC-related audit events (e.g. AuditUpdateMethodResultEvent) are
+ *   not emitted.
+ */
 
 /*********************************/
 /* UA_RolePermissionSet Type API */
@@ -398,7 +427,15 @@ initializeStandardRoles(UA_Server *server) {
         {UA_NS0ID_WELLKNOWNROLE_ENGINEER, "Engineer", {0, 0}, 0},
         {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR, "Supervisor", {0, 0}, 0},
         {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN, "ConfigureAdmin", {0, 0}, 0},
-        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0}
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0},
+#ifdef UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN,
+         "SecurityKeyServerAdmin", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERPUSH,
+         "SecurityKeyServerPush", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERACCESS,
+         "SecurityKeyServerAccess", {0, 0}, 0},
+#endif
     };
     size_t count = sizeof(stdRoles) / sizeof(stdRoles[0]);
 
