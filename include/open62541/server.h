@@ -2398,19 +2398,9 @@ struct UA_ServerConfig {
     /* Limits for PublishRequests */
     UA_UInt32 maxPublishReqPerSession;
 
-    /* Register MonitoredItem in Userland
-     *
-     * @param server Allows the access to the server object
-     * @param sessionId The session id, represented as an node id
-     * @param sessionContext An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the node in question
-     * @param nodeidContext An optional pointer to user-defined data, associated
-     *        with the node in the nodestore. Note that, if the node has already
-     *        been removed, this value contains a NULL pointer.
-     * @param attributeId Identifies which attribute (value, data type etc.) is
-     *        monitored
-     * @param removed Determines if the MonitoredItem was removed or created. */
+    /* Register MonitoredItem in Userland.
+     * Deprecated now. Use the ServerNotificationCallback mechanism with
+     * UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM for the same feature.
     void (*monitoredItemRegisterCallback)(UA_Server *server,
                                           const UA_NodeId *sessionId,
                                           void *sessionContext,
@@ -2418,6 +2408,7 @@ struct UA_ServerConfig {
                                           void *nodeContext,
                                           UA_UInt32 attibuteId,
                                           UA_Boolean removed);
+    */
 #endif
 
     /* PubSub

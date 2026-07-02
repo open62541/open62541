@@ -21,13 +21,12 @@ static UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
 static UA_Double defaultRequestedPublishingInterval = 100;  /* in ms */
 
 static void
-monitoredRegisterCallback(UA_Server *s,
-                          const UA_NodeId *sessionId, void *sessionContext,
-                          const UA_NodeId *nodeId, void *nodeContext,
-                          const UA_UInt32 attrId, const UA_Boolean removed) {
-    if(!removed)
+monitoredRegisterCallback(UA_Server *server,
+                          UA_ApplicationNotificationType type,
+                          const UA_KeyValueMap payload) {
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED)
         monitored++;
-    else
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED)
         monitored--;
 }
 
@@ -74,7 +73,7 @@ static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->monitoredItemRegisterCallback = monitoredRegisterCallback;
+    config->subscriptionNotificationCallback = monitoredRegisterCallback;
     UA_Server_run_startup(server);
     createSession();
 }
