@@ -575,7 +575,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         /* Notify again if the MonitoringMode could not be set */
         notifyMonitoredItem(server, newMon,
-                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
+                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
         UA_MonitoredItem_delete(server, newMon);
         return;
     }
@@ -975,7 +975,7 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         return;
     }
     notifyMonitoredItem(server, mon,
-                        UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
+                        UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
     UA_MonitoredItem_delete(server, mon);
 }
 
@@ -1028,7 +1028,7 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {
         notifyMonitoredItem(server, mon,
-                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
+                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
         UA_MonitoredItem_delete(server, mon);
         res = UA_STATUSCODE_GOOD;
     }
