@@ -83,7 +83,7 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
                                      "Detaching the Subscription from the timed-out Session");
             UA_Session_detachSubscription(server, session, sub, true);
         } else {
-            UA_Subscription_delete(server, sub);
+            UA_Subscription_delete(server, sub, true);
         }
     }
 

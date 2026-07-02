@@ -52,7 +52,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     subscription->priority = priority;
 }
 
-static void
+void
 notifySubscription(UA_Server *server, UA_Subscription *sub,
                    UA_ApplicationNotificationType type) {
     UA_STATIC_THREAD_LOCAL UA_KeyValuePair createSubData[8] = {
@@ -158,19 +158,19 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "publish callback with error code %s",
                              sub->subscriptionId, UA_StatusCode_name(res));
         response->responseHeader.serviceResult = res;
-        UA_Subscription_delete(server, sub);
+        UA_Subscription_delete(server, sub, false);
         return true;
     }
+
+    /* Notify the application */
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED);
 
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                              "Subscription created (Publishing interval %.2fms, "
                              "max %lu notifications per publish)",
                              sub->publishingInterval,
                              (long unsigned)sub->notificationsPerPublish);
-
-    /* Notify the application */
-    notifySubscription(server, sub,
-                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED);
 
     /* Prepare the response */
     response->subscriptionId = sub->subscriptionId;
@@ -430,17 +430,9 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
         return;
     }
 
-    /* Notify the application */
-    notifySubscription(server, sub,
-                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED);
-
     /* Delete the Subscription */
-    UA_Subscription_delete(server, sub);
+    UA_Subscription_delete(server, sub, true);
     *result = UA_STATUSCODE_GOOD;
-
-    UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                         "Subscription %" PRIu32 " | Subscription deleted",
-                         *subscriptionId);
 }
 
 UA_Boolean

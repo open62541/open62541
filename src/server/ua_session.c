@@ -34,7 +34,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Subscription_delete(server, sub);
+        UA_Subscription_delete(server, sub, true);
     }
 #endif
 
