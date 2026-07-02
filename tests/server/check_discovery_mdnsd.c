@@ -1005,7 +1005,7 @@ isServerRegisteredAtLds(void) {
 }
 
 START_TEST(MdnsStartupTriggersSendPath) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     ck_assert_ptr_ne(dm, NULL);
 
     ck_assert_uint_ne(UA_DiscoveryManager_getMdnsConnectionCount(), 0);
@@ -1025,7 +1025,7 @@ START_TEST(MdnsStartupTriggersSendPath) {
 END_TEST
 
 START_TEST(MdnsUpdateOnlineOfflineTriggersSendPath) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     ck_assert_ptr_ne(dm, NULL);
     TestUdpIntercept *intercepts[] = {testUdpIntercept};
     size_t previousSendCount = globalInterceptedMdnsMessages;
@@ -1215,7 +1215,7 @@ START_TEST(PublicApiSelfAnnounceIsIgnored) {
     UA_ByteString selfPacket = UA_BYTESTRING_NULL;
     TestUdpIntercept *intercepts[] = {testUdpInterceptLds, testUdpInterceptRegister};
     MdnsMessageExpectation selfExpectation = {"LDS_public_api", "/", "NA", 4840, true};
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)serverLds->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)serverLds->discoveryDriver;
     size_t initialEntryCount = countServersOnNetwork(dm);
 
     waitForMdnsServiceInstanceName(intercepts, 2, 0, &selfExpectation,
@@ -1296,7 +1296,7 @@ START_TEST(PublicApiRegisterDeregisterTriggersMdnsSendPath) {
 END_TEST
 
 START_TEST(MdnsUpdateOnlineOfflineIsIdempotent) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
     ck_assert_ptr_ne(dm, NULL);
     TestUdpIntercept *intercepts[] = {testUdpIntercept};
     size_t initialSendCount = globalInterceptedMdnsMessages;
@@ -1358,7 +1358,7 @@ START_TEST(MdnsUpdateOnlineOfflineIsIdempotent) {
 END_TEST
 
 START_TEST(PublicApiIgnoresInvalidReceiveRecords) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)serverLds->discoverySC;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)serverLds->discoveryDriver;
     size_t initialEntries = countServersOnNetwork(dm);
     UA_ByteString wrongDomainPacket = UA_BYTESTRING_NULL;
     UA_ByteString wrongTypePacket = UA_BYTESTRING_NULL;
