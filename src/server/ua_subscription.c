@@ -1289,19 +1289,6 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
     LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
     sub->monitoredItemsSize++;
     server->monitoredItemsSize++;
-
-    /* Register the MonitoredItem in userland */
-    if(server->config.monitoredItemRegisterCallback) {
-        UA_Session *session = sub->session;
-        void *targetContext = NULL;
-        getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        server->config.monitoredItemRegisterCallback(server,
-                                                     session ? &session->sessionId : NULL,
-                                                     session ? session->context : NULL,
-                                                     &mon->itemToMonitor.nodeId,
-                                                     targetContext,
-                                                     mon->itemToMonitor.attributeId, false);
-    }
 }
 
 static void
@@ -1316,19 +1303,6 @@ unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                              "MonitoredItem %" PRIi32 " | Deleting the MonitoredItem",
                              mon->monitoredItemId);
-
-    /* Deregister MonitoredItem in userland */
-    if(server->config.monitoredItemRegisterCallback) {
-        UA_Session *session = sub->session;
-        void *targetContext = NULL;
-        getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        server->config.monitoredItemRegisterCallback(server,
-                                                     session ? &session->sessionId : NULL,
-                                                     session ? session->context : NULL,
-                                                     &mon->itemToMonitor.nodeId,
-                                                     targetContext,
-                                                     mon->itemToMonitor.attributeId, true);
-    }
 
     /* Deregister in Subscription and server */
     sub->monitoredItemsSize--;
