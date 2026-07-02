@@ -449,7 +449,7 @@ static UA_StatusCode
 UA_DataType_fromSimpleTypeDescription(UA_DataType *type,
                                       const UA_SimpleTypeDescription *descr) {
     /* Check if the BuiltinType is a "simple type" */
-    if(descr->builtInType > 0 &&
+    if(descr->builtInType == 0 ||
        descr->builtInType > UA_DATATYPEKIND_DIAGNOSTICINFO + 1)
         return UA_STATUSCODE_BADINTERNALERROR;
 
