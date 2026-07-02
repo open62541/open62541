@@ -287,7 +287,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        UA_MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon, true);
     }
     UA_assert(sub->monitoredItemsSize == 0);
 
@@ -1379,7 +1379,7 @@ delayedFreeMonitoredItem(void *app, void *context) {
 }
 
 void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolean notify) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove the sampling callback */
@@ -1423,6 +1423,12 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
             UA_Variant_init(&lm->eventFields.map[i].value);
         UA_KeyValueMap_clear(&lm->eventFields);
     }
+
+    /* Notify the application that the MonitoredItem is deleted.
+     * Only when the _CREATED notification was sent before. */
+    if(notify)
+        notifyMonitoredItem(server, mon,
+                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
 
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
      * have completed. This is needed to allow that a local MonitoredItem can
