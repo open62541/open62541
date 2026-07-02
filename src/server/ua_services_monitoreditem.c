@@ -366,7 +366,7 @@ struct createMonContext {
     UA_LocalMonitoredItem *localMon; /* used if non-null */
 };
 
-static void
+void
 notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
                     UA_ApplicationNotificationType type) {
     /* Set up the key-value map */
@@ -518,9 +518,11 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Allocate the MonitoredItem */
     UA_MonitoredItem *newMon = NULL;
     if(cmc->localMon) {
+        /* Local MonitoredItem / Server C API. Use the pre-allocated memory. */
         newMon = &cmc->localMon->monitoredItem;
         cmc->localMon = NULL; /* clean up internally from now on */
     } else {
+        /* Allocate memory for the remote MonitoredItem */
         newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
         if(!newMon) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -545,7 +547,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                  "Could not create a MonitoredItem "
                                  "with StatusCode %s",
                                  UA_StatusCode_name(result->statusCode));
-        UA_MonitoredItem_delete(server, newMon);
+        UA_MonitoredItem_delete(server, newMon, false);
         return;
     }
 
@@ -573,10 +575,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,
                                                             request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
-        /* Notify again if the MonitoringMode could not be set */
-        notifyMonitoredItem(server, newMon,
-                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
-        UA_MonitoredItem_delete(server, newMon);
+        UA_MonitoredItem_delete(server, newMon, true);
         return;
     }
 
@@ -969,14 +968,14 @@ static void
 Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
                               const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, *monitoredItemId);
     if(!mon) {
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    notifyMonitoredItem(server, mon,
-                        UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
-    UA_MonitoredItem_delete(server, mon);
+
+    UA_MonitoredItem_delete(server, mon, true);
 }
 
 UA_Boolean
@@ -1027,9 +1026,7 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
 
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {
-        notifyMonitoredItem(server, mon,
-                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
-        UA_MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon, true);
         res = UA_STATUSCODE_GOOD;
     }
 
