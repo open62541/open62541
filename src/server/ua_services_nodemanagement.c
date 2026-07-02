@@ -2380,8 +2380,10 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
-    /* Add the first direction */
-    UA_UInt32 targetNameHash = UA_QualifiedName_hash(&targetNode->head.browseName);
+    /* Add the first direction. Use hash 0 for non-local targets where
+     * targetNode is NULL (their browse name is not available locally). */
+    UA_UInt32 targetNameHash = targetNode ?
+        UA_QualifiedName_hash(&targetNode->head.browseName) : 0;
     *retval = UA_Node_addReference(sourceNode, refTypeIndex, item->isForward,
                                    &item->targetNodeId, targetNameHash);
     UA_Boolean firstExisted = false;
