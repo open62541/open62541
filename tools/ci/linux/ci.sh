@@ -306,6 +306,19 @@ function unit_tests_diag {
     make gcov
 }
 
+function unit_tests_mdnsd {
+    rm -rf build; mkdir -p build; cd build
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=MDNSD \
+          -DUA_ENABLE_DISCOVERY_SEMAPHORE=ON \
+          ..
+    make ${MAKEOPTS} check_discovery_mdnsd
+    set_capabilities
+    make test ARGS="-V -R ^check_discovery_mdnsd$"
+}
+
 function unit_tests_mt {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \

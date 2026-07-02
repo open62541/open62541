@@ -149,6 +149,12 @@ jobs:
                 export PRECONFIGURED_TAPIF=tap0
                 echo 'export PRECONFIGURED_TAPIF=tap0' >> ~/.bashrc
               cmd_action: unit_tests_lwip
+
+          # mDNSD unit tests for a specific Ubuntu version
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests with mDNSD (gcc)"
+              cmd_action: unit_tests_mdnsd
           
           # TPM Tool Builds for specific Ubuntu versions
           - os: ubuntu-22.04
