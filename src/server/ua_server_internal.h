@@ -345,10 +345,6 @@ void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type);
 
-void
-notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
-                    UA_ApplicationNotificationType type);
-
 /********************/
 /* Session Handling */
 /********************/

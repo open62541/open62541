@@ -278,7 +278,7 @@ delayedFreeSubscription(void *app, void *context) {
 }
 
 void
-UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
+UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notify) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_EventLoop *el = server->config.eventLoop;
@@ -306,8 +306,6 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
         deleteNode(server, sub->ns0Id, true);
     UA_NodeId_clear(&sub->ns0Id);
 #endif
-
-    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub, "Subscription deleted");
 
     /* Detach from the session if necessary */
     if(sub->session)
@@ -337,6 +335,13 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
         --sub->retransmissionQueueSize;
     }
     UA_assert(sub->retransmissionQueueSize == 0);
+
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub, "Subscription deleted");
+
+    /* Notify the application */
+    if(notify)
+        notifySubscription(server, sub,
+                           UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED);
 
     /* Pointers to the subscription may still exist upwards in the call stack.
      * Add a delayed callback to remove the Subscription when the current jobs
@@ -607,7 +612,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
         if(UA_StatusCode_isBad(sub->statusChange)) {
             UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                       "Removing the subscription.");
-            UA_Subscription_delete(server, sub);
+            UA_Subscription_delete(server, sub, true);
         }
         return;
     }
@@ -649,7 +654,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_free(pre);
 
     /* Delete the subscription */
-    UA_Subscription_delete(server, sub);
+    UA_Subscription_delete(server, sub, true);
 }
 
 /* The local adminSubscription forwards notifications to a registered callback

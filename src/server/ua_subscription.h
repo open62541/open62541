@@ -181,6 +181,10 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolea
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
 void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
 
+void
+notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                    UA_ApplicationNotificationType type);
+
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */
 UA_StatusCode
@@ -316,7 +320,7 @@ struct UA_Subscription {
 UA_Subscription * UA_Subscription_new(void);
 
 void
-UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
+UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notify);
 
 UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
@@ -347,6 +351,10 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 
 void
 UA_Session_ensurePublishQueueSpace(UA_Server *server, UA_Session *session);
+
+void
+notifySubscription(UA_Server *server, UA_Subscription *sub,
+                   UA_ApplicationNotificationType type);
 
 /* Forward declaration for A&C used in ua_server_internal.h" */
 struct UA_ConditionSource;
