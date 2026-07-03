@@ -14,20 +14,29 @@
 #include <stdlib.h>
 
 UA_Server *server_ac;
+static UA_AlarmConditionsDriver *acDriver_ac;
 
 
 static void setup(void) {
     server_ac = UA_Server_newForUnitTest();
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    UA_Driver *acDriver =
-        UA_AlarmsConditionsDriver_default(UA_KEYVALUEMAP_NULL);
-    ck_assert_ptr_nonnull(acDriver);
-    ck_assert_uint_eq(UA_Server_addDriver(server_ac, acDriver),
+    acDriver_ac = UA_AlarmsConditionsDriver(UA_KEYVALUEMAP_NULL);
+    ck_assert_ptr_nonnull(acDriver_ac);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ac, &acDriver_ac->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(acDriver_ac->drv.start(&acDriver_ac->drv),
                       UA_STATUSCODE_GOOD);
 #endif
 }
 
 static void teardown(void) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    acDriver_ac->drv.stop(&acDriver_ac->drv);
+    ck_assert_uint_eq(UA_Server_removeDriver(server_ac, &acDriver_ac->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(acDriver_ac->drv.free(&acDriver_ac->drv),
+                      UA_STATUSCODE_GOOD);
+#endif
     UA_Server_delete(server_ac);
 }
 
@@ -38,8 +47,7 @@ static UA_NodeId
 createTestCondition(UA_Server *s, const UA_NodeId conditionType,
                     const char *name, const UA_NodeId source) {
     UA_NodeId conditionInstance = UA_NODEID_NULL;
-    UA_StatusCode retval = UA_Server_createCondition(
-        s, UA_NODEID_NULL, conditionType,
+    UA_StatusCode retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL, conditionType,
         UA_QUALIFIEDNAME(0, (char*)(uintptr_t)name),
         source, UA_NODEID_NULL, &conditionInstance);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -93,25 +101,25 @@ createConfiguredExclusiveLimitAlarm(UA_Server *s, const char *name,
 
     UA_Double highHighLimit = 100.0;
     UA_Variant_setScalar(&val, &highHighLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(s, cond, &val,
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                          UA_QUALIFIEDNAME(0, "HighHighLimit"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Double highLimit = 80.0;
     UA_Variant_setScalar(&val, &highLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(s, cond, &val,
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                          UA_QUALIFIEDNAME(0, "HighLimit"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Double lowLimit = 20.0;
     UA_Variant_setScalar(&val, &lowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(s, cond, &val,
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                          UA_QUALIFIEDNAME(0, "LowLimit"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Double lowLowLimit = 5.0;
     UA_Variant_setScalar(&val, &lowLowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(s, cond, &val,
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                          UA_QUALIFIEDNAME(0, "LowLowLimit"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -125,8 +133,7 @@ START_TEST(createDelete) {
     {
         UA_NodeId conditionInstance = UA_NODEID_NULL;
 
-        retval = UA_Server_createCondition(
-            server_ac,
+        retval = acDriver_ac->createCondition(acDriver_ac,
             UA_NODEID_NULL,
             UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
             UA_QUALIFIEDNAME(0, "Condition createDelete"),
@@ -136,8 +143,7 @@ START_TEST(createDelete) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_msg(!UA_NodeId_isNull(&conditionInstance), "ConditionId is null");
 
-        retval = UA_Server_deleteCondition(
-            server_ac,
+        retval = acDriver_ac->deleteCondition(acDriver_ac,
             conditionInstance,
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER)
         );
@@ -153,8 +159,7 @@ START_TEST(splitCreation) {
     const UA_NodeId requestedId = UA_NODEID_NUMERIC(nsIdx, 1000);
     UA_NodeId actualId = UA_NODEID_NULL;
 
-    retval = UA_Server_addCondition_begin(
-        server_ac,
+    retval = acDriver_ac->addConditionBegin(acDriver_ac,
         requestedId,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "Condition split creation"),
@@ -186,8 +191,7 @@ START_TEST(splitCreation) {
         &var);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_addCondition_finish(
-        server_ac,
+    retval = acDriver_ac->addConditionFinish(acDriver_ac,
         actualId,
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
         UA_NODEID_NULL);
@@ -207,8 +211,7 @@ START_TEST(splitCreation) {
 
     UA_Variant_clear(&enabledStateVariant);
 
-    retval = UA_Server_deleteCondition(
-        server_ac,
+    retval = acDriver_ac->deleteCondition(acDriver_ac,
         actualId,
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -219,8 +222,7 @@ END_TEST
 START_TEST(createCondition_invalidType) {
     UA_NodeId conditionInstance = UA_NODEID_NULL;
     /* BaseObjectType is not a subtype of ConditionType */
-    UA_StatusCode retval = UA_Server_createCondition(
-        server_ac, UA_NODEID_NULL,
+    UA_StatusCode retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
         UA_QUALIFIEDNAME(0, "InvalidCondition"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
@@ -231,8 +233,7 @@ START_TEST(createCondition_invalidType) {
 /* Test deleting a non-existent condition */
 START_TEST(deleteCondition_notFound) {
     UA_NodeId fakeCondition = UA_NODEID_NUMERIC(1, 99999);
-    UA_StatusCode retval = UA_Server_deleteCondition(
-        server_ac, fakeCondition,
+    UA_StatusCode retval = acDriver_ac->deleteCondition(acDriver_ac, fakeCondition,
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
@@ -249,33 +250,29 @@ START_TEST(conditionLifecycle_setField) {
     UA_UInt16 severity = 500;
     UA_Variant val;
     UA_Variant_setScalar(&val, &severity, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_StatusCode retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    UA_StatusCode retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set the Message field */
     UA_LocalizedText msg = UA_LOCALIZEDTEXT("en", "Test message");
     UA_Variant_setScalar(&val, &msg, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Message"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Message"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set the Comment field */
     UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "Test comment");
     UA_Variant_setScalar(&val, &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Comment"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Comment"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set the Retain field */
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Clean up */
-    retval = UA_Server_deleteCondition(server_ac, cond, source);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond, source);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -290,11 +287,10 @@ START_TEST(setConditionField_invalidField) {
     UA_UInt16 val = 42;
     UA_Variant v;
     UA_Variant_setScalar(&v, &val, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_StatusCode retval = UA_Server_setConditionField(
-        server_ac, cond, &v, UA_QUALIFIEDNAME(0, "NonExistentField"));
+    UA_StatusCode retval = acDriver_ac->setConditionField(acDriver_ac, cond, &v, UA_QUALIFIEDNAME(0, "NonExistentField"));
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setConditionVariableFieldProperty (e.g. EnabledState/Id) */
@@ -309,13 +305,12 @@ START_TEST(setConditionVariableFieldProperty_test) {
     UA_Boolean enabled = true;
     UA_Variant val;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test triggering a condition event */
@@ -330,26 +325,23 @@ START_TEST(triggerConditionEvent_test) {
     UA_Boolean enabled = true;
     UA_Variant val;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
 
     /* Set Retain to true */
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
 
     /* Trigger the event */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = UA_Server_triggerConditionEvent(
-        server_ac, cond, source, &eventId);
+    UA_StatusCode retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(eventId.length > 0);
     UA_ByteString_clear(&eventId);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test triggering on a disabled condition → should fail */
@@ -362,11 +354,10 @@ START_TEST(triggerConditionEvent_disabled) {
 
     /* Condition is disabled by default. Triggering should fail. */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = UA_Server_triggerConditionEvent(
-        server_ac, cond, source, &eventId);
+    UA_StatusCode retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONALREADYDISABLED);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test addConditionOptionalField */
@@ -379,8 +370,7 @@ START_TEST(addConditionOptionalField_test) {
 
     /* Add the optional "LocalTime" field */
     UA_NodeId outOptionalVar = UA_NODEID_NULL;
-    UA_StatusCode retval = UA_Server_addConditionOptionalField(
-        server_ac, cond,
+    UA_StatusCode retval = acDriver_ac->addConditionOptionalField(acDriver_ac, cond,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "LocalTime"),
         &outOptionalVar);
@@ -388,7 +378,7 @@ START_TEST(addConditionOptionalField_test) {
     (void)retval;
     (void)outOptionalVar;
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Callback tracking for TwoStateVariable */
@@ -409,31 +399,27 @@ START_TEST(setTwoStateVariableCallback_test) {
 
     /* Set an EnabledState callback */
     twoStateCallbackFired = false;
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         testTwoStateCallback, UA_ENTERING_ENABLEDSTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set an AckedState callback */
-    retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         testTwoStateCallback, UA_ENTERING_ACKEDSTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set an ActiveState callback */
-    retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         testTwoStateCallback, UA_ENTERING_ACTIVESTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setConditionTwoStateVariableCallback on non-existent condition */
 START_TEST(setTwoStateVariableCallback_notFound) {
     UA_NodeId fakeCondition = UA_NODEID_NUMERIC(1, 99999);
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, fakeCondition,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, fakeCondition,
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), false,
         testTwoStateCallback, UA_ENTERING_ENABLEDSTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
@@ -457,13 +443,13 @@ START_TEST(multipleConditions_sameSource) {
         "MultiCond3", source);
 
     /* Delete in different order than creation */
-    UA_StatusCode retval = UA_Server_deleteCondition(server_ac, cond2, source);
+    UA_StatusCode retval = acDriver_ac->deleteCondition(acDriver_ac, cond2, source);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_deleteCondition(server_ac, cond1, source);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond1, source);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_deleteCondition(server_ac, cond3, source);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond3, source);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -480,8 +466,7 @@ START_TEST(createCondition_differentTypes) {
 
     /* AcknowledgeableConditionType */
     UA_NodeId cond2 = UA_NODEID_NULL;
-    retval = UA_Server_createCondition(
-        server_ac, UA_NODEID_NULL,
+    retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE),
         UA_QUALIFIEDNAME(0, "AckCondition"),
         source, UA_NODEID_NULL, &cond2);
@@ -489,17 +474,16 @@ START_TEST(createCondition_differentTypes) {
 
     /* AlarmConditionType */
     UA_NodeId cond3 = UA_NODEID_NULL;
-    retval = UA_Server_createCondition(
-        server_ac, UA_NODEID_NULL,
+    retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE),
         UA_QUALIFIEDNAME(0, "AlarmCondition"),
         source, UA_NODEID_NULL, &cond3);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Delete all */
-    UA_Server_deleteCondition(server_ac, cond1, source);
-    UA_Server_deleteCondition(server_ac, cond2, source);
-    UA_Server_deleteCondition(server_ac, cond3, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond1, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond2, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond3, source);
 } END_TEST
 
 /* Test creating an ExclusiveLimitAlarm and using setLimitState */
@@ -509,8 +493,7 @@ START_TEST(limitAlarm_setLimitState) {
 
     /* Create an ExclusiveLimitAlarmType condition */
     UA_NodeId cond = UA_NODEID_NULL;
-    retval = UA_Server_createCondition(
-        server_ac, UA_NODEID_NULL,
+    retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITALARMTYPE),
         UA_QUALIFIEDNAME(0, "LimitAlarm"),
         source, UA_NODEID_NULL, &cond);
@@ -520,45 +503,45 @@ START_TEST(limitAlarm_setLimitState) {
     UA_Double highHighLimit = 100.0;
     UA_Variant val;
     UA_Variant_setScalar(&val, &highHighLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val,
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                 UA_QUALIFIEDNAME(0, "HighHighLimit"));
 
     UA_Double highLimit = 80.0;
     UA_Variant_setScalar(&val, &highLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val,
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                 UA_QUALIFIEDNAME(0, "HighLimit"));
 
     UA_Double lowLimit = 20.0;
     UA_Variant_setScalar(&val, &lowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val,
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                 UA_QUALIFIEDNAME(0, "LowLimit"));
 
     UA_Double lowLowLimit = 5.0;
     UA_Variant_setScalar(&val, &lowLowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val,
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val,
                                 UA_QUALIFIEDNAME(0, "LowLowLimit"));
 
     /* Test setLimitState with a HighHigh value */
-    retval = UA_Server_setLimitState(server_ac, cond, 110.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 110.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Test setLimitState with a High value */
-    retval = UA_Server_setLimitState(server_ac, cond, 90.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 90.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Test setLimitState with a normal value (between low and high) */
-    retval = UA_Server_setLimitState(server_ac, cond, 50.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 50.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Test setLimitState with a Low value */
-    retval = UA_Server_setLimitState(server_ac, cond, 15.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 15.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Test setLimitState with a LowLow value */
-    retval = UA_Server_setLimitState(server_ac, cond, 3.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 3.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test enabling and disabling via setConditionVariableFieldProperty */
@@ -587,8 +570,7 @@ START_TEST(enableDisable_condition) {
     /* Enable */
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -607,13 +589,12 @@ START_TEST(enableDisable_condition) {
     /* Disable */
     UA_Boolean disabled = false;
     UA_Variant_setScalar(&val, &disabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setting AckedState on a condition */
@@ -628,16 +609,14 @@ START_TEST(setAckedState_condition) {
     UA_Boolean enabled = true;
     UA_Variant val;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
 
     /* Set AckedState/Id = true */
     UA_Boolean acked = true;
     UA_Variant_setScalar(&val, &acked, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "AckedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -645,13 +624,12 @@ START_TEST(setAckedState_condition) {
     /* Set AckedState/Id = false (unacknowledge) */
     acked = false;
     UA_Variant_setScalar(&val, &acked, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "AckedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test full lifecycle: create → enable → set severity → trigger → set acked → delete */
@@ -668,8 +646,7 @@ START_TEST(conditionFullLifecycle) {
     /* Enable the condition */
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -677,27 +654,24 @@ START_TEST(conditionFullLifecycle) {
     /* Set Retain */
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set Severity */
     UA_UInt16 severity = 800;
     UA_Variant_setScalar(&val, &severity, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set Message */
     UA_LocalizedText msg = UA_LOCALIZEDTEXT("en", "Critical alarm");
     UA_Variant_setScalar(&val, &msg, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Message"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Message"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Trigger the condition event */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(eventId.length > 0);
     UA_ByteString_clear(&eventId);
@@ -705,28 +679,26 @@ START_TEST(conditionFullLifecycle) {
     /* Acknowledge the condition via setConditionVariableFieldProperty */
     UA_Boolean acked = true;
     UA_Variant_setScalar(&val, &acked, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "AckedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Trigger again after ack */
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
     /* Disable */
     UA_Boolean disabled = false;
     UA_Variant_setScalar(&val, &disabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Delete */
-    retval = UA_Server_deleteCondition(server_ac, cond, source);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond, source);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -750,8 +722,7 @@ START_TEST(conditionCleanup_onShutdown) {
 /* Test creating condition with NULL outNodeId */
 START_TEST(createCondition_nullOutNodeId) {
     /* The function should return BADINVALIDARGUMENT or similar when outNodeId is NULL */
-    UA_StatusCode retval = UA_Server_createCondition(
-        server_ac, UA_NODEID_NULL,
+    UA_StatusCode retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "NullOutCondition"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
@@ -761,8 +732,7 @@ START_TEST(createCondition_nullOutNodeId) {
 
 /* Test addCondition_begin with NULL outNodeId */
 START_TEST(addConditionBegin_nullOutNodeId) {
-    UA_StatusCode retval = UA_Server_addCondition_begin(
-        server_ac, UA_NODEID_NULL,
+    UA_StatusCode retval = acDriver_ac->addConditionBegin(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "NullOutBeginCondition"),
         NULL);
@@ -781,22 +751,19 @@ START_TEST(triggerConditionEvent_nullEventId) {
     UA_Boolean enabled = true;
     UA_Variant val;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
 
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
 
     /* Trigger with NULL outEventId should still work */
-    UA_StatusCode retval = UA_Server_triggerConditionEvent(
-        server_ac, cond, source, NULL);
+    UA_StatusCode retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test creating condition with different sources */
@@ -817,14 +784,13 @@ START_TEST(condition_differentSources) {
 
     /* Create condition on custom source */
     UA_NodeId cond = UA_NODEID_NULL;
-    retval = UA_Server_createCondition(
-        server_ac, UA_NODEID_NULL,
+    retval = acDriver_ac->createCondition(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "CustomSourceCondition"),
         customSource, UA_NODEID_NULL, &cond);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_deleteCondition(server_ac, cond, customSource);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond, customSource);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -842,19 +808,17 @@ START_TEST(setConditionField_multipleFields) {
     /* NormalState */
     UA_NodeId normalState = UA_NODEID_NUMERIC(0, 0);
     UA_Variant_setScalar(&val, &normalState, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "NormalState"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "NormalState"));
     /* May or may not succeed depending on whether field exists */
     (void)retval;
 
     /* Quality */
     UA_StatusCode quality = UA_STATUSCODE_GOOD;
     UA_Variant_setScalar(&val, &quality, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Quality"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Quality"));
     (void)retval;
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* --- Additional coverage tests --- */
@@ -904,8 +868,7 @@ START_TEST(setConfirmedStateCallback) {
 
     /* Register confirmed state callback */
     confirmCallbackInvoked = false;
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source,
         false, /* removeBranch */
         confirmStateCallbackFn,
         UA_ENTERING_CONFIRMEDSTATE);
@@ -915,8 +878,7 @@ START_TEST(setConfirmedStateCallback) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -924,15 +886,14 @@ START_TEST(setConfirmedStateCallback) {
     /* Set ConfirmedState/Id = true → should invoke the callback */
     UA_Boolean confirmed = true;
     UA_Variant_setScalar(&val, &confirmed, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ConfirmedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     /* ConfirmedState may or may not exist depending on the type definition.
      * If it exists and the callback is invoked, it should be set. */
     (void)retval;
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test registering and invoking ENTERING_ACTIVESTATE callback */
@@ -945,8 +906,7 @@ START_TEST(setActiveStateCallback) {
 
     /* Register active state callback */
     activeCallbackInvoked = false;
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source,
         false,
         activeStateCallbackFn,
         UA_ENTERING_ACTIVESTATE);
@@ -956,8 +916,7 @@ START_TEST(setActiveStateCallback) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -965,8 +924,7 @@ START_TEST(setActiveStateCallback) {
     /* Set ActiveState/Id = true → should invoke the active state callback */
     UA_Boolean active = true;
     UA_Variant_setScalar(&val, &active, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ActiveState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
@@ -974,13 +932,12 @@ START_TEST(setActiveStateCallback) {
     /* Set ActiveState/Id = false → deactivate */
     active = false;
     UA_Variant_setScalar(&val, &active, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ActiveState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test all four callback types registered together */
@@ -999,23 +956,19 @@ START_TEST(setAllCallbackTypes) {
     UA_StatusCode retval;
 
     /* Register all four callback types */
-    retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         enableStateCallbackFn, UA_ENTERING_ENABLEDSTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         ackStateCallbackFn, UA_ENTERING_ACKEDSTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         confirmStateCallbackFn, UA_ENTERING_CONFIRMEDSTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         activeStateCallbackFn, UA_ENTERING_ACTIVESTATE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1023,8 +976,7 @@ START_TEST(setAllCallbackTypes) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1033,8 +985,7 @@ START_TEST(setAllCallbackTypes) {
     /* Set ActiveState/Id = true → triggers ENTERING_ACTIVESTATE callback */
     UA_Boolean active = true;
     UA_Variant_setScalar(&val, &active, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ActiveState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
@@ -1042,8 +993,7 @@ START_TEST(setAllCallbackTypes) {
     /* Set AckedState/Id = true → triggers ENTERING_ACKEDSTATE callback */
     UA_Boolean acked = true;
     UA_Variant_setScalar(&val, &acked, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "AckedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
@@ -1051,13 +1001,12 @@ START_TEST(setAllCallbackTypes) {
     /* Set ConfirmedState/Id = true → triggers ENTERING_CONFIRMEDSTATE callback */
     UA_Boolean confirmed = true;
     UA_Variant_setScalar(&val, &confirmed, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ConfirmedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test invalid callback type */
@@ -1069,12 +1018,11 @@ START_TEST(setCallback_invalidType) {
         "InvalidCallbackCond", source);
 
     /* Pass an invalid callback type (value 99) */
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source, false,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source, false,
         enableStateCallbackFn, (UA_TwoStateVariableCallbackType)99);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setting Severity multiple times and triggering (exercises lastSeverity tracking) */
@@ -1091,8 +1039,7 @@ START_TEST(severityChange_multiTrigger) {
     /* Enable the condition */
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1100,45 +1047,41 @@ START_TEST(severityChange_multiTrigger) {
     /* Set Retain */
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set initial severity and trigger */
     UA_UInt16 sev = 100;
     UA_Variant_setScalar(&val, &sev, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
     /* Change severity and trigger again → exercises updateConditionLastSeverity */
     sev = 500;
     UA_Variant_setScalar(&val, &sev, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
     /* Change severity to highest and trigger once more */
     sev = 1000;
     UA_Variant_setScalar(&val, &sev, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setting ActiveState with trigger (exercises activeState tracking) */
@@ -1155,48 +1098,44 @@ START_TEST(activeState_triggerCycle) {
     /* Enable the condition */
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set ActiveState/Id = true */
     UA_Boolean active = true;
     UA_Variant_setScalar(&val, &active, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ActiveState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
 
     /* Trigger → exercises getConditionActiveState / updateConditionActiveState */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
     /* Set ActiveState/Id = false (deactivate) */
     active = false;
     UA_Variant_setScalar(&val, &active, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ActiveState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
 
     /* Trigger again after deactivation */
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setting Quality field on a condition */
@@ -1210,19 +1149,17 @@ START_TEST(setQualityField) {
     UA_Variant val;
     UA_StatusCode quality = UA_STATUSCODE_GOOD;
     UA_Variant_setScalar(&val, &quality, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_StatusCode retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Quality"));
+    UA_StatusCode retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Quality"));
     /* Quality may or may not exist depending on field definition */
     (void)retval;
 
     /* Set quality to a degraded status */
     quality = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_Variant_setScalar(&val, &quality, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Quality"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Quality"));
     (void)retval;
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test addConditionOptionalField with non-existent field */
@@ -1235,15 +1172,14 @@ START_TEST(addOptionalField_nonExistent) {
 
     /* Adding a non-existent optional field should fail */
     UA_NodeId outOptionalVariable = UA_NODEID_NULL;
-    UA_StatusCode retval = UA_Server_addConditionOptionalField(
-        server_ac, cond,
+    UA_StatusCode retval = acDriver_ac->addConditionOptionalField(acDriver_ac, cond,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "NonExistentField"),
         &outOptionalVariable);
     /* Should fail because the field doesn't exist in the type */
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test limit alarm with edge cases: exactly at limit boundaries */
@@ -1260,51 +1196,47 @@ START_TEST(limitAlarm_exactBoundaries) {
     /* Set limits: LowLow=10, Low=20, High=80, HighHigh=90 */
     UA_Double ll = 10.0;
     UA_Variant_setScalar(&val, &ll, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLowLimit"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLowLimit"));
     (void)retval;
 
     UA_Double lo = 20.0;
     UA_Variant_setScalar(&val, &lo, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLimit"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLimit"));
     (void)retval;
 
     UA_Double hi = 80.0;
     UA_Variant_setScalar(&val, &hi, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighLimit"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighLimit"));
     (void)retval;
 
     UA_Double hh = 90.0;
     UA_Variant_setScalar(&val, &hh, &UA_TYPES[UA_TYPES_DOUBLE]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighHighLimit"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighHighLimit"));
     (void)retval;
 
     /* Test at each boundary - going from low to high */
-    retval = UA_Server_setLimitState(server_ac, cond, 5.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 5.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 10.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 10.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 20.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 20.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 50.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 50.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 80.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 80.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 90.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 90.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 95.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 95.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test setLimitState on a non-limit condition (should fail) */
@@ -1315,11 +1247,11 @@ START_TEST(setLimitState_nonLimitCondition) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         "NonLimitAlarm", source);
 
-    UA_StatusCode retval = UA_Server_setLimitState(server_ac, cond, 50.0);
+    UA_StatusCode retval = acDriver_ac->setLimitState(acDriver_ac, cond, 50.0);
     /* Should fail because OffNormalAlarm is not a LimitAlarm */
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Regression test for limit getter paths (HighHigh, High, LowLow, Low)
@@ -1331,33 +1263,33 @@ START_TEST(limitAlarm_limitGetter_regression) {
     {
         UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
             server_ac, "LimitGetterHighHigh", source);
-        retval = UA_Server_setLimitState(server_ac, cond, 110.0);
+        retval = acDriver_ac->setLimitState(acDriver_ac, cond, 110.0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Server_deleteCondition(server_ac, cond, source);
+        acDriver_ac->deleteCondition(acDriver_ac, cond, source);
     }
 
     {
         UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
             server_ac, "LimitGetterHigh", source);
-        retval = UA_Server_setLimitState(server_ac, cond, 90.0);
+        retval = acDriver_ac->setLimitState(acDriver_ac, cond, 90.0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Server_deleteCondition(server_ac, cond, source);
+        acDriver_ac->deleteCondition(acDriver_ac, cond, source);
     }
 
     {
         UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
             server_ac, "LimitGetterLowLow", source);
-        retval = UA_Server_setLimitState(server_ac, cond, 3.0);
+        retval = acDriver_ac->setLimitState(acDriver_ac, cond, 3.0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Server_deleteCondition(server_ac, cond, source);
+        acDriver_ac->deleteCondition(acDriver_ac, cond, source);
     }
 
     {
         UA_NodeId cond = createConfiguredExclusiveLimitAlarm(
             server_ac, "LimitGetterLow", source);
-        retval = UA_Server_setLimitState(server_ac, cond, 15.0);
+        retval = acDriver_ac->setLimitState(acDriver_ac, cond, 15.0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Server_deleteCondition(server_ac, cond, source);
+        acDriver_ac->deleteCondition(acDriver_ac, cond, source);
     }
 } END_TEST
 
@@ -1373,8 +1305,7 @@ START_TEST(conditionField_comment) {
     UA_Variant val;
     UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "Test comment");
     UA_Variant_setScalar(&val, &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    UA_StatusCode retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Comment"));
+    UA_StatusCode retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Comment"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Read it back */
@@ -1388,7 +1319,7 @@ START_TEST(conditionField_comment) {
     }
     UA_Variant_clear(&fieldVal);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test triggerConditionEvent on a disabled condition (should fail) */
@@ -1401,13 +1332,12 @@ START_TEST(triggerDisabledCondition_noRetain) {
 
     /* Condition starts disabled. Triggering should reflect disabled status. */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = UA_Server_triggerConditionEvent(
-        server_ac, cond, source, &eventId);
+    UA_StatusCode retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
     /* Triggering disabled condition returns BADNOTFOUND because Retain is false */
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test delete condition with wrong source (should fail) */
@@ -1420,20 +1350,18 @@ START_TEST(deleteCondition_wrongSource) {
 
     /* Try to delete with a different source node */
     UA_NodeId wrongSource = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_StatusCode retval = UA_Server_deleteCondition(
-        server_ac, cond, wrongSource);
+    UA_StatusCode retval = acDriver_ac->deleteCondition(acDriver_ac, cond, wrongSource);
     /* Should fail because the condition was created with a different source */
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 
     /* Clean up with the correct source */
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test split creation: begin + finish */
 START_TEST(splitCreation_fullCycle) {
     UA_NodeId condId = UA_NODEID_NULL;
-    UA_StatusCode retval = UA_Server_addCondition_begin(
-        server_ac, UA_NODEID_NULL,
+    UA_StatusCode retval = acDriver_ac->addConditionBegin(acDriver_ac, UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         UA_QUALIFIEDNAME(0, "SplitCycleCond"),
         &condId);
@@ -1442,32 +1370,29 @@ START_TEST(splitCreation_fullCycle) {
 
     /* Finish the condition creation */
     UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    retval = UA_Server_addCondition_finish(
-        server_ac, condId, source, UA_NODEID_NULL);
+    retval = acDriver_ac->addConditionFinish(acDriver_ac, condId, source, UA_NODEID_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Verify the condition works: enable and trigger */
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, condId, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, condId, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, condId, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, condId, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, condId, source, &eventId);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, condId, source, &eventId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&eventId);
 
-    UA_Server_deleteCondition(server_ac, condId, source);
+    acDriver_ac->deleteCondition(acDriver_ac, condId, source);
 } END_TEST
 
 /* Test ackState callback with removeBranch=true to cover the ackedRemoveBranch path */
@@ -1480,8 +1405,7 @@ START_TEST(ackCallback_withRemoveBranch) {
 
     /* Register ack callback with removeBranch = true */
     ackCallbackInvoked = false;
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source,
         true, /* removeBranch */
         ackStateCallbackFn,
         UA_ENTERING_ACKEDSTATE);
@@ -1491,8 +1415,7 @@ START_TEST(ackCallback_withRemoveBranch) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1500,13 +1423,12 @@ START_TEST(ackCallback_withRemoveBranch) {
     /* Set AckedState/Id = true → should invoke ackStateCallback */
     UA_Boolean acked = true;
     UA_Variant_setScalar(&val, &acked, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "AckedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval; /* AckedState may or may not exist */
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test confirmState callback with removeBranch=true */
@@ -1519,8 +1441,7 @@ START_TEST(confirmCallback_withRemoveBranch) {
 
     /* Register confirm callback with removeBranch = true */
     confirmCallbackInvoked = false;
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source,
         true, /* removeBranch */
         confirmStateCallbackFn,
         UA_ENTERING_CONFIRMEDSTATE);
@@ -1530,8 +1451,7 @@ START_TEST(confirmCallback_withRemoveBranch) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1539,13 +1459,12 @@ START_TEST(confirmCallback_withRemoveBranch) {
     /* Set ConfirmedState/Id = true → should invoke confirmStateCallback */
     UA_Boolean confirmed = true;
     UA_Variant_setScalar(&val, &confirmed, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ConfirmedState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval; /* ConfirmedState may or may not exist */
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test enable/disable with re-enable: cover the enteringEnabled callback path fully */
@@ -1558,8 +1477,7 @@ START_TEST(enableDisable_reEnable) {
 
     /* Register enable state callback */
     enableCallbackInvoked = false;
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source,
         false,
         enableStateCallbackFn,
         UA_ENTERING_ENABLEDSTATE);
@@ -1569,8 +1487,7 @@ START_TEST(enableDisable_reEnable) {
     /* 1) Enable */
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1578,8 +1495,7 @@ START_TEST(enableDisable_reEnable) {
     /* 2) Disable */
     UA_Boolean disabled = false;
     UA_Variant_setScalar(&val, &disabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1596,13 +1512,12 @@ START_TEST(enableDisable_reEnable) {
     /* 3) Re-enable */
     enableCallbackInvoked = false;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test trigger event on alarm condition → exercises the full trigger path
@@ -1619,8 +1534,7 @@ START_TEST(triggerAlarmCondition_fullPath) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1628,52 +1542,48 @@ START_TEST(triggerAlarmCondition_fullPath) {
     /* Set Retain = true */
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Set severity to 500 */
     UA_UInt16 severity = 500;
     UA_Variant_setScalar(&val, &severity, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Trigger → exercises severity comparison and active state paths */
     UA_ByteString eventId1 = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId1);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(eventId1.length > 0);
 
     /* Change severity and trigger again → exercises the lastSeverity update */
     severity = 800;
     UA_Variant_setScalar(&val, &severity, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Severity"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString eventId2 = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId2);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId2);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(eventId2.length > 0);
 
     /* Trigger a third time with active state change */
     UA_Boolean active = true;
     UA_Variant_setScalar(&val, &active, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "ActiveState"),
         UA_QUALIFIEDNAME(0, "Id"));
     (void)retval;
 
     UA_ByteString eventId3 = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId3);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId3);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&eventId1);
     UA_ByteString_clear(&eventId2);
     UA_ByteString_clear(&eventId3);
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test creating a condition with ExclusiveLimitAlarmType and full limit traversal */
@@ -1688,8 +1598,7 @@ START_TEST(exclusiveLimitAlarm_test) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1697,34 +1606,34 @@ START_TEST(exclusiveLimitAlarm_test) {
     /* Set limits */
     UA_Double ll = 10.0, lo = 20.0, hi = 80.0, hh = 90.0;
     UA_Variant_setScalar(&val, &ll, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLowLimit"));
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLowLimit"));
     UA_Variant_setScalar(&val, &lo, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLimit"));
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "LowLimit"));
     UA_Variant_setScalar(&val, &hi, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighLimit"));
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighLimit"));
     UA_Variant_setScalar(&val, &hh, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_setConditionField(server_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighHighLimit"));
+    acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "HighHighLimit"));
 
     /* Traverse all states: HighHigh → High → Normal → Low → LowLow → Normal */
-    retval = UA_Server_setLimitState(server_ac, cond, 95.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 95.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 85.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 85.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 50.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 50.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 15.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 15.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 5.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 5.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setLimitState(server_ac, cond, 50.0);
+    retval = acDriver_ac->setLimitState(acDriver_ac, cond, 50.0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test callback for invalid type (out-of-range enum) */
@@ -1735,14 +1644,13 @@ START_TEST(setCallback_outOfRange) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         "OutOfRangeCallbackCond", source);
 
-    UA_StatusCode retval = UA_Server_setConditionTwoStateVariableCallback(
-        server_ac, cond, source,
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(acDriver_ac, cond, source,
         false,
         enableStateCallbackFn,
         (UA_TwoStateVariableCallbackType)99); /* Invalid */
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
 
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 /* Test multiple trigger events on the same condition for retained event tracking */
@@ -1756,49 +1664,47 @@ START_TEST(triggerCondition_multipleTimes) {
     UA_Variant val;
     UA_Boolean enabled = true;
     UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(
-        server_ac, cond, &val,
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
         UA_QUALIFIEDNAME(0, "EnabledState"),
         UA_QUALIFIEDNAME(0, "Id"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Boolean retain = true;
     UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = UA_Server_setConditionField(
-        server_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "Retain"));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Trigger multiple times verifying each event ID is different */
     UA_ByteString eventId1 = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId1);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString eventId2 = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId2);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId2);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString eventId3 = UA_BYTESTRING_NULL;
-    retval = UA_Server_triggerConditionEvent(server_ac, cond, source, &eventId3);
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId3);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&eventId1);
     UA_ByteString_clear(&eventId2);
     UA_ByteString_clear(&eventId3);
-    UA_Server_deleteCondition(server_ac, cond, source);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
 START_TEST(addDriver_rejectsDuplicateAlarmsConditions) {
-    UA_Driver *acDriver =
-        UA_AlarmsConditionsDriver_default(UA_KEYVALUEMAP_NULL);
+    UA_AlarmConditionsDriver *acDriver =
+        UA_AlarmsConditionsDriver(UA_KEYVALUEMAP_NULL);
     ck_assert_ptr_nonnull(acDriver);
 
-    ck_assert_uint_eq(UA_Server_addDriver(server_ac, acDriver),
+    ck_assert_uint_eq(UA_Server_addDriver(server_ac, &acDriver->drv),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(acDriver->start(acDriver),
+    ck_assert_uint_eq(acDriver->drv.start(&acDriver->drv),
                       UA_STATUSCODE_BADALREADYEXISTS);
-    ck_assert_uint_eq(UA_Server_removeDriver(server_ac, acDriver),
+    ck_assert_uint_eq(UA_Server_removeDriver(server_ac, &acDriver->drv),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(acDriver->free(acDriver),
+    ck_assert_uint_eq(acDriver->drv.free(&acDriver->drv),
                       UA_STATUSCODE_GOOD);
 } END_TEST
 

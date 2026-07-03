@@ -546,20 +546,6 @@ UA_StatusCode
 getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
                  UA_NodeId **interfaceNodes, size_t *interfaceNodesSize);
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-
-UA_StatusCode
-UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
-                  UA_NodeId *outConditionId);
-
-UA_Boolean
-isConditionOrBranch(UA_Server *server,
-                    const UA_NodeId *condition,
-                    const UA_NodeId *conditionSource,
-                    UA_Boolean *isCallerAC);
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
-
 /* Returns the first "HasTypeDefinition" or "HasSubtype" reference to the
  * (parent) type. Some types have very many instances. If the type is created
  * ad-hoc by the Nodestore, the attributeMask and reference characterization can
