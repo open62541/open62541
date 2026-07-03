@@ -98,8 +98,9 @@ void append_select(EFParseContext *ctx, Operand *on) {
 
 char *
 save_string(char *str) {
-    char *local_str = (char*) UA_calloc(strlen(str)+1, sizeof(char));
-    strcpy(local_str, str);
+    size_t strLen = strlen(str);
+    char *local_str = (char*) UA_calloc(strLen + 1, sizeof(char));
+    memcpy(local_str, str, strLen + 1);
     return local_str;
 }
 

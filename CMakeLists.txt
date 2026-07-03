@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
-set(OPEN62541_VER_PATCH 4)
+set(OPEN62541_VER_PATCH 5)
 set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -753,13 +753,23 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
        CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
-        message(STATUS "Sanitizer enabled")
         set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -fsanitize=address,undefined")
         if(CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
             set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
         endif()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+        set(CMAKE_REQUIRED_FLAGS_BACKUP "${CMAKE_REQUIRED_FLAGS}")
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${SANITIZER_FLAGS}")
+        check_c_compiler_flag("${SANITIZER_FLAGS}" CC_HAS_DEBUG_SANITIZER)
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS_BACKUP}")
+        unset(CMAKE_REQUIRED_FLAGS_BACKUP)
+        if(CC_HAS_DEBUG_SANITIZER)
+            message(STATUS "Sanitizer enabled")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+        else()
+            message(STATUS "Sanitizer disabled: compiler does not support ${SANITIZER_FLAGS}")
+        endif()
+        unset(CC_HAS_DEBUG_SANITIZER CACHE)
     endif()
 
     # Strip release builds
@@ -1009,8 +1019,8 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     set(MDNSD_GENERATED_DIR "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
     file(MAKE_DIRECTORY "${MDNSD_GENERATED_DIR}")
 
-    set(MDNSD_LIBMDNSD_HEADERS 1035.h xht.h sdtxt.h mdnsd.h)
-    set(MDNSD_LIBMDNSD_SOURCES 1035.c xht.c sdtxt.c mdnsd.c log.c)
+    set(MDNSD_LIBMDNSD_HEADERS 1035.h xht.h sdtxt.h inet.h mdnsd.h)
+    set(MDNSD_LIBMDNSD_SOURCES 1035.c xht.c sdtxt.c inet.c mdnsd.c log.c)
 
     foreach(_f IN LISTS MDNSD_LIBMDNSD_HEADERS MDNSD_LIBMDNSD_SOURCES)
         configure_file(
@@ -1035,6 +1045,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
+        ${MDNSD_GENERATED_DIR}/inet.c
         ${MDNSD_GENERATED_DIR}/mdnsd.c
         ${MDNSD_GENERATED_DIR}/log.c
         PROPERTIES COMPILE_FLAGS
@@ -1049,12 +1060,14 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/1035.h
         ${MDNSD_GENERATED_DIR}/xht.h
         ${MDNSD_GENERATED_DIR}/sdtxt.h
+        ${MDNSD_GENERATED_DIR}/inet.h
         ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
         ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
+        ${MDNSD_GENERATED_DIR}/inet.c
         ${MDNSD_GENERATED_DIR}/mdnsd.c
         ${MDNSD_GENERATED_DIR}/log.c)
 elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)

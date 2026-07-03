@@ -13,6 +13,7 @@
 
 extern "C" {
 #include "mdnsd.h"
+#include "inet.h"
 }
 
 unsigned char message_buf[MAX_PACKET_LEN];
@@ -37,8 +38,9 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     mdns_daemon_t *d = mdnsd_new(QCLASS_IN, 1000);
 
-    struct in_addr addr = {};
-    mdnsd_in(d, &m, addr, 2000);
+    inet_addr_t from = {};
+    inet_anyaddr(AF_INET, 2000, &from);
+    mdnsd_in(d, &m, &from);
     mdnsd_free(d);
 
     return 0;

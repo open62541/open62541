@@ -90,6 +90,17 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
 }
 
 static void
+iterateUntilNotification(UA_Client *client, UA_UInt32 maxIterations) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(UA_UInt32 i = 0; i < maxIterations && !notificationReceived; ++i) {
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_fakeSleep(1);
+    }
+}
+
+static void
 createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                            UA_CreateSubscriptionResponse *r) {
     UA_CreateSubscriptionResponse_copy(r, (UA_CreateSubscriptionResponse *)userdata);
@@ -582,11 +593,7 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     UA_Server_run_iterate(server, false);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 10 && !notificationReceived; ++i) {
-        UA_Server_run_iterate(server, false);
-        retval = UA_Client_run_iterate(client, 0);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
+    iterateUntilNotification(client, 100);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
