@@ -300,18 +300,14 @@ ENCODE_XML(UInt64) {
 ENCODE_XML(Float) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "NaN");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "INF");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "-INF");
-        len = strlen(buffer);
-    } else {
-        len = dtoa((UA_Double)*src, buffer);
-    }
+    if(*src != *src)
+        return xmlEncodeWriteChars(ctx, "NaN", 3);
+    if(*src == INFINITY)
+        return xmlEncodeWriteChars(ctx, "INF", 3);
+    if(*src == -INFINITY)
+        return xmlEncodeWriteChars(ctx, "-INF", 4);
+
+    len = dtoa((UA_Double)*src, buffer);
     return xmlEncodeWriteChars(ctx, buffer, len);
 }
 
@@ -319,18 +315,14 @@ ENCODE_XML(Float) {
 ENCODE_XML(Double) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "NaN");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "INF");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "-INF");
-        len = strlen(buffer);
-    } else {
-        len = dtoa(*src, buffer);
-    }
+    if(*src != *src)
+        return xmlEncodeWriteChars(ctx, "NaN", 3);
+    if(*src == INFINITY)
+        return xmlEncodeWriteChars(ctx, "INF", 3);
+    if(*src == -INFINITY)
+        return xmlEncodeWriteChars(ctx, "-INF", 4);
+
+    len = dtoa(*src, buffer);
     return xmlEncodeWriteChars(ctx, buffer, len);
 }
 

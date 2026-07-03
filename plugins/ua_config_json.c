@@ -962,7 +962,7 @@ PARSE_JSON(SecurityPkiField) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) || defined(__OpenBSD__)
     /* Set up the parameters for the filestore certificate store */
     UA_KeyValuePair params[2];
     size_t paramsSize = 2;

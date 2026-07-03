@@ -15,12 +15,20 @@
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) || defined(__OpenBSD__)
 
 #ifdef __linux__
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define BUF_LEN (1024 * ( EVENT_SIZE + 16 ))
 #endif /* __linux__ */
+
+static size_t
+UA_strnlen(const char *s, size_t maxlen) {
+	    size_t len = 0;
+	        while(len < maxlen && s[len] != '\0')
+			        len++;
+		    return len;
+}
 
 typedef struct {
     /* Memory cert store as a base */
@@ -45,10 +53,11 @@ mkpath(char *dir, UA_MODE mode) {
     if(dir == NULL)
         return 1;
 
-    char *path = (char*)UA_malloc(strlen(dir) + 1);
+    size_t dirLen = strlen(dir);
+    char *path = (char*)UA_malloc(dirLen + 1);
     if(!path)
         return 1;
-    strcpy(path, dir);
+    memcpy(path, dir, dirLen + 1);
 
     char *pos = path;
     if(pos[0] == '/')
@@ -436,7 +445,7 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
         return UA_STATUSCODE_BADINTERNALERROR;
 
     memcpy(rootDirectory, directory.data, directory.length);
-    rootDirectorySize = strnlen(rootDirectory, UA_PATH_MAX);
+    rootDirectorySize = UA_strnlen(rootDirectory, UA_PATH_MAX);
 
     /* Add Certificate Group Id */
     UA_NodeId applCertGroup =
@@ -459,7 +468,7 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
         strncpy(&rootDirectory[rootDirectorySize], (char *)nodeIdStr.data, UA_PATH_MAX - rootDirectorySize);
         UA_String_clear(&nodeIdStr);
     }
-    rootDirectorySize = strnlen(rootDirectory, UA_PATH_MAX);
+    rootDirectorySize = UA_strnlen(rootDirectory, UA_PATH_MAX);
 
     context->rootFolder = UA_STRING_ALLOC(rootDirectory);
 

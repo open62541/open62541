@@ -505,9 +505,12 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -561,9 +564,12 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -636,9 +642,12 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -860,9 +869,12 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -916,9 +928,12 @@ UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
