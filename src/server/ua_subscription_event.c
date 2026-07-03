@@ -40,18 +40,6 @@ readSAOfromEventInstance(UA_FilterEvalContext *ctx,
          * TypeDefinition. (Part 4, 7.4.4.5) */
         rvi.nodeId = *ei;
 
-        /* A Condition is an indirection. Look up the target node. */
-        /* TODO: check for Branches! One Condition could have multiple Branches */
-        UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-        if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)) {
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-            UA_StatusCode res = UA_getConditionId(ctx->server, ctx->ed.eventInstance, &rvi.nodeId);
-            UA_CHECK_STATUS(res, return res);
-#else
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
-        }
-
         v = readWithSession(ctx->server, ctx->session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     } else {
         /* Resolve the browse path, starting from the event-source (and not the
@@ -1560,17 +1548,6 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Events: An event of severity %u is emitted by node %N",
                  ed->severity, ed->sourceNode);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    UA_Boolean isCallerAC = false;
-    if(isConditionOrBranch(server, &ed->eventType, &ed->sourceNode, &isCallerAC) &&
-       !isCallerAC) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
-                       UA_STATUSCODE_BADINVALIDARGUMENT);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
     /* The user must ensure that only nodes from the Objects folder (and Views)
      * emit events. The following commented code could enforce this, but is

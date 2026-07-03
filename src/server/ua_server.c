@@ -423,6 +423,11 @@ UA_Server_removeDriver(UA_Server *server, UA_Driver *drv) {
     return res;
 }
 
+UA_Driver *
+UA_Server_getDrivers(UA_Server *server) {
+    return server->drivers;
+}
+
 static void
 stopDrivers(UA_Server *server) {
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
