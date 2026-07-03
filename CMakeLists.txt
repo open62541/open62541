@@ -1024,6 +1024,23 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2" _content "${_content}")
         string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2" _content "${_content}")
         string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2" _content "${_content}")
+        if(_f STREQUAL "mdnsd.h")
+            string(REPLACE "#define DBG(fmt, args...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, ##args)"
+                           "#define DBG(fmt, ...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define INFO(fmt, args...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, ##args)"
+                           "#define INFO(fmt, ...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define NOTE(fmt, args...) mdnsd_log(LOG_NOTICE, fmt, ##args)"
+                           "#define NOTE(...) mdnsd_log(LOG_NOTICE, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define WARN(fmt, args...) mdnsd_log(LOG_WARNING, fmt, ##args)"
+                           "#define WARN(...) mdnsd_log(LOG_WARNING, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define ERR(fmt, args...)  mdnsd_log(LOG_ERR, fmt, ##args)"
+                           "#define ERR(...)  mdnsd_log(LOG_ERR, __VA_ARGS__)"
+                           _content "${_content}")
+        endif()
         file(WRITE "${MDNSD_GENERATED_DIR}/${_f}" "${_content}")
     endforeach()
 
@@ -1035,7 +1052,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/mdnsd.c
         ${MDNSD_GENERATED_DIR}/log.c
         PROPERTIES COMPILE_FLAGS
-            "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast")
+            "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast -Wno-format-nonliteral")
 
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     list(APPEND lib_headers
