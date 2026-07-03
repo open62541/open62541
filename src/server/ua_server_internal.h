@@ -241,9 +241,6 @@ struct UA_Server {
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
 
-# ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) conditionSources;
-# endif
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -554,9 +551,6 @@ getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
 UA_StatusCode
 UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId);
-
-void
-UA_ConditionList_delete(UA_Server *server);
 
 UA_Boolean
 isConditionOrBranch(UA_Server *server,

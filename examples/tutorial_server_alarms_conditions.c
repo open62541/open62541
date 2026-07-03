@@ -2,7 +2,10 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/driver/alarms_conditions.h>
 #include <open62541/server.h>
+
+#include <stdlib.h>
 
 /**
  * Using Alarms and Conditions Server
@@ -541,6 +544,16 @@ setUpEnvironment(UA_Server *server) {
 
 int main (void) {
     UA_Server *server = UA_Server_new();
+
+    UA_Driver *acDriver =
+        UA_AlarmsConditionsDriver_default(UA_KEYVALUEMAP_NULL);
+    if(!acDriver ||
+       UA_Server_addDriver(server, acDriver) != UA_STATUSCODE_GOOD) {
+        if(acDriver)
+            acDriver->free(acDriver);
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
 
     setUpEnvironment(server);
 
