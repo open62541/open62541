@@ -471,10 +471,6 @@ UA_Server_delete(UA_Server *server) {
         UA_Subscription_delete(server, sub, true);
     }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    UA_ConditionList_delete(server);
-#endif
-
 #endif
 
 #if UA_MULTITHREADING >= 100

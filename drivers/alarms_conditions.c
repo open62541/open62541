@@ -6,7 +6,9 @@
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
-#include "ua_server_internal.h"
+#include <open62541/driver/alarms_conditions.h>
+
+#include "../src/server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
@@ -62,8 +64,21 @@ struct UA_ConditionSource {
     UA_NodeId conditionSourceId;
 };
 
+typedef struct {
+    UA_Driver drv;
+    LIST_HEAD(, UA_ConditionSource) conditionSources;
+} AlarmsConditionsDriver;
+
+#define UA_DRIVER_ALARMS_CONDITIONS_NAME "alarms-conditions"
+
 #define CONDITIONOPTIONALFIELDS_SUPPORT // change array size!
 #define CONDITION_SEVERITYCHANGECALLBACK_ENABLE
+
+static UA_Boolean
+isAlarmsConditionsDriver(const UA_Driver *drv) {
+    const UA_String name = UA_STRING_STATIC(UA_DRIVER_ALARMS_CONDITIONS_NAME);
+    return UA_String_equal(&drv->name, &name);
+}
 
 /* Condition Field Names */
 #define CONDITION_FIELD_EVENTID                                "EventId"
@@ -205,11 +220,41 @@ addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
                           const UA_NodeId conditionType, const UA_QualifiedName fieldName,
                           UA_NodeId *outOptionalNode);
 
+static AlarmsConditionsDriver *
+getAlarmsConditionsDriver(UA_Server *server) {
+    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
+        if(isAlarmsConditionsDriver(drv))
+            return (AlarmsConditionsDriver*)drv;
+    }
+    return NULL;
+}
+
+static void
+deleteCondition(UA_Condition *condition);
+
+static void
+deleteConditionSources(AlarmsConditionsDriver *acd) {
+    UA_ConditionSource *source, *tmp_source;
+    LIST_FOREACH_SAFE(source, &acd->conditionSources, listEntry, tmp_source) {
+        UA_Condition *condition, *tmp_condition;
+        LIST_FOREACH_SAFE(condition, &source->conditions, listEntry, tmp_condition) {
+            deleteCondition(condition);
+        }
+        UA_NodeId_clear(&source->conditionSourceId);
+        LIST_REMOVE(source, listEntry);
+        UA_free(source);
+    }
+}
+
 static UA_ConditionSource *
 getConditionSource(UA_Server *server, const UA_NodeId *sourceId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd)
+        return NULL;
+
     UA_ConditionSource *cs;
-    LIST_FOREACH(cs, &server->conditionSources, listEntry) {
+    LIST_FOREACH(cs, &acd->conditionSources, listEntry) {
         if(UA_NodeId_equal(&cs->conditionSourceId, sourceId))
             return cs;
     }
@@ -500,8 +545,14 @@ UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *event
        NULL -> outConditionId = ConditionId */
     /* Get ConditionSource Entry */
     UA_StatusCode res = UA_STATUSCODE_BADEVENTIDUNKNOWN;
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->conditionSources, listEntry) {
+    LIST_FOREACH(source, &acd->conditionSources, listEntry) {
         /* Get Condition Entry */
         UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditions, listEntry) {
@@ -1720,8 +1771,12 @@ refreshLogic(UA_Server *server, UA_Session *session,
 
     /* 2. Refresh (see 5.5.7) */
     /* Get ConditionSource Entry */
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->conditionSources, listEntry) {
+    LIST_FOREACH(source, &acd->conditionSources, listEntry) {
         UA_NodeId conditionSource = source->conditionSourceId;
         UA_NodeId serverObjectNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
         /* Check if the conditionSource is being monitored. If the Server Object
@@ -1880,6 +1935,9 @@ static UA_StatusCode
 appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
                      const UA_NodeId *conditionSourceNodeId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* See if the ConditionSource Entry already exists*/
     UA_ConditionSource *source = getConditionSource(server, conditionSourceNodeId);
@@ -1901,7 +1959,7 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
         return retval;
     }
 
-    LIST_INSERT_HEAD(&server->conditionSources, conditionSourceListEntry, listEntry);
+    LIST_INSERT_HEAD(&acd->conditionSources, conditionSourceListEntry, listEntry);
     return setConditionInConditionList(server, conditionNodeId, conditionSourceListEntry);
 }
 
@@ -1924,32 +1982,19 @@ deleteCondition(UA_Condition *cond) {
     UA_free(cond);
 }
 
-void
-UA_ConditionList_delete(UA_Server *server) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    UA_ConditionSource *source, *tmp_source;
-    LIST_FOREACH_SAFE(source, &server->conditionSources, listEntry, tmp_source) {
-        UA_Condition *cond, *tmp_cond;
-        LIST_FOREACH_SAFE(cond, &source->conditions, listEntry, tmp_cond) {
-            deleteCondition(cond);
-        }
-        UA_NodeId_clear(&source->conditionSourceId);
-        LIST_REMOVE(source, listEntry);
-        UA_free(source);
-    }
-}
-
 /* Get the ConditionId based on the EventId (all branches of one condition
  * should have the same ConditionId) */
 UA_StatusCode
 UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->conditionSources, listEntry) {
+    LIST_FOREACH(source, &acd->conditionSources, listEntry) {
         /* Get Condition Entry */
         UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditions, listEntry) {
@@ -2358,7 +2403,11 @@ setStandardConditionCallbacks(UA_Server *server, const UA_NodeId* condition,
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionVariable Callback failed",);
 
     /* Set callbacks for Method Components (needs to be set only once!) */
-    if(LIST_EMPTY(&server->conditionSources)) {
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
+    if(LIST_EMPTY(&acd->conditionSources)) {
         retval = setConditionMethodCallbacks(server, condition, conditionType);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Method Callback failed",);
     }
@@ -2848,7 +2897,13 @@ UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
     UA_ConditionSource *source, *tmp_source;
 
     lockServer(server);
-    LIST_FOREACH_SAFE(source, &server->conditionSources, listEntry, tmp_source) {
+    AlarmsConditionsDriver *acd = getAlarmsConditionsDriver(server);
+    if(!acd) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    LIST_FOREACH_SAFE(source, &acd->conditionSources, listEntry, tmp_source) {
         if(!UA_NodeId_equal(&source->conditionSourceId, &conditionSource))
             continue;
 
@@ -3069,5 +3124,67 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
                                                   &getExpiryDateAndTime,
                                                   &UA_TYPES[UA_TYPES_DATETIME]);
     return retval;
+}
+
+static UA_StatusCode
+AlarmsConditionsDriver_start(UA_Driver *drv) {
+    if(!drv->server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    for(UA_Driver *existing = drv->server->drivers; existing;
+        existing = existing->next) {
+        if(existing == drv || !isAlarmsConditionsDriver(existing))
+            continue;
+
+        UA_LOG_ERROR(drv->server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot add the driver \"%S\". "
+                     "The Alarms and Conditions driver is already loaded",
+                     drv->name);
+        return UA_STATUSCODE_BADALREADYEXISTS;
+    }
+
+    drv->state = UA_LIFECYCLESTATE_STARTED;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+AlarmsConditionsDriver_stop(UA_Driver *drv) {
+    drv->state = UA_LIFECYCLESTATE_STOPPED;
+}
+
+static UA_StatusCode
+AlarmsConditionsDriver_free(UA_Driver *drv) {
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    AlarmsConditionsDriver *acd = (AlarmsConditionsDriver*)drv;
+    deleteConditionSources(acd);
+    UA_KeyValueMap_clear(&drv->params);
+    UA_free(acd);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_Driver *
+UA_AlarmsConditionsDriver_default(const UA_KeyValueMap params) {
+    AlarmsConditionsDriver *acd =
+        (AlarmsConditionsDriver*)UA_calloc(1, sizeof(AlarmsConditionsDriver));
+    if(!acd)
+        return NULL;
+
+    UA_StatusCode res =
+        UA_KeyValueMap_copy(&params, &acd->drv.params);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(acd);
+        return NULL;
+    }
+
+    acd->drv.name = UA_STRING(UA_DRIVER_ALARMS_CONDITIONS_NAME);
+    acd->drv.start = AlarmsConditionsDriver_start;
+    acd->drv.stop = AlarmsConditionsDriver_stop;
+    acd->drv.free = AlarmsConditionsDriver_free;
+    LIST_INIT(&acd->conditionSources);
+    return &acd->drv;
 }
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */

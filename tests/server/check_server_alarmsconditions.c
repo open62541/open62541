@@ -6,6 +6,7 @@
  */
 
 #include <open62541/server.h>
+#include <open62541/driver/alarms_conditions.h>
 #include <open62541/server_config_default.h>
 #include "test_helpers.h"
 
@@ -17,6 +18,13 @@ UA_Server *server_ac;
 
 static void setup(void) {
     server_ac = UA_Server_newForUnitTest();
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    UA_Driver *acDriver =
+        UA_AlarmsConditionsDriver_default(UA_KEYVALUEMAP_NULL);
+    ck_assert_ptr_nonnull(acDriver);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ac, acDriver),
+                      UA_STATUSCODE_GOOD);
+#endif
 }
 
 static void teardown(void) {
@@ -727,7 +735,7 @@ START_TEST(conditionCleanup_onShutdown) {
     UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     /* Create conditions but DON'T delete them — they should be cleaned up
-     * by the server destructor (via UA_ConditionList_delete) */
+     * by the server destructor via the A&C driver cleanup */
     createTestCondition(server_ac,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
         "LeakyCondition1", source);
@@ -736,7 +744,7 @@ START_TEST(conditionCleanup_onShutdown) {
         "LeakyCondition2", source);
 
     /* No explicit deleteCondition — teardown will call UA_Server_delete
-     * which should clean up via UA_ConditionList_delete */
+     * which should clean up via the A&C driver */
 } END_TEST
 
 /* Test creating condition with NULL outNodeId */
@@ -1779,6 +1787,21 @@ START_TEST(triggerCondition_multipleTimes) {
     UA_Server_deleteCondition(server_ac, cond, source);
 } END_TEST
 
+START_TEST(addDriver_rejectsDuplicateAlarmsConditions) {
+    UA_Driver *acDriver =
+        UA_AlarmsConditionsDriver_default(UA_KEYVALUEMAP_NULL);
+    ck_assert_ptr_nonnull(acDriver);
+
+    ck_assert_uint_eq(UA_Server_addDriver(server_ac, acDriver),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(acDriver->start(acDriver),
+                      UA_STATUSCODE_BADALREADYEXISTS);
+    ck_assert_uint_eq(UA_Server_removeDriver(server_ac, acDriver),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(acDriver->free(acDriver),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -1862,6 +1885,7 @@ int main(void) {
     tcase_add_test(tc_misc, enableDisable_reEnable);
     tcase_add_test(tc_misc, triggerAlarmCondition_fullPath);
     tcase_add_test(tc_misc, triggerCondition_multipleTimes);
+    tcase_add_test(tc_misc, addDriver_rejectsDuplicateAlarmsConditions);
 #endif
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     suite_add_tcase(s, tc_misc);
