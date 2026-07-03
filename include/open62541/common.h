@@ -510,7 +510,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  * - For FindServerOnNetwork: ServerName + DiscoveryUrl
  */
 
-#define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY (0x80UL << 32)
+#define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY (0x80ULL << 32)
 
 /* A server was added via the RegisterServer service or the local API.
  * Updates and removals are also notified.
@@ -532,7 +532,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  *    Identifier of the Session that called the RegisterServer service.
  *    The Null-NodeId if a SecureChannel without Session made the call. */
 #define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER \
-    ((0x80UL << 32) | 0x01)
+    ((0x80ULL << 32) | 0x01)
 
 /* Information about a server over multicast DNS or the local API.
  * Updates over time and removal is also notified (e.g after the DNS
@@ -554,7 +554,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  * 0:server-removed [Boolean]
  *    The entry was removed. */
 #define UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK \
-    ((0x80UL << 32) | 0x02)
+    ((0x80ULL << 32) | 0x02)
 
 /**
  * Connection State
