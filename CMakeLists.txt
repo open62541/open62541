@@ -638,18 +638,16 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
         check_add_cc_flag("-Wno-cast-function-type")
     endif()
 
-    # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic -std=c99
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
-       CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "22.0")
-        add_cc_flag("-Wno-c2y-extensions")
-    else()
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic
+        # -std=c99.
         check_add_cc_flag("-Wno-c2y-extensions")
-    endif()
 
-    # Newer glibc versions use _Generic in string.h headers
-    # for const-qualified overloads. Clang reports this as
-    # -Wc11-extensions when compiling in -std=c99 mode.
-    check_add_cc_flag("-Wno-c11-extensions")
+        # Newer glibc versions use _Generic in string.h headers
+        # for const-qualified overloads. Clang reports this as
+        # -Wc11-extensions when compiling in -std=c99 mode.
+        check_add_cc_flag("-Wno-c11-extensions")
+    endif()
 
     # Overlength strings may occur in generated code and are not harmful
     check_add_cc_flag("-Wno-overlength-strings")
