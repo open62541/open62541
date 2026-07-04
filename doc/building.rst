@@ -10,8 +10,8 @@ open62541 uses CMake to build the library and binaries. CMake generates a
 Makefile or a Visual Studio project. This is then used to perform the actual
 build.
 
-Building with CMake on Ubuntu or Debian
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Building with CMake on Debian/Ubuntu
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
@@ -28,14 +28,17 @@ Building with CMake on Ubuntu or Debian
 
    git clone https://github.com/open62541/open62541.git
    cd open62541
-   git submodule update --init --recursive
    mkdir build
    cd build
    cmake ..
    make
 
+   # optional: fetch additional dependencies for advanced features
+   git submodule update --init --recursive
+
    # select additional features
    ccmake ..
+   cmake .. -DUA_ENABLE_DRIVER_MDNS_AVAHI=ON # use Avahi for multicast discovery
    make
 
    # build documentation
@@ -271,9 +274,6 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS_EVENTS**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
-**UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS (EXPERIMENTAL)**
-    Enable the use of A&C for subscriptions. This is a new feature build upon events and currently marked as EXPERIMENTAL.
-
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 
@@ -289,14 +289,6 @@ Detailed SDK Features
 
 **UA_ENABLE_DISCOVERY**
    Enable Discovery Service (LDS)
-
-**UA_ENABLE_DISCOVERY_MULTICAST**
-   Enable Discovery Service with multicast support (LDS-ME) and specify the
-   multicast backend. The possible options are:
-
-   - ``OFF`` No multicast support. (default)
-   - ``MDNSD`` Multicast support using libmdnsd
-   - ``AVAHI`` Multicast support using Avahi
 
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
