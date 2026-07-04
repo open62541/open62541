@@ -39,6 +39,8 @@
 
 #if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 
+_UA_BEGIN_DECLS
+
 typedef struct UA_AlarmConditionsDriver UA_AlarmConditionsDriver;
 
 typedef enum UA_TwoStateVariableCallbackType {
@@ -230,6 +232,8 @@ struct UA_AlarmConditionsDriver {
 
 UA_EXPORT UA_AlarmConditionsDriver *
 UA_AlarmsConditionsDriver(const UA_KeyValueMap params);
+
+_UA_END_DECLS
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS && UA_GENERATED_NAMESPACE_ZERO_FULL */
 

@@ -92,7 +92,9 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h ${DOC_SR
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h ${DOC_SRC_DIR}/plugin_eventloop.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/certificategroup.h ${DOC_SRC_DIR}/plugin_certificategroup.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h ${DOC_SRC_DIR}/plugin_securitypolicy.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/servercomponent.h ${DOC_SRC_DIR}/plugin_servercomponent.rst)
+
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h ${DOC_SRC_DIR}/driver_mdns.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h ${DOC_SRC_DIR}/driver_alarms_conditions.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)

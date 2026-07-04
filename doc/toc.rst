@@ -17,3 +17,4 @@ open62541 Documentation
    nodeset_compiler
    statuscodes
    plugin
+   driver

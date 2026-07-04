@@ -10,9 +10,11 @@
 
 #include <open62541/server.h>
 
+_UA_BEGIN_DECLS
+
 /**
- * MDNS Driver
- * -----------
+ * Multicast DNS Discovery Driver
+ * ------------------------------
  * An OPC UA application can announce / retract a server via multicast DNS. Also
  * it receives multicast-based information about other servers. This
  * functionality is implemented as a driver that integrates with open62541
@@ -82,5 +84,7 @@ UA_MdnsDriver_Mdnsd(const UA_KeyValueMap params);
 /* Based on the libavahi dependency */
 UA_EXPORT UA_MdnsDriver *
 UA_MdnsDriver_Avahi(const UA_KeyValueMap params);
+
+_UA_END_DECLS
 
 #endif /* UA_DRIVER_MDNS_H_ */

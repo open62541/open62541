@@ -1719,6 +1719,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
 #endif /* UA_ENABLE_DISCOVERY */
 
 /**
+ * .. _drivers:
+ *
  * Drivers
  * -------
  * Drivers are different from other "plugins" in that they have an explicit
@@ -1726,7 +1728,7 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * however dependent on the server into which the drivers are embedded. When the
  * server shuts down, the drivers are also stopped.
  *
- * Drivers can use the server's public API to the full extend. For example
+ * Drivers can use the server's public API to the full extent. For example
  * add/remove nodes, or register connections and timers in the server's
  * EventLoop.
  *

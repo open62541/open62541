@@ -997,6 +997,11 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
                 _content "${_content}")
         elseif(_f STREQUAL "mdnsd.c")
             string(REPLACE
+[=[	memset(buf, 0, sizeof(buf));]=]
+[=[	memset(buf, 0, sizeof(buf));
+	memset(&from, 0, sizeof(from));]=]
+                _content "${_content}")
+            string(REPLACE
 [=[static bool _is_local_ipv4(mdns_daemon_t *d, struct in_addr ip)]=]
 [=[static bool _is_local_ipv4(mdns_daemon_t *d, const struct in_addr *ip)]=]
                 _content "${_content}")
