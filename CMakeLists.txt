@@ -150,9 +150,6 @@ endif()
 set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
     "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
-option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
-mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
 
@@ -162,42 +159,12 @@ mark_as_advanced(UA_ENABLE_AUDITING)
 option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API" OFF)
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
-# mDNS provider
-set(UA_MDNS_PLUGINS "MDNSD" "AVAHI")
-set(UA_ENABLE_DISCOVERY_MULTICAST "OFF" CACHE STRING "mDNS discovery support")
-mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
-SET_PROPERTY(CACHE UA_ENABLE_DISCOVERY_MULTICAST PROPERTY STRINGS "OFF" ${UA_MDNS_PLUGINS})
-option(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD "Enable mDNS discovery support (uses mdnsd)" OFF)
-mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-option(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI "Enable mDNS discovery support (uses Avahi)" OFF)
-mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-
-list (FIND UA_MDNS_PLUGINS ${UA_ENABLE_DISCOVERY_MULTICAST} _tmp)
-if(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "OFF" OR ${_tmp} GREATER -1)
-    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
-    set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
-    if(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "MDNSD")
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
-    elseif(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "AVAHI")
-        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON)
-    endif()
-# Only for backward compatability
-elseif(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "ON")
-    message(DEPRECATION "Set UA_ENABLE_DISCOVERY_MULTICAST to the desired mDNS library." )
-    if(NOT UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
-    endif()
-else()
-    message(DEPRECATION "Set UA_ENABLE_DISCOVERY_MULTICAST to the desired mDNS library." )
-    if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-        set(UA_ENABLE_DISCOVERY_MULTICAST "MDNSD")
-        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
-    endif()
-    if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-        set(UA_ENABLE_DISCOVERY_MULTICAST "AVAHI")
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
-    endif()
-endif()
+# Drivers
+option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
+mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
+set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
+set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
+set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
@@ -294,8 +261,6 @@ endif()
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
-    set(UA_ENABLE_DISCOVERY_MULTICAST MDNSD CACHE STRING "" FORCE)
-    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -307,14 +272,16 @@ endif()
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
 
-# It should not be possible to enable Alarms and Condition without enabling Events and full ns0
-if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
-    message(FATAL_ERROR "Unable to enable A&C without UA_ENABLE_SUBSCRIPTIONS_EVENTS and full namespace 0")
+if(UA_ENABLE_DRIVER_MDNS_AVAHI AND NOT UA_ENABLE_DISCOVERY)
+    message(FATAL_ERROR "UA_ENABLE_DRIVER_MDNS_AVAHI requires UA_ENABLE_DISCOVERY")
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
-    MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
-    SET(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
+if(UA_ENABLE_DISCOVERY)
+    if(UA_ENABLE_DRIVER_MDNS_AVAHI)
+        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON)
+    elseif(UA_ARCHITECTURE_POSIX AND EXISTS "${UA_FILE_MDNSD}")
+        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
+    endif()
 endif()
 
 # Advanced options
@@ -375,14 +342,10 @@ endif()
 option(UA_ENABLE_MQTT "Enable MQTT connections for the EventLoop" OFF)
 mark_as_advanced(UA_ENABLE_MQTT)
 if(UA_ENABLE_MQTT)
+    set(UA_FILE_MQTT "${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c")
     if(NOT EXISTS "${UA_FILE_MQTT}")
-        message(STATUS "Submodule update")
-        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-                        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
-        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
-        endif()
+        message(FATAL_ERROR "UA_ENABLE_MQTT requires the mqtt-c dependency. "
+                            "Fetch submodules or provide deps/mqtt-c locally.")
     endif()
     include_directories("${PROJECT_SOURCE_DIR}/deps/mqtt-c/include")
 endif()
@@ -480,10 +443,6 @@ endif()
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
-endif()
-
-if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
@@ -845,6 +804,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
@@ -1008,10 +968,11 @@ if(UA_DEBUG_DUMP_PKGS)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-    # Copy mdnsd libmdnsd files into src_generated/mdnsd/ so they can be
-    # patched via regex (configure_file copies without variable substitution
-    # when COPYONLY is given, but using the plain copy lets downstream code
-    # run regex passes on the generated copies before compilation).
+    if(NOT UA_ARCHITECTURE_POSIX)
+        message(FATAL_ERROR "The bundled mdnsd discovery driver requires UA_ARCHITECTURE=posix")
+    endif()
+
+    # Copy mdnsd libmdnsd files into src_generated/mdnsd/.
     set(MDNSD_GENERATED_DIR "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
     file(MAKE_DIRECTORY "${MDNSD_GENERATED_DIR}")
 
@@ -1024,36 +985,45 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
             "${MDNSD_GENERATED_DIR}/${_f}"
             COPYONLY)
         file(READ "${MDNSD_GENERATED_DIR}/${_f}" _content)
-        # Ensure open62541/config.h (which sets _GNU_SOURCE etc.) is included
-        # before any system header, then remove any original config.h include.
-        string(PREPEND _content "#include \"open62541/config.h\"\n")
-        string(REGEX REPLACE "#include \"config\\.h\"\n?" "" _content "${_content}")
-        # Rename C++ keyword identifiers: 'class' -> 'clazz', 'new' -> 'new_'
-        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2" _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2" _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2" _content "${_content}")
-        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2" _content "${_content}")
-        if(_f STREQUAL "mdnsd.h")
-            string(REPLACE "#define DBG(fmt, args...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, ##args)"
-                           "#define DBG(fmt, ...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define INFO(fmt, args...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, ##args)"
-                           "#define INFO(fmt, ...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define NOTE(fmt, args...) mdnsd_log(LOG_NOTICE, fmt, ##args)"
-                           "#define NOTE(...) mdnsd_log(LOG_NOTICE, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define WARN(fmt, args...) mdnsd_log(LOG_WARNING, fmt, ##args)"
-                           "#define WARN(...) mdnsd_log(LOG_WARNING, __VA_ARGS__)"
-                           _content "${_content}")
-            string(REPLACE "#define ERR(fmt, args...)  mdnsd_log(LOG_ERR, fmt, ##args)"
-                           "#define ERR(...)  mdnsd_log(LOG_ERR, __VA_ARGS__)"
-                           _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2"
+               _content "${_content}")
+        if(_f STREQUAL "xht.c")
+            string(REPLACE
+[=[	_xht_set(h, ckey, cval, 1);]=]
+[=[	if (!_xht_set(h, ckey, cval, 1)) {
+		free(ckey);
+		free(cval);
+	}]=]
+                _content "${_content}")
+        elseif(_f STREQUAL "mdnsd.c")
+            string(REPLACE
+[=[static bool _is_local_ipv4(mdns_daemon_t *d, struct in_addr ip)]=]
+[=[static bool _is_local_ipv4(mdns_daemon_t *d, const struct in_addr *ip)]=]
+                _content "${_content}")
+            string(REPLACE
+[=[	if (ip.s_addr == d->addr.s_addr)]=]
+[=[	if (ip->s_addr == d->addr.s_addr)]=]
+                _content "${_content}")
+            string(REPLACE
+[=[		if (sin->sin_addr.s_addr == ip.s_addr)]=]
+[=[		if (sin->sin_addr.s_addr == ip->s_addr)]=]
+                _content "${_content}")
+            string(REPLACE
+[=[	return _is_local_ipv4(d, ((const struct sockaddr_in *)from)->sin_addr);]=]
+[=[	if (inet_family(from) != AF_INET)
+		return false;
+
+	const struct sockaddr_in *sin4 = (const struct sockaddr_in *)from;
+	return _is_local_ipv4(d, &sin4->sin_addr);]=]
+                _content "${_content}")
         endif()
         file(WRITE "${MDNSD_GENERATED_DIR}/${_f}" "${_content}")
     endforeach()
 
-    # Suppress warnings from the generated (upstream) mdnsd C files
+    file(WRITE "${MDNSD_GENERATED_DIR}/config.h"
+         "#include \"open62541/config.h\"\n")
+
+    # Suppress warnings from the generated (upstream) mdnsd C files.
     set_source_files_properties(
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
@@ -1062,9 +1032,12 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/mdnsd.c
         ${MDNSD_GENERATED_DIR}/log.c
         PROPERTIES COMPILE_FLAGS
-            "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast -Wno-format-nonliteral")
+            "-Wno-c++-compat -Wno-variadic-macros -Wno-pedantic -Wno-implicit-function-declaration -Wno-nested-externs -Wno-int-to-pointer-cast -Wno-format-nonliteral -Wno-pointer-sign")
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/drivers/discovery_mdns_mdnsd.c
+        PROPERTIES COMPILE_FLAGS
+            "-Wno-variadic-macros")
 
-    # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     list(APPEND lib_headers
         ${MDNSD_GENERATED_DIR}/1035.h
         ${MDNSD_GENERATED_DIR}/xht.h
@@ -1291,13 +1264,11 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Check that the submodule was checked out or manually downloaded into the folder
     if(NOT EXISTS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
-        message(STATUS "Submodule update")
-        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-                        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
-        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
-        endif()
+        message(FATAL_ERROR "UA_NAMESPACE_ZERO=FULL requires the OPC UA NodeSet "
+                            "dependency. Fetch submodules or set UA_NODESET_DIR "
+                            "to a local UA-Nodeset checkout. To fetch the "
+                            "bundled dependency, run: git submodule update "
+                            "--init --recursive deps/ua-nodeset")
     endif()
 else()
     # Directory with the schema files for installation
@@ -1511,6 +1482,18 @@ add_dependencies(open62541-plugins open62541-code-generation)
 if(UA_ENABLE_COVERAGE)
     add_coverage(open62541-object)
     add_coverage(open62541-plugins)
+
+    get_target_property(UA_COVERAGE_OBJECT_SOURCES open62541-object SOURCES)
+    set(UA_COVERAGE_DRIVER_SOURCES)
+    foreach(source ${UA_COVERAGE_OBJECT_SOURCES})
+        if(source MATCHES "^${PROJECT_SOURCE_DIR}/drivers/")
+            list(APPEND UA_COVERAGE_DRIVER_SOURCES ${source})
+        endif()
+    endforeach()
+    if(NOT UA_COVERAGE_DRIVER_SOURCES)
+        message(FATAL_ERROR "Coverage tracking must include sources from the "
+                            "drivers directory")
+    endif()
 endif()
 
 # Private include directories

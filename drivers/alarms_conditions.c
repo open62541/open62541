@@ -11,7 +11,7 @@
 
 #include "open62541_queue.h"
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 
 /**************************************
  * Types and Constants
@@ -2937,4 +2937,4 @@ UA_AlarmsConditionsDriver(const UA_KeyValueMap params) {
     return driver;
 }
 
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS && UA_GENERATED_NAMESPACE_ZERO_FULL */

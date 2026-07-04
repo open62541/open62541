@@ -13,13 +13,17 @@
 #include <check.h>
 #include <stdlib.h>
 
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
+# define UA_TEST_ENABLE_ALARMS_CONDITIONS
+#endif
+
 UA_Server *server_ac;
 static UA_AlarmConditionsDriver *acDriver_ac;
 
 
 static void setup(void) {
     server_ac = UA_Server_newForUnitTest();
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     acDriver_ac = UA_AlarmsConditionsDriver(UA_KEYVALUEMAP_NULL);
     ck_assert_ptr_nonnull(acDriver_ac);
     ck_assert_uint_eq(UA_Server_addDriver(server_ac, &acDriver_ac->drv),
@@ -30,7 +34,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     acDriver_ac->drv.stop(&acDriver_ac->drv);
     ck_assert_uint_eq(UA_Server_removeDriver(server_ac, &acDriver_ac->drv),
                       UA_STATUSCODE_GOOD);
@@ -40,7 +44,7 @@ static void teardown(void) {
     UA_Server_delete(server_ac);
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
 
 /* Helper: create a condition and return its NodeId */
 static UA_NodeId
@@ -1708,13 +1712,13 @@ START_TEST(addDriver_rejectsDuplicateAlarmsConditions) {
                       UA_STATUSCODE_GOOD);
 } END_TEST
 
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+#endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
     Suite *s = suite_create("server_alarmcondition");
 
     TCase *tc_call = tcase_create("Alarms and Conditions");
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     tcase_add_test(tc_call, createDelete);
     tcase_add_test(tc_call, splitCreation);
     tcase_add_test(tc_call, createCondition_invalidType);
@@ -1726,7 +1730,7 @@ int main(void) {
     suite_add_tcase(s, tc_call);
 
     TCase *tc_fields = tcase_create("Condition Fields");
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     tcase_add_test(tc_fields, conditionLifecycle_setField);
     tcase_add_test(tc_fields, setConditionField_invalidField);
     tcase_add_test(tc_fields, setConditionVariableFieldProperty_test);
@@ -1737,7 +1741,7 @@ int main(void) {
     suite_add_tcase(s, tc_fields);
 
     TCase *tc_trigger = tcase_create("Condition Trigger");
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     tcase_add_test(tc_trigger, triggerConditionEvent_test);
     tcase_add_test(tc_trigger, triggerConditionEvent_disabled);
     tcase_add_test(tc_trigger, triggerConditionEvent_nullEventId);
@@ -1747,7 +1751,7 @@ int main(void) {
     suite_add_tcase(s, tc_trigger);
 
     TCase *tc_state = tcase_create("Condition State");
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     tcase_add_test(tc_state, setAckedState_condition);
     tcase_add_test(tc_state, setTwoStateVariableCallback_test);
     tcase_add_test(tc_state, setTwoStateVariableCallback_notFound);
@@ -1765,7 +1769,7 @@ int main(void) {
     suite_add_tcase(s, tc_state);
 
     TCase *tc_limit = tcase_create("Limit Alarms");
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     tcase_add_test(tc_limit, limitAlarm_setLimitState);
     tcase_add_test(tc_limit, limitAlarm_exactBoundaries);
     tcase_add_test(tc_limit, setLimitState_nonLimitCondition);
@@ -1776,7 +1780,7 @@ int main(void) {
     suite_add_tcase(s, tc_limit);
 
     TCase *tc_misc = tcase_create("Condition Misc");
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_TEST_ENABLE_ALARMS_CONDITIONS
     tcase_add_test(tc_misc, multipleConditions_sameSource);
     tcase_add_test(tc_misc, createCondition_differentTypes);
     tcase_add_test(tc_misc, conditionCleanup_onShutdown);
