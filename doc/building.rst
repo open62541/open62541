@@ -284,12 +284,6 @@ Detailed SDK Features
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`.
    Invoke the CMake target to generate the amalgamation as ``make open62541-amalgamation``.
 
-**UA_ENABLE_IMMUTABLE_NODES**
-   Nodes in the information model are not edited but copied and replaced. The
-   replacement is done with atomic operations so that the information model is
-   always consistent and can be accessed from an interrupt or parallel thread
-   (depends on the node storage plugin implementation).
-
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
 
@@ -329,14 +323,12 @@ Detailed SDK Features
    Namespace zero contains the standard-defined nodes. The full namespace zero
    may not be required for all applications. The selectable options are as follows:
 
+   - ``NONE``: Do not generate namespace zero from the XML definitions.
    - ``MINIMAL``: A barebones namespace zero that is compatible with most
      clients. But this namespace 0 is so small that it does not pass the CTT
      (Conformance Testing Tools of the OPC Foundation).
    - ``REDUCED``: Small namespace zero that passes the CTT.
    - ``FULL``: Full namespace zero generated from the official XML definitions.
-
-   The advanced build option ``UA_FILE_NS0`` can be used to override the XML
-   file used for namespace zero generation.
 
 **UA_ENABLE_DIAGNOSTICS**
    Enable diagnostics information exposed by the server. Enabled by default.
@@ -353,10 +345,6 @@ be visible in the cmake GUIs.
 
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
    Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
-
-**UA_ENABLE_FULL_NS0**
-   Use the full NS0 instead of a minimal Namespace 0 nodeset
-   ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 
 PubSub Build Options
 ^^^^^^^^^^^^^^^^^^^^
@@ -424,18 +412,18 @@ The RAM requirements of a server are mostly due to the following settings:
 Prebuilt packages
 -----------------
 
-Debian
-^^^^^^
-Debian packages can be found in our official PPA:
+.. _debian:
 
- * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
- * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa
+Debian/Ubuntu
+^^^^^^^^^^^^^
+Official distribution packages are available for
+`Debian <https://packages.debian.org/search?keywords=open62541>`__ and
+`Ubuntu <https://packages.ubuntu.com/search?keywords=open62541>`__.
 
-Install them with:
+Install the development package with:
 
 .. code-block:: bash
 
-    sudo add-apt-repository ppa:open62541-team/ppa
     sudo apt-get update
     sudo apt-get install libopen62541-1-dev
 
@@ -468,4 +456,3 @@ the shared library.
 
    cp /path-to/examples/tutorial_server_firststeps.c . # copy the example server
    gcc -std=c99 -o server tutorial_server_firststeps.c -lopen62541
-
