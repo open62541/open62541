@@ -69,32 +69,46 @@ addMdnsDiscoveryDriver(UA_Server *server) {
 static char *discovery_url = NULL;
 
 static void
-serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
-                        UA_Boolean isTxtReceived, void *data) {
+findDiscoveryUrlOnNetwork(void) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
-    if(discovery_url != NULL || !isServerAnnounce) {
+    UA_ServerOnNetwork *servers = NULL;
+    size_t serversSize = 0;
+    UA_StatusCode res =
+        UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4841",
+                                       0, 0, 0, NULL,
+                                       &serversSize, &servers);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "serverOnNetworkCallback called, but discovery URL "
-                     "already initialized or is not announcing. Ignoring.");
-        return; // we already have everything we need or we only want server announces
+                     "FindServersOnNetwork failed with %s",
+                     UA_StatusCode_name(res));
+        UA_Client_delete(client);
+        return;
     }
 
-    if(!isTxtReceived)
-        return; // we wait until the corresponding TXT record is announced.
-                // Problem: how to handle if a Server does not announce the
-                // optional TXT?
+    for(size_t i = 0; i < serversSize; i++) {
+        UA_ServerOnNetwork *serverOnNetwork = &servers[i];
+        if(serverOnNetwork->discoveryUrl.length == 0)
+            continue;
 
-    // here you can filter for a specific LDS server, e.g. call FindServers on
-    // the serverOnNetwork to make sure you are registering with the correct
-    // LDS. We will ignore this for now
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Another server announced itself on %.*s",
-                (int)serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "Another server announced itself on %.*s",
+                    (int)serverOnNetwork->discoveryUrl.length,
+                    serverOnNetwork->discoveryUrl.data);
 
-    if(discovery_url != NULL)
-        UA_free(discovery_url);
-    discovery_url = (char*)UA_malloc(serverOnNetwork->discoveryUrl.length + 1);
-    memcpy(discovery_url, serverOnNetwork->discoveryUrl.data, serverOnNetwork->discoveryUrl.length);
-    discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
+        discovery_url = (char*)
+            UA_malloc(serverOnNetwork->discoveryUrl.length + 1);
+        if(discovery_url) {
+            memcpy(discovery_url, serverOnNetwork->discoveryUrl.data,
+                   serverOnNetwork->discoveryUrl.length);
+            discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
+        }
+        break;
+    }
+
+    UA_Array_delete(servers, serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    UA_Client_delete(client);
 }
 
 /*
@@ -286,10 +300,6 @@ int main(int argc, char **argv) {
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     retval = UA_Server_run_startup(server);
 
-    // callback which is called when a new server is detected through mDNS
-    // needs to be set after UA_Server_run_startup or UA_Server_run
-    UA_Server_setServerOnNetworkCallback(server, serverOnNetworkCallback, NULL);
-
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
@@ -300,8 +310,10 @@ int main(int argc, char **argv) {
     }
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "Server started. Waiting for announce of LDS Server.");
-    while (running && discovery_url == NULL)
+    while(running && discovery_url == NULL) {
         UA_Server_run_iterate(server, true);
+        findDiscoveryUrlOnNetwork();
+    }
     if(!running) {
         UA_Server_run_shutdown(server);
         UA_Server_delete(server);

@@ -68,7 +68,7 @@ if(UA_ENABLE_METHODCALLS)
     endif()
 endif()
 
-if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
 endif()
 
@@ -156,7 +156,7 @@ if(UA_ENABLE_NODEMANAGEMENT)
     endif()
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     add_example(discovery_server_lds discovery/server_lds.c)
     add_example(discovery_server_register discovery/server_register.c)
     add_example(discovery_client_find_servers discovery/client_find_servers.c)

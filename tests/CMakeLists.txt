@@ -434,7 +434,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_server_monitoringspeed.c)
 endif()
 
-if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_server_alarmsconditions.c)
 endif()
 
@@ -496,6 +496,10 @@ endif()
 if(UA_ENABLE_DISCOVERY AND (UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR
                             UA_ENABLE_DISCOVERY_MULTICAST_AVAHI))
     ua_add_test(server/check_discovery_mdnsd.c)
+    if(NOT MSVC)
+        target_compile_options(check_discovery_mdnsd PRIVATE
+            -Wno-variadic-macros)
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)

@@ -308,10 +308,11 @@ function unit_tests_diag {
 
 function unit_tests_mdnsd {
     rm -rf build; mkdir -p build; cd build
+    # The mDNS driver is enabled automatically when deps/mdnsd is present.
+    # This job intentionally exercises that multicast discovery driver path.
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=MDNSD \
           -DUA_ENABLE_DISCOVERY_SEMAPHORE=ON \
           ..
     make ${MAKEOPTS} check_discovery_mdnsd
@@ -345,7 +346,6 @@ function unit_tests_alarms {
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
@@ -363,7 +363,6 @@ function unit_tests_alarms_memcheck {
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
@@ -456,6 +455,7 @@ function unit_tests_valgrind {
 ##########################
 
 function run_examples {
+    local multicast_backend=${2:-mdnsd}
     rm -rf build; mkdir -p build; cd build
 
     # create certificates for the examples
@@ -465,11 +465,14 @@ function run_examples {
     # copy json configs for the examples
     cp ../examples/json_config/*.json5 ./
 
+    # The old multicast selector is gone. Keep the CI parameter visible here:
+    # these examples still require multicast discovery.
+    echo "Running examples with multicast discovery backend: ${multicast_backend}"
+
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -480,7 +483,6 @@ function run_examples {
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=$2 \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -501,6 +503,7 @@ function run_examples {
 ########################################
 
 function examples_valgrind {
+    local multicast_backend=${2:-mdnsd}
     rm -rf build; mkdir -p build; cd build
 
     # create certificates for the examples
@@ -510,11 +513,14 @@ function examples_valgrind {
     # copy json server config
     cp ../examples/json_config/server_json_config.json5 server_json_config.json5
 
+    # The old multicast selector is gone. Keep the CI parameter visible here:
+    # these examples still require multicast discovery.
+    echo "Running examples under valgrind with multicast discovery backend: ${multicast_backend}"
+
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -525,7 +531,6 @@ function examples_valgrind {
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=$2 \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
