@@ -179,6 +179,63 @@ void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
 /*   GDS Manager    */
 /********************/
 
+UA_StatusCode
+UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
+                                const UA_NodeId *sessionId,
+                                const UA_NodeId *certificateGroupId,
+                                const UA_NodeId *certificateTypeId,
+                                const UA_ByteString *certificate,
+                                const UA_String *privateKeyFormat,
+                                const UA_ByteString *privateKey) {
+    UA_LOCK_ASSERT(&gdsm->drv.server->serviceMutex);
+
+    /* The server currently only supports the DefaultApplicationGroup */
+    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
+    /* The server currently only supports the following certificate type */
+    UA_NodeId certTypRsaMin = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
+    UA_NodeId certTypRsaSha256 = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) && !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
+    /* Verify that the privateKey is in a supported format and
+     * that it matches the specified certificate */
+    if(privateKey && privateKey->length > 0) {
+        const UA_String pemFormat = UA_STRING("PEM");
+        const UA_String derFormat = UA_STRING("DER");
+        if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
+        retval = UA_GDSTransaction_init(transaction, gdsm->drv.server, *sessionId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    if(gdsm->checkSessionCallbackId == 0) {
+        retval = addRepeatedCallback(gdsm->drv.server,
+                                     (UA_ServerCallback)checkSessionActive,
+                                     NULL, CHECKACTIVESESSIONINTERVAL,
+                                     &gdsm->checkSessionCallbackId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+
+    return UA_GDSTransaction_addCertificateInfo(transaction, *certificateGroupId,
+                                                *certificateTypeId, certificate,
+                                                privateKey);
+}
+
 static UA_StatusCode
 UA_GDSManager_start(UA_Driver *drv) {
     UA_GDSManager *gdsm = (UA_GDSManager*)drv;
