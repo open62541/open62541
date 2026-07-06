@@ -184,7 +184,9 @@ struct UA_Server {
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 
     /* GDS Manager for certificate management */
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     UA_GDSManager gdsManager;
+#endif
 
 #ifdef UA_ENABLE_RBAC
     /* Internal role-permission configurations. Nodes reference entries
@@ -862,12 +864,6 @@ UA_StatusCode initNS0(UA_Server *server);
 
 /* Connect data sources to existing NS0 nodes */
 UA_StatusCode initNS0_dataSources(UA_Server *server);
-
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-UA_StatusCode
-initNS0PushManagement(UA_Server *server);
-#endif
-
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

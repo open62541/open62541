@@ -9,36 +9,6 @@
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
-#define UA_SHA1_LENGTH 20
-#define CHECKACTIVESESSIONINTERVAL 10000 /* 10sec */
-
-typedef struct UA_FileContext {
-    LIST_ENTRY(UA_FileContext) listEntry;
-    UA_ByteString file;
-    /* Caches any data to be written using the Write method.
-     * With a CloseAndUpdate, the data to be written is applied to the transaction. */
-    UA_ByteString dataToWrite;
-    UA_UInt32 fileHandle;
-    UA_NodeId sessionId;
-    UA_UInt64 currentPos;
-    UA_Byte openFileMode;
-} UA_FileContext;
-
-typedef struct UA_FileInfo {
-    UA_UInt16 openCount;
-    UA_UtcTime lastUpdateTime;
-    LIST_HEAD(, UA_FileContext)fileContext;
-} UA_FileInfo;
-
-typedef struct UA_FileInfoContext {
-    struct UA_FileInfoContext *next;
-    UA_NodeId certificateGroupId;
-    UA_FileInfo fileInfo;
-} UA_FileInfoContext;
-
-
-static UA_StatusCode applyChangesToServer(UA_Server *server);
-
 static UA_FileInfo*
 getFileInfo(UA_GDSManager *gdsManager, UA_NodeId certificateGroupId) {
     UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsManager->fileInfoContext;
@@ -49,40 +19,6 @@ getFileInfo(UA_GDSManager *gdsManager, UA_NodeId certificateGroupId) {
     }
     return NULL;
 }
-
-
-/********************/
-/*   GDS Manager    */
-/********************/
-
-void
-UA_GDSManager_clear(UA_GDSManager *gdsManager) {
-    if(!gdsManager)
-        return;
-    gdsManager->checkSessionCallbackId = 0;
-    UA_GDSTransaction_clear(&gdsManager->transaction);
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)(gdsManager->fileInfoContext);
-
-    /* free all fileInfoContexts */
-    while(fileInfoContext) {
-        UA_FileInfoContext *next = fileInfoContext->next;
-        UA_FileInfo *fileInfo = &(fileInfoContext->fileInfo);
-        UA_FileContext *fileContext = NULL;
-        UA_FileContext *fileContextTmp = NULL;
-
-        /* free all fileContexts in this fileInfoContext */
-        LIST_FOREACH_SAFE(fileContext, &(fileInfo->fileContext), listEntry, fileContextTmp) {
-            UA_ByteString_clear(&(fileContext->file));
-            UA_ByteString_clear(&(fileContext->dataToWrite));
-            LIST_REMOVE(fileContext, listEntry);
-            UA_free(fileContext);
-        }
-
-        UA_free(fileInfoContext);
-        fileInfoContext = next;
-    }
-}
-
 
 static UA_StatusCode
 createFileHandleId(UA_FileInfo *fileInfo, UA_UInt32 *fileHandle) {
@@ -1146,7 +1082,7 @@ cleanup:
     UA_GDSTransaction_clear(&server->gdsManager.transaction);
 }
 
-static UA_StatusCode
+UA_StatusCode
 applyChangesToServer(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;

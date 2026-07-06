@@ -87,8 +87,44 @@ typedef struct {
     UA_UInt64 checkSessionCallbackId;
 } UA_GDSManager;
 
+UA_StatusCode
+initNS0PushManagement(UA_Server *server);
+
 void
 UA_GDSManager_clear(UA_GDSManager *gdsManager);
+
+/***************/
+/* FileContext */
+/***************/
+
+#define UA_SHA1_LENGTH 20
+#define CHECKACTIVESESSIONINTERVAL 10000 /* 10sec */
+
+typedef struct UA_FileContext {
+    LIST_ENTRY(UA_FileContext) listEntry;
+    UA_ByteString file;
+    /* Caches any data to be written using the Write method.
+     * With a CloseAndUpdate, the data to be written is applied to the transaction. */
+    UA_ByteString dataToWrite;
+    UA_UInt32 fileHandle;
+    UA_NodeId sessionId;
+    UA_UInt64 currentPos;
+    UA_Byte openFileMode;
+} UA_FileContext;
+
+typedef struct UA_FileInfo {
+    UA_UInt16 openCount;
+    UA_UtcTime lastUpdateTime;
+    LIST_HEAD(, UA_FileContext)fileContext;
+} UA_FileInfo;
+
+typedef struct UA_FileInfoContext {
+    struct UA_FileInfoContext *next;
+    UA_NodeId certificateGroupId;
+    UA_FileInfo fileInfo;
+} UA_FileInfoContext;
+
+UA_StatusCode applyChangesToServer(UA_Server *server);
 
 _UA_END_DECLS
 

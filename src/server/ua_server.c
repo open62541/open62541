@@ -178,180 +178,6 @@ cleanup:
     return res;
 }
 
-/********************/
-/* GDS Transaction  */
-/********************/
-
-UA_StatusCode
-UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server, const UA_NodeId sessionId) {
-    if(!transaction || !server)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString csr = UA_BYTESTRING_NULL;
-    if(transaction->localCsrCertificate.length > 0)
-        csr = transaction->localCsrCertificate;
-
-    memset(transaction, 0, sizeof(UA_GDSTransaction));
-
-    transaction->state = UA_GDSTRANSACTIONSTATE_PENDING;
-    UA_NodeId_copy(&sessionId, &transaction->sessionId);
-    transaction->server = server;
-    transaction->localCsrCertificate = csr;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_CertificateGroup*
-UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
-                                      const UA_CertificateGroup *certGroup) {
-#ifdef UA_ENABLE_ENCRYPTION
-    if(!transaction || !certGroup)
-        return NULL;
-
-    /* Check if transaction was initialized */
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
-        return NULL;
-
-    for(size_t i = 0; i < transaction->certGroupSize; i++) {
-        UA_CertificateGroup *group = &transaction->certGroups[i];
-        if(UA_NodeId_equal(&group->certificateGroupId, &certGroup->certificateGroupId))
-            return group;
-    }
-
-    /* If the certGroup does not exist, create a new one */
-    transaction->certGroups = (UA_CertificateGroup*)UA_realloc(transaction->certGroups, (transaction->certGroupSize + 1) * sizeof(UA_CertificateGroup));
-    if(!transaction->certGroups)
-        return NULL;
-
-    transaction->certGroupSize++;
-
-    memset(&transaction->certGroups[transaction->certGroupSize-1], 0, sizeof(UA_CertificateGroup));
-
-    UA_TrustListDataType trustList;
-    UA_TrustListDataType_init(&trustList);
-    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-    certGroup->getTrustList((UA_CertificateGroup*)(uintptr_t)certGroup, &trustList);
-
-    /* Set up the parameters */
-    UA_KeyValuePair params[1] = {{{0, UA_STRING_STATIC("max-trust-listsize")}, {0}}};
-    UA_KeyValueMap paramsMap = {1, params};
-
-    UA_ServerConfig *config = UA_Server_getConfig(transaction->server);
-    UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-
-    UA_CertificateGroup_Memorystore(&transaction->certGroups[transaction->certGroupSize-1],
-                                    (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId,
-                                    &trustList, certGroup->logging, &paramsMap);
-
-    UA_TrustListDataType_clear(&trustList);
-
-    return &transaction->certGroups[transaction->certGroupSize-1];
-#else
-    return NULL;
-#endif
-}
-
-UA_StatusCode
-UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
-                                     const UA_NodeId certificateGroupId,
-                                     const UA_NodeId certificateTypeId,
-                                     const UA_ByteString *certificate,
-                                     const UA_ByteString *privateKey) {
-    if(!transaction || !certificate)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* Check if transaction was initialized */
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    /* Check if an entry with certificateGroupId and certificateTypeId already exists */
-    for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
-        UA_GDSCertificateInfo *certInfo = &transaction->certificateInfos[i];
-
-        if(!UA_NodeId_equal(&certInfo->certificateGroup, &certificateGroupId) ||
-           !UA_NodeId_equal(&certInfo->certificateType, &certificateTypeId))
-            continue;
-
-        UA_ByteString_clear(&certInfo->certificate);
-        UA_ByteString_clear(&certInfo->privateKey);
-
-        UA_ByteString_copy(certificate, &certInfo->certificate);
-        certInfo->privateKey = UA_BYTESTRING_NULL;
-        if(privateKey)
-            UA_ByteString_copy(privateKey, &certInfo->privateKey);
-
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_GDSCertificateInfo *newCertInfos = (UA_GDSCertificateInfo *)UA_realloc(transaction->certificateInfos,
-        (transaction->certificateInfosSize + 1) * sizeof(UA_GDSCertificateInfo));
-    if(!newCertInfos)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    transaction->certificateInfos = newCertInfos;
-
-    UA_GDSCertificateInfo *newCertInfo = &transaction->certificateInfos[transaction->certificateInfosSize];
-    UA_ByteString_copy(certificate, &newCertInfo->certificate);
-    UA_NodeId_copy(&certificateGroupId, &newCertInfo->certificateGroup);
-    UA_NodeId_copy(&certificateTypeId, &newCertInfo->certificateType);
-    newCertInfo->privateKey = UA_BYTESTRING_NULL;
-    if(privateKey)
-        UA_ByteString_copy(privateKey, &newCertInfo->privateKey);
-
-    transaction->certificateInfosSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
-    if(!transaction)
-        return;
-
-    transaction->state = UA_GDSTRANSACTIONSTATE_FRESH;
-    transaction->server = NULL;
-    UA_NodeId_clear(&transaction->sessionId);
-    UA_ByteString_clear(&transaction->localCsrCertificate);
-
-    if(transaction->certGroups) {
-        for(size_t i = 0; i < transaction->certGroupSize; i++) {
-            transaction->certGroups[i].clear(&transaction->certGroups[i]);
-        }
-        UA_free(transaction->certGroups);
-        transaction->certGroupSize = 0;
-        transaction->certGroups = NULL;
-    }
-
-    if(transaction->certificateInfos) {
-        for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
-            UA_ByteString_clear(&transaction->certificateInfos[i].certificate);
-            UA_ByteString_clear(&transaction->certificateInfos[i].privateKey);
-            UA_NodeId_clear(&transaction->certificateInfos[i].certificateGroup);
-            UA_NodeId_clear(&transaction->certificateInfos[i].certificateType);
-        }
-        UA_free(transaction->certificateInfos);
-        transaction->certificateInfosSize = 0;
-        transaction->certificateInfos = NULL;
-    }
-}
-
-void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
-    UA_GDSTransaction_clear(transaction);
-    UA_free(transaction);
-}
-
-#ifndef UA_ENABLE_GDS_PUSHMANAGEMENT
-/* Minimal stub: when GDS push management is not compiled in,
- * only the embedded transaction needs to be cleared. */
-void
-UA_GDSManager_clear(UA_GDSManager *gdsManager) {
-    if(!gdsManager)
-        return;
-    gdsManager->checkSessionCallbackId = 0;
-    UA_GDSTransaction_clear(&gdsManager->transaction);
-}
-#endif
-
 /***********/
 /* Drivers */
 /***********/
@@ -531,7 +357,9 @@ UA_Server_delete(UA_Server *server) {
     UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     UA_GDSManager_clear(&server->gdsManager);
+#endif
 
     /* Clean up the custom datatypes */
     if(server->customTypes_internal != NULL) {
@@ -1028,12 +856,15 @@ UA_Server_updateCertificate(UA_Server *server,
 
     lockServer(server);
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     if(server->gdsManager.transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
         unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
     }
+#endif
 
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId certGroupId = certificateGroupId;
     if(UA_NodeId_isNull(&certGroupId)) {
         /* Use default value if argument is empty */
@@ -1046,8 +877,8 @@ UA_Server_updateCertificate(UA_Server *server,
     }
 
     /* The server currently only supports the following certificate type */
-    /* UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
-    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    /* UA_NodeId certTypRsaMin = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE); */
+    UA_NodeId certTypRsaSha256 = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256)) {
         unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -1065,8 +896,8 @@ UA_Server_updateCertificate(UA_Server *server,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.endpointsSize; i++) {
         UA_EndpointDescription *ed = &server->config.endpoints[i];
-        UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
-                            &server->config.endpoints[i].securityPolicyUri);
+        UA_SecurityPolicy *sp =
+            getSecurityPolicyByUri(server, &ed->securityPolicyUri);
         UA_CHECK_MEM(sp, unlockServer(server); return UA_STATUSCODE_BADINTERNALERROR);
 
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
@@ -1115,7 +946,8 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId certGroupId = certificateGroupId;
     if(UA_NodeId_isNull(&certGroupId)) {
         /* Use default value if argument is empty */
@@ -1126,8 +958,8 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The server currently only supports RSA CertificateType */
-    UA_NodeId rsaShaCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0,UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    UA_NodeId rsaShaCertificateType = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_NodeId rsaMinCertificateType = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
     if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
        !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -1161,12 +993,13 @@ UA_Server_createSigningRequest(UA_Server *server,
         }
     }
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     UA_ByteString_clear(&server->gdsManager.transaction.localCsrCertificate);
     UA_ByteString_copy(csr, &server->gdsManager.transaction.localCsrCertificate);
+#endif
 
 cleanup:
-    if(newPrivateKey)
-    {
+    if(newPrivateKey) {
         /* wipe private key before freeing its memory */
         UA_ByteString_memZero(newPrivateKey);
         UA_ByteString_delete(newPrivateKey);
