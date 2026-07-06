@@ -350,15 +350,15 @@ UA_Server_delete(UA_Server *server) {
     server->serversOnNetworkSize = 0;
 #endif
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+    UA_GDSManager_clear(&server->gdsManager);
+#endif
+
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
 
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&server->serviceMutex);
-#endif
-
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager_clear(&server->gdsManager);
 #endif
 
     /* Clean up the custom datatypes */
