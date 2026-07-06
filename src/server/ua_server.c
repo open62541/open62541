@@ -962,10 +962,14 @@ UA_Server_createSigningRequest(UA_Server *server,
        !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    lockServer(server);
+
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
 
-    if(!UA_NodeId_equal(&certGroup.certificateGroupId, &defaultApplicationGroup))
+    if(!UA_NodeId_equal(&certGroup.certificateGroupId, &defaultApplicationGroup)) {
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     UA_ByteString *newPrivateKey = NULL;
     if(regenerateKey && *regenerateKey == true)
@@ -1006,6 +1010,7 @@ cleanup:
         UA_ByteString_delete(newPrivateKey);
     }
 
+    unlockServer(server);
     return retval;
 }
 
