@@ -2435,7 +2435,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
  * If certificateGroupId is null the DefaultApplicationGroup is used.
  */
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_NodeId certificateGroupId,
                             const UA_NodeId certificateTypeId,
@@ -2446,7 +2446,7 @@ UA_Server_updateCertificate(UA_Server *server,
  * private key.
  * If certificateGroupId is null the DefaultApplicationGroup is used.
  */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_createSigningRequest(UA_Server *server,
                                const UA_NodeId certificateGroupId,
                                const UA_NodeId certificateTypeId,
