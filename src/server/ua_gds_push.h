@@ -1,0 +1,97 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ */
+
+#ifndef UA_GDS_PUSH_H_
+#define UA_GDS_PUSH_H_
+
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+
+#include <open62541/types.h>
+
+_UA_BEGIN_DECLS
+
+/********************/
+/* GDS Transaction  */
+/********************/
+
+typedef enum {
+    UA_GDSTRANSACTIONSTATE_FRESH,
+    UA_GDSTRANSACTIONSTATE_PENDING,
+} UA_GDSTransactionState;
+
+typedef struct {
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
+    UA_NodeId certificateGroup;
+    UA_NodeId certificateType;
+} UA_GDSCertificateInfo;
+
+typedef struct {
+    UA_Server *server;
+    UA_NodeId sessionId;
+    UA_GDSTransactionState state;
+
+    UA_ByteString localCsrCertificate;
+
+    size_t certGroupSize;
+    UA_CertificateGroup *certGroups;
+
+    size_t certificateInfosSize;
+    UA_GDSCertificateInfo *certificateInfos;
+
+    /* Callback to close all SecureChannels after calling applyChanges
+     * and freeing the transaction. */
+    UA_DelayedCallback dc;
+} UA_GDSTransaction;
+
+UA_StatusCode
+UA_GDSTransaction_init(UA_GDSTransaction *transaction,
+                       UA_Server *server,
+                       const UA_NodeId sessionId);
+
+/* Returns the appropriate CertificateGroup from the transaction.
+ * If the CertificateGroup does not exist in the transaction, it will be created. */
+UA_CertificateGroup*
+UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
+                                      const UA_CertificateGroup *certGroup);
+
+UA_StatusCode
+UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
+                                     const UA_NodeId certificateGroupId,
+                                     const UA_NodeId certificateTypeId,
+                                     const UA_ByteString *certificate,
+                                     const UA_ByteString *privateKey);
+
+void
+UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
+
+void
+UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
+
+/********************/
+/*   GDS Manager    */
+/********************/
+
+typedef struct {
+    /* Transaction for certificate management */
+    UA_GDSTransaction transaction;
+    /* Contains context information necessary for reading and writing the TrustList as a file type */
+    void *fileInfoContext;
+    /* Holds the ID for the repeated callback that verifies the presence of sessions
+     * with an active transaction or an open trust list */
+    UA_UInt64 checkSessionCallbackId;
+} UA_GDSManager;
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager);
+
+_UA_END_DECLS
+
+#endif /* UA_ENABLE_GDS_PUSHMANAGEMENT */
+
+#endif /* UA_GDS_PUSH_H_ */

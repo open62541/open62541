@@ -26,6 +26,7 @@
 #include "ua_session.h"
 #include "ua_services.h"
 #include "ua_server_async.h"
+#include "ua_gds_push.h"
 #include "../util/ua_util_internal.h"
 #include "ziptree.h"
 
@@ -51,81 +52,6 @@ typedef struct {
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
-
-/********************/
-/* GDS Transaction  */
-/********************/
-
-typedef enum {
-    UA_GDSTRANSACTIONSTATE_FRESH,
-    UA_GDSTRANSACTIONSTATE_PENDING,
-} UA_GDSTransactionState;
-
-typedef struct {
-    UA_ByteString certificate;
-    UA_ByteString privateKey;
-    UA_NodeId certificateGroup;
-    UA_NodeId certificateType;
-} UA_GDSCertificateInfo;
-
-typedef struct {
-    UA_Server *server;
-    UA_NodeId sessionId;
-    UA_GDSTransactionState state;
-
-    UA_ByteString localCsrCertificate;
-
-    size_t certGroupSize;
-    UA_CertificateGroup *certGroups;
-
-    size_t certificateInfosSize;
-    UA_GDSCertificateInfo *certificateInfos;
-
-    /* Callback to close all SecureChannels after calling applyChanges
-     * and freeing the transaction. */
-    UA_DelayedCallback dc;
-} UA_GDSTransaction;
-
-UA_StatusCode
-UA_GDSTransaction_init(UA_GDSTransaction *transaction,
-                       UA_Server *server,
-                       const UA_NodeId sessionId);
-
-/* Returns the appropriate CertificateGroup from the transaction.
- * If the CertificateGroup does not exist in the transaction, it will be created. */
-UA_CertificateGroup*
-UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
-                                      const UA_CertificateGroup *certGroup);
-
-UA_StatusCode
-UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
-                                     const UA_NodeId certificateGroupId,
-                                     const UA_NodeId certificateTypeId,
-                                     const UA_ByteString *certificate,
-                                     const UA_ByteString *privateKey);
-
-void
-UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
-
-void
-UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
-
-/********************/
-/*   GDS Manager    */
-/********************/
-
-typedef struct {
-    /* Transaction for certificate management */
-    UA_GDSTransaction transaction;
-    /* Contains context information necessary for reading and writing the TrustList as a file type */
-    void *fileInfoContext;
-    /* Holds the ID for the repeated callback that verifies the presence of sessions
-     * with an active transaction or an open trust list */
-    UA_UInt64 checkSessionCallbackId;
-} UA_GDSManager;
-
-void
-UA_GDSManager_clear(UA_GDSManager *gdsManager);
 
 /********************/
 /* Server Structure */
