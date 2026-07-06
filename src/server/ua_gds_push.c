@@ -198,6 +198,11 @@ UA_GDSManager_start(UA_Driver *drv) {
 
 static void
 UA_GDSManager_stop(UA_Driver *drv) {
+    UA_GDSManager *gdsm = (UA_GDSManager*)drv;
+    if(gdsm->checkSessionCallbackId != 0) {
+        removeCallback(drv->server, gdsm->checkSessionCallbackId);
+        gdsm->checkSessionCallbackId = 0;
+    }
     drv->state = UA_LIFECYCLESTATE_STOPPED;
 }
 
