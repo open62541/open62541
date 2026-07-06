@@ -169,7 +169,7 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
  * or a client has a TrustList open for reading or writing.
  * If the session is no longer active, the current transaction is cancelled,
  * and all open file handles are closed. */
-static void
+void
 checkSessionActive(UA_Server *server, void *data) {
     lockServer(server);
     UA_GDSManager *gdsm = gdsManager(server);
@@ -247,86 +247,6 @@ checkSessionActive(UA_Server *server, void *data) {
         gdsm->checkSessionCallbackId = 0;
     }
     unlockServer(server);
-}
-
-static UA_StatusCode
-updateCertificate(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
-       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
-       !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*Certificate*/
-       !UA_Variant_hasArrayType(&input[3], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*IssuerCertificates*/
-       !UA_Variant_hasScalarType(&input[4], &UA_TYPES[UA_TYPES_STRING]) || /*PrivateKeyFormat*/
-       !UA_Variant_hasScalarType(&input[5], &UA_TYPES[UA_TYPES_BYTESTRING])) /*PrivateKey*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_NodeId *certificateGroupId = (UA_NodeId *)input[0].data;
-    UA_NodeId *certificateTypeId = (UA_NodeId *)input[1].data;
-    UA_ByteString *certificate = (UA_ByteString *)input[2].data;
-    /* TODO: Process issuer certificates */
-    /* UA_ByteString *issuerCertificates = ((UA_ByteString *)input[3].data); */
-    /* size_t issuerCertificatesSize = input[3].arrayLength; */
-    UA_String *privateKeyFormat = (UA_String *)input[4].data;
-    UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
-
-    /* The server currently only supports the DefaultApplicationGroup */
-    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-
-    /* The server currently only supports the following certificate type */
-    UA_NodeId certTypRsaMin = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    UA_NodeId certTypRsaSha256 = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) && !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-
-    /* Verify that the privateKey is in a supported format and
-     * that it matches the specified certificate */
-    if(privateKey && privateKey->length > 0) {
-        const UA_String pemFormat = UA_STRING("PEM");
-        const UA_String derFormat = UA_STRING("DER");
-        if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
-        retval = UA_GDSTransaction_init(transaction, server, *sessionId);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
-
-    if(gdsm->checkSessionCallbackId == 0) {
-        retval = addRepeatedCallback(server, (UA_ServerCallback)checkSessionActive,
-                                     NULL, CHECKACTIVESESSIONINTERVAL,
-                                     &gdsm->checkSessionCallbackId);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
-
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-
-    retval = UA_GDSTransaction_addCertificateInfo(transaction, *certificateGroupId,
-                                                  *certificateTypeId, certificate, privateKey);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Output arg, indicates that the ApplyChanges Method shall be called before the new Certificate will be used. */
-    UA_Boolean applyChangesRequired = true;
-    UA_Variant_setScalarCopy(output, &applyChangesRequired, &UA_TYPES[UA_TYPES_BOOLEAN]);
-
-    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -1521,13 +1441,39 @@ updateCertificateAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
+    /* Check for input types */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
+       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
+       !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*Certificate*/
+       !UA_Variant_hasArrayType(&input[3], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*IssuerCertificates*/
+       !UA_Variant_hasScalarType(&input[4], &UA_TYPES[UA_TYPES_STRING]) || /*PrivateKeyFormat*/
+       !UA_Variant_hasScalarType(&input[5], &UA_TYPES[UA_TYPES_BYTESTRING])) /*PrivateKey*/
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_NodeId *certificateGroupId = (UA_NodeId *)input[0].data;
+    UA_NodeId *certificateTypeId = (UA_NodeId *)input[1].data;
+    UA_ByteString *certificate = (UA_ByteString *)input[2].data;
+    /* TODO: Process issuer certificates */
+    /* UA_ByteString *issuerCertificates = ((UA_ByteString *)input[3].data); */
+    /* size_t issuerCertificatesSize = input[3].arrayLength; */
+    UA_String *privateKeyFormat = (UA_String *)input[4].data;
+    UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
+
     lockServer(server);
-    UA_StatusCode res = updateCertificate(server, sessionId, sessionHandle,
-                                          methodId, methodContext,
-                                          objectId, objectContext,
-                                          inputSize, input, outputSize, output);
+    UA_StatusCode res =
+        UA_GDSManager_updateCertificate(gdsManager(server),
+                                        sessionId, certificateGroupId,
+                                        certificateTypeId, certificate,
+                                        privateKeyFormat, privateKey);
     unlockServer(server);
-    return res;
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Output arg, indicates that the ApplyChanges Method shall be called before
+     * the new Certificate will be used. */
+    UA_Boolean applyChangesRequired = true;
+    return UA_Variant_setScalarCopy(output, &applyChangesRequired,
+                                    &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 static UA_StatusCode

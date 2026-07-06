@@ -97,6 +97,21 @@ UA_GDSPushReceiveManager_new(void);
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
 
+void
+checkSessionActive(UA_Server *server, void *data);
+
+/* TODO: Process issuer certificates */
+/* UA_ByteString *issuerCertificates */
+/* size_t issuerCertificatesSize */
+UA_StatusCode
+UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
+                                const UA_NodeId *sessionId,
+                                const UA_NodeId *certificateGroupId,
+                                const UA_NodeId *certificateTypeId,
+                                const UA_ByteString *certificate,
+                                const UA_String *privateKeyFormat,
+                                const UA_ByteString *privateKey);
+
 /***************/
 /* FileContext */
 /***************/
