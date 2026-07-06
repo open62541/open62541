@@ -829,6 +829,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
+                ${PROJECT_SOURCE_DIR}/src/server/ua_gds_push.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
