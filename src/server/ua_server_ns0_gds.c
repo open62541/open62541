@@ -250,46 +250,6 @@ checkSessionActive(UA_Server *server, void *data) {
 }
 
 static UA_StatusCode
-createSigningRequest(UA_Server *server,
-                     const UA_NodeId *sessionId, void *sessionHandle,
-                     const UA_NodeId *methodId, void *methodContext,
-                     const UA_NodeId *objectId, void *objectContext,
-                     size_t inputSize, const UA_Variant *input,
-                     size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
-       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
-       !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_STRING]) || /*SubjectName*/
-       !UA_Variant_hasScalarType(&input[3], &UA_TYPES[UA_TYPES_BOOLEAN]) || /*RegeneratePrivateKey*/
-       !UA_Variant_hasScalarType(&input[4], &UA_TYPES[UA_TYPES_BYTESTRING]))  /*Nonce*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_NodeId *certificateGroupId = (UA_NodeId *)input[0].data;
-    UA_NodeId *certificateTypeId = (UA_NodeId *)input[1].data;
-    UA_String *subjectName = (UA_String *)input[2].data;
-    UA_Boolean *regenerateKey = ((UA_Boolean *)input[3].data);
-    UA_ByteString *nonce = (UA_ByteString *)input[4].data;
-    UA_ByteString *csr = UA_ByteString_new();
-
-    UA_StatusCode retval =
-        UA_Server_createSigningRequest(server, *certificateGroupId,
-                                       *certificateTypeId, subjectName,
-                                       regenerateKey, nonce, csr);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_delete(csr);
-        return retval;
-    }
-
-    /* Output arg, the PKCS #10 DER encoded Certificate Request (CSR) */
-    UA_Variant_setScalarCopy(output, csr, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_ByteString_delete(csr);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 getRejectedList(UA_Server *server,
                 const UA_NodeId *sessionId, void *sessionHandle,
                 const UA_NodeId *methodId, void *methodContext,
@@ -1483,13 +1443,34 @@ createSigningRequestAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-    UA_StatusCode res = createSigningRequest(server, sessionId, sessionHandle,
-                                             methodId, methodContext,
-                                             objectId, objectContext,
-                                             inputSize, input, outputSize, output);
-    unlockServer(server);
-    return res;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
+       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
+       !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_STRING]) || /*SubjectName*/
+       !UA_Variant_hasScalarType(&input[3], &UA_TYPES[UA_TYPES_BOOLEAN]) || /*RegeneratePrivateKey*/
+       !UA_Variant_hasScalarType(&input[4], &UA_TYPES[UA_TYPES_BYTESTRING]))  /*Nonce*/
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_NodeId *certificateGroupId = (UA_NodeId *)input[0].data;
+    UA_NodeId *certificateTypeId = (UA_NodeId *)input[1].data;
+    UA_String *subjectName = (UA_String *)input[2].data;
+    UA_Boolean *regenerateKey = ((UA_Boolean *)input[3].data);
+    UA_ByteString *nonce = (UA_ByteString *)input[4].data;
+    UA_ByteString *csr = UA_ByteString_new();
+
+    /* No lock required, UA_Server_createSigningRequest takes internally */
+    UA_StatusCode retval =
+        UA_Server_createSigningRequest(server, *certificateGroupId,
+                                       *certificateTypeId, subjectName,
+                                       regenerateKey, nonce, csr);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_delete(csr);
+        return retval;
+    }
+
+    /* Output arg, the PKCS #10 DER encoded Certificate Request (CSR) */
+    UA_Variant_setScalar(output, csr, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
