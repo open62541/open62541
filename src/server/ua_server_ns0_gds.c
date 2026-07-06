@@ -3,15 +3,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
+static UA_GDSManager *
+gdsManager(UA_Server *server) {
+    return (UA_GDSManager*)server->gdsPushReceiveDriver;
+}
+
 static UA_FileInfo*
-getFileInfo(UA_GDSManager *gdsManager, UA_NodeId certificateGroupId) {
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsManager->fileInfoContext;
+getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
     while(fileInfoContext) {
         if(UA_NodeId_equal(&fileInfoContext->certificateGroupId, &certificateGroupId))
             return &fileInfoContext->fileInfo;
@@ -108,7 +114,7 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
     UA_NodeId defaultUserTokenGroup =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    UA_FileInfo *fileInfo = getFileInfo(&server->gdsManager, group->certificateGroupId);
+    UA_FileInfo *fileInfo = getFileInfo(gdsManager(server), group->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -131,7 +137,7 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
     UA_NodeId defaultUserTokenGroup =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    UA_FileInfo *fileInfo = getFileInfo(&server->gdsManager, group->certificateGroupId);
+    UA_FileInfo *fileInfo = getFileInfo(gdsManager(server), group->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -154,8 +160,8 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 static void
 checkSessionActive(UA_Server *server, void *data) {
     lockServer(server);
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
     UA_Boolean removingCallback = false;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
         UA_Boolean foundSession = false;
@@ -177,7 +183,7 @@ checkSessionActive(UA_Server *server, void *data) {
         removingCallback = true;
     }
 
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsManager->fileInfoContext;
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
     while(fileInfoContext) {
         UA_FileInfo fileInfo = fileInfoContext->fileInfo;
 
@@ -225,8 +231,8 @@ checkSessionActive(UA_Server *server, void *data) {
     }
 
     if(removingCallback) {
-        removeCallback(server, gdsManager->checkSessionCallbackId);
-        gdsManager->checkSessionCallbackId = 0;
+        removeCallback(server, gdsm->checkSessionCallbackId);
+        gdsm->checkSessionCallbackId = 0;
     }
     unlockServer(server);
 }
@@ -280,17 +286,18 @@ updateCertificate(UA_Server *server,
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
-    if(gdsManager->checkSessionCallbackId == 0) {
-        retval = addRepeatedCallback(server, (UA_ServerCallback)checkSessionActive, NULL,
-                                     CHECKACTIVESESSIONINTERVAL, &gdsManager->checkSessionCallbackId);
+    if(gdsm->checkSessionCallbackId == 0) {
+        retval = addRepeatedCallback(server, (UA_ServerCallback)checkSessionActive,
+                                     NULL, CHECKACTIVESESSIONINTERVAL,
+                                     &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -418,8 +425,8 @@ addCertificate(UA_Server *server,
     if(!isTrustedCertificate || certificate.length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    if(gdsManager->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
+    UA_GDSManager *gdsm = gdsManager(server);
+    if(gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* CA certificates cannot be added using this method because it does not support adding CRLs */
@@ -435,7 +442,7 @@ addCertificate(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* This Method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(fileInfo->openCount > 0)
@@ -477,8 +484,8 @@ removeCertificate(UA_Server *server,
     UA_String thumbprint = *(UA_String *)input[0].data;
     UA_Boolean isTrustedCertificate = *(UA_Boolean *)input[1].data;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
@@ -493,7 +500,7 @@ removeCertificate(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* This Method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(fileInfo->openCount > 0)
@@ -604,13 +611,13 @@ openTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
     /* Cannot be opened when a transaction is running */
     if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -634,9 +641,10 @@ openTrustList(UA_Server *server,
             return retval;
     }
 
-    if(gdsManager->checkSessionCallbackId == 0) {
+    if(gdsm->checkSessionCallbackId == 0) {
         retval = addRepeatedCallback(server, (UA_ServerCallback)checkSessionActive, NULL,
-                                     CHECKACTIVESESSIONINTERVAL, &gdsManager->checkSessionCallbackId);
+                                     CHECKACTIVESESSIONINTERVAL,
+                                     &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -696,14 +704,15 @@ openTrustListWithMask(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    if(gdsManager->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
+    UA_GDSManager *gdsm = gdsManager(server);
+    if(gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(gdsManager->checkSessionCallbackId == 0) {
+    if(gdsm->checkSessionCallbackId == 0) {
         retval = addRepeatedCallback(server, (UA_ServerCallback)checkSessionActive, NULL,
-                                     CHECKACTIVESESSIONINTERVAL, &gdsManager->checkSessionCallbackId);
+                                     CHECKACTIVESESSIONINTERVAL,
+                                     &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -721,7 +730,7 @@ openTrustListWithMask(UA_Server *server,
         return retval;
     }
 
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -771,8 +780,8 @@ readTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -825,8 +834,8 @@ writeTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -878,9 +887,9 @@ closeTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -925,9 +934,9 @@ closeAndUpdateTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -992,8 +1001,8 @@ getPositionTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1024,8 +1033,8 @@ setPositionTrustList(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1079,7 +1088,7 @@ secureChannel_delayedClose(void *application, void *context) {
 
 cleanup:
     UA_free(changes);
-    UA_GDSTransaction_clear(&server->gdsManager.transaction);
+    UA_GDSTransaction_clear(&gdsManager(server)->transaction);
 }
 
 UA_StatusCode
@@ -1088,8 +1097,8 @@ applyChangesToServer(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)UA_calloc(1, sizeof(UA_GDSTransactionChanges));
 
     /* Apply Trust list changes */
@@ -1111,7 +1120,7 @@ applyChangesToServer(UA_Server *server) {
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
 
-        UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+        UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
         if(!fileInfo) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
@@ -1183,8 +1192,8 @@ applyChanges(UA_Server *server,
              size_t inputSize, const UA_Variant *input,
              size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADNOTHINGTODO;
 
@@ -1194,7 +1203,7 @@ applyChanges(UA_Server *server,
     /* Check if a TrustList is still open */
     for(size_t i = 0; i < transaction->certGroupSize; i++) {
         UA_CertificateGroup *certGroup = &transaction->certGroups[i];
-        UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
+        UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
         if(!fileInfo)
             return UA_STATUSCODE_BADINTERNALERROR;
         if(fileInfo->openCount > 0)
@@ -1226,7 +1235,7 @@ createFileInfoContexts(UA_Server *server) {
     LIST_INIT(&fileInfoContext->next->fileInfo.fileContext);
     fileInfoContext->next->fileInfo.lastUpdateTime = lastUpdateTime;
 
-    server->gdsManager.fileInfoContext = fileInfoContext;
+    gdsManager(server)->fileInfoContext = fileInfoContext;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -1257,7 +1266,7 @@ writeGroupVariables(UA_Server *server) {
                                        &UA_TYPES[UA_TYPES_NODEID]);
 
     /* DefaultApplicationGroup */
-    UA_FileInfo *fileInfoApplicationGroup = getFileInfo(&server->gdsManager, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP));
+    UA_FileInfo *fileInfoApplicationGroup = getFileInfo(gdsManager(server), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP));
     if(!fileInfoApplicationGroup)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1267,7 +1276,7 @@ writeGroupVariables(UA_Server *server) {
                                   &fileInfoApplicationGroup->lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
 
     /* DefaultUserTokenGroup */
-    UA_FileInfo *fileInfoUserTokenGroup = getFileInfo(&server->gdsManager, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP));
+    UA_FileInfo *fileInfoUserTokenGroup = getFileInfo(gdsManager(server), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP));
     if(!fileInfoUserTokenGroup)
         return UA_STATUSCODE_BADINTERNALERROR;
 
