@@ -78,6 +78,10 @@ UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
 /********************/
 
 typedef struct {
+    UA_Driver drv;
+
+    UA_Boolean initialized; /* NS0 was added */
+
     /* Transaction for certificate management */
     UA_GDSTransaction transaction;
     /* Contains context information necessary for reading and writing the TrustList as a file type */
@@ -87,11 +91,11 @@ typedef struct {
     UA_UInt64 checkSessionCallbackId;
 } UA_GDSManager;
 
+UA_Driver *
+UA_GDSPushReceiveManager_new(void);
+
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
-
-void
-UA_GDSManager_clear(UA_GDSManager *gdsManager);
 
 /***************/
 /* FileContext */

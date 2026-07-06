@@ -122,6 +122,7 @@ struct UA_Server {
     UA_Driver *reverseBinaryDriver;
     UA_Driver *discoveryDriver;
     UA_Driver *pubSubDriver;
+    UA_Driver *gdsPushReceiveDriver;
 
     UA_AsyncManager asyncManager;
 
@@ -182,11 +183,6 @@ struct UA_Server {
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
-
-    /* GDS Manager for certificate management */
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager gdsManager;
-#endif
 
 #ifdef UA_ENABLE_RBAC
     /* Internal role-permission configurations. Nodes reference entries

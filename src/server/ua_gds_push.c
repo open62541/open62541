@@ -3,45 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
+#include <open62541/plugin/certificategroup_default.h>
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-
-/********************/
-/*   GDS Manager    */
-/********************/
-
-void
-UA_GDSManager_clear(UA_GDSManager *gdsManager) {
-    if(!gdsManager)
-        return;
-    gdsManager->checkSessionCallbackId = 0;
-    UA_GDSTransaction_clear(&gdsManager->transaction);
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)
-        gdsManager->fileInfoContext;
-
-    /* free all fileInfoContexts */
-    while(fileInfoContext) {
-        UA_FileInfoContext *next = fileInfoContext->next;
-        UA_FileInfo *fileInfo = &(fileInfoContext->fileInfo);
-        UA_FileContext *fileContext = NULL;
-        UA_FileContext *fileContextTmp = NULL;
-
-        /* free all fileContexts in this fileInfoContext */
-        LIST_FOREACH_SAFE(fileContext, &fileInfo->fileContext,
-                          listEntry, fileContextTmp) {
-            UA_ByteString_clear(&(fileContext->file));
-            UA_ByteString_clear(&(fileContext->dataToWrite));
-            LIST_REMOVE(fileContext, listEntry);
-            UA_free(fileContext);
-        }
-
-        UA_free(fileInfoContext);
-        fileInfoContext = next;
-    }
-}
 
 /********************/
 /* GDS Transaction  */
@@ -205,6 +173,86 @@ void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
 void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
     UA_GDSTransaction_clear(transaction);
     UA_free(transaction);
+}
+
+/********************/
+/*   GDS Manager    */
+/********************/
+
+static UA_StatusCode
+UA_GDSManager_start(UA_Driver *drv) {
+    UA_GDSManager *gdsm = (UA_GDSManager*)drv;
+
+    /* Initialize ns0 entries only once */
+    if(!gdsm->initialized) {
+        UA_StatusCode res = initNS0PushManagement(drv->server);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        gdsm->initialized = true;
+    }
+
+    drv->state = UA_LIFECYCLESTATE_STARTED;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_GDSManager_stop(UA_Driver *drv) {
+    drv->state = UA_LIFECYCLESTATE_STOPPED;
+}
+
+/* TODO: Remove NS0 entries here for true "driver" semantics */
+static UA_StatusCode
+UA_GDSManager_free(UA_Driver *drv) {
+    if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(drv->server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot delete the GDSPushReceive Driver because "
+                     "it is not stopped");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_GDSManager *gdsManager = (UA_GDSManager*)drv;
+    gdsManager->checkSessionCallbackId = 0;
+    UA_GDSTransaction_clear(&gdsManager->transaction);
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)
+        gdsManager->fileInfoContext;
+
+    /* free all fileInfoContexts */
+    while(fileInfoContext) {
+        UA_FileInfoContext *next = fileInfoContext->next;
+        UA_FileInfo *fileInfo = &(fileInfoContext->fileInfo);
+        UA_FileContext *fileContext = NULL;
+        UA_FileContext *fileContextTmp = NULL;
+
+        /* free all fileContexts in this fileInfoContext */
+        LIST_FOREACH_SAFE(fileContext, &fileInfo->fileContext,
+                          listEntry, fileContextTmp) {
+            UA_ByteString_clear(&(fileContext->file));
+            UA_ByteString_clear(&(fileContext->dataToWrite));
+            LIST_REMOVE(fileContext, listEntry);
+            UA_free(fileContext);
+        }
+
+        UA_free(fileInfoContext);
+        fileInfoContext = next;
+    }
+
+    UA_free(drv);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_Driver *
+UA_GDSPushReceiveManager_new(void) {
+    UA_GDSManager *gdsm = (UA_GDSManager*)UA_calloc(1, sizeof(UA_GDSManager));
+    if(!gdsm)
+        return NULL;
+
+    gdsm->drv.name = UA_STRING("gds-push-receive");
+    gdsm->drv.start = UA_GDSManager_start;
+    gdsm->drv.stop = UA_GDSManager_stop;
+    gdsm->drv.free = UA_GDSManager_free;
+
+    return &gdsm->drv;
 }
 
 #endif

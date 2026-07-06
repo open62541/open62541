@@ -350,10 +350,6 @@ UA_Server_delete(UA_Server *server) {
     server->serversOnNetworkSize = 0;
 #endif
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager_clear(&server->gdsManager);
-#endif
-
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
 
@@ -467,11 +463,6 @@ UA_Server_init(UA_Server *server) {
 #endif
     UA_CHECK_STATUS(res, goto cleanup);
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    res = initNS0PushManagement(server);
-    UA_CHECK_STATUS(res, goto cleanup);
-#endif
-
 #ifdef UA_ENABLE_NODESET_INJECTOR
     res = UA_Server_injectNodesets(server);
     UA_CHECK_STATUS(res, goto cleanup);
@@ -516,6 +507,12 @@ UA_Server_init(UA_Server *server) {
         res = addDriver(server, server->pubSubDriver);
         UA_CHECK_STATUS(res, goto cleanup);
     }
+#endif
+
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+    server->gdsPushReceiveDriver = UA_GDSPushReceiveManager_new();
+    res = addDriver(server, server->gdsPushReceiveDriver);
+    UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
     /* For all custom datatypes, check if they are represented in the
@@ -857,7 +854,8 @@ UA_Server_updateCertificate(UA_Server *server,
     lockServer(server);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    if(server->gdsManager.transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
+    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    if(gdsm && gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
         unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
     }
@@ -994,8 +992,11 @@ UA_Server_createSigningRequest(UA_Server *server,
     }
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_ByteString_clear(&server->gdsManager.transaction.localCsrCertificate);
-    UA_ByteString_copy(csr, &server->gdsManager.transaction.localCsrCertificate);
+    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    if(gdsm) {
+        UA_ByteString_clear(&gdsm->transaction.localCsrCertificate);
+        UA_ByteString_copy(csr, &gdsm->transaction.localCsrCertificate);
+    }
 #endif
 
 cleanup:
