@@ -952,6 +952,12 @@ addDataSetReaderLocked(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
+    if(!rg) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "ReaderGroup not found for NodeId %S",
+                     UA_NODEID_PRINT(*objectId));
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
     if(rg->configurationFrozen) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader cannot be done because ReaderGroup config frozen");
