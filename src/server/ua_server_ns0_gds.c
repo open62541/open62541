@@ -954,12 +954,22 @@ cleanup:
 
 UA_StatusCode
 applyChangesToServer(UA_Server *server) {
-    if(!server)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
+
+    /* Check if a TrustList is still open */
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        UA_CertificateGroup *certGroup = &transaction->certGroups[i];
+        UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+        if(!fileInfo)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        if(fileInfo->openCount > 0)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)UA_calloc(1, sizeof(UA_GDSTransactionChanges));
 
     /* Apply Trust list changes */
@@ -1043,35 +1053,6 @@ cleanup:
     UA_free(changes);
 
     return retval;
-}
-
-static UA_StatusCode
-applyChanges(UA_Server *server,
-             const UA_NodeId *sessionId, void *sessionHandle,
-             const UA_NodeId *methodId, void *methodContext,
-             const UA_NodeId *objectId, void *objectContext,
-             size_t inputSize, const UA_Variant *input,
-             size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
-        return UA_STATUSCODE_BADNOTHINGTODO;
-
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
-
-    /* Check if a TrustList is still open */
-    for(size_t i = 0; i < transaction->certGroupSize; i++) {
-        UA_CertificateGroup *certGroup = &transaction->certGroups[i];
-        UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
-        if(!fileInfo)
-            return UA_STATUSCODE_BADINTERNALERROR;
-        if(fileInfo->openCount > 0)
-            return UA_STATUSCODE_BADINVALIDSTATE;
-    }
-
-    return applyChangesToServer(server);
 }
 
 static UA_StatusCode
@@ -1461,10 +1442,24 @@ applyChangesAction(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
     lockServer(server);
-    UA_StatusCode res = applyChanges(server, sessionId, sessionHandle,
-                                     methodId, methodContext,
-                                     objectId, objectContext,
-                                     inputSize, input, outputSize, output);
+
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+
+    /* Check that the current transaction belongs to the session */
+    if(!UA_NodeId_equal(&transaction->sessionId, sessionId)) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
+    /* Special non-good statuscode only for the public method */
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTHINGTODO;
+    }
+
+    /* Do it */
+    UA_StatusCode res = applyChangesToServer(server);
     unlockServer(server);
     return res;
 }
