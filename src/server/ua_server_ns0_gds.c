@@ -15,17 +15,6 @@ gdsManager(UA_Server *server) {
     return (UA_GDSManager*)server->gdsPushReceiveDriver;
 }
 
-static UA_FileInfo*
-getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
-    while(fileInfoContext) {
-        if(UA_NodeId_equal(&fileInfoContext->certificateGroupId, &certificateGroupId))
-            return &fileInfoContext->fileInfo;
-        fileInfoContext = fileInfoContext->next;
-    }
-    return NULL;
-}
-
 static UA_StatusCode
 createFileHandleId(UA_FileInfo *fileInfo, UA_UInt32 *fileHandle) {
     if(!fileInfo || !fileHandle)
@@ -116,7 +105,8 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
     UA_NodeId defaultUserTokenGroup =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager(server), group->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsManager(server), group->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -137,14 +127,15 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
     return UA_STATUSCODE_BADINVALIDARGUMENT;
 }
 
-static UA_StatusCode
+UA_StatusCode
 writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
     UA_NodeId defaultApplicationGroup =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId defaultUserTokenGroup =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager(server), group->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsManager(server), group->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -304,44 +295,6 @@ getRejectedList(UA_Server *server, size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* TODO: Handle isTrustedCertificate */
-static UA_StatusCode
-addCertificate(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
-               UA_ByteString *certificate, const UA_Boolean *isTrustedCertificate) {
-    UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    /* CA certificates cannot be added using this method because it does not support adding CRLs */
-    if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "The certificate could not be added because it is a CA certificate. "
-                     "CA certificates must be added using the FileType methods.");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    /* This method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(fileInfo->openCount > 0)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    UA_TrustListDataType trustList;
-    UA_TrustListDataType_init(&trustList);
-    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-    trustList.trustedCertificates = certificate;
-    trustList.trustedCertificatesSize = 1;
-
-    UA_StatusCode res = certGroup->addToTrustList(certGroup, &trustList);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Updating LastUpdateTime Variable in the information model */
-    fileInfo->lastUpdateTime = UA_DateTime_now();
-    writeLastUpdateVariable(server, certGroup);
-    return UA_STATUSCODE_GOOD;
-}
-
 static UA_StatusCode
 removeCertificate(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                   const UA_NodeId *sessionId, const UA_String *thumbprint,
@@ -354,7 +307,8 @@ removeCertificate(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* This Method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(fileInfo->openCount > 0)
@@ -476,7 +430,8 @@ openTrustList(UA_Server *server,
     if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -590,7 +545,8 @@ openTrustListWithMask(UA_Server *server,
         return retval;
     }
 
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -626,7 +582,8 @@ readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* UA_GDSManager *gdsm = gdsManager(server); */
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -680,7 +637,8 @@ writeTrustList(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -735,7 +693,8 @@ closeTrustList(UA_Server *server,
 
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -782,7 +741,8 @@ closeAndUpdateTrustList(UA_Server *server,
 
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -848,7 +808,8 @@ getPositionTrustList(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -880,7 +841,8 @@ setPositionTrustList(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -947,7 +909,8 @@ applyChangesToServer(UA_Server *server) {
     /* Check if a TrustList is still open */
     for(size_t i = 0; i < transaction->certGroupSize; i++) {
         UA_CertificateGroup *certGroup = &transaction->certGroups[i];
-        UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+        UA_FileInfo *fileInfo =
+            UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
         if(!fileInfo)
             return UA_STATUSCODE_BADINTERNALERROR;
         if(fileInfo->openCount > 0)
@@ -976,7 +939,8 @@ applyChangesToServer(UA_Server *server) {
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
 
-        UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
+        UA_FileInfo *fileInfo =
+            UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
         if(!fileInfo) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
@@ -1094,8 +1058,8 @@ writeGroupVariables(UA_Server *server) {
 
     /* DefaultApplicationGroup */
     UA_FileInfo *fileInfoApplicationGroup =
-        getFileInfo(gdsManager(server),
-                    UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP));
+        UA_GDSManager_getFileInfo(gdsManager(server),
+                                  UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP));
     if(!fileInfoApplicationGroup)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1108,8 +1072,8 @@ writeGroupVariables(UA_Server *server) {
 
     /* DefaultUserTokenGroup */
     UA_FileInfo *fileInfoUserTokenGroup =
-        getFileInfo(gdsManager(server),
-                    UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP));
+        UA_GDSManager_getFileInfo(gdsManager(server),
+                                  UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP));
     if(!fileInfoUserTokenGroup)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1417,11 +1381,11 @@ applyChangesAction(UA_Server *server,
 
 static UA_StatusCode
 addCertificateAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+                     const UA_NodeId *sessionId, void *sessionHandle,
+                     const UA_NodeId *methodId, void *methodContext,
+                     const UA_NodeId *objectId, void *objectContext,
+                     size_t inputSize, const UA_Variant *input,
+                     size_t outputSize, UA_Variant *output) {
     /* Check input types */
     if(inputSize != 2 ||
        !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]) || /* Certificate */
@@ -1449,7 +1413,8 @@ addCertificateAction(UA_Server *server,
     }
 
     UA_StatusCode res =
-        addCertificate(gdsm, certGroup, certificate, isTrustedCertificate);
+        UA_GDSManager_addCertificate(gdsm, certGroup, certificate,
+                                     isTrustedCertificate);
     unlockServer(server);
     return res;
 }

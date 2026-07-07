@@ -73,45 +73,6 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
 void
 UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
 
-/********************/
-/*   GDS Manager    */
-/********************/
-
-typedef struct {
-    UA_Driver drv;
-
-    UA_Boolean initialized; /* NS0 was added */
-
-    /* Transaction for certificate management */
-    UA_GDSTransaction transaction;
-    /* Contains context information necessary for reading and writing the TrustList as a file type */
-    void *fileInfoContext;
-    /* Holds the ID for the repeated callback that verifies the presence of sessions
-     * with an active transaction or an open trust list */
-    UA_UInt64 checkSessionCallbackId;
-} UA_GDSManager;
-
-UA_Driver *
-UA_GDSPushReceiveManager_new(void);
-
-UA_StatusCode
-initNS0PushManagement(UA_Server *server);
-
-void
-checkSessionActive(UA_Server *server, void *data);
-
-/* TODO: Process issuer certificates */
-/* UA_ByteString *issuerCertificates */
-/* size_t issuerCertificatesSize */
-UA_StatusCode
-UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
-                                const UA_NodeId *sessionId,
-                                const UA_NodeId *certificateGroupId,
-                                const UA_NodeId *certificateTypeId,
-                                const UA_ByteString *certificate,
-                                const UA_String *privateKeyFormat,
-                                const UA_ByteString *privateKey);
-
 /***************/
 /* FileContext */
 /***************/
@@ -142,6 +103,57 @@ typedef struct UA_FileInfoContext {
     UA_NodeId certificateGroupId;
     UA_FileInfo fileInfo;
 } UA_FileInfoContext;
+
+/********************/
+/*   GDS Manager    */
+/********************/
+
+typedef struct {
+    UA_Driver drv;
+
+    UA_Boolean initialized; /* NS0 was added */
+
+    /* Transaction for certificate management */
+    UA_GDSTransaction transaction;
+    /* Contains context information necessary for reading and writing the TrustList as a file type */
+    void *fileInfoContext;
+    /* Holds the ID for the repeated callback that verifies the presence of sessions
+     * with an active transaction or an open trust list */
+    UA_UInt64 checkSessionCallbackId;
+} UA_GDSManager;
+
+UA_Driver *
+UA_GDSPushReceiveManager_new(void);
+
+UA_StatusCode
+initNS0PushManagement(UA_Server *server);
+
+void
+checkSessionActive(UA_Server *server, void *data);
+
+UA_StatusCode
+writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group);
+
+UA_FileInfo *
+UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId);
+
+/* TODO: Process issuer certificates */
+/* UA_ByteString *issuerCertificates */
+/* size_t issuerCertificatesSize */
+UA_StatusCode
+UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
+                                const UA_NodeId *sessionId,
+                                const UA_NodeId *certificateGroupId,
+                                const UA_NodeId *certificateTypeId,
+                                const UA_ByteString *certificate,
+                                const UA_String *privateKeyFormat,
+                                const UA_ByteString *privateKey);
+
+UA_StatusCode
+UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
+                             UA_CertificateGroup *certGroup,
+                             UA_ByteString *certificate,
+                             const UA_Boolean *isTrustedCertificate);
 
 UA_StatusCode applyChangesToServer(UA_Server *server);
 
