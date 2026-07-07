@@ -296,117 +296,6 @@ getRejectedList(UA_Server *server, size_t outputSize, UA_Variant *output) {
 }
 
 static UA_StatusCode
-removeCertificate(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
-                  const UA_NodeId *sessionId, const UA_String *thumbprint,
-                  const UA_Boolean *isTrustedCertificate) {
-    UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-
-    /* This Method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(fileInfo->openCount > 0)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    /* When a certificate is removed, a transaction is created which is then executed directly.
-     * No apply cahnges is required */
-    UA_StatusCode retval = UA_GDSTransaction_init(transaction, server, *sessionId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    UA_CertificateGroup *transactionCG =
-        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCG)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_TrustListDataType trustList;
-    UA_TrustListDataType_init(&trustList);
-    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-
-    UA_ByteString *certificates;
-    size_t certificatesSize = 0;
-    certGroup->getTrustList(certGroup, &trustList);
-
-    if(*isTrustedCertificate) {
-        certificates = trustList.trustedCertificates;
-        certificatesSize = trustList.trustedCertificatesSize;
-    } else {
-        certificates = trustList.issuerCertificates;
-        certificatesSize = trustList.issuerCertificatesSize;
-    }
-
-    UA_TrustListDataType list;
-    UA_TrustListDataType_init(&list);
-
-    UA_ByteString *crls = NULL;
-    size_t crlsSize = 0;
-    UA_ByteString certificate = UA_BYTESTRING_NULL;
-
-    UA_Byte buf[UA_SHA1_LENGTH * 2];
-    UA_String thumbpr = {UA_SHA1_LENGTH * 2, buf};
-    for(size_t i = 0; i < certificatesSize; i++) {
-        /* Compare thumbprint */
-        certificate = certificates[i];
-        UA_CertificateUtils_getThumbprint(&certificate, &thumbpr);
-        if(!UA_String_equal_ignorecase(thumbprint, &thumbpr))
-            continue;
-
-        retval = certGroup->getCertificateCrls(certGroup, &certificate,
-                                               isTrustedCertificate,
-                                               &crls, &crlsSize);
-
-        /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
-         * not have an associated CRL. */
-        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNOMATCH)
-            goto cleanup;
-
-        if(*isTrustedCertificate) {
-            list.specifiedLists =
-                UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-            list.trustedCertificates = &certificate;
-            list.trustedCertificatesSize = 1;
-            list.trustedCrls = crls;
-            list.trustedCrlsSize = crlsSize;
-        } else {
-            list.specifiedLists =
-                UA_TRUSTLISTMASKS_ISSUERCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCRLS;
-            list.issuerCertificates = &certificate;
-            list.issuerCertificatesSize = 1;
-            list.issuerCrls = crls;
-            list.issuerCrlsSize = crlsSize;
-        }
-        break;
-    }
-
-    /* Thumbprint not found */
-    if(list.specifiedLists == UA_TRUSTLISTMASKS_NONE) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "The certificate to remove was not found");
-        retval = UA_STATUSCODE_BADINVALIDARGUMENT;
-        goto cleanup;
-    }
-
-    /* Add to the transaction */
-    retval = transactionCG->removeFromTrustList(transactionCG, &list);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Apply */
-    retval = UA_GDSManager_applyChanges(gdsm);
-
-cleanup:
-    UA_TrustListDataType_clear(&trustList);
-    UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    return retval;
-}
-
-static UA_StatusCode
 openTrustList(UA_Server *server,
               const UA_NodeId *sessionId, void *sessionHandle,
               const UA_NodeId *methodId, void *methodContext,
@@ -1306,8 +1195,8 @@ removeCertificateAction(UA_Server *server,
     }
 
     UA_StatusCode res =
-        removeCertificate(gdsm, certGroup, sessionId,
-                          thumbprint, isTrustedCertificate);
+        UA_GDSManager_removeCertificate(gdsm, certGroup, sessionId,
+                                        thumbprint, isTrustedCertificate);
     unlockServer(server);
     return res;
 }
