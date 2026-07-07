@@ -196,6 +196,12 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
                                                        &addFirst,
                                                        &addLast,
                                                        &reverse);
+    /* Reject a forged continuation-point skip value that would underflow the
+     * subtraction below. */
+    if(skip > _resultSize) {
+        *resultSize = 0;
+        return UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+    }
     *resultSize = _resultSize - skip;
     if (*resultSize > maxSize) {
         *resultSize = maxSize;
@@ -235,6 +241,11 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
             }
 
         }
+        /* Never instruct the backend to copy more values than the result buffer
+         * was allocated to hold. */
+        size_t remainingCapacity = *resultSize - counter;
+        if(valueSize > remainingCapacity)
+            valueSize = remainingCapacity;
 
         UA_StatusCode ret = UA_STATUSCODE_GOOD;
         if (valueSize > 0)
