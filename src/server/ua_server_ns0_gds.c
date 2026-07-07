@@ -619,28 +619,13 @@ openTrustListWithMask(UA_Server *server,
 }
 
 static UA_StatusCode
-readTrustList(UA_Server *server,
-              const UA_NodeId *sessionId, void *sessionHandle,
-              const UA_NodeId *methodId, void *methodContext,
-              const UA_NodeId *objectId, void *objectContext,
-              size_t inputSize, const UA_Variant *input,
-              size_t outputSize, UA_Variant *output) {
+readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+              UA_Int32 length, UA_Variant *output) {
+    UA_Server *server = gdsm->drv.server;
     UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /*FileHandle*/
-       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_INT32])) /*Length*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
 
-    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-    UA_Int32 length = *(UA_Int32*)input[1].data;
-    if(length < 0)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_GDSManager *gdsm = gdsManager(server);
+    /* UA_GDSManager *gdsm = gdsManager(server); */
     UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1173,40 +1158,6 @@ openFile(UA_Server *server,
 }
 
 static UA_StatusCode
-readFile(UA_Server *server,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
-
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-
-    UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
-        retval =  readTrustList(server, sessionId, sessionHandle, methodId, methodContext,
-                                objectId, objectContext, inputSize, input, outputSize, output);
-    }
-
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
-
-    if(retval != UA_STATUSCODE_BADNOTIMPLEMENTED)
-        return retval;
-
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "File type functions are currently only supported for TrustList types");
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-
-static UA_StatusCode
 writeFile(UA_Server *server,
          const UA_NodeId *sessionId, void *sessionHandle,
          const UA_NodeId *methodId, void *methodContext,
@@ -1596,11 +1547,53 @@ readFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
+    /* Check inputs */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
+       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_INT32]))    /* Length */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
+    UA_Int32 length = *(UA_Int32*)input[1].data;
+    if(length < 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     lockServer(server);
-    UA_StatusCode res = readFile(server, sessionId, sessionHandle,
-                                 methodId, methodContext,
-                                 objectId, objectContext,
-                                 inputSize, input, outputSize, output);
+
+    /* Get the certgroup */
+    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
+    if(!certGroup) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Get object type */
+    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    if(!objectType) {
+        unlockServer(server);
+        UA_NODESTORE_RELEASE(server, object);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_NODESTORE_RELEASE(server, object);
+
+    UA_StatusCode res;
+    UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
+    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+        /* Method was called on a trustlist */
+        UA_GDSManager *gdsm = gdsManager(server);
+        res = readTrustList(gdsm, certGroup, sessionId, fileHandle, length, output);
+    } else {
+        res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "File type functions are currently only supported for TrustList types");
+    }
+
+    UA_NODESTORE_RELEASE(server, objectType);
     unlockServer(server);
     return res;
 }
