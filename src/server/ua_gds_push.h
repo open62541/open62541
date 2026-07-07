@@ -166,6 +166,13 @@ UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
                              const UA_Boolean *isTrustedCertificate);
 
 UA_StatusCode
+UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
+                                UA_CertificateGroup *certGroup,
+                                const UA_NodeId *sessionId,
+                                const UA_String *thumbprint,
+                                const UA_Boolean *isTrustedCertificate);
+
+UA_StatusCode
 UA_GDSManager_applyChanges(UA_GDSManager *gdsm);
 
 _UA_END_DECLS
