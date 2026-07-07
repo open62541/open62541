@@ -73,6 +73,13 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
 void
 UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
 
+typedef enum UA_GDSTransactionChanges {
+    UA_GDSTRANSACTIONCHANGES_NOTHING = 0,
+    UA_GDSTRANSACTIONCHANGES_TRUSTLIST,
+    UA_GDSTRANSACTIONCHANGES_CERTIFICATE,
+    UA_GDSTRANSACTIONCHANGES_BOTH,
+} UA_GDSTransactionChanges;
+
 /***************/
 /* FileContext */
 /***************/
@@ -131,6 +138,9 @@ initNS0PushManagement(UA_Server *server);
 void
 checkSessionActive(UA_Server *server, void *data);
 
+UA_CertificateGroup*
+getCertGroup(UA_Server *server, const UA_NodeId *objectId);
+
 UA_StatusCode
 writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group);
 
@@ -155,7 +165,8 @@ UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate);
 
-UA_StatusCode applyChangesToServer(UA_Server *server);
+UA_StatusCode
+UA_GDSManager_applyChanges(UA_GDSManager *gdsm);
 
 _UA_END_DECLS
 

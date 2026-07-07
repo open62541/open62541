@@ -292,6 +292,151 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
                                                 privateKey);
 }
 
+static void
+secureChannel_delayedClose(void *application, void *context) {
+    UA_Server *server = (UA_Server*)context;
+    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
+
+    if(*changes == UA_GDSTRANSACTIONCHANGES_NOTHING)
+        goto cleanup;
+
+    if(*changes == UA_GDSTRANSACTIONCHANGES_BOTH ||
+       *changes == UA_GDSTRANSACTIONCHANGES_CERTIFICATE ) {
+        UA_SecureChannel *channel;
+        TAILQ_FOREACH(channel, &server->channels, serverEntry) {
+            if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
+               channel->state == UA_SECURECHANNELSTATE_CLOSING)
+                continue;
+            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+        }
+        goto cleanup;
+    }
+
+    UA_CertificateGroup certGroup = server->config.secureChannelPKI;
+    UA_SecureChannel *channel;
+    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
+           channel->state == UA_SECURECHANNELSTATE_CLOSING)
+            continue;
+        UA_StatusCode res =
+            certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+    }
+
+cleanup:
+    UA_free(changes);
+    UA_GDSTransaction_clear(&gdsm->transaction);
+}
+
+UA_StatusCode
+UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+
+    /* Check if a TrustList is still open */
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        UA_CertificateGroup *certGroup = &transaction->certGroups[i];
+        UA_FileInfo *fileInfo =
+            UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+        if(!fileInfo)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        if(fileInfo->openCount > 0)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)
+        UA_calloc(1, sizeof(UA_GDSTransactionChanges));
+    if(!changes)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Apply Trust list changes */
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        *changes = UA_GDSTRANSACTIONCHANGES_TRUSTLIST;
+        UA_CertificateGroup transactionCertGroup = transaction->certGroups[i];
+        UA_TrustListDataType trustList;
+        UA_TrustListDataType_init(&trustList);
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+        transactionCertGroup.getTrustList(&transactionCertGroup, &trustList);
+
+        UA_CertificateGroup *certGroup =
+            getCertGroup(server, &transactionCertGroup.certificateGroupId);
+        if(!certGroup) {
+            UA_TrustListDataType_clear(&trustList);
+            goto cleanup;
+        }
+        retval = certGroup->setTrustList(certGroup, &trustList);
+        UA_TrustListDataType_clear(&trustList);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+
+        UA_FileInfo *fileInfo =
+            UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+        if(!fileInfo) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+
+        /* Updating LastUpdateTime Variable in the information model */
+        fileInfo->lastUpdateTime = UA_DateTime_now();
+        writeLastUpdateVariable(server, certGroup);
+    }
+
+    /* Apply Server certificate changes */
+    for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
+        if(*changes != UA_GDSTRANSACTIONCHANGES_NOTHING) {
+            *changes = UA_GDSTRANSACTIONCHANGES_BOTH;
+        } else {
+            *changes = UA_GDSTRANSACTIONCHANGES_CERTIFICATE;
+        }
+        UA_GDSCertificateInfo certInfo = transaction->certificateInfos[i];
+        UA_NodeId certTypeId = certInfo.certificateType;
+        UA_ByteString certificate = certInfo.certificate;
+        UA_ByteString privateKey = certInfo.privateKey;
+
+        for(size_t j = 0; j < server->config.endpointsSize; j++) {
+            UA_EndpointDescription *ed = &server->config.endpoints[j];
+            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+                                &server->config.endpoints[j].securityPolicyUri);
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            if(!UA_NodeId_equal(&sp->certificateTypeId, &certTypeId))
+                continue;
+
+            retval = sp->updateCertificate(sp, certificate, privateKey);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+
+            UA_ByteString_clear(&ed->serverCertificate);
+            retval = UA_ByteString_copy(&certificate, &ed->serverCertificate);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+    }
+
+    /* Add to the delayed callback list. Will be cleaned up in the next iteration. */
+    UA_DelayedCallback *dc = &transaction->dc;
+    dc->callback = secureChannel_delayedClose;
+    dc->application = changes;
+    dc->context = server;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
+    return UA_STATUSCODE_GOOD;
+
+cleanup:
+    UA_GDSTransaction_clear(transaction);
+    UA_free(changes);
+    return retval;
+}
+
 static UA_StatusCode
 UA_GDSManager_start(UA_Driver *drv) {
     UA_GDSManager *gdsm = (UA_GDSManager*)drv;
