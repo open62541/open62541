@@ -84,6 +84,8 @@ typedef struct {
     /* Callback to close all SecureChannels after calling applyChanges
      * and freeing the transaction. */
     UA_DelayedCallback dc;
+    /* Prevent duplicate enqueue of the embedded dc (use-after-free). */
+    UA_Boolean applyChangesQueued;
 } UA_GDSTransaction;
 
 UA_StatusCode

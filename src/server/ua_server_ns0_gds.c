@@ -1143,7 +1143,13 @@ secureChannel_delayedClose(void *application, void *context) {
 
 cleanup:
     UA_free(changes);
-    UA_GDSTransaction_clear(&server->gdsManager.transaction);
+    UA_GDSTransaction *transaction = &server->gdsManager.transaction;
+    transaction->applyChangesQueued = false;
+    transaction->dc.next = NULL;
+    transaction->dc.callback = NULL;
+    transaction->dc.application = NULL;
+    transaction->dc.context = NULL;
+    UA_GDSTransaction_clear(transaction);
 }
 
 static UA_StatusCode
@@ -1151,9 +1157,12 @@ applyChangesToServer(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)UA_calloc(1, sizeof(UA_GDSTransactionChanges));
 
     /* Apply Trust list changes */
@@ -1226,6 +1235,7 @@ applyChangesToServer(UA_Server *server) {
     dc->callback = secureChannel_delayedClose;
     dc->application = changes;
     dc->context = server;
+    transaction->applyChangesQueued = true;
 
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, dc);
