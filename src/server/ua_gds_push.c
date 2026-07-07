@@ -188,16 +188,19 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
                                 const UA_String *privateKeyFormat,
                                 const UA_ByteString *privateKey) {
     UA_LOCK_ASSERT(&gdsm->drv.server->serviceMutex);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* The server currently only supports the DefaultApplicationGroup */
-    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* The server currently only supports the following certificate type */
     UA_NodeId certTypRsaMin = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
     UA_NodeId certTypRsaSha256 = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) && !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
+    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
+       !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* Verify that the privateKey is in a supported format and
@@ -205,13 +208,14 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
     if(privateKey && privateKey->length > 0) {
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String derFormat = UA_STRING("DER");
-        if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
+        if(!UA_String_equal(&pemFormat, privateKeyFormat) &&
+           !UA_String_equal(&derFormat, privateKeyFormat))
             return UA_STATUSCODE_BADNOTSUPPORTED;
-        if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) != UA_STATUSCODE_GOOD)
+        retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
+        if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_GDSTransaction *transaction = &gdsm->transaction;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, gdsm->drv.server, *sessionId);
