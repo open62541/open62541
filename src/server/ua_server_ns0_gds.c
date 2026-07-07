@@ -304,42 +304,22 @@ getRejectedList(UA_Server *server, size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* TODO: Handle isTrustedCertificate */
 static UA_StatusCode
-addCertificate(UA_Server *server,
-               const UA_NodeId *sessionId, void *sessionHandle,
-               const UA_NodeId *methodId, void *methodContext,
-               const UA_NodeId *objectId, void *objectContext,
-               size_t inputSize, const UA_Variant *input,
-               size_t outputSize, UA_Variant *output) {
+addCertificate(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+               UA_ByteString *certificate, const UA_Boolean *isTrustedCertificate) {
+    UA_Server *server = gdsm->drv.server;
     UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*Certificate*/
-       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BOOLEAN])) /*IsTrustedCertificate*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_ByteString certificate = *(UA_ByteString *)input[0].data;
-    UA_Boolean isTrustedCertificate = *(UA_Boolean *)input[1].data;
-
-    if(!isTrustedCertificate || certificate.length == 0)
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* CA certificates cannot be added using this method because it does not support adding CRLs */
-    if(UA_CertificateUtils_checkCA(&certificate) == UA_STATUSCODE_GOOD) {
+    if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-            "The certificate could not be added because it is a CA certificate. "
-            "CA certificates must be added using the FileType methods.");
+                     "The certificate could not be added because it is a CA certificate. "
+                     "CA certificates must be added using the FileType methods.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* This Method cannot be called if the containing TrustList Object is open */
+    /* This method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo = getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -347,23 +327,19 @@ addCertificate(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     UA_TrustListDataType trustList;
-    memset(&trustList, 0, sizeof(UA_TrustListDataType));
-    UA_ByteString certificates[1];
-    certificates[0] = certificate;
-
+    UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-    trustList.trustedCertificates = certificates;
+    trustList.trustedCertificates = certificate;
     trustList.trustedCertificatesSize = 1;
 
-    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &trustList);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    UA_StatusCode res = certGroup->addToTrustList(certGroup, &trustList);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Updating LastUpdateTime Variable in the information model */
     fileInfo->lastUpdateTime = UA_DateTime_now();
     writeLastUpdateVariable(server, certGroup);
-
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -1515,11 +1491,34 @@ addCertificateAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
+    /* Check input types */
+    if(inputSize != 2 ||
+       !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]) || /* Certificate */
+       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BOOLEAN]))      /* IsTrustedCertificate */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_ByteString *certificate = (UA_ByteString *)input[0].data;
+    UA_Boolean *isTrustedCertificate = (UA_Boolean *)input[1].data;
+
+    if(!*isTrustedCertificate || certificate->length == 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
     lockServer(server);
-    UA_StatusCode res = addCertificate(server, sessionId, sessionHandle,
-                                       methodId, methodContext,
-                                       objectId, objectContext,
-                                       inputSize, input, outputSize, output);
+
+    UA_GDSManager *gdsm = gdsManager(server);
+    if(gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    }
+
+    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
+    if(!certGroup) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode res =
+        addCertificate(gdsm, certGroup, certificate, isTrustedCertificate);
     unlockServer(server);
     return res;
 }
