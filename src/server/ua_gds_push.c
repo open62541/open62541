@@ -179,6 +179,59 @@ void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
 /*   GDS Manager    */
 /********************/
 
+UA_FileInfo *
+UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
+    while(fileInfoContext) {
+        if(UA_NodeId_equal(&fileInfoContext->certificateGroupId, &certificateGroupId))
+            return &fileInfoContext->fileInfo;
+        fileInfoContext = fileInfoContext->next;
+    }
+    return NULL;
+}
+
+/* TODO: Handle isTrustedCertificate */
+UA_StatusCode
+UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
+                             UA_CertificateGroup *certGroup,
+                             UA_ByteString *certificate,
+                             const UA_Boolean *isTrustedCertificate) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* CA certificates cannot be added using this method because it does not
+     * support adding CRLs */
+    if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "The certificate could not be added because it is a CA certificate. "
+                     "CA certificates must be added using the FileType methods.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* This method cannot be called if the containing TrustList Object is open */
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(fileInfo->openCount > 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    trustList.trustedCertificates = certificate;
+    trustList.trustedCertificatesSize = 1;
+
+    UA_StatusCode res = certGroup->addToTrustList(certGroup, &trustList);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Updating LastUpdateTime Variable in the information model */
+    fileInfo->lastUpdateTime = UA_DateTime_now();
+    writeLastUpdateVariable(server, certGroup);
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
                                 const UA_NodeId *sessionId,
@@ -224,8 +277,7 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
     }
 
     if(gdsm->checkSessionCallbackId == 0) {
-        retval = addRepeatedCallback(gdsm->drv.server,
-                                     (UA_ServerCallback)checkSessionActive,
+        retval = addRepeatedCallback(gdsm->drv.server, checkSessionActive,
                                      NULL, CHECKACTIVESESSIONINTERVAL,
                                      &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
