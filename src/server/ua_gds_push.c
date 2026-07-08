@@ -7,6 +7,7 @@
  */
 
 #include <open62541/plugin/certificategroup_default.h>
+#include "ua_gds_push.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
@@ -212,21 +213,21 @@ UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
  * and all open file handles are closed. */
 static void
 checkSessionActive(UA_Server *server, void *data) {
-    lockServer(server);
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    UA_EventLoop *el = sc->eventLoop;
+    el->lock(el);
+
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
     UA_Boolean removingCallback = false;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
-        UA_Boolean foundSession = false;
-        session_list_entry *session;
-        LIST_FOREACH(session, &server->sessions, pointers) {
-            if(UA_NodeId_equal(&session->session.sessionId, &transaction->sessionId)) {
-                foundSession = true;
-                break;
-            }
-        }
-        if(!foundSession) {
-            UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+        /* Check if the session is still active */
+        UA_Variant tmp;
+        UA_StatusCode res =
+            UA_Server_getSessionAttribute(server, &transaction->sessionId,
+                                          UA_QUALIFIEDNAME(0, "sessionName"), &tmp);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
                 "Session with an open transaction has ended. "
                 "The transaction has been discarded.");
             UA_GDSTransaction_clear(transaction);
@@ -239,7 +240,6 @@ checkSessionActive(UA_Server *server, void *data) {
     UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
     while(fileInfoContext) {
         UA_FileInfo fileInfo = fileInfoContext->fileInfo;
-
         if(fileInfo.openCount == 0) {
             fileInfoContext = fileInfoContext->next;
             continue;
@@ -255,22 +255,16 @@ checkSessionActive(UA_Server *server, void *data) {
         UA_FileContext *fileContext, *fileContextTmp;
         LIST_FOREACH_SAFE(fileContext, &fileInfo.fileContext,
                           listEntry, fileContextTmp) {
-            UA_Boolean foundSession = false;
-            session_list_entry *session;
-            LIST_FOREACH(session, &server->sessions, pointers) {
-                if(UA_NodeId_equal(&session->session.sessionId,
-                                   &fileContext->sessionId)) {
-                    foundSession = true;
-                    break;
-                }
-            }
+            UA_Variant tmp;
+            UA_StatusCode res =
+                UA_Server_getSessionAttribute(server, &fileContext->sessionId,
+                                              UA_QUALIFIEDNAME(0, "sessionName"), &tmp);
+            if(res == UA_STATUSCODE_GOOD)
+                continue; /* Session still exists */
 
-            if(foundSession)
-                continue;
-
-            UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "Session with an open trust list has ended. "
-                    "All file handlers for the open trust lists have been closed.");
+            UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
+                        "Session with an open trust list has ended. "
+                        "All file handlers for the open trust lists have been closed.");
 
             LIST_REMOVE(fileContext, listEntry);
             fileInfoContext->fileInfo.openCount -= 1;
@@ -287,19 +281,17 @@ checkSessionActive(UA_Server *server, void *data) {
     }
 
     if(removingCallback) {
-        removeCallback(server, gdsm->checkSessionCallbackId);
+        UA_Server_removeCallback(server, gdsm->checkSessionCallbackId);
         gdsm->checkSessionCallbackId = 0;
     }
-    unlockServer(server);
+
+    el->unlock(el);
 }
 
 UA_StatusCode
 UA_GDSManager_getPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_Variant *output) {
-    UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
@@ -317,9 +309,6 @@ UA_StatusCode
 UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position) {
-    UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
@@ -343,7 +332,7 @@ UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup
                              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                              const UA_ByteString data) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
 
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
@@ -361,9 +350,8 @@ UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup
     /* Abort when TrustList size would exceed the maximum allowed value (0 =
      * unlimited) */
     size_t newLen = fileContext->dataToWrite.length + data.length;
-    if(server->config.maxTrustListSize != 0 &&
-       newLen > server->config.maxTrustListSize) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+    if(sc->maxTrustListSize != 0 && newLen > sc->maxTrustListSize) {
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                        "Write on trust list exceeds limit");
         return UA_STATUSCODE_BADREQUESTTOOLARGE;
     }
@@ -378,7 +366,6 @@ UA_GDSManager_closeAndUpdateTrustList(UA_GDSManager *gdsm,
                                       UA_UInt32 fileHandle,
                                       UA_Variant *output) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
     UA_FileInfo *fileInfo =
@@ -436,7 +423,6 @@ UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
                              const UA_NodeId *sessionId,
                              UA_UInt32 fileHandle) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
     UA_FileInfo *fileInfo =
@@ -470,9 +456,6 @@ UA_StatusCode
 UA_GDSManager_readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                             UA_Int32 length, UA_Variant *output) {
-    UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
     /* UA_GDSManager *gdsm = gdsManager(server); */
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
@@ -501,7 +484,6 @@ UA_GDSManager_readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
     }
 
     UA_Variant_setScalarCopy(output, &readBuffer, &UA_TYPES[UA_TYPES_BYTESTRING]);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -512,12 +494,12 @@ UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
 
     /* CA certificates cannot be added using this method because it does not
      * support adding CRLs */
     if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "The certificate could not be added because it is a CA certificate. "
                      "CA certificates must be added using the FileType methods.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -555,9 +537,6 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
                                 const UA_ByteString *certificate,
                                 const UA_String *privateKeyFormat,
                                 const UA_ByteString *privateKey) {
-    UA_LOCK_ASSERT(&gdsm->drv.server->serviceMutex);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     /* The server currently only supports the DefaultApplicationGroup */
     static UA_NodeId defaultApplicationGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -573,6 +552,7 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
 
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(privateKey && privateKey->length > 0) {
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String derFormat = UA_STRING("DER");
@@ -592,9 +572,9 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
     }
 
     if(gdsm->checkSessionCallbackId == 0) {
-        retval = addRepeatedCallback(gdsm->drv.server, checkSessionActive,
-                                     NULL, CHECKACTIVESESSIONINTERVAL,
-                                     &gdsm->checkSessionCallbackId);
+        retval = UA_Server_addRepeatedCallback(gdsm->drv.server, checkSessionActive,
+                                               NULL, CHECKACTIVESESSIONINTERVAL,
+                                               &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -614,7 +594,7 @@ UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
                                 const UA_String *thumbprint,
                                 const UA_Boolean *isTrustedCertificate) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
@@ -700,7 +680,7 @@ UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
 
     /* Thumbprint not found */
     if(list.specifiedLists == UA_TRUSTLISTMASKS_NONE) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
                     "The certificate to remove was not found");
         retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         goto cleanup;
@@ -724,11 +704,12 @@ UA_StatusCode
 UA_GDSManager_getRejectedList(UA_GDSManager *gdsm, size_t outputSize,
                               UA_Variant *output) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+
     size_t rejectedListSize = 0;
 
     /* DefaultApplicationGroup */
-    UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
+    UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
     UA_ByteString *rejectedListSecureChannel = NULL;
     size_t rejectedListSecureChannelSize = 0;
     certGroup->getRejectedList(certGroup, &rejectedListSecureChannel,
@@ -736,7 +717,7 @@ UA_GDSManager_getRejectedList(UA_GDSManager *gdsm, size_t outputSize,
     rejectedListSize += rejectedListSecureChannelSize;
 
     /* DefaultUserTokenGroup */
-    certGroup = &server->config.sessionPKI;
+    certGroup = &sc->sessionPKI;
     UA_ByteString *rejectedListSession = NULL;
     size_t rejectedListSessionSize = 0;
     certGroup->getRejectedList(certGroup, &rejectedListSession, &rejectedListSessionSize);
@@ -805,7 +786,6 @@ UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *ce
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
                                     UA_Variant *output) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
@@ -817,9 +797,9 @@ UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *ce
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(gdsm->checkSessionCallbackId == 0) {
-        retval = addRepeatedCallback(server, checkSessionActive, NULL,
-                                     CHECKACTIVESESSIONINTERVAL,
-                                     &gdsm->checkSessionCallbackId);
+        retval = UA_Server_addRepeatedCallback(server, checkSessionActive, NULL,
+                                               CHECKACTIVESESSIONINTERVAL,
+                                               &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -874,7 +854,6 @@ UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_Byte fileOpenMode,
                             UA_Variant *output) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
     /* Cannot be opened when a transaction is running */
@@ -957,6 +936,7 @@ UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
 static void
 secureChannel_delayedClose(void *application, void *context) {
     UA_Server *server = (UA_Server*)context;
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
 
@@ -975,7 +955,7 @@ secureChannel_delayedClose(void *application, void *context) {
         goto cleanup;
     }
 
-    UA_CertificateGroup certGroup = server->config.secureChannelPKI;
+    UA_CertificateGroup certGroup = sc->secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
@@ -995,8 +975,7 @@ cleanup:
 UA_StatusCode
 UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
     UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
 
     /* Check if a TrustList is still open */
@@ -1060,10 +1039,11 @@ UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
         UA_ByteString certificate = certInfo.certificate;
         UA_ByteString privateKey = certInfo.privateKey;
 
-        for(size_t j = 0; j < server->config.endpointsSize; j++) {
-            UA_EndpointDescription *ed = &server->config.endpoints[j];
-            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
-                                &server->config.endpoints[j].securityPolicyUri);
+        for(size_t j = 0; j < sc->endpointsSize; j++) {
+            UA_EndpointDescription *ed = &sc->endpoints[j];
+            UA_SecurityPolicy *sp =
+                getSecurityPolicyByUri(server,
+                                       &sc->endpoints[j].securityPolicyUri);
             if(!sp) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
@@ -1089,7 +1069,7 @@ UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
     dc->application = changes;
     dc->context = server;
 
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = sc->eventLoop;
     el->addDelayedCallback(el, dc);
     return UA_STATUSCODE_GOOD;
 
@@ -1120,7 +1100,7 @@ static void
 UA_GDSManager_stop(UA_Driver *drv) {
     UA_GDSManager *gdsm = (UA_GDSManager*)drv;
     if(gdsm->checkSessionCallbackId != 0) {
-        removeCallback(drv->server, gdsm->checkSessionCallbackId);
+        UA_Server_removeCallback(drv->server, gdsm->checkSessionCallbackId);
         gdsm->checkSessionCallbackId = 0;
     }
     drv->state = UA_LIFECYCLESTATE_STOPPED;
@@ -1129,8 +1109,9 @@ UA_GDSManager_stop(UA_Driver *drv) {
 /* TODO: Remove NS0 entries here for true "driver" semantics */
 static UA_StatusCode
 UA_GDSManager_free(UA_Driver *drv) {
+    UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
     if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(drv->server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the GDSPushReceive Driver because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
