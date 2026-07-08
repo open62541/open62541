@@ -10,9 +10,12 @@
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
-static UA_GDSManager *
+UA_GDSManager *
 gdsManager(UA_Server *server) {
-    return (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_Driver *drv = UA_Server_getDrivers(server);
+    while(drv && drv->start != UA_GDSManager_start)
+        drv = drv->next;
+    return (UA_GDSManager *)drv;
 }
 
 UA_CertificateGroup*

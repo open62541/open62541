@@ -510,8 +510,7 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    server->gdsPushReceiveDriver = UA_GDSPushReceiveManager_new();
-    res = addDriver(server, server->gdsPushReceiveDriver);
+    res = addDriver(server, UA_GDSPushReceiveManager_new());
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
@@ -854,7 +853,7 @@ UA_Server_updateCertificate(UA_Server *server,
     lockServer(server);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_GDSManager *gdsm = gdsManager(server);
     if(gdsm && gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
         unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
@@ -996,7 +995,7 @@ UA_Server_createSigningRequest(UA_Server *server,
     }
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_GDSManager *gdsm = gdsManager(server);
     if(gdsm) {
         UA_ByteString_clear(&gdsm->transaction.localCsrCertificate);
         UA_ByteString_copy(csr, &gdsm->transaction.localCsrCertificate);

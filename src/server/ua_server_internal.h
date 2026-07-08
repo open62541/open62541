@@ -122,7 +122,6 @@ struct UA_Server {
     UA_Driver *reverseBinaryDriver;
     UA_Driver *discoveryDriver;
     UA_Driver *pubSubDriver;
-    UA_Driver *gdsPushReceiveDriver;
 
     UA_AsyncManager asyncManager;
 
