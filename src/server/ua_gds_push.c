@@ -213,7 +213,7 @@ UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
 static void
 checkSessionActive(UA_Server *server, void *data) {
     lockServer(server);
-    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
     UA_Boolean removingCallback = false;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
@@ -957,7 +957,7 @@ UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
 static void
 secureChannel_delayedClose(void *application, void *context) {
     UA_Server *server = (UA_Server*)context;
-    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
 
     if(*changes == UA_GDSTRANSACTIONCHANGES_NOTHING)
@@ -1099,7 +1099,7 @@ cleanup:
     return retval;
 }
 
-static UA_StatusCode
+UA_StatusCode
 UA_GDSManager_start(UA_Driver *drv) {
     UA_GDSManager *gdsm = (UA_GDSManager*)drv;
 

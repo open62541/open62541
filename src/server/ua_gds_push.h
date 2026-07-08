@@ -225,6 +225,12 @@ UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
 UA_StatusCode
 UA_GDSManager_applyChanges(UA_GDSManager *gdsm);
 
+UA_StatusCode
+UA_GDSManager_start(UA_Driver *drv);
+
+UA_GDSManager *
+gdsManager(UA_Server *server);
+
 _UA_END_DECLS
 
 #endif /* UA_ENABLE_GDS_PUSHMANAGEMENT */
