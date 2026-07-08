@@ -194,54 +194,6 @@ writeTrustList(UA_Server *server,
 }
 
 static UA_StatusCode
-closeTrustList(UA_Server *server,
-               const UA_NodeId *sessionId, void *sessionHandle,
-               const UA_NodeId *methodId, void *methodContext,
-               const UA_NodeId *objectId, void *objectContext,
-               size_t inputSize, const UA_Variant *input,
-               size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*FileHandle*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-
-    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
-    if(!fileContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* If a close is called, a current transaction is cancelled.
-     * If the list was opened in read mode, there are no changes to discard. */
-    if(fileContext->openFileMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING)) {
-        UA_GDSTransaction_clear(transaction);
-    }
-
-    LIST_REMOVE(fileContext, listEntry);
-    fileInfo->openCount -= 1;
-
-    UA_ByteString_clear(&fileContext->file);
-    UA_ByteString_clear(&fileContext->dataToWrite);
-    UA_free(fileContext);
-
-    /* Updating OpenCount Variable in the information model */
-    writeOpenCountVariable(server, certGroup);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 closeAndUpdateTrustList(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionHandle,
                const UA_NodeId *methodId, void *methodContext,
@@ -509,6 +461,14 @@ closeFile(UA_Server *server,
          const UA_NodeId *objectId, void *objectContext,
          size_t inputSize, const UA_Variant *input,
          size_t outputSize, UA_Variant *output) {
+    /* Check input */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
+
+    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
     if(!object)
@@ -517,23 +477,25 @@ closeFile(UA_Server *server,
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    if(!objectType) {
+        UA_NODESTORE_RELEASE(server, object);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
+    UA_GDSManager *gdsm = gdsManager(server);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
-        retval = closeTrustList(server, sessionId, sessionHandle, methodId, methodContext,
-                                objectId, objectContext, inputSize, input, outputSize, output);
+        retval = UA_GDSManager_closeTrustList(gdsm, certGroup, sessionId, fileHandle);
+    } else {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "File type functions are currently only supported "
+                     "for TrustList types");
     }
 
     UA_NODESTORE_RELEASE(server, object);
     UA_NODESTORE_RELEASE(server, objectType);
-
-    if(retval != UA_STATUSCODE_BADNOTIMPLEMENTED)
-        return retval;
-
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "File type functions are currently only supported for TrustList types");
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    return retval;
 }
 
 static UA_StatusCode

@@ -303,6 +303,42 @@ UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *cer
 }
 
 UA_StatusCode
+UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
+                             UA_CertificateGroup *certGroup,
+                             const UA_NodeId *sessionId,
+                             UA_UInt32 fileHandle) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
+    if(!fileContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* If a close is called, a current transaction is cancelled.
+     * If the list was opened in read mode, there are no changes to discard. */
+    if(fileContext->openFileMode ==
+       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+        UA_GDSTransaction_clear(transaction);
+
+    LIST_REMOVE(fileContext, listEntry);
+    fileInfo->openCount -= 1;
+
+    UA_ByteString_clear(&fileContext->file);
+    UA_ByteString_clear(&fileContext->dataToWrite);
+    UA_free(fileContext);
+
+    /* Updating OpenCount Variable in the information model */
+    writeOpenCountVariable(server, certGroup);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_GDSManager_readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                             UA_Int32 length, UA_Variant *output) {
