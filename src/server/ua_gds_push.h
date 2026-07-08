@@ -135,9 +135,6 @@ UA_GDSPushReceiveManager_new(void);
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
 
-void
-checkSessionActive(UA_Server *server, void *data);
-
 UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 

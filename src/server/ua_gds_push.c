@@ -190,6 +190,93 @@ UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
     return NULL;
 }
 
+/* This callback is triggered at regular intervals as long as a transaction is ongoing
+ * or a client has a TrustList open for reading or writing.
+ * If the session is no longer active, the current transaction is cancelled,
+ * and all open file handles are closed. */
+static void
+checkSessionActive(UA_Server *server, void *data) {
+    lockServer(server);
+    UA_GDSManager *gdsm = (UA_GDSManager*)server->gdsPushReceiveDriver;
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    UA_Boolean removingCallback = false;
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
+        UA_Boolean foundSession = false;
+        session_list_entry *session;
+        LIST_FOREACH(session, &server->sessions, pointers) {
+            if(UA_NodeId_equal(&session->session.sessionId, &transaction->sessionId)) {
+                foundSession = true;
+                break;
+            }
+        }
+        if(!foundSession) {
+            UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "Session with an open transaction has ended. "
+                "The transaction has been discarded.");
+            UA_GDSTransaction_clear(transaction);
+            removingCallback = true;
+        }
+    } else {
+        removingCallback = true;
+    }
+
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
+    while(fileInfoContext) {
+        UA_FileInfo fileInfo = fileInfoContext->fileInfo;
+
+        if(fileInfo.openCount == 0) {
+            fileInfoContext = fileInfoContext->next;
+            continue;
+        }
+
+        removingCallback = false;
+
+        UA_CertificateGroup *certGroup =
+            getCertGroup(server, &fileInfoContext->certificateGroupId);
+        if(!certGroup)
+            continue;
+
+        UA_FileContext *fileContext, *fileContextTmp;
+        LIST_FOREACH_SAFE(fileContext, &fileInfo.fileContext,
+                          listEntry, fileContextTmp) {
+            UA_Boolean foundSession = false;
+            session_list_entry *session;
+            LIST_FOREACH(session, &server->sessions, pointers) {
+                if(UA_NodeId_equal(&session->session.sessionId,
+                                   &fileContext->sessionId)) {
+                    foundSession = true;
+                    break;
+                }
+            }
+
+            if(foundSession)
+                continue;
+
+            UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                    "Session with an open trust list has ended. "
+                    "All file handlers for the open trust lists have been closed.");
+
+            LIST_REMOVE(fileContext, listEntry);
+            fileInfoContext->fileInfo.openCount -= 1;
+
+            UA_ByteString_clear(&fileContext->file);
+            UA_ByteString_clear(&fileContext->dataToWrite);
+            UA_free(fileContext);
+
+            /* Updating OpenCount Variable in the information model */
+            writeOpenCountVariable(server, certGroup);
+        }
+
+        fileInfoContext = fileInfoContext->next;
+    }
+
+    if(removingCallback) {
+        removeCallback(server, gdsm->checkSessionCallbackId);
+        gdsm->checkSessionCallbackId = 0;
+    }
+    unlockServer(server);
+}
+
 /* TODO: Handle isTrustedCertificate */
 UA_StatusCode
 UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
