@@ -15,22 +15,6 @@ gdsManager(UA_Server *server) {
     return (UA_GDSManager*)server->gdsPushReceiveDriver;
 }
 
-UA_FileContext*
-getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
-               const UA_UInt32 fileHandle) {
-    if(!fileInfo || !sessionId)
-        return NULL;
-
-    UA_FileContext *fileContext = NULL;
-    LIST_FOREACH(fileContext, &fileInfo->fileContext, listEntry) {
-        if(fileContext->fileHandle == fileHandle &&
-           UA_NodeId_equal(&fileContext->sessionId, sessionId)){
-            return fileContext;
-        }
-    }
-    return NULL;
-}
-
 UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
     static UA_NodeId defaultApplicationTrustList =

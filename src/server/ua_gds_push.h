@@ -147,10 +147,6 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group);
 UA_StatusCode
 writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group);
 
-UA_FileContext*
-getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
-               const UA_UInt32 fileHandle);
-
 UA_FileInfo *
 UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId);
 

@@ -11,6 +11,22 @@
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
+static UA_FileContext*
+getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
+               const UA_UInt32 fileHandle) {
+    if(!fileInfo || !sessionId)
+        return NULL;
+
+    UA_FileContext *fileContext = NULL;
+    LIST_FOREACH(fileContext, &fileInfo->fileContext, listEntry) {
+        if(fileContext->fileHandle == fileHandle &&
+           UA_NodeId_equal(&fileContext->sessionId, sessionId)){
+            return fileContext;
+        }
+    }
+    return NULL;
+}
+
 /********************/
 /* GDS Transaction  */
 /********************/
