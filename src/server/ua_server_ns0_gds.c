@@ -295,11 +295,11 @@ openFile(UA_Server *server,
 
 static UA_StatusCode
 writeFile(UA_Server *server,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
+          const UA_NodeId *sessionId, void *sessionHandle,
+          const UA_NodeId *methodId, void *methodContext,
+          const UA_NodeId *objectId, void *objectContext,
+          size_t inputSize, const UA_Variant *input,
+          size_t outputSize, UA_Variant *output) {
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BYTESTRING])) /* Data */
@@ -343,11 +343,11 @@ writeFile(UA_Server *server,
 
 static UA_StatusCode
 closeFile(UA_Server *server,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
+          const UA_NodeId *sessionId, void *sessionHandle,
+          const UA_NodeId *methodId, void *methodContext,
+          const UA_NodeId *objectId, void *objectContext,
+          size_t inputSize, const UA_Variant *input,
+          size_t outputSize, UA_Variant *output) {
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -387,12 +387,11 @@ closeFile(UA_Server *server,
 
 static UA_StatusCode
 getPositionFile(UA_Server *server,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
-
+                const UA_NodeId *sessionId, void *sessionHandle,
+                const UA_NodeId *methodId, void *methodContext,
+                const UA_NodeId *objectId, void *objectContext,
+                size_t inputSize, const UA_Variant *input,
+                size_t outputSize, UA_Variant *output) {
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
     if(!object)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -421,11 +420,11 @@ getPositionFile(UA_Server *server,
 
 static UA_StatusCode
 setPositionFile(UA_Server *server,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
+                const UA_NodeId *sessionId, void *sessionHandle,
+                const UA_NodeId *methodId, void *methodContext,
+                const UA_NodeId *objectId, void *objectContext,
+                size_t inputSize, const UA_Variant *input,
+                size_t outputSize, UA_Variant *output) {
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_UINT64]))   /* Position */
@@ -469,11 +468,11 @@ setPositionFile(UA_Server *server,
 
 static UA_StatusCode
 updateCertificateAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+                        const UA_NodeId *sessionId, void *sessionHandle,
+                        const UA_NodeId *methodId, void *methodContext,
+                        const UA_NodeId *objectId, void *objectContext,
+                        size_t inputSize, const UA_Variant *input,
+                        size_t outputSize, UA_Variant *output) {
     /* Check for input types */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
@@ -492,13 +491,11 @@ updateCertificateAction(UA_Server *server,
     UA_String *privateKeyFormat = (UA_String *)input[4].data;
     UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
 
-    lockServer(server);
     UA_StatusCode res =
         UA_GDSManager_updateCertificate(gdsManager(server),
                                         sessionId, certificateGroupId,
                                         certificateTypeId, certificate,
                                         privateKeyFormat, privateKey);
-    unlockServer(server);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -511,11 +508,11 @@ updateCertificateAction(UA_Server *server,
 
 static UA_StatusCode
 createSigningRequestAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+                           const UA_NodeId *sessionId, void *sessionHandle,
+                           const UA_NodeId *methodId, void *methodContext,
+                           const UA_NodeId *objectId, void *objectContext,
+                           size_t inputSize, const UA_Variant *input,
+                           size_t outputSize, UA_Variant *output) {
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
        !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_STRING]) || /*SubjectName*/
@@ -530,7 +527,6 @@ createSigningRequestAction(UA_Server *server,
     UA_ByteString *nonce = (UA_ByteString *)input[4].data;
     UA_ByteString *csr = UA_ByteString_new();
 
-    /* No lock required, UA_Server_createSigningRequest takes internally */
     UA_StatusCode retval =
         UA_Server_createSigningRequest(server, *certificateGroupId,
                                        *certificateTypeId, subjectName,
@@ -548,46 +544,35 @@ createSigningRequestAction(UA_Server *server,
 
 static UA_StatusCode
 getRejectedListAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
+                      const UA_NodeId *sessionId, void *sessionHandle,
+                      const UA_NodeId *methodId, void *methodContext,
+                      const UA_NodeId *objectId, void *objectContext,
+                      size_t inputSize, const UA_Variant *input,
+                      size_t outputSize, UA_Variant *output) {
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode res = UA_GDSManager_getRejectedList(gdsm, outputSize, output);
-    unlockServer(server);
-    return res;
+    return UA_GDSManager_getRejectedList(gdsm, outputSize, output);
 }
 
 static UA_StatusCode
 applyChangesAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-
+                   const UA_NodeId *sessionId, void *sessionHandle,
+                   const UA_NodeId *methodId, void *methodContext,
+                   const UA_NodeId *objectId, void *objectContext,
+                   size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output) {
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
 
     /* Check that the current transaction belongs to the session */
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId)) {
-        unlockServer(server);
+    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
         return UA_STATUSCODE_BADUSERACCESSDENIED;
-    }
 
     /* Special non-good statuscode only for the public method */
-    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
-        unlockServer(server);
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADNOTHINGTODO;
-    }
 
     /* Do it */
-    UA_StatusCode res = UA_GDSManager_applyChanges(gdsm);
-    unlockServer(server);
-    return res;
+    return UA_GDSManager_applyChanges(gdsm);
 }
 
 static UA_StatusCode
@@ -609,34 +594,25 @@ addCertificateAction(UA_Server *server,
     if(!*isTrustedCertificate || certificate->length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    lockServer(server);
-
     UA_GDSManager *gdsm = gdsManager(server);
-    if(gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH) {
-        unlockServer(server);
+    if(gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
-    }
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup) {
-        unlockServer(server);
+    if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
-    UA_StatusCode res =
-        UA_GDSManager_addCertificate(gdsm, certGroup, certificate,
-                                     isTrustedCertificate);
-    unlockServer(server);
-    return res;
+    return UA_GDSManager_addCertificate(gdsm, certGroup, certificate,
+                                        isTrustedCertificate);
 }
 
 static UA_StatusCode
 removeCertificateAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+                        const UA_NodeId *sessionId, void *sessionHandle,
+                        const UA_NodeId *methodId, void *methodContext,
+                        const UA_NodeId *objectId, void *objectContext,
+                        size_t inputSize, const UA_Variant *input,
+                        size_t outputSize, UA_Variant *output) {
     /* Check input types */
     if(inputSize != 2 ||
        !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) || /* Thumbprint */
@@ -646,53 +622,38 @@ removeCertificateAction(UA_Server *server,
     UA_String *thumbprint = (UA_String *)input[0].data;
     UA_Boolean *isTrustedCertificate = (UA_Boolean *)input[1].data;
 
-    lockServer(server);
-
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransaction *transaction = &gdsm->transaction;
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
-        unlockServer(server);
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
-    }
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup) {
-        unlockServer(server);
+    if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
-    UA_StatusCode res =
-        UA_GDSManager_removeCertificate(gdsm, certGroup, sessionId,
-                                        thumbprint, isTrustedCertificate);
-    unlockServer(server);
-    return res;
+    return UA_GDSManager_removeCertificate(gdsm, certGroup, sessionId,
+                                           thumbprint, isTrustedCertificate);
 }
 
 static UA_StatusCode
 openTrustListWithMaskAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+                            const UA_NodeId *sessionId, void *sessionHandle,
+                            const UA_NodeId *methodId, void *methodContext,
+                            const UA_NodeId *objectId, void *objectContext,
+                            size_t inputSize, const UA_Variant *input,
+                            size_t outputSize, UA_Variant *output) {
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* Mask */
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_UInt32 mask = *(UA_UInt32*)input[0].data;
 
-    lockServer(server);
-
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup) {
-        unlockServer(server);
+    if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode res = UA_GDSManager_openTrustListWithMask(gdsm, certGroup,
-                                                            sessionId, mask, output);
-    unlockServer(server);
-    return res;
+    return UA_GDSManager_openTrustListWithMask(gdsm, certGroup,
+                                               sessionId, mask, output);
 }
 
 static UA_StatusCode
@@ -707,45 +668,34 @@ closeAndUpdateTrustListAction(UA_Server *server,
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
 
-    lockServer(server);
-
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup) {
-        unlockServer(server);
+    if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode res =
-        UA_GDSManager_closeAndUpdateTrustList(gdsm, certGroup, sessionId,
-                                              fileHandle, output);
-    unlockServer(server);
-    return res;
+    return UA_GDSManager_closeAndUpdateTrustList(gdsm, certGroup, sessionId,
+                                                 fileHandle, output);
 }
 
 static UA_StatusCode
 openFileAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-    UA_StatusCode res = openFile(server, sessionId, sessionHandle,
-                                 methodId, methodContext,
-                                 objectId, objectContext,
-                                 inputSize, input, outputSize, output);
-    unlockServer(server);
-    return res;
+               const UA_NodeId *sessionId, void *sessionHandle,
+               const UA_NodeId *methodId, void *methodContext,
+               const UA_NodeId *objectId, void *objectContext,
+               size_t inputSize, const UA_Variant *input,
+               size_t outputSize, UA_Variant *output) {
+    return openFile(server, sessionId, sessionHandle,
+                    methodId, methodContext, objectId,
+                    objectContext, inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
 readFileAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+               const UA_NodeId *sessionId, void *sessionHandle,
+               const UA_NodeId *methodId, void *methodContext,
+               const UA_NodeId *objectId, void *objectContext,
+               size_t inputSize, const UA_Variant *input,
+               size_t outputSize, UA_Variant *output) {
     /* Check inputs */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_INT32]))    /* Length */
@@ -755,30 +705,23 @@ readFileAction(UA_Server *server,
     if(length < 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    lockServer(server);
-
     /* Get the certgroup */
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup) {
-        unlockServer(server);
+    if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     /* Get object type */
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object) {
-        unlockServer(server);
+    if(!object)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!objectType) {
-        unlockServer(server);
         UA_NODESTORE_RELEASE(server, object);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_NODESTORE_RELEASE(server, object);
 
     UA_StatusCode res;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
@@ -793,73 +736,61 @@ readFileAction(UA_Server *server,
                      "File type functions are currently only supported for TrustList types");
     }
 
+    UA_NODESTORE_RELEASE(server, object);
     UA_NODESTORE_RELEASE(server, objectType);
-    unlockServer(server);
     return res;
 }
 
 static UA_StatusCode
 writeFileAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-    UA_StatusCode res = writeFile(server, sessionId, sessionHandle,
-                                  methodId, methodContext,
-                                  objectId, objectContext,
-                                  inputSize, input, outputSize, output);
-    unlockServer(server);
-    return res;
+                const UA_NodeId *sessionId, void *sessionHandle,
+                const UA_NodeId *methodId, void *methodContext,
+                const UA_NodeId *objectId, void *objectContext,
+                size_t inputSize, const UA_Variant *input,
+                size_t outputSize, UA_Variant *output) {
+    return writeFile(server, sessionId, sessionHandle,
+                     methodId, methodContext,
+                     objectId, objectContext,
+                     inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
 closeFileAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-    UA_StatusCode res = closeFile(server, sessionId, sessionHandle,
-                                  methodId, methodContext,
-                                  objectId, objectContext,
-                                  inputSize, input, outputSize, output);
-    unlockServer(server);
-    return res;
+                const UA_NodeId *sessionId, void *sessionHandle,
+                const UA_NodeId *methodId, void *methodContext,
+                const UA_NodeId *objectId, void *objectContext,
+                size_t inputSize, const UA_Variant *input,
+                size_t outputSize, UA_Variant *output) {
+    return closeFile(server, sessionId, sessionHandle,
+                     methodId, methodContext,
+                     objectId, objectContext,
+                     inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
 getPositionFileAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-    UA_StatusCode res = getPositionFile(server, sessionId, sessionHandle,
-                                        methodId, methodContext,
-                                        objectId, objectContext,
-                                        inputSize, input, outputSize, output);
-    unlockServer(server);
-    return res;
+                      const UA_NodeId *sessionId, void *sessionHandle,
+                      const UA_NodeId *methodId, void *methodContext,
+                      const UA_NodeId *objectId, void *objectContext,
+                      size_t inputSize, const UA_Variant *input,
+                      size_t outputSize, UA_Variant *output) {
+    return getPositionFile(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
 setPositionFileAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    lockServer(server);
-    UA_StatusCode res = setPositionFile(server, sessionId, sessionHandle,
-                                        methodId, methodContext,
-                                        objectId, objectContext,
-                                        inputSize, input, outputSize, output);
-    unlockServer(server);
-    return res;
+                      const UA_NodeId *sessionId, void *sessionHandle,
+                      const UA_NodeId *methodId, void *methodContext,
+                      const UA_NodeId *objectId, void *objectContext,
+                      size_t inputSize, const UA_Variant *input,
+                      size_t outputSize, UA_Variant *output) {
+    return setPositionFile(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input, outputSize, output);
 }
 
 UA_StatusCode
