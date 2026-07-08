@@ -523,14 +523,14 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* The server currently only supports the DefaultApplicationGroup */
-    UA_NodeId defaultApplicationGroup =
-        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    static UA_NodeId defaultApplicationGroup =
+        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* The server currently only supports the following certificate type */
-    UA_NodeId certTypRsaMin = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    UA_NodeId certTypRsaSha256 = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
+    static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
        !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
         return UA_STATUSCODE_BADNOTSUPPORTED;
