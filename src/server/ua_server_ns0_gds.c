@@ -134,66 +134,6 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 }
 
 static UA_StatusCode
-writeTrustList(UA_Server *server,
-               const UA_NodeId *sessionId, void *sessionHandle,
-               const UA_NodeId *methodId, void *methodContext,
-               const UA_NodeId *objectId, void *objectContext,
-               size_t inputSize, const UA_Variant *input,
-               size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /*FileHandle*/
-       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BYTESTRING])) /*Data*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-    UA_ByteString data = *(UA_ByteString*)input[1].data;
-
-    if(data.length == 0)
-        return UA_STATUSCODE_GOOD;
-
-    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
-    if(!fileContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(fileContext->openFileMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    /* abort when TrustList size would exceed the maximum allowed value (0 = unlimited) */
-    if(server->config.maxTrustListSize != 0 &&
-       (fileContext->dataToWrite.length + data.length) > server->config.maxTrustListSize) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Write on trust list exceeds limit");
-        return UA_STATUSCODE_BADREQUESTTOOLARGE;
-    }
-
-    UA_ByteString dataToWrite = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&dataToWrite,
-                                                  fileContext->dataToWrite.length + data.length);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    if(fileContext->dataToWrite.length)
-        memcpy(dataToWrite.data, fileContext->dataToWrite.data, fileContext->dataToWrite.length);
-    memcpy(dataToWrite.data + fileContext->dataToWrite.length, data.data, data.length);
-
-    UA_ByteString_clear(&fileContext->dataToWrite);
-    fileContext->dataToWrite = dataToWrite;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 closeAndUpdateTrustList(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionHandle,
                const UA_NodeId *methodId, void *methodContext,
@@ -427,6 +367,17 @@ writeFile(UA_Server *server,
          const UA_NodeId *objectId, void *objectContext,
          size_t inputSize, const UA_Variant *input,
          size_t outputSize, UA_Variant *output) {
+    /* Check input */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
+       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BYTESTRING])) /* Data */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
+    UA_ByteString data = *(UA_ByteString*)input[1].data;
+
+    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
     if(!object)
@@ -435,23 +386,26 @@ writeFile(UA_Server *server,
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    if(!objectType) {
+        UA_NODESTORE_RELEASE(server, object);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
+    UA_GDSManager *gdsm = gdsManager(server);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
-        retval = writeTrustList(server, sessionId, sessionHandle, methodId, methodContext,
-                                objectId, objectContext, inputSize, input, outputSize, output);
+        retval = UA_GDSManager_writeTrustList(gdsm, certGroup, sessionId,
+                                              fileHandle, data);
+    } else {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "File type functions are currently only supported "
+                     "for TrustList types");
     }
 
     UA_NODESTORE_RELEASE(server, object);
     UA_NODESTORE_RELEASE(server, objectType);
-
-    if(retval != UA_STATUSCODE_BADNOTIMPLEMENTED)
-        return retval;
-
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "File type functions are currently only supported for TrustList types");
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    return retval;
 }
 
 static UA_StatusCode

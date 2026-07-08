@@ -303,6 +303,39 @@ UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *cer
 }
 
 UA_StatusCode
+UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+                             const UA_ByteString data) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
+    if(!fileContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(fileContext->openFileMode !=
+       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    /* Abort when TrustList size would exceed the maximum allowed value (0 =
+     * unlimited) */
+    size_t newLen = fileContext->dataToWrite.length + data.length;
+    if(server->config.maxTrustListSize != 0 &&
+       newLen > server->config.maxTrustListSize) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Write on trust list exceeds limit");
+        return UA_STATUSCODE_BADREQUESTTOOLARGE;
+    }
+
+    return UA_String_append(&fileContext->dataToWrite, data);
+}
+
+UA_StatusCode
 UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
                              UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId,
