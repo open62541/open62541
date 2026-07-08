@@ -218,61 +218,6 @@ checkSessionActive(UA_Server *server, void *data) {
 }
 
 static UA_StatusCode
-getRejectedList(UA_Server *server, size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    size_t rejectedListSize = 0;
-
-    /* DefaultApplicationGroup */
-    UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
-    UA_ByteString *rejectedListSecureChannel = NULL;
-    size_t rejectedListSecureChannelSize = 0;
-    certGroup->getRejectedList(certGroup, &rejectedListSecureChannel,
-                               &rejectedListSecureChannelSize);
-    rejectedListSize += rejectedListSecureChannelSize;
-
-    /* DefaultUserTokenGroup */
-    certGroup = &server->config.sessionPKI;
-    UA_ByteString *rejectedListSession = NULL;
-    size_t rejectedListSessionSize = 0;
-    certGroup->getRejectedList(certGroup, &rejectedListSession, &rejectedListSessionSize);
-    rejectedListSize += rejectedListSessionSize;
-
-    if(rejectedListSize == 0) {
-        UA_Variant_setArray(&output[0], NULL, 0, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Create a temp array (shallow) */
-    UA_ByteString *rejectedList = (UA_ByteString*)
-        UA_Array_new(rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    if(!rejectedList) {
-        UA_Array_delete(rejectedListSecureChannel,
-                        rejectedListSecureChannelSize,
-                        &UA_TYPES[UA_TYPES_BYTESTRING]);
-        UA_Array_delete(rejectedListSession,
-                        rejectedListSessionSize,
-                        &UA_TYPES[UA_TYPES_BYTESTRING]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    memcpy(rejectedList, rejectedListSecureChannel,
-           rejectedListSecureChannelSize * sizeof(UA_ByteString));
-    memcpy(rejectedList + rejectedListSecureChannelSize,
-           rejectedListSession, rejectedListSessionSize * sizeof(UA_ByteString));
-
-    /* Set the array in the output */
-    UA_Variant_setArrayCopy(&output[0], rejectedList, rejectedListSize,
-                            &UA_TYPES[UA_TYPES_BYTESTRING]);
-
-    /* Clean up */
-    UA_Array_delete(rejectedListSecureChannel, rejectedListSecureChannelSize,
-                    &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Array_delete(rejectedListSession, rejectedListSessionSize,
-                    &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_free(rejectedList);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
               const UA_NodeId *sessionId, UA_UInt32 fileHandle,
               UA_Int32 length, UA_Variant *output) {
@@ -908,7 +853,8 @@ getRejectedListAction(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
     lockServer(server);
-    UA_StatusCode res = getRejectedList(server, outputSize, output);
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_StatusCode res = UA_GDSManager_getRejectedList(gdsm, outputSize, output);
     unlockServer(server);
     return res;
 }

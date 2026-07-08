@@ -160,6 +160,10 @@ UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *ce
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
                                     UA_Variant *output);
 
+UA_StatusCode
+UA_GDSManager_getRejectedList(UA_GDSManager *gdsm, size_t outputSize,
+                              UA_Variant *output);
+
 /* TODO: Process issuer certificates */
 /* UA_ByteString *issuerCertificates */
 /* size_t issuerCertificatesSize */
