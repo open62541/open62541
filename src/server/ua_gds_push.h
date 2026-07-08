@@ -168,6 +168,11 @@ UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *cer
                                    UA_UInt64 position);
 
 UA_StatusCode
+UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+                             const UA_ByteString data);
+
+UA_StatusCode
 UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
                                     UA_Variant *output);
