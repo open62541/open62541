@@ -163,6 +163,13 @@ UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
                              UA_UInt32 fileHandle);
 
 UA_StatusCode
+UA_GDSManager_closeAndUpdateTrustList(UA_GDSManager *gdsm,
+                                      UA_CertificateGroup *certGroup,
+                                      const UA_NodeId *sessionId,
+                                      UA_UInt32 fileHandle,
+                                      UA_Variant *output);
+
+UA_StatusCode
 UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position);

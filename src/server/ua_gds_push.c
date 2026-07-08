@@ -336,6 +336,65 @@ UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup
 }
 
 UA_StatusCode
+UA_GDSManager_closeAndUpdateTrustList(UA_GDSManager *gdsm,
+                                      UA_CertificateGroup *certGroup,
+                                      const UA_NodeId *sessionId,
+                                      UA_UInt32 fileHandle,
+                                      UA_Variant *output) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
+    if(!fileContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(fileContext->openFileMode !=
+       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    UA_CertificateGroup *transactionCertGroup =
+        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
+    if(!transactionCertGroup)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_TrustListDataType trustList;
+    UA_StatusCode retval =
+        UA_decodeBinary(&fileContext->dataToWrite, &trustList,
+                        &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    retval = transactionCertGroup->setTrustList(transactionCertGroup, &trustList);
+    UA_TrustListDataType_clear(&trustList);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    LIST_REMOVE(fileContext, listEntry);
+    fileInfo->openCount -= 1;
+
+    UA_ByteString_clear(&fileContext->file);
+    UA_ByteString_clear(&fileContext->dataToWrite);
+    UA_free(fileContext);
+
+    /* Updating OpenCount Variable in the information model */
+    writeOpenCountVariable(server, certGroup);
+
+    /* Output arg, indicates that the ApplyChanges Method shall be called before
+     * the new trust list will be used. */
+    UA_Boolean applyChangesRequired = true;
+    UA_Variant_setScalarCopy(output, &applyChangesRequired, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
                              UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId,

@@ -134,74 +134,6 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 }
 
 static UA_StatusCode
-closeAndUpdateTrustList(UA_Server *server,
-               const UA_NodeId *sessionId, void *sessionHandle,
-               const UA_NodeId *methodId, void *methodContext,
-               const UA_NodeId *objectId, void *objectContext,
-               size_t inputSize, const UA_Variant *input,
-               size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*FileHandle*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-
-    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
-    if(!fileContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(fileContext->openFileMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    UA_CertificateGroup *transactionCertGroup =
-        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCertGroup)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_TrustListDataType trustList;
-    UA_StatusCode retval =
-        UA_decodeBinary(&fileContext->dataToWrite, &trustList,
-                        &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_TrustListDataType_clear(&trustList);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    retval = transactionCertGroup->setTrustList(transactionCertGroup, &trustList);
-    UA_TrustListDataType_clear(&trustList);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    LIST_REMOVE(fileContext, listEntry);
-    fileInfo->openCount -= 1;
-
-    UA_ByteString_clear(&fileContext->file);
-    UA_ByteString_clear(&fileContext->dataToWrite);
-    UA_free(fileContext);
-
-    /* Updating OpenCount Variable in the information model */
-    writeOpenCountVariable(server, certGroup);
-
-    /* Output arg, indicates that the ApplyChanges Method shall be called before the new trust list will be used. */
-    UA_Boolean applyChangesRequired = true;
-    UA_Variant_setScalarCopy(output, &applyChangesRequired, &UA_TYPES[UA_TYPES_BOOLEAN]);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 getPositionTrustList(UA_Server *server,
                      const UA_NodeId *sessionId, void *sessionHandle,
                      const UA_NodeId *methodId, void *methodContext,
@@ -764,16 +696,28 @@ openTrustListWithMaskAction(UA_Server *server,
 
 static UA_StatusCode
 closeAndUpdateTrustListAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
+                              const UA_NodeId *sessionId, void *sessionHandle,
+                              const UA_NodeId *methodId, void *methodContext,
+                              const UA_NodeId *objectId, void *objectContext,
+                              size_t inputSize, const UA_Variant *input,
+                              size_t outputSize, UA_Variant *output) {
+    /* Check input */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
+
     lockServer(server);
-    UA_StatusCode res = closeAndUpdateTrustList(server, sessionId, sessionHandle,
-                                                methodId, methodContext,
-                                                objectId, objectContext,
-                                                inputSize, input, outputSize, output);
+
+    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
+    if(!certGroup) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_GDSManager *gdsm = gdsManager(server);
+    UA_StatusCode res =
+        UA_GDSManager_closeAndUpdateTrustList(gdsm, certGroup, sessionId,
+                                              fileHandle, output);
     unlockServer(server);
     return res;
 }
