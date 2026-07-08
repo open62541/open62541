@@ -15,7 +15,7 @@ gdsManager(UA_Server *server) {
     return (UA_GDSManager*)server->gdsPushReceiveDriver;
 }
 
-static UA_FileContext*
+UA_FileContext*
 getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
                const UA_UInt32 fileHandle) {
     if(!fileInfo || !sessionId)
@@ -131,45 +131,6 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
     }
 
     return UA_STATUSCODE_BADINVALIDARGUMENT;
-}
-
-static UA_StatusCode
-readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
-              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
-              UA_Int32 length, UA_Variant *output) {
-    UA_Server *server = gdsm->drv.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    /* UA_GDSManager *gdsm = gdsManager(server); */
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
-    if(!fileContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(fileContext->openFileMode != UA_OPENFILEMODE_READ)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
-    /* check boundaries */
-    if((size_t)length >= fileContext->file.length)
-        length = (UA_Int32)fileContext->file.length;
-
-    if((size_t)length >= (fileContext->file.length - fileContext->currentPos))
-        length = (UA_Int32)(fileContext->file.length - fileContext->currentPos);
-
-    UA_ByteString readBuffer = UA_BYTESTRING_NULL;
-    if(length > 0) {
-        readBuffer.length = (size_t)length;
-        readBuffer.data = fileContext->file.data+fileContext->currentPos;
-        fileContext->currentPos += (UA_UInt64)length;
-    }
-
-    UA_Variant_setScalarCopy(output, &readBuffer, &UA_TYPES[UA_TYPES_BYTESTRING]);
-
-    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -988,7 +949,8 @@ readFileAction(UA_Server *server,
     if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
         /* Method was called on a trustlist */
         UA_GDSManager *gdsm = gdsManager(server);
-        res = readTrustList(gdsm, certGroup, sessionId, fileHandle, length, output);
+        res = UA_GDSManager_readTrustList(gdsm, certGroup, sessionId,
+                                          fileHandle, length, output);
     } else {
         res = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
