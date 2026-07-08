@@ -115,6 +115,9 @@ typedef struct UA_FileInfoContext {
 /*   GDS Manager    */
 /********************/
 
+#define STATIC_NS0ID(ID) \
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
+
 typedef struct {
     UA_Driver drv;
 
