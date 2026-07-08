@@ -278,6 +278,26 @@ checkSessionActive(UA_Server *server, void *data) {
 }
 
 UA_StatusCode
+UA_GDSManager_getPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                                   const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+                                   UA_Variant *output) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
+    if(!fileContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    return UA_Variant_setScalarCopy(output, &fileContext->currentPos,
+                                    &UA_TYPES[UA_TYPES_UINT64]);
+}
+
+UA_StatusCode
 UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position) {

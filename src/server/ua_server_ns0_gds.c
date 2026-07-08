@@ -134,37 +134,6 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 }
 
 static UA_StatusCode
-getPositionTrustList(UA_Server *server,
-                     const UA_NodeId *sessionId, void *sessionHandle,
-                     const UA_NodeId *methodId, void *methodContext,
-                     const UA_NodeId *objectId, void *objectContext,
-                     size_t inputSize, const UA_Variant *input,
-                     size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    /*check for input types*/
-    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*FileHandle*/
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-
-    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
-    if(!certGroup)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_FileContext *fileContext = getFileContext(fileInfo, sessionId, fileHandle);
-    if(!fileContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    return UA_Variant_setScalarCopy(output, &fileContext->currentPos, &UA_TYPES[UA_TYPES_UINT64]);
-}
-
-static UA_StatusCode
 createFileInfoContexts(UA_Server *server) {
     /* The server currently only supports the DefaultApplicationGroup and UserTokenGroup */
     UA_UtcTime lastUpdateTime = UA_DateTime_now();
@@ -655,6 +624,15 @@ getPositionFileAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    /* Check input */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
+
+    UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
     if(!object)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -662,23 +640,26 @@ getPositionFileAction(UA_Server *server,
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    if(!objectType) {
+        UA_NODESTORE_RELEASE(server, object);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
+    UA_GDSManager *gdsm = gdsManager(server);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
-        retval = getPositionTrustList(server, sessionId, sessionHandle, methodId, methodContext,
-                                      objectId, objectContext, inputSize, input, outputSize, output);
+        retval = UA_GDSManager_getPositionTrustList(gdsm, certGroup, sessionId,
+                                                    fileHandle, output);
+    } else {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "File type functions are currently only supported "
+                     "for TrustList types");
     }
 
     UA_NODESTORE_RELEASE(server, object);
     UA_NODESTORE_RELEASE(server, objectType);
-
-    if(retval != UA_STATUSCODE_BADNOTIMPLEMENTED)
-        return retval;
-
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "File type functions are currently only supported for TrustList types");
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    return retval;
 }
 
 static UA_StatusCode
