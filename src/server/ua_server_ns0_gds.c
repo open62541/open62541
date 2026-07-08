@@ -20,6 +20,8 @@ gdsManager(UA_Server *server) {
 
 UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+
     static UA_NodeId defaultApplicationTrustList =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
     static UA_NodeId defaultUserTokenTrustList =
@@ -31,12 +33,12 @@ getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
 
     if(UA_NodeId_equal(objectId, &defaultApplicationGroup) ||
        UA_NodeId_equal(objectId, &defaultApplicationTrustList)) {
-        return &server->config.secureChannelPKI;
+        return &sc->secureChannelPKI;
     }
 
     if(UA_NodeId_equal(objectId, &defaultUserTokenGroup) ||
        UA_NodeId_equal(objectId, &defaultUserTokenTrustList)) {
-        return &server->config.sessionPKI;
+        return &sc->sessionPKI;
     }
 
     return NULL;
@@ -450,7 +452,8 @@ openFileAction(UA_Server *server,
         retval = UA_GDSManager_openTrustList(gdsm, certGroup, sessionId,
                                              fileOpenMode, output);
     } else {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
@@ -503,8 +506,10 @@ readFileAction(UA_Server *server,
                                           fileHandle, length, output);
     } else {
         res = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "File type functions are currently only supported for TrustList types");
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                     "File type functions are currently only supported "
+                     "for TrustList types");
     }
 
     UA_NODESTORE_RELEASE(server, object);
@@ -519,6 +524,8 @@ writeFileAction(UA_Server *server,
                 const UA_NodeId *objectId, void *objectContext,
                 size_t inputSize, const UA_Variant *input,
                 size_t outputSize, UA_Variant *output) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BYTESTRING])) /* Data */
@@ -550,7 +557,7 @@ writeFileAction(UA_Server *server,
         retval = UA_GDSManager_writeTrustList(gdsm, certGroup, sessionId,
                                               fileHandle, data);
     } else {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
@@ -594,7 +601,8 @@ closeFileAction(UA_Server *server,
     if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
         retval = UA_GDSManager_closeTrustList(gdsm, certGroup, sessionId, fileHandle);
     } else {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
@@ -639,7 +647,8 @@ getPositionFileAction(UA_Server *server,
         retval = UA_GDSManager_getPositionTrustList(gdsm, certGroup, sessionId,
                                                     fileHandle, output);
     } else {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
@@ -687,7 +696,8 @@ setPositionFileAction(UA_Server *server,
         retval = UA_GDSManager_setPositionTrustList(gdsm, certGroup,
                                                     sessionId, fileHandle, position);
     } else {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }

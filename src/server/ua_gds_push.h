@@ -12,6 +12,8 @@
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
 #include <open62541/types.h>
+#include <open62541/server.h>
+#include "../../deps/open62541_queue.h"
 
 _UA_BEGIN_DECLS
 
