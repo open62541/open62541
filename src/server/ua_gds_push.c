@@ -405,6 +405,183 @@ cleanup:
     return retval;
 }
 
+static UA_StatusCode
+createFileHandleId(UA_FileInfo *fileInfo, UA_UInt32 *fileHandle) {
+    if(!fileInfo || !fileHandle)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_UInt32 id;
+    UA_Boolean isFree = true;
+    for(id = 1; id < UA_UINT32_MAX; id++) {
+        UA_FileContext *fileContext = NULL;
+        LIST_FOREACH(fileContext, &fileInfo->fileContext, listEntry) {
+            if(fileContext->fileHandle == id){
+                isFree = false;
+                break;
+            }
+        }
+        if(isFree) {
+            *fileHandle = id;
+            return UA_STATUSCODE_GOOD;
+        }
+        isFree = true;
+    }
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+UA_StatusCode
+UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                                    const UA_NodeId *sessionId, UA_UInt32 mask,
+                                    UA_Variant *output) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(gdsm->checkSessionCallbackId == 0) {
+        retval = addRepeatedCallback(server, checkSessionActive, NULL,
+                                     CHECKACTIVESESSIONINTERVAL,
+                                     &gdsm->checkSessionCallbackId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = mask;
+    certGroup->getTrustList(certGroup, &trustList);
+
+    UA_ByteString encTrustList = UA_BYTESTRING_NULL;
+    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
+                             &encTrustList, NULL);
+    UA_TrustListDataType_clear(&trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&encTrustList);
+        return retval;
+    }
+
+    UA_FileContext *fileContext = (UA_FileContext*)
+        UA_calloc(1, sizeof(UA_FileContext));
+    if(!fileContext) {
+        UA_ByteString_clear(&fileContext->file);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+        
+    fileContext->file = encTrustList;
+    fileContext->sessionId = *sessionId;
+    fileContext->openFileMode = UA_OPENFILEMODE_READ;
+    fileContext->currentPos = 0;
+    fileContext->dataToWrite = UA_BYTESTRING_NULL;
+    retval = createFileHandleId(fileInfo, &fileContext->fileHandle);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&fileContext->file);
+        UA_free(fileContext);
+        return retval;
+    }
+
+    fileInfo->openCount += 1;
+    UA_Variant_setScalarCopy(output, &fileContext->fileHandle,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* Updating OpenCount Variable in the information model */
+    writeOpenCountVariable(server, certGroup);
+
+    LIST_INSERT_HEAD(&fileInfo->fileContext, fileContext, listEntry);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                            const UA_NodeId *sessionId, UA_Byte fileOpenMode,
+                            UA_Variant *output) {
+    UA_Server *server = gdsm->drv.server;
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    /* Cannot be opened when a transaction is running */
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+
+    UA_FileInfo *fileInfo =
+        UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
+    if(!fileInfo)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Check that the list can be opened in the specified mode */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(fileOpenMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING)) {
+        if(fileInfo->openCount != 0)
+            return UA_STATUSCODE_BADNOTWRITABLE;
+    } else if(fileOpenMode == UA_OPENFILEMODE_READ) {
+        /* Nothing to check.
+         * If the list is already open for writing,
+         * the previous check for a current transaction will fail. */
+    } else {
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
+    /* If the list is opened for writing, a transaction must be created */
+    if(fileOpenMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING)) {
+        retval = UA_GDSTransaction_init(transaction, server, *sessionId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    if(gdsm->checkSessionCallbackId == 0) {
+        retval = addRepeatedCallback(server, checkSessionActive, NULL,
+                                     CHECKACTIVESESSIONINTERVAL,
+                                     &gdsm->checkSessionCallbackId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    UA_TrustListDataType trustList;
+    memset(&trustList, 0, sizeof(UA_TrustListDataType));
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    certGroup->getTrustList(certGroup, &trustList);
+
+    UA_ByteString encTrustList = UA_BYTESTRING_NULL;
+    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
+                             &encTrustList, NULL);
+    UA_TrustListDataType_clear(&trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&encTrustList);
+        return retval;
+    }
+
+    UA_FileContext *fileContext = (UA_FileContext*)UA_calloc(1, sizeof(UA_FileContext));
+    fileContext->file = encTrustList;
+    fileContext->sessionId = *sessionId;
+    fileContext->openFileMode = fileOpenMode;
+    fileContext->currentPos = 0;
+    fileContext->dataToWrite = UA_BYTESTRING_NULL;
+    retval = createFileHandleId(fileInfo, &fileContext->fileHandle);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&fileContext->file);
+        UA_free(fileContext);
+        return retval;
+    }
+
+    fileInfo->openCount += 1;
+    UA_Variant_setScalarCopy(output, &fileContext->fileHandle,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* Updating OpenCount Variable in the information model */
+    writeOpenCountVariable(server, certGroup);
+
+    LIST_INSERT_HEAD(&fileInfo->fileContext, fileContext, listEntry);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+
 static void
 secureChannel_delayedClose(void *application, void *context) {
     UA_Server *server = (UA_Server*)context;

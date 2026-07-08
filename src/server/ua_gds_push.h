@@ -142,10 +142,23 @@ UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 
 UA_StatusCode
+writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group);
+
+UA_StatusCode
 writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group);
 
 UA_FileInfo *
 UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId);
+
+UA_StatusCode
+UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                            const UA_NodeId *sessionId, UA_Byte fileOpenMode,
+                            UA_Variant *output);
+
+UA_StatusCode
+UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
+                                    const UA_NodeId *sessionId, UA_UInt32 mask,
+                                    UA_Variant *output);
 
 /* TODO: Process issuer certificates */
 /* UA_ByteString *issuerCertificates */
