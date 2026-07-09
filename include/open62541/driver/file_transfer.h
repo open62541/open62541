@@ -76,6 +76,11 @@ typedef struct {
     UA_Boolean isDirectory;
     UA_Boolean writable;        /* Storage-level write permission. User-level
                                  * access rights are handled by the driver. */
+    UA_String mimeType;         /* RFC 2046 media type (files only). Borrowed:
+                                 * the driver copies it and never frees it.
+                                 * Point it at static or otherwise stable
+                                 * memory. An empty string means unknown; the
+                                 * optional MimeType Property is then omitted. */
 } UA_FileTransferFileInfo;
 
 /* Called by the backend for every entry when listing a directory */

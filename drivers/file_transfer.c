@@ -287,6 +287,56 @@ localFsSetPosition(UA_FileTransferBackend *b, void *fileContext,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Guess the RFC 2046 media type from the filename extension. Returns a static
+ * string (safe to borrow) or the empty string for unknown extensions. */
+static UA_String
+localFsMimeType(const UA_String path) {
+    static const struct {
+        const char *ext;
+        const char *mime;
+    } table[] = {
+        {"txt", "text/plain"},        {"xml", "application/xml"},
+        {"json", "application/json"}, {"html", "text/html"},
+        {"htm", "text/html"},         {"csv", "text/csv"},
+        {"pdf", "application/pdf"},    {"png", "image/png"},
+        {"jpg", "image/jpeg"},        {"jpeg", "image/jpeg"},
+        {"svg", "image/svg+xml"}
+    };
+
+    /* Find the extension (the segment after the last '.' in the last path
+     * segment) */
+    size_t dot = path.length;
+    for(size_t i = path.length; i > 0; i--) {
+        if(path.data[i - 1] == '/')
+            break;
+        if(path.data[i - 1] == '.') {
+            dot = i; /* First byte of the extension */
+            break;
+        }
+    }
+    if(dot >= path.length)
+        return UA_STRING_NULL;
+    size_t extLen = path.length - dot;
+
+    for(size_t i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
+        if(strlen(table[i].ext) != extLen)
+            continue;
+        UA_Boolean match = true;
+        for(size_t j = 0; j < extLen; j++) {
+            char c = (char)path.data[dot + j];
+            if(c >= 'A' && c <= 'Z')
+                c = (char)(c - 'A' + 'a'); /* Case-insensitive */
+            if(c != table[i].ext[j]) {
+                match = false;
+                break;
+            }
+        }
+        if(match)
+            return UA_STRING((char*)(uintptr_t)table[i].mime);
+    }
+    return UA_STRING_NULL;
+}
+
 static UA_StatusCode
 localFsGetAttributes(UA_FileTransferBackend *b, const UA_String path,
                      UA_FileTransferFileInfo *outInfo) {
@@ -307,6 +357,8 @@ localFsGetAttributes(UA_FileTransferBackend *b, const UA_String path,
         (UA_DateTime)st.st_mtime * UA_DATETIME_SEC;
     outInfo->isDirectory = FT_ISDIR(st.st_mode);
     outInfo->writable = (ft_access(localPath, 2 /* W_OK */) == 0);
+    if(!outInfo->isDirectory)
+        outInfo->mimeType = localFsMimeType(path);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -768,10 +820,46 @@ setupFileNode(UA_Server *server, FileTransferDriver *ftd, FTNode *node,
     UA_CallbackValueSource lmSource;
     memset(&lmSource, 0, sizeof(UA_CallbackValueSource));
     lmSource.read = readLastModifiedCallback;
-    return UA_Server_addCallbackValueSourceVariableNode(
+    res = UA_Server_addCallbackValueSourceVariableNode(
         server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
         UA_QUALIFIEDNAME(0, "LastModifiedTime"), UA_NS0ID(PROPERTYTYPE),
         lmAttr, lmSource, node, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* The optional MaxByteStringLength Property advertises the maximum number
+     * of bytes returned by a single Read (the driver's max-read-length) */
+    UA_VariableAttributes mbslAttr = UA_VariableAttributes_default;
+    mbslAttr.displayName = UA_LOCALIZEDTEXT("", "MaxByteStringLength");
+    mbslAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    mbslAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&mbslAttr.value, &ftd->maxReadLength,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    res = UA_Server_addVariableNode(
+        server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "MaxByteStringLength"), UA_NS0ID(PROPERTYTYPE),
+        mbslAttr, NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* The optional MimeType Property is added only when the backend reports a
+     * media type for the file */
+    if(info->mimeType.length > 0) {
+        UA_VariableAttributes mtAttr = UA_VariableAttributes_default;
+        mtAttr.displayName = UA_LOCALIZEDTEXT("", "MimeType");
+        mtAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+        mtAttr.valueRank = UA_VALUERANK_SCALAR;
+        UA_String mimeType = info->mimeType;
+        UA_Variant_setScalar(&mtAttr.value, &mimeType, &UA_TYPES[UA_TYPES_STRING]);
+        res = UA_Server_addVariableNode(
+            server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
+            UA_QUALIFIEDNAME(0, "MimeType"), UA_NS0ID(PROPERTYTYPE),
+            mtAttr, NULL, NULL);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /**************************************
