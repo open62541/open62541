@@ -85,6 +85,16 @@ ctxClearNodeId(Ctx *ctx, UA_NodeId *p) {
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED; \
     } else                                                  \
 
+static UA_INLINE UA_Boolean
+ctxHasEnoughSpace(const Ctx *ctx, size_t length) {
+    return ((uintptr_t)ctx->pos + length <= (uintptr_t)ctx->end);
+}
+
+static UA_INLINE void
+ctxAdvance(Ctx *ctx, size_t length) {
+    ctx->pos = (u8*)((uintptr_t)ctx->pos + length);
+}
+
 /* Send the current chunk and replace the buffer */
 static status exchangeBuffer(Ctx *ctx) {
     if(!ctx->exchangeBufferCallback)
@@ -181,10 +191,10 @@ UA_decode64(const u8 buf[8], u64 *v) {
  * is disabled in those cases. */
 FUNC_ENCODE_BINARY(Boolean) {
     const UA_Boolean *src = (const UA_Boolean*)_src;
-    IF_CHECK_BUFSIZE(ctx->pos + 1 <= ctx->end) {
+    IF_CHECK_BUFSIZE(ctxHasEnoughSpace(ctx, 1)) {
         *ctx->pos = *(const u8*)src;
     }
-    ++ctx->pos;
+    ctxAdvance(ctx, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -199,10 +209,10 @@ FUNC_DECODE_BINARY(Boolean) {
 /* Byte */
 FUNC_ENCODE_BINARY(Byte) {
     const UA_Byte *src = (const UA_Byte*)_src;
-    IF_CHECK_BUFSIZE(ctx->pos + sizeof(u8) <= ctx->end) {
+    IF_CHECK_BUFSIZE(ctxHasEnoughSpace(ctx, sizeof(u8))) {
         *ctx->pos = *(const u8*)src;
     }
-    ++ctx->pos;
+    ctxAdvance(ctx, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -218,14 +228,14 @@ FUNC_DECODE_BINARY(Byte) {
 /* UInt16 */
 FUNC_ENCODE_BINARY(UInt16) {
     const UA_UInt16 *src = (const UA_UInt16*)_src;
-    IF_CHECK_BUFSIZE(ctx->pos + sizeof(u16) <= ctx->end) {
+    IF_CHECK_BUFSIZE(ctxHasEnoughSpace(ctx, sizeof(u16))) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u16));
 #else
         UA_encode16(*src, ctx->pos);
 #endif
     }
-    ctx->pos += 2;
+    ctxAdvance(ctx, 2);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -245,14 +255,14 @@ FUNC_DECODE_BINARY(UInt16) {
 /* UInt32 */
 FUNC_ENCODE_BINARY(UInt32) {
     const UA_UInt32 *src = (const UA_UInt32*)_src;
-    IF_CHECK_BUFSIZE(ctx->pos + sizeof(u32) <= ctx->end) {
+    IF_CHECK_BUFSIZE(ctxHasEnoughSpace(ctx, sizeof(u32))) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u32));
 #else
         UA_encode32(*src, ctx->pos);
 #endif
     }
-    ctx->pos += 4;
+    ctxAdvance(ctx, 4);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -272,14 +282,14 @@ FUNC_DECODE_BINARY(UInt32) {
 /* UInt64 */
 FUNC_ENCODE_BINARY(UInt64) {
     const UA_UInt64 *src = (const UA_UInt64*)_src;
-    IF_CHECK_BUFSIZE(ctx->pos + sizeof(u64) <= ctx->end) {
+    IF_CHECK_BUFSIZE(ctxHasEnoughSpace(ctx, sizeof(u64))) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u64));
 #else
         UA_encode64(*src, ctx->pos);
 #endif
     }
-    ctx->pos += 8;
+    ctxAdvance(ctx, 8);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -439,7 +449,7 @@ static status
 Array_encodeBinaryOverlayable(Ctx *ctx, uintptr_t ptr, size_t memSize) {
     /* CalcSize only */
     if(ctx->end == NULL) {
-        ctx->pos += memSize;
+        ctxAdvance(ctx, memSize);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -585,10 +595,10 @@ FUNC_ENCODE_BINARY(Guid) {
     ret |= ENCODE_DIRECT(&src->data1, UInt32);
     ret |= ENCODE_DIRECT(&src->data2, UInt16);
     ret |= ENCODE_DIRECT(&src->data3, UInt16);
-    IF_CHECK_BUFSIZE(ctx->pos + (8*sizeof(u8)) <= ctx->end) {
+    IF_CHECK_BUFSIZE(ctxHasEnoughSpace(ctx, 8 * sizeof(u8))) {
         memcpy(ctx->pos, src->data4, 8*sizeof(u8));
     }
-    ctx->pos += 8;
+    ctxAdvance(ctx, 8);
     return ret;
 }
 
