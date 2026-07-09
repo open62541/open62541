@@ -1489,58 +1489,60 @@ deleteBackendTree(UA_FileTransferBackend *b, const UA_String path,
 
 #define UA_FILETRANSFER_COPYCHUNKSIZE 65536
 
-/* Copy a single file within the same backend. Uses the backend fast-path if
- * available, otherwise emulates the copy with read/write loops. */
+/* Copy a single file. Source and target may live in different backends. Uses
+ * the backend fast-path only within one backend, otherwise streams the content
+ * through read/write loops. */
 static UA_StatusCode
-copyBackendFile(UA_FileTransferBackend *b, const UA_String fromPath,
-                const UA_String toPath) {
-    if(b->copy)
-        return b->copy(b, fromPath, toPath);
+copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
+                UA_FileTransferBackend *dstB, const UA_String toPath) {
+    if(srcB == dstB && dstB->copy)
+        return dstB->copy(dstB, fromPath, toPath);
 
     void *src = NULL;
-    UA_StatusCode res = b->openFile(b, fromPath, UA_OPENFILEMODE_READ, &src);
+    UA_StatusCode res = srcB->openFile(srcB, fromPath, UA_OPENFILEMODE_READ, &src);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    res = b->createFile(b, toPath);
+    res = dstB->createFile(dstB, toPath);
     if(res != UA_STATUSCODE_GOOD) {
-        b->closeFile(b, src);
+        srcB->closeFile(srcB, src);
         return res;
     }
     void *dst = NULL;
-    res = b->openFile(b, toPath, UA_OPENFILEMODE_WRITE, &dst);
+    res = dstB->openFile(dstB, toPath, UA_OPENFILEMODE_WRITE, &dst);
     if(res != UA_STATUSCODE_GOOD) {
-        b->closeFile(b, src);
+        srcB->closeFile(srcB, src);
         return res;
     }
 
     while(res == UA_STATUSCODE_GOOD) {
         UA_ByteString chunk = UA_BYTESTRING_NULL;
-        res = b->read(b, src, UA_FILETRANSFER_COPYCHUNKSIZE, &chunk);
+        res = srcB->read(srcB, src, UA_FILETRANSFER_COPYCHUNKSIZE, &chunk);
         if(res != UA_STATUSCODE_GOOD || chunk.length == 0) {
             UA_ByteString_clear(&chunk);
             break;
         }
-        res = b->write(b, dst, chunk);
+        res = dstB->write(dstB, dst, chunk);
         UA_ByteString_clear(&chunk);
     }
 
-    b->closeFile(b, src);
-    b->closeFile(b, dst);
+    srcB->closeFile(srcB, src);
+    dstB->closeFile(dstB, dst);
     return res;
 }
 
 static UA_StatusCode
-copyBackendTree(UA_FileTransferBackend *b, const UA_String fromPath,
-                const UA_String toPath, UA_Boolean isDir) {
+copyBackendTree(UA_FileTransferBackend *srcB, const UA_String fromPath,
+                UA_FileTransferBackend *dstB, const UA_String toPath,
+                UA_Boolean isDir) {
     if(!isDir)
-        return copyBackendFile(b, fromPath, toPath);
+        return copyBackendFile(srcB, fromPath, dstB, toPath);
 
-    UA_StatusCode res = b->createDirectory(b, toPath);
+    UA_StatusCode res = dstB->createDirectory(dstB, toPath);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     ScanEntry *entries = NULL;
-    res = b->listDirectory(b, fromPath, scanCollector, &entries);
+    res = srcB->listDirectory(srcB, fromPath, scanCollector, &entries);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     for(ScanEntry *e = entries; e && res == UA_STATUSCODE_GOOD; e = e->next) {
@@ -1550,7 +1552,7 @@ copyBackendTree(UA_FileTransferBackend *b, const UA_String fromPath,
         if(res == UA_STATUSCODE_GOOD)
             res = joinPath(toPath, e->name, &childTo);
         if(res == UA_STATUSCODE_GOOD)
-            res = copyBackendTree(b, childFrom, childTo, e->isDir);
+            res = copyBackendTree(srcB, childFrom, dstB, childTo, e->isDir);
         UA_String_clear(&childFrom);
         UA_String_clear(&childTo);
     }
@@ -1852,13 +1854,12 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Moving and copying between different mounts (and thus different
-     * backends) is not supported */
-    if(targetDir->mount != source->mount)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    if(!userCanWrite(server, dirNode, sessionId) ||
-       !userCanWrite(server, targetDir, sessionId))
+    /* The target directory must be writable. For a move the source parent must
+     * be writable too, since the source entry is deleted. A copy only reads
+     * the source, so a copy from a read-only mount is allowed. */
+    if(!userCanWrite(server, targetDir, sessionId))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    if(!createCopy && !userCanWrite(server, dirNode, sessionId))
         return UA_STATUSCODE_BADUSERACCESSDENIED;
 
     /* An empty name keeps the current name. Copy the name: it may point
@@ -1879,15 +1880,17 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         return res;
     }
 
-    /* Moving to the identical location is a no-op */
-    if(!createCopy && UA_String_equal(&destPath, &source->path)) {
+    UA_Boolean sameMount = (source->mount == targetDir->mount);
+
+    /* Moving to the identical location is a no-op (same mount only) */
+    if(!createCopy && sameMount && UA_String_equal(&destPath, &source->path)) {
         UA_String_clear(&name);
         UA_String_clear(&destPath);
         return UA_Variant_setScalarCopy(&output[0], &source->nodeId,
                                         &UA_TYPES[UA_TYPES_NODEID]);
     }
 
-    if(findChildByPath(ftd, dirNode->mount, destPath)) {
+    if(findChildByPath(ftd, targetDir->mount, destPath)) {
         UA_String_clear(&name);
         UA_String_clear(&destPath);
         return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
@@ -1901,13 +1904,30 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     }
 
     UA_Boolean isDir = source->isDirectory;
-    UA_FileTransferBackend *b = &dirNode->mount->backend;
-    if(createCopy) {
-        res = copyBackendTree(b, source->path, destPath, isDir);
-    } else {
-        res = b->rename(b, source->path, destPath);
+    UA_FileTransferBackend *srcB = &source->mount->backend;
+    UA_FileTransferBackend *dstB = &targetDir->mount->backend;
+    if(!createCopy && sameMount) {
+        /* Within one backend a move is an atomic rename */
+        res = dstB->rename(dstB, source->path, destPath);
         if(res == UA_STATUSCODE_GOOD)
             removeSubtree(server, ftd, source); /* Invalidates source */
+    } else if(!createCopy) {
+        /* Cross-mount move: copy to the target backend, then delete from the
+         * source backend. This is not atomic. If the source delete fails, the
+         * target copy is rolled back on a best-effort basis. */
+        res = copyBackendTree(srcB, source->path, dstB, destPath, isDir);
+        if(res == UA_STATUSCODE_GOOD) {
+            UA_StatusCode delRes = deleteBackendTree(srcB, source->path, isDir);
+            if(delRes == UA_STATUSCODE_GOOD) {
+                removeSubtree(server, ftd, source); /* Invalidates source */
+            } else {
+                deleteBackendTree(dstB, destPath, isDir); /* Roll back */
+                res = delRes;
+            }
+        }
+    } else {
+        /* Copy (same or cross mount) */
+        res = copyBackendTree(srcB, source->path, dstB, destPath, isDir);
     }
 
     /* Mirror the entry at the new location */
@@ -1928,7 +1948,7 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
             }
         } else {
             UA_FileTransferFileInfo info;
-            res = b->getAttributes(b, destPath, &info);
+            res = dstB->getAttributes(dstB, destPath, &info);
             if(res == UA_STATUSCODE_GOOD)
                 res = mirrorFile(server, ftd, targetDir, name, &info, &newNode);
         }
