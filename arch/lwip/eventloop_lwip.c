@@ -711,33 +711,19 @@ UA_EventLoopLWIP_freeNetworkBuffer(UA_ConnectionManager *cm,
 
 UA_StatusCode
 UA_EventLoopLWIP_allocateStaticBuffers(UA_LWIPConnectionManager *pcm) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_UInt32 rxBufSize = 1u << 10; /* The default is 64kb */
-    const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
-        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
-                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(configRxBufSize)
-        rxBufSize = *configRxBufSize;
-    if(pcm->rxBuffer.length != rxBufSize) {
-        UA_ByteString_clear(&pcm->rxBuffer);
-        res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
-    }
+    UA_StatusCode res =
+        UA_EventLoopCommon_allocStaticBuffer(&pcm->cm.eventSource.params,
+                                             UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                             1u << 13, /* The default is 8 kb */
+                                             &pcm->rxBuffer);
 
     /* Default the tx buffer to the rx size so a dedicated static send buffer
      * always exists. This avoids a malloc/free on every send without reusing
      * the rx buffer (which may still hold unprocessed received data). */
-    UA_UInt32 txBufSize = rxBufSize;
-    const UA_UInt32 *configTxBufSize = (const UA_UInt32 *)
-        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
-                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(configTxBufSize)
-        txBufSize = *configTxBufSize;
-    if(pcm->txBuffer.length != txBufSize) {
-        UA_ByteString_clear(&pcm->txBuffer);
-        res |= UA_ByteString_allocBuffer(&pcm->txBuffer, txBufSize);
-    }
+    res |= UA_EventLoopCommon_allocStaticBuffer(&pcm->cm.eventSource.params,
+                                                UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                                (UA_UInt32)pcm->rxBuffer.length,
+                                                &pcm->txBuffer);
     return res;
 }
 

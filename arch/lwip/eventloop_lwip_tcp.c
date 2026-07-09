@@ -13,6 +13,13 @@
 #if defined(UA_ARCHITECTURE_LWIP)
 
 /* Configuration parameters */
+#define TCP_MANAGERPARAMS 2
+
+static UA_KeyValueRestriction tcpManagerParams[TCP_MANAGERPARAMS] = {
+    {{0, UA_STRING_STATIC("recv-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("send-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
+};
+
 #define TCP_PARAMETERSSIZE 7
 #define TCP_PARAMINDEX_RECVBUF 0
 #define TCP_PARAMINDEX_ADDR 1
@@ -1039,7 +1046,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Check the parameters */
     UA_StatusCode res =
         UA_KeyValueRestriction_validate(el->eventLoop.logger, "TCP",
-                                        TCPConfigParameters, 1,
+                                        tcpManagerParams, TCP_MANAGERPARAMS,
                                         &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
