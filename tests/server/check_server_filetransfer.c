@@ -631,6 +631,11 @@ addFileTypeInstance(UA_Server *s, const char *name) {
     return fileNodeId;
 }
 
+/* Non-asserting child resolution (defined further below) */
+static UA_Boolean
+tryResolveChild(UA_Server *s, const UA_NodeId parent, const char *name,
+                UA_NodeId *out);
+
 /* Helper: resolve a child of a node by BrowseName */
 static UA_NodeId
 resolveChild(UA_Server *s, const UA_NodeId parent, const char *name) {
@@ -879,6 +884,108 @@ START_TEST(fileProperties) {
     ck_assert_uint_eq(ftDriver->removeFile(ftDriver, fileId), UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&fileId);
 } END_TEST
+
+START_TEST(fileMaxByteStringLength) {
+    /* The default driver exposes the default max-read-length (1 MByte) */
+    UA_NodeId fileId = addTestFile("MbslFile", "data", NULL);
+    UA_Variant value;
+    readProperty(fileId, "MaxByteStringLength", &value);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)value.data, 1u << 20);
+    UA_Variant_clear(&value);
+    /* Mem-backed files report no MimeType, so the Property is omitted */
+    ck_assert(!tryResolveChild(server_ft, fileId, "MimeType", NULL));
+    ck_assert_uint_eq(ftDriver->removeFile(ftDriver, fileId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+
+    /* A driver configured with a custom max-read-length reflects that value */
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_UInt32 maxRead = 4096;
+    UA_KeyValueMap params = UA_KEYVALUEMAP_NULL;
+    UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "max-read-length"),
+                             &maxRead, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_FileTransferDriver *driver = UA_FileTransferDriver_new(params);
+    UA_KeyValueMap_clear(&params);
+    ck_assert_ptr_nonnull(driver);
+    ck_assert_uint_eq(UA_Server_addDriver(server, &driver->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->drv.start(&driver->drv), UA_STATUSCODE_GOOD);
+
+    UA_NodeId customFile = UA_NODEID_NULL;
+    UA_FileTransferBackend b = memBackendWithFile("f.bin", "x");
+    ck_assert_uint_eq(driver->addFile(driver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                                      UA_QUALIFIEDNAME(0, "CustomFile"), b,
+                                      UA_STRING("f.bin"), NULL, &customFile),
+                      UA_STATUSCODE_GOOD);
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "MaxByteStringLength");
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server, customFile, 1, &qn);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    UA_Variant custom;
+    ck_assert_uint_eq(UA_Server_readValue(server, bpr.targets[0].targetId.nodeId,
+                                          &custom), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)custom.data, 4096);
+    UA_Variant_clear(&custom);
+    UA_BrowsePathResult_clear(&bpr);
+
+    driver->drv.stop(&driver->drv);
+    ck_assert_uint_eq(UA_Server_removeDriver(server, &driver->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(driver->drv.free(&driver->drv), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&customFile);
+    UA_Server_delete(server);
+} END_TEST
+
+#ifndef _WIN32
+/* MimeType is inferred from the extension by the local filesystem backend */
+START_TEST(fileMimeType) {
+    makeScratchDir();
+
+    UA_FileTransferBackend pre;
+    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
+                          UA_STRING(scratchDir), &pre), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("a.txt")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("b.json")), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("c")), UA_STATUSCODE_GOOD);
+    pre.clear(&pre);
+
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
+                          UA_STRING(scratchDir), &b), UA_STATUSCODE_GOOD);
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFileSystem(
+                          ftDriver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(0, "FileSystem"), b, NULL, &fsId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId txtId, jsonId, cId;
+    ck_assert(tryResolveChild(server_ft, fsId, "a.txt", &txtId));
+    ck_assert(tryResolveChild(server_ft, fsId, "b.json", &jsonId));
+    ck_assert(tryResolveChild(server_ft, fsId, "c", &cId));
+
+    UA_Variant value;
+    readProperty(txtId, "MimeType", &value);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_STRING]));
+    UA_String expectedTxt = UA_STRING("text/plain");
+    ck_assert(UA_String_equal((UA_String*)value.data, &expectedTxt));
+    UA_Variant_clear(&value);
+
+    readProperty(jsonId, "MimeType", &value);
+    UA_String expectedJson = UA_STRING("application/json");
+    ck_assert(UA_String_equal((UA_String*)value.data, &expectedJson));
+    UA_Variant_clear(&value);
+
+    /* A file without a known extension has no MimeType Property */
+    ck_assert(!tryResolveChild(server_ft, cId, "MimeType", NULL));
+    ck_assert(!tryResolveChild(server_ft, fsId, "MimeType", NULL)); /* not the dir */
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&txtId);
+    UA_NodeId_clear(&jsonId);
+    UA_NodeId_clear(&cId);
+    UA_NodeId_clear(&fsId);
+    removeTree(scratchDir);
+} END_TEST
+#endif
 
 START_TEST(fileOpenModes) {
     UA_NodeId fileId = addTestFile("ModesFile", "content", NULL);
@@ -1469,6 +1576,129 @@ START_TEST(dirMoveOrCopy) {
     UA_NodeId_clear(&fsId);
 } END_TEST
 
+/* Write a file with content into a memory backend before it is mounted */
+static void
+writeMemFile(UA_FileTransferBackend *b, const char *name, const char *content) {
+    UA_String path = UA_STRING((char*)(uintptr_t)name);
+    ck_assert_uint_eq(b->createFile(b, path), UA_STATUSCODE_GOOD);
+    void *fc = NULL;
+    ck_assert_uint_eq(b->openFile(b, path, UA_OPENFILEMODE_WRITE, &fc),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b->write(b, fc, UA_BYTESTRING((char*)(uintptr_t)content)),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b->closeFile(b, fc), UA_STATUSCODE_GOOD);
+}
+
+static UA_NodeId
+mountNamedMem(UA_FileTransferBackend backend, const char *browseName,
+              const UA_FileTransferMountOptions *options) {
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(
+        ftDriver->addFileSystem(ftDriver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                                UA_QUALIFIEDNAME(0, (char*)(uintptr_t)browseName),
+                                backend, options, &fsId),
+        UA_STATUSCODE_GOOD);
+    return fsId;
+}
+
+/* Moving and copying between two mounts backed by different backends */
+START_TEST(crossMountMoveCopy) {
+    UA_FileTransferBackend bA;
+    ck_assert_uint_eq(memBackend(&bA), UA_STATUSCODE_GOOD);
+    writeMemFile(&bA, "doc.txt", "hello");
+    writeMemFile(&bA, "move.txt", "world");
+    ck_assert_uint_eq(bA.createDirectory(&bA, UA_STRING("d")), UA_STATUSCODE_GOOD);
+    writeMemFile(&bA, "d/nested.txt", "deep");
+
+    UA_FileTransferBackend bB;
+    ck_assert_uint_eq(memBackend(&bB), UA_STATUSCODE_GOOD);
+
+    UA_NodeId fsA = mountNamedMem(bA, "FsA", NULL);
+    UA_NodeId fsB = mountNamedMem(bB, "FsB", NULL);
+
+    /* Copy a file A -> B: present in both, content preserved */
+    UA_NodeId aDoc, bDoc;
+    ck_assert(tryResolveChild(server_ft, fsA, "doc.txt", &aDoc));
+    UA_NodeId copyId = callMoveOrCopy(fsA, aDoc, fsB, true, "doc.txt",
+                                      UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, fsA, "doc.txt", NULL));
+    ck_assert(tryResolveChild(server_ft, fsB, "doc.txt", &bDoc));
+    UA_ByteString bContent = readFileContent(bDoc);
+    ck_assert_uint_eq(bContent.length, 5);
+    ck_assert_int_eq(memcmp(bContent.data, "hello", 5), 0);
+    UA_ByteString_clear(&bContent);
+
+    /* Move a file A -> B: gone from A, present in B */
+    UA_NodeId aMove;
+    ck_assert(tryResolveChild(server_ft, fsA, "move.txt", &aMove));
+    UA_NodeId movedId = callMoveOrCopy(fsA, aMove, fsB, false, "",
+                                       UA_STATUSCODE_GOOD);
+    ck_assert(!tryResolveChild(server_ft, fsA, "move.txt", NULL));
+    UA_NodeId bMove;
+    ck_assert(tryResolveChild(server_ft, fsB, "move.txt", &bMove));
+    UA_ByteString mContent = readFileContent(bMove);
+    ck_assert_uint_eq(mContent.length, 5);
+    ck_assert_int_eq(memcmp(mContent.data, "world", 5), 0);
+    UA_ByteString_clear(&mContent);
+
+    /* Copy a directory tree A -> B recursively */
+    UA_NodeId aDir;
+    ck_assert(tryResolveChild(server_ft, fsA, "d", &aDir));
+    UA_NodeId dirCopyId = callMoveOrCopy(fsA, aDir, fsB, true, "d",
+                                         UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, dirCopyId, "nested.txt", NULL));
+
+    /* A duplicate target name is rejected across mounts too */
+    callMoveOrCopy(fsA, aDoc, fsB, true, "doc.txt",
+                   UA_STATUSCODE_BADBROWSENAMEDUPLICATED);
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsA), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsB), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&aDoc);
+    UA_NodeId_clear(&bDoc);
+    UA_NodeId_clear(&copyId);
+    UA_NodeId_clear(&aMove);
+    UA_NodeId_clear(&movedId);
+    UA_NodeId_clear(&bMove);
+    UA_NodeId_clear(&aDir);
+    UA_NodeId_clear(&dirCopyId);
+    UA_NodeId_clear(&fsA);
+    UA_NodeId_clear(&fsB);
+} END_TEST
+
+/* A copy may read from a read-only source mount; a move may not delete it */
+START_TEST(crossMountReadOnlySource) {
+    UA_FileTransferBackend bA;
+    ck_assert_uint_eq(memBackend(&bA), UA_STATUSCODE_GOOD);
+    writeMemFile(&bA, "ro.txt", "data");
+    UA_FileTransferBackend bB;
+    ck_assert_uint_eq(memBackend(&bB), UA_STATUSCODE_GOOD);
+
+    UA_FileTransferMountOptions ro = {true, 0, 0, NULL, NULL};
+    UA_NodeId fsA = mountNamedMem(bA, "FsRo", &ro);
+    UA_NodeId fsB = mountNamedMem(bB, "FsRW", NULL);
+
+    UA_NodeId aRo;
+    ck_assert(tryResolveChild(server_ft, fsA, "ro.txt", &aRo));
+
+    /* Copy from the read-only mount to the writable mount succeeds */
+    UA_NodeId copyId = callMoveOrCopy(fsA, aRo, fsB, true, "ro.txt",
+                                      UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, fsB, "ro.txt", NULL));
+
+    /* Moving out of the read-only mount is denied (source cannot be deleted) */
+    callMoveOrCopy(fsA, aRo, fsB, false, "moved.txt",
+                   UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(tryResolveChild(server_ft, fsA, "ro.txt", NULL));
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsA), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsB), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&aRo);
+    UA_NodeId_clear(&copyId);
+    UA_NodeId_clear(&fsA);
+    UA_NodeId_clear(&fsB);
+} END_TEST
+
 START_TEST(dirRefresh) {
     /* Keep a second reference to the backend to make out-of-band changes.
      * The context is shared with the copy held by the mount. */
@@ -1629,6 +1859,10 @@ int main(void) {
     tcase_add_test(tc_file, fileReadOnlyMount);
     tcase_add_test(tc_file, fileHandleLimits);
     tcase_add_test(tc_file, removeFileClosesHandles);
+    tcase_add_test(tc_file, fileMaxByteStringLength);
+# ifndef _WIN32
+    tcase_add_test(tc_file, fileMimeType);
+# endif
 #endif
     tcase_add_checked_fixture(tc_file, setup, teardown);
     suite_add_tcase(s, tc_file);
@@ -1641,6 +1875,8 @@ int main(void) {
     tcase_add_test(tc_dir, dirReadOnlyMount);
     tcase_add_test(tc_dir, dirDelete);
     tcase_add_test(tc_dir, dirMoveOrCopy);
+    tcase_add_test(tc_dir, crossMountMoveCopy);
+    tcase_add_test(tc_dir, crossMountReadOnlySource);
     tcase_add_test(tc_dir, dirRefresh);
     tcase_add_test(tc_dir, removeFileSystemWithOpenHandles);
 # ifndef _WIN32
