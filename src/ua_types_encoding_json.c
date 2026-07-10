@@ -801,6 +801,9 @@ ENCODE_JSON(LocalizedText) {
 }
 
 ENCODE_JSON(QualifiedName) {
+    if(src->namespaceIndex == 0 && src->name.data == NULL)
+        return writeChars(ctx, "null", 4);
+
     status ret = writeJsonObjStart(ctx);
     ret |= writeJsonKey(ctx, UA_JSONKEY_NAME);
     ret |= ENCODE_DIRECT_JSON(&src->name, String);

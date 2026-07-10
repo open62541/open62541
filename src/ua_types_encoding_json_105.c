@@ -579,6 +579,8 @@ ENCODE_JSON(LocalizedText) {
 }
 
 ENCODE_JSON(QualifiedName) {
+    if(src->namespaceIndex == 0 && src->name.data == NULL)
+        return writeChars(ctx, "null", 4);
     UA_String out = UA_STRING_NULL;
     UA_StatusCode ret = UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
     ret |= ENCODE_DIRECT_JSON(&out, String);
