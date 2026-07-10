@@ -442,19 +442,16 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
                             UA_UInt16 *namespaceIndex);
 
-#ifndef HAVE_NODEITER_CALLBACK
-#define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
  * function for each child node */
 typedef UA_StatusCode
-(*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
-                           UA_NodeId referenceTypeId, void *handle);
-#endif
+(*UA_ClientNodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+                                 UA_NodeId referenceTypeId, void *handle);
 
 UA_StatusCode UA_EXPORT
 UA_Client_forEachChildNodeCall(
     UA_Client *client, UA_NodeId parentNodeId,
-    UA_NodeIteratorCallback callback, void *handle);
+    UA_ClientNodeIteratorCallback callback, void *handle);
 
 _UA_END_DECLS
 

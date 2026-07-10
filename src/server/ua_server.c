@@ -155,7 +155,8 @@ UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
 
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
-                               UA_NodeIteratorCallback callback, void *handle) {
+                               UA_ServerNodeIteratorCallback callback,
+                               void *handle) {
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = parentNodeId;
