@@ -330,6 +330,24 @@ getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
 }
 
 UA_StatusCode
+UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
+                             UA_ShutdownReason reason) {
+    lockServer(server);
+    UA_SecureChannel *channel;
+    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
+        if(channel->securityToken.channelId != channelId)
+            continue;
+        if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
+           channel->state != UA_SECURECHANNELSTATE_CLOSING)
+            UA_SecureChannel_shutdown(channel, reason);
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+    unlockServer(server);
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
 getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
                  UA_NodeId **interfaceNodes, size_t *interfaceNodesSize) {
     UA_ReferenceTypeSet hastype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);

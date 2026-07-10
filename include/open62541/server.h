@@ -223,6 +223,19 @@ typedef void (*UA_ServerNotificationCallback)(UA_Server *server,
                                               const UA_KeyValueMap payload);
 
 /**
+ * SecureChannel Handling
+ * ----------------------
+ * The server opens new SecureChannels internally when a server socket is
+ * active. Information about SecureChannels and their state is notified with
+ * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL. SecureChannels can be manually
+ * closed. This leaves any attached session alive so that it can potentially
+ * reconnect. */
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
+                             UA_ShutdownReason reason);
+
+/**
  * .. _server-session-handling:
  *
  * Session Handling
