@@ -45,6 +45,38 @@ UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch) {
     memset(psch, 0, sizeof(UA_PubSubComponentHead));
 }
 
+/* See declaration in ua_pubsub_internal.h for full documentation. */
+void
+UA_PubSubComponent_freeWithoutLifecycleCallback(UA_PubSubManager *psm,
+                                                void *component,
+                                                UA_PubSubComponentType type) {
+    UA_Server *server = psm->sc.server;
+    UA_StatusCode (*savedCb)(UA_Server*, const UA_NodeId,
+                             const UA_PubSubComponentType, UA_Boolean) =
+        server->config.pubSubConfig.componentLifecycleCallback;
+    server->config.pubSubConfig.componentLifecycleCallback = NULL;
+    switch(type) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        UA_PubSubConnection_delete(psm, (UA_PubSubConnection*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        UA_WriterGroup_remove(psm, (UA_WriterGroup*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        UA_ReaderGroup_remove(psm, (UA_ReaderGroup*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        UA_DataSetWriter_remove(psm, (UA_DataSetWriter*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        UA_DataSetReader_remove(psm, (UA_DataSetReader*)component);
+        break;
+    default:
+        break;
+    }
+    server->config.pubSubConfig.componentLifecycleCallback = savedCb;
+}
+
 UA_StatusCode
 UA_PublisherId_copy(const UA_PublisherId *src,
                     UA_PublisherId *dst) {

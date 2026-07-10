@@ -299,7 +299,10 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
             componentLifecycleCallback(server, dsw->head.identifier,
                                        UA_PUBSUBCOMPONENT_DATASETWRITER, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_DataSetWriter_remove(psm, dsw);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the writer). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, dsw, UA_PUBSUBCOMPONENT_DATASETWRITER);
             return res;
         }
     }
