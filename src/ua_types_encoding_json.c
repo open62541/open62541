@@ -1065,7 +1065,7 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
 
 /* Forward declarations*/
 #define DECODE_JSON(TYPE) static status                   \
-    TYPE##_decodeJson(ParseCtx *ctx, UA_##TYPE *dst,      \
+    TYPE##_decodeJson(ParseCtx *ctx, void *p,             \
                       const UA_DataType *type)
 
 /* If ctx->index points to the beginning of an object, move the index to the
@@ -1105,6 +1105,7 @@ jsoneq(const char *json, const cj5_token *tok, const char *searchKey) {
 }
 
 DECODE_JSON(Boolean) {
+    UA_Boolean *dst = (UA_Boolean*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_BOOL;
     GET_TOKEN;
@@ -1159,6 +1160,7 @@ parseSignedInteger(const char *tokenData, size_t tokenSize, UA_Int64 *dst) {
 }
 
 DECODE_JSON(Byte) {
+    UA_Byte *dst = (UA_Byte*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
@@ -1173,6 +1175,7 @@ DECODE_JSON(Byte) {
 }
 
 DECODE_JSON(UInt16) {
+    UA_UInt16 *dst = (UA_UInt16*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
@@ -1187,6 +1190,7 @@ DECODE_JSON(UInt16) {
 }
 
 DECODE_JSON(UInt32) {
+    UA_UInt32 *dst = (UA_UInt32*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
@@ -1201,6 +1205,7 @@ DECODE_JSON(UInt32) {
 }
 
 DECODE_JSON(UInt64) {
+    UA_UInt64 *dst = (UA_UInt64*)p;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
 
@@ -1212,6 +1217,7 @@ DECODE_JSON(UInt64) {
 }
 
 DECODE_JSON(SByte) {
+    UA_SByte *dst = (UA_SByte*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
@@ -1226,6 +1232,7 @@ DECODE_JSON(SByte) {
 }
 
 DECODE_JSON(Int16) {
+    UA_Int16 *dst = (UA_Int16*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
@@ -1240,6 +1247,7 @@ DECODE_JSON(Int16) {
 }
 
 DECODE_JSON(Int32) {
+    UA_Int32 *dst = (UA_Int32*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
@@ -1254,6 +1262,7 @@ DECODE_JSON(Int32) {
 }
 
 DECODE_JSON(Int64) {
+    UA_Int64 *dst = (UA_Int64*)p;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
 
@@ -1266,6 +1275,7 @@ DECODE_JSON(Int64) {
 
 /* Either a STRING or NUMBER token */
 DECODE_JSON(Double) {
+    UA_Double *dst = (UA_Double*)p;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
 
@@ -1325,6 +1335,7 @@ DECODE_JSON(Double) {
 }
 
 DECODE_JSON(Float) {
+    UA_Float *dst = (UA_Float*)p;
     UA_Double v = 0.0;
     UA_StatusCode res = Double_decodeJson(ctx, &v, NULL);
     *dst = (UA_Float)v;
@@ -1332,6 +1343,7 @@ DECODE_JSON(Float) {
 }
 
 DECODE_JSON(Guid) {
+    UA_Guid *dst = (UA_Guid*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
@@ -1343,6 +1355,7 @@ DECODE_JSON(Guid) {
 }
 
 DECODE_JSON(String) {
+    UA_String *dst = (UA_String*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
@@ -1387,6 +1400,7 @@ DECODE_JSON(String) {
 }
 
 DECODE_JSON(ByteString) {
+    UA_ByteString *dst = (UA_ByteString*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
@@ -1410,17 +1424,17 @@ DECODE_JSON(ByteString) {
 }
 
 DECODE_JSON(LocalizedText) {
+    UA_LocalizedText *dst = (UA_LocalizedText*)p;
     CHECK_OBJECT;
-
     DecodeEntry entries[2] = {
         {UA_JSONKEY_LOCALE, &dst->locale, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
         {UA_JSONKEY_TEXT, &dst->text, NULL, false, &UA_TYPES[UA_TYPES_STRING]}
     };
-
     return decodeFields(ctx, entries, 2);
 }
 
 DECODE_JSON(QualifiedName) {
+    UA_QualifiedName *dst = (UA_QualifiedName*)p;
     UA_String str;
     UA_String_init(&str);
     status res = String_decodeJson(ctx, &str, NULL);
@@ -1465,6 +1479,7 @@ lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
 }
 
 DECODE_JSON(NodeId) {
+    UA_NodeId *dst = (UA_NodeId*)p;
     UA_String str;
     UA_String_init(&str);
     status res = String_decodeJson(ctx, &str, NULL);
@@ -1475,6 +1490,7 @@ DECODE_JSON(NodeId) {
 }
 
 DECODE_JSON(ExpandedNodeId) {
+    UA_ExpandedNodeId *dst = (UA_ExpandedNodeId*)p;
     UA_String str;
     UA_String_init(&str);
     status res = String_decodeJson(ctx, &str, NULL);
@@ -1486,6 +1502,7 @@ DECODE_JSON(ExpandedNodeId) {
 }
 
 DECODE_JSON(DateTime) {
+    UA_DateTime *dst = (UA_DateTime*)p;
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
@@ -1619,6 +1636,7 @@ DECODE_JSON(DateTime) {
 }
 
 DECODE_JSON(StatusCode) {
+    UA_StatusCode *dst = (UA_StatusCode*)p;
     CHECK_OBJECT;
     DecodeEntry entries[2] = {
         {UA_JSONKEY_CODE, dst, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
@@ -1735,7 +1753,8 @@ getArrayUnwrapType(ParseCtx *ctx) {
 }
 
 static status
-Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst, const UA_DataType *type) {
+Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst,
+                                      const UA_DataType *type) {
     size_t *size_ptr = (size_t*) dst - 1; /* Save the length pointer of the array */
     size_t length = (size_t)ctx->tokens[ctx->index].size;
 
@@ -1903,12 +1922,14 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
 }
 
 DECODE_JSON(Variant) {
+    UA_Variant *dst = (UA_Variant*)p;
     CHECK_NULL_SKIP; /* Treat null as an empty variant */
     CHECK_OBJECT;
     return decodeJSONVariant(ctx, dst);
 }
 
 DECODE_JSON(DataValue) {
+    UA_DataValue *dst = (UA_DataValue*)p;
     CHECK_NULL_SKIP; /* Treat a null value as an empty DataValue */
     CHECK_OBJECT;
 
@@ -2011,6 +2032,7 @@ removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding,
 }
 
 DECODE_JSON(ExtensionObject) {
+    UA_ExtensionObject *dst = (UA_ExtensionObject*)p;
     CHECK_NULL_SKIP; /* Treat a null value as an empty DataValue */
     CHECK_OBJECT;
 
@@ -2184,6 +2206,7 @@ status
 DiagnosticInfoInner_decodeJson(ParseCtx* ctx, void* dst, const UA_DataType* type);
 
 DECODE_JSON(DiagnosticInfo) {
+    UA_DiagnosticInfo *dst = (UA_DiagnosticInfo*)p;
     CHECK_NULL_SKIP; /* Treat a null value as an empty DiagnosticInfo */
     CHECK_OBJECT;
 
@@ -2394,37 +2417,37 @@ decodeJsonNotImplemented(ParseCtx *ctx, void *dst, const UA_DataType *type) {
 }
 
 const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
-    (decodeJsonSignature)Boolean_decodeJson,
-    (decodeJsonSignature)SByte_decodeJson, /* SByte */
-    (decodeJsonSignature)Byte_decodeJson,
-    (decodeJsonSignature)Int16_decodeJson, /* Int16 */
-    (decodeJsonSignature)UInt16_decodeJson,
-    (decodeJsonSignature)Int32_decodeJson, /* Int32 */
-    (decodeJsonSignature)UInt32_decodeJson,
-    (decodeJsonSignature)Int64_decodeJson, /* Int64 */
-    (decodeJsonSignature)UInt64_decodeJson,
-    (decodeJsonSignature)Float_decodeJson,
-    (decodeJsonSignature)Double_decodeJson,
-    (decodeJsonSignature)String_decodeJson,
-    (decodeJsonSignature)DateTime_decodeJson, /* DateTime */
-    (decodeJsonSignature)Guid_decodeJson,
-    (decodeJsonSignature)ByteString_decodeJson, /* ByteString */
-    (decodeJsonSignature)String_decodeJson, /* XmlElement */
-    (decodeJsonSignature)NodeId_decodeJson,
-    (decodeJsonSignature)ExpandedNodeId_decodeJson,
-    (decodeJsonSignature)StatusCode_decodeJson, /* StatusCode */
-    (decodeJsonSignature)QualifiedName_decodeJson, /* QualifiedName */
-    (decodeJsonSignature)LocalizedText_decodeJson,
-    (decodeJsonSignature)ExtensionObject_decodeJson,
-    (decodeJsonSignature)DataValue_decodeJson,
-    (decodeJsonSignature)Variant_decodeJson,
-    (decodeJsonSignature)DiagnosticInfo_decodeJson,
-    (decodeJsonSignature)decodeJsonNotImplemented, /* Decimal */
-    (decodeJsonSignature)Int32_decodeJson, /* Enum */
-    (decodeJsonSignature)decodeJsonStructure,
-    (decodeJsonSignature)decodeJsonNotImplemented, /* Structure with optional fields */
-    (decodeJsonSignature)decodeJsonNotImplemented, /* Union */
-    (decodeJsonSignature)decodeJsonNotImplemented /* BitfieldCluster */
+    Boolean_decodeJson,
+    SByte_decodeJson, /* SByte */
+    Byte_decodeJson,
+    Int16_decodeJson, /* Int16 */
+    UInt16_decodeJson,
+    Int32_decodeJson, /* Int32 */
+    UInt32_decodeJson,
+    Int64_decodeJson, /* Int64 */
+    UInt64_decodeJson,
+    Float_decodeJson,
+    Double_decodeJson,
+    String_decodeJson,
+    DateTime_decodeJson, /* DateTime */
+    Guid_decodeJson,
+    ByteString_decodeJson, /* ByteString */
+    String_decodeJson, /* XmlElement */
+    NodeId_decodeJson,
+    ExpandedNodeId_decodeJson,
+    StatusCode_decodeJson, /* StatusCode */
+    QualifiedName_decodeJson, /* QualifiedName */
+    LocalizedText_decodeJson,
+    ExtensionObject_decodeJson,
+    DataValue_decodeJson,
+    Variant_decodeJson,
+    DiagnosticInfo_decodeJson,
+    decodeJsonNotImplemented, /* Decimal */
+    Int32_decodeJson, /* Enum */
+    decodeJsonStructure,
+    decodeJsonNotImplemented, /* Structure with optional fields */
+    decodeJsonNotImplemented, /* Union */
+    decodeJsonNotImplemented /* BitfieldCluster */
 };
 
 status
