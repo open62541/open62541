@@ -353,6 +353,24 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
                          "Read attribute %"PRIi32 " of Node %N",
                          id->attributeId, node->head.nodeId);
 
+    /* Reading non-Value attributes requires Browse permission.
+     * Value, UserAccessLevel and UserExecutable are handled separately. */
+    if(session != &server->adminSession &&
+       id->attributeId != UA_ATTRIBUTEID_VALUE &&
+       id->attributeId != UA_ATTRIBUTEID_USERACCESSLEVEL &&
+       id->attributeId != UA_ATTRIBUTEID_USEREXECUTABLE &&
+       id->attributeId != UA_ATTRIBUTEID_ROLEPERMISSIONS &&
+       !server->config.accessControl.allowBrowseNode(
+           server, &server->config.accessControl,
+           session ? &session->sessionId : NULL,
+           session ? session->context : NULL,
+           &node->head.nodeId, node->head.context)) {
+        v->hasStatus = true;
+        v->status = UA_STATUSCODE_BADUSERACCESSDENIED;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
+        return true;
+    }
+    
     /* Only Binary Encoding is supported */
     if(id->dataEncoding.name.length > 0 &&
        !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
