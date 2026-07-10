@@ -79,8 +79,9 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
 
     transaction->certGroupSize++;
 
-    memset(&transaction->certGroups[transaction->certGroupSize-1],
-           0, sizeof(UA_CertificateGroup));
+    UA_CertificateGroup* newGroup = (UA_CertificateGroup*)
+        &transaction->certGroups[transaction->certGroupSize-1];
+    memset(newGroup, 0, sizeof(UA_CertificateGroup));
 
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
@@ -90,18 +91,17 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     /* Set up the parameters */
     UA_KeyValuePair params[1] = {{{0, UA_STRING_STATIC("max-trust-listsize")}, {0}}};
     UA_KeyValueMap paramsMap = {1, params};
-
     UA_ServerConfig *config = UA_Server_getConfig(transaction->server);
     UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize,
                          &UA_TYPES[UA_TYPES_UINT32]);
 
-    UA_CertificateGroup_Memorystore(&transaction->certGroups[transaction->certGroupSize-1],
+    /* Initialize the CertificateGroup */
+    UA_CertificateGroup_Memorystore(newGroup,
                                     (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId,
                                     &trustList, certGroup->logging, &paramsMap);
 
     UA_TrustListDataType_clear(&trustList);
-
-    return &transaction->certGroups[transaction->certGroupSize-1];
+    return newGroup;
 }
 
 static UA_StatusCode
