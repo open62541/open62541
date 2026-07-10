@@ -958,14 +958,14 @@ secureChannel_delayedClose(void *application, void *context) {
         goto cleanup;
     }
 
-    UA_CertificateGroup certGroup = sc->secureChannelPKI;
+    UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
            channel->state == UA_SECURECHANNELSTATE_CLOSING)
             continue;
         UA_StatusCode res =
-            certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate);
+            certGroup->verifyCertificate(certGroup, &channel->remoteCertificate);
         if(res != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
