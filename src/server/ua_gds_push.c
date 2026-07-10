@@ -943,34 +943,37 @@ secureChannel_delayedClose(void *application, void *context) {
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
 
-    if(*changes == UA_GDSTRANSACTIONCHANGES_NOTHING)
-        goto cleanup;
+    UA_SecureChannel *channel;
+    UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
+    switch(*changes) {
+    case UA_GDSTRANSACTIONCHANGES_NOTHING:
+        break;
 
-    if(*changes == UA_GDSTRANSACTIONCHANGES_BOTH ||
-       *changes == UA_GDSTRANSACTIONCHANGES_CERTIFICATE ) {
-        UA_SecureChannel *channel;
+    case UA_GDSTRANSACTIONCHANGES_BOTH:
+    case UA_GDSTRANSACTIONCHANGES_CERTIFICATE:
+        /* Shutdown all SecureChannels */
         TAILQ_FOREACH(channel, &server->channels, serverEntry) {
             if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
                channel->state == UA_SECURECHANNELSTATE_CLOSING)
                 continue;
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
         }
-        goto cleanup;
+        break;
+
+    default:
+        /* Re-verify remote certificates. Close the SecureChannel on failure. */
+        TAILQ_FOREACH(channel, &server->channels, serverEntry) {
+            if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
+               channel->state == UA_SECURECHANNELSTATE_CLOSING)
+                continue;
+            UA_StatusCode res =
+                certGroup->verifyCertificate(certGroup, &channel->remoteCertificate);
+            if(res != UA_STATUSCODE_GOOD)
+                UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+        }
+        break;
     }
 
-    UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
-    UA_SecureChannel *channel;
-    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
-           channel->state == UA_SECURECHANNELSTATE_CLOSING)
-            continue;
-        UA_StatusCode res =
-            certGroup->verifyCertificate(certGroup, &channel->remoteCertificate);
-        if(res != UA_STATUSCODE_GOOD)
-            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
-    }
-
-cleanup:
     UA_free(changes);
     UA_GDSTransaction_clear(&gdsm->transaction);
 }
