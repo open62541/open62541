@@ -285,7 +285,7 @@ class CGenerator:
         if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
+        members = "static const UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
         before = None
         size = len(datatype.elements) if isEnum else len(datatype.members)
         if isEnum:

@@ -1041,7 +1041,7 @@ struct UA_DataType {
     UA_UInt32 overlayable : 1;  /* The type has the identical memory layout
                                  * in memory and on the binary stream. */
     UA_UInt32 membersSize : 8;  /* How many members does the type have? */
-    UA_DataTypeMember *members;
+    const UA_DataTypeMember *members;
 };
 
 /* Clean up type definition with heap-allocated data */

@@ -24,6 +24,14 @@ read-only memory. DataType arrays generated for additional nodesets
 remain mutable, as their NamespaceIndex gets adjusted when the nodeset
 is loaded into a server.
 
+The `members` field in `UA_DataType` changed from `UA_DataTypeMember *`
+to `const UA_DataTypeMember *`. Generated member arrays are declared
+`const` for all type arrays. Member definitions carry no
+namespace-dependent data, so this also applies to type arrays generated
+for additional nodesets. Code that builds DataType definitions at
+runtime must populate the members array through its own mutable pointer
+before assigning it to the `members` field.
+
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
 Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
