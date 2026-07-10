@@ -7,7 +7,6 @@
  */
 
 #include <open62541/plugin/certificategroup_default.h>
-#include "ua_gds_push.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
@@ -937,7 +936,6 @@ UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
     return UA_STATUSCODE_GOOD;
 }
 
-
 static void
 secureChannel_delayedClose(void *application, void *context) {
     UA_Server *server = (UA_Server*)context;
@@ -1068,7 +1066,9 @@ UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
         }
     }
 
-    /* Add to the delayed callback list. Will be cleaned up in the next iteration. */
+    /* Add to the delayed callback list. Will be cleaned up in the next
+     * eventloop iteration. This is required so that the apply function can
+     * return a statuscode before the SecureChannel is closed. */
     UA_DelayedCallback *dc = &transaction->dc;
     dc->callback = secureChannel_delayedClose;
     dc->application = changes;
