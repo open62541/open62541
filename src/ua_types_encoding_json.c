@@ -45,7 +45,7 @@ static status
 decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type);
 
 #define ENCODE_JSON(TYPE) static status \
-    TYPE##_encodeJson(CtxJson *ctx, const UA_##TYPE *src, const UA_DataType *type)
+    TYPE##_encodeJson(CtxJson *ctx, const void *p, const UA_DataType *type)
 
 #define ENCODE_DIRECT_JSON(SRC, TYPE) \
     TYPE##_encodeJson(ctx, (const UA_##TYPE*)SRC, NULL)
@@ -230,15 +230,15 @@ isNull(const void *p, const UA_DataType *type) {
     return UA_equal(buf, p, type);
 }
 
-/* Boolean */
 ENCODE_JSON(Boolean) {
+    const UA_Boolean *src = (const UA_Boolean*)p;
     if(*src == true)
         return writeChars(ctx, "true", 4);
     return writeChars(ctx, "false", 5);
 }
 
-/* Byte */
 ENCODE_JSON(Byte) {
+    const UA_Byte *src = (const UA_Byte*)p;
     char buf[4];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
 
@@ -253,8 +253,8 @@ ENCODE_JSON(Byte) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* signed Byte */
 ENCODE_JSON(SByte) {
+    const UA_SByte *src = (const UA_SByte*)p;
     char buf[5];
     UA_UInt16 digits = itoaSigned(*src, buf);
     if(ctx->pos + digits > ctx->end)
@@ -265,8 +265,8 @@ ENCODE_JSON(SByte) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* UInt16 */
 ENCODE_JSON(UInt16) {
+    const UA_UInt16 *src = (const UA_UInt16*)p;
     char buf[6];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
 
@@ -279,8 +279,8 @@ ENCODE_JSON(UInt16) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Int16 */
 ENCODE_JSON(Int16) {
+    const UA_Int16 *src = (const UA_Int16*)p;
     char buf[7];
     UA_UInt16 digits = itoaSigned(*src, buf);
 
@@ -293,8 +293,8 @@ ENCODE_JSON(Int16) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* UInt32 */
 ENCODE_JSON(UInt32) {
+    const UA_UInt32 *src = (const UA_UInt32*)p;
     char buf[11];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
 
@@ -307,8 +307,8 @@ ENCODE_JSON(UInt32) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Int32 */
 ENCODE_JSON(Int32) {
+    const UA_Int32 *src = (const UA_Int32*)p;
     char buf[12];
     UA_UInt16 digits = itoaSigned(*src, buf);
 
@@ -321,8 +321,8 @@ ENCODE_JSON(Int32) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* UInt64 */
 ENCODE_JSON(UInt64) {
+    const UA_UInt64 *src = (const UA_UInt64*)p;
     char buf[23];
     buf[0] = '\"';
     UA_UInt16 digits = itoaUnsigned(*src, buf + 1, 10);
@@ -338,8 +338,8 @@ ENCODE_JSON(UInt64) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Int64 */
 ENCODE_JSON(Int64) {
+    const UA_Int64 *src = (const UA_Int64*)p;
     char buf[23];
     buf[0] = '\"';
     UA_UInt16 digits = itoaSigned(*src, buf + 1);
@@ -356,6 +356,7 @@ ENCODE_JSON(Int64) {
 }
 
 ENCODE_JSON(Float) {
+    const UA_Float *src = (const UA_Float*)p;
     char buffer[32];
     size_t len;
     if(*src != *src)
@@ -377,6 +378,7 @@ ENCODE_JSON(Float) {
 }
 
 ENCODE_JSON(Double) {
+    const UA_Double *src = (const UA_Double*)p;
     char buffer[32];
     size_t len;
     if(*src != *src)
@@ -425,6 +427,7 @@ static const char hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 ENCODE_JSON(String) {
+    const UA_String *src = (const UA_String*)p;
     if(!src->data)
         return writeChars(ctx, "null", 4);
 
@@ -500,6 +503,7 @@ ENCODE_JSON(String) {
 }
 
 ENCODE_JSON(ByteString) {
+    const UA_ByteString *src = (const UA_ByteString*)p;
     if(!src->data)
         return writeChars(ctx, "null", 4);
 
@@ -533,8 +537,8 @@ ENCODE_JSON(ByteString) {
     return ret | writeJsonQuote(ctx);
 }
 
-/* Guid */
 ENCODE_JSON(Guid) {
+    const UA_Guid *src = (const UA_Guid*)p;
     if(ctx->pos + 38 > ctx->end) /* 36 + 2 (") */
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     status ret = writeJsonQuote(ctx);
@@ -544,16 +548,16 @@ ENCODE_JSON(Guid) {
     return ret | writeJsonQuote(ctx);
 }
 
-/* DateTime */
 ENCODE_JSON(DateTime) {
+    const UA_DateTime *src = (const UA_DateTime*)p;
     UA_Byte buffer[40];
     UA_String str = {40, buffer};
     encodeDateTime(*src, &str);
     return ENCODE_DIRECT_JSON(&str, String);
 }
 
-/* NodeId */
 ENCODE_JSON(NodeId) {
+    const UA_NodeId *src = (const UA_NodeId*)p;
     UA_String out = UA_STRING_NULL;
     UA_StatusCode ret = UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
     ret |= ENCODE_DIRECT_JSON(&out, String);
@@ -561,8 +565,8 @@ ENCODE_JSON(NodeId) {
     return ret;
 }
 
-/* ExpandedNodeId */
 ENCODE_JSON(ExpandedNodeId) {
+    const UA_ExpandedNodeId *src = (const UA_ExpandedNodeId*)p;
     UA_String out = UA_STRING_NULL;
     UA_StatusCode ret = UA_ExpandedNodeId_printEx(src, &out, ctx->namespaceMapping,
                                                   ctx->serverUrisSize, ctx->serverUris);
@@ -571,8 +575,8 @@ ENCODE_JSON(ExpandedNodeId) {
     return ret;
 }
 
-/* LocalizedText */
 ENCODE_JSON(LocalizedText) {
+    const UA_LocalizedText *src = (const UA_LocalizedText*)p;
     status ret = writeJsonObjStart(ctx);
     ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
     ret |= ENCODE_DIRECT_JSON(&src->locale, String);
@@ -582,6 +586,7 @@ ENCODE_JSON(LocalizedText) {
 }
 
 ENCODE_JSON(QualifiedName) {
+    const UA_QualifiedName *src = (const UA_QualifiedName*)p;
     UA_String out = UA_STRING_NULL;
     UA_StatusCode ret = UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
     ret |= ENCODE_DIRECT_JSON(&out, String);
@@ -590,6 +595,7 @@ ENCODE_JSON(QualifiedName) {
 }
 
 ENCODE_JSON(StatusCode) {
+    const UA_StatusCode *src = (const UA_StatusCode*)p;
     const char *codename = UA_StatusCode_name(*src);
     UA_String statusDescription = UA_STRING((char*)(uintptr_t)codename);
 
@@ -607,8 +613,8 @@ ENCODE_JSON(StatusCode) {
     return ret;
 }
 
-/* ExtensionObject */
 ENCODE_JSON(ExtensionObject) {
+    const UA_ExtensionObject *src = (const UA_ExtensionObject*)p;
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return writeChars(ctx, "null", 4);
 
@@ -760,11 +766,12 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
 }
 
 ENCODE_JSON(Variant) {
+    const UA_Variant *src = (const UA_Variant*)p;
     return writeJsonObjStart(ctx) | encodeVariantInner(ctx, src) | writeJsonObjEnd(ctx);
 }
 
-/* DataValue */
 ENCODE_JSON(DataValue) {
+    const UA_DataValue *src = (const UA_DataValue*)p;
     UA_Boolean hasValue = src->hasValue;
     UA_Boolean hasStatus = src->hasStatus;
     UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp;
@@ -805,8 +812,8 @@ ENCODE_JSON(DataValue) {
     return ret | writeJsonObjEnd(ctx);
 }
 
-/* DiagnosticInfo */
 ENCODE_JSON(DiagnosticInfo) {
+    const UA_DiagnosticInfo *src = (const UA_DiagnosticInfo*)p;
     status ret = writeJsonObjStart(ctx);
 
     if(src->hasSymbolicId) {
@@ -881,43 +888,43 @@ encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
 }
 
 static status
-encodeJsonNotImplemented(const void *src, const UA_DataType *type, CtxJson *ctx) {
+encodeJsonNotImplemented(CtxJson *ctx, const void *src, const UA_DataType *type) {
     (void) src, (void) type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
 const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
-    (encodeJsonSignature)Boolean_encodeJson,
-    (encodeJsonSignature)SByte_encodeJson, /* SByte */
-    (encodeJsonSignature)Byte_encodeJson,
-    (encodeJsonSignature)Int16_encodeJson, /* Int16 */
-    (encodeJsonSignature)UInt16_encodeJson,
-    (encodeJsonSignature)Int32_encodeJson, /* Int32 */
-    (encodeJsonSignature)UInt32_encodeJson,
-    (encodeJsonSignature)Int64_encodeJson, /* Int64 */
-    (encodeJsonSignature)UInt64_encodeJson,
-    (encodeJsonSignature)Float_encodeJson,
-    (encodeJsonSignature)Double_encodeJson,
-    (encodeJsonSignature)String_encodeJson,
-    (encodeJsonSignature)DateTime_encodeJson, /* DateTime */
-    (encodeJsonSignature)Guid_encodeJson,
-    (encodeJsonSignature)ByteString_encodeJson, /* ByteString */
-    (encodeJsonSignature)String_encodeJson, /* XmlElement */
-    (encodeJsonSignature)NodeId_encodeJson,
-    (encodeJsonSignature)ExpandedNodeId_encodeJson,
-    (encodeJsonSignature)StatusCode_encodeJson, /* StatusCode */
-    (encodeJsonSignature)QualifiedName_encodeJson, /* QualifiedName */
-    (encodeJsonSignature)LocalizedText_encodeJson,
-    (encodeJsonSignature)ExtensionObject_encodeJson,
-    (encodeJsonSignature)DataValue_encodeJson,
-    (encodeJsonSignature)Variant_encodeJson,
-    (encodeJsonSignature)DiagnosticInfo_encodeJson,
-    (encodeJsonSignature)encodeJsonNotImplemented, /* Decimal */
-    (encodeJsonSignature)Int32_encodeJson, /* Enum */
-    (encodeJsonSignature)encodeJsonStructure,
-    (encodeJsonSignature)encodeJsonNotImplemented, /* Structure with optional fields */
-    (encodeJsonSignature)encodeJsonNotImplemented, /* Union */
-    (encodeJsonSignature)encodeJsonNotImplemented /* BitfieldCluster */
+    Boolean_encodeJson,
+    SByte_encodeJson, /* SByte */
+    Byte_encodeJson,
+    Int16_encodeJson, /* Int16 */
+    UInt16_encodeJson,
+    Int32_encodeJson, /* Int32 */
+    UInt32_encodeJson,
+    Int64_encodeJson, /* Int64 */
+    UInt64_encodeJson,
+    Float_encodeJson,
+    Double_encodeJson,
+    String_encodeJson,
+    DateTime_encodeJson, /* DateTime */
+    Guid_encodeJson,
+    ByteString_encodeJson, /* ByteString */
+    String_encodeJson, /* XmlElement */
+    NodeId_encodeJson,
+    ExpandedNodeId_encodeJson,
+    StatusCode_encodeJson, /* StatusCode */
+    QualifiedName_encodeJson, /* QualifiedName */
+    LocalizedText_encodeJson,
+    ExtensionObject_encodeJson,
+    DataValue_encodeJson,
+    Variant_encodeJson,
+    DiagnosticInfo_encodeJson,
+    encodeJsonNotImplemented, /* Decimal */
+    Int32_encodeJson, /* Enum */
+    encodeJsonStructure,
+    encodeJsonNotImplemented, /* Structure with optional fields */
+    encodeJsonNotImplemented, /* Union */
+    encodeJsonNotImplemented /* BitfieldCluster */
 };
 
 UA_StatusCode
