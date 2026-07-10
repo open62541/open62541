@@ -6,7 +6,8 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#include "ua_server_internal.h"
+#include "ua_gds_push.h"
+#include <open62541/plugin/nodestore.h>
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
@@ -47,21 +48,19 @@ getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
 static UA_StatusCode
 writeGDSNs0VariableArray(UA_Server *server, const UA_NodeId id, void *v,
                          size_t length, const UA_DataType *type) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setArray(&var, v, length, type);
-    return writeValueAttribute(server, id, &var);
+    return UA_Server_writeValue(server, id, var);
 }
 
 static UA_StatusCode
 writeGDSNs0Variable(UA_Server *server, const UA_NodeId id,
                     void *v, const UA_DataType *type) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, v, type);
-    return writeValueAttribute(server, id, &var);
+    return UA_Server_writeValue(server, id, var);
 }
 
 UA_StatusCode
@@ -433,33 +432,26 @@ openFileAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Get the type of the called object */
+    UA_NodeId typeId;
+    UA_StatusCode retval = UA_Server_getNodeType(server, *objectId, &typeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-    if(!objectType) {
-        UA_NODESTORE_RELEASE(server, object);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+    if(UA_NodeId_equal(&typeId, &trustListType)) {
+        UA_GDSManager *gdsm = gdsManager(server);
         retval = UA_GDSManager_openTrustList(gdsm, certGroup, sessionId,
                                              fileOpenMode, output);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
+        retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
 
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
+    UA_NodeId_clear(&typeId);
     return retval;
 }
 
@@ -484,36 +476,27 @@ readFileAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* Get object type */
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Get the type of the called object */
+    UA_NodeId typeId;
+    UA_StatusCode res = UA_Server_getNodeType(server, *objectId, &typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-    if(!objectType) {
-        UA_NODESTORE_RELEASE(server, object);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode res;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+    if(UA_NodeId_equal(&typeId, &trustListType)) {
         /* Method was called on a trustlist */
         UA_GDSManager *gdsm = gdsManager(server);
         res = UA_GDSManager_readTrustList(gdsm, certGroup, sessionId,
                                           fileHandle, length, output);
     } else {
-        res = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_ServerConfig *sc = UA_Server_getConfig(server);
+        res = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
 
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
+    UA_NodeId_clear(&typeId);
     return res;
 }
 
@@ -538,32 +521,25 @@ writeFileAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Get the type of the called object */
+    UA_NodeId typeId;
+    UA_StatusCode retval = UA_Server_getNodeType(server, *objectId, &typeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-    if(!objectType) {
-        UA_NODESTORE_RELEASE(server, object);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+    if(UA_NodeId_equal(&typeId, &trustListType)) {
+        UA_GDSManager *gdsm = gdsManager(server);
         retval = UA_GDSManager_writeTrustList(gdsm, certGroup, sessionId,
                                               fileHandle, data);
     } else {
+        retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
 
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
+    UA_NodeId_clear(&typeId);
     return retval;
 }
 
@@ -583,32 +559,25 @@ closeFileAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Get the type of the called object */
+    UA_NodeId typeId;
+    UA_StatusCode retval = UA_Server_getNodeType(server, *objectId, &typeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-    if(!objectType) {
-        UA_NODESTORE_RELEASE(server, object);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+    if(UA_NodeId_equal(&typeId, &trustListType)) {
+        UA_GDSManager *gdsm = gdsManager(server);
         retval = UA_GDSManager_closeTrustList(gdsm, certGroup, sessionId, fileHandle);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
+        retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
 
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
+    UA_NodeId_clear(&typeId);
     return retval;
 }
 
@@ -628,33 +597,26 @@ getPositionFileAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Get the type of the called object */
+    UA_NodeId typeId;
+    UA_StatusCode retval = UA_Server_getNodeType(server, *objectId, &typeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-    if(!objectType) {
-        UA_NODESTORE_RELEASE(server, object);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+    if(UA_NodeId_equal(&typeId, &trustListType)) {
+        UA_GDSManager *gdsm = gdsManager(server);
         retval = UA_GDSManager_getPositionTrustList(gdsm, certGroup, sessionId,
                                                     fileHandle, output);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
+        retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
 
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
+    UA_NodeId_clear(&typeId);
     return retval;
 }
 
@@ -677,40 +639,31 @@ setPositionFileAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    if(!object)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Get the type of the called object */
+    UA_NodeId typeId;
+    UA_StatusCode retval = UA_Server_getNodeType(server, *objectId, &typeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    const UA_Node *objectType =
-        getNodeType(server, &object->head, ~(UA_UInt32)0,
-                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
-    if(!objectType) {
-        UA_NODESTORE_RELEASE(server, objectType);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
-    if(UA_NodeId_equal(&objectType->head.nodeId, &trustListType)) {
+    if(UA_NodeId_equal(&typeId, &trustListType)) {
+        UA_GDSManager *gdsm = gdsManager(server);
         retval = UA_GDSManager_setPositionTrustList(gdsm, certGroup,
                                                     sessionId, fileHandle, position);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
+        retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "File type functions are currently only supported "
                      "for TrustList types");
     }
 
-    UA_NODESTORE_RELEASE(server, object);
-    UA_NODESTORE_RELEASE(server, objectType);
+    UA_NodeId_clear(&typeId);
     return retval;
 }
 
 UA_StatusCode
 initNS0PushManagement(UA_Server *server) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Create FileInfo */
@@ -720,30 +673,30 @@ initNS0PushManagement(UA_Server *server) {
     retval |= writeGroupVariables(server);
 
     /* Set method callbacks */
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_UPDATECERTIFICATE), updateCertificateAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CREATESIGNINGREQUEST), createSigningRequestAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_GETREJECTEDLIST), getRejectedListAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_APPLYCHANGES), applyChangesAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN), openFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN), openFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ), readFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ), readFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE), writeFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE), writeFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE), closeFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE), closeFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
-    retval |= setMethodNode_callback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_UPDATECERTIFICATE), updateCertificateAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CREATESIGNINGREQUEST), createSigningRequestAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_GETREJECTEDLIST), getRejectedListAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_APPLYCHANGES), applyChangesAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN), openFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN), openFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ), readFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ), readFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE), writeFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE), writeFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE), closeFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE), closeFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
+    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
     return retval;
 }
 

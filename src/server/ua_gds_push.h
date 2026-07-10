@@ -9,10 +9,11 @@
 #ifndef UA_GDS_PUSH_H_
 #define UA_GDS_PUSH_H_
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-
+#include <open62541/util.h>
 #include <open62541/types.h>
 #include <open62541/server.h>
+
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 #include "../../deps/open62541_queue.h"
 
 _UA_BEGIN_DECLS
