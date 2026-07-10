@@ -975,6 +975,9 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
 /* CalcSize */
 /************/
 
+/* _calcSizeBinary reuses the encoding code path. It sets the end position to
+ * SIZE_MAX to indicate that no bytes are ever written. We use 0x01 as the
+ * starting position to avoid UB warnings for adding to a NULL pointer. */
 size_t
 UA_calcSizeJson(const void *src, const UA_DataType *type,
                 const UA_EncodeJsonOptions *options) {
@@ -984,7 +987,7 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
-    ctx.pos = NULL;
+    ctx.pos = (UA_Byte*)0x01;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
     ctx.useReversible = true; /* default */
@@ -1004,7 +1007,7 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
     status ret = encodeJsonJumpTable[type->typeKind](&ctx, src, type);
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
-    return (size_t)ctx.pos;
+    return ((size_t)ctx.pos) - 1u;
 }
 
 /**********/
