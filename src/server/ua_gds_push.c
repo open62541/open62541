@@ -32,7 +32,7 @@ getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
 /* GDS Transaction  */
 /********************/
 
-UA_StatusCode
+static UA_StatusCode
 UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server,
                        const UA_NodeId sessionId) {
     if(!transaction || !server)
@@ -52,7 +52,9 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_CertificateGroup*
+/* Returns the appropriate CertificateGroup from the transaction.
+ * If the CertificateGroup does not exist in the transaction, it will be created. */
+static UA_CertificateGroup*
 UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
                                       const UA_CertificateGroup *certGroup) {
     if(!transaction || !certGroup)
@@ -102,7 +104,7 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     return &transaction->certGroups[transaction->certGroupSize-1];
 }
 
-UA_StatusCode
+static UA_StatusCode
 UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
                                      const UA_NodeId certificateGroupId,
                                      const UA_NodeId certificateTypeId,
@@ -156,7 +158,8 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
+static void
+UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
     if(!transaction)
         return;
 
@@ -185,11 +188,6 @@ void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
         transaction->certificateInfosSize = 0;
         transaction->certificateInfos = NULL;
     }
-}
-
-void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
-    UA_GDSTransaction_clear(transaction);
-    UA_free(transaction);
 }
 
 /********************/

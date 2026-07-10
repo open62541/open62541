@@ -51,30 +51,6 @@ typedef struct {
     UA_DelayedCallback dc;
 } UA_GDSTransaction;
 
-UA_StatusCode
-UA_GDSTransaction_init(UA_GDSTransaction *transaction,
-                       UA_Server *server,
-                       const UA_NodeId sessionId);
-
-/* Returns the appropriate CertificateGroup from the transaction.
- * If the CertificateGroup does not exist in the transaction, it will be created. */
-UA_CertificateGroup*
-UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
-                                      const UA_CertificateGroup *certGroup);
-
-UA_StatusCode
-UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
-                                     const UA_NodeId certificateGroupId,
-                                     const UA_NodeId certificateTypeId,
-                                     const UA_ByteString *certificate,
-                                     const UA_ByteString *privateKey);
-
-void
-UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
-
-void
-UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
-
 typedef enum UA_GDSTransactionChanges {
     UA_GDSTRANSACTIONCHANGES_NOTHING = 0,
     UA_GDSTRANSACTIONCHANGES_TRUSTLIST,
