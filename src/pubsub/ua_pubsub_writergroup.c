@@ -30,8 +30,8 @@ static UA_StatusCode
 generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *messageSettings,
-                       UA_ExtensionObject *transportSettings,
-                       UA_NetworkMessage *networkMessage);
+                        UA_ExtensionObject *transportSettings,
+                         UA_NetworkMessage *networkMessage);
 
 static void
 UA_WriterGroup_disconnect(UA_WriterGroup *wg);
@@ -193,7 +193,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     res = addWriterGroupRepresentation(psm->sc.server, wg);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_WriterGroup_remove(psm, wg);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
         return res;
     }
 #else
@@ -211,7 +212,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Could not validate the connection parameters");
-        UA_WriterGroup_remove(psm, wg);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
         return res;
     }
 
@@ -221,7 +223,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         res = writerGroupAttachSKSKeystorage(psm, wg);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
-            UA_WriterGroup_remove(psm, wg);
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
             return res;
         }
     }
@@ -235,7 +238,10 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
             componentLifecycleCallback(server, wg->head.identifier,
                                        UA_PUBSUBCOMPONENT_WRITERGROUP, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_WriterGroup_remove(psm, wg);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the group). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
             return res;
         }
     }
