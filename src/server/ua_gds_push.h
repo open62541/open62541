@@ -152,22 +152,26 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group);
 UA_FileInfo *
 UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_Byte fileOpenMode,
                             UA_Variant *output);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_getPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_Variant *output);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
                              UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId,
                              UA_UInt32 fileHandle);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_closeAndUpdateTrustList(UA_GDSManager *gdsm,
                                       UA_CertificateGroup *certGroup,
@@ -175,16 +179,19 @@ UA_GDSManager_closeAndUpdateTrustList(UA_GDSManager *gdsm,
                                       UA_UInt32 fileHandle,
                                       UA_Variant *output);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                              const UA_ByteString data);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
@@ -194,6 +201,7 @@ UA_StatusCode
 UA_GDSManager_getRejectedList(UA_GDSManager *gdsm, size_t outputSize,
                               UA_Variant *output);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
@@ -211,12 +219,14 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
                                 const UA_String *privateKeyFormat,
                                 const UA_ByteString *privateKey);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
                              UA_CertificateGroup *certGroup,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate);
 
+/* certGroup must be non-NULL. */
 UA_StatusCode
 UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
                                 UA_CertificateGroup *certGroup,
