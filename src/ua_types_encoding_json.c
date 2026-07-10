@@ -39,16 +39,14 @@
 /************/
 
 static status
-encodeJsonStructureContent(CtxJson *ctx, const void *src, const UA_DataType *type);
+encodeJsonStructureContent(CtxJson *ctx, const void *src,
+                           const UA_DataType *type);
 
 static status
 decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type);
 
 #define ENCODE_JSON(TYPE) static status \
     TYPE##_encodeJson(CtxJson *ctx, const void *p, const UA_DataType *type)
-
-#define ENCODE_DIRECT_JSON(SRC, TYPE) \
-    TYPE##_encodeJson(ctx, (const UA_##TYPE*)SRC, NULL)
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChar(CtxJson *ctx, char c) {
@@ -70,7 +68,7 @@ writeChars(CtxJson *ctx, const char *c, size_t len) {
     return UA_STATUSCODE_GOOD;
 }
 
-#define WRITE_JSON_ELEMENT(ELEM)                            \
+#define WRITE_JSON_ELEMENT(ELEM)                                     \
     UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT status                  \
     writeJson##ELEM(CtxJson *ctx)
 
@@ -99,7 +97,7 @@ writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
 }
 
 WRITE_JSON_ELEMENT(ObjStart) {
-    /* increase depth, save: before first key-value no comma needed. */
+    /* Increase depth, save: before first key-value no comma needed. */
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
@@ -125,7 +123,7 @@ WRITE_JSON_ELEMENT(ObjEnd) {
 }
 
 WRITE_JSON_ELEMENT(ArrStart) {
-    /* increase depth, save: before first array entry no comma needed. */
+    /* Increase depth, save: before first array entry no comma needed. */
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
@@ -168,8 +166,6 @@ writeJsonObjElm(CtxJson *ctx, const char *key,
     status ret = writeJsonKey(ctx, key);
     return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
-
-/* Keys for JSON */
 
 /* LocalizedText */
 static const char* UA_JSONKEY_LOCALE = "Locale";
@@ -223,7 +219,8 @@ writeJsonKey(CtxJson *ctx, const char* key) {
 
 static bool
 isNull(const void *p, const UA_DataType *type) {
-    if(UA_DataType_isNumeric(type) || type->typeKind == UA_DATATYPEKIND_BOOLEAN)
+    if(UA_DataType_isNumeric(type) ||
+       type->typeKind == UA_DATATYPEKIND_BOOLEAN)
         return false;
     UA_STACKARRAY(char, buf, type->memSize);
     memset(buf, 0, type->memSize);
@@ -269,10 +266,8 @@ ENCODE_JSON(UInt16) {
     const UA_UInt16 *src = (const UA_UInt16*)p;
     char buf[6];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
-
     if(ctx->pos + digits > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, digits);
     ctx->pos += digits;
@@ -283,10 +278,8 @@ ENCODE_JSON(Int16) {
     const UA_Int16 *src = (const UA_Int16*)p;
     char buf[7];
     UA_UInt16 digits = itoaSigned(*src, buf);
-
     if(ctx->pos + digits > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, digits);
     ctx->pos += digits;
@@ -297,10 +290,8 @@ ENCODE_JSON(UInt32) {
     const UA_UInt32 *src = (const UA_UInt32*)p;
     char buf[11];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
-
     if(ctx->pos + digits > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, digits);
     ctx->pos += digits;
@@ -311,10 +302,8 @@ ENCODE_JSON(Int32) {
     const UA_Int32 *src = (const UA_Int32*)p;
     char buf[12];
     UA_UInt16 digits = itoaSigned(*src, buf);
-
     if(ctx->pos + digits > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, digits);
     ctx->pos += digits;
@@ -328,10 +317,8 @@ ENCODE_JSON(UInt64) {
     UA_UInt16 digits = itoaUnsigned(*src, buf + 1, 10);
     buf[digits + 1] = '\"';
     UA_UInt16 length = (UA_UInt16)(digits + 2);
-
     if(ctx->pos + length > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, length);
     ctx->pos += length;
@@ -345,10 +332,8 @@ ENCODE_JSON(Int64) {
     UA_UInt16 digits = itoaSigned(*src, buf + 1);
     buf[digits + 1] = '\"';
     UA_UInt16 length = (UA_UInt16)(digits + 2);
-
     if(ctx->pos + length > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, length);
     ctx->pos += length;
@@ -365,12 +350,9 @@ ENCODE_JSON(Float) {
         return writeChars(ctx, "\"Infinity\"", 10);
     if(*src == -INFINITY)
         return writeChars(ctx, "\"-Infinity\"", 11);
-
     len = dtoa((UA_Double)*src, buffer);
-
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buffer, len);
     ctx->pos += len;
@@ -387,12 +369,9 @@ ENCODE_JSON(Double) {
         return writeChars(ctx, "\"Infinity\"", 10);
     if(*src == -INFINITY)
         return writeChars(ctx, "\"-Infinity\"", 11);
-
     len = dtoa(*src, buffer);
-
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buffer, len);
     ctx->pos += len;
@@ -553,14 +532,15 @@ ENCODE_JSON(DateTime) {
     UA_Byte buffer[40];
     UA_String str = {40, buffer};
     encodeDateTime(*src, &str);
-    return ENCODE_DIRECT_JSON(&str, String);
+    return String_encodeJson(ctx, &str, NULL);
 }
 
 ENCODE_JSON(NodeId) {
     const UA_NodeId *src = (const UA_NodeId*)p;
     UA_String out = UA_STRING_NULL;
-    UA_StatusCode ret = UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
-    ret |= ENCODE_DIRECT_JSON(&out, String);
+    UA_StatusCode ret =
+        UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
+    ret |= String_encodeJson(ctx, &out, NULL);
     UA_String_clear(&out);
     return ret;
 }
@@ -568,9 +548,10 @@ ENCODE_JSON(NodeId) {
 ENCODE_JSON(ExpandedNodeId) {
     const UA_ExpandedNodeId *src = (const UA_ExpandedNodeId*)p;
     UA_String out = UA_STRING_NULL;
-    UA_StatusCode ret = UA_ExpandedNodeId_printEx(src, &out, ctx->namespaceMapping,
-                                                  ctx->serverUrisSize, ctx->serverUris);
-    ret |= ENCODE_DIRECT_JSON(&out, String);
+    UA_StatusCode ret =
+        UA_ExpandedNodeId_printEx(src, &out, ctx->namespaceMapping,
+                                  ctx->serverUrisSize, ctx->serverUris);
+    ret |= String_encodeJson(ctx, &out, NULL);
     UA_String_clear(&out);
     return ret;
 }
@@ -579,17 +560,18 @@ ENCODE_JSON(LocalizedText) {
     const UA_LocalizedText *src = (const UA_LocalizedText*)p;
     status ret = writeJsonObjStart(ctx);
     ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
-    ret |= ENCODE_DIRECT_JSON(&src->locale, String);
+    ret |= String_encodeJson(ctx, &src->locale, NULL);
     ret |= writeJsonKey(ctx, UA_JSONKEY_TEXT);
-    ret |= ENCODE_DIRECT_JSON(&src->text, String);
+    ret |= String_encodeJson(ctx, &src->text, NULL);
     return ret | writeJsonObjEnd(ctx);
 }
 
 ENCODE_JSON(QualifiedName) {
     const UA_QualifiedName *src = (const UA_QualifiedName*)p;
     UA_String out = UA_STRING_NULL;
-    UA_StatusCode ret = UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
-    ret |= ENCODE_DIRECT_JSON(&out, String);
+    UA_StatusCode ret =
+        UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
+    ret |= String_encodeJson(ctx, &out, NULL);
     UA_String_clear(&out);
     return ret;
 }
@@ -598,15 +580,14 @@ ENCODE_JSON(StatusCode) {
     const UA_StatusCode *src = (const UA_StatusCode*)p;
     const char *codename = UA_StatusCode_name(*src);
     UA_String statusDescription = UA_STRING((char*)(uintptr_t)codename);
-
     status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
     if(*src > UA_STATUSCODE_GOOD) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_CODE);
-        ret |= ENCODE_DIRECT_JSON(src, UInt32);
+        ret |= UInt32_encodeJson(ctx, src, NULL);
         if(codename) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOL);
-            ret |= ENCODE_DIRECT_JSON(&statusDescription, String);
+            ret |= String_encodeJson(ctx, &statusDescription, NULL);
         }
     }
     ret |= writeJsonObjEnd(ctx);
@@ -630,9 +611,9 @@ ENCODE_JSON(ExtensionObject) {
     ret |= writeJsonKey(ctx, UA_JSONKEY_TYPEID);
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
        src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML)
-        ret |= ENCODE_DIRECT_JSON(&src->content.encoded.typeId, NodeId);
+        ret |= NodeId_encodeJson(ctx, &src->content.encoded.typeId, NULL);
     else
-        ret |= ENCODE_DIRECT_JSON(&src->content.decoded.type->typeId, NodeId);
+        ret |= NodeId_encodeJson(ctx, &src->content.decoded.type->typeId, NULL);
 
     /* Write the encoding type and body if encoded */
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
@@ -645,7 +626,7 @@ ENCODE_JSON(ExtensionObject) {
             ret |= writeChar(ctx, '2');
         }
         ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= ENCODE_DIRECT_JSON(&src->content.encoded.body, String);
+        ret |= String_encodeJson(ctx, &src->content.encoded.body, NULL);
         return ret | writeJsonObjEnd(ctx);
     }
 
@@ -667,7 +648,8 @@ ENCODE_JSON(ExtensionObject) {
 /* Non-builtin types get wrapped in an ExtensionObject */
 static status
 encodeScalarJsonWrapExtensionObject(CtxJson *ctx, const UA_Variant *src) {
-    const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    const UA_Boolean isBuiltin =
+        (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
     const void *ptr = src->data;
     const UA_DataType *type = src->type;
 
@@ -695,7 +677,8 @@ encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
     status ret = writeJsonArrStart(ctx);
 
     u16 memSize = type->memSize;
-    const UA_Boolean isBuiltin = (type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    const UA_Boolean isBuiltin =
+        (type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
     if(isBuiltin) {
         uintptr_t ptr = (uintptr_t)data;
         for(size_t i = 0; i < size && ret == UA_STATUSCODE_GOOD; ++i) {
@@ -744,7 +727,7 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
     if(wrapEO)
         typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeKind + 1;
     ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-    ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+    ret |= UInt32_encodeJson(ctx, &typeId, NULL);
 
     /* Write the value */
     ret |= writeJsonKey(ctx, UA_JSONKEY_VALUE);
@@ -786,27 +769,27 @@ ENCODE_JSON(DataValue) {
 
     if(hasStatus) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_STATUS);
-        ret |= ENCODE_DIRECT_JSON(&src->status, StatusCode);
+        ret |= StatusCode_encodeJson(ctx, &src->status, NULL);
     }
 
     if(hasSourceTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCETIMESTAMP);
-        ret |= ENCODE_DIRECT_JSON(&src->sourceTimestamp, DateTime);
+        ret |= DateTime_encodeJson(ctx, &src->sourceTimestamp, NULL);
     }
 
     if(hasSourcePicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCEPICOSECONDS);
-        ret |= ENCODE_DIRECT_JSON(&src->sourcePicoseconds, UInt16);
+        ret |= UInt16_encodeJson(ctx, &src->sourcePicoseconds, NULL);
     }
 
     if(hasServerTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERTIMESTAMP);
-        ret |= ENCODE_DIRECT_JSON(&src->serverTimestamp, DateTime);
+        ret |= DateTime_encodeJson(ctx, &src->serverTimestamp, NULL);
     }
 
     if(hasServerPicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERPICOSECONDS);
-        ret |= ENCODE_DIRECT_JSON(&src->serverPicoseconds, UInt16);
+        ret |= UInt16_encodeJson(ctx, &src->serverPicoseconds, NULL);
     }
 
     return ret | writeJsonObjEnd(ctx);
@@ -818,45 +801,45 @@ ENCODE_JSON(DiagnosticInfo) {
 
     if(src->hasSymbolicId) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOLICID);
-        ret |= ENCODE_DIRECT_JSON(&src->symbolicId, Int32);
+        ret |= Int32_encodeJson(ctx, &src->symbolicId, NULL);
     }
 
     if(src->hasNamespaceUri) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACEURI);
-        ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, Int32);
+        ret |= Int32_encodeJson(ctx, &src->namespaceUri, NULL);
     }
 
     if(src->hasLocalizedText) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALIZEDTEXT);
-        ret |= ENCODE_DIRECT_JSON(&src->localizedText, Int32);
+        ret |= Int32_encodeJson(ctx, &src->localizedText, NULL);
     }
 
     if(src->hasLocale) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
-        ret |= ENCODE_DIRECT_JSON(&src->locale, Int32);
+        ret |= Int32_encodeJson(ctx, &src->locale, NULL);
     }
 
     if(src->hasAdditionalInfo) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_ADDITIONALINFO);
-        ret |= ENCODE_DIRECT_JSON(&src->additionalInfo, String);
+        ret |= String_encodeJson(ctx, &src->additionalInfo, NULL);
     }
 
     if(src->hasInnerStatusCode) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERSTATUSCODE);
-        ret |= ENCODE_DIRECT_JSON(&src->innerStatusCode, StatusCode);
+        ret |= StatusCode_encodeJson(ctx, &src->innerStatusCode, NULL);
     }
 
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERDIAGNOSTICINFO);
-        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_DIAGNOSTICINFO]
-            (ctx, src->innerDiagnosticInfo, NULL);
+        ret |= DiagnosticInfo_encodeJson(ctx, src->innerDiagnosticInfo, NULL);
     }
 
     return ret | writeJsonObjEnd(ctx);
 }
 
 static status
-encodeJsonStructureContent(CtxJson *ctx, const void *src, const UA_DataType *type) {
+encodeJsonStructureContent(CtxJson *ctx, const void *src,
+                           const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t) src;
     u8 membersSize = type->membersSize;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
@@ -928,7 +911,8 @@ const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
 };
 
 UA_StatusCode
-UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
+UA_encodeJson(const void *src, const UA_DataType *type,
+              UA_ByteString *outBuf,
               const UA_EncodeJsonOptions *options) {
     if(!src || !type)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1084,7 +1068,8 @@ static status
 Array_decodeJson(ParseCtx *ctx, void **dst, const UA_DataType *type);
 
 static status
-Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p, const UA_DataType *type);
+Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p,
+                                        const UA_DataType *type);
 
 static UA_SByte
 jsoneq(const char *json, const cj5_token *tok, const char *searchKey) {
@@ -1164,7 +1149,6 @@ DECODE_JSON(Byte) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
-
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
     if(s != UA_STATUSCODE_GOOD || out > UA_BYTE_MAX)
@@ -1179,7 +1163,6 @@ DECODE_JSON(UInt16) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
-
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT16_MAX)
@@ -1194,7 +1177,6 @@ DECODE_JSON(UInt32) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
-
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
@@ -1208,7 +1190,6 @@ DECODE_JSON(UInt64) {
     UA_UInt64 *dst = (UA_UInt64*)p;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
-
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, dst);
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1221,7 +1202,6 @@ DECODE_JSON(SByte) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
-
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
     if(s != UA_STATUSCODE_GOOD || out < UA_SBYTE_MIN || out > UA_SBYTE_MAX)
@@ -1236,7 +1216,6 @@ DECODE_JSON(Int16) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
-
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
     if(s != UA_STATUSCODE_GOOD || out < UA_INT16_MIN || out > UA_INT16_MAX)
@@ -1251,7 +1230,6 @@ DECODE_JSON(Int32) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NUMBER;
     GET_TOKEN;
-
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
     if(s != UA_STATUSCODE_GOOD || out < UA_INT32_MIN || out > UA_INT32_MAX)
@@ -1265,7 +1243,6 @@ DECODE_JSON(Int64) {
     UA_Int64 *dst = (UA_Int64*)p;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
-
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, dst);
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1347,8 +1324,6 @@ DECODE_JSON(Guid) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
-
-    /* Use the existing parsing routine if available */
     UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
     ctx->index++;
     return UA_Guid_parse(dst, str);
@@ -1893,7 +1868,8 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
         /* Decode array dimensions */
         if(dimIndex > 0) {
             ctx->index = dimIndex;
-            res |= Array_decodeJson(ctx, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+            res |= Array_decodeJson(ctx, (void**)&dst->arrayDimensions,
+                                    &UA_TYPES[UA_TYPES_UINT32]);
 
             /* Help clang-analyzer */
             UA_assert(dst->arrayDimensionsSize == 0 || dst->arrayDimensions);
@@ -1947,10 +1923,14 @@ DECODE_JSON(DataValue) {
         {UA_JSONKEY_VALUE, NULL, NULL, false, NULL},
         {UA_JSONKEY_DIMENSIONS, NULL, NULL, false, NULL},
         {UA_JSONKEY_STATUS, &dst->status, NULL, false, &UA_TYPES[UA_TYPES_STATUSCODE]},
-        {UA_JSONKEY_SOURCETIMESTAMP, &dst->sourceTimestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
-        {UA_JSONKEY_SOURCEPICOSECONDS, &dst->sourcePicoseconds, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
-        {UA_JSONKEY_SERVERTIMESTAMP, &dst->serverTimestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
-        {UA_JSONKEY_SERVERPICOSECONDS, &dst->serverPicoseconds, NULL, false, &UA_TYPES[UA_TYPES_UINT16]}
+        {UA_JSONKEY_SOURCETIMESTAMP, &dst->sourceTimestamp, NULL,
+         false, &UA_TYPES[UA_TYPES_DATETIME]},
+        {UA_JSONKEY_SOURCEPICOSECONDS, &dst->sourcePicoseconds, NULL,
+         false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_JSONKEY_SERVERTIMESTAMP, &dst->serverTimestamp, NULL,
+         false, &UA_TYPES[UA_TYPES_DATETIME]},
+        {UA_JSONKEY_SERVERPICOSECONDS, &dst->serverPicoseconds, NULL,
+         false, &UA_TYPES[UA_TYPES_UINT16]}
     };
 
     ret = decodeFields(ctx, entries, 8);
@@ -2051,7 +2031,9 @@ DECODE_JSON(ExtensionObject) {
     status ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
     if(ret == UA_STATUSCODE_GOOD) {
         const char *extObjEncoding = &ctx->json5[ctx->tokens[encIndex].start];
-        size_t len = parseUInt64(extObjEncoding, getTokenLength(&ctx->tokens[encIndex]), &encoding);
+        size_t len = parseUInt64(extObjEncoding,
+                                 getTokenLength(&ctx->tokens[encIndex]),
+                                 &encoding);
         if(len == 0 || encoding > 2)
             return UA_STATUSCODE_BADDECODINGERROR;
     }
@@ -2102,10 +2084,15 @@ DECODE_JSON(ExtensionObject) {
             /* Remove the UaEncoding and UaTypeId field from the encoding.
              * Remove the later field first. */
             if(encIndex != 0 && encIndex > typeIdIndex)
-                removeFieldFromEncoding(ctx, &dst->content.encoded.body, parentIndex, encIndex);
-            removeFieldFromEncoding(ctx, &dst->content.encoded.body, parentIndex, typeIdIndex);
+                removeFieldFromEncoding(ctx, &dst->content.encoded.body,
+                                        parentIndex, encIndex);
+
+            removeFieldFromEncoding(ctx, &dst->content.encoded.body,
+                                    parentIndex, typeIdIndex);
+
             if(encIndex != 0 && encIndex < typeIdIndex)
-                removeFieldFromEncoding(ctx, &dst->content.encoded.body, parentIndex, encIndex);
+                removeFieldFromEncoding(ctx, &dst->content.encoded.body,
+                                        parentIndex, encIndex);
 
             return UA_STATUSCODE_GOOD;
         }
@@ -2138,21 +2125,23 @@ DECODE_JSON(ExtensionObject) {
     dst->encoding = UA_EXTENSIONOBJECT_DECODED;
 
     /* Get the body field index */
+    decodeJsonSignature decodeType = decodeJsonJumpTable[type->typeKind];
     size_t bodyIndex = ctx->index;
     ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &bodyIndex); /* Can fail */
     if(ret == UA_STATUSCODE_GOOD) {
         ctx->index = bodyIndex;
-        ret = decodeJsonJumpTable[type->typeKind](ctx, dst->content.decoded.data, type);
+        ret = decodeType(ctx, dst->content.decoded.data, type);
         ctx->index = beginIndex;
         skipObject(ctx);
         return ret;
     }
 
-    return decodeJsonJumpTable[type->typeKind](ctx, dst->content.decoded.data, type);
+    return decodeType(ctx, dst->content.decoded.data, type);
 }
 
 static status
-Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p, const UA_DataType *type) {
+Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p,
+                                        const UA_DataType *type) {
     (void) type;
     UA_Variant *dst = (UA_Variant*)p;
 
@@ -2211,13 +2200,20 @@ DECODE_JSON(DiagnosticInfo) {
     CHECK_OBJECT;
 
     DecodeEntry entries[7] = {
-        {UA_JSONKEY_SYMBOLICID, &dst->symbolicId, NULL, false, &UA_TYPES[UA_TYPES_INT32]},
-        {UA_JSONKEY_NAMESPACEURI, &dst->namespaceUri, NULL, false, &UA_TYPES[UA_TYPES_INT32]},
-        {UA_JSONKEY_LOCALIZEDTEXT, &dst->localizedText, NULL, false, &UA_TYPES[UA_TYPES_INT32]},
-        {UA_JSONKEY_LOCALE, &dst->locale, NULL, false, &UA_TYPES[UA_TYPES_INT32]},
-        {UA_JSONKEY_ADDITIONALINFO, &dst->additionalInfo, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
-        {UA_JSONKEY_INNERSTATUSCODE, &dst->innerStatusCode, NULL, false, &UA_TYPES[UA_TYPES_STATUSCODE]},
-        {UA_JSONKEY_INNERDIAGNOSTICINFO, &dst->innerDiagnosticInfo, DiagnosticInfoInner_decodeJson, false, NULL}
+        {UA_JSONKEY_SYMBOLICID, &dst->symbolicId, NULL,
+         false, &UA_TYPES[UA_TYPES_INT32]},
+        {UA_JSONKEY_NAMESPACEURI, &dst->namespaceUri, NULL,
+         false, &UA_TYPES[UA_TYPES_INT32]},
+        {UA_JSONKEY_LOCALIZEDTEXT, &dst->localizedText, NULL,
+         false, &UA_TYPES[UA_TYPES_INT32]},
+        {UA_JSONKEY_LOCALE, &dst->locale, NULL,
+         false, &UA_TYPES[UA_TYPES_INT32]},
+        {UA_JSONKEY_ADDITIONALINFO, &dst->additionalInfo, NULL,
+         false, &UA_TYPES[UA_TYPES_STRING]},
+        {UA_JSONKEY_INNERSTATUSCODE, &dst->innerStatusCode, NULL,
+         false, &UA_TYPES[UA_TYPES_STATUSCODE]},
+        {UA_JSONKEY_INNERDIAGNOSTICINFO, &dst->innerDiagnosticInfo,
+         DiagnosticInfoInner_decodeJson, false, NULL}
     };
     status ret = decodeFields(ctx, entries, 7);
 
@@ -2352,19 +2348,22 @@ Array_decodeJson(ParseCtx *ctx, void **dst, const UA_DataType *type) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Decode array members */
+    decodeJsonSignature decodeFunc = decodeJsonJumpTable[type->typeKind];
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; ++i) {
-        if(ctx->tokens[ctx->index].type != CJ5_TOKEN_NULL) {
-            status ret = decodeJsonJumpTable[type->typeKind](ctx, (void*)ptr, type);
-            if(ret != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(*dst, i+1, type);
-                *dst = NULL;
-                return ret;
-            }
-        } else {
+        if(ctx->tokens[ctx->index].type == CJ5_TOKEN_NULL) {
+            ptr += type->memSize;
             ctx->index++;
+            continue;
         }
+
+        status ret = decodeFunc(ctx, (void*)ptr, type);
         ptr += type->memSize;
+        if(ret != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(*dst, i+1, type);
+            *dst = NULL;
+            return ret;
+        }
     }
 
     *size_ptr = length; /* All good, set the size */
