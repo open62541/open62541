@@ -759,7 +759,11 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
 }
 
 ENCODE_JSON(Variant) {
-    return writeJsonObjStart(ctx) | encodeVariantInner(ctx, src) | writeJsonObjEnd(ctx);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= writeJsonObjStart(ctx);
+    res |= encodeVariantInner(ctx, src);
+    res |= writeJsonObjEnd(ctx);
+    return res;
 }
 
 /* DataValue */
@@ -876,7 +880,11 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src, const UA_DataType *typ
 
 static status
 encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
-    return writeJsonObjStart(ctx) | encodeJsonStructureContent(ctx, src, type) | writeJsonObjEnd(ctx);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= writeJsonObjStart(ctx);
+    res |= encodeJsonStructureContent(ctx, src, type);
+    res |= writeJsonObjEnd(ctx);
+    return res;
 }
 
 static status
