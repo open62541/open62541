@@ -292,6 +292,7 @@ UA_StatusCode
 UA_GDSManager_getPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_Variant *output) {
+    UA_assert(certGroup != NULL);
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
@@ -309,6 +310,7 @@ UA_StatusCode
 UA_GDSManager_setPositionTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position) {
+    UA_assert(certGroup != NULL);
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
     if(!fileInfo)
@@ -331,6 +333,7 @@ UA_StatusCode
 UA_GDSManager_writeTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                              const UA_ByteString data) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -365,6 +368,7 @@ UA_GDSManager_closeAndUpdateTrustList(UA_GDSManager *gdsm,
                                       const UA_NodeId *sessionId,
                                       UA_UInt32 fileHandle,
                                       UA_Variant *output) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
@@ -422,6 +426,7 @@ UA_GDSManager_closeTrustList(UA_GDSManager *gdsm,
                              UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId,
                              UA_UInt32 fileHandle) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
@@ -456,6 +461,8 @@ UA_StatusCode
 UA_GDSManager_readTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                             UA_Int32 length, UA_Variant *output) {
+    UA_assert(certGroup != NULL);
+
     /* UA_GDSManager *gdsm = gdsManager(server); */
     UA_FileInfo *fileInfo =
         UA_GDSManager_getFileInfo(gdsm, certGroup->certificateGroupId);
@@ -493,6 +500,7 @@ UA_GDSManager_addCertificate(UA_GDSManager *gdsm,
                              UA_CertificateGroup *certGroup,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -593,6 +601,7 @@ UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
                                 const UA_NodeId *sessionId,
                                 const UA_String *thumbprint,
                                 const UA_Boolean *isTrustedCertificate) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
@@ -785,6 +794,7 @@ UA_StatusCode
 UA_GDSManager_openTrustListWithMask(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
                                     UA_Variant *output) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
 
     if(gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
@@ -853,6 +863,7 @@ UA_StatusCode
 UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_Byte fileOpenMode,
                             UA_Variant *output) {
+    UA_assert(certGroup != NULL);
     UA_Server *server = gdsm->drv.server;
 
     UA_GDSTransaction *transaction = &gdsm->transaction;
