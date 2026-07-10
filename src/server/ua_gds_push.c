@@ -120,19 +120,15 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
     /* Check if an entry with certificateGroupId and certificateTypeId already exists */
     for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
         UA_GDSCertificateInfo *certInfo = &transaction->certificateInfos[i];
-
         if(!UA_NodeId_equal(&certInfo->certificateGroup, &certificateGroupId) ||
            !UA_NodeId_equal(&certInfo->certificateType, &certificateTypeId))
             continue;
 
         UA_ByteString_clear(&certInfo->certificate);
         UA_ByteString_clear(&certInfo->privateKey);
-
         UA_ByteString_copy(certificate, &certInfo->certificate);
-        certInfo->privateKey = UA_BYTESTRING_NULL;
         if(privateKey)
             UA_ByteString_copy(privateKey, &certInfo->privateKey);
-
         return UA_STATUSCODE_GOOD;
     }
 
