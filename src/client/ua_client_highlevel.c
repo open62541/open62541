@@ -56,7 +56,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
 
 UA_StatusCode
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
-                               UA_NodeIteratorCallback callback, void *handle) {
+                               UA_ClientNodeIteratorCallback callback, void *handle) {
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init(&bReq);
     bReq.requestedMaxReferencesPerNode = 0;

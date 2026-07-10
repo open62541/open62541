@@ -625,19 +625,17 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                                      size_t browsePathSize,
                                      const UA_QualifiedName *browsePath);
 
-#ifndef HAVE_NODEITER_CALLBACK
-#define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
  * function for each child node (in ifdef because GCC/CLANG handle include order
  * differently) */
 typedef UA_StatusCode
-(*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+(*UA_ServerNodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
                            UA_NodeId referenceTypeId, void *handle);
-#endif
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
-                               UA_NodeIteratorCallback callback, void *handle);
+                               UA_ServerNodeIteratorCallback callback,
+                               void *handle);
 
 /**
  * .. _local-monitoreditems:
