@@ -190,6 +190,73 @@ getNodeType(UA_Server *server, const UA_NodeHead *head,
     return NULL;
 }
 
+struct CopyTypeContext {
+    UA_NodeId *out;
+    UA_StatusCode res;
+};
+
+static void *
+copyFirstType(void *context, UA_ReferenceTarget *t) {
+    struct CopyTypeContext *ctx = (struct CopyTypeContext*)context;
+    UA_NodeId id = UA_NodePointer_toNodeId(t->targetId);
+    ctx->res = UA_NodeId_copy(&id, ctx->out);
+    return (void*)0x01; /* stop early */
+}
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeType(UA_Server *server, const UA_NodeId nodeId,
+                      UA_NodeId *outTypeId) {
+    lockServer(server);
+
+    UA_ReferenceTypeSet refs;
+    UA_ReferenceTypeSet_init(&refs);
+    UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+    UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
+
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &nodeId,
+                                          UA_NODEATTRIBUTESMASK_NONE, refs,
+                                          UA_BROWSEDIRECTION_BOTH);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    UA_Byte parentRefIndex;
+    UA_Boolean inverse;
+    switch(node->head.nodeClass) {
+    default:
+        parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
+        inverse = false;
+        break;
+    case UA_NODECLASS_OBJECTTYPE:
+    case UA_NODECLASS_VARIABLETYPE:
+    case UA_NODECLASS_REFERENCETYPE:
+    case UA_NODECLASS_DATATYPE:
+        parentRefIndex = UA_REFERENCETYPEINDEX_HASSUBTYPE;
+        inverse = true;
+        break;
+    }
+
+    /* Return the first matching candidate */
+    struct CopyTypeContext ctx;
+    ctx.out = outTypeId;
+    ctx.res = UA_STATUSCODE_BADNOTFOUND;
+    for(size_t i = 0; i < node->head.referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &node->head.references[i];
+        if(rk->isInverse != inverse)
+            continue;
+        if(rk->referenceTypeIndex != parentRefIndex)
+            continue;
+        UA_NodeReferenceKind_iterate(rk, copyFirstType, &ctx);
+        break;
+    }
+
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return ctx.res;
+}
+
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head) {
     for(size_t i = 0; i < head->referencesSize; ++i) {

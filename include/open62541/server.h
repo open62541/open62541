@@ -625,6 +625,12 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                                      size_t browsePathSize,
                                      const UA_QualifiedName *browsePath);
 
+/* Returns the target of a "HasTypeDefinition" reference (or inverse
+ * "HasSubtype" reference for type nodes) */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeType(UA_Server *server, const UA_NodeId nodeId,
+                      UA_NodeId *outTypeId);
+
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
  * function for each child node (in ifdef because GCC/CLANG handle include order
  * differently) */
