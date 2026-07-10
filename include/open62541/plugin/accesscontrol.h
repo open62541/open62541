@@ -113,6 +113,22 @@ struct UA_AccessControl {
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeId, void *nodeContext);
 
+    /* Allow reading of RolePermissions attribute */
+    UA_Boolean (*allowReadRolePermissions)(UA_Server *server,  UA_AccessControl *ac,
+                                           const UA_NodeId *sessionId, void *sessionContext,
+                                           const UA_NodeId *nodeId, void *nodeContext);
+
+    /* Fetch the configured / mapped role permissions on the given node */
+    UA_StatusCode (*readRolePermissions)(UA_Server *server,  UA_AccessControl *ac,
+                                         const UA_NodeId *nodeId, void *nodeContext,
+                                         size_t *entriesSize, UA_RolePermissionType **entries);
+
+    /* Fetch the role permissions the user has on the given node */
+    UA_StatusCode (*readUserRolePermissions)(UA_Server *server,  UA_AccessControl *ac,
+                                             const UA_NodeId *sessionId, void *sessionContext,
+                                             const UA_NodeId *nodeId, void *nodeContext,
+                                             size_t *entriesSize, UA_RolePermissionType **entries);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Allow creating a subscription */
     UA_Boolean (*allowCreateSubscription)(UA_Server *server, UA_AccessControl *ac,
