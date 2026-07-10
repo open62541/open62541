@@ -142,6 +142,24 @@ struct UA_AccessControl {
                                                       UA_DateTime endTimestamp,
                                                       bool isDeleteModified);
 #endif
+
+#ifndef UA_ENABLE_RBAC
+    /* Allow reading of RolePermissions attribute */
+    UA_Boolean (*allowReadRolePermissions)(UA_Server *server,  UA_AccessControl *ac,
+                                           const UA_NodeId *sessionId, void *sessionContext,
+                                           const UA_NodeId *nodeId, void *nodeContext);
+
+    /* Fetch the configured / mapped role permissions on the given node */
+    UA_StatusCode (*readRolePermissions)(UA_Server *server,  UA_AccessControl *ac,
+                                         const UA_NodeId *nodeId, void *nodeContext,
+                                         UA_RolePermissionType **entries, size_t *entriesSize);
+
+    /* Fetch the role permissions the user has on the given node */
+    UA_StatusCode (*readUserRolePermissions)(UA_Server *server,  UA_AccessControl *ac,
+                                             const UA_NodeId *sessionId, void *sessionContext,
+                                             const UA_NodeId *nodeId, void *nodeContext,
+                                             UA_RolePermissionType **entries, size_t *entriesSize);
+#endif
 };
 
 _UA_END_DECLS

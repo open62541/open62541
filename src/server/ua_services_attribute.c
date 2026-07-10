@@ -19,6 +19,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright (c) 2026 Pilz GmbH & Co. KG, Author: Marcel Patzlaff
  */
 
 #include "ua_server_internal.h"
@@ -199,6 +200,76 @@ readUserRolePermissions(UA_Server *server, UA_Session *session,
 
     UA_Variant_setArray(&v->value, entries, entriesSize,
                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+#else
+static UA_StatusCode
+readRolePermissions(UA_Server *server, UA_Session *session,
+                    const UA_Node *node, UA_DataValue *v) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(session == NULL || !server->config.accessControl.readRolePermissions
+                       || !server->config.accessControl.allowReadRolePermissions)
+        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+
+    if(session != &server->adminSession) {
+        UA_Boolean readable = server->config.accessControl.
+            allowReadRolePermissions(server, &server->config.accessControl,
+                &session->sessionId, session->context,
+                &node->head.nodeId, node->head.context
+            );
+        if(!readable)
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+    size_t entriesSize = 0;
+    UA_RolePermissionType *entries = NULL;
+
+    UA_StatusCode retval = server->config.accessControl.readRolePermissions(
+        server, &server->config.accessControl,
+        &node->head.nodeId, node->head.context,
+        &entries, &entriesSize
+    );
+
+    if(UA_StatusCode_isGood(retval))
+        UA_Variant_setArray(&v->value, entries, entriesSize,
+                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+
+    return retval;
+}
+
+static UA_StatusCode
+readUserRolePermissions(UA_Server *server, UA_Session *session,
+                        const UA_Node *node, UA_DataValue *v) {
+
+    if(session == NULL || !server->config.accessControl.readUserRolePermissions) {
+        // just return empty array
+        UA_Variant_setArray(&v->value, NULL, 0,
+                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(session == &server->adminSession) {
+        // admin session sees all role permissions
+        return readRolePermissions(server, session, node, v);
+    }
+
+    size_t entriesSize = 0;
+    UA_RolePermissionType *entries = NULL;
+
+    UA_StatusCode retval = server->config.accessControl.readUserRolePermissions(
+        server, &server->config.accessControl,
+        &session->sessionId, session->context,
+        &node->head.nodeId, node->head.context,
+        &entries, &entriesSize
+    );
+
+    if(UA_StatusCode_isGood(retval))
+        UA_Variant_setArray(&v->value, entries, entriesSize,
+                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    else
+        UA_Variant_setArray(&v->value, NULL, 0,
+                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_RBAC */
@@ -645,21 +716,10 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         break;
     }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
-#ifdef UA_ENABLE_RBAC
         retval = readRolePermissions(server, session, node, v);
-#else
-        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-#endif
         break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
-#ifdef UA_ENABLE_RBAC
         retval = readUserRolePermissions(server, session, node, v);
-#else
-        /* Without RBAC, return empty array */
-        UA_Variant_setArray(&v->value, NULL, 0,
-                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        retval = UA_STATUSCODE_GOOD;
-#endif
         break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
         /* TODO: Add support for AccessRestrictions from the 1.04 spec */
