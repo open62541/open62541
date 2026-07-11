@@ -1089,6 +1089,48 @@ cleanup:
     return retval;
 }
 
+static void
+secureChannelNotificationCallback(UA_Driver *drv,
+                                  UA_ApplicationNotificationType type,
+                                  const UA_KeyValueMap payload) {
+    UA_GDSManager *gdsm = (UA_GDSManager*)drv;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED) {
+        UA_UInt32 channelId = *(const UA_UInt32*)
+            UA_KeyValueMap_getScalar(&payload,
+                                     UA_QUALIFIEDNAME(0, "securechannel-id"),
+                                     &UA_TYPES[UA_TYPES_UINT32]);
+        UA_ByteString certificate = *(const UA_ByteString*)
+            UA_KeyValueMap_getScalar(&payload,
+                                     UA_QUALIFIEDNAME(0, "remote-certificate"),
+                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+        ChannelMetadata *cm = (ChannelMetadata*)UA_calloc(1, sizeof(ChannelMetadata));
+        if(!cm) {
+            UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not register SecureChannel (oom)");
+            return;
+        }
+        cm->channelId = channelId;
+        UA_ByteString_copy(&certificate, &cm->certificate);
+        LIST_INSERT_HEAD(&gdsm->secureChannels, cm, pointers);
+    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED) {
+        UA_UInt32 channelId = *(const UA_UInt32*)
+            UA_KeyValueMap_getScalar(&payload,
+                                     UA_QUALIFIEDNAME(0, "securechannel-id"),
+                                     &UA_TYPES[UA_TYPES_UINT32]);
+        ChannelMetadata *cm;
+        LIST_FOREACH(cm, &gdsm->secureChannels, pointers) {
+            if(cm->channelId != channelId)
+                continue;
+            LIST_REMOVE(cm, pointers);
+            UA_ByteString_clear(&cm->certificate);
+            UA_free(cm);
+            break;
+        }
+    }
+}
+
 UA_StatusCode
 UA_GDSManager_start(UA_Driver *drv) {
     UA_GDSManager *gdsm = (UA_GDSManager*)drv;
@@ -1150,6 +1192,14 @@ UA_GDSManager_free(UA_Driver *drv) {
         fi = next;
     }
 
+    /* Free SecureChannel Metadata */
+    ChannelMetadata *cm, *cm_tmp;
+    LIST_FOREACH_SAFE(cm, &gdsManager->secureChannels, pointers, cm_tmp) {
+        LIST_REMOVE(cm, pointers);
+        UA_ByteString_clear(&cm->certificate);
+        UA_free(cm);
+    }
+
     UA_free(drv);
     return UA_STATUSCODE_GOOD;
 }
@@ -1164,6 +1214,9 @@ UA_GDSPushReceiveManager_new(void) {
     gdsm->drv.start = UA_GDSManager_start;
     gdsm->drv.stop = UA_GDSManager_stop;
     gdsm->drv.free = UA_GDSManager_free;
+
+    gdsm->drv.notificationCallback = secureChannelNotificationCallback;
+    gdsm->drv.notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL;
 
     return &gdsm->drv;
 }

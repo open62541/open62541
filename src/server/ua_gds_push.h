@@ -86,6 +86,15 @@ typedef struct UA_FileInfo {
 #define STATIC_NS0ID(ID) \
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
+/* The GDS Manager tracks which channels are open in the server. When changes to
+ * the CertificateGroups are applied, the GDS Manager might have to re-verify
+ * the certificaates or close all channels. */
+typedef struct ChannelMetadata {
+    LIST_ENTRY(ChannelMetadata) pointers;
+    UA_UInt32 channelId;
+    UA_ByteString certificate;
+} ChannelMetadata;
+
 typedef struct {
     UA_Driver drv;
 
@@ -97,6 +106,9 @@ typedef struct {
     /* Contains context information necessary for reading and writing the
      * TrustList as a file type */
     UA_FileInfo *fileInfos;
+
+    /* Track open SecureChannels */
+    LIST_HEAD(, ChannelMetadata) secureChannels;
 
     /* Holds the ID for the repeated callback that verifies the presence of
      * sessions with an active transaction or an open trust list */
