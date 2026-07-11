@@ -122,28 +122,33 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 }
 
 static UA_StatusCode
-createFileInfoContexts(UA_Server *server) {
-    /* The server currently only supports the DefaultApplicationGroup and UserTokenGroup */
+createFileInfos(UA_Server *server) {
+    /* The server currently only supports the DefaultApplicationGroup and
+     * UserTokenGroup */
     UA_UtcTime lastUpdateTime = UA_DateTime_now();
 
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)UA_calloc(1, sizeof(UA_FileInfoContext));
-    if(!fileInfoContext)
+    /* Allocate two linked-list entries */
+    UA_FileInfo *fi = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
+    if(!fi)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    fileInfoContext->next = (UA_FileInfoContext*)UA_calloc(1, sizeof(UA_FileInfoContext));
-    if(!fileInfoContext->next) {
-        UA_free(fileInfoContext);
+    UA_FileInfo *fi2 = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
+    if(!fi2) {
+        UA_free(fi);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    fi->next = fi2;
 
-    fileInfoContext->certificateGroupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    LIST_INIT(&fileInfoContext->fileInfo.fileContext);
-    fileInfoContext->fileInfo.lastUpdateTime = lastUpdateTime;
+    fi->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    LIST_INIT(&fi->fileContext);
+    fi->lastUpdateTime = lastUpdateTime;
 
-    fileInfoContext->next->certificateGroupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
-    LIST_INIT(&fileInfoContext->next->fileInfo.fileContext);
-    fileInfoContext->next->fileInfo.lastUpdateTime = lastUpdateTime;
+    fi2->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    LIST_INIT(&fi2->fileContext);
+    fi2->lastUpdateTime = lastUpdateTime;
 
-    gdsManager(server)->fileInfoContext = fileInfoContext;
+    gdsManager(server)->fileInfos = fi;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -667,7 +672,7 @@ initNS0PushManagement(UA_Server *server) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Create FileInfo */
-    retval |= createFileInfoContexts(server);
+    retval |= createFileInfos(server);
 
     /* Set variables */
     retval |= writeGroupVariables(server);

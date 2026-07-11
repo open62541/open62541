@@ -11,6 +11,13 @@
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
+typedef enum UA_GDSTransactionChanges {
+    UA_GDSTRANSACTIONCHANGES_NOTHING = 0,
+    UA_GDSTRANSACTIONCHANGES_TRUSTLIST,
+    UA_GDSTRANSACTIONCHANGES_CERTIFICATE,
+    UA_GDSTRANSACTIONCHANGES_BOTH,
+} UA_GDSTransactionChanges;
+
 static UA_FileContext*
 getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
                const UA_UInt32 fileHandle) {
@@ -190,12 +197,13 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
 /********************/
 
 UA_FileInfo *
-UA_GDSManager_getFileInfo(UA_GDSManager *gdsm, UA_NodeId certificateGroupId) {
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
-    while(fileInfoContext) {
-        if(UA_NodeId_equal(&fileInfoContext->certificateGroupId, &certificateGroupId))
-            return &fileInfoContext->fileInfo;
-        fileInfoContext = fileInfoContext->next;
+UA_GDSManager_getFileInfo(UA_GDSManager *gdsm,
+                          UA_NodeId certificateGroupId) {
+    UA_FileInfo *fi = (UA_FileInfo*)gdsm->fileInfos;
+    while(fi) {
+        if(UA_NodeId_equal(&fi->certificateGroupId, &certificateGroupId))
+            return fi;
+        fi = fi->next;
     }
     return NULL;
 }
@@ -230,24 +238,20 @@ checkSessionActive(UA_Server *server, void *data) {
         removingCallback = true;
     }
 
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)gdsm->fileInfoContext;
-    while(fileInfoContext) {
-        UA_FileInfo fileInfo = fileInfoContext->fileInfo;
-        if(fileInfo.openCount == 0) {
-            fileInfoContext = fileInfoContext->next;
+    UA_FileInfo *fi = (UA_FileInfo*)gdsm->fileInfos;
+    for(; fi; fi = fi->next) {
+        if(fi->openCount == 0)
             continue;
-        }
 
         removingCallback = false;
 
         UA_CertificateGroup *certGroup =
-            getCertGroup(server, &fileInfoContext->certificateGroupId);
+            getCertGroup(server, &fi->certificateGroupId);
         if(!certGroup)
             continue;
 
         UA_FileContext *fileContext, *fileContextTmp;
-        LIST_FOREACH_SAFE(fileContext, &fileInfo.fileContext,
-                          listEntry, fileContextTmp) {
+        LIST_FOREACH_SAFE(fileContext, &fi->fileContext, listEntry, fileContextTmp) {
             UA_Variant tmp;
             UA_StatusCode res =
                 UA_Server_getSessionAttribute(server, &fileContext->sessionId,
@@ -260,7 +264,7 @@ checkSessionActive(UA_Server *server, void *data) {
                         "All file handlers for the open trust lists have been closed.");
 
             LIST_REMOVE(fileContext, listEntry);
-            fileInfoContext->fileInfo.openCount -= 1;
+            fi->openCount -= 1;
 
             UA_ByteString_clear(&fileContext->file);
             UA_ByteString_clear(&fileContext->dataToWrite);
@@ -269,8 +273,6 @@ checkSessionActive(UA_Server *server, void *data) {
             /* Updating OpenCount Variable in the information model */
             writeOpenCountVariable(server, certGroup);
         }
-
-        fileInfoContext = fileInfoContext->next;
     }
 
     if(removingCallback) {
@@ -1128,27 +1130,24 @@ UA_GDSManager_free(UA_Driver *drv) {
     UA_GDSManager *gdsManager = (UA_GDSManager*)drv;
     gdsManager->checkSessionCallbackId = 0;
     UA_GDSTransaction_clear(&gdsManager->transaction);
-    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)
-        gdsManager->fileInfoContext;
+    UA_FileInfo *fi = (UA_FileInfo*)gdsManager->fileInfos;
 
     /* free all fileInfoContexts */
-    while(fileInfoContext) {
-        UA_FileInfoContext *next = fileInfoContext->next;
-        UA_FileInfo *fileInfo = &(fileInfoContext->fileInfo);
+    while(fi) {
+        UA_FileInfo *next = fi->next;
         UA_FileContext *fileContext = NULL;
         UA_FileContext *fileContextTmp = NULL;
 
-        /* free all fileContexts in this fileInfoContext */
-        LIST_FOREACH_SAFE(fileContext, &fileInfo->fileContext,
-                          listEntry, fileContextTmp) {
-            UA_ByteString_clear(&(fileContext->file));
-            UA_ByteString_clear(&(fileContext->dataToWrite));
+        /* free all fileContexts in this fileInfo */
+        LIST_FOREACH_SAFE(fileContext, &fi->fileContext, listEntry, fileContextTmp) {
+            UA_ByteString_clear(&fileContext->file);
+            UA_ByteString_clear(&fileContext->dataToWrite);
             LIST_REMOVE(fileContext, listEntry);
             UA_free(fileContext);
         }
 
-        UA_free(fileInfoContext);
-        fileInfoContext = next;
+        UA_free(fi);
+        fi = next;
     }
 
     UA_free(drv);
