@@ -52,13 +52,6 @@ typedef struct {
     UA_DelayedCallback dc;
 } UA_GDSTransaction;
 
-typedef enum UA_GDSTransactionChanges {
-    UA_GDSTRANSACTIONCHANGES_NOTHING = 0,
-    UA_GDSTRANSACTIONCHANGES_TRUSTLIST,
-    UA_GDSTRANSACTIONCHANGES_CERTIFICATE,
-    UA_GDSTRANSACTIONCHANGES_BOTH,
-} UA_GDSTransactionChanges;
-
 /***************/
 /* FileContext */
 /***************/
@@ -79,16 +72,12 @@ typedef struct UA_FileContext {
 } UA_FileContext;
 
 typedef struct UA_FileInfo {
+    struct UA_FileInfo *next;
+    UA_NodeId certificateGroupId;
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
     LIST_HEAD(, UA_FileContext)fileContext;
 } UA_FileInfo;
-
-typedef struct UA_FileInfoContext {
-    struct UA_FileInfoContext *next;
-    UA_NodeId certificateGroupId;
-    UA_FileInfo fileInfo;
-} UA_FileInfoContext;
 
 /********************/
 /*   GDS Manager    */
@@ -102,12 +91,15 @@ typedef struct {
 
     UA_Boolean initialized; /* NS0 was added */
 
-    /* Transaction for certificate management */
+    /* Single transaction for certificate management */
     UA_GDSTransaction transaction;
-    /* Contains context information necessary for reading and writing the TrustList as a file type */
-    void *fileInfoContext;
-    /* Holds the ID for the repeated callback that verifies the presence of sessions
-     * with an active transaction or an open trust list */
+
+    /* Contains context information necessary for reading and writing the
+     * TrustList as a file type */
+    UA_FileInfo *fileInfos;
+
+    /* Holds the ID for the repeated callback that verifies the presence of
+     * sessions with an active transaction or an open trust list */
     UA_UInt64 checkSessionCallbackId;
 } UA_GDSManager;
 
