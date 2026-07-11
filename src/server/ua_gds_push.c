@@ -7,7 +7,7 @@
  */
 
 #include <open62541/plugin/certificategroup_default.h>
-#include "ua_server_internal.h"
+#include "ua_gds_push.h"
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 
@@ -590,6 +590,30 @@ UA_GDSManager_updateCertificate(UA_GDSManager *gdsm,
                                                 privateKey);
 }
 
+/* TODO: Expose implementation in core open62541 */
+
+static UA_Byte
+lc(UA_Byte c) {
+    if(((int)c) - 'A' < 26) return c | 32;
+    return c;
+}
+static int
+case_cmp(const UA_Byte *l, const UA_Byte *r, size_t n) {
+    if(!n--) return 0;
+    for(; *l && *r && n && (*l == *r || lc(*l) == lc(*r)); l++, r++, n--);
+    return lc(*l) - lc(*r);
+}
+static UA_Boolean
+String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
+    if(s1->length != s2->length)
+        return false;
+    if(s1->length == 0)
+        return true;
+    if(s2->data == NULL)
+        return false;
+    return case_cmp(s1->data, s2->data, s1->length) == 0;
+}
+
 UA_StatusCode
 UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
                                 UA_CertificateGroup *certGroup,
@@ -652,7 +676,7 @@ UA_GDSManager_removeCertificate(UA_GDSManager *gdsm,
         /* Compare thumbprint */
         certificate = certificates[i];
         UA_CertificateUtils_getThumbprint(&certificate, &thumbpr);
-        if(!UA_String_equal_ignorecase(thumbprint, &thumbpr))
+        if(!String_equal_ignorecase(thumbprint, &thumbpr))
             continue;
 
         retval = certGroup->getCertificateCrls(certGroup, &certificate,
@@ -892,9 +916,9 @@ UA_GDSManager_openTrustList(UA_GDSManager *gdsm, UA_CertificateGroup *certGroup,
     }
 
     if(gdsm->checkSessionCallbackId == 0) {
-        retval = addRepeatedCallback(server, checkSessionActive, NULL,
-                                     CHECKACTIVESESSIONINTERVAL,
-                                     &gdsm->checkSessionCallbackId);
+        retval = UA_Server_addRepeatedCallback(server, checkSessionActive, NULL,
+                                               CHECKACTIVESESSIONINTERVAL,
+                                               &gdsm->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -945,7 +969,7 @@ secureChannel_delayedClose(void *application, void *context) {
     UA_GDSManager *gdsm = gdsManager(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
 
-    UA_SecureChannel *channel;
+    ChannelMetadata *cm;
     UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
     switch(*changes) {
     case UA_GDSTRANSACTIONCHANGES_NOTHING:
@@ -954,30 +978,36 @@ secureChannel_delayedClose(void *application, void *context) {
     case UA_GDSTRANSACTIONCHANGES_BOTH:
     case UA_GDSTRANSACTIONCHANGES_CERTIFICATE:
         /* Shutdown all SecureChannels */
-        TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-            if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
-               channel->state == UA_SECURECHANNELSTATE_CLOSING)
-                continue;
-            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+        LIST_FOREACH(cm, &gdsm->secureChannels, pointers) {
+            UA_Server_closeSecureChannel(server, cm->channelId,
+                                         UA_SHUTDOWNREASON_CLOSE);
         }
         break;
 
     default:
         /* Re-verify remote certificates. Close the SecureChannel on failure. */
-        TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-            if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
-               channel->state == UA_SECURECHANNELSTATE_CLOSING)
-                continue;
+        LIST_FOREACH(cm, &gdsm->secureChannels, pointers) {
             UA_StatusCode res =
-                certGroup->verifyCertificate(certGroup, &channel->remoteCertificate);
+                certGroup->verifyCertificate(certGroup, &cm->certificate);
             if(res != UA_STATUSCODE_GOOD)
-                UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+                UA_Server_closeSecureChannel(server, cm->channelId,
+                                             UA_SHUTDOWNREASON_CLOSE);
         }
         break;
     }
 
     UA_free(changes);
     UA_GDSTransaction_clear(&gdsm->transaction);
+}
+
+static UA_SecurityPolicy *
+getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
+    for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &sc->securityPolicies[i];
+        if(UA_String_equal(securityPolicyUri, &sp->policyUri))
+            return sp;
+    }
+    return NULL;
 }
 
 UA_StatusCode
@@ -1049,9 +1079,7 @@ UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
 
         for(size_t j = 0; j < sc->endpointsSize; j++) {
             UA_EndpointDescription *ed = &sc->endpoints[j];
-            UA_SecurityPolicy *sp =
-                getSecurityPolicyByUri(server,
-                                       &sc->endpoints[j].securityPolicyUri);
+            UA_SecurityPolicy *sp = getSecPolicyByUri(sc, &ed->securityPolicyUri);
             if(!sp) {
                 retval = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
