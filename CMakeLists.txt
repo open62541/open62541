@@ -1621,10 +1621,14 @@ endif()
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 # On the FreeRTOS architecture the open62541 target links against build-only
 # targets (freertos_kernel/freertos_config) that are not part of any export
-# set, so installing/exporting the target fails at configure time. FreeRTOS
-# cross builds are consumed from the build tree (typically the amalgamation),
-# so skip the target install and the CMake package files there.
-if(NOT UA_ARCHITECTURE_FREERTOS)
+# set, so exporting the target fails at configure time. Still install the
+# library artifacts, but leave the target out of the export set there.
+if(UA_ARCHITECTURE_FREERTOS)
+install(TARGETS open62541
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+else()
 install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -1694,7 +1698,7 @@ string(REPLACE ";" " " pkgcfg_requiresprivate "${pkgcfg_requiresprivate}")
 string(REPLACE ";" " " pkgcfg_libsprivate "${pkgcfg_libsprivate}")
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_FREERTOS)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT UA_ARCHITECTURE_FREERTOS)
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
