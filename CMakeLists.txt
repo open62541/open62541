@@ -110,6 +110,9 @@ option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 
+option(UA_ENABLE_TYPES_DECODING "Automatically decode known Extension Objects" ON)
+mark_as_advanced(UA_ENABLE_TYPES_DECODING)
+
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_ENABLE_NODESETLOADER AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
 endif()
