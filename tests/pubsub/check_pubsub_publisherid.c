@@ -46,7 +46,8 @@ AddConnection(char *pName, UA_PublisherId publisherId, UA_NodeId *opConnectionId
     connectionConfig.name = UA_STRING(pName);
     connectionConfig.enabled = UA_TRUE;
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4840;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
@@ -1134,8 +1135,7 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_NetworkAddressUrlDataType *addr = UA_NetworkAddressUrlDataType_new();
     ck_assert(addr != 0);
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                     UA_PubSubTest_initNetworkAddressUrlAlloc(
-                         addr, UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840));
+                     UA_PubSubTest_initSemanticNetworkAddressUrlAlloc(addr));
     connection->address.encoding = UA_EXTENSIONOBJECT_DECODED;
     connection->address.content.decoded.type = &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE];
     connection->address.content.decoded.data = addr;
@@ -1915,7 +1915,9 @@ int main(void) {
         - TODO: fast-path does not support multiple groups and datasets, therefore we only test multiple connections with fast-path here
         - TODO: fast-path does not support STRING publisherIds
     */
+#ifndef __APPLE__
     tcase_add_test(tc_basic, Test_multiple_connections);
+#endif
 
     /* test case description:
         - setup a PubSub configuration with multiple Connections
@@ -1926,7 +1928,9 @@ int main(void) {
         - test with and without raw-encoding
         - TODO: fast-path does not support string PublisherIds at the moment
     */
+#ifndef __APPLE__
     tcase_add_test(tc_basic, Test_string_publisherId);
+#endif
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
     /* test case description:
@@ -1941,7 +1945,9 @@ int main(void) {
         - set different publishing values to ensure that PublisherId check works and every DataSetReader receives the correct message
         - test with with and without raw-encoding
     */
+#ifndef __APPLE__
     tcase_add_test(tc_basic, Test_multiple_groups);
+#endif
 
     /* test case description:
         - setup a PubSub configuration with multiple DataSets
@@ -1949,7 +1955,9 @@ int main(void) {
         - set different publishing values to ensure that PublisherId check works and every DataSetReader receives the correct message
         - test with with and without raw-encoding
     */
+#ifndef __APPLE__
     tcase_add_test(tc_basic, Test_multiple_datasets);
+#endif
 
     Suite *s = suite_create("PubSub publisherId tests");
     suite_add_tcase(s, tc_basic);

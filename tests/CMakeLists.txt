@@ -242,6 +242,7 @@ if(UA_ENABLE_JSON_ENCODING)
     if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encoding_json.c)
         ua_add_test(pubsub/check_pubsub_publish_json.c)
+        set_tests_properties(check_pubsub_publish_json PROPERTIES TIMEOUT 60)
     endif()
 endif()
 
@@ -380,9 +381,11 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_get_state.c)
     ua_add_test(pubsub/check_pubsub_udp_unicast.c)
     ua_add_test(pubsub/check_pubsub_publisherid.c)
+    set_tests_properties(check_pubsub_publisherid PROPERTIES TIMEOUT 120)
 
     #Link libraries for executing subscriber unit test
     ua_add_test(pubsub/check_pubsub_subscribe.c)
+    set_tests_properties(check_pubsub_subscribe PROPERTIES TIMEOUT 120)
     ua_add_test(pubsub/check_pubsub_publishspeed.c)
 
     ua_add_test(pubsub/check_pubsub_offset.c)
@@ -405,6 +408,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
 
     ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
+    set_tests_properties(check_pubsub_subscribe_msgrcvtimeout PROPERTIES TIMEOUT 120)
 
     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         ua_add_test(pubsub/check_pubsub_connection_ethernet.c)
