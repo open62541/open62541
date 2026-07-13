@@ -195,7 +195,7 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
                             &tokenSecurityPolicyUri)) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "%s: SecurityPolicy %S cannot be instantiated. "
-                         "A different SecurityPolicy %s is in place already",
+                         "A different SecurityPolicy %S is in place already",
                          logPrefix, tokenSecurityPolicyUri,
                          client->utpSp->policyUri);
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
