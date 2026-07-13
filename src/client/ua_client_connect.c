@@ -169,10 +169,10 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
     UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
         utp->securityPolicyUri : client->endpoint.securityPolicyUri;
 
-    /* Get the SecurityPolicy for authentication.
-     * For X509 tokens, match both PolicyUri and certificate.
-     * For other token types (username/anonymous), match only PolicyUri
-     * in the authSecurityPolicies. */
+    /* Get the SecurityPolicy for the UserIdentityToken. X509 tokens sign with
+     * a private key, so they must use an authSecurityPolicy (matched by
+     * PolicyUri and certificate). Other tokens only encrypt with the server
+     * certificate, so fall back to the SecureChannel securityPolicies. */
     UA_SecurityPolicy *utsp;
     if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
@@ -181,6 +181,8 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
                                      &token->certificateData);
     } else {
         utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri, NULL);
+        if(!utsp)
+            utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
     }
     if(!utsp) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1257,10 +1259,9 @@ matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
     if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS)
         return true;
 
-    /* Get the SecurityPolicy for authentication.
-     * For X509 tokens, match both PolicyUri and certificate.
-     * For other token types (username/anonymous), match only PolicyUri
-     * in the authSecurityPolicies. */
+    /* Get the SecurityPolicy for the UserIdentityToken (see
+     * initUserTokenPolicy for the authSecurityPolicies/securityPolicies
+     * lookup rationale). */
     UA_SecurityPolicy *utsp;
     if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
@@ -1269,6 +1270,8 @@ matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
                                      &token->certificateData);
     } else {
         utsp = getAuthSecurityPolicy(client, tokenPolicyUri, NULL);
+        if(!utsp)
+            utsp = getSecurityPolicy(client, tokenPolicyUri);
     }
     if(!utsp) {
         if(logPrefix) {
