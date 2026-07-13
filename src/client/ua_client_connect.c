@@ -1782,7 +1782,8 @@ createSessionAsync(UA_Client *client) {
     UA_CreateSessionRequest_init(&request);
     request.clientNonce = client->clientSessionNonce;
     request.requestedSessionTimeout = client->config.requestedSessionTimeout;
-    request.maxResponseMessageSize = UA_INT32_MAX;
+    request.maxResponseMessageSize = (client->config.localConnectionConfig.localMaxMessageSize > 0) ?
+        client->config.localConnectionConfig.localMaxMessageSize : UA_INT32_MAX;
     request.endpointUrl = client->endpoint.endpointUrl;
     request.clientDescription = client->config.clientDescription;
     request.sessionName = client->config.sessionName;
