@@ -200,7 +200,13 @@ START_TEST(client_connect_none_username_basic256Sha256) {
         UA_String_clear(&cc->clientDescription.applicationUri);
         cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
 
-        /* Only use the relevant security policy in authSecurityPolicies */
+        /* Rebind the SecureChannel None policy with the client certificate */
+        for(size_t i = 0; i < cc->securityPoliciesSize; ++i) {
+            cc->securityPolicies[i].clear(&cc->securityPolicies[i]);
+            UA_SecurityPolicy_None(&cc->securityPolicies[i], certificate, cc->logging);
+        }
+
+        /* Use the relevant security policies in authSecurityPolicies */
         for(size_t i = 0; i < cc->authSecurityPoliciesSize; ++i)
             cc->authSecurityPolicies[i].clear(&cc->authSecurityPolicies[i]);
         UA_free(cc->authSecurityPolicies);
