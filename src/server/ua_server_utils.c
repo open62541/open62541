@@ -270,6 +270,75 @@ UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head) {
     return false;
 }
 
+struct NodeVersionPropertyContext {
+    UA_Server *server;
+    UA_NodeId *outPropertyId;
+    UA_UInt32 browseNameHash;
+    UA_StatusCode res;
+};
+
+static void *
+findNodeVersionProperty(void *context, UA_ReferenceTarget *target) {
+    struct NodeVersionPropertyContext *ctx =
+        (struct NodeVersionPropertyContext*)context;
+    if(target->targetNameHash != ctx->browseNameHash ||
+       !UA_NodePointer_isLocal(target->targetId))
+        return NULL;
+
+    const UA_Node *property =
+        UA_NODESTORE_GETFROMREF_SELECTIVE(ctx->server, target->targetId,
+                                         UA_NODEATTRIBUTESMASK_NODECLASS |
+                                         UA_NODEATTRIBUTESMASK_BROWSENAME |
+                                         UA_NODEATTRIBUTESMASK_DATATYPE |
+                                         UA_NODEATTRIBUTESMASK_VALUERANK,
+                                         UA_REFERENCETYPESET_NONE,
+                                         UA_BROWSEDIRECTION_INVALID);
+    if(!property)
+        return NULL;
+
+    const UA_QualifiedName nodeVersionName = UA_QUALIFIEDNAME(0, "NodeVersion");
+    UA_Boolean matches =
+        property->head.nodeClass == UA_NODECLASS_VARIABLE &&
+        UA_QualifiedName_equal(&property->head.browseName, &nodeVersionName) &&
+        UA_NodeId_equal(&property->variableNode.dataType,
+                        &UA_TYPES[UA_TYPES_STRING].typeId) &&
+        property->variableNode.valueRank == UA_VALUERANK_SCALAR;
+    if(matches) {
+        UA_NodeId id = UA_NodePointer_toNodeId(target->targetId);
+        ctx->res = UA_NodeId_copy(&id, ctx->outPropertyId);
+    }
+    UA_NODESTORE_RELEASE(ctx->server, property);
+    return matches ? (void*)0x01 : NULL;
+}
+
+UA_StatusCode
+getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
+                       UA_NodeId *outPropertyId) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_NodeId_init(outPropertyId);
+
+    UA_ReferenceTypeSet propertyRefs;
+    const UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    UA_StatusCode res =
+        referenceTypeIndices(server, &hasProperty, &propertyRefs, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    const UA_QualifiedName nodeVersionName = UA_QUALIFIEDNAME(0, "NodeVersion");
+    struct NodeVersionPropertyContext ctx = {
+        server, outPropertyId, UA_QualifiedName_hash(&nodeVersionName),
+        UA_STATUSCODE_BADNOTFOUND};
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &head->references[i];
+        if(rk->isInverse ||
+           !UA_ReferenceTypeSet_contains(&propertyRefs, rk->referenceTypeIndex))
+            continue;
+        if(UA_NodeReferenceKind_iterate(rk, findNodeVersionProperty, &ctx))
+            break;
+    }
+    return ctx.res;
+}
+
 UA_StatusCode
 getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
                              UA_Boolean includeLeaf, UA_NodeId **typeHierarchy,
@@ -649,4 +718,3 @@ const UA_ViewAttributes UA_ViewAttributes_default = {
     false,                  /* containsNoLoops */
     0                       /* eventNotifier */
 };
-

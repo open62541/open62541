@@ -432,6 +432,13 @@ UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);
 
+/* Return the NodeVersion Property of the node. HasProperty subtypes are
+ * included. The returned NodeId is a deep copy and has to be cleared by the
+ * caller. */
+UA_StatusCode
+getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
+                       UA_NodeId *outPropertyId);
+
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
 isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
