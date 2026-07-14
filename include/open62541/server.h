@@ -1623,17 +1623,29 @@ typedef UA_StatusCode
  * @param conditionType The NodeId of the node representation of the ConditionType
  * @param conditionName The name of the condition to be created
  * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
- * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
+ * @param hierarchicalReferenceType The NodeId of Hierarchical ReferenceType
  *                                 between Condition and its source
+ * @param nodeContext An optional pointer to user-defined data, associated
+ *                                 with the node in the nodestore
  * @param outConditionId The NodeId of the created Condition
  * @return The StatusCode of the UA_Server_createCondition method */
+UA_StatusCode UA_EXPORT
+UA_Server_createConditionWithContext(UA_Server *server,
+                          const UA_NodeId conditionId,
+                          const UA_NodeId conditionType,
+                          const UA_QualifiedName conditionName,
+                          const UA_NodeId conditionSource,
+                          const UA_NodeId hierarchicalReferenceType,
+                          void *nodeContext,
+                          UA_NodeId *outConditionId);
+
 UA_StatusCode UA_EXPORT
 UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId,
                           const UA_NodeId conditionType,
                           const UA_QualifiedName conditionName,
                           const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType,
+                          const UA_NodeId hierarchicalReferenceType,
                           UA_NodeId *outConditionId);
 
 /* The method pair UA_Server_addCondition_begin and _finish splits the
@@ -1652,8 +1664,18 @@ UA_Server_createCondition(UA_Server *server,
  *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
  * @param conditionType The NodeId of the node representation of the ConditionType
  * @param conditionName The name of the condition to be added
+ * @param nodeContext @param nodeidContext An optional pointer to user-defined data, 
+ *                                 associated with the node in the nodestore
  * @param outConditionId The NodeId of the added Condition
  * @return The StatusCode of the UA_Server_addCondition_begin method */
+UA_StatusCode UA_EXPORT
+UA_Server_addConditionWithContext_begin(UA_Server *server,
+                             const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName,
+                             void *nodeContext,
+                             UA_NodeId *outConditionId);
+
 UA_StatusCode UA_EXPORT
 UA_Server_addCondition_begin(UA_Server *server,
                              const UA_NodeId conditionId,
