@@ -198,7 +198,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     elseif(MODEL STREQUAL "ECM")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
-                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia")
@@ -208,7 +208,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/Machinery/Energy/Opc.Ua.Machinery.Energy.NodeIds.csv"
                 IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
-                IMPORT_BSD "TYPES_ECM#${UA_NODESET_DIR}/ECM/Opc.Ua.ECM.Types.bsd"
+                IMPORT_BSD "TYPES_ECM#${UA_NODESET_DIR}/ECM/Opc.Ua.ECM.NodeSet2.bsd"
                 FILE_NS "${UA_NODESET_DIR}/Machinery/Energy/Opc.Ua.Machinery.Energy.NodeSet2.xml"
                 INTERNAL AUTOLOAD
                 DEPENDS "di" DEPENDS "ia" DEPENDS "ecm")
