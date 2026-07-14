@@ -574,6 +574,112 @@ START_TEST(nodeVersionPropertyRejectsInvalidVariable) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+START_TEST(modelChangeAccumulatorAllVerbs) {
+    UA_ModelChangeAccumulator acc;
+    UA_ModelChangeAccumulator_init(&acc);
+
+    UA_NodeId affected = UA_NODEID_STRING(1, "modelchange.affected");
+    UA_NodeId affectedType = UA_NODEID_STRING(1, "modelchange.type");
+    const UA_Byte verbs[] = {
+        UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED,
+        UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED,
+        UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED,
+        UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEDELETED,
+        UA_MODELCHANGESTRUCTUREVERBMASK_DATATYPECHANGED
+    };
+
+    for(size_t i = 0; i < sizeof(verbs) / sizeof(verbs[0]); ++i) {
+        UA_StatusCode res = UA_ModelChangeAccumulator_record(
+            &acc, &affected, &affectedType, verbs[i]);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    ck_assert_uint_eq(acc.changesSize, 1);
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affected, &affected));
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &affectedType));
+    ck_assert_uint_eq(acc.changes[0].verb, 0x1Fu);
+
+    UA_ModelChangeAccumulator_clear(&acc);
+    ck_assert_uint_eq(acc.changesSize, 0);
+    ck_assert_uint_eq(acc.changesCapacity, 0);
+    ck_assert_ptr_eq(acc.changes, NULL);
+} END_TEST
+
+START_TEST(modelChangeAccumulatorMultipleNodes) {
+    UA_ModelChangeAccumulator acc;
+    UA_ModelChangeAccumulator_init(&acc);
+
+    for(UA_UInt32 i = 1; i <= 10; ++i) {
+        UA_NodeId affected = UA_NODEID_NUMERIC(2, i);
+        UA_StatusCode res = UA_ModelChangeAccumulator_record(
+            &acc, &affected, NULL,
+            UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    ck_assert_uint_eq(acc.changesSize, 10);
+    ck_assert_uint_ge(acc.changesCapacity, acc.changesSize);
+    for(UA_UInt32 i = 1; i <= 10; ++i) {
+        UA_NodeId expected = UA_NODEID_NUMERIC(2, i);
+        ck_assert(UA_NodeId_equal(&acc.changes[i - 1].affected, &expected));
+        ck_assert(UA_NodeId_isNull(&acc.changes[i - 1].affectedType));
+    }
+    UA_ModelChangeAccumulator_clear(&acc);
+} END_TEST
+
+START_TEST(modelChangeAccumulatorAffectedType) {
+    UA_ModelChangeAccumulator acc;
+    UA_ModelChangeAccumulator_init(&acc);
+    UA_NodeId affected = UA_NODEID_NUMERIC(1, 1000);
+    UA_NodeId firstType = UA_NODEID_STRING(1, "FirstType");
+    UA_NodeId secondType = UA_NODEID_STRING(1, "SecondType");
+
+    UA_StatusCode res = UA_ModelChangeAccumulator_record(
+        &acc, &affected, &firstType,
+        UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_ModelChangeAccumulator_record(
+        &acc, &affected, NULL,
+        UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &firstType));
+
+    res = UA_ModelChangeAccumulator_record(
+        &acc, &affected, &secondType,
+        UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &secondType));
+    ck_assert_uint_eq(acc.changes[0].verb,
+                      UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED |
+                      UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED |
+                      UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
+    UA_ModelChangeAccumulator_clear(&acc);
+} END_TEST
+
+START_TEST(modelChangeAccumulatorRejectsInvalidInput) {
+    UA_ModelChangeAccumulator acc;
+    UA_ModelChangeAccumulator_init(&acc);
+    UA_NodeId affected = UA_NODEID_NUMERIC(1, 1000);
+
+    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(
+        &acc, NULL, NULL, UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED),
+        UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(
+        &acc, &UA_NODEID_NULL, NULL,
+        UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED),
+        UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(&acc, &affected, NULL, 0),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(&acc, &affected, NULL, 0x20),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(acc.changesSize, 0);
+    UA_ModelChangeAccumulator_clear(&acc);
+} END_TEST
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 int main(void) {
     Suite *s = suite_create("server_utils");
 
@@ -605,6 +711,12 @@ int main(void) {
     tcase_add_test(tc_nodes, nodeVersionProperty);
     tcase_add_test(tc_nodes, nodeVersionPropertyViaHasPropertySubtype);
     tcase_add_test(tc_nodes, nodeVersionPropertyRejectsInvalidVariable);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    tcase_add_test(tc_nodes, modelChangeAccumulatorAllVerbs);
+    tcase_add_test(tc_nodes, modelChangeAccumulatorMultipleNodes);
+    tcase_add_test(tc_nodes, modelChangeAccumulatorAffectedType);
+    tcase_add_test(tc_nodes, modelChangeAccumulatorRejectsInvalidInput);
+#endif
     suite_add_tcase(s, tc_nodes);
 
     TCase *tc_attrs = tcase_create("Attributes");
