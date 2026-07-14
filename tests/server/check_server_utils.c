@@ -24,6 +24,18 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+static UA_StatusCode
+findNodeVersion(const UA_NodeId nodeId, UA_NodeId *outPropertyId) {
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    ck_assert_ptr_ne(node, NULL);
+    UA_StatusCode res =
+        getNodeVersionProperty(server, &node->head, outPropertyId);
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return res;
+}
+
 /* --- UA_Server_getDataTypes --- */
 
 START_TEST(getDataTypes) {
@@ -471,6 +483,97 @@ START_TEST(addDeleteReference) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(nodeVersionProperty) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_NodeId objectId = UA_NODEID_STRING(1, "utils.nodeversion.object");
+    UA_StatusCode res = UA_Server_addObjectNode(
+        server, objectId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "NodeVersionObject"), UA_NS0ID(BASEOBJECTTYPE),
+        oAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId found;
+    res = findNodeVersion(objectId, &found);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NodeVersion");
+    vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_NodeId propertyId = UA_NODEID_STRING(1, "utils.nodeversion.property");
+    res = UA_Server_addVariableNode(
+        server, propertyId, objectId, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "NodeVersion"), UA_NS0ID(PROPERTYTYPE),
+        vAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    res = findNodeVersion(objectId, &found);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&found, &propertyId));
+    UA_NodeId_clear(&found);
+} END_TEST
+
+START_TEST(nodeVersionPropertyViaHasPropertySubtype) {
+    UA_ReferenceTypeAttributes rtAttr = UA_ReferenceTypeAttributes_default;
+    rtAttr.displayName = UA_LOCALIZEDTEXT("", "HasVersionProperty");
+    rtAttr.inverseName = UA_LOCALIZEDTEXT("", "VersionPropertyOf");
+    UA_NodeId refTypeId = UA_NODEID_STRING(1, "utils.nodeversion.reftype");
+    UA_StatusCode res = UA_Server_addReferenceTypeNode(
+        server, refTypeId, UA_NS0ID(HASPROPERTY), UA_NS0ID(HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "HasVersionProperty"), rtAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_NodeId objectId = UA_NODEID_STRING(1, "utils.nodeversion.subtype.object");
+    res = UA_Server_addObjectNode(
+        server, objectId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "NodeVersionSubtypeObject"),
+        UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NodeVersion");
+    vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_NodeId propertyId =
+        UA_NODEID_STRING(1, "utils.nodeversion.subtype.property");
+    res = UA_Server_addVariableNode(
+        server, propertyId, objectId, refTypeId,
+        UA_QUALIFIEDNAME(0, "NodeVersion"), UA_NS0ID(PROPERTYTYPE),
+        vAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId found;
+    res = findNodeVersion(objectId, &found);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&found, &propertyId));
+    UA_NodeId_clear(&found);
+} END_TEST
+
+START_TEST(nodeVersionPropertyRejectsInvalidVariable) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_NodeId objectId = UA_NODEID_STRING(1, "utils.nodeversion.invalid.object");
+    UA_StatusCode res = UA_Server_addObjectNode(
+        server, objectId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "InvalidNodeVersionObject"),
+        UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NodeVersion");
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    res = UA_Server_addVariableNode(
+        server, UA_NODEID_STRING(1, "utils.nodeversion.invalid.property"),
+        objectId, UA_NS0ID(HASPROPERTY), UA_QUALIFIEDNAME(0, "NodeVersion"),
+        UA_NS0ID(PROPERTYTYPE), vAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId found;
+    res = findNodeVersion(objectId, &found);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTFOUND);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_utils");
 
@@ -499,6 +602,9 @@ int main(void) {
     tcase_add_test(tc_nodes, addVariableTypeMismatch);
     tcase_add_test(tc_nodes, deleteNonExistentNode);
     tcase_add_test(tc_nodes, checkDefaultAttributes);
+    tcase_add_test(tc_nodes, nodeVersionProperty);
+    tcase_add_test(tc_nodes, nodeVersionPropertyViaHasPropertySubtype);
+    tcase_add_test(tc_nodes, nodeVersionPropertyRejectsInvalidVariable);
     suite_add_tcase(s, tc_nodes);
 
     TCase *tc_attrs = tcase_create("Attributes");
