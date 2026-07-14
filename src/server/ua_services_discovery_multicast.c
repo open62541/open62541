@@ -508,7 +508,9 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     mdns_set_address_record(server, fullServiceDomain, localDomain);
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
-    UA_STACKARRAY(char, pathChars, path->length + 1);
+    char pathChars[1024];
+    if(path->length >= sizeof(pathChars))
+        return UA_STATUSCODE_BADOUTOFRANGE;
     if(createTxt) {
         if(path->length > 0)
             memcpy(pathChars, path->data, path->length);
