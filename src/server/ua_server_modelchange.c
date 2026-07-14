@@ -16,6 +16,9 @@ UA_ModelChangeAccumulator_init(UA_ModelChangeAccumulator *acc) {
 
 void
 UA_ModelChangeAccumulator_clear(UA_ModelChangeAccumulator *acc) {
+    UA_free(acc->nodeVersions);
+    UA_Array_delete(acc->nodeVersionIds, acc->changesSize,
+                    &UA_TYPES[UA_TYPES_NODEID]);
     UA_Array_delete(acc->changes, acc->changesSize,
                     &UA_TYPES[UA_TYPES_MODELCHANGESTRUCTUREDATATYPE]);
     memset(acc, 0, sizeof(*acc));
@@ -42,64 +45,177 @@ reserveModelChanges(UA_ModelChangeAccumulator *acc) {
     if(!newChanges)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     acc->changes = (UA_ModelChangeStructureDataType*)newChanges;
+
+    void *newNodeVersionIds =
+        UA_realloc(acc->nodeVersionIds, newCapacity * sizeof(UA_NodeId));
+    if(!newNodeVersionIds)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    acc->nodeVersionIds = (UA_NodeId*)newNodeVersionIds;
+
+    void *newNodeVersions =
+        UA_realloc(acc->nodeVersions, newCapacity * sizeof(UA_Int64));
+    if(!newNodeVersions)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    acc->nodeVersions = (UA_Int64*)newNodeVersions;
     acc->changesCapacity = newCapacity;
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-updateAffectedType(UA_ModelChangeStructureDataType *change,
-                   const UA_NodeId *affectedType) {
-    if(!affectedType || UA_NodeId_isNull(affectedType) ||
-       UA_NodeId_equal(&change->affectedType, affectedType))
-        return UA_STATUSCODE_GOOD;
+static UA_Int64
+nextNodeVersion(UA_Server *server) {
+    if(server->nodeVersionCounter == INT64_MAX)
+        server->nodeVersionCounter = 1;
+    else
+        server->nodeVersionCounter++;
+    return server->nodeVersionCounter;
+}
 
-    /* Keep the old value intact if the allocation for the replacement fails. */
-    UA_NodeId copy;
-    UA_NodeId_init(&copy);
-    UA_StatusCode res = UA_NodeId_copy(affectedType, &copy);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    UA_NodeId_clear(&change->affectedType);
-    change->affectedType = copy;
-    return UA_STATUSCODE_GOOD;
+static UA_StatusCode
+writeNodeVersion(UA_Server *server, const UA_NodeId propertyId,
+                 UA_Int64 nodeVersion) {
+    UA_Byte versionBuffer[32];
+    UA_String version = {sizeof(versionBuffer), versionBuffer};
+    UA_String_format(&version, "%lld", (long long)nodeVersion);
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &version, &UA_TYPES[UA_TYPES_STRING]);
+    return writeValueAttribute(server, propertyId, &value);
 }
 
 UA_StatusCode
-UA_ModelChangeAccumulator_record(UA_ModelChangeAccumulator *acc,
+UA_ModelChangeAccumulator_record(UA_Server *server,
+                                 UA_ModelChangeAccumulator *acc,
                                  const UA_NodeId *affected,
-                                 const UA_NodeId *affectedType,
                                  UA_Byte verb) {
-    if(!acc || !affected || UA_NodeId_isNull(affected) || verb == 0 ||
+    if(!server || !acc || !affected || UA_NodeId_isNull(affected) || verb == 0 ||
        (verb & (UA_Byte)~UA_MODELCHANGE_VALID_VERBS) != 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     for(size_t i = 0; i < acc->changesSize; ++i) {
         UA_ModelChangeStructureDataType *change = &acc->changes[i];
         if(!UA_NodeId_equal(&change->affected, affected))
             continue;
-        UA_StatusCode res = updateAffectedType(change, affectedType);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+
+        /* A deleted node and its NodeVersion Property are no longer available
+         * during finalization. Write the already assigned version now. */
+        if((verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED) &&
+           !(change->verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED)) {
+            UA_StatusCode res =
+                writeNodeVersion(server, acc->nodeVersionIds[i],
+                                 acc->nodeVersions[i]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
         change->verb |= verb;
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_StatusCode res = reserveModelChanges(acc);
-    if(res != UA_STATUSCODE_GOOD)
+    /* Only nodes with a valid NodeVersion Property participate in
+     * ModelChangeEvents. Capture the Property NodeId while the affected node is
+     * still present, so finalization does not have to look it up again. */
+    const UA_Node *node = UA_NODESTORE_GET(server, affected);
+    if(!node)
+        return UA_STATUSCODE_GOOD;
+
+    UA_NodeId affectedType;
+    UA_NodeId_init(&affectedType);
+    if(node->head.nodeClass == UA_NODECLASS_OBJECT ||
+       node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        const UA_Node *type =
+            getNodeType(server, &node->head, UA_NODEATTRIBUTESMASK_NONE,
+                        UA_REFERENCETYPESET_NONE,
+                        UA_BROWSEDIRECTION_INVALID);
+        if(type) {
+            UA_StatusCode typeRes =
+                UA_NodeId_copy(&type->head.nodeId, &affectedType);
+            UA_NODESTORE_RELEASE(server, type);
+            if(typeRes != UA_STATUSCODE_GOOD) {
+                UA_NODESTORE_RELEASE(server, node);
+                return typeRes;
+            }
+        }
+    }
+
+    UA_NodeId nodeVersionId;
+    UA_StatusCode res =
+        getNodeVersionProperty(server, &node->head, &nodeVersionId);
+    UA_NODESTORE_RELEASE(server, node);
+    if(res == UA_STATUSCODE_BADNOTFOUND) {
+        UA_NodeId_clear(&affectedType);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&affectedType);
         return res;
+    }
+
+    res = reserveModelChanges(acc);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     UA_ModelChangeStructureDataType *change = &acc->changes[acc->changesSize];
     UA_ModelChangeStructureDataType_init(change);
     res = UA_NodeId_copy(affected, &change->affected);
-    if(res == UA_STATUSCODE_GOOD && affectedType)
-        res = UA_NodeId_copy(affectedType, &change->affectedType);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_NodeId_copy(&affectedType, &change->affectedType);
+    UA_NodeId_clear(&affectedType);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ModelChangeStructureDataType_clear(change);
-        return res;
+        goto cleanup;
     }
+    acc->nodeVersionIds[acc->changesSize] = nodeVersionId;
+    UA_NodeId_init(&nodeVersionId);
+    acc->nodeVersions[acc->changesSize] = nextNodeVersion(server);
     change->verb = verb;
+
+    if(verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED) {
+        res = writeNodeVersion(server, acc->nodeVersionIds[acc->changesSize],
+                               acc->nodeVersions[acc->changesSize]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ModelChangeStructureDataType_clear(change);
+            UA_NodeId_clear(&acc->nodeVersionIds[acc->changesSize]);
+            goto cleanup;
+        }
+    }
     acc->changesSize++;
-    return UA_STATUSCODE_GOOD;
+    res = UA_STATUSCODE_GOOD;
+
+ cleanup:
+    UA_NodeId_clear(&nodeVersionId);
+    return res;
+}
+
+/* Update NodeVersion and discard changes for nodes that do not expose a valid
+ * NodeVersion Property. Successfully updated entries are compacted in-place. */
+static UA_StatusCode
+updateNodeVersions(UA_Server *server, UA_ModelChangeAccumulator *acc) {
+    UA_StatusCode result = UA_STATUSCODE_GOOD;
+    size_t out = 0;
+    for(size_t i = 0; i < acc->changesSize; ++i) {
+        UA_ModelChangeStructureDataType *change = &acc->changes[i];
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+        if(!(change->verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED))
+            res = writeNodeVersion(server, acc->nodeVersionIds[i],
+                                   acc->nodeVersions[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            if(res != UA_STATUSCODE_BADNOTFOUND && result == UA_STATUSCODE_GOOD)
+                result = res;
+            UA_ModelChangeStructureDataType_clear(change);
+            UA_NodeId_clear(&acc->nodeVersionIds[i]);
+            continue;
+        }
+
+        if(out != i) {
+            acc->changes[out] = *change;
+            UA_ModelChangeStructureDataType_init(change);
+            acc->nodeVersionIds[out] = acc->nodeVersionIds[i];
+            UA_NodeId_init(&acc->nodeVersionIds[i]);
+            acc->nodeVersions[out] = acc->nodeVersions[i];
+        }
+        out++;
+    }
+    acc->changesSize = out;
+    return result;
 }
 
 UA_StatusCode
@@ -111,6 +227,12 @@ UA_ModelChangeAccumulator_finalize(UA_Server *server,
     if(acc->changesSize == 0) {
         UA_ModelChangeAccumulator_clear(acc);
         return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode versionResult = updateNodeVersions(server, acc);
+    if(acc->changesSize == 0) {
+        UA_ModelChangeAccumulator_clear(acc);
+        return versionResult;
     }
 
     UA_STATIC_THREAD_LOCAL UA_KeyValuePair payload[1] = {
@@ -128,7 +250,7 @@ UA_ModelChangeAccumulator_finalize(UA_Server *server,
 
     UA_StatusCode res = createEvent(server, &ed, NULL);
     UA_ModelChangeAccumulator_clear(acc);
-    return res;
+    return (versionResult != UA_STATUSCODE_GOOD) ? versionResult : res;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
