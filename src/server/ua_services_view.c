@@ -531,7 +531,7 @@ RefResult_clear(RefResult *rr) {
 }
 
 struct ContinuationPoint {
-    ContinuationPoint *next;
+    TAILQ_ENTRY(ContinuationPoint) pointers;
     UA_ByteString identifier;
 
     /* Parameters of the Browse Request */
@@ -547,12 +547,22 @@ struct ContinuationPoint {
     UA_Boolean lastRefInverse;
 };
 
-ContinuationPoint *
+static void
 ContinuationPoint_clear(ContinuationPoint *cp) {
     UA_ByteString_clear(&cp->identifier);
     UA_BrowseDescription_clear(&cp->browseDescription);
     UA_NodePointer_clear(&cp->lastTarget);
-    return cp->next;
+}
+
+void
+ContinuationPointQueue_clear(ContinuationPointQueue *queue) {
+    ContinuationPoint *cp;
+    while((cp = TAILQ_FIRST(queue))) {
+        TAILQ_REMOVE(queue, cp, pointers);
+        UA_assert(cp != TAILQ_FIRST(queue));
+        ContinuationPoint_clear(cp);
+        UA_free(cp);
+    }
 }
 
 struct BrowseContext {
@@ -873,14 +883,21 @@ browse(struct BrowseContext *bc) {
     }
 }
 
+typedef struct {
+    UA_UInt32 maxReferences;
+    ContinuationPoint *lastPriorContinuationPoint;
+} BrowseOperationContext;
+
 /* Start to browse with no previous cp */
-void
-Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
-                 const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+static void
+Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
+                            BrowseOperationContext *context,
+                            const UA_BrowseDescription *descr,
+                            UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
     ContinuationPoint cp;
     memset(&cp, 0, sizeof(ContinuationPoint));
-    cp.maxReferences = *maxrefs;
+    cp.maxReferences = context->maxReferences;
     cp.browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
 
     /* How many references can we return at most? */
@@ -943,9 +960,22 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Enough space for the continuation point? */
-    if(session->availableContinuationPoints == 0) {
-        retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
-        goto cleanup;
+    if(session->continuationPointsSize >= UA_MAXCONTINUATIONPOINTS) {
+        /* Reclaim the oldest continuation point from a prior Browse request.
+         * Points created by other operations in this request are not eligible. */
+        if(!context->lastPriorContinuationPoint) {
+            retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+            goto cleanup;
+        }
+
+        ContinuationPoint *reclaimed =
+            TAILQ_FIRST(&session->continuationPoints);
+        if(reclaimed == context->lastPriorContinuationPoint)
+            context->lastPriorContinuationPoint = NULL;
+        TAILQ_REMOVE(&session->continuationPoints, reclaimed, pointers);
+        ContinuationPoint_clear(reclaimed);
+        UA_free(reclaimed);
+        --session->continuationPointsSize;
     }
 
     /* Allocate and fill the data structure */
@@ -982,9 +1012,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
 
     /* Attach the cp to the session */
-    cp2->next = session->continuationPoints;
-    session->continuationPoints = cp2;
-    --session->availableContinuationPoints;
+    TAILQ_INSERT_TAIL(&session->continuationPoints, cp2, pointers);
+    ++session->continuationPointsSize;
     return;
 
  cleanup:
@@ -995,6 +1024,14 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_NodePointer_clear(&cp.lastTarget);
     UA_BrowseResult_clear(result);
     result->statusCode = retval;
+}
+
+void
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
+                 const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+    BrowseOperationContext context = {
+        *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    Operation_BrowseWithContext(server, session, &context, descr, result);
 }
 
 UA_Boolean
@@ -1016,10 +1053,13 @@ Service_Browse(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    BrowseOperationContext context = {request->requestedMaxReferencesPerNode,
+        TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_Browse,
-                                      &request->requestedMaxReferencesPerNode,
+                                      (UA_ServiceOperation)Operation_BrowseWithContext,
+                                      &context,
                                       &request->nodesToBrowseSize,
                                       &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
                                       &response->resultsSize,
@@ -1043,12 +1083,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
                      const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
-    ContinuationPoint **prev = &session->continuationPoints;
-    ContinuationPoint *cp;
-    while((cp = *prev)) {
+    ContinuationPoint *cp = NULL;
+    TAILQ_FOREACH(cp, &session->continuationPoints, pointers) {
         if(UA_ByteString_equal(&cp->identifier, continuationPoint))
             break;
-        prev = &cp->next;
     }
     if(!cp) {
         result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
@@ -1057,9 +1095,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     /* Remove the cp */
     if(*releaseContinuationPoints) {
-        *prev = ContinuationPoint_clear(cp);
+        TAILQ_REMOVE(&session->continuationPoints, cp, pointers);
+        ContinuationPoint_clear(cp);
         UA_free(cp);
-        ++session->availableContinuationPoints;
+        --session->continuationPointsSize;
         return;
     }
 
@@ -1104,9 +1143,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
  remove_cp:
     /* Remove the cp */
-    *prev = ContinuationPoint_clear(cp);
+    TAILQ_REMOVE(&session->continuationPoints, cp, pointers);
+    ContinuationPoint_clear(cp);
     UA_free(cp);
-    ++session->availableContinuationPoints;
+    --session->continuationPointsSize;
 }
 
 UA_Boolean
