@@ -701,20 +701,79 @@ cleanup:
 
 #if MBEDTLS_VERSION_NUMBER < 0x03040000
 
-static const unsigned char *
-UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
-    if(l2 == 0)
-        return s1;
-    if(l1 < l2)
-        return NULL;
-    size_t limit = l1 - l2 + 1;
-    for(size_t i = 0; i < limit; ++i) {
-        if(s1[i] == s2[0]) {
-            if(memcmp(s1 + i, s2, l2) == 0)
-                return s1 + i;
+/* Walks the raw v3_ext DER blob and performs an exact match of each URI entry
+ * in the Subject Alternative Name extension against applicationURI.
+ * Used only for mbedTLS < 3.4.0, which does not expose a parsed SAN URI. */
+static UA_StatusCode
+verifySanUri(const mbedtls_x509_buf *v3_ext, const UA_String *applicationURI) {
+    unsigned char *p = v3_ext->p;
+    const unsigned char *end = p + v3_ext->len;
+    size_t len;
+
+    /* Extensions ::= SEQUENCE OF Extension */
+    if(mbedtls_asn1_get_tag(&p, end, &len,
+                             MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+        return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    const unsigned char *ext_end = p + len;
+
+    while(p < ext_end) {
+        /* Extension ::= SEQUENCE { extnID OID, critical BOOLEAN OPTIONAL,
+         *                          extnValue OCTET STRING } */
+        if(mbedtls_asn1_get_tag(&p, ext_end, &len,
+                                 MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+            break;
+        unsigned char *entry_end = p + len;
+
+        /* Read OID */
+        if(mbedtls_asn1_get_tag(&p, entry_end, &len, MBEDTLS_ASN1_OID) != 0)
+            break;
+        const unsigned char *oid_p = p;
+        p += len;
+
+        /* Skip anything that is not the SAN extension OID (2.5.29.17) */
+        if(len != MBEDTLS_OID_SIZE(MBEDTLS_OID_SUBJECT_ALT_NAME) ||
+           memcmp(oid_p, MBEDTLS_OID_SUBJECT_ALT_NAME, len) != 0) {
+            p = entry_end;
+            continue;
         }
+
+        /* Skip optional critical BOOLEAN */
+        if(p < entry_end && *p == MBEDTLS_ASN1_BOOLEAN) {
+            if(mbedtls_asn1_get_tag(&p, entry_end, &len, MBEDTLS_ASN1_BOOLEAN) != 0)
+                break;
+            p += len;
+        }
+
+        /* extnValue ::= OCTET STRING containing the encoded GeneralNames */
+        if(mbedtls_asn1_get_tag(&p, entry_end, &len, MBEDTLS_ASN1_OCTET_STRING) != 0)
+            break;
+        const unsigned char *val_end = p + len;
+
+        /* GeneralNames ::= SEQUENCE OF GeneralName */
+        if(mbedtls_asn1_get_tag(&p, val_end, &len,
+                                 MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
+            break;
+        const unsigned char *san_end = p + len;
+
+        /* GeneralName ::= CHOICE { ..., uniformResourceIdentifier [6] IA5String, ... } */
+        const unsigned char uriTag =
+            MBEDTLS_ASN1_CONTEXT_SPECIFIC | MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
+        while(p < san_end) {
+            unsigned char tag = *p;
+            if(mbedtls_asn1_get_tag(&p, san_end, &len, tag) != 0)
+                break;
+            if(tag == uriTag &&
+               len == applicationURI->length &&
+               memcmp(p, applicationURI->data, len) == 0)
+                return UA_STATUSCODE_GOOD;
+            p += len;
+        }
+
+        /* SAN extension found but no URI matched — do not fall through to other extensions */
+        return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
-    return NULL;
+
+    return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 }
 
 #endif
@@ -753,12 +812,7 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
         }
     }
 #else
-    /* Poor man's ApplicationUri verification. mbedTLS does not parse all fields
-     * of the Alternative Subject Name. Instead test whether the URI-string is
-     * present in the v3_ext field in general. */
-    if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
-                  applicationURI->data, applicationURI->length) == NULL)
-        retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    retval = verifySanUri(&remoteCertificate.v3_ext, applicationURI);
 #endif
 
     mbedtls_x509_crt_free(&remoteCertificate);
