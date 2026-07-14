@@ -109,15 +109,36 @@ START_TEST(generateEvents) {
 } END_TEST
 
 START_TEST(finalizeModelChangeAccumulator) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_NodeId affected = UA_NODEID_NUMERIC(1, 1234);
+    UA_StatusCode res = UA_Server_addObjectNode(
+        server, affected, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "VersionedObject"), UA_NS0ID(BASEOBJECTTYPE),
+        oAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String initialVersion = UA_STRING("initial");
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NodeVersion");
+    vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&vAttr.value, &initialVersion,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_NodeId versionProperty = UA_NODEID_NUMERIC(1, 1235);
+    res = UA_Server_addVariableNode(
+        server, versionProperty, affected, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "NodeVersion"), UA_NS0ID(PROPERTYTYPE),
+        vAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
     UA_EventFilter ef;
     UA_EventFilter_init(&ef);
     ef.selectClauses = (UA_SimpleAttributeOperand*)
         UA_Array_new(1, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     ck_assert_ptr_ne(ef.selectClauses, NULL);
     ef.selectClausesSize = 1;
-    UA_StatusCode res =
-        UA_SimpleAttributeOperand_parse(&ef.selectClauses[0],
-                                        UA_STRING("/Changes"));
+    res = UA_SimpleAttributeOperand_parse(&ef.selectClauses[0],
+                                          UA_STRING("/Changes"));
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_MonitoredItemCreateResult mon =
@@ -128,10 +149,11 @@ START_TEST(finalizeModelChangeAccumulator) {
 
     UA_ModelChangeAccumulator acc;
     UA_ModelChangeAccumulator_init(&acc);
-    UA_NodeId affected = UA_NODEID_NUMERIC(1, 1234);
+    lockServer(server);
     res = UA_ModelChangeAccumulator_record(
-        &acc, &affected, NULL,
+        server, &acc, &affected,
         UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
+    unlockServer(server);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     lockServer(server);
@@ -140,6 +162,15 @@ START_TEST(finalizeModelChangeAccumulator) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(acc.changesSize, 0);
     ck_assert_ptr_eq(acc.changes, NULL);
+
+    UA_Variant version;
+    UA_Variant_init(&version);
+    res = UA_Server_readValue(server, versionProperty, &version);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&version, &UA_TYPES[UA_TYPES_STRING]));
+    UA_String expectedVersion = UA_STRING("1");
+    ck_assert(UA_String_equal((UA_String*)version.data, &expectedVersion));
+    UA_Variant_clear(&version);
 
     modelChangeReceived = false;
     UA_Server_run_iterate(server, false);

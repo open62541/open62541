@@ -103,6 +103,19 @@ typedef struct session_list_entry {
     UA_Session session;
 } session_list_entry;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* Accumulates the model changes of one logical operation or service request. */
+typedef struct {
+    size_t changesSize;
+    size_t changesCapacity;
+    UA_ModelChangeStructureDataType *changes;
+    UA_NodeId *nodeVersionIds;
+    UA_Int64 *nodeVersions;
+} UA_ModelChangeAccumulator;
+
+#endif
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -167,6 +180,18 @@ struct UA_Server {
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
 
+#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Generates server-wide NodeVersion values. The representation in the
+     * AddressSpace is the decimal String form of this counter. */
+    UA_Int64 nodeVersionCounter;
+
+    /* Model changes are accumulated across reentrant calls and finalized when
+     * the outermost operation returns. */
+    UA_Boolean modelChangeEventsEnabled;
+    size_t modelChangeDepth;
+    UA_ModelChangeAccumulator modelChanges;
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -441,16 +466,6 @@ getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/* Accumulates the model changes of one logical operation or service request.
- * Entries with the same affected NodeId are coalesced by combining their verb
- * masks. This is request-local state; it does not update NodeVersion or emit an
- * Event. */
-typedef struct {
-    size_t changesSize;
-    size_t changesCapacity;
-    UA_ModelChangeStructureDataType *changes;
-} UA_ModelChangeAccumulator;
-
 void
 UA_ModelChangeAccumulator_init(UA_ModelChangeAccumulator *acc);
 
@@ -458,9 +473,9 @@ void
 UA_ModelChangeAccumulator_clear(UA_ModelChangeAccumulator *acc);
 
 UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
-UA_ModelChangeAccumulator_record(UA_ModelChangeAccumulator *acc,
+UA_ModelChangeAccumulator_record(UA_Server *server,
+                                 UA_ModelChangeAccumulator *acc,
                                  const UA_NodeId *affected,
-                                 const UA_NodeId *affectedType,
                                  UA_Byte verb);
 
 /* Emit one GeneralModelChangeEvent for the accumulated changes and clear the

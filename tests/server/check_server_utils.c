@@ -576,12 +576,49 @@ START_TEST(nodeVersionPropertyRejectsInvalidVariable) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
+static void
+addVersionedObject(const UA_NodeId affected, const UA_NodeId propertyId) {
+    static UA_UInt32 counter = 0;
+    char name[32];
+    snprintf(name, sizeof(name), "VersionedObject%u", counter++);
+
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_StatusCode res = UA_Server_addObjectNode(
+        server, affected, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, name), UA_NS0ID(BASEOBJECTTYPE),
+        oAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String initial = UA_STRING("initial");
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NodeVersion");
+    vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&vAttr.value, &initial, &UA_TYPES[UA_TYPES_STRING]);
+    res = UA_Server_addVariableNode(
+        server, propertyId, affected, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "NodeVersion"), UA_NS0ID(PROPERTYTYPE),
+        vAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static UA_StatusCode
+recordModelChange(UA_ModelChangeAccumulator *acc, const UA_NodeId *affected,
+                  UA_Byte verb) {
+    lockServer(server);
+    UA_StatusCode res = UA_ModelChangeAccumulator_record(
+        server, acc, affected, verb);
+    unlockServer(server);
+    return res;
+}
+
 START_TEST(modelChangeAccumulatorAllVerbs) {
     UA_ModelChangeAccumulator acc;
     UA_ModelChangeAccumulator_init(&acc);
 
     UA_NodeId affected = UA_NODEID_STRING(1, "modelchange.affected");
-    UA_NodeId affectedType = UA_NODEID_STRING(1, "modelchange.type");
+    addVersionedObject(affected,
+                       UA_NODEID_STRING(1, "modelchange.affected.version"));
     const UA_Byte verbs[] = {
         UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED,
         UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED,
@@ -591,14 +628,16 @@ START_TEST(modelChangeAccumulatorAllVerbs) {
     };
 
     for(size_t i = 0; i < sizeof(verbs) / sizeof(verbs[0]); ++i) {
-        UA_StatusCode res = UA_ModelChangeAccumulator_record(
-            &acc, &affected, &affectedType, verbs[i]);
+        UA_StatusCode res = recordModelChange(
+            &acc, &affected, verbs[i]);
         ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     }
 
     ck_assert_uint_eq(acc.changesSize, 1);
     ck_assert(UA_NodeId_equal(&acc.changes[0].affected, &affected));
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &affectedType));
+    UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType,
+                              &expectedType));
     ck_assert_uint_eq(acc.changes[0].verb, 0x1Fu);
 
     UA_ModelChangeAccumulator_clear(&acc);
@@ -612,19 +651,23 @@ START_TEST(modelChangeAccumulatorMultipleNodes) {
     UA_ModelChangeAccumulator_init(&acc);
 
     for(UA_UInt32 i = 1; i <= 10; ++i) {
-        UA_NodeId affected = UA_NODEID_NUMERIC(2, i);
-        UA_StatusCode res = UA_ModelChangeAccumulator_record(
-            &acc, &affected, NULL,
+        UA_NodeId affected = UA_NODEID_NUMERIC(1, 2000 + i);
+        UA_NodeId property = UA_NODEID_NUMERIC(1, 2100 + i);
+        addVersionedObject(affected, property);
+        UA_StatusCode res = recordModelChange(
+            &acc, &affected,
             UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
         ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     }
 
     ck_assert_uint_eq(acc.changesSize, 10);
     ck_assert_uint_ge(acc.changesCapacity, acc.changesSize);
+    UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
     for(UA_UInt32 i = 1; i <= 10; ++i) {
-        UA_NodeId expected = UA_NODEID_NUMERIC(2, i);
+        UA_NodeId expected = UA_NODEID_NUMERIC(1, 2000 + i);
         ck_assert(UA_NodeId_equal(&acc.changes[i - 1].affected, &expected));
-        ck_assert(UA_NodeId_isNull(&acc.changes[i - 1].affectedType));
+        ck_assert(UA_NodeId_equal(&acc.changes[i - 1].affectedType,
+                                  &expectedType));
     }
     UA_ModelChangeAccumulator_clear(&acc);
 } END_TEST
@@ -633,24 +676,36 @@ START_TEST(modelChangeAccumulatorAffectedType) {
     UA_ModelChangeAccumulator acc;
     UA_ModelChangeAccumulator_init(&acc);
     UA_NodeId affected = UA_NODEID_NUMERIC(1, 1000);
-    UA_NodeId firstType = UA_NODEID_STRING(1, "FirstType");
-    UA_NodeId secondType = UA_NODEID_STRING(1, "SecondType");
+    addVersionedObject(affected, UA_NODEID_NUMERIC(1, 1001));
 
-    UA_StatusCode res = UA_ModelChangeAccumulator_record(
-        &acc, &affected, &firstType,
+    UA_StatusCode res = recordModelChange(
+        &acc, &affected,
         UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    res = UA_ModelChangeAccumulator_record(
-        &acc, &affected, NULL,
+    res = recordModelChange(
+        &acc, &affected,
         UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &firstType));
+    UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &expectedType));
 
-    res = UA_ModelChangeAccumulator_record(
-        &acc, &affected, &secondType,
+    res = recordModelChange(
+        &acc, &affected,
         UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &secondType));
+
+    /* NodeDeleted writes the assigned version before the node is removed. */
+    UA_Variant version;
+    UA_Variant_init(&version);
+    res = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 1001), &version);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&version, &UA_TYPES[UA_TYPES_STRING]));
+    UA_String expectedVersion = UA_STRING("1");
+    ck_assert(UA_String_equal((UA_String*)version.data, &expectedVersion));
+    UA_Variant_clear(&version);
+
+    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType,
+                              &expectedType));
     ck_assert_uint_eq(acc.changes[0].verb,
                       UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED |
                       UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED |
@@ -663,16 +718,16 @@ START_TEST(modelChangeAccumulatorRejectsInvalidInput) {
     UA_ModelChangeAccumulator_init(&acc);
     UA_NodeId affected = UA_NODEID_NUMERIC(1, 1000);
 
-    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(
-        &acc, NULL, NULL, UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED),
+    ck_assert_uint_eq(recordModelChange(
+        &acc, NULL, UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED),
         UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(
-        &acc, &UA_NODEID_NULL, NULL,
+    ck_assert_uint_eq(recordModelChange(
+        &acc, &UA_NODEID_NULL,
         UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED),
         UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(&acc, &affected, NULL, 0),
+    ck_assert_uint_eq(recordModelChange(&acc, &affected, 0),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_ModelChangeAccumulator_record(&acc, &affected, NULL, 0x20),
+    ck_assert_uint_eq(recordModelChange(&acc, &affected, 0x20),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(acc.changesSize, 0);
     UA_ModelChangeAccumulator_clear(&acc);

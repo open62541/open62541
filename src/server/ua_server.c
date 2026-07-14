@@ -309,6 +309,11 @@ UA_Server_delete(UA_Server *server) {
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_assert(server->modelChangeDepth == 0);
+    UA_ModelChangeAccumulator_clear(&server->modelChanges);
+#endif
+
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -422,6 +427,10 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
     server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_ModelChangeAccumulator_init(&server->modelChanges);
+#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Initialize the adminSubscription */
@@ -1175,6 +1184,11 @@ UA_Server_run_startup(UA_Server *server) {
     /* Take the server lock */
     lockServer(server);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* A restarted server also suppresses changes until startup is complete. */
+    server->modelChangeEventsEnabled = false;
+#endif
+
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
@@ -1239,6 +1253,12 @@ UA_Server_run_startup(UA_Server *server) {
     /* Set the server to STARTED. From here on, only use
      * UA_Server_run_shutdown(server) to stop the server. */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STARTED);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Suppress ModelChangeEvents for the initial address-space construction
+     * and startup callbacks. Enable them only once startup has completed. */
+    server->modelChangeEventsEnabled = true;
+#endif
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
