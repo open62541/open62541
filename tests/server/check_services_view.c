@@ -129,6 +129,48 @@ START_TEST(Service_Browse_WithMaxResults) {
 }
 END_TEST
 
+START_TEST(Service_Browse_ReclaimsOldestContinuationPoint) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+
+    UA_ByteString continuationPoints[UA_MAXCONTINUATIONPOINTS];
+    for(size_t i = 0; i < UA_MAXCONTINUATIONPOINTS; i++) {
+        UA_BrowseResult br = UA_Server_browse(server, 1, &bd);
+        ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_gt(br.continuationPoint.length, 0);
+        continuationPoints[i] = br.continuationPoint;
+        br.continuationPoint = UA_BYTESTRING_NULL;
+        UA_BrowseResult_clear(&br);
+    }
+
+    /* A new request reclaims the oldest continuation point. */
+    UA_BrowseResult br = UA_Server_browse(server, 1, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(br.continuationPoint.length, 0);
+
+    UA_BrowseResult next =
+        UA_Server_browseNext(server, false, &continuationPoints[0]);
+    ck_assert_int_eq(next.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_BrowseResult_clear(&next);
+
+    /* A newer point was not reclaimed. */
+    next = UA_Server_browseNext(server, false, &continuationPoints[1]);
+    ck_assert_int_eq(next.statusCode, UA_STATUSCODE_GOOD);
+    UA_BrowseResult_clear(&next);
+
+    for(size_t i = 0; i < UA_MAXCONTINUATIONPOINTS; i++)
+        UA_ByteString_clear(&continuationPoints[i]);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_Browse_WithBrowseName) {
     UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -501,6 +543,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_ClassMask);
     tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
+    tcase_add_test(tc_browse, Service_Browse_ReclaimsOldestContinuationPoint);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
     tcase_add_test(tc_browse, Service_Browse_Localization);
     suite_add_tcase(s, tc_browse);
@@ -532,5 +575,3 @@ int main(void) {
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
-

@@ -88,10 +88,10 @@ START_TEST(Session_init_ShallWork) {
     UA_DateTime tmpDateTime = 0;
     ck_assert_int_eq(session.activated, false);
     ck_assert_int_eq(session.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
-    ck_assert_int_eq(session.availableContinuationPoints, UA_MAXCONTINUATIONPOINTS);
+    ck_assert_uint_eq(session.continuationPointsSize, 0);
     ck_assert_ptr_eq(session.channel, NULL);
     ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data, NULL);
-    ck_assert_ptr_eq(session.continuationPoints, NULL);
+    ck_assert(TAILQ_EMPTY(&session.continuationPoints));
     ck_assert_int_eq(session.maxRequestMessageSize, 0);
     ck_assert_int_eq(session.maxResponseMessageSize, 0);
     ck_assert_int_eq(session.sessionId.identifier.numeric, tmpNodeId.identifier.numeric);

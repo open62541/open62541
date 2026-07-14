@@ -16,7 +16,7 @@
 
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
-    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
+    TAILQ_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
     TAILQ_INIT(&session->subscriptions);
@@ -48,13 +48,8 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
     UA_ByteString_clear(&session->clientNonce);
-    struct ContinuationPoint *cp, *next = session->continuationPoints;
-    while((cp = next)) {
-        next = ContinuationPoint_clear(cp);
-        UA_free(cp);
-    }
-    session->continuationPoints = NULL;
-    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
+    ContinuationPointQueue_clear(&session->continuationPoints);
+    session->continuationPointsSize = 0;
 
     UA_KeyValueMap_clear(&session->attributes);
 
