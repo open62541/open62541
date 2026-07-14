@@ -10,11 +10,13 @@
 
 #include <check.h>
 
+#include "server/ua_server_internal.h"
 #include "test_helpers.h"
 
 static UA_Server *server;
 static UA_NodeId eventType;
 static unsigned callbackCount = 0;
+static UA_Boolean modelChangeReceived = false;
 
 static void
 setup(void) {
@@ -49,7 +51,25 @@ eventCallback(UA_Server *server, UA_UInt32 monitoredItemId,
 }
 
 static void
-createEvent(void) {
+modelChangeCallback(UA_Server *server, UA_UInt32 monitoredItemId,
+                    void *monitoredItemContext,
+                    const UA_KeyValueMap eventFields) {
+    ck_assert_uint_eq(eventFields.mapSize, 1);
+    UA_Variant *changes = &eventFields.map[0].value;
+    ck_assert_ptr_eq(changes->type,
+                     &UA_TYPES[UA_TYPES_MODELCHANGESTRUCTUREDATATYPE]);
+    ck_assert_uint_eq(changes->arrayLength, 1);
+    UA_ModelChangeStructureDataType *change =
+        (UA_ModelChangeStructureDataType*)changes->data;
+    UA_NodeId expected = UA_NODEID_NUMERIC(1, 1234);
+    ck_assert(UA_NodeId_equal(&change->affected, &expected));
+    ck_assert_uint_eq(change->verb,
+                      UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
+    modelChangeReceived = true;
+}
+
+static void
+createTestEvent(void) {
     UA_UInt16 severity = 100;
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
     UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
@@ -76,16 +96,54 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
     UA_EventFilter_clear(&ef);
 
-    createEvent();
+    createTestEvent();
 
     UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
-    createEvent();
-    createEvent();
+    createTestEvent();
+    createTestEvent();
 
     UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 3);
+} END_TEST
+
+START_TEST(finalizeModelChangeAccumulator) {
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ck_assert_ptr_ne(ef.selectClauses, NULL);
+    ef.selectClausesSize = 1;
+    UA_StatusCode res =
+        UA_SimpleAttributeOperand_parse(&ef.selectClauses[0],
+                                        UA_STRING("/Changes"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
+                                           modelChangeCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&ef);
+
+    UA_ModelChangeAccumulator acc;
+    UA_ModelChangeAccumulator_init(&acc);
+    UA_NodeId affected = UA_NODEID_NUMERIC(1, 1234);
+    res = UA_ModelChangeAccumulator_record(
+        &acc, &affected, NULL,
+        UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    res = UA_ModelChangeAccumulator_finalize(server, &acc);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(acc.changesSize, 0);
+    ck_assert_ptr_eq(acc.changes, NULL);
+
+    modelChangeReceived = false;
+    UA_Server_run_iterate(server, false);
+    ck_assert(modelChangeReceived);
 } END_TEST
 
 static Suite *testSuite_event(void) {
@@ -93,6 +151,7 @@ static Suite *testSuite_event(void) {
     TCase *tc_server = tcase_create("Server Local Subscription Events");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEvents);
+    tcase_add_test(tc_server, finalizeModelChangeAccumulator);
     suite_add_tcase(s, tc_server);
     return s;
 }

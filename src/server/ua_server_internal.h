@@ -439,6 +439,39 @@ UA_StatusCode
 getNodeVersionProperty(UA_Server *server, const UA_NodeHead *head,
                        UA_NodeId *outPropertyId);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* Accumulates the model changes of one logical operation or service request.
+ * Entries with the same affected NodeId are coalesced by combining their verb
+ * masks. This is request-local state; it does not update NodeVersion or emit an
+ * Event. */
+typedef struct {
+    size_t changesSize;
+    size_t changesCapacity;
+    UA_ModelChangeStructureDataType *changes;
+} UA_ModelChangeAccumulator;
+
+void
+UA_ModelChangeAccumulator_init(UA_ModelChangeAccumulator *acc);
+
+void
+UA_ModelChangeAccumulator_clear(UA_ModelChangeAccumulator *acc);
+
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_ModelChangeAccumulator_record(UA_ModelChangeAccumulator *acc,
+                                 const UA_NodeId *affected,
+                                 const UA_NodeId *affectedType,
+                                 UA_Byte verb);
+
+/* Emit one GeneralModelChangeEvent for the accumulated changes and clear the
+ * accumulator. Requires the service mutex. An empty accumulator is simply
+ * cleared and does not emit an Event. */
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_ModelChangeAccumulator_finalize(UA_Server *server,
+                                   UA_ModelChangeAccumulator *acc);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
 isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
