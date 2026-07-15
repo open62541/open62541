@@ -1390,10 +1390,46 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Release all owned fields of a session identity context. */
+void
+UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx) {
+    if(!ctx)
+        return;
+    UA_String_clear(&ctx->userName);
+    UA_String_clear(&ctx->userThumbprint);
+    UA_String_clear(&ctx->userSubject);
+    UA_String_clear(&ctx->applicationUri);
+    UA_String_clear(&ctx->endpointUrl);
+    UA_String_clear(&ctx->securityPolicyUri);
+    UA_String_clear(&ctx->transportProfileUri);
+    memset(ctx, 0, sizeof(UA_SessionIdentityContext));
+}
+
+/* Match a single identity mapping rule against a session identity context.
+ * Covers Anonymous, AuthenticatedUser, UserName and TrustedApplication; the
+ * remaining criteria (Thumbprint, X509Subject, Application, Role, GroupId) are
+ * evaluated in later phases. */
+static UA_Boolean
+identityRuleMatches(const UA_IdentityMappingRuleType *rule,
+                    const UA_SessionIdentityContext *ctx) {
+    switch(rule->criteriaType) {
+    case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
+        return ctx->isAnonymous;
+    case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
+        return !ctx->isAnonymous;
+    case UA_IDENTITYCRITERIATYPE_USERNAME:
+        return (ctx->userName.length > 0 &&
+                UA_String_equal(&ctx->userName, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+        return ctx->trustedApplication;
+    default:
+        return false;
+    }
+}
+
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
-                               const UA_ExtensionObject *userIdentityToken,
-                               UA_Boolean trustedApplication,
+                               const UA_SessionIdentityContext *ctx,
                                size_t *outRolesSize, UA_NodeId **outRoleIds) {
     *outRolesSize = 0;
     *outRoleIds = NULL;
@@ -1401,111 +1437,60 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     if(server->rolesSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Determine session identity characteristics from the token */
-    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
-    UA_Boolean isAnonymous =
-        (tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
-    UA_String userName = UA_STRING_NULL;
-    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *ut =
-            (const UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
-        userName = ut->userName;
-    }
+    UA_Boolean *matchedRoles = (UA_Boolean*)
+        UA_calloc(server->rolesSize, sizeof(UA_Boolean));
+    if(!matchedRoles)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Spec Part 18 §4.3: the Anonymous Role is always assigned to every
-     * Session, regardless of the identity mapping rules. Reserve it explicitly
-     * so the assignment does not depend on the Anonymous Role still carrying
-     * its default rules. */
-    const UA_NodeId anonymousRoleId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
-    UA_Boolean anonymousExists = (findRoleById(server, &anonymousRoleId) != NULL);
-    UA_Boolean anonymousMatched = false;
-
-    /* First pass: count matching roles */
+    /* Match every role's identity mapping rules against the context */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
-            UA_Boolean match = false;
-            switch(role->identityMappingRules[j].criteriaType) {
-            case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
-                match = isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
-                match = !isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_USERNAME:
-                if(userName.length > 0)
-                    match = UA_String_equal(&userName,
-                                            &role->identityMappingRules[j].criteria);
-                break;
-            case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
-                match = trustedApplication;
-                break;
-            default:
-                break;
-            }
-            if(match) {
+            if(identityRuleMatches(&role->identityMappingRules[j], ctx)) {
+                matchedRoles[i] = true;
                 matchCount++;
-                if(UA_NodeId_equal(&role->roleId, &anonymousRoleId))
-                    anonymousMatched = true;
                 break;
             }
         }
     }
 
-    /* Always assign the Anonymous Role if it is registered but no rule
-     * matched it. */
-    UA_Boolean addAnonymous = (anonymousExists && !anonymousMatched);
-    size_t total = matchCount + (addAnonymous ? 1 : 0);
-    if(total == 0)
-        return UA_STATUSCODE_GOOD;
+    /* Spec Part 18 §4.3: the Anonymous Role is always assigned to every
+     * Session, regardless of the identity mapping rules. */
+    const UA_NodeId anonymousRoleId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    for(size_t i = 0; i < server->rolesSize; i++) {
+        if(!matchedRoles[i] &&
+           UA_NodeId_equal(&server->roles[i].roleId, &anonymousRoleId)) {
+            matchedRoles[i] = true;
+            matchCount++;
+            break;
+        }
+    }
 
-    /* Second pass: allocate exact size and collect role IDs */
-    UA_NodeId *matched = (UA_NodeId*)
-        UA_calloc(total, sizeof(UA_NodeId));
-    if(!matched)
+    if(matchCount == 0) {
+        UA_free(matchedRoles);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Collect the matching role IDs */
+    UA_NodeId *matched = (UA_NodeId*)UA_calloc(matchCount, sizeof(UA_NodeId));
+    if(!matched) {
+        UA_free(matchedRoles);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     size_t idx = 0;
     for(size_t i = 0; i < server->rolesSize && idx < matchCount; i++) {
-        UA_Role *role = &server->roles[i];
-        for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
-            UA_Boolean match = false;
-            switch(role->identityMappingRules[j].criteriaType) {
-            case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
-                match = isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
-                match = !isAnonymous;
-                break;
-            case UA_IDENTITYCRITERIATYPE_USERNAME:
-                if(userName.length > 0)
-                    match = UA_String_equal(&userName,
-                                            &role->identityMappingRules[j].criteria);
-                break;
-            case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
-                match = trustedApplication;
-                break;
-            default:
-                break;
-            }
-            if(match) {
-                UA_NodeId_copy(&role->roleId, &matched[idx]);
-                idx++;
-                break;
-            }
-        }
-    }
-
-    /* Append the Anonymous Role if no rule matched it */
-    if(addAnonymous) {
-        UA_NodeId_copy(&anonymousRoleId, &matched[idx]);
+        if(!matchedRoles[i])
+            continue;
+        UA_NodeId_copy(&server->roles[i].roleId, &matched[idx]);
         idx++;
     }
+    UA_free(matchedRoles);
 
     *outRoleIds = matched;
-    *outRolesSize = total;
+    *outRolesSize = matchCount;
     return UA_STATUSCODE_GOOD;
 }
 
