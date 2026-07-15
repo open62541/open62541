@@ -400,11 +400,13 @@ START_TEST(Server_Subscription_resendData_withDataChangeItem) {
     ASSERT_STATUSCODE(res.statusCode, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(res.monitoredItemId, 0);
     UA_UInt32 monId = res.monitoredItemId;
+    (void)monId;
 
     /* Run a server iteration so the monitored item gets a sample. */
     UA_Server_run_iterate(server, false);
     ck_assert_uint_ge(callbackCount, 1);
     UA_UInt32 countAfterSample = callbackCount;
+    (void)countAfterSample;
 
     /* resendData must not crash, even with a populated item. */
     lockServer(server);

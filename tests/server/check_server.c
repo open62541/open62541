@@ -659,7 +659,6 @@ int main(void) {
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
-    tcase_add_test(tc_call, checkCallbackManagement);
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");
@@ -682,6 +681,7 @@ int main(void) {
     tcase_add_test(tc_ext, checkServerAddReference);
     tcase_add_test(tc_ext, checkServerReadDataType);
     tcase_add_test(tc_ext, checkServerRepeatedCallback);
+    tcase_add_test(tc_ext, checkCallbackManagement);
     tcase_add_test(tc_ext, checkForEachChildNodeCall);
     tcase_add_test(tc_ext, checkForEachChildNodeCall_abort);
     tcase_add_test(tc_ext, checkForEachChildNodeCall_invalidNode);

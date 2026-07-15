@@ -517,10 +517,11 @@ START_TEST(readDiagnostics_sourceTimestamp_populated) {
      * When UA_TIMESTAMPSTORETURN_SOURCE is requested, the
      * readDiagnostics function must populate hasSourceTimestamp
      * and sourceTimestamp. None of the existing tests exercises
-     * this with SOURCE timestamps. */
+     * this with SOURCE timestamps. Use a Summary sub-node so the
+     * readDiagnostics callback is actually invoked. */
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
-    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT);
     rvi.attributeId = UA_ATTRIBUTEID_VALUE;
 
     UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_SOURCE);
@@ -575,11 +576,10 @@ START_TEST(diagnostics_disableCollectively) {
     ck_assert_uint_eq(*(UA_Boolean*)verify.data, false);
     UA_Variant_clear(&verify);
 
-    /* Re-enable diagnostics for other tests */
+    /* Restore the original enabled-flag state for subsequent tests. */
     UA_Variant reenableVar;
     UA_Variant_init(&reenableVar);
-    UA_Boolean enable = true;
-    UA_Variant_setScalar(&reenableVar, &enable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&reenableVar, &originalEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
     res = UA_Server_writeValue(server,
                                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG),
                                reenableVar);

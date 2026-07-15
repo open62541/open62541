@@ -321,8 +321,10 @@ UA_Openssl_RSA_Private_Decrypt(UA_ByteString *data, EVP_PKEY *privateKey,
     size_t keySize = (size_t) UA_OpenSSL_RSA_Key_Size(privateKey);
     /* The buffer must consist of an integral number of RSA blocks. Without
      * this check, EVP_PKEY_decrypt is called with keySize bytes from an
-     * undersized buffer, which reads past the end of data->data. */
-    if(data->length == 0 || (data->length % keySize) != 0)
+     * undersized buffer, which reads past the end of data->data. Also guard
+     * against keySize == 0 (e.g. unexpected key type / error from the helper),
+     * which would otherwise raise a division-by-zero / undefined behaviour. */
+    if(data->length == 0 || keySize == 0 || (data->length % keySize) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     size_t cipherOffset = 0;
     size_t outOffset = 0;

@@ -888,9 +888,9 @@ START_TEST(Client_service_queryFirst_emptyRequest) {
     /* The server doesn't store a query; an empty request must come
      * back with some non-GOOD status (e.g. BADVIEWIDUNKNOWN, BADDECODINGERROR,
      * BADNODEIDINVALID, or BADNOTIMPLEMENTED depending on the server
-     * build). We don't assert a specific code -- we just require
-     * that the request reaches the server and a response comes back. */
-    ck_assert_ptr_ne(&response, NULL);
+     * build). The request must round-trip -- the round-trip itself
+     * sets responseHeader.serviceResult, which is what we check. */
+    ck_assert_uint_ne(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_QueryFirstResponse_clear(&response);
 
     UA_Client_disconnect(client);
