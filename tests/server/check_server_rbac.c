@@ -55,6 +55,44 @@ removeTestRole(const char *name, UA_UInt16 nsIdx)
                                 UA_QUALIFIEDNAME(nsIdx, (char*)(uintptr_t)name));
 }
 
+/* Create a role carrying a single identity mapping rule */
+static UA_NodeId
+addRoleWithRule(const char *name, UA_IdentityCriteriaType ct, const char *criteria)
+{
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = ct;
+    rule.criteria = UA_STRING((char*)(uintptr_t)criteria);
+    role.identityMappingRules = &rule;
+    role.identityMappingRulesSize = 1;
+    UA_NodeId id = UA_NODEID_NULL;
+    UA_StatusCode res = UA_Server_addRole(server, &role, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return id;
+}
+
+/* Evaluate the roles for a context and report whether roleId is among them */
+static UA_Boolean
+roleGrantedForContext(const UA_SessionIdentityContext *ctx, const UA_NodeId *roleId)
+{
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, ctx, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], roleId)) {
+            found = true;
+            break;
+        }
+    }
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+    return found;
+}
+
 START_TEST(Role_initClearCopy) {
     UA_Role r;
     UA_Role_init(&r);
@@ -876,22 +914,19 @@ END_TEST
 /* An anonymous session is granted the TrustedApplication role only when the
  * client application is trusted (encrypted SecureChannel). */
 START_TEST(trustedApplication_assignedWhenTrusted) {
-    UA_AnonymousIdentityToken anon;
-    UA_AnonymousIdentityToken_init(&anon);
-    UA_ExtensionObject token;
-    UA_ExtensionObject_init(&token);
-    token.encoding = UA_EXTENSIONOBJECT_DECODED;
-    token.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
-    token.content.decoded.data = &anon;
-
     UA_NodeId taId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION);
 
     /* Trusted application -> role is assigned */
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = true;
+    ctx.trustedApplication = true;
+
     size_t size = 0;
     UA_NodeId *ids = NULL;
     UA_StatusCode res =
-        UA_Server_evaluateSessionRoles(server, &token, true, &size, &ids);
+        UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_Boolean found = false;
     for(size_t i = 0; i < size; i++)
@@ -901,9 +936,10 @@ START_TEST(trustedApplication_assignedWhenTrusted) {
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Untrusted application -> role is not assigned */
+    ctx.trustedApplication = false;
     size = 0;
     ids = NULL;
-    res = UA_Server_evaluateSessionRoles(server, &token, false, &size, &ids);
+    res = UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     found = false;
     for(size_t i = 0; i < size; i++)
@@ -920,17 +956,13 @@ START_TEST(anonymousRole_alwaysAssigned) {
     UA_NodeId anonId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
 
     /* Anonymous identity token */
-    UA_AnonymousIdentityToken anon;
-    UA_AnonymousIdentityToken_init(&anon);
-    UA_ExtensionObject tok;
-    UA_ExtensionObject_init(&tok);
-    tok.encoding = UA_EXTENSIONOBJECT_DECODED;
-    tok.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
-    tok.content.decoded.data = &anon;
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = true;
 
     size_t size = 0;
     UA_NodeId *ids = NULL;
-    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx,
                                                      &size, &ids),
                       UA_STATUSCODE_GOOD);
     UA_Boolean found = false;
@@ -941,15 +973,13 @@ START_TEST(anonymousRole_alwaysAssigned) {
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Authenticated (username) session still receives the Anonymous Role */
-    UA_UserNameIdentityToken un;
-    UA_UserNameIdentityToken_init(&un);
-    un.userName = UA_STRING("nobody");
-    tok.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
-    tok.content.decoded.data = &un;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = false;
+    ctx.userName = UA_STRING("nobody");
 
     size = 0;
     ids = NULL;
-    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx,
                                                      &size, &ids),
                       UA_STATUSCODE_GOOD);
     found = false;
@@ -2490,6 +2520,161 @@ START_TEST(roleSetMethods_restrictedToAdmin) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
 
+/* The Thumbprint, X509Subject, Application and Role identity criteria are
+ * evaluated during role resolution (Part 18 §4.4.2). */
+START_TEST(identityCriteria_extended) {
+    UA_NodeId thumb = addRoleWithRule("ThumbRole",
+                                      UA_IDENTITYCRITERIATYPE_THUMBPRINT, "AABBCC");
+    UA_NodeId subj = addRoleWithRule("SubjRole",
+                                     UA_IDENTITYCRITERIATYPE_X509SUBJECT, "CN=alice");
+    UA_NodeId app = addRoleWithRule("AppRole",
+                                    UA_IDENTITYCRITERIATYPE_APPLICATION, "urn:app:x");
+    /* ChainRole is granted transitively because it references AppRole */
+    UA_NodeId chain = addRoleWithRule("ChainRole",
+                                      UA_IDENTITYCRITERIATYPE_ROLE, "AppRole");
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userThumbprint = UA_STRING("aabbcc"); /* lower-case: case-insensitive */
+    ctx.userSubject = UA_STRING("CN=alice");
+    ctx.applicationUri = UA_STRING("urn:app:x");
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean fThumb = false, fSubj = false, fApp = false, fChain = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], &thumb)) fThumb = true;
+        if(UA_NodeId_equal(&ids[i], &subj)) fSubj = true;
+        if(UA_NodeId_equal(&ids[i], &app)) fApp = true;
+        if(UA_NodeId_equal(&ids[i], &chain)) fChain = true;
+    }
+    ck_assert(fThumb);
+    ck_assert(fSubj);
+    ck_assert(fApp);
+    ck_assert(fChain);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* A context with none of the values matches none of the four roles */
+    UA_SessionIdentityContext empty;
+    memset(&empty, 0, sizeof(empty));
+    size = 0;
+    ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &empty, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < size; i++) {
+        ck_assert(!UA_NodeId_equal(&ids[i], &thumb));
+        ck_assert(!UA_NodeId_equal(&ids[i], &subj));
+        ck_assert(!UA_NodeId_equal(&ids[i], &app));
+        ck_assert(!UA_NodeId_equal(&ids[i], &chain));
+    }
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    UA_NodeId_clear(&thumb);
+    UA_NodeId_clear(&subj);
+    UA_NodeId_clear(&app);
+    UA_NodeId_clear(&chain);
+}
+END_TEST
+
+/* The Application and Endpoint role filters gate role assignment (Part 18
+ * §4.4.1), including the Exclude variants. */
+START_TEST(roleFilters_evaluated) {
+    UA_IdentityMappingRuleType authRule;
+    UA_IdentityMappingRuleType_init(&authRule);
+    authRule.criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+
+    /* Application include filter */
+    UA_Role incl;
+    UA_Role_init(&incl);
+    incl.roleName = UA_QUALIFIEDNAME(1, "AppInclude");
+    incl.identityMappingRules = &authRule;
+    incl.identityMappingRulesSize = 1;
+    UA_String allowed = UA_STRING("urn:allowed");
+    incl.applications = &allowed;
+    incl.applicationsSize = 1;
+    incl.applicationsExclude = false;
+    UA_NodeId inclId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &incl, &inclId), UA_STATUSCODE_GOOD);
+
+    /* Application exclude filter */
+    UA_Role excl;
+    UA_Role_init(&excl);
+    excl.roleName = UA_QUALIFIEDNAME(1, "AppExclude");
+    excl.identityMappingRules = &authRule;
+    excl.identityMappingRulesSize = 1;
+    UA_String blocked = UA_STRING("urn:blocked");
+    excl.applications = &blocked;
+    excl.applicationsSize = 1;
+    excl.applicationsExclude = true;
+    UA_NodeId exclId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &excl, &exclId), UA_STATUSCODE_GOOD);
+
+    /* Endpoint include filter */
+    UA_Role ep;
+    UA_Role_init(&ep);
+    ep.roleName = UA_QUALIFIEDNAME(1, "EpInclude");
+    ep.identityMappingRules = &authRule;
+    ep.identityMappingRulesSize = 1;
+    UA_EndpointType epFilter;
+    UA_EndpointType_init(&epFilter);
+    epFilter.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ep.endpoints = &epFilter;
+    ep.endpointsSize = 1;
+    ep.endpointsExclude = false;
+    UA_NodeId epId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &ep, &epId), UA_STATUSCODE_GOOD);
+
+    UA_SessionIdentityContext ctx;
+
+    /* Include: matching application granted, others denied */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.applicationUri = UA_STRING("urn:allowed");
+    ck_assert(roleGrantedForContext(&ctx, &inclId));
+    ctx.applicationUri = UA_STRING("urn:other");
+    ck_assert(!roleGrantedForContext(&ctx, &inclId));
+
+    /* Exclude: listed application denied, others granted */
+    ctx.applicationUri = UA_STRING("urn:blocked");
+    ck_assert(!roleGrantedForContext(&ctx, &exclId));
+    ctx.applicationUri = UA_STRING("urn:other");
+    ck_assert(roleGrantedForContext(&ctx, &exclId));
+
+    /* Endpoint include: matching endpoint granted, others denied */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    UA_NodeId_clear(&inclId);
+    UA_NodeId_clear(&exclId);
+    UA_NodeId_clear(&epId);
+}
+END_TEST
+
+/* The GroupId criterion matches the GroupIds captured for the session
+ * (Part 18 §4.4.2). */
+START_TEST(identityCriteria_groupId) {
+    UA_NodeId grp = addRoleWithRule("GroupRole",
+                                    UA_IDENTITYCRITERIATYPE_GROUPID, "admins");
+
+    UA_String inGroup[1] = { UA_STRING("admins") };
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.groups = inGroup;
+    ctx.groupsSize = 1;
+    ck_assert(roleGrantedForContext(&ctx, &grp));
+
+    UA_String otherGroup[1] = { UA_STRING("users") };
+    ctx.groups = otherGroup;
+    ck_assert(!roleGrantedForContext(&ctx, &grp));
+
+    UA_NodeId_clear(&grp);
+}
+END_TEST
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2547,6 +2732,9 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityManagement_basic);
     tcase_add_test(tc, identityManagement_usernameRule);
     tcase_add_test(tc, applicationManagement_basic);
+    tcase_add_test(tc, identityCriteria_extended);
+    tcase_add_test(tc, identityCriteria_groupId);
+    tcase_add_test(tc, roleFilters_evaluated);
     suite_add_tcase(s, tc);
     return s;
 }
