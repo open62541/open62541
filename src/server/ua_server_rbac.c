@@ -26,6 +26,9 @@
  * - Removing a Role deletes every RolePermission entry that references it, so
  *   no stale roleId lingers. The Role registry is bounded by UA_RBAC_MAX_ROLES.
  *
+ * - The Anonymous Role is always assigned to every Session (Part 18 §4.3),
+ *   independent of its identity mapping rules.
+ *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
