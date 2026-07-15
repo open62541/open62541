@@ -1314,7 +1314,17 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         const UA_UserNameIdentityToken *ut = (const UA_UserNameIdentityToken*)
             req->userIdentityToken.content.decoded.data;
         UA_String_copy(&ut->userName, &ctx.userName);
+    } else if(rbacTokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* Derive the thumbprint and subject of the user certificate for the
+         * Thumbprint and X509Subject identity criteria (Part 18 §4.4.2). */
+        UA_X509IdentityToken *x509 = (UA_X509IdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        UA_CertificateUtils_getThumbprint(&x509->certificateData, &ctx.userThumbprint);
+        UA_CertificateUtils_getSubjectName(&x509->certificateData, &ctx.userSubject);
     }
+    /* ApplicationUri of the connecting client for the Application identity
+     * criterion and the Application role filter. */
+    UA_String_copy(&session->clientDescription.applicationUri, &ctx.applicationUri);
     if(ed) {
         UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
         ctx.endpointSecurityMode = ed->securityMode;

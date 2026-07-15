@@ -18,11 +18,11 @@
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
  * - Identity criteria are evaluated for Anonymous, AuthenticatedUser,
- *   UserName and TrustedApplication (the latter matches sessions on a signed
- *   or encrypted SecureChannel, i.e. with a validated application certificate,
- *   per Part 18 §4.4.3). Thumbprint, GroupId, Application and X509Subject are
- *   stored but not evaluated; assign such roles explicitly via the session
- *   "roles" attribute.
+ *   UserName, TrustedApplication (signed or encrypted SecureChannel with a
+ *   validated application certificate, per Part 18 §4.4.3), Thumbprint and
+ *   X509Subject (of the X509 user certificate), Application (client
+ *   ApplicationUri) and Role (references an already-granted Role by
+ *   BrowseName). GroupId is not evaluated (no native group source).
  *
  * - Application and Endpoint role filters (including the Exclude variants)
  *   are not evaluated during role resolution. An empty filter list with the
@@ -655,6 +655,32 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
     return NULL;
 }
 
+/* Log warnings for role features that are configured but not evaluated during
+ * session role resolution: the Application/Endpoint filters and the GroupId
+ * identity criterion. */
+static void
+warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
+    if(role->applicationsSize > 0)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has application filters configured, "
+                       "but application-based role assignment is not yet implemented",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    if(role->endpointsSize > 0)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has endpoint filters configured, "
+                       "but endpoint-based role assignment is not yet implemented",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
+        if(role->identityMappingRules[k].criteriaType !=
+           UA_IDENTITYCRITERIATYPE_GROUPID)
+            continue;
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has a GroupId identity mapping rule "
+                       "which is not evaluated (no native group source)",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    }
+}
+
 /************************************/
 /* Public API: Role Management      */
 /************************************/
@@ -720,31 +746,7 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
 
-    /* Warn about features that are stored but not yet evaluated */
-    if(role->applicationsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has application filters configured, "
-                       "but application-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    if(role->endpointsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has endpoint filters configured, "
-                       "but endpoint-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
-        UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
-        if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
-           ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
-           ct != UA_IDENTITYCRITERIATYPE_USERNAME &&
-           ct != UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "RBAC: Role '%.*s' has an identity mapping rule with "
-                           "criteriaType %d which is not yet evaluated during "
-                           "session role assignment",
-                           (int)role->roleName.name.length, role->roleName.name.data,
-                           (int)ct);
-        }
-    }
+    warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
      * browseable. Skipped when the NS0 RBAC information model is unavailable
@@ -1248,31 +1250,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     copy.endpoints = NULL;
     UA_Role_clear(&copy);
 
-    /* Warn about features that are stored but not yet evaluated */
-    if(role->applicationsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has application filters configured, "
-                       "but application-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    if(role->endpointsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has endpoint filters configured, "
-                       "but endpoint-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
-        UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
-        if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
-           ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
-           ct != UA_IDENTITYCRITERIATYPE_USERNAME &&
-           ct != UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "RBAC: Role '%.*s' has an identity mapping rule with "
-                           "criteriaType %d which is not yet evaluated during "
-                           "session role assignment",
-                           (int)role->roleName.name.length, role->roleName.name.data,
-                           (int)ct);
-        }
-    }
+    warnUnsupportedRoleFeatures(server, role);
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
@@ -1405,10 +1383,25 @@ UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx) {
     memset(ctx, 0, sizeof(UA_SessionIdentityContext));
 }
 
+/* Case-insensitive comparison of two strings (used for hex thumbprints). */
+static UA_Boolean
+stringEqualIgnoreCase(const UA_String *a, const UA_String *b) {
+    if(a->length != b->length)
+        return false;
+    for(size_t i = 0; i < a->length; i++) {
+        UA_Byte ca = a->data[i], cb = b->data[i];
+        if(ca >= 'a' && ca <= 'z') ca = (UA_Byte)(ca - 32);
+        if(cb >= 'a' && cb <= 'z') cb = (UA_Byte)(cb - 32);
+        if(ca != cb)
+            return false;
+    }
+    return true;
+}
+
 /* Match a single identity mapping rule against a session identity context.
- * Covers Anonymous, AuthenticatedUser, UserName and TrustedApplication; the
- * remaining criteria (Thumbprint, X509Subject, Application, Role, GroupId) are
- * evaluated in later phases. */
+ * The Role criterion is resolved separately (needs the set of already granted
+ * roles) in the fixpoint loop of UA_Server_evaluateSessionRoles. GroupId has no
+ * native identity source and is only matched through the getUserGroups hook. */
 static UA_Boolean
 identityRuleMatches(const UA_IdentityMappingRuleType *rule,
                     const UA_SessionIdentityContext *ctx) {
@@ -1422,6 +1415,15 @@ identityRuleMatches(const UA_IdentityMappingRuleType *rule,
                 UA_String_equal(&ctx->userName, &rule->criteria));
     case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
         return ctx->trustedApplication;
+    case UA_IDENTITYCRITERIATYPE_THUMBPRINT:
+        return (ctx->userThumbprint.length > 0 &&
+                stringEqualIgnoreCase(&ctx->userThumbprint, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
+        return (ctx->userSubject.length > 0 &&
+                UA_String_equal(&ctx->userSubject, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_APPLICATION:
+        return (ctx->applicationUri.length > 0 &&
+                UA_String_equal(&ctx->applicationUri, &rule->criteria));
     default:
         return false;
     }
@@ -1465,6 +1467,37 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
             matchedRoles[i] = true;
             matchCount++;
             break;
+        }
+    }
+
+    /* Fixpoint for the Role criterion (Part 18 §4.4.2): a Role whose rule
+     * references an already-granted Role (by BrowseName) is itself granted.
+     * Iterated until stable; bounded by the number of roles. */
+    UA_Boolean changed = true;
+    while(changed) {
+        changed = false;
+        for(size_t i = 0; i < server->rolesSize; i++) {
+            if(matchedRoles[i])
+                continue;
+            UA_Role *role = &server->roles[i];
+            for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
+                if(role->identityMappingRules[j].criteriaType !=
+                   UA_IDENTITYCRITERIATYPE_ROLE)
+                    continue;
+                for(size_t k = 0; k < server->rolesSize; k++) {
+                    if(!matchedRoles[k])
+                        continue;
+                    if(UA_String_equal(&server->roles[k].roleName.name,
+                                       &role->identityMappingRules[j].criteria)) {
+                        matchedRoles[i] = true;
+                        matchCount++;
+                        changed = true;
+                        break;
+                    }
+                }
+                if(matchedRoles[i])
+                    break;
+            }
         }
     }
 
