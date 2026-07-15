@@ -1297,18 +1297,41 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_RBAC
-    /* Evaluate identity mapping rules and assign matching roles to the session.
-     * The client application counts as trusted when its application instance
-     * certificate was validated during OpenSecureChannel, i.e. on a signed or
-     * encrypted SecureChannel (Part 18 §4.4.3 TrustedApplication). */
-    UA_Boolean trustedApp = (channel->securityPolicy != NULL &&
+    /* Capture the session's identity/connection characteristics for RBAC role
+     * resolution. The client application counts as trusted when its application
+     * instance certificate was validated during OpenSecureChannel, i.e. on a
+     * signed or encrypted SecureChannel (Part 18 §4.4.3 TrustedApplication).
+     * The snapshot is retained on the session so the roles can be re-evaluated
+     * when the RoleSet changes. */
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    const UA_DataType *rbacTokenType = req->userIdentityToken.content.decoded.type;
+    ctx.isAnonymous = (rbacTokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+    ctx.trustedApplication = (channel->securityPolicy != NULL &&
         channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
         channel->remoteCertificate.length > 0);
+    if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *ut = (const UA_UserNameIdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        UA_String_copy(&ut->userName, &ctx.userName);
+    }
+    if(ed) {
+        UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
+        ctx.endpointSecurityMode = ed->securityMode;
+        UA_String_copy(&ed->securityPolicyUri, &ctx.securityPolicyUri);
+        UA_String_copy(&ed->transportProfileUri, &ctx.transportProfileUri);
+    }
+
+    /* Store the snapshot (transfer ownership), replacing any previous one from
+     * an earlier activation of the same session. */
+    UA_SessionIdentityContext_clear(&session->identityContext);
+    session->identityContext = ctx;
+    session->hasIdentityContext = true;
+
     size_t rolesSize = 0;
     UA_NodeId *roleIds = NULL;
     rh->serviceResult = UA_Server_evaluateSessionRoles(server,
-                                                       &req->userIdentityToken,
-                                                       trustedApp,
+                                                       &session->identityContext,
                                                        &rolesSize, &roleIds);
     if(rh->serviceResult == UA_STATUSCODE_GOOD && rolesSize > 0) {
         UA_Session_setRoles(server, session, roleIds, rolesSize);
