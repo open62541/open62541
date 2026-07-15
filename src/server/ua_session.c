@@ -68,6 +68,8 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
                     &UA_TYPES[UA_TYPES_NODEID]);
     session->roles = NULL;
     session->rolesSize = 0;
+    UA_SessionIdentityContext_clear(&session->identityContext);
+    session->hasIdentityContext = false;
 #endif
 
 #ifdef UA_ENABLE_DIAGNOSTICS
