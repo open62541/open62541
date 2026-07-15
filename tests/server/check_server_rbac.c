@@ -55,6 +55,25 @@ removeTestRole(const char *name, UA_UInt16 nsIdx)
                                 UA_QUALIFIEDNAME(nsIdx, (char*)(uintptr_t)name));
 }
 
+/* Create a role carrying a single identity mapping rule */
+static UA_NodeId
+addRoleWithRule(const char *name, UA_IdentityCriteriaType ct, const char *criteria)
+{
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = ct;
+    rule.criteria = UA_STRING((char*)(uintptr_t)criteria);
+    role.identityMappingRules = &rule;
+    role.identityMappingRulesSize = 1;
+    UA_NodeId id = UA_NODEID_NULL;
+    UA_StatusCode res = UA_Server_addRole(server, &role, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return id;
+}
+
 START_TEST(Role_initClearCopy) {
     UA_Role r;
     UA_Role_init(&r);
@@ -2482,6 +2501,64 @@ START_TEST(roleSetMethods_restrictedToAdmin) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
 
+/* The Thumbprint, X509Subject, Application and Role identity criteria are
+ * evaluated during role resolution (Part 18 §4.4.2). */
+START_TEST(identityCriteria_extended) {
+    UA_NodeId thumb = addRoleWithRule("ThumbRole",
+                                      UA_IDENTITYCRITERIATYPE_THUMBPRINT, "AABBCC");
+    UA_NodeId subj = addRoleWithRule("SubjRole",
+                                     UA_IDENTITYCRITERIATYPE_X509SUBJECT, "CN=alice");
+    UA_NodeId app = addRoleWithRule("AppRole",
+                                    UA_IDENTITYCRITERIATYPE_APPLICATION, "urn:app:x");
+    /* ChainRole is granted transitively because it references AppRole */
+    UA_NodeId chain = addRoleWithRule("ChainRole",
+                                      UA_IDENTITYCRITERIATYPE_ROLE, "AppRole");
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userThumbprint = UA_STRING("aabbcc"); /* lower-case: case-insensitive */
+    ctx.userSubject = UA_STRING("CN=alice");
+    ctx.applicationUri = UA_STRING("urn:app:x");
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean fThumb = false, fSubj = false, fApp = false, fChain = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], &thumb)) fThumb = true;
+        if(UA_NodeId_equal(&ids[i], &subj)) fSubj = true;
+        if(UA_NodeId_equal(&ids[i], &app)) fApp = true;
+        if(UA_NodeId_equal(&ids[i], &chain)) fChain = true;
+    }
+    ck_assert(fThumb);
+    ck_assert(fSubj);
+    ck_assert(fApp);
+    ck_assert(fChain);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* A context with none of the values matches none of the four roles */
+    UA_SessionIdentityContext empty;
+    memset(&empty, 0, sizeof(empty));
+    size = 0;
+    ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &empty, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < size; i++) {
+        ck_assert(!UA_NodeId_equal(&ids[i], &thumb));
+        ck_assert(!UA_NodeId_equal(&ids[i], &subj));
+        ck_assert(!UA_NodeId_equal(&ids[i], &app));
+        ck_assert(!UA_NodeId_equal(&ids[i], &chain));
+    }
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    UA_NodeId_clear(&thumb);
+    UA_NodeId_clear(&subj);
+    UA_NodeId_clear(&app);
+    UA_NodeId_clear(&chain);
+}
+END_TEST
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2539,6 +2616,7 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityManagement_basic);
     tcase_add_test(tc, identityManagement_usernameRule);
     tcase_add_test(tc, applicationManagement_basic);
+    tcase_add_test(tc, identityCriteria_extended);
     suite_add_tcase(s, tc);
     return s;
 }
