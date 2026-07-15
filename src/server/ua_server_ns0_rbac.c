@@ -334,14 +334,7 @@ removeRoleMethodCallback(UA_Server *server,
      * AddressSpace (Part 18 §4.2.3, §4.3). */
     res = UA_Server_removeRole(server, roleName);
     UA_QualifiedName_clear(&roleName);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Drop the published Role Object from the AddressSpace (Part 18 §4.2.3,
-     * §4.3). A role added through the C API has no representation node; ignore a
-     * missing node so the (authoritative) registry removal still succeeds. */
-    removeRoleRepresentation(server, &roleId);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode
