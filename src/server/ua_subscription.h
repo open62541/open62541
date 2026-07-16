@@ -162,6 +162,8 @@ struct UA_MonitoredItem {
                                                             * interval */
     } sampling;
     UA_DataValue lastValue;
+    UA_Boolean semanticsChangedPending; /* Add the SemanticsChanged bit to the
+                                         * next DataChange notification */
     UA_UInt32 outstandingAsyncReads; /* at most UA_MONITOREDITEM_ASYNC_MAX */
 
     /* Triggering Links */

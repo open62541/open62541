@@ -1824,6 +1824,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
+        UA_Boolean semanticChange = false;
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the UserAccessLevel
              * attribute (masked with the AccessLevel attribute) */
@@ -1831,6 +1832,28 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
+            }
+
+            /* Fast SemanticChange detection. For ordinary Value writes this
+             * adds only an inline AccessLevel bit test. The more expensive
+             * equality and HasProperty-owner checks are reached only for
+             * explicitly marked Properties. */
+            semanticChange =
+                wvalue->value.hasValue &&
+                (node->variableNode.accessLevel &
+                 UA_ACCESSLEVELMASK_SEMANTICCHANGE) != 0;
+            if(semanticChange && wvalue->indexRange.length == 0) {
+                const UA_DataValue *oldValue = NULL;
+                if(node->variableNode.valueSourceType ==
+                   UA_VALUESOURCETYPE_INTERNAL)
+                    oldValue = &node->variableNode.valueSource.internal.value;
+                else if(node->variableNode.valueSourceType ==
+                        UA_VALUESOURCETYPE_EXTERNAL)
+                    oldValue = UA_atomic_load(
+                        node->variableNode.valueSource.external.value);
+                if(oldValue && oldValue->hasValue &&
+                   UA_Variant_equal(&oldValue->value, &wvalue->value.value))
+                    semanticChange = false;
             }
             /* Writing a StatusCode different to "Good" requires the
              * StatusWrite bit (see OPC specification 10000-3: AccessLevelType;
@@ -1872,6 +1895,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         }
         retval = writeNodeValueAttribute(server, session, &node->variableNode,
                                          &wvalue->value, &wvalue->indexRange);
+        if(retval == UA_STATUSCODE_GOOD && semanticChange)
+            recordSemanticPropertyChange(server, &node->head);
         break;
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -2012,9 +2037,10 @@ Operation_Write(UA_Server *server, UA_Session *session,
                        (void*)(uintptr_t)wv);
     UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 
-    /* DataType changes are structural model changes. ValueRank and
-     * ArrayDimensions affect the value's semantics and will be reported via
-     * SemanticChangeEvents once that accumulator is implemented. */
+    /* Only DataType changes are structural model changes. ValueRank and
+     * ArrayDimensions changes do not use a ModelChange verb. SemanticChange
+     * events are triggered separately by Value changes of Properties whose
+     * AccessLevel has the SemanticChange bit set. */
     if(*result == UA_STATUSCODE_GOOD && dataTypeChanged) {
         recordModelChangeEvent(server, &wv->nodeId,
                           UA_MODELCHANGESTRUCTUREVERBMASK_DATATYPECHANGED);

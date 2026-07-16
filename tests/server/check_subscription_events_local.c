@@ -24,6 +24,13 @@ static UA_ModelChangeStructureDataType actualChanges[4];
 static size_t actualChangesSize = 0;
 static UA_Boolean actualChangesValid = false;
 static unsigned modelChangeCount = 0;
+static UA_Boolean semanticChangeReceived = false;
+static UA_SemanticChangeStructureDataType actualSemanticChanges[4];
+static size_t actualSemanticChangesSize = 0;
+static unsigned semanticChangeCount = 0;
+static unsigned semanticDataChangeCount = 0;
+static UA_StatusCode semanticDataChangeStatus = 0;
+static UA_Int32 semanticDataChangeValue = 0;
 
 static void
 setup(void) {
@@ -79,6 +86,37 @@ modelChangeCallback(UA_Server *server, UA_UInt32 monitoredItemId,
 }
 
 static void
+semanticChangeCallback(UA_Server *server, UA_UInt32 monitoredItemId,
+                       void *monitoredItemContext,
+                       const UA_KeyValueMap eventFields) {
+    semanticChangeReceived = false;
+    if(eventFields.mapSize != 1)
+        return;
+    UA_Variant *changes = &eventFields.map[0].value;
+    if(changes->type != &UA_TYPES[UA_TYPES_SEMANTICCHANGESTRUCTUREDATATYPE] ||
+       changes->arrayLength > 4)
+        return;
+    actualSemanticChangesSize = changes->arrayLength;
+    UA_SemanticChangeStructureDataType *change =
+        (UA_SemanticChangeStructureDataType*)changes->data;
+    for(size_t i = 0; i < actualSemanticChangesSize; i++)
+        actualSemanticChanges[i] = change[i];
+    semanticChangeCount++;
+    semanticChangeReceived = true;
+}
+
+static void
+semanticDataChangeCallback(UA_Server *server, UA_UInt32 monitoredItemId,
+                           void *monitoredItemContext, const UA_NodeId *nodeId,
+                           void *nodeContext, UA_UInt32 attributeId,
+                           const UA_DataValue *value) {
+    semanticDataChangeCount++;
+    semanticDataChangeStatus = value->hasStatus ? value->status : 0;
+    if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_INT32]))
+        semanticDataChangeValue = *(UA_Int32*)value->value.data;
+}
+
+static void
 expectModelChanges(size_t changesSize, const UA_NodeId *affected,
                    const UA_Byte *verbs) {
     ck_assert_uint_le(changesSize, 4);
@@ -128,6 +166,24 @@ createModelChangeMonitoredItem(void) {
     UA_MonitoredItemCreateResult mon =
         UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
                                            modelChangeCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&ef);
+}
+
+static void
+createSemanticChangeMonitoredItem(void) {
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ck_assert_ptr_ne(ef.selectClauses, NULL);
+    ef.selectClausesSize = 1;
+    UA_StatusCode res = UA_SimpleAttributeOperand_parse(&ef.selectClauses[0],
+                                                        UA_STRING("/Changes"));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
+                                           semanticChangeCallback);
     ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
     UA_EventFilter_clear(&ef);
 }
@@ -497,6 +553,196 @@ START_TEST(modelChangeUnversionedNodeIgnored) {
     ck_assert_uint_eq(server->modelChanges.changesSize, 0);
 } END_TEST
 
+START_TEST(semanticChangeEvent) {
+    UA_NodeId owner = UA_NODEID_NUMERIC(1, 1310);
+    addObject(owner, "SemanticOwner");
+
+    UA_Int32 initialValue = 1;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("", "SemanticProperty");
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    attr.valueRank = UA_VALUERANK_SCALAR;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE |
+        UA_ACCESSLEVELMASK_SEMANTICCHANGE;
+    UA_Variant_setScalar(&attr.value, &initialValue, &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId semanticProperty = UA_NODEID_NUMERIC(1, 1311);
+    UA_StatusCode res = UA_Server_addVariableNode(
+        server, semanticProperty, owner, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(1, "SemanticProperty"), UA_NS0ID(PROPERTYTYPE),
+        attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    attr.displayName = UA_LOCALIZEDTEXT("", "OrdinaryProperty");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId ordinaryProperty = UA_NODEID_NUMERIC(1, 1312);
+    res = UA_Server_addVariableNode(
+        server, ordinaryProperty, owner, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(1, "OrdinaryProperty"), UA_NS0ID(PROPERTYTYPE),
+        attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    createSemanticChangeMonitoredItem();
+    semanticChangeReceived = false;
+    unsigned eventsBefore = semanticChangeCount;
+    UA_Int64 versionBefore = server->nodeVersionCounter;
+
+    /* An ordinary Value write takes the cheap AccessLevel-bit fast path and
+     * does not emit a SemanticChangeEvent. */
+    UA_Int32 changedValue = 2;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &changedValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, ordinaryProperty, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(semanticChangeCount, eventsBefore);
+
+    /* Even a marked Property does not represent a change if the inline Value
+     * is equal to the value already stored in the node. */
+    UA_Variant_setScalar(&value, &initialValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, semanticProperty, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(semanticChangeCount, eventsBefore);
+
+    /* A changed Value of a marked Property emits its HasProperty owner and the
+     * owner's TypeDefinition without consuming a NodeVersion. */
+    UA_Variant_setScalar(&value, &changedValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, semanticProperty, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert(semanticChangeReceived);
+    ck_assert_uint_eq(semanticChangeCount, eventsBefore + 1);
+    ck_assert_uint_eq(actualSemanticChangesSize, 1);
+    ck_assert(UA_NodeId_equal(&actualSemanticChanges[0].affected, &owner));
+    UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
+    ck_assert(UA_NodeId_equal(&actualSemanticChanges[0].affectedType,
+                              &expectedType));
+    ck_assert_int_eq(server->nodeVersionCounter, versionBefore);
+    ck_assert_uint_eq(server->modelChanges.changesSize, 0);
+
+} END_TEST
+
+START_TEST(semanticChangeHasPropertySubtype) {
+    UA_NodeId owner = UA_NODEID_NUMERIC(1, 1330);
+    addObject(owner, "SemanticSubtypeOwner");
+
+    UA_ReferenceTypeAttributes rtAttr = UA_ReferenceTypeAttributes_default;
+    rtAttr.displayName = UA_LOCALIZEDTEXT("", "HasSemanticProperty");
+    rtAttr.inverseName = UA_LOCALIZEDTEXT("", "SemanticPropertyOf");
+    UA_NodeId propertyRef = UA_NODEID_NUMERIC(1, 1331);
+    UA_StatusCode res = UA_Server_addReferenceTypeNode(
+        server, propertyRef, UA_NS0ID(HASPROPERTY), UA_NS0ID(HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "HasSemanticProperty"), rtAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Int32 initialValue = 1;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("", "SubtypeSemanticProperty");
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    attr.valueRank = UA_VALUERANK_SCALAR;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE |
+        UA_ACCESSLEVELMASK_SEMANTICCHANGE;
+    UA_Variant_setScalar(&attr.value, &initialValue, &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId property = UA_NODEID_NUMERIC(1, 1332);
+    res = UA_Server_addVariableNode(
+        server, property, owner, propertyRef,
+        UA_QUALIFIEDNAME(1, "SubtypeSemanticProperty"), UA_NS0ID(PROPERTYTYPE),
+        attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    createSemanticChangeMonitoredItem();
+    semanticChangeReceived = false;
+    unsigned eventsBefore = semanticChangeCount;
+    UA_Int32 changedValue = 2;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &changedValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, property, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(semanticChangeReceived);
+    ck_assert_uint_eq(semanticChangeCount, eventsBefore + 1);
+    ck_assert_uint_eq(actualSemanticChangesSize, 1);
+    ck_assert(UA_NodeId_equal(&actualSemanticChanges[0].affected, &owner));
+    UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
+    ck_assert(UA_NodeId_equal(&actualSemanticChanges[0].affectedType,
+                              &expectedType));
+} END_TEST
+
+START_TEST(semanticChangeDataNotification) {
+    UA_NodeId owner = UA_NODEID_NUMERIC(1, 1320);
+    UA_Int32 ownerValue = 41;
+    UA_VariableAttributes ownerAttr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&ownerAttr.value, &ownerValue,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    ownerAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_StatusCode res = UA_Server_addVariableNode(
+        server, owner, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SemanticOwnerVariable"),
+        UA_NS0ID(BASEDATAVARIABLETYPE),
+        ownerAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId property = UA_NODEID_NUMERIC(1, 1321);
+    UA_Int32 propertyValue = 1;
+    UA_VariableAttributes propertyAttr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&propertyAttr.value, &propertyValue,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    propertyAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    propertyAttr.accessLevel = UA_ACCESSLEVELMASK_READ |
+        UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_SEMANTICCHANGE;
+    res = UA_Server_addVariableNode(
+        server, property, owner, UA_NS0ID(HASPROPERTY),
+        UA_QUALIFIEDNAME(1, "SemanticProperty"), UA_NS0ID(PROPERTYTYPE),
+        propertyAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateRequest request;
+    UA_MonitoredItemCreateRequest_init(&request);
+    request.itemToMonitor.nodeId = owner;
+    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    request.requestedParameters.samplingInterval = 0.0;
+    request.requestedParameters.queueSize = 1;
+    request.requestedParameters.discardOldest = true;
+    UA_MonitoredItemCreateResult mon = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL,
+        semanticDataChangeCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+
+    /* Consume the initial notification. */
+    UA_Server_run_iterate(server, false);
+    semanticDataChangeCount = 0;
+
+    /* The owner write overflows the size-one queue before publication. The
+     * semantic bit must move from the removed notification to the retained
+     * one. */
+    UA_Variant value;
+    propertyValue = 2;
+    UA_Variant_setScalar(&value, &propertyValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, property, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ownerValue = 42;
+    UA_Variant_setScalar(&value, &ownerValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, owner, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(semanticDataChangeCount, 1);
+    ck_assert_int_eq(semanticDataChangeValue, 42);
+    ck_assert(semanticDataChangeStatus & UA_STATUSCODE_SEMANTICSCHANGED);
+
+    /* The bit is one-shot and stays out of the filter baseline. */
+    semanticDataChangeCount = 0;
+    ownerValue = 43;
+    UA_Variant_setScalar(&value, &ownerValue, &UA_TYPES[UA_TYPES_INT32]);
+    res = UA_Server_writeValue(server, owner, value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(semanticDataChangeCount, 1);
+    ck_assert_uint_eq(semanticDataChangeStatus &
+                      UA_STATUSCODE_SEMANTICSCHANGED, 0);
+} END_TEST
+
 static Suite *testSuite_event(void) {
     Suite *s = suite_create("Server Local Subscription Events");
     TCase *tc_server = tcase_create("Server Local Subscription Events");
@@ -510,7 +756,14 @@ static Suite *testSuite_event(void) {
     tcase_add_test(tc_server, modelChangeUmbrellaCoalescing);
     tcase_add_test(tc_server, modelChangeStartupSuppressed);
     tcase_add_test(tc_server, modelChangeUnversionedNodeIgnored);
+    tcase_add_test(tc_server, semanticChangeEvent);
+    tcase_add_test(tc_server, semanticChangeDataNotification);
     suite_add_tcase(s, tc_server);
+
+    TCase *tc_subtype = tcase_create("SemanticChange HasProperty subtype");
+    tcase_add_unchecked_fixture(tc_subtype, setup, teardown);
+    tcase_add_test(tc_subtype, semanticChangeHasPropertySubtype);
+    suite_add_tcase(s, tc_subtype);
     return s;
 }
 

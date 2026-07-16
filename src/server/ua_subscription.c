@@ -1502,6 +1502,20 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
         UA_assert(del); /* There must be one entry that can be deleted */
 
+        /* SemanticsChanged must reach every MonitoredItem once. If queue
+         * overflow removes that notification, carry the bit into the next
+         * retained notification. */
+        UA_DataValue *removedValue = &del->data.dataChange.value;
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER &&
+           removedValue->hasStatus &&
+           (removedValue->status & UA_STATUSCODE_SEMANTICSCHANGED)) {
+            UA_Notification *next = TAILQ_NEXT(del, monEntry);
+            UA_assert(next);
+            next->data.dataChange.value.hasStatus = true;
+            next->data.dataChange.value.status |=
+                UA_STATUSCODE_SEMANTICSCHANGED;
+        }
+
         /* Only create OverflowEvents (and set InfoBits) if the notification
          * that is removed is reported */
         if(TAILQ_NEXT(del, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL)
