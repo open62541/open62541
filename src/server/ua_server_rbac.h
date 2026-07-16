@@ -42,6 +42,12 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
                                const UA_SessionIdentityContext *ctx,
                                size_t *outRolesSize, UA_NodeId **outRoleIds);
 
+/* Re-evaluate and reassign the Roles of all active Sessions from their stored
+ * identity context. Called after the RoleSet changes (Part 18 §4.4.1).
+ * Must be called with the server lock held. */
+void
+UA_Server_reevaluateSessionRoles(UA_Server *server);
+
 /* Decrement the refCount of a role permission entry at the given index.
  * Used during node deletion to keep refcounts consistent. */
 void

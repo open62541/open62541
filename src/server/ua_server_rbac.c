@@ -25,15 +25,16 @@
  *   are evaluated during role resolution. An empty filter list means "no
  *   restriction" (Part 18 §4.4.1).
  *
+ * - Active Sessions are re-evaluated and their Roles reassigned when the
+ *   RoleSet changes through addRole/removeRole/updateRole (and the RoleType
+ *   AddIdentity/RemoveIdentity/... Methods that route through updateRole),
+ *   per Part 18 §4.4.1.
+ *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
  * - The GroupId identity criterion is not evaluated (no native group source).
  *
- * - Changes to a Role's identity mapping rules (updateRole, AddIdentity,
- *   RemoveIdentity) are not re-evaluated for already-active Sessions; they
- *   take effect on the next ActivateSession (Part 18 §4.4.1 says active
- *   Sessions shall be re-evaluated).
  *
  * - RolePermissions and the role Identities cannot be written through the
  *   attribute service (Part 3 §5.2.9). Use the C API, or the AddIdentity /
@@ -775,6 +776,9 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         }
     }
 
+    /* A new role may match active sessions (Part 18 §4.4.1) */
+    UA_Server_reevaluateSessionRoles(server);
+
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -891,6 +895,9 @@ UA_Server_removeRole(UA_Server *server,
         UA_free(server->rolesProtected);
         server->rolesProtected = NULL;
     }
+
+    /* Sessions that were granted the removed role must lose it */
+    UA_Server_reevaluateSessionRoles(server);
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
@@ -1243,6 +1250,10 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
 
     warnUnsupportedRoleFeatures(server, role);
 
+    /* The changed identity mapping rules / filters may change which sessions
+     * hold this role (Part 18 §4.4.1) */
+    UA_Server_reevaluateSessionRoles(server);
+
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -1572,6 +1583,25 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     *outRoleIds = matched;
     *outRolesSize = matchCount;
     return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_Server_reevaluateSessionRoles(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    session_list_entry *entry;
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        UA_Session *session = &entry->session;
+        if(!session->hasIdentityContext)
+            continue;
+        size_t rolesSize = 0;
+        UA_NodeId *roleIds = NULL;
+        UA_StatusCode res = UA_Server_evaluateSessionRoles(
+            server, &session->identityContext, &rolesSize, &roleIds);
+        if(res != UA_STATUSCODE_GOOD)
+            continue;
+        UA_Session_setRoles(server, session, roleIds, rolesSize);
+        UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    }
 }
 
 /*****************************************/
