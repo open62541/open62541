@@ -12,7 +12,37 @@
 
 /* RBAC implementation. Permission configurations are deduplicated internally;
  * nodes sharing the same role permissions reference a shared entry via a
- * compact permission index in the node head. */
+ * compact permission index in the node head.
+ *
+ * Known limitations (single source of truth for the whole RBAC subsystem;
+ * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
+ *
+ * - The well-known TrustedApplication role (Part 18 §4.3) is not
+ *   registered; the trusted-application session mapping is not evaluated
+ *   during role resolution.
+ *
+ * - Identity criteria are evaluated only for Anonymous, AuthenticatedUser
+ *   and UserName. Thumbprint, GroupId, Application and X509Subject are
+ *   stored but not evaluated; assign such roles explicitly via the
+ *   session "roles" attribute.
+ *
+ * - Application and Endpoint role filters (including the Exclude variants)
+ *   are not evaluated during role resolution.
+ *
+ * - RolePermissions and the role Identities cannot be written through the
+ *   attribute service (Part 3 §5.2.9). Use the C API, or the AddIdentity /
+ *   RemoveIdentity methods for identities.
+ *
+ * - AccessRestrictions (Part 3 §5.2.11) and the NamespaceMetadata
+ *   DefaultAccessRestrictions are not implemented.
+ *
+ * - AddRole / RemoveRole update the internal registry only; the Role
+ *   Objects under Server/ServerCapabilities/RoleSet are not created or
+ *   removed, so a browsing client does not see runtime role changes
+ *   (Part 18 §4.3).
+ *
+ * - RBAC-related audit events are not emitted.
+ */
 
 /*********************************/
 /* UA_RolePermissionSet Type API */
@@ -629,7 +659,7 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
 
     lockServer(server);
 
-    /* Check for duplicate roleName (BrowseName uniqueness per Part 18) */
+    /* Check for duplicate roleName (BrowseName uniqueness per Part 18 v1.05 §4.2.2) */
     if(findRoleByName(server, &role->roleName)) {
         unlockServer(server);
         return UA_STATUSCODE_BADALREADYEXISTS;

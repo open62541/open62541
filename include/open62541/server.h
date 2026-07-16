@@ -2019,7 +2019,7 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * Role-Based Access Control (RBAC)
  * --------------------------------
  *
- * Role-Based Access Control implementation per OPC UA Part 18.
+ * Role-Based Access Control implementation per OPC UA Part 18 v1.05.
  *
  * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
  * The RBAC implementation is under active development and the API may change.
@@ -2064,7 +2064,7 @@ UA_RolePermissionSet_copy(const UA_RolePermissionSet *src,
 
 /* UA_Role
  * Represents an OPC UA role with identity mapping rules and optional
- * application/endpoint restrictions per OPC UA Part 18. */
+ * application/endpoint restrictions per OPC UA Part 18 v1.05 §4.4. */
 typedef struct {
     UA_NodeId roleId;
     UA_QualifiedName roleName;              /* BrowseName of the role */
@@ -2631,7 +2631,8 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 /* Add a role to the server's role registry.
  *
  * The role's BrowseName (roleName) is the primary unique identifier,
- * per OPC UA Part 18 Section 4.2. A role with the same roleName or
+ * per OPC UA Part 18 v1.05 §4.2.2 (AddRole: "The BrowseName shall be
+ * unique within the RoleSet Object"). A role with the same roleName or
  * roleId must not already exist.
  *
  * If role->roleId is null, the server auto-assigns a random numeric
