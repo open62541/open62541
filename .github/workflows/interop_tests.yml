@@ -79,7 +79,7 @@ jobs:
 
       - name: Build .NET Reference Server
         run: |
-          dotnet build ${{ github.workspace }}/UA-.NETStandard/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
+          dotnet build ${{ github.workspace }}/UA-.NETStandard/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
 
       - name: Run interop tests
         env:

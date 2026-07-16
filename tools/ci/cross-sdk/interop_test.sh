@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 CI_SERVER="$C_BUILD_DIR/bin/tests/interop_server"
 INTEROP_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client"
 DOTNET_INTEROP_PROJECT="$REPO_ROOT/tests/interop/dotnet/Opc.Ua.Interop.Tests.csproj"
-DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
+DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
 NODEOPCUA_CLIENT_DIR="$REPO_ROOT/tests/interop/node-opcua"
 
 RESULT=0
