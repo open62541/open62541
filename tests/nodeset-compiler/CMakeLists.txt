@@ -8,11 +8,16 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 
-    # Generate types and namespace for DI
+    # Generate types and namespace for DI. The namespace index is pinned via
+    # NAMESPACE_MAP, so the generated type array is const and the tests
+    # exercise the const type array path including the generated runtime
+    # namespace-order check (DI is always the first namespace added to the
+    # test servers -> index 2).
     ua_generate_nodeset_and_datatypes(
         NAME "tests-di"
         FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
         FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
+        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
