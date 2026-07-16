@@ -113,6 +113,17 @@ struct UA_AccessControl {
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeId, void *nodeContext);
 
+#ifdef UA_ENABLE_RBAC
+    /* Return the GroupIds the session's user belongs to, used for the GroupId
+     * identity mapping criterion (OPC UA Part 18 §4.4.2). Optional; may be NULL,
+     * in which case GroupId criteria never match. The groups are captured at
+     * ActivateSession. On success the callback allocates *groupIds (e.g. with
+     * UA_Array_new of UA_String) and ownership is transferred to the caller. */
+    UA_StatusCode (*getUserGroups)(UA_Server *server, UA_AccessControl *ac,
+                                   const UA_NodeId *sessionId, void *sessionContext,
+                                   UA_String **groupIds, size_t *groupIdsSize);
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Allow creating a subscription */
     UA_Boolean (*allowCreateSubscription)(UA_Server *server, UA_AccessControl *ac,
