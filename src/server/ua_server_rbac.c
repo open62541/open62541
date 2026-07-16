@@ -19,7 +19,8 @@
  *   validated application certificate, per Part 18 §4.4.3), Thumbprint and
  *   X509Subject (of the X509 user certificate), Application (client
  *   ApplicationUri) and Role (references an already-granted Role by
- *   BrowseName, resolved transitively).
+ *   BrowseName, resolved transitively). GroupId is evaluated when the
+ *   AccessControl getUserGroups hook is configured.
  *
  * - The Application and Endpoint role filters (including the Exclude variants)
  *   are evaluated during role resolution. An empty filter list means "no
@@ -33,8 +34,8 @@
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
- * - The GroupId identity criterion is not evaluated (no native group source).
- *
+ * - GroupId criteria require an AccessControl getUserGroups hook; without it
+ *   they never match (no native group source).
  *
  * - RolePermissions and the role Identities cannot be written through the
  *   attribute service (Part 3 §5.2.9). Use the C API, or the AddIdentity /
@@ -658,17 +659,19 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
     return NULL;
 }
 
-/* Log warnings for role features that are configured but not evaluated during
- * session role resolution (currently only the GroupId identity criterion). */
+/* Log warnings for role features that are configured but cannot be evaluated in
+ * the current configuration: GroupId criteria without a getUserGroups hook. */
 static void
 warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
+    if(server->config.accessControl.getUserGroups != NULL)
+        return; /* GroupId criteria are resolved via the hook */
     for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
         if(role->identityMappingRules[k].criteriaType !=
            UA_IDENTITYCRITERIATYPE_GROUPID)
             continue;
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "RBAC: Role '%.*s' has a GroupId identity mapping rule "
-                       "which is not evaluated (no native group source)",
+                       "but no AccessControl.getUserGroups hook is configured",
                        (int)role->roleName.name.length, role->roleName.name.data);
     }
 }
@@ -1382,6 +1385,7 @@ UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx) {
     UA_String_clear(&ctx->endpointUrl);
     UA_String_clear(&ctx->securityPolicyUri);
     UA_String_clear(&ctx->transportProfileUri);
+    UA_Array_delete(ctx->groups, ctx->groupsSize, &UA_TYPES[UA_TYPES_STRING]);
     memset(ctx, 0, sizeof(UA_SessionIdentityContext));
 }
 
@@ -1426,6 +1430,12 @@ identityRuleMatches(const UA_IdentityMappingRuleType *rule,
     case UA_IDENTITYCRITERIATYPE_APPLICATION:
         return (ctx->applicationUri.length > 0 &&
                 UA_String_equal(&ctx->applicationUri, &rule->criteria));
+    case UA_IDENTITYCRITERIATYPE_GROUPID:
+        for(size_t g = 0; g < ctx->groupsSize; g++) {
+            if(UA_String_equal(&ctx->groups[g], &rule->criteria))
+                return true;
+        }
+        return false;
     default:
         return false;
     }

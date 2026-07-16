@@ -1331,6 +1331,12 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&ed->securityPolicyUri, &ctx.securityPolicyUri);
         UA_String_copy(&ed->transportProfileUri, &ctx.transportProfileUri);
     }
+    /* GroupIds for the GroupId identity criterion (optional hook) */
+    if(server->config.accessControl.getUserGroups) {
+        server->config.accessControl.getUserGroups(
+            server, &server->config.accessControl, &session->sessionId,
+            session->context, &ctx.groups, &ctx.groupsSize);
+    }
 
     /* Store the snapshot (transfer ownership), replacing any previous one from
      * an earlier activation of the same session. */
