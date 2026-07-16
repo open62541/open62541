@@ -415,7 +415,8 @@ START_TEST(configRoles_cannotBeRemoved) {
     UA_QualifiedName configRoleName = UA_QUALIFIEDNAME(0, "ConfigOperator");
     UA_StatusCode res = UA_Server_removeRole(serverWithConfigRoles,
                                              configRoleName);
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    /* Protected (config) roles yield Bad_RequestNotAllowed per Part 18 §4.2.3 */
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 
     /* Still accessible */
     UA_Role out;
@@ -617,9 +618,11 @@ START_TEST(protectMandatoryRoles) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
     UA_Role_clear(&role);
 
-    /* Cannot remove Anonymous role */
+    /* Cannot remove Anonymous role - Part 18 §4.2.3 returns Bad_RequestNotAllowed
+     * for a Role that cannot be removed (the missing-Permissions case
+     * Bad_UserAccessDenied is handled by checkRBACMethodAccess on the Method). */
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "Anonymous"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 
     /* Cannot update AuthenticatedUser */
     UA_NodeId authUserRoleId =
@@ -631,7 +634,7 @@ START_TEST(protectMandatoryRoles) {
     UA_Role_clear(&role);
 
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "AuthenticatedUser"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 }
 END_TEST
 
@@ -905,9 +908,11 @@ START_TEST(trustedApplication_roleRegistered) {
     ck_assert(hasTA);
     UA_Role_clear(&role);
 
-    /* Per spec the role must not be removable */
+    /* Per spec the role must not be removable - Bad_RequestNotAllowed per
+     * Part 18 §4.2.3 Table 3 (the missing-Permissions case is handled by
+     * checkRBACMethodAccess on the Method entry point). */
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "TrustedApplication"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 }
 END_TEST
 
@@ -2736,6 +2741,94 @@ START_TEST(accessRestrictions_setGetRead) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_AUDITING
+static UA_Boolean roleMappingAuditSeen = false;
+static void
+rbacAuditNotificationCallback(UA_Server *s, UA_ApplicationNotificationType type,
+                              const UA_KeyValueMap payload) {
+    (void)s; (void)payload;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED)
+        roleMappingAuditSeen = true;
+}
+
+/* Changing a role's identity mapping rules emits a
+ * RoleMappingRuleChangedAuditEventType (Part 18). */
+START_TEST(auditRoleMappingRuleChanged_emitted) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62000);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* Change the identity mapping rules through updateRole */
+    UA_Role upd;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &upd),
+                      UA_STATUSCODE_GOOD);
+    UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType*)
+        UA_realloc(upd.identityMappingRules,
+                   (upd.identityMappingRulesSize + 1) * sizeof(*rules));
+    ck_assert_ptr_nonnull(rules);
+    upd.identityMappingRules = rules;
+    UA_IdentityMappingRuleType_init(&rules[upd.identityMappingRulesSize]);
+    rules[upd.identityMappingRulesSize].criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    rules[upd.identityMappingRulesSize].criteria = UA_STRING_ALLOC("bob");
+    upd.identityMappingRulesSize++;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &upd), UA_STATUSCODE_GOOD);
+    UA_Role_clear(&upd);
+
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
+/* Adding a role emits a RoleMappingRuleChangedAuditEvent (Part 18 §4.5). */
+START_TEST(auditRoleMapping_addRoleEmits) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62101);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditAddRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
+/* Removing a role emits a RoleMappingRuleChangedAuditEvent (Part 18 §4.5). */
+START_TEST(auditRoleMapping_removeRoleEmits) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62102);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditRemoveRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    ck_assert_uint_eq(UA_Server_removeRole(server, role.roleName),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+}
+END_TEST
+#endif /* UA_ENABLE_AUDITING */
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2810,6 +2903,11 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, permissionEntry_slotNoUnsafeReuse);
     tcase_add_test(tc, allPermissionsForAnonymous_config);
     tcase_add_test(tc, accessRestrictions_setGetRead);
+#ifdef UA_ENABLE_AUDITING
+    tcase_add_test(tc, auditRoleMappingRuleChanged_emitted);
+    tcase_add_test(tc, auditRoleMapping_addRoleEmits);
+    tcase_add_test(tc, auditRoleMapping_removeRoleEmits);
+#endif
     suite_add_tcase(s, tc);
     return s;
 }
