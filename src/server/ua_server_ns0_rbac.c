@@ -14,7 +14,9 @@
 
 #include "ua_server_rbac.h"
 
-/* RBAC NS0 information model integration */
+/* RBAC NS0 information model integration.
+ * The known RBAC limitations are documented in one place in
+ * ua_server_rbac.c. */
 
 /* Resolve the Role Object that owns a property (inverse HasProperty). Keeps
  * the data source callbacks free of node contexts that would have to be
