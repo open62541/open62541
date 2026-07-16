@@ -14,19 +14,21 @@
  * nodes sharing the same role permissions reference a shared entry via a
  * compact permission index in the node head.
  *
- * Known limitations (single source of truth for the whole RBAC subsystem;
- * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
- *
  * - Identity criteria are evaluated for Anonymous, AuthenticatedUser,
  *   UserName, TrustedApplication (signed or encrypted SecureChannel with a
  *   validated application certificate, per Part 18 §4.4.3), Thumbprint and
  *   X509Subject (of the X509 user certificate), Application (client
  *   ApplicationUri) and Role (references an already-granted Role by
- *   BrowseName). GroupId is not evaluated (no native group source).
+ *   BrowseName, resolved transitively).
  *
- * - Application and Endpoint role filters (including the Exclude variants)
- *   are not evaluated during role resolution. An empty filter list with the
- *   default Exclude=true means "no restriction" (Part 18 §4.4.1).
+ * - The Application and Endpoint role filters (including the Exclude variants)
+ *   are evaluated during role resolution. An empty filter list means "no
+ *   restriction" (Part 18 §4.4.1).
+ *
+ * Known limitations (single source of truth for the whole RBAC subsystem;
+ * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
+ *
+ * - The GroupId identity criterion is not evaluated (no native group source).
  *
  * - Changes to a Role's identity mapping rules (updateRole, AddIdentity,
  *   RemoveIdentity) are not re-evaluated for already-active Sessions; they
@@ -656,20 +658,9 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
 }
 
 /* Log warnings for role features that are configured but not evaluated during
- * session role resolution: the Application/Endpoint filters and the GroupId
- * identity criterion. */
+ * session role resolution (currently only the GroupId identity criterion). */
 static void
 warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
-    if(role->applicationsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has application filters configured, "
-                       "but application-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
-    if(role->endpointsSize > 0)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: Role '%.*s' has endpoint filters configured, "
-                       "but endpoint-based role assignment is not yet implemented",
-                       (int)role->roleName.name.length, role->roleName.name.data);
     for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
         if(role->identityMappingRules[k].criteriaType !=
            UA_IDENTITYCRITERIATYPE_GROUPID)
@@ -1429,6 +1420,57 @@ identityRuleMatches(const UA_IdentityMappingRuleType *rule,
     }
 }
 
+/* Whether a single Endpoint filter entry matches the session's endpoint. Fields
+ * left at their default/empty value are ignored (Part 18 §4.4.1). */
+static UA_Boolean
+endpointFilterMatches(const UA_EndpointType *ep,
+                      const UA_SessionIdentityContext *ctx) {
+    if(ep->endpointUrl.length > 0 &&
+       !UA_String_equal(&ep->endpointUrl, &ctx->endpointUrl))
+        return false;
+    if(ep->securityMode != UA_MESSAGESECURITYMODE_INVALID &&
+       ep->securityMode != ctx->endpointSecurityMode)
+        return false;
+    if(ep->securityPolicyUri.length > 0 &&
+       !UA_String_equal(&ep->securityPolicyUri, &ctx->securityPolicyUri))
+        return false;
+    if(ep->transportProfileUri.length > 0 &&
+       !UA_String_equal(&ep->transportProfileUri, &ctx->transportProfileUri))
+        return false;
+    return true;
+}
+
+/* Apply a role's Application and Endpoint filters to the session context
+ * (Part 18 §4.4.1). An empty list means "no restriction"; otherwise the
+ * session's application/endpoint must be in (Exclude=false) or out of
+ * (Exclude=true) the list. */
+static UA_Boolean
+roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
+    if(role->applicationsSize > 0) {
+        UA_Boolean inList = false;
+        for(size_t i = 0; i < role->applicationsSize; i++) {
+            if(UA_String_equal(&ctx->applicationUri, &role->applications[i])) {
+                inList = true;
+                break;
+            }
+        }
+        if(inList == role->applicationsExclude)
+            return false;
+    }
+    if(role->endpointsSize > 0) {
+        UA_Boolean inList = false;
+        for(size_t i = 0; i < role->endpointsSize; i++) {
+            if(endpointFilterMatches(&role->endpoints[i], ctx)) {
+                inList = true;
+                break;
+            }
+        }
+        if(inList == role->endpointsExclude)
+            return false;
+    }
+    return true;
+}
+
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
                                const UA_SessionIdentityContext *ctx,
@@ -1444,14 +1486,17 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     if(!matchedRoles)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Match every role's identity mapping rules against the context */
+    /* Match every role's identity mapping rules against the context, then apply
+     * the role's Application/Endpoint filters. */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
             if(identityRuleMatches(&role->identityMappingRules[j], ctx)) {
-                matchedRoles[i] = true;
-                matchCount++;
+                if(roleFiltersMatch(role, ctx)) {
+                    matchedRoles[i] = true;
+                    matchCount++;
+                }
                 break;
             }
         }
@@ -1489,9 +1534,11 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
                         continue;
                     if(UA_String_equal(&server->roles[k].roleName.name,
                                        &role->identityMappingRules[j].criteria)) {
-                        matchedRoles[i] = true;
-                        matchCount++;
-                        changed = true;
+                        if(roleFiltersMatch(role, ctx)) {
+                            matchedRoles[i] = true;
+                            matchCount++;
+                            changed = true;
+                        }
                         break;
                     }
                 }

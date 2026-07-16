@@ -74,6 +74,25 @@ addRoleWithRule(const char *name, UA_IdentityCriteriaType ct, const char *criter
     return id;
 }
 
+/* Evaluate the roles for a context and report whether roleId is among them */
+static UA_Boolean
+roleGrantedForContext(const UA_SessionIdentityContext *ctx, const UA_NodeId *roleId)
+{
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, ctx, &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < size; i++) {
+        if(UA_NodeId_equal(&ids[i], roleId)) {
+            found = true;
+            break;
+        }
+    }
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+    return found;
+}
+
 START_TEST(Role_initClearCopy) {
     UA_Role r;
     UA_Role_init(&r);
@@ -2559,6 +2578,82 @@ START_TEST(identityCriteria_extended) {
 }
 END_TEST
 
+/* The Application and Endpoint role filters gate role assignment (Part 18
+ * §4.4.1), including the Exclude variants. */
+START_TEST(roleFilters_evaluated) {
+    UA_IdentityMappingRuleType authRule;
+    UA_IdentityMappingRuleType_init(&authRule);
+    authRule.criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+
+    /* Application include filter */
+    UA_Role incl;
+    UA_Role_init(&incl);
+    incl.roleName = UA_QUALIFIEDNAME(1, "AppInclude");
+    incl.identityMappingRules = &authRule;
+    incl.identityMappingRulesSize = 1;
+    UA_String allowed = UA_STRING("urn:allowed");
+    incl.applications = &allowed;
+    incl.applicationsSize = 1;
+    incl.applicationsExclude = false;
+    UA_NodeId inclId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &incl, &inclId), UA_STATUSCODE_GOOD);
+
+    /* Application exclude filter */
+    UA_Role excl;
+    UA_Role_init(&excl);
+    excl.roleName = UA_QUALIFIEDNAME(1, "AppExclude");
+    excl.identityMappingRules = &authRule;
+    excl.identityMappingRulesSize = 1;
+    UA_String blocked = UA_STRING("urn:blocked");
+    excl.applications = &blocked;
+    excl.applicationsSize = 1;
+    excl.applicationsExclude = true;
+    UA_NodeId exclId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &excl, &exclId), UA_STATUSCODE_GOOD);
+
+    /* Endpoint include filter */
+    UA_Role ep;
+    UA_Role_init(&ep);
+    ep.roleName = UA_QUALIFIEDNAME(1, "EpInclude");
+    ep.identityMappingRules = &authRule;
+    ep.identityMappingRulesSize = 1;
+    UA_EndpointType epFilter;
+    UA_EndpointType_init(&epFilter);
+    epFilter.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ep.endpoints = &epFilter;
+    ep.endpointsSize = 1;
+    ep.endpointsExclude = false;
+    UA_NodeId epId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &ep, &epId), UA_STATUSCODE_GOOD);
+
+    UA_SessionIdentityContext ctx;
+
+    /* Include: matching application granted, others denied */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.applicationUri = UA_STRING("urn:allowed");
+    ck_assert(roleGrantedForContext(&ctx, &inclId));
+    ctx.applicationUri = UA_STRING("urn:other");
+    ck_assert(!roleGrantedForContext(&ctx, &inclId));
+
+    /* Exclude: listed application denied, others granted */
+    ctx.applicationUri = UA_STRING("urn:blocked");
+    ck_assert(!roleGrantedForContext(&ctx, &exclId));
+    ctx.applicationUri = UA_STRING("urn:other");
+    ck_assert(roleGrantedForContext(&ctx, &exclId));
+
+    /* Endpoint include: matching endpoint granted, others denied */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    UA_NodeId_clear(&inclId);
+    UA_NodeId_clear(&exclId);
+    UA_NodeId_clear(&epId);
+}
+END_TEST
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2617,6 +2712,7 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityManagement_usernameRule);
     tcase_add_test(tc, applicationManagement_basic);
     tcase_add_test(tc, identityCriteria_extended);
+    tcase_add_test(tc, roleFilters_evaluated);
     suite_add_tcase(s, tc);
     return s;
 }
