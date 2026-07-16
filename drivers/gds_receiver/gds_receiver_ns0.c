@@ -736,4 +736,122 @@ clearNS0PushManagement(UA_GDSReceiverContext *ctx) {
     }
 }
 
+#ifdef UA_ENABLE_RBAC
+/* OPC UA Part 12 v1.05 §7.2 and §7.10.4: PushManagement is restricted to
+ * SecurityAdmin. ServerConfiguration and its immediate children stay visible,
+ * the CertificateGroups children only to SecurityAdmin. */
+UA_StatusCode
+initGDSRolePermissions(UA_Server *server) {
+    const UA_NodeId secAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    const UA_NodeId publicRoles[] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
+    };
+
+    const UA_UInt32 publicVisibleNodes[] = {
+        UA_NS0ID_SERVERCONFIGURATION,
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST,
+        UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST,
+        UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS
+    };
+
+    const UA_UInt32 protectedSubtrees[] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP
+    };
+
+    const UA_UInt32 callObjectIds[] = {
+        UA_NS0ID_SERVERCONFIGURATION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST
+    };
+
+    const UA_UInt32 methodIds[] = {
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST,
+        UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST,
+        UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION
+    };
+
+    /* Apply the permissions, aborting on the first failure. StatusCodes are
+     * not bit flags, so they are checked individually instead of OR-ed. */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < sizeof(publicVisibleNodes) / sizeof(publicVisibleNodes[0]); i++) {
+        retval = UA_Server_addRolePermissions(server,
+                                              UA_NODEID_NUMERIC(0, publicVisibleNodes[i]),
+                                              secAdmin,
+                                              UA_PERMISSIONTYPE_BROWSE |
+                                              UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        for(size_t j = 0; j < sizeof(publicRoles) / sizeof(publicRoles[0]); j++) {
+            retval = UA_Server_addRolePermissions(server,
+                                                  UA_NODEID_NUMERIC(0, publicVisibleNodes[i]),
+                                                  publicRoles[j],
+                                                  UA_PERMISSIONTYPE_BROWSE,
+                                                  false, false);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        }
+    }
+
+    for(size_t i = 0; i < sizeof(protectedSubtrees) / sizeof(protectedSubtrees[0]); i++) {
+        retval = UA_Server_addRolePermissions(server,
+                                              UA_NODEID_NUMERIC(0, protectedSubtrees[i]),
+                                              secAdmin,
+                                              UA_PERMISSIONTYPE_BROWSE |
+                                              UA_PERMISSIONTYPE_READ |
+                                              UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                              false, true);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    for(size_t i = 0; i < sizeof(callObjectIds) / sizeof(callObjectIds[0]); i++) {
+        retval = UA_Server_addRolePermissions(server,
+                                              UA_NODEID_NUMERIC(0, callObjectIds[i]),
+                                              secAdmin,
+                                              UA_PERMISSIONTYPE_CALL,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    for(size_t i = 0; i < sizeof(methodIds) / sizeof(methodIds[0]); i++) {
+        retval = UA_Server_addRolePermissions(server,
+                                              UA_NODEID_NUMERIC(0, methodIds[i]),
+                                              secAdmin,
+                                              UA_PERMISSIONTYPE_CALL,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+    return retval;
+}
+#endif
+
 #endif
