@@ -25,6 +25,15 @@ def clean_comment(line):
         return "\n"
     return m.group(2) + "\n"
 
+# Double the indent of RST bullet lines so docutils >= 0.21 accepts nested lists.
+bullet_re = re.compile(r"^(\s*)([-*+]|\d+\.)\s")
+
+def reindent_bullet(line):
+    m = bullet_re.match(line)
+    if not m:
+        return line
+    return (" " * (len(m.group(1)) * 2)) + line.lstrip()
+
 def clean_line(line):
     for keyword in remove_keyword:
         line = line.replace(keyword, "")
@@ -99,6 +108,8 @@ with open(sys.argv[args-1], 'w') as rst:
             if not ((doc_start or doc_end) and line == "\n"):
                 if not in_doc:
                     line = "   " + line
+                else:
+                    line = reindent_bullet(line)
                 rst.write(clean_line(line))
 
             if doc_end and i < last:
