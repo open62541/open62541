@@ -105,13 +105,21 @@ typedef struct session_list_entry {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/* Accumulates the model changes of one logical operation or service request. */
+/* Internal accumulator marker. Reserved ModelChange verb bits must never be
+ * serialized; finalization demultiplexes and removes this bit first. */
+#define UA_CHANGESTRUCTUREVERBMASK_SEMANTIC_INTERNAL ((UA_Byte)0x80u)
+
+/* Changes accumulated for one logical operation or service request. */
+typedef struct {
+    UA_ModelChangeStructureDataType change;
+    UA_NodeId nodeVersionId;
+    UA_Int64 nodeVersion;
+} UA_ChangeEntry;
+
 typedef struct {
     size_t changesSize;
     size_t changesCapacity;
-    UA_ModelChangeStructureDataType *changes;
-    UA_NodeId *nodeVersionIds;
-    UA_Int64 *nodeVersions;
+    UA_ChangeEntry *changes;
 } UA_ModelChangeAccumulator;
 
 #endif
@@ -489,6 +497,8 @@ void beginModelChange(UA_Server *server);
 void endModelChange(UA_Server *server);
 void recordModelChangeEvent(UA_Server *server, const UA_NodeId *affected,
                             UA_Byte verb);
+void recordSemanticPropertyChange(UA_Server *server,
+                                  const UA_NodeHead *property);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
@@ -500,6 +510,11 @@ recordModelChangeEvent(UA_Server *server, const UA_NodeId *affected, UA_Byte ver
     (void)server;
     (void)affected;
     (void)verb;
+}
+static UA_INLINE void
+recordSemanticPropertyChange(UA_Server *server, const UA_NodeHead *property) {
+    (void)server;
+    (void)property;
 }
 #endif
 

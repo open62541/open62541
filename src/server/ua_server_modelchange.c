@@ -7,6 +7,9 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 #define UA_MODELCHANGE_VALID_VERBS ((UA_Byte)0x1Fu)
+#define UA_MODELCHANGE_SEMANTIC UA_CHANGESTRUCTUREVERBMASK_SEMANTIC_INTERNAL
+#define UA_MODELCHANGE_INTERNAL_VERBS \
+    (UA_MODELCHANGE_VALID_VERBS | UA_MODELCHANGE_SEMANTIC)
 #define UA_MODELCHANGE_INITIAL_CAPACITY 4u
 
 void
@@ -16,11 +19,11 @@ UA_ModelChangeAccumulator_init(UA_ModelChangeAccumulator *acc) {
 
 void
 UA_ModelChangeAccumulator_clear(UA_ModelChangeAccumulator *acc) {
-    UA_free(acc->nodeVersions);
-    UA_Array_delete(acc->nodeVersionIds, acc->changesSize,
-                    &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Array_delete(acc->changes, acc->changesSize,
-                    &UA_TYPES[UA_TYPES_MODELCHANGESTRUCTUREDATATYPE]);
+    for(size_t i = 0; i < acc->changesSize; ++i) {
+        UA_ModelChangeStructureDataType_clear(&acc->changes[i].change);
+        UA_NodeId_clear(&acc->changes[i].nodeVersionId);
+    }
+    UA_free(acc->changes);
     memset(acc, 0, sizeof(*acc));
 }
 
@@ -37,26 +40,14 @@ reserveModelChanges(UA_ModelChangeAccumulator *acc) {
     else
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(newCapacity > SIZE_MAX / sizeof(UA_ModelChangeStructureDataType))
+    if(newCapacity > SIZE_MAX / sizeof(UA_ChangeEntry))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     void *newChanges =
         UA_realloc(acc->changes,
-                   newCapacity * sizeof(UA_ModelChangeStructureDataType));
+                   newCapacity * sizeof(UA_ChangeEntry));
     if(!newChanges)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    acc->changes = (UA_ModelChangeStructureDataType*)newChanges;
-
-    void *newNodeVersionIds =
-        UA_realloc(acc->nodeVersionIds, newCapacity * sizeof(UA_NodeId));
-    if(!newNodeVersionIds)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    acc->nodeVersionIds = (UA_NodeId*)newNodeVersionIds;
-
-    void *newNodeVersions =
-        UA_realloc(acc->nodeVersions, newCapacity * sizeof(UA_Int64));
-    if(!newNodeVersions)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    acc->nodeVersions = (UA_Int64*)newNodeVersions;
+    acc->changes = (UA_ChangeEntry*)newChanges;
     acc->changesCapacity = newCapacity;
     return UA_STATUSCODE_GOOD;
 }
@@ -81,28 +72,96 @@ writeNodeVersion(UA_Server *server, const UA_NodeId propertyId,
     return writeValueAttribute(server, propertyId, &value);
 }
 
+struct TypeDefinitionContext {
+    UA_StatusCode res;
+    UA_NodeId *typeId;
+};
+
+static void *
+copyTypeDefinition(void *context, UA_ReferenceTarget *target) {
+    if(!UA_NodePointer_isLocal(target->targetId))
+        return NULL;
+    struct TypeDefinitionContext *ctx =
+        (struct TypeDefinitionContext*)context;
+    UA_NodeId typeId = UA_NodePointer_toNodeId(target->targetId);
+    ctx->res = UA_NodeId_copy(&typeId, ctx->typeId);
+    return (void*)0x01;
+}
+
+static UA_StatusCode
+getTypeDefinition(const UA_NodeHead *head, UA_NodeId *typeId) {
+    struct TypeDefinitionContext context =
+        {UA_STATUSCODE_BADNOTFOUND, typeId};
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &head->references[i];
+        if(rk->isInverse || rk->referenceTypeIndex !=
+                            UA_REFERENCETYPEINDEX_HASTYPEDEFINITION)
+            continue;
+        UA_NodeReferenceKind_iterate(rk, copyTypeDefinition, &context);
+        break;
+    }
+    return context.res;
+}
+
+/* Add NodeVersion bookkeeping when an existing semantic-only entry later also
+ * receives a structural ModelChange verb. */
+static UA_StatusCode
+addNodeVersionTracking(UA_Server *server, UA_ModelChangeAccumulator *acc,
+                       size_t index, const UA_NodeId *affected) {
+    UA_ChangeEntry *entry = &acc->changes[index];
+    if(!UA_NodeId_isNull(&entry->nodeVersionId))
+        return UA_STATUSCODE_GOOD;
+
+    const UA_Node *node = UA_NODESTORE_GET(server, affected);
+    if(!node)
+        return UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode res =
+        getNodeVersionProperty(server, &node->head, &entry->nodeVersionId);
+    UA_NODESTORE_RELEASE(server, node);
+    if(res == UA_STATUSCODE_GOOD)
+        entry->nodeVersion = nextNodeVersion(server);
+    return res;
+}
+
 UA_StatusCode
 UA_ModelChangeAccumulator_record(UA_Server *server,
                                  UA_ModelChangeAccumulator *acc,
                                  const UA_NodeId *affected,
                                  UA_Byte verb) {
+    /* Accept standard ModelChange verbs and the private SemanticChange marker.
+     * Reserved wire-level verb bits must not enter the accumulator. */
     if(!server || !acc || !affected || UA_NodeId_isNull(affected) || verb == 0 ||
-       (verb & (UA_Byte)~UA_MODELCHANGE_VALID_VERBS) != 0)
+       (verb & (UA_Byte)~UA_MODELCHANGE_INTERNAL_VERBS) != 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* Coalesce all changes for an affected Node into one transaction entry.
+     * This also lets a single entry participate in both emitted EventTypes. */
     for(size_t i = 0; i < acc->changesSize; ++i) {
-        UA_ModelChangeStructureDataType *change = &acc->changes[i];
+        UA_ChangeEntry *entry = &acc->changes[i];
+        UA_ModelChangeStructureDataType *change = &entry->change;
         if(!UA_NodeId_equal(&change->affected, affected))
             continue;
+
+        /* A semantic-only entry has no NodeVersion bookkeeping. If a model
+         * verb arrives later, promote the entry before merging the verbs. */
+        if((verb & UA_MODELCHANGE_VALID_VERBS) != 0 &&
+           (change->verb & UA_MODELCHANGE_VALID_VERBS) == 0) {
+            UA_StatusCode res =
+                addNodeVersionTracking(server, acc, i, affected);
+            if(res == UA_STATUSCODE_BADNOTFOUND)
+                verb &= UA_MODELCHANGE_SEMANTIC;
+            else if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
 
         /* A deleted node and its NodeVersion Property are no longer available
          * during finalization. Write the already assigned version now. */
         if((verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED) &&
            !(change->verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED)) {
             UA_StatusCode res =
-                writeNodeVersion(server, acc->nodeVersionIds[i],
-                                 acc->nodeVersions[i]);
+                writeNodeVersion(server, entry->nodeVersionId,
+                                 entry->nodeVersion);
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
@@ -110,50 +169,59 @@ UA_ModelChangeAccumulator_record(UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Only nodes with a valid NodeVersion Property participate in
-     * ModelChangeEvents. Capture the Property NodeId while the affected node is
-     * still present, so finalization does not have to look it up again. */
+    /* A new entry needs metadata from the affected Node. Missing Nodes are
+     * ignored: this can occur for changes reported after external teardown. */
     const UA_Node *node = UA_NODESTORE_GET(server, affected);
     if(!node)
         return UA_STATUSCODE_GOOD;
 
+    /* Capture the TypeDefinition while the Node is available. This is needed
+     * in the Event payload and cannot be recovered after a Node deletion. */
     UA_NodeId affectedType;
     UA_NodeId_init(&affectedType);
     if(node->head.nodeClass == UA_NODECLASS_OBJECT ||
        node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-        const UA_Node *type =
-            getNodeType(server, &node->head, UA_NODEATTRIBUTESMASK_NONE,
-                        UA_REFERENCETYPESET_NONE,
-                        UA_BROWSEDIRECTION_INVALID);
-        if(type) {
-            UA_StatusCode typeRes =
-                UA_NodeId_copy(&type->head.nodeId, &affectedType);
-            UA_NODESTORE_RELEASE(server, type);
-            if(typeRes != UA_STATUSCODE_GOOD) {
-                UA_NODESTORE_RELEASE(server, node);
-                return typeRes;
-            }
+        UA_StatusCode typeRes = getTypeDefinition(&node->head, &affectedType);
+        if(typeRes != UA_STATUSCODE_GOOD &&
+           typeRes != UA_STATUSCODE_BADNOTFOUND) {
+            UA_NODESTORE_RELEASE(server, node);
+            return typeRes;
         }
     }
 
+    /* ModelChangeEvents and NodeVersion are inseparable. Semantic-only entries
+     * deliberately skip this lookup and remain valid without NodeVersion. */
     UA_NodeId nodeVersionId;
-    UA_StatusCode res =
-        getNodeVersionProperty(server, &node->head, &nodeVersionId);
+    UA_NodeId_init(&nodeVersionId);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(verb & UA_MODELCHANGE_VALID_VERBS)
+        res = getNodeVersionProperty(server, &node->head, &nodeVersionId);
     UA_NODESTORE_RELEASE(server, node);
     if(res == UA_STATUSCODE_BADNOTFOUND) {
-        UA_NodeId_clear(&affectedType);
-        return UA_STATUSCODE_GOOD;
+        /* Keep a simultaneous semantic change even if the model change cannot
+         * be tracked because the affected node has no NodeVersion. */
+        verb &= UA_MODELCHANGE_SEMANTIC;
+        if(verb == 0) {
+            UA_NodeId_clear(&affectedType);
+            return UA_STATUSCODE_GOOD;
+        }
+        res = UA_STATUSCODE_GOOD;
     }
     if(res != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&affectedType);
         return res;
     }
 
+    /* Allocate only after the entry is known to be eligible. */
     res = reserveModelChanges(acc);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    UA_ModelChangeStructureDataType *change = &acc->changes[acc->changesSize];
+    /* Commit the new entry atomically: ownership of copied NodeIds moves into
+     * the accumulator only after every copy has succeeded. */
+    UA_ChangeEntry *entry = &acc->changes[acc->changesSize];
+    memset(entry, 0, sizeof(*entry));
+    UA_ModelChangeStructureDataType *change = &entry->change;
     UA_ModelChangeStructureDataType_init(change);
     res = UA_NodeId_copy(affected, &change->affected);
     if(res == UA_STATUSCODE_GOOD)
@@ -163,17 +231,20 @@ UA_ModelChangeAccumulator_record(UA_Server *server,
         UA_ModelChangeStructureDataType_clear(change);
         goto cleanup;
     }
-    acc->nodeVersionIds[acc->changesSize] = nodeVersionId;
+    entry->nodeVersionId = nodeVersionId;
     UA_NodeId_init(&nodeVersionId);
-    acc->nodeVersions[acc->changesSize] = nextNodeVersion(server);
+    entry->nodeVersion =
+        (verb & UA_MODELCHANGE_VALID_VERBS) ? nextNodeVersion(server) : 0;
     change->verb = verb;
 
+    /* A deleted Node and its NodeVersion Property disappear before outermost
+     * finalization. Persist the assigned version while both still exist. */
     if(verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED) {
-        res = writeNodeVersion(server, acc->nodeVersionIds[acc->changesSize],
-                               acc->nodeVersions[acc->changesSize]);
+        res = writeNodeVersion(server, entry->nodeVersionId,
+                               entry->nodeVersion);
         if(res != UA_STATUSCODE_GOOD) {
             UA_ModelChangeStructureDataType_clear(change);
-            UA_NodeId_clear(&acc->nodeVersionIds[acc->changesSize]);
+            UA_NodeId_clear(&entry->nodeVersionId);
             goto cleanup;
         }
     }
@@ -185,38 +256,147 @@ UA_ModelChangeAccumulator_record(UA_Server *server,
     return res;
 }
 
-/* Update NodeVersion and discard changes for nodes that do not expose a valid
- * NodeVersion Property. Successfully updated entries are compacted in-place. */
+/* Update NodeVersion and retain any semantic portion on failure. */
 static UA_StatusCode
 updateNodeVersions(UA_Server *server, UA_ModelChangeAccumulator *acc) {
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     size_t out = 0;
     for(size_t i = 0; i < acc->changesSize; ++i) {
-        UA_ModelChangeStructureDataType *change = &acc->changes[i];
+        UA_ChangeEntry *entry = &acc->changes[i];
+        UA_ModelChangeStructureDataType *change = &entry->change;
         UA_StatusCode res = UA_STATUSCODE_GOOD;
-        if(!(change->verb & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED))
-            res = writeNodeVersion(server, acc->nodeVersionIds[i],
-                                   acc->nodeVersions[i]);
+        UA_Byte modelVerbs = change->verb & UA_MODELCHANGE_VALID_VERBS;
+        if(modelVerbs != 0 &&
+           !(modelVerbs & UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED))
+            res = writeNodeVersion(server, entry->nodeVersionId,
+                                   entry->nodeVersion);
         if(res != UA_STATUSCODE_GOOD) {
             if(res != UA_STATUSCODE_BADNOTFOUND && result == UA_STATUSCODE_GOOD)
                 result = res;
-            UA_ModelChangeStructureDataType_clear(change);
-            UA_NodeId_clear(&acc->nodeVersionIds[i]);
-            continue;
+            UA_NodeId_clear(&entry->nodeVersionId);
+            if(change->verb & UA_MODELCHANGE_SEMANTIC) {
+                /* A failed NodeVersion write suppresses only the model part. */
+                change->verb = UA_MODELCHANGE_SEMANTIC;
+            } else {
+                UA_ModelChangeStructureDataType_clear(change);
+                continue;
+            }
         }
 
         if(out != i) {
-            acc->changes[out] = *change;
-            UA_ModelChangeStructureDataType_init(change);
-            acc->nodeVersionIds[out] = acc->nodeVersionIds[i];
-            UA_NodeId_init(&acc->nodeVersionIds[i]);
-            acc->nodeVersions[out] = acc->nodeVersions[i];
+            acc->changes[out] = *entry;
+            memset(entry, 0, sizeof(*entry));
         }
         out++;
     }
     acc->changesSize = out;
     return result;
 }
+
+/* Project the model portion into the contiguous wire representation. The
+ * accumulator retains ownership of all NodeIds. */
+static UA_ModelChangeStructureDataType *
+prepareModelChanges(UA_ModelChangeAccumulator *acc, size_t *changesSize) {
+    *changesSize = 0;
+    for(size_t i = 0; i < acc->changesSize; ++i) {
+        if(acc->changes[i].change.verb & UA_MODELCHANGE_VALID_VERBS)
+            (*changesSize)++;
+    }
+    if(*changesSize == 0)
+        return NULL;
+
+    UA_ModelChangeStructureDataType *changes = (UA_ModelChangeStructureDataType*)
+        UA_malloc(*changesSize * sizeof(UA_ModelChangeStructureDataType));
+    if(!changes)
+        return NULL;
+
+    size_t out = 0;
+    for(size_t i = 0; i < acc->changesSize; ++i) {
+        UA_ModelChangeStructureDataType change = acc->changes[i].change;
+        change.verb &= UA_MODELCHANGE_VALID_VERBS;
+        if(change.verb != 0)
+            changes[out++] = change;
+    }
+    return changes;
+}
+
+/* Project the semantic portion into the contiguous wire representation. The
+ * accumulator retains ownership of all NodeIds. */
+static UA_SemanticChangeStructureDataType *
+prepareSemanticChanges(UA_ModelChangeAccumulator *acc, size_t *changesSize) {
+    *changesSize = 0;
+    for(size_t i = 0; i < acc->changesSize; ++i) {
+        if(acc->changes[i].change.verb & UA_MODELCHANGE_SEMANTIC)
+            (*changesSize)++;
+    }
+    if(*changesSize == 0)
+        return NULL;
+
+    UA_SemanticChangeStructureDataType *changes =
+        (UA_SemanticChangeStructureDataType*)
+        UA_malloc(*changesSize * sizeof(UA_SemanticChangeStructureDataType));
+    if(!changes)
+        return NULL;
+
+    size_t out = 0;
+    for(size_t i = 0; i < acc->changesSize; ++i) {
+        UA_ModelChangeStructureDataType *change = &acc->changes[i].change;
+        if(!(change->verb & UA_MODELCHANGE_SEMANTIC))
+            continue;
+        changes[out].affected = change->affected;
+        changes[out].affectedType = change->affectedType;
+        out++;
+    }
+    return changes;
+}
+
+static void
+emitChangeEvent(UA_Server *server, UA_NodeId eventType,
+                const UA_DataType *changesType, void *changes,
+                size_t changesSize, const char *eventName) {
+    UA_KeyValuePair payload = {{0, UA_STRING_STATIC("/Changes")}, {0}};
+    UA_Variant_setArray(&payload.value, changes, changesSize, changesType);
+    UA_KeyValueMap eventFields = {1, &payload};
+
+    UA_EventDescription ed;
+    memset(&ed, 0, sizeof(UA_EventDescription));
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = eventType;
+    ed.eventFields = &eventFields;
+
+    UA_StatusCode res = createEvent(server, &ed, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not emit %s: %s", eventName,
+                       UA_StatusCode_name(res));
+}
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static void
+markSemanticChangeInSubscription(UA_Server *server, UA_Subscription *sub,
+                                 const UA_NodeId *affected) {
+    if(!sub)
+        return;
+    UA_MonitoredItem *mon, *tmp;
+    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp) {
+        if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED ||
+           mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+           !UA_NodeId_equal(&mon->itemToMonitor.nodeId, affected))
+            continue;
+        mon->semanticsChangedPending = true;
+        if(mon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_EVENT)
+            UA_MonitoredItem_sample(server, mon);
+    }
+}
+
+static void
+markSemanticChange(UA_Server *server, const UA_NodeId *affected) {
+    markSemanticChangeInSubscription(server, server->adminSubscription, affected);
+    UA_Subscription *sub, *tmp;
+    LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, tmp)
+        markSemanticChangeInSubscription(server, sub, affected);
+}
+#endif
 
 void
 UA_ModelChangeAccumulator_finalize(UA_Server *server,
@@ -233,29 +413,41 @@ UA_ModelChangeAccumulator_finalize(UA_Server *server,
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Could not update all NodeVersion Properties: %s",
                        UA_StatusCode_name(versionResult));
-    if(acc->changesSize == 0) {
-        UA_ModelChangeAccumulator_clear(acc);
-        return;
-    }
-
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair payload[1] = {
-        {{0, UA_STRING_STATIC("/Changes")}, {0}}
-    };
-    UA_Variant_setArray(&payload[0].value, acc->changes, acc->changesSize,
-                        &UA_TYPES[UA_TYPES_MODELCHANGESTRUCTUREDATATYPE]);
-    UA_KeyValueMap eventFields = {1, payload};
-
-    UA_EventDescription ed;
-    memset(&ed, 0, sizeof(UA_EventDescription));
-    ed.sourceNode = UA_NS0ID(SERVER);
-    ed.eventType = UA_NS0ID(GENERALMODELCHANGEEVENTTYPE);
-    ed.eventFields = &eventFields;
-
-    UA_StatusCode res = createEvent(server, &ed, NULL);
-    if(res != UA_STATUSCODE_GOOD)
+    size_t modelChangesSize;
+    UA_ModelChangeStructureDataType *modelChanges =
+        prepareModelChanges(acc, &modelChangesSize);
+    if(modelChangesSize > 0 && !modelChanges)
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Could not emit ModelChangeEvent: %s",
-                       UA_StatusCode_name(res));
+                       "Could not allocate ModelChangeEvent payload");
+
+    size_t semanticChangesSize;
+    UA_SemanticChangeStructureDataType *semanticChanges =
+        prepareSemanticChanges(acc, &semanticChangesSize);
+    if(semanticChangesSize > 0 && !semanticChanges)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not allocate SemanticChangeEvent payload");
+
+    if(modelChanges)
+        emitChangeEvent(server, UA_NS0ID(GENERALMODELCHANGEEVENTTYPE),
+                        &UA_TYPES[UA_TYPES_MODELCHANGESTRUCTUREDATATYPE],
+                        modelChanges, modelChangesSize, "ModelChangeEvent");
+    if(semanticChanges)
+        emitChangeEvent(server, UA_NS0ID(SEMANTICCHANGEEVENTTYPE),
+                        &UA_TYPES[UA_TYPES_SEMANTICCHANGESTRUCTUREDATATYPE],
+                        semanticChanges, semanticChangesSize,
+                        "SemanticChangeEvent");
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    for(size_t i = 0; i < acc->changesSize; i++) {
+        UA_ModelChangeStructureDataType *change = &acc->changes[i].change;
+        if(change->verb & UA_MODELCHANGE_SEMANTIC)
+            markSemanticChange(server, &change->affected);
+    }
+#endif
+
+    /* Both payloads are shallow projections. The accumulator owns NodeIds. */
+    UA_free(modelChanges);
+    UA_free(semanticChanges);
     UA_ModelChangeAccumulator_clear(acc);
 }
 
@@ -296,6 +488,44 @@ recordModelChangeEvent(UA_Server *server, const UA_NodeId *affected, UA_Byte ver
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Could not record model change for %N: %s",
                        *affected, UA_StatusCode_name(res));
+}
+
+static void *
+recordSemanticOwner(void *context, UA_ReferenceTarget *target) {
+    if(!UA_NodePointer_isLocal(target->targetId))
+        return NULL;
+    UA_Server *server = (UA_Server*)context;
+    UA_NodeId owner = UA_NodePointer_toNodeId(target->targetId);
+    recordModelChangeEvent(server, &owner, UA_MODELCHANGE_SEMANTIC);
+    return NULL;
+}
+
+void
+recordSemanticPropertyChange(UA_Server *server, const UA_NodeHead *property) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    if(server->modelChangeSuppressionDepth > 0 ||
+       server->modelChangeDepth == 0)
+        return;
+
+    UA_ReferenceTypeSet propertyRefs;
+    const UA_NodeId hasProperty = UA_NS0ID(HASPROPERTY);
+    UA_StatusCode res =
+        referenceTypeIndices(server, &hasProperty, &propertyRefs, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not resolve HasProperty subtypes: %s",
+                       UA_StatusCode_name(res));
+        return;
+    }
+
+    for(size_t i = 0; i < property->referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &property->references[i];
+        if(!rk->isInverse ||
+           !UA_ReferenceTypeSet_contains(&propertyRefs,
+                                         rk->referenceTypeIndex))
+            continue;
+        UA_NodeReferenceKind_iterate(rk, recordSemanticOwner, server);
+    }
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

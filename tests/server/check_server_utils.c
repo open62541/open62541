@@ -634,11 +634,11 @@ START_TEST(modelChangeAccumulatorAllVerbs) {
     }
 
     ck_assert_uint_eq(acc.changesSize, 1);
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affected, &affected));
+    ck_assert(UA_NodeId_equal(&acc.changes[0].change.affected, &affected));
     UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType,
+    ck_assert(UA_NodeId_equal(&acc.changes[0].change.affectedType,
                               &expectedType));
-    ck_assert_uint_eq(acc.changes[0].verb, 0x1Fu);
+    ck_assert_uint_eq(acc.changes[0].change.verb, 0x1Fu);
 
     UA_ModelChangeAccumulator_clear(&acc);
     ck_assert_uint_eq(acc.changesSize, 0);
@@ -665,8 +665,9 @@ START_TEST(modelChangeAccumulatorMultipleNodes) {
     UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
     for(UA_UInt32 i = 1; i <= 10; ++i) {
         UA_NodeId expected = UA_NODEID_NUMERIC(1, 2000 + i);
-        ck_assert(UA_NodeId_equal(&acc.changes[i - 1].affected, &expected));
-        ck_assert(UA_NodeId_equal(&acc.changes[i - 1].affectedType,
+        ck_assert(UA_NodeId_equal(&acc.changes[i - 1].change.affected,
+                                  &expected));
+        ck_assert(UA_NodeId_equal(&acc.changes[i - 1].change.affectedType,
                                   &expectedType));
     }
     UA_ModelChangeAccumulator_clear(&acc);
@@ -687,7 +688,8 @@ START_TEST(modelChangeAccumulatorAffectedType) {
         UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_NodeId expectedType = UA_NS0ID(BASEOBJECTTYPE);
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType, &expectedType));
+    ck_assert(UA_NodeId_equal(&acc.changes[0].change.affectedType,
+                              &expectedType));
 
     res = recordModelChange(
         &acc, &affected,
@@ -704,9 +706,9 @@ START_TEST(modelChangeAccumulatorAffectedType) {
     ck_assert(UA_String_equal((UA_String*)version.data, &expectedVersion));
     UA_Variant_clear(&version);
 
-    ck_assert(UA_NodeId_equal(&acc.changes[0].affectedType,
+    ck_assert(UA_NodeId_equal(&acc.changes[0].change.affectedType,
                               &expectedType));
-    ck_assert_uint_eq(acc.changes[0].verb,
+    ck_assert_uint_eq(acc.changes[0].change.verb,
                       UA_MODELCHANGESTRUCTUREVERBMASK_NODEADDED |
                       UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED |
                       UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED);

@@ -142,6 +142,14 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredIte
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* SemanticsChanged is a one-shot notification bit. Keep it out of
+     * lastValue so it neither affects filtering nor causes a second status
+     * change when the bit disappears. */
+    if(mon->semanticsChangedPending) {
+        valueCopy.hasStatus = true;
+        valueCopy.status |= UA_STATUSCODE_SEMANTICSCHANGED;
+    }
+
     /* Allocate a new notification */
     UA_Notification *n = UA_Notification_new();
     if(!n) {
@@ -154,6 +162,7 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredIte
     n->data.dataChange.value = valueCopy;
     n->data.dataChange.clientHandle = mon->parameters.clientHandle;
     UA_Notification_enqueueAndTrigger(server, n);
+    mon->semanticsChangedPending = false;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -164,7 +173,8 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Has the value changed (with the filters applied)? */
-    UA_Boolean changed = detectValueChange(server, mon, value);
+    UA_Boolean changed = mon->semanticsChangedPending ||
+        detectValueChange(server, mon, value);
     if(!changed) {
         UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
                                   "MonitoredItem %" PRIi32 " | "
@@ -174,6 +184,7 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     }
 
     /* Prepare a notification and enqueue it */
+    UA_Boolean semanticsChanged = mon->semanticsChangedPending;
     UA_StatusCode res =
         UA_MonitoredItem_createDataChangeNotification(server, mon, value);
     if(res != UA_STATUSCODE_GOOD) {
@@ -193,6 +204,10 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
      * subscription. Do this at the very end. Because the callback might delete
      * the subscription. */
     if(!mon->subscription) {
+        if(semanticsChanged) {
+            value->hasStatus = true;
+            value->status |= UA_STATUSCODE_SEMANTICSCHANGED;
+        }
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
