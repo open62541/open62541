@@ -480,6 +480,51 @@ START_TEST(Client_roles_reevaluated_on_roleAdd) {
 }
 END_TEST
 
+/* AccessRestrictions with EncryptionRequired deny reads over an unencrypted
+ * channel (Part 3 §5.2.11). */
+START_TEST(Client_accessRestrictions_enforced) {
+    UA_NodeId restricted = UA_NODEID_NUMERIC(1, 61100);
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_UInt32 val = 5;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    vattr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, restricted,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "RestrictedVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+    /* Grant the operator role READ so only the AccessRestriction blocks it */
+    UA_Role r;
+    UA_StatusCode gr = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "OperatorRole"), &r);
+    ck_assert_uint_eq(gr, UA_STATUSCODE_GOOD);
+    UA_NodeId opRoleId;
+    UA_NodeId_copy(&r.roleId, &opRoleId);
+    UA_Role_clear(&r);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, restricted, opRoleId,
+        UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ, false, false),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, restricted,
+        UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED), UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "operator", "password"),
+                      UA_STATUSCODE_GOOD);
+
+    /* Unencrypted channel + EncryptionRequired -> read denied */
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode rd = UA_Client_readValueAttribute(client, restricted, &v);
+    ck_assert_uint_ne(rd, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&v);
+
+    UA_NodeId_clear(&opRoleId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 #ifdef UA_ENABLE_METHODCALLS
 /* A non-admin client over an unencrypted channel must not be able to call the
  * RoleSet AddRole Method: C2 grants CALL only to SecurityAdmin and C1 requires
@@ -526,6 +571,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_guest_limited_access);
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
     tcase_add_test(tc, Client_roles_reevaluated_on_roleAdd);
+    tcase_add_test(tc, Client_accessRestrictions_enforced);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);
 #endif

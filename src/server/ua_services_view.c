@@ -20,6 +20,10 @@
 #include "ua_services.h"
 #include "ziptree.h"
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 #define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
 
 static UA_UInt32
@@ -678,6 +682,17 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
                                           refs, direction);
     if(!target)
         return NULL;
+
+#ifdef UA_ENABLE_RBAC
+    /* ApplyRestrictionsToBrowse also hides a restricted target when its
+     * parent is browsed. Otherwise the target NodeId and attributes would be
+     * disclosed without ever browsing the restricted Node directly. */
+    if(checkNodeAccessRestrictions(bc->server, bc->session, target, true) !=
+       UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(bc->server, target);
+        return NULL;
+    }
+#endif
     
     /* The node class has to match */
     if(!matchClassMask(target, bd->nodeClassMask)) {
@@ -833,6 +848,17 @@ browseResolvedNode(struct BrowseContext *bc, const UA_Node *node) {
     }
 
     UA_assert(UA_NodeId_equal(&node->head.nodeId, &descr->nodeId));
+
+#ifdef UA_ENABLE_RBAC
+    /* Part 3 §5.2.11: enforce AccessRestrictions for Browse only when the
+     * ApplyRestrictionsToBrowse flag is present. BrowseNext reaches this same
+     * path and therefore re-checks the current Session/SecureChannel. */
+    bc->status = checkNodeAccessRestrictions(bc->server, bc->session, node, true);
+    if(bc->status != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(bc->server, node);
+        return;
+    }
+#endif
 
     /* Check AccessControl rights */
     if(bc->session != &bc->server->adminSession) {
@@ -1304,6 +1330,14 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         if(!node)
             continue;
 
+#ifdef UA_ENABLE_RBAC
+        if(checkNodeAccessRestrictions(server, session, node, true) !=
+           UA_STATUSCODE_GOOD) {
+            UA_NODESTORE_RELEASE(server, node);
+            continue;
+        }
+#endif
+
         /* Check whether the session is allowed to browse this node.
          * Mirrors the access-control gate applied in browseWithContinuation().
          * Without this check, a client denied direct Browse on a node can
@@ -1493,6 +1527,14 @@ Operation_TranslateBrowsePathToNodeIdsWithNode(
                                        UA_BROWSEDIRECTION_INVALID);
         if(!node)
             continue;
+
+#ifdef UA_ENABLE_RBAC
+        if(checkNodeAccessRestrictions(server, session, node, true) !=
+           UA_STATUSCODE_GOOD) {
+            UA_NODESTORE_RELEASE(server, node);
+            continue;
+        }
+#endif
 
         /* Check whether the session is allowed to browse the resolved target.
          * Without this check, a client denied direct Browse on a terminal node

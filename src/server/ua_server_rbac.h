@@ -48,6 +48,18 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
 void
 UA_Server_reevaluateSessionRoles(UA_Server *server);
 
+/* Effective AccessRestrictions of a node (its own value or the namespace
+ * default). Must be called with the server lock held. */
+UA_AccessRestrictionType
+getNodeAccessRestrictions(UA_Server *server, const UA_Node *node);
+
+/* Enforce a node's AccessRestrictions against the session (Part 3 §5.2.11).
+ * forBrowse limits enforcement to the ApplyRestrictionsToBrowse bit.
+ * Must be called with the server lock held. */
+UA_StatusCode
+checkNodeAccessRestrictions(UA_Server *server, const UA_Session *session,
+                            const UA_Node *node, UA_Boolean forBrowse);
+
 /* Decrement the refCount of a role permission entry at the given index.
  * Used during node deletion to keep refcounts consistent. */
 void

@@ -2675,6 +2675,67 @@ START_TEST(identityCriteria_groupId) {
 }
 END_TEST
 
+/* AccessRestrictions can be set/read via the C API and the attribute service,
+ * and fall back to the namespace default (Part 3 §5.2.11). */
+START_TEST(accessRestrictions_setGetRead) {
+    UA_NodeId x = UA_NODEID_NUMERIC(1, 61000);
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_UInt32 val = 1;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, x,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "ArVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    /* Default is NONE */
+    UA_AccessRestrictionType ar = 0xFFFF;
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, x, &ar),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ar, UA_ACCESSRESTRICTIONTYPE_NONE);
+
+    /* Set and read back */
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, x,
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, x, &ar),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ar, UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+
+    /* The attribute service returns the value (admin session is exempt from
+     * enforcement) */
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = x;
+    rvid.attributeId = UA_ATTRIBUTEID_ACCESSRESTRICTIONS;
+    UA_DataValue dv = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(dv.value.type, &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+    ck_assert_uint_eq(*(UA_AccessRestrictionType*)dv.value.data,
+                      UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED);
+    UA_DataValue_clear(&dv);
+
+    /* Namespace default fallback for a node without explicit restrictions */
+    UA_NodeId y = UA_NODEID_NUMERIC(1, 61001);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, y,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "ArVar2"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultAccessRestrictions(server, 1,
+                          UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getNodeAccessRestrictions(server, y, &ar),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ar, UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED);
+
+    UA_Server_deleteNode(server, x, true);
+    UA_Server_deleteNode(server, y, true);
+}
+END_TEST
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2748,6 +2809,7 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, permissionConfig_addAndGet);
     tcase_add_test(tc, permissionEntry_slotNoUnsafeReuse);
     tcase_add_test(tc, allPermissionsForAnonymous_config);
+    tcase_add_test(tc, accessRestrictions_setGetRead);
     suite_add_tcase(s, tc);
     return s;
 }
