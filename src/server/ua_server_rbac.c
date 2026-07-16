@@ -17,14 +17,11 @@
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
- * - The well-known TrustedApplication role (Part 18 §4.3) is not
- *   registered; the trusted-application session mapping is not evaluated
- *   during role resolution.
- *
- * - Identity criteria are evaluated only for Anonymous, AuthenticatedUser
- *   and UserName. Thumbprint, GroupId, Application and X509Subject are
- *   stored but not evaluated; assign such roles explicitly via the
- *   session "roles" attribute.
+ * - Identity criteria are evaluated for Anonymous, AuthenticatedUser,
+ *   UserName and TrustedApplication (the latter matches sessions on an
+ *   encrypted SecureChannel, i.e. with a validated application certificate).
+ *   Thumbprint, GroupId, Application and X509Subject are stored but not
+ *   evaluated; assign such roles explicitly via the session "roles" attribute.
  *
  * - Application and Endpoint role filters (including the Exclude variants)
  *   are not evaluated during role resolution.
@@ -36,10 +33,12 @@
  * - AccessRestrictions (Part 3 §5.2.11) and the NamespaceMetadata
  *   DefaultAccessRestrictions are not implemented.
  *
- * - AddRole / RemoveRole update the internal registry only; the Role
- *   Objects under Server/ServerCapabilities/RoleSet are not created or
- *   removed, so a browsing client does not see runtime role changes
- *   (Part 18 §4.3).
+ * - Roles added or removed at runtime - through the C API
+ *   (UA_Server_addRole / UA_Server_removeRole) or the RoleSet AddRole /
+ *   RemoveRole Methods - are mirrored as Role Objects under
+ *   Server/ServerCapabilities/RoleSet, so they are visible to browsing
+ *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
+ *   during NS0 setup are left untouched.
  *
  * - RBAC-related audit events are not emitted.
  */
@@ -425,6 +424,9 @@ initializeStandardRoles(UA_Server *server) {
         {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER, "AuthenticatedUser",
          {UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER,
           UA_IDENTITYCRITERIATYPE_ANONYMOUS}, 1},
+        {UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION, "TrustedApplication",
+         {UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION,
+          UA_IDENTITYCRITERIATYPE_ANONYMOUS}, 1},
         {UA_NS0ID_WELLKNOWNROLE_OBSERVER, "Observer",
          {UA_IDENTITYCRITERIATYPE_ANONYMOUS, UA_IDENTITYCRITERIATYPE_ANONYMOUS}, 0},
         {UA_NS0ID_WELLKNOWNROLE_OPERATOR, "Operator",
@@ -721,7 +723,8 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
         if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
            ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
-           ct != UA_IDENTITYCRITERIATYPE_USERNAME) {
+           ct != UA_IDENTITYCRITERIATYPE_USERNAME &&
+           ct != UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION) {
             UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "RBAC: Role '%.*s' has an identity mapping rule with "
                            "criteriaType %d which is not yet evaluated during "
@@ -731,11 +734,38 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         }
     }
 
+    /* Mirror the role in the AddressSpace under Server/ServerCapabilities/
+     * RoleSet, so a role created through the C API is browseable - the same way
+     * other subsystems reflect their configuration in NS0. Skipped when the NS0
+     * RBAC information model is unavailable (e.g. a minimal nodeset) or when the
+     * Role Object already exists: the well-known role nodes are created during
+     * NS0 setup, which runs before the registry is populated. On failure the
+     * freshly appended registry entry is rolled back to keep both in sync. */
+    UA_NodeId roleSetId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
+    UA_QualifiedName probe;
+    if(UA_Server_readBrowseName(server, roleSetId, &probe) == UA_STATUSCODE_GOOD) {
+        UA_QualifiedName_clear(&probe);
+        if(UA_Server_readBrowseName(server, newRole->roleId, &probe) ==
+           UA_STATUSCODE_GOOD) {
+            UA_QualifiedName_clear(&probe); /* node already exists -> keep it */
+        } else {
+            res = addRoleRepresentation(server, newRole);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_Role_clear(newRole);
+                server->rolesSize--;
+                unlockServer(server);
+                return res;
+            }
+        }
+    }
+
     /* Return the assigned roleId */
     if(outRoleNodeId) {
         res = UA_NodeId_copy(&newRole->roleId, outRoleNodeId);
         if(res != UA_STATUSCODE_GOOD) {
             /* Rollback */
+            removeRoleRepresentation(server, &newRole->roleId);
             server->rolesSize--;
             UA_Role_clear(newRole);
             unlockServer(server);
@@ -767,6 +797,19 @@ UA_Server_removeRole(UA_Server *server,
     if(server->rolesProtected[roleIndex]) {
         unlockServer(server);
         return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
+    /* Remove the published Role Object from the AddressSpace before dropping the
+     * registry entry, so the two stay consistent. A role added without the NS0
+     * information model has no node; a missing node is ignored, any other
+     * deletion failure aborts the removal. */
+    UA_NodeId removedRoleId = UA_NODEID_NULL;
+    UA_NodeId_copy(&role->roleId, &removedRoleId);
+    UA_StatusCode repRes = removeRoleRepresentation(server, &removedRoleId);
+    UA_NodeId_clear(&removedRoleId);
+    if(repRes != UA_STATUSCODE_GOOD && repRes != UA_STATUSCODE_BADNODEIDUNKNOWN) {
+        unlockServer(server);
+        return repRes;
     }
 
     UA_Role_clear(&server->roles[roleIndex]);
@@ -1164,7 +1207,8 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
         UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
         if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
            ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
-           ct != UA_IDENTITYCRITERIATYPE_USERNAME) {
+           ct != UA_IDENTITYCRITERIATYPE_USERNAME &&
+           ct != UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION) {
             UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "RBAC: Role '%.*s' has an identity mapping rule with "
                            "criteriaType %d which is not yet evaluated during "
@@ -1261,6 +1305,7 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId sessionId,
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
                                const UA_ExtensionObject *userIdentityToken,
+                               UA_Boolean trustedApplication,
                                size_t *outRolesSize, UA_NodeId **outRoleIds) {
     *outRolesSize = 0;
     *outRoleIds = NULL;
@@ -1297,6 +1342,9 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
                     match = UA_String_equal(&userName,
                                             &role->identityMappingRules[j].criteria);
                 break;
+            case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+                match = trustedApplication;
+                break;
             default:
                 break;
             }
@@ -1329,6 +1377,9 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
                 if(userName.length > 0)
                     match = UA_String_equal(&userName,
                                             &role->identityMappingRules[j].criteria);
+                break;
+            case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+                match = trustedApplication;
                 break;
             default:
                 break;

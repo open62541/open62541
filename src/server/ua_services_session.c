@@ -1220,11 +1220,19 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_RBAC
-    /* Evaluate identity mapping rules and assign matching roles to the session */
+    /* Evaluate identity mapping rules and assign matching roles to the session.
+     * The client application counts as trusted when it connected over an
+     * encrypted SecureChannel, i.e. its application instance certificate was
+     * validated against the server's trust list during OpenSecureChannel
+     * (Part 18 §4.3 TrustedApplication). */
+    UA_Boolean trustedApp = (channel->securityPolicy != NULL &&
+        channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+        channel->remoteCertificate.length > 0);
     size_t rolesSize = 0;
     UA_NodeId *roleIds = NULL;
     rh->serviceResult = UA_Server_evaluateSessionRoles(server,
                                                        &req->userIdentityToken,
+                                                       trustedApp,
                                                        &rolesSize, &roleIds);
     if(rh->serviceResult == UA_STATUSCODE_GOOD && rolesSize > 0) {
         UA_Session_setRoles(server, session, roleIds, rolesSize);

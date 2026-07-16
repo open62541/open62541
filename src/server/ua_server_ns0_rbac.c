@@ -15,12 +15,10 @@
 #include "ua_server_rbac.h"
 
 /* RBAC NS0 information model integration.
- * The known RBAC limitations are documented in one place in
- * ua_server_rbac.c. */
+ * Known RBAC limitations are documented in ua_server_rbac.c. */
 
-/* Resolve the Role Object that owns a property (inverse HasProperty). Keeps
- * the data source callbacks free of node contexts that would have to be
- * released when the node is deleted. */
+/* Resolve the Role Object owning a property (inverse HasProperty), so the data
+ * source callbacks need no per-node context to release on node deletion. */
 static UA_StatusCode
 getRoleIdOfProperty(UA_Server *server, const UA_NodeId *propertyId,
                     UA_NodeId *roleId) {
@@ -173,7 +171,7 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
 
     res = UA_Server_addObjectNode(server, role->roleId,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   role->roleName,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE),
                                   oAttr, NULL, NULL);
@@ -289,10 +287,11 @@ addRoleMethodCallback(UA_Server *server,
     UA_NodeId newRoleId = UA_NODEID_NULL;
     UA_StatusCode retval = UA_Server_addRole(server, &role, &newRoleId);
     UA_Role_clear(&role);
-
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* UA_Server_addRole already published the Role Object under the RoleSet
+     * (Part 18 §4.2.2, §4.3). */
     if(outputSize >= 1)
         UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
 
@@ -322,6 +321,8 @@ removeRoleMethodCallback(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* UA_Server_removeRole also drops the published Role Object from the
+     * AddressSpace (Part 18 §4.2.3, §4.3). */
     res = UA_Server_removeRole(server, roleName);
     UA_QualifiedName_clear(&roleName);
     return res;
@@ -623,8 +624,9 @@ initNS0RBAC(UA_Server *server) {
 
     /* Ensure the well-known role instance nodes exist under the RoleSet */
     struct { UA_UInt32 id; const char *name; } roles[] = {
-        {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,         "Anonymous"},
+        {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,          "Anonymous"},
         {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,  "AuthenticatedUser"},
+        {UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION, "TrustedApplication"},
         {UA_NS0ID_WELLKNOWNROLE_OBSERVER,           "Observer"},
         {UA_NS0ID_WELLKNOWNROLE_OPERATOR,           "Operator"},
         {UA_NS0ID_WELLKNOWNROLE_ENGINEER,           "Engineer"},
@@ -666,11 +668,14 @@ initNS0RBAC(UA_Server *server) {
         }
     }
 
+    /* The method callbacks must be attached to the RoleSet *instance* methods.
+     * A Call resolves the object's own HasComponent method (the instance node),
+     * not the type method, so a callback on the type node would never fire. */
     retval |= UA_Server_setMethodNode_callback(
-        server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_ADDROLE),
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE),
         addRoleMethodCallback);
     retval |= UA_Server_setMethodNode_callback(
-        server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_REMOVEROLE),
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE),
         removeRoleMethodCallback);
 
     retval |= UA_Server_setMethodNode_callback(
