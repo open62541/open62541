@@ -12,7 +12,65 @@
 
 #ifdef UA_ENABLE_RBAC
 
+#include "ua_server_rbac.h"
+
 /* RBAC NS0 information model integration */
+
+/* Resolve the Role Object that owns a property (inverse HasProperty). Keeps
+ * the data source callbacks free of node contexts that would have to be
+ * released when the node is deleted. */
+static UA_StatusCode
+getRoleIdOfProperty(UA_Server *server, const UA_NodeId *propertyId,
+                    UA_NodeId *roleId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *propertyId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_NONE;
+
+    UA_BrowseResult br = UA_Server_browse(server, 1, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        if(br.referencesSize > 0)
+            res = UA_NodeId_copy(&br.references[0].nodeId.nodeId, roleId);
+        else
+            res = UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+/* Find the Variable child with the given BrowseName name */
+static UA_StatusCode
+findPropertyChild(UA_Server *server, const UA_NodeId parentId,
+                  const char *name, UA_NodeId *childId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        UA_String nameStr = UA_STRING((char*)(uintptr_t)name);
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_String_equal(&br.references[i].browseName.name, &nameStr)) {
+                res = UA_NodeId_copy(&br.references[i].nodeId.nodeId, childId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
 
 static UA_StatusCode
 readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId,
@@ -21,9 +79,14 @@ readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId,
                    UA_Boolean includeSourceTimeStamp,
                    const UA_NumericRange *range,
                    UA_DataValue *value) {
-    UA_NodeId roleId = *(UA_NodeId*)nodeContext;
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Role role;
-    UA_StatusCode res = UA_Server_getRoleById(server, roleId, &role);
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -42,9 +105,14 @@ readRoleApplications(UA_Server *server, const UA_NodeId *sessionId,
                      UA_Boolean includeSourceTimeStamp,
                      const UA_NumericRange *range,
                      UA_DataValue *value) {
-    UA_NodeId roleId = *(UA_NodeId*)nodeContext;
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Role role;
-    UA_StatusCode res = UA_Server_getRoleById(server, roleId, &role);
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -63,9 +131,14 @@ readRoleEndpoints(UA_Server *server, const UA_NodeId *sessionId,
                   UA_Boolean includeSourceTimeStamp,
                   const UA_NumericRange *range,
                   UA_DataValue *value) {
-    UA_NodeId roleId = *(UA_NodeId*)nodeContext;
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Role role;
-    UA_StatusCode res = UA_Server_getRoleById(server, roleId, &role);
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -105,39 +178,13 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = role->roleId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    bd.includeSubtypes = false;
-    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
-    bd.resultMask = UA_BROWSERESULTMASK_ALL;
-
-    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
-
-    UA_NodeId identitiesNodeId = UA_NODEID_NULL;
-    UA_String identitiesStr = UA_STRING("Identities");
-    for(size_t i = 0; i < br.referencesSize; i++) {
-        if(UA_String_equal(&br.references[i].browseName.name, &identitiesStr)) {
-            UA_NodeId_copy(&br.references[i].nodeId.nodeId, &identitiesNodeId);
-            break;
-        }
-    }
-    UA_BrowseResult_clear(&br);
-
-    if(UA_NodeId_isNull(&identitiesNodeId)) {
+    /* Back the mandatory Identities property with the role registry */
+    UA_NodeId identitiesNodeId;
+    res = findPropertyChild(server, role->roleId, "Identities", &identitiesNodeId);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADNOTFOUND;
+        return res;
     }
-
-    UA_NodeId *identitiesCtx = UA_NodeId_new();
-    if(!identitiesCtx) {
-        UA_NodeId_clear(&identitiesNodeId);
-        UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_NodeId_copy(&role->roleId, identitiesCtx);
 
     UA_DataSource identitiesDataSource;
     identitiesDataSource.read = readRoleIdentities;
@@ -145,22 +192,13 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
 
     res = UA_Server_setVariableNode_dataSource(server, identitiesNodeId,
                                                identitiesDataSource);
-    res |= UA_Server_setNodeContext(server, identitiesNodeId, identitiesCtx);
     UA_NodeId_clear(&identitiesNodeId);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_delete(identitiesCtx);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
 
     /* Add optional Applications property with DataSource */
-    UA_NodeId *applicationsCtx = UA_NodeId_new();
-    if(!applicationsCtx) {
-        UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_NodeId_copy(&role->roleId, applicationsCtx);
-
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Applications");
     vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
@@ -171,28 +209,19 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     applicationsDataSource.read = readRoleApplications;
     applicationsDataSource.write = NULL;
 
-    UA_NodeId applicationsNodeId;
     res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                               role->roleId,
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                               UA_QUALIFIEDNAME(0, "Applications"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                               vAttr, applicationsDataSource,
-                                              applicationsCtx, &applicationsNodeId);
+                                              NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_delete(applicationsCtx);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
 
     /* Add optional Endpoints property with DataSource */
-    UA_NodeId *endpointsCtx = UA_NodeId_new();
-    if(!endpointsCtx) {
-        UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_NodeId_copy(&role->roleId, endpointsCtx);
-
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Endpoints");
     vAttr.dataType = UA_TYPES[UA_TYPES_ENDPOINTTYPE].typeId;
     vAttr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
@@ -201,21 +230,16 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     endpointsDataSource.read = readRoleEndpoints;
     endpointsDataSource.write = NULL;
 
-    UA_NodeId endpointsNodeId;
     res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                               role->roleId,
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                               UA_QUALIFIEDNAME(0, "Endpoints"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                               vAttr, endpointsDataSource,
-                                              endpointsCtx, &endpointsNodeId);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_delete(endpointsCtx);
+                                              NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD)
         UA_Server_deleteNode(server, role->roleId, true);
-        return res;
-    }
-
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Remove Role object from NS0 */
@@ -619,6 +643,19 @@ initNS0RBAC(UA_Server *server) {
                 oAttr, NULL, NULL);
         } else {
             UA_QualifiedName_clear(&bn);
+        }
+
+        /* Back the Identities property with the role registry so that reads
+         * return the currently configured identity mapping rules */
+        UA_NodeId identitiesId;
+        if(findPropertyChild(server, rId, "Identities",
+                             &identitiesId) == UA_STATUSCODE_GOOD) {
+            UA_DataSource identitiesDataSource;
+            identitiesDataSource.read = readRoleIdentities;
+            identitiesDataSource.write = NULL;
+            retval |= UA_Server_setVariableNode_dataSource(server, identitiesId,
+                                                           identitiesDataSource);
+            UA_NodeId_clear(&identitiesId);
         }
     }
 
