@@ -58,8 +58,10 @@
  *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
  *   during NS0 setup are left untouched.
  *
- * - RBAC-related audit events (e.g. RoleMappingRuleChangedAuditEventType)
- *   are not emitted.
+ * - A RoleMappingRuleChangedAuditEventType is emitted when the RoleType
+ *   AddIdentity/RemoveIdentity/AddApplication/RemoveApplication/AddEndpoint/
+ *   RemoveEndpoint Methods change a role's mapping rules (requires
+ *   UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
  */
 
 /*********************************/
