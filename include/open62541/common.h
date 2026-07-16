@@ -511,6 +511,8 @@ typedef uint64_t UA_ApplicationNotificationType;
     ((0x40ULL << 32) | (0x04 << 16) | 0x02)
 #define UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD                     \
     ((0x40ULL << 32) | (0x04 << 16) | 0x03)
+#define UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED \
+    ((0x40ULL << 32) | (0x04 << 16) | 0x04)
 #define UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            \
     ((0x40ULL << 32) | (0x08 << 16))
 #define UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               \

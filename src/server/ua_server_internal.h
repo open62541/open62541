@@ -480,6 +480,13 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                        const UA_NodeId *methodNode, UA_StatusCode statusCodeId,
                        size_t inputsSize, UA_Variant *inputs,
                        size_t outputsSize, UA_Variant *outputs);
+
+void
+auditRoleMappingRuleChangedEvent(UA_Server *server, UA_SecureChannel *channel,
+                                 UA_Session *session, UA_Boolean status,
+                                 const UA_NodeId *sourceNode, const UA_NodeId *methodNode,
+                                 UA_StatusCode statusCodeId,
+                                 size_t inputsSize, UA_Variant *inputs);
 #endif
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
