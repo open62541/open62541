@@ -191,12 +191,8 @@ readUserRolePermissions(UA_Server *server, UA_Session *session,
         server, &session->sessionId, &node->head.nodeId,
         &entriesSize, &entries);
 
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* On error, return empty array (fail open for compatibility) */
-        UA_Variant_setArray(&v->value, NULL, 0,
-                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        return UA_STATUSCODE_GOOD;
-    }
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     UA_Variant_setArray(&v->value, entries, entriesSize,
                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
