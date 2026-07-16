@@ -2980,6 +2980,34 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
                                              size_t *entriesSize,
                                              UA_RolePermission **entries);
 
+/**
+ * AccessRestrictions
+ * ~~~~~~~~~~~~~~~~~~~
+ * AccessRestrictions (OPC UA Part 3 §5.2.11) constrain access to a Node based
+ * on the SecureChannel: SigningRequired, EncryptionRequired and SessionRequired
+ * (with ApplyRestrictionsToBrowse controlling whether Browse is restricted as
+ * well). They are enforced on Read, Write and Call; the local admin session is
+ * exempt. A Node without explicit restrictions falls back to the namespace
+ * default. */
+
+/* Set the AccessRestrictions of a node. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                    UA_AccessRestrictionType restrictions);
+
+/* Get the effective AccessRestrictions of a node (its own value, else the
+ * namespace default). */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                    UA_AccessRestrictionType *outRestrictions);
+
+/* Set the default AccessRestrictions applied to nodes of a namespace that have
+ * no explicit AccessRestrictions. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNamespaceDefaultAccessRestrictions(UA_Server *server,
+                                                UA_UInt16 namespaceIndex,
+                                                UA_AccessRestrictionType restrictions);
+
 #endif /* UA_ENABLE_RBAC */
 
 /**
