@@ -2654,6 +2654,27 @@ START_TEST(roleFilters_evaluated) {
 }
 END_TEST
 
+/* The GroupId criterion matches the GroupIds captured for the session
+ * (Part 18 §4.4.2). */
+START_TEST(identityCriteria_groupId) {
+    UA_NodeId grp = addRoleWithRule("GroupRole",
+                                    UA_IDENTITYCRITERIATYPE_GROUPID, "admins");
+
+    UA_String inGroup[1] = { UA_STRING("admins") };
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.groups = inGroup;
+    ctx.groupsSize = 1;
+    ck_assert(roleGrantedForContext(&ctx, &grp));
+
+    UA_String otherGroup[1] = { UA_STRING("users") };
+    ctx.groups = otherGroup;
+    ck_assert(!roleGrantedForContext(&ctx, &grp));
+
+    UA_NodeId_clear(&grp);
+}
+END_TEST
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2712,6 +2733,7 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityManagement_usernameRule);
     tcase_add_test(tc, applicationManagement_basic);
     tcase_add_test(tc, identityCriteria_extended);
+    tcase_add_test(tc, identityCriteria_groupId);
     tcase_add_test(tc, roleFilters_evaluated);
     suite_add_tcase(s, tc);
     return s;

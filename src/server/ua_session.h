@@ -58,6 +58,8 @@ typedef struct {
     UA_MessageSecurityMode endpointSecurityMode;
     UA_String securityPolicyUri;
     UA_String transportProfileUri;
+    size_t groupsSize;               /* GroupIds from AccessControl.getUserGroups */
+    UA_String *groups;
 } UA_SessionIdentityContext;
 
 void UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx);
