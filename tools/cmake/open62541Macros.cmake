@@ -160,12 +160,18 @@ endfunction()
 #                   of types which should be included in the generation. The
 #                   file should contain one type per line. Multiple files can be
 #                   passed to this argument.
+#   [NAMESPACE_MAP] Optional list of "<idx>:<namespace uri>" entries that bake
+#                   fixed namespace indices into the generated type array. If
+#                   all namespace indices are pinned, the array is const and
+#                   can reside in read-only memory. The server must assign
+#                   exactly these indices at runtime.
+#                   E.g. "2:http://opcfoundation.org/UA/DI/"
 
 function(ua_generate_datatypes)
     find_package(Python3 REQUIRED)
     set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
-    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
+    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     # Argument checking
@@ -223,6 +229,11 @@ function(ua_generate_datatypes)
         set(IMPORT_BSD_TMP ${IMPORT_BSD_TMP} "--import=${f}")
     endforeach()
 
+    set(NAMESPACE_MAP_TMP "")
+    foreach(f ${UA_GEN_DT_NAMESPACE_MAP})
+        set(NAMESPACE_MAP_TMP ${NAMESPACE_MAP_TMP} "--namespaceMap=${f}")
+    endforeach()
+
     if((MINGW) AND (DEFINED ENV{SHELL}))
         # fix issue 4156 that MINGW will do automatic Windows Path Conversion
         # powershell handles Windows Path correctly
@@ -241,6 +252,7 @@ function(ua_generate_datatypes)
                                ${SELECTED_TYPES_TMP}
                                ${BSD_FILES_TMP}
                                ${IMPORT_BSD_TMP}
+                               ${NAMESPACE_MAP_TMP}
                                ${FILE_XML}
                                --type-csv=${UA_GEN_DT_FILE_CSV}
                                ${UA_GEN_DT_NO_BUILTIN}
@@ -548,12 +560,19 @@ endfunction()
 #                   These names must match any name from a previous call to this
 #                   funtion. E.g. 'di' if you are generating the 'plcopen'
 #                   nodeset
+#   [NAMESPACE_MAP] Optional list of "<idx>:<namespace uri>" entries that bake
+#                   fixed namespace indices into the generated type array. The
+#                   array is then const and can reside in read-only memory. The
+#                   server must assign exactly these indices at runtime (i.e.
+#                   the nodesets must be loaded in the generation order); this
+#                   is verified by the generated init code.
+#                   E.g. "2:http://opcfoundation.org/UA/DI/"
 
 function(ua_generate_nodeset_and_datatypes)
     find_package(Python3 REQUIRED)
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
-    set(multiValueArgs DEPENDS IMPORT_BSD)
+    set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     # Argument checking
@@ -631,6 +650,7 @@ function(ua_generate_nodeset_and_datatypes)
                               FILES_BSD "${UA_GEN_FILE_BSD}"
                               ${NODESET_AUTOLOAD}
                               IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
+                              NAMESPACE_MAP "${UA_GEN_NAMESPACE_MAP}"
                               OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}")
 
         # Generates target ${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}
