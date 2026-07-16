@@ -31,6 +31,10 @@
  *   AddIdentity/RemoveIdentity/... Methods that route through updateRole),
  *   per Part 18 §4.4.1.
  *
+ * - AccessRestrictions (Part 3 §5.2.11: Signing/Encryption/Session required,
+ *   ApplyRestrictionsToBrowse) are stored per node with a namespace default and
+ *   enforced on Read, Write and Call. The local admin session is exempt.
+ *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
@@ -41,8 +45,8 @@
  *   attribute service (Part 3 §5.2.9). Use the C API, or the AddIdentity /
  *   RemoveIdentity methods for identities.
  *
- * - AccessRestrictions (Part 3 §5.2.11) and the NamespaceMetadata
- *   DefaultAccessRestrictions are not implemented.
+ * - The AccessRestrictions attribute is read-only through the attribute
+ *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
  *
  * - Part 18 §5 User Management (UserManagementType, AddUser / ModifyUser /
  *   RemoveUser / ChangePassword) is not implemented.
@@ -2603,6 +2607,136 @@ UA_Server_decrementRolePermissionsRefCount(UA_Server *server,
     lockServer(server);
     decrementRefCount(server, index);
     unlockServer(server);
+}
+
+/************************************/
+/* AccessRestrictions (Part 3)      */
+/************************************/
+
+/* Effective AccessRestrictions of a node: its own value if set, otherwise the
+ * namespace default (Part 3 §5.2.11). Requires the server lock. */
+UA_AccessRestrictionType
+getNodeAccessRestrictions(UA_Server *server, const UA_Node *node) {
+    if(node->head.hasAccessRestrictions)
+        return node->head.accessRestrictions;
+    UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+    if(ns < server->namespaceMetadataSize && server->namespaceMetadata &&
+       server->namespaceMetadata[ns].hasDefaultAccessRestrictions)
+        return server->namespaceMetadata[ns].defaultAccessRestrictions;
+    return UA_ACCESSRESTRICTIONTYPE_NONE;
+}
+
+/* Enforce a node's AccessRestrictions against the session's SecureChannel.
+ * The local admin session is exempt. For Browse the restrictions apply only if
+ * the ApplyRestrictionsToBrowse bit is set. Requires the server lock. */
+UA_StatusCode
+checkNodeAccessRestrictions(UA_Server *server, const UA_Session *session,
+                            const UA_Node *node, UA_Boolean forBrowse) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(session == &server->adminSession)
+        return UA_STATUSCODE_GOOD;
+
+    UA_AccessRestrictionType ar = getNodeAccessRestrictions(server, node);
+    if(ar == UA_ACCESSRESTRICTIONTYPE_NONE)
+        return UA_STATUSCODE_GOOD;
+
+    if(forBrowse && !(ar & UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE))
+        return UA_STATUSCODE_GOOD;
+
+    UA_MessageSecurityMode mode = (session && session->channel) ?
+        session->channel->securityMode : UA_MESSAGESECURITYMODE_INVALID;
+
+    if((ar & UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED) &&
+       mode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+
+    if((ar & UA_ACCESSRESTRICTIONTYPE_SIGNINGREQUIRED) &&
+       mode != UA_MESSAGESECURITYMODE_SIGN &&
+       mode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+
+    if((ar & UA_ACCESSRESTRICTIONTYPE_SESSIONREQUIRED) && !session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                    UA_AccessRestrictionType restrictions) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_Node *node = UA_NODESTORE_GET_EDIT(server, &nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    node->head.accessRestrictions = restrictions;
+    node->head.hasAccessRestrictions = true;
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                    UA_AccessRestrictionType *outRestrictions) {
+    if(!server || !outRestrictions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    *outRestrictions = getNodeAccessRestrictions(server, node);
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setNamespaceDefaultAccessRestrictions(UA_Server *server, UA_UInt16 namespaceIndex,
+                                                UA_AccessRestrictionType restrictions) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    /* Allocate/grow the namespace metadata array on demand */
+    if(!server->namespaceMetadata) {
+        server->namespaceMetadata = (UA_NamespaceMetadata*)
+            UA_calloc(server->namespacesSize, sizeof(UA_NamespaceMetadata));
+        if(!server->namespaceMetadata) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        server->namespaceMetadataSize = server->namespacesSize;
+    } else if(server->namespaceMetadataSize < server->namespacesSize) {
+        UA_NamespaceMetadata *newMetadata = (UA_NamespaceMetadata*)
+            UA_realloc(server->namespaceMetadata,
+                       server->namespacesSize * sizeof(UA_NamespaceMetadata));
+        if(!newMetadata) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        server->namespaceMetadata = newMetadata;
+        memset(&server->namespaceMetadata[server->namespaceMetadataSize], 0,
+               (server->namespacesSize - server->namespaceMetadataSize) *
+               sizeof(UA_NamespaceMetadata));
+        server->namespaceMetadataSize = server->namespacesSize;
+    }
+
+    server->namespaceMetadata[namespaceIndex].defaultAccessRestrictions = restrictions;
+    server->namespaceMetadata[namespaceIndex].hasDefaultAccessRestrictions = true;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_RBAC */
