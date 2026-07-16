@@ -24,11 +24,15 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
                     const UA_NodeId *roleIds, size_t rolesSize);
 
 /* Evaluate identity mapping rules for all roles against the given user token.
+ * trustedApplication signals that the session's client application is trusted
+ * (its application instance certificate was validated on an encrypted
+ * SecureChannel), which satisfies the TrustedApplication identity criteria.
  * Returns the matching role IDs in a newly allocated array.
  * Must be called with the server lock held. */
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
                                const UA_ExtensionObject *userIdentityToken,
+                               UA_Boolean trustedApplication,
                                size_t *outRolesSize, UA_NodeId **outRoleIds);
 
 /* Decrement the refCount of a role permission entry at the given index.
@@ -64,10 +68,9 @@ UA_Server_updateRolePermissionConfig(UA_Server *server,
                                      const UA_RolePermission *entries);
 
 /* NS0 representation of a role under Server/ServerCapabilities/RoleSet
- * (defined in ua_server_ns0_rbac.c). Not yet invoked from the RoleSetType
- * AddRole/RemoveRole method callbacks -- runtime-added roles are currently
- * only stored in the role registry (see the limitation notes in
- * ua_server_ns0_rbac.c). */
+ * (defined in ua_server_ns0_rbac.c). Invoked from the RoleSet AddRole/RemoveRole
+ * method callbacks to keep the published Role Objects in sync with the registry
+ * for roles added/removed at runtime. */
 UA_StatusCode
 addRoleRepresentation(UA_Server *server, UA_Role *role);
 
