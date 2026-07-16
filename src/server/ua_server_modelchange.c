@@ -218,21 +218,24 @@ updateNodeVersions(UA_Server *server, UA_ModelChangeAccumulator *acc) {
     return result;
 }
 
-UA_StatusCode
+void
 UA_ModelChangeAccumulator_finalize(UA_Server *server,
                                    UA_ModelChangeAccumulator *acc) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    if(!acc)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_assert(acc);
     if(acc->changesSize == 0) {
         UA_ModelChangeAccumulator_clear(acc);
-        return UA_STATUSCODE_GOOD;
+        return;
     }
 
     UA_StatusCode versionResult = updateNodeVersions(server, acc);
+    if(versionResult != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not update all NodeVersion Properties: %s",
+                       UA_StatusCode_name(versionResult));
     if(acc->changesSize == 0) {
         UA_ModelChangeAccumulator_clear(acc);
-        return versionResult;
+        return;
     }
 
     UA_STATIC_THREAD_LOCAL UA_KeyValuePair payload[1] = {
@@ -249,8 +252,50 @@ UA_ModelChangeAccumulator_finalize(UA_Server *server,
     ed.eventFields = &eventFields;
 
     UA_StatusCode res = createEvent(server, &ed, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not emit ModelChangeEvent: %s",
+                       UA_StatusCode_name(res));
     UA_ModelChangeAccumulator_clear(acc);
-    return (versionResult != UA_STATUSCODE_GOOD) ? versionResult : res;
+}
+
+void
+beginModelChange(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    if(server->modelChangeSuppressionDepth == 0)
+        server->modelChangeDepth++;
+}
+
+void
+endModelChange(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    if(server->modelChangeSuppressionDepth > 0)
+        return;
+    UA_assert(server->modelChangeDepth > 0);
+    server->modelChangeDepth--;
+    if(server->modelChangeDepth > 0)
+        return;
+
+    /* Detach the completed accumulator before finalizing. Updating NodeVersion
+     * uses the normal Write operation and therefore enters another model-change
+     * scope. That nested scope must see a fresh accumulator. */
+    UA_ModelChangeAccumulator completed = server->modelChanges;
+    UA_ModelChangeAccumulator_init(&server->modelChanges);
+    UA_ModelChangeAccumulator_finalize(server, &completed);
+}
+
+void
+recordModelChangeEvent(UA_Server *server, const UA_NodeId *affected, UA_Byte verb) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    if(server->modelChangeSuppressionDepth > 0 || server->modelChangeDepth == 0)
+        return;
+    UA_StatusCode res =
+        UA_ModelChangeAccumulator_record(server, &server->modelChanges,
+                                         affected, verb);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not record model change for %N: %s",
+                       *affected, UA_StatusCode_name(res));
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

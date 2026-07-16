@@ -189,7 +189,7 @@ struct UA_Server {
 
     /* Model changes are accumulated across reentrant calls and finalized when
      * the outermost operation returns. */
-    UA_Boolean modelChangeEventsEnabled;
+    size_t modelChangeSuppressionDepth;
     size_t modelChangeDepth;
     UA_ModelChangeAccumulator modelChanges;
 #endif
@@ -481,11 +481,27 @@ UA_ModelChangeAccumulator_record(UA_Server *server,
 /* Emit one GeneralModelChangeEvent for the accumulated changes and clear the
  * accumulator. Requires the service mutex. An empty accumulator is simply
  * cleared and does not emit an Event. */
-UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+void
 UA_ModelChangeAccumulator_finalize(UA_Server *server,
                                    UA_ModelChangeAccumulator *acc);
 
+void beginModelChange(UA_Server *server);
+void endModelChange(UA_Server *server);
+void recordModelChangeEvent(UA_Server *server, const UA_NodeId *affected,
+                            UA_Byte verb);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+#ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_INLINE void beginModelChange(UA_Server *server) { (void)server; }
+static UA_INLINE void endModelChange(UA_Server *server) { (void)server; }
+static UA_INLINE void
+recordModelChangeEvent(UA_Server *server, const UA_NodeId *affected, UA_Byte verb) {
+    (void)server;
+    (void)affected;
+    (void)verb;
+}
+#endif
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
