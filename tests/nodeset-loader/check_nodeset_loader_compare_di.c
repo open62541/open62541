@@ -32,11 +32,13 @@ START_TEST(Server_compareDiNodeset) {
     UA_UInt16 nsIndex = UA_Server_addNamespace(server, "http://opcfoundation.org/UA/DI/");
 
     for(int i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; ++i) {
-        UA_TYPES_NODESETLOADER_DI[i].typeId.namespaceIndex = nsIndex;
-        UA_TYPES_NODESETLOADER_DI[i].binaryEncodingId.namespaceIndex = nsIndex;
-
+        /* Do not patch the generated array in place. Translate the
+         * generation-time namespace index to the runtime index in a
+         * local copy of the id. */
         const UA_DataType *compiledType = &UA_TYPES_NODESETLOADER_DI[i];
-        const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
+        UA_NodeId typeId = compiledType->typeId;
+        typeId.namespaceIndex = nsIndex;
+        const UA_DataType *loadedType = UA_Server_findDataType(server, &typeId);
 
         ck_assert(loadedType != NULL);
         ck_assert_uint_eq(compiledType->typeKind, loadedType->typeKind);
@@ -51,9 +53,15 @@ START_TEST(Server_compareDiNodeset) {
             const UA_DataTypeMember *loadMember = &loadedType->members[j];
 
             ck_assert(compMember->isArray == loadMember->isArray);
-            if(compiledType->typeKind != UA_DATATYPEKIND_ENUM)
-                ck_assert(UA_NodeId_equal(&compMember->memberType->typeId,
+            if(compiledType->typeKind != UA_DATATYPEKIND_ENUM) {
+                /* Member types in the DI namespace carry the baked
+                 * generation-time namespace index; translate for comparison */
+                UA_NodeId memberTypeId = compMember->memberType->typeId;
+                if(memberTypeId.namespaceIndex != 0)
+                    memberTypeId.namespaceIndex = nsIndex;
+                ck_assert(UA_NodeId_equal(&memberTypeId,
                                           &loadMember->memberType->typeId));
+            }
             ck_assert(compMember->padding == loadMember->padding);
             ck_assert(compMember->isOptional == loadMember->isOptional);
         }
