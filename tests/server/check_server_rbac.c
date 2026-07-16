@@ -2736,6 +2736,54 @@ START_TEST(accessRestrictions_setGetRead) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_AUDITING
+static UA_Boolean roleMappingAuditSeen = false;
+static void
+rbacAuditNotificationCallback(UA_Server *s, UA_ApplicationNotificationType type,
+                              const UA_KeyValueMap payload) {
+    (void)s; (void)payload;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED)
+        roleMappingAuditSeen = true;
+}
+
+/* Changing a role's identity mapping rules emits a
+ * RoleMappingRuleChangedAuditEventType (Part 18). */
+START_TEST(auditRoleMappingRuleChanged_emitted) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62000);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* Change the identity mapping rules through updateRole */
+    UA_Role upd;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &upd),
+                      UA_STATUSCODE_GOOD);
+    UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType*)
+        UA_realloc(upd.identityMappingRules,
+                   (upd.identityMappingRulesSize + 1) * sizeof(*rules));
+    ck_assert_ptr_nonnull(rules);
+    upd.identityMappingRules = rules;
+    UA_IdentityMappingRuleType_init(&rules[upd.identityMappingRulesSize]);
+    rules[upd.identityMappingRulesSize].criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    rules[upd.identityMappingRulesSize].criteria = UA_STRING_ALLOC("bob");
+    upd.identityMappingRulesSize++;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &upd), UA_STATUSCODE_GOOD);
+    UA_Role_clear(&upd);
+
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+#endif /* UA_ENABLE_AUDITING */
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -2810,6 +2858,9 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, permissionEntry_slotNoUnsafeReuse);
     tcase_add_test(tc, allPermissionsForAnonymous_config);
     tcase_add_test(tc, accessRestrictions_setGetRead);
+#ifdef UA_ENABLE_AUDITING
+    tcase_add_test(tc, auditRoleMappingRuleChanged_emitted);
+#endif
     suite_add_tcase(s, tc);
     return s;
 }

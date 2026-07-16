@@ -42,8 +42,13 @@
  *   they never match (no native group source).
  *
  * - RolePermissions and the role Identities cannot be written through the
- *   attribute service (Part 3 §5.2.9). Use the C API, or the AddIdentity /
- *   RemoveIdentity methods for identities.
+ *   attribute service (Part 3 §5.2.9). Use the C API (UA_Server_updateRole).
+ *
+ * - The RoleType instance Methods (AddIdentity/RemoveIdentity/AddApplication/
+ *   RemoveApplication/AddEndpoint/RemoveEndpoint) are not currently dispatched
+ *   to their callbacks when called on a role instance (the callbacks are bound
+ *   to the RoleType Methods, not the per-instance Method nodes). Change role
+ *   mapping rules through the C API in the meantime.
  *
  * - The AccessRestrictions attribute is read-only through the attribute
  *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
@@ -58,10 +63,10 @@
  *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
  *   during NS0 setup are left untouched.
  *
- * - A RoleMappingRuleChangedAuditEventType is emitted when the RoleType
- *   AddIdentity/RemoveIdentity/AddApplication/RemoveApplication/AddEndpoint/
- *   RemoveEndpoint Methods change a role's mapping rules (requires
- *   UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
+ * - A RoleMappingRuleChangedAuditEventType is emitted from UA_Server_updateRole
+ *   (the choke point for identity/application/endpoint mapping changes, reached
+ *   by the C API and the RoleType Methods) when a role's mapping rules change
+ *   (requires UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
  */
 
 /*********************************/
@@ -1262,6 +1267,15 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     /* The changed identity mapping rules / filters may change which sessions
      * hold this role (Part 18 §4.4.1) */
     UA_Server_reevaluateSessionRoles(server);
+
+#ifdef UA_ENABLE_AUDITING
+    /* Emit a RoleMappingRuleChangedAuditEvent (Part 18). updateRole is the
+     * choke point for identity/application/endpoint changes, reached both by
+     * the C API and the RoleType AddIdentity/RemoveIdentity/... Methods. */
+    auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                     &existing->roleId, &existing->roleId,
+                                     UA_STATUSCODE_GOOD, 0, NULL);
+#endif
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
