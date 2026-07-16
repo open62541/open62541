@@ -766,6 +766,70 @@ START_TEST(wellKnownRoles_nodeFields) {
     }
 }
 END_TEST
+
+/* The Identities property of the well-known role nodes is backed by the role
+ * registry: reads return the currently configured identity mapping rules. */
+START_TEST(wellKnownRoles_identitiesFromRegistry) {
+    /* Anonymous carries its two default rules (Anonymous, AuthenticatedUser) */
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = UA_Server_readValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_IDENTITIES), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+    ck_assert_uint_eq(v.arrayLength, 2);
+    UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType*)v.data;
+    ck_assert_uint_eq(rules[0].criteriaType, UA_IDENTITYCRITERIATYPE_ANONYMOUS);
+    ck_assert_uint_eq(rules[1].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    UA_Variant_clear(&v);
+
+    /* Observer starts without rules */
+    res = UA_Server_readValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_IDENTITIES), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(v.arrayLength, 0);
+    UA_Variant_clear(&v);
+
+    /* A rule added to the registry shows up in the NS0 value */
+    UA_Role observer;
+    res = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "Observer"), &observer);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_IdentityMappingRuleType *newRules = (UA_IdentityMappingRuleType*)
+        UA_realloc(observer.identityMappingRules,
+                   (observer.identityMappingRulesSize + 1) *
+                   sizeof(UA_IdentityMappingRuleType));
+    ck_assert_ptr_nonnull(newRules);
+    observer.identityMappingRules = newRules;
+    UA_IdentityMappingRuleType_init(&newRules[observer.identityMappingRulesSize]);
+    newRules[observer.identityMappingRulesSize].criteriaType =
+        UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+    observer.identityMappingRulesSize++;
+    res = UA_Server_updateRole(server, &observer);
+    UA_Role_clear(&observer);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    res = UA_Server_readValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_IDENTITIES), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(v.arrayLength, 1);
+    rules = (UA_IdentityMappingRuleType*)v.data;
+    ck_assert_uint_eq(rules[0].criteriaType,
+                      UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    UA_Variant_clear(&v);
+
+    /* Restore Observer without identity mapping rules */
+    res = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "Observer"), &observer);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < observer.identityMappingRulesSize; i++)
+        UA_IdentityMappingRuleType_clear(&observer.identityMappingRules[i]);
+    UA_free(observer.identityMappingRules);
+    observer.identityMappingRules = NULL;
+    observer.identityMappingRulesSize = 0;
+    res = UA_Server_updateRole(server, &observer);
+    UA_Role_clear(&observer);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
 START_TEST(addedRole_ns0NodeFields) {
@@ -2193,6 +2257,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc, identityMapping_wellKnownRoles);
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, wellKnownRoles_nodeFields);
+    tcase_add_test(tc, wellKnownRoles_identitiesFromRegistry);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
     tcase_add_test(tc, addedRole_ns0NodeFields);
     suite_add_tcase(s, tc);

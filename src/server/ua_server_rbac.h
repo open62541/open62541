@@ -63,6 +63,17 @@ UA_Server_updateRolePermissionConfig(UA_Server *server,
                                      size_t entriesSize,
                                      const UA_RolePermission *entries);
 
+/* NS0 representation of a role under Server/ServerCapabilities/RoleSet
+ * (defined in ua_server_ns0_rbac.c). Not yet invoked from the RoleSetType
+ * AddRole/RemoveRole method callbacks -- runtime-added roles are currently
+ * only stored in the role registry (see the limitation notes in
+ * ua_server_ns0_rbac.c). */
+UA_StatusCode
+addRoleRepresentation(UA_Server *server, UA_Role *role);
+
+UA_StatusCode
+removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
+
 /* Effective permission queries (internal, used by attribute service and tests) */
 UA_StatusCode
 UA_Server_getEffectivePermissions(UA_Server *server,

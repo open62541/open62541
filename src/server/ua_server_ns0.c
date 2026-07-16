@@ -1073,7 +1073,10 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADEVENTS), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYUPDATEDATA), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYUPDATEEVENTS), true);
-#ifndef UA_NODESET_INJECTOR_NEEDS_ROLESET
+#if !defined(UA_NODESET_INJECTOR_NEEDS_ROLESET) && !defined(UA_ENABLE_RBAC)
+    /* With RBAC the RoleSet with the well-known Role Objects and their
+     * standard NodeIds (Part 18 v1.05 §4.3) is kept; initNS0RBAC only fills
+     * the gaps and connects the data sources. */
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_ROLESET), true);
 #endif
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSTRINGLENGTH), true);
