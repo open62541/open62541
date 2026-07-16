@@ -14,21 +14,6 @@
  * nodes sharing the same role permissions reference a shared entry via a
  * compact permission index in the node head.
  *
- * Enforced security model:
- *
- * - The RoleSet AddRole/RemoveRole Methods and the RoleType AddIdentity/
- *   RemoveIdentity/AddApplication/RemoveApplication/AddEndpoint/RemoveEndpoint
- *   Methods require the SecurityAdmin Role over an encrypted SecureChannel
- *   (checkRBACMethodAccess). The local admin Session (C API / UA_Server_call)
- *   is exempt. RolePermissions restricting CALL to SecurityAdmin are installed
- *   on these nodes during setup (initRoleSetRolePermissions).
- *
- * - Removing a Role deletes every RolePermission entry that references it, so
- *   no stale roleId lingers. The Role registry is bounded by UA_RBAC_MAX_ROLES.
- *
- * - The Anonymous Role is always assigned to every Session (Part 18 §4.3),
- *   independent of its identity mapping rules.
- *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
  *
