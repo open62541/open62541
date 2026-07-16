@@ -23,6 +23,13 @@ initNS0PushManagement(UA_GDSReceiverContext *ctx);
 void
 clearNS0PushManagement(UA_GDSReceiverContext *ctx);
 
+#ifdef UA_ENABLE_RBAC
+/* Restrict the GDS PushManagement methods to the SecurityAdmin role
+ * (OPC UA Part 12 v1.05 §7.2, §7.10.4) */
+UA_StatusCode
+initGDSRolePermissions(UA_Server *server);
+#endif
+
 UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 

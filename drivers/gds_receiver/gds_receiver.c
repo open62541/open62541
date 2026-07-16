@@ -1731,6 +1731,13 @@ UA_GDSReceiver_start(UA_Driver *drv) {
         UA_StatusCode res = initNS0PushManagement(ctx);
         if(res != UA_STATUSCODE_GOOD)
             return res;
+#ifdef UA_ENABLE_RBAC
+        /* Restrict the GDS methods to the SecurityAdmin role. Runs after the
+         * ns0 GDS nodes have been created so the permissions can be applied. */
+        res = initGDSRolePermissions(drv->server);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+#endif
         ctx->initialized = true;
     }
 

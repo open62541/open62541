@@ -90,6 +90,29 @@ static void setup(void) {
     config->applicationDescription.applicationUri =
             UA_STRING_ALLOC("urn:unconfigured:application");
 
+#ifdef UA_ENABLE_RBAC
+    /* When RBAC is enabled the GDS TrustList methods are restricted to the
+     * SecurityAdmin role (see initGDSRolePermissions). This functional test
+     * uses an anonymous session, so grant the SecurityAdmin role an Anonymous
+     * identity-mapping rule to exercise the GDS mechanics under RBAC. */
+    UA_NodeId secAdminId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    UA_Role secAdmin;
+    UA_StatusCode roleRes = UA_Server_getRoleById(server, secAdminId, &secAdmin);
+    ck_assert_uint_eq(roleRes, UA_STATUSCODE_GOOD);
+    UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType *)
+        UA_realloc(secAdmin.identityMappingRules,
+                   (secAdmin.identityMappingRulesSize + 1) *
+                   sizeof(UA_IdentityMappingRuleType));
+    ck_assert_ptr_nonnull(rules);
+    secAdmin.identityMappingRules = rules;
+    UA_IdentityMappingRuleType_init(&rules[secAdmin.identityMappingRulesSize]);
+    rules[secAdmin.identityMappingRulesSize].criteriaType = UA_IDENTITYCRITERIATYPE_ANONYMOUS;
+    secAdmin.identityMappingRulesSize++;
+    roleRes = UA_Server_updateRole(server, &secAdmin);
+    UA_Role_clear(&secAdmin);
+    ck_assert_uint_eq(roleRes, UA_STATUSCODE_GOOD);
+#endif
+
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
