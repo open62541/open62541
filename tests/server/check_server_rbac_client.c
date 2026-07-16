@@ -423,6 +423,63 @@ START_TEST(Client_userwritemask_reflects_rbac) {
 }
 END_TEST
 
+/* Adding a role at runtime must re-evaluate the active session so it gains the
+ * new role without reconnecting (Part 18 §4.4.1). */
+START_TEST(Client_roles_reevaluated_on_roleAdd) {
+    /* A permission-gated node the operator cannot read initially */
+    UA_NodeId gated = UA_NODEID_NUMERIC(1, 60010);
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_UInt32 val = 42;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    vattr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, gated,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "GatedVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "operator", "password"),
+                      UA_STATUSCODE_GOOD);
+
+    /* Initially the operator cannot read the gated node */
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode rd = UA_Client_readValueAttribute(client, gated, &v);
+    ck_assert_uint_ne(rd, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&v);
+
+    /* Add a role mapped to the operator username and grant it READ on the node.
+     * Adding the role must re-evaluate the already-active session. */
+    UA_Role late;
+    UA_Role_init(&late);
+    late.roleName = UA_QUALIFIEDNAME(1, "LateRole");
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    rule.criteria = UA_STRING("operator");
+    late.identityMappingRules = &rule;
+    late.identityMappingRulesSize = 1;
+    UA_NodeId lateId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &late, &lateId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, gated, lateId,
+        UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ, false, false),
+        UA_STATUSCODE_GOOD);
+
+    /* The re-evaluated operator session can now read the node */
+    UA_Variant_init(&v);
+    rd = UA_Client_readValueAttribute(client, gated, &v);
+    ck_assert_uint_eq(rd, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&v);
+
+    UA_NodeId_clear(&lateId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 #ifdef UA_ENABLE_METHODCALLS
 /* A non-admin client over an unencrypted channel must not be able to call the
  * RoleSet AddRole Method: C2 grants CALL only to SecurityAdmin and C1 requires
@@ -468,6 +525,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_anonymous_restricted_access);
     tcase_add_test(tc, Client_guest_limited_access);
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
+    tcase_add_test(tc, Client_roles_reevaluated_on_roleAdd);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);
 #endif
