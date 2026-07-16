@@ -231,6 +231,25 @@ static TestUdpIntercept *testUdpInterceptLds;
 static TestUdpIntercept *testUdpInterceptRegister;
 static size_t globalInterceptedMdnsMessages;
 
+/* Callbacks that run on the server threads must not ck_assert: with CK_NOFORK
+ * a failing assert there writes to libcheck's messaging file after it was
+ * closed. They record failures here instead; a checked fixture asserts the
+ * counter on the main thread after every test. */
+static size_t threadCallbackFailures;
+
+static void
+recordThreadCallbackFailure(const char *msg) {
+    fprintf(stderr, "%s\n", msg);
+    threadCallbackFailures++;
+}
+
+static void
+checkThreadCallbackFailures(void) {
+    size_t failures = threadCallbackFailures;
+    threadCallbackFailures = 0;
+    ck_assert_uint_eq(failures, 0);
+}
+
 static void
 serverDiscoveryNotificationCallback(UA_Server *server,
                                     UA_ApplicationNotificationType type,
@@ -398,6 +417,8 @@ serverOnNetworkHasTxtData(const UA_ServerOnNetwork *serverOnNetwork) {
     return false;
 }
 
+/* Runs on the server threads -- record failures instead of ck_assert
+ * (see threadCallbackFailures) */
 static UA_StatusCode
 interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
                  const UA_KeyValueMap *params, UA_ByteString *buf) {
@@ -405,7 +426,12 @@ interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
     (void)params;
     TestUdpIntercept *intercept =
         (TestUdpIntercept*)TestConnectionManager_getContext(cm);
-    ck_assert_ptr_ne(intercept, NULL);
+    if(!intercept) {
+        recordThreadCallbackFailure("interceptingSend: "
+                                    "intercept context missing");
+        UA_ByteString_clear(buf);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     intercept->sentMessages++;
     if(buf->length > 0) {
@@ -414,10 +440,14 @@ interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
         globalInterceptedMdnsMessages++;
         UA_ByteString_clear(&intercept->lastMessage);
         UA_ByteString_clear(&intercept->recentMessages[slot]);
-        ck_assert_uint_eq(UA_ByteString_copy(buf, &intercept->lastMessage),
-                          UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(UA_ByteString_copy(buf, &intercept->recentMessages[slot]),
-                          UA_STATUSCODE_GOOD);
+        UA_StatusCode res = UA_ByteString_copy(buf, &intercept->lastMessage);
+        res |= UA_ByteString_copy(buf, &intercept->recentMessages[slot]);
+        if(res != UA_STATUSCODE_GOOD) {
+            recordThreadCallbackFailure("interceptingSend: "
+                                        "copying the message failed");
+            UA_ByteString_clear(buf);
+            return res;
+        }
         intercept->recentMessageSequence[slot] = globalInterceptedMdnsMessages;
         intercept->recentMessageCursor++;
     }
@@ -1256,10 +1286,13 @@ serverDiscoveryNotificationCallback(UA_Server *server,
         UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "server-updated"),
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-    ck_assert_ptr_ne(serverOnNetwork, NULL);
-    ck_assert_ptr_ne(serverAdded, NULL);
-    ck_assert_ptr_ne(serverRemoved, NULL);
-    ck_assert_ptr_ne(serverUpdated, NULL);
+    /* Server-thread code path -- record failures instead of ck_assert
+     * (see threadCallbackFailures) */
+    if(!serverOnNetwork || !serverAdded || !serverRemoved || !serverUpdated) {
+        recordThreadCallbackFailure("serverDiscoveryNotificationCallback: "
+                                    "incomplete notification payload");
+        return;
+    }
 
     DiscoveryIntegrationCounters *counters = &discoveryCounters;
     UA_Boolean isServerAnnounce = (*serverAdded || *serverUpdated);
@@ -2332,6 +2365,7 @@ testSuite_DiscoveryMdnsd(void) {
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     TCase *tc = tcase_create("Send path scaffolding");
     tcase_add_unchecked_fixture(tc, setup_server, teardown_server);
+    tcase_add_checked_fixture(tc, NULL, checkThreadCallbackFailures);
     tcase_add_test(tc, MdnsStartupTriggersSendPath);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
@@ -2340,6 +2374,7 @@ testSuite_DiscoveryMdnsd(void) {
     suite_add_tcase(s, tc);
 
     TCase *tc_query = tcase_create("Query behavior");
+    tcase_add_checked_fixture(tc_query, NULL, checkThreadCallbackFailures);
     tcase_add_test(tc_query, MdnsQueryPresenceSendsStartupPtrQuery);
     tcase_add_test(tc_query, MdnsQueryDetailsSendsSrvTxtQueriesForPtr);
     tcase_add_test(tc_query, MdnsQueryDetailsSendsTxtQueryForSrvOnly);
@@ -2357,6 +2392,8 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_unchecked_fixture(tc_integration,
                                 setup_public_api_servers,
                                 teardown_public_api_servers);
+    tcase_add_checked_fixture(tc_integration, NULL,
+                              checkThreadCallbackFailures);
     tcase_add_test(tc_integration, PublicApiRegisterDeregisterCallback);
     tcase_add_test(tc_integration, PublicApiDeregisterDiscoveryKeepsLocalMdnsRecord);
     tcase_add_test(tc_integration, PublicApiFindServersOnNetworkListsRegisteredServers);
