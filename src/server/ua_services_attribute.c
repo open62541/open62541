@@ -2082,6 +2082,28 @@ UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
+    beginModelChange(server);
+
+    /* DataType is an inline attribute. Remember its previous value so a
+     * same-value write does not produce a spurious DataTypeChanged event. */
+    UA_Boolean dataTypeChanged = false;
+    if(wv->attributeId == UA_ATTRIBUTEID_DATATYPE) {
+        const UA_Node *oldNode = UA_NODESTORE_GET(server, &wv->nodeId);
+        if(oldNode && (oldNode->head.nodeClass == UA_NODECLASS_VARIABLE ||
+                       oldNode->head.nodeClass == UA_NODECLASS_VARIABLETYPE)) {
+            const UA_NodeId *oldDataType =
+                (oldNode->head.nodeClass == UA_NODECLASS_VARIABLE) ?
+                &oldNode->variableNode.dataType : &oldNode->variableTypeNode.dataType;
+            if(wv->value.value.data &&
+               UA_NodeId_equal(oldDataType,
+                               (const UA_NodeId*)wv->value.value.data))
+                dataTypeChanged = false;
+            else
+                dataTypeChanged = true;
+        }
+        if(oldNode)
+            UA_NODESTORE_RELEASE(server, oldNode);
+    }
 
     /* Get the old value for the audit event */
 #ifdef UA_ENABLE_AUDITING
@@ -2107,6 +2129,14 @@ Operation_Write(UA_Server *server, UA_Session *session,
                        (void*)(uintptr_t)wv);
     UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 
+    /* DataType changes are structural model changes. ValueRank and
+     * ArrayDimensions affect the value's semantics and will be reported via
+     * SemanticChangeEvents once that accumulator is implemented. */
+    if(*result == UA_STATUSCODE_GOOD && dataTypeChanged) {
+        recordModelChangeEvent(server, &wv->nodeId,
+                          UA_MODELCHANGESTRUCTUREVERBMASK_DATATYPECHANGED);
+    }
+
     /* Generate audit event for writing variables.
      * TODO: Audit events for async writes. */
 #ifdef UA_ENABLE_AUDITING
@@ -2119,6 +2149,7 @@ Operation_Write(UA_Server *server, UA_Session *session,
     UA_DataValue_clear(&oldValue);
 #endif
 
+    endModelChange(server);
     return done;
 }
 

@@ -430,6 +430,7 @@ UA_Server_init(UA_Server *server) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_ModelChangeAccumulator_init(&server->modelChanges);
+    server->modelChangeSuppressionDepth = 1;
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -1186,7 +1187,8 @@ UA_Server_run_startup(UA_Server *server) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     /* A restarted server also suppresses changes until startup is complete. */
-    server->modelChangeEventsEnabled = false;
+    if(server->modelChangeSuppressionDepth == 0)
+        server->modelChangeSuppressionDepth++;
 #endif
 
     /* Does the ApplicationUri match the local certificates? */
@@ -1257,7 +1259,8 @@ UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     /* Suppress ModelChangeEvents for the initial address-space construction
      * and startup callbacks. Enable them only once startup has completed. */
-    server->modelChangeEventsEnabled = true;
+    UA_assert(server->modelChangeSuppressionDepth > 0);
+    server->modelChangeSuppressionDepth--;
 #endif
 
     unlockServer(server);
