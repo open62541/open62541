@@ -544,6 +544,17 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
         return true;
     }
 
+#ifdef UA_ENABLE_RBAC
+    /* Enforce the node's AccessRestrictions (Part 3 §5.2.11) */
+    UA_StatusCode arRes = checkNodeAccessRestrictions(server, session, node, false);
+    if(arRes != UA_STATUSCODE_GOOD) {
+        v->hasStatus = true;
+        v->status = arRes;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
+        return true;
+    }
+#endif
+
     /* Read the attribute */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(id->attributeId) {
@@ -780,8 +791,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
 #endif
         break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
-        /* TODO: Add support for AccessRestrictions from the 1.04 spec */
+#ifdef UA_ENABLE_RBAC
+        {
+        UA_AccessRestrictionType ar = getNodeAccessRestrictions(server, node);
+        retval = UA_Variant_setScalarCopy(&v->value, &ar,
+                                          &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+        }
+#else
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+#endif
         break;
 
     default:
@@ -1918,6 +1936,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     const void *value = wvalue->value.value.data;
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+#ifdef UA_ENABLE_RBAC
+    /* Enforce the node's AccessRestrictions (Part 3 §5.2.11) */
+    retval = checkNodeAccessRestrictions(server, session, node, false);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+#endif
 
     UA_LOG_TRACE_SESSION(server->config.logging, session,
                          "Write attribute %" PRIi32 " of Node %N",
