@@ -9,6 +9,7 @@
 #include <open62541/server_config_default.h>
 
 #include <check.h>
+#include <stdio.h>
 
 #include "server/ua_server_internal.h"
 #include "test_helpers.h"
@@ -157,6 +158,23 @@ addObject(const UA_NodeId nodeId, const char *name) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 }
 
+static void
+assertNodeVersion(const UA_NodeId property, UA_Int64 expected) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res = UA_Server_readValue(server, property, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_STRING]));
+
+    char expectedChars[32];
+    int len = snprintf(expectedChars, sizeof(expectedChars), "%lld",
+                       (long long)expected);
+    ck_assert_int_gt(len, 0);
+    UA_String expectedString = {(size_t)len, (UA_Byte*)expectedChars};
+    ck_assert(UA_String_equal((UA_String*)value.data, &expectedString));
+    UA_Variant_clear(&value);
+}
+
 /* Ensure events are received with proper values */
 START_TEST(generateEvents) {
     UA_EventFilter ef;
@@ -241,14 +259,7 @@ START_TEST(modelChangeFromLocalApi) {
                                  UA_EXPANDEDNODEID_NUMERIC(1, 1236), true);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    UA_Variant version;
-    UA_Variant_init(&version);
-    res = UA_Server_readValue(server, versionProperty, &version);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(UA_Variant_hasScalarType(&version, &UA_TYPES[UA_TYPES_STRING]));
-    UA_String expectedVersion = UA_STRING("2");
-    ck_assert(UA_String_equal((UA_String*)version.data, &expectedVersion));
-    UA_Variant_clear(&version);
+    assertNodeVersion(versionProperty, 2);
 
     receiveExpectedModelChanges();
 } END_TEST
@@ -271,11 +282,15 @@ START_TEST(modelChangeReferenceDeleteAndNodeDelete) {
         UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEADDED
     };
     expectModelChanges(2, affected, added);
+    UA_Int64 versionBefore = server->nodeVersionCounter;
     UA_StatusCode res = UA_Server_addReference(
         server, first, UA_NS0ID(HASCOMPONENT),
         UA_EXPANDEDNODEID_NUMERIC(1, 1241), true);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     receiveExpectedModelChanges();
+    ck_assert_int_eq(server->nodeVersionCounter, versionBefore + 2);
+    assertNodeVersion(UA_NODEID_NUMERIC(1, 1250), versionBefore + 1);
+    assertNodeVersion(UA_NODEID_NUMERIC(1, 1251), versionBefore + 2);
 
     UA_Byte removed[2] = {
         UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEDELETED,
@@ -346,24 +361,37 @@ START_TEST(modelChangeDataTypeAttributes) {
 
     UA_Byte verb = UA_MODELCHANGESTRUCTUREVERBMASK_DATATYPECHANGED;
     expectModelChanges(1, &variable, &verb);
+    UA_Int64 versionBefore = server->nodeVersionCounter;
     res = UA_Server_writeDataType(server, variable, UA_NS0ID(NUMBER));
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     receiveExpectedModelChanges();
+    assertNodeVersion(UA_NODEID_NUMERIC(1, 1261), versionBefore + 1);
 
-    expectModelChanges(1, &variable, &verb);
+    unsigned modelChangesBeforeSemanticAttributes = modelChangeCount;
+    UA_Int64 versionAfterDataType = versionBefore + 1;
+    res = UA_Server_writeDataType(server, variable, UA_NS0ID(NUMBER));
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(modelChangeCount, modelChangesBeforeSemanticAttributes);
+    assertNodeVersion(UA_NODEID_NUMERIC(1, 1261), versionAfterDataType);
+
     res = UA_Server_writeValueRank(server, variable,
                                    UA_VALUERANK_ONE_DIMENSION);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    receiveExpectedModelChanges();
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(modelChangeCount, modelChangesBeforeSemanticAttributes);
+    assertNodeVersion(UA_NODEID_NUMERIC(1, 1261), versionAfterDataType);
 
     UA_UInt32 dimension = 0;
     UA_Variant dimensions;
     UA_Variant_setArray(&dimensions, &dimension, 1,
                         &UA_TYPES[UA_TYPES_UINT32]);
-    expectModelChanges(1, &variable, &verb);
+    modelChangesBeforeSemanticAttributes = modelChangeCount;
     res = UA_Server_writeArrayDimensions(server, variable, dimensions);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    receiveExpectedModelChanges();
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(modelChangeCount, modelChangesBeforeSemanticAttributes);
+    assertNodeVersion(UA_NODEID_NUMERIC(1, 1261), versionAfterDataType);
 } END_TEST
 
 START_TEST(modelChangeFailureAndSuppression) {
@@ -447,6 +475,28 @@ START_TEST(modelChangeStartupSuppressed) {
     ck_assert_uint_eq(server->modelChanges.changesSize, 0);
 } END_TEST
 
+START_TEST(modelChangeUnversionedNodeIgnored) {
+    UA_NodeId source = UA_NODEID_NUMERIC(1, 1300);
+    UA_NodeId target = UA_NODEID_NUMERIC(1, 1301);
+    addObject(source, "UnversionedSource");
+    addObject(target, "UnversionedTarget");
+    createModelChangeMonitoredItem();
+
+    unsigned eventCountBefore = modelChangeCount;
+    UA_Int64 counterBefore = server->nodeVersionCounter;
+    UA_StatusCode res = UA_Server_addReference(
+        server, source, UA_NS0ID(HASCOMPONENT),
+        UA_EXPANDEDNODEID_NUMERIC(1, 1301), true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+
+    /* Nodes without a NodeVersion Property are not tracked and therefore do
+     * not produce an event or consume a server-wide version number. */
+    ck_assert_uint_eq(modelChangeCount, eventCountBefore);
+    ck_assert_int_eq(server->nodeVersionCounter, counterBefore);
+    ck_assert_uint_eq(server->modelChanges.changesSize, 0);
+} END_TEST
+
 static Suite *testSuite_event(void) {
     Suite *s = suite_create("Server Local Subscription Events");
     TCase *tc_server = tcase_create("Server Local Subscription Events");
@@ -459,6 +509,7 @@ static Suite *testSuite_event(void) {
     tcase_add_test(tc_server, modelChangeFailureAndSuppression);
     tcase_add_test(tc_server, modelChangeUmbrellaCoalescing);
     tcase_add_test(tc_server, modelChangeStartupSuppressed);
+    tcase_add_test(tc_server, modelChangeUnversionedNodeIgnored);
     suite_add_tcase(s, tc_server);
     return s;
 }
