@@ -21,8 +21,7 @@ The `types` field in `UA_DataTypeArray` changed from `UA_DataType *` to
 them `const` makes this explicit in the API, protects against accidental
 modification and allows the toolchain to place the definitions in
 read-only memory. DataType arrays generated for additional nodesets
-remain mutable, as their NamespaceIndex gets adjusted when the nodeset
-is loaded into a server.
+remain mutable by default (see below).
 
 The `members` field in `UA_DataType` changed from `UA_DataTypeMember *`
 to `const UA_DataTypeMember *`. Generated member arrays are declared
@@ -31,6 +30,31 @@ namespace-dependent data, so this also applies to type arrays generated
 for additional nodesets. Code that builds DataType definitions at
 runtime must populate the members array through its own mutable pointer
 before assigning it to the `members` field.
+
+### Const DataType arrays for additional nodesets (companion specifications)
+
+Type arrays generated for additional nodesets (e.g. companion
+specifications like DI) can now also be declared `const` and placed in
+read-only memory. Pass the new `NAMESPACE_MAP` argument to the CMake
+generation macros (`--namespaceMap` to generate_datatypes.py) to pin the
+namespace indices at generation time, e.g.
+`NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"`. The generated init
+code then verifies at runtime that the server assigned exactly the
+pinned indices (i.e. the nodesets are loaded in the generation order)
+and fails with `UA_STATUSCODE_BADINTERNALERROR` otherwise. The check
+covers the nodeset's own type array; arrays of dependency nodesets are
+verified by their own generated init functions, which must be called in
+dependency order (as already required for the nodes). Without pinning,
+the generated array remains mutable and its namespace indices continue
+to be adjusted in-place when the nodeset is loaded (unchanged behavior;
+the `xmlEncodingId` is now adjusted as well, and null encoding NodeIds
+are left untouched instead of receiving the namespace index).
+
+The namespace index baked into a generated type array is now always
+derived from the namespace URI of the type (via `--namespaceMap`, or
+ascending assignment for unpinned URIs). Explicit `ns=` prefixes in the
+NodeId strings of the type definition files are ignored, as they carry
+file-local indices without a defined runtime meaning.
 
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
