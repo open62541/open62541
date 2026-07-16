@@ -254,11 +254,14 @@ removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId) {
 
 static UA_StatusCode
 addRoleMethodCallback(UA_Server *server,
-                      const UA_NodeId *objectId, void *objectContext,
+                      const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
-                      const UA_NodeId *inputType, void *inputContext,
+                      const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 2 ||
        input[0].type != &UA_TYPES[UA_TYPES_STRING] ||
        input[1].type != &UA_TYPES[UA_TYPES_STRING])
@@ -301,11 +304,14 @@ addRoleMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 removeRoleMethodCallback(UA_Server *server,
-                         const UA_NodeId *objectId, void *objectContext,
+                         const UA_NodeId *sessionId, void *sessionContext,
                          const UA_NodeId *methodId, void *methodContext,
-                         const UA_NodeId *inputType, void *inputContext,
+                         const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_NODEID])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -335,6 +341,9 @@ addIdentityMethodCallback(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -380,6 +389,9 @@ removeIdentityMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -396,10 +408,11 @@ removeIdentityMethodCallback(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Find and remove the matching identity rule */
+    /* Find and remove the identity rule that matches in both criteriaType and
+     * criteria; several rules may share a criteriaType. */
     size_t idx = SIZE_MAX;
     for(size_t i = 0; i < role.identityMappingRulesSize; i++) {
-        if(role.identityMappingRules[i].criteriaType == rule->criteriaType) {
+        if(UA_IdentityMappingRuleType_equal(&role.identityMappingRules[i], rule)) {
             idx = i;
             break;
         }
@@ -429,6 +442,9 @@ addApplicationMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -465,6 +481,9 @@ removeApplicationMethodCallback(UA_Server *server,
                                 const UA_NodeId *objectId, void *objectContext,
                                 size_t inputSize, const UA_Variant *input,
                                 size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -505,6 +524,9 @@ addEndpointMethodCallback(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -546,6 +568,9 @@ removeEndpointMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -582,6 +607,78 @@ removeEndpointMethodCallback(UA_Server *server,
     res = UA_Server_updateRole(server, &role);
     UA_Role_clear(&role);
     return res;
+}
+
+/* Restrict the RoleSet Object and the security-sensitive RoleSet/RoleType
+ * Methods to the SecurityAdmin Role (OPC UA Part 18). The RoleSet stays
+ * browsable for the Anonymous/AuthenticatedUser Roles. Skipped when the NS0
+ * RBAC information model is unavailable. */
+UA_StatusCode
+initRoleSetRolePermissions(UA_Server *server) {
+    UA_NodeId roleSetId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
+    UA_QualifiedName bn;
+    if(UA_Server_readBrowseName(server, roleSetId, &bn) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD; /* no NS0 RBAC model -> nothing to protect */
+    UA_QualifiedName_clear(&bn);
+
+    const UA_NodeId secAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    const UA_NodeId publicRoles[] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
+    };
+
+    /* Nodes whose CALL is restricted to SecurityAdmin. The RoleSet Object is
+     * included because the Call service checks CALL on both the Object and the
+     * Method node. BROWSE is granted back to the public Roles so the nodes
+     * stay visible. */
+    const UA_UInt32 callNodes[] = {
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE,
+        UA_NS0ID_ROLETYPE_ADDIDENTITY,
+        UA_NS0ID_ROLETYPE_REMOVEIDENTITY,
+        UA_NS0ID_ROLETYPE_ADDAPPLICATION,
+        UA_NS0ID_ROLETYPE_REMOVEAPPLICATION,
+        UA_NS0ID_ROLETYPE_ADDENDPOINT,
+        UA_NS0ID_ROLETYPE_REMOVEENDPOINT
+    };
+
+    /* StatusCodes are not bit flags, so check each result individually.
+     * A missing node (BadNodeIdUnknown) is tolerated: a reduced nodeset may
+     * omit individual Methods. Any other failure aborts. */
+    UA_StatusCode retval;
+
+    /* Admin may additionally read the RolePermissions attribute of the RoleSet */
+    retval = UA_Server_addRolePermissions(server, roleSetId, secAdmin,
+                                          UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                          false, false);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return retval;
+
+    for(size_t i = 0; i < sizeof(callNodes) / sizeof(callNodes[0]); i++) {
+        UA_NodeId nodeId = UA_NODEID_NUMERIC(0, callNodes[i]);
+
+        /* SecurityAdmin: browse + call */
+        retval = UA_Server_addRolePermissions(server, nodeId, secAdmin,
+                                              UA_PERMISSIONTYPE_BROWSE |
+                                              UA_PERMISSIONTYPE_CALL,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
+
+        /* Public Roles: browse only (visible but not callable) */
+        for(size_t j = 0; j < sizeof(publicRoles) / sizeof(publicRoles[0]); j++) {
+            retval = UA_Server_addRolePermissions(server, nodeId, publicRoles[j],
+                                                  UA_PERMISSIONTYPE_BROWSE,
+                                                  false, false);
+            if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+                return retval;
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode

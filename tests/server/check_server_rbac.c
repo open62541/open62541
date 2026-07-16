@@ -13,6 +13,7 @@
 #include "ua_server_rbac.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <check.h>
 
@@ -909,6 +910,53 @@ START_TEST(trustedApplication_assignedWhenTrusted) {
         if(UA_NodeId_equal(&ids[i], &taId))
             found = true;
     ck_assert(!found);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+}
+END_TEST
+
+/* The Anonymous Role is assigned to every Session regardless of the identity
+ * token (Part 18 §4.3). */
+START_TEST(anonymousRole_alwaysAssigned) {
+    UA_NodeId anonId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+
+    /* Anonymous identity token */
+    UA_AnonymousIdentityToken anon;
+    UA_AnonymousIdentityToken_init(&anon);
+    UA_ExtensionObject tok;
+    UA_ExtensionObject_init(&tok);
+    tok.encoding = UA_EXTENSIONOBJECT_DECODED;
+    tok.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
+    tok.content.decoded.data = &anon;
+
+    size_t size = 0;
+    UA_NodeId *ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+                                                     &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < size; i++)
+        if(UA_NodeId_equal(&ids[i], &anonId))
+            found = true;
+    ck_assert(found);
+    UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Authenticated (username) session still receives the Anonymous Role */
+    UA_UserNameIdentityToken un;
+    UA_UserNameIdentityToken_init(&un);
+    un.userName = UA_STRING("nobody");
+    tok.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    tok.content.decoded.data = &un;
+
+    size = 0;
+    ids = NULL;
+    ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &tok, false,
+                                                     &size, &ids),
+                      UA_STATUSCODE_GOOD);
+    found = false;
+    for(size_t i = 0; i < size; i++)
+        if(UA_NodeId_equal(&ids[i], &anonId))
+            found = true;
+    ck_assert(found);
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 }
 END_TEST
@@ -2262,9 +2310,12 @@ START_TEST(sessionRoleNames) {
 }
 END_TEST
 
-/* Test free-slot reuse: adding permissions, removing them (refCount→0),
- * then adding different permissions reuses the freed slot index. */
-START_TEST(permissionEntry_slotReuse) {
+/* Adding permissions, removing them (refCount→0), then adding a different
+ * permission set must NOT recycle the freed slot: copied nodes (e.g. type
+ * children instantiated into objects) can still reference the slot without
+ * being counted, so rewriting it would corrupt their permissions.
+ * The freed slot is left untouched and the new set gets a fresh entry. */
+START_TEST(permissionEntry_slotNoUnsafeReuse) {
     UA_NodeId roleId;
     UA_StatusCode res = addTestRole("SlotRole", 1, 51080, &roleId);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -2318,10 +2369,10 @@ START_TEST(permissionEntry_slotReuse) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert(idx2 != UA_PERMISSION_INDEX_INVALID);
 
-    /* The new entry should have reused the old slot index */
-    ck_assert_uint_eq(idx1, idx2);
+    /* The freed slot must NOT be recycled for the different permission set */
+    ck_assert_uint_ne(idx1, idx2);
 
-    /* Verify the slot now has the new permissions */
+    /* Verify the new slot carries the new permissions */
     const UA_RolePermissionSet *rp = UA_Server_getRolePermissionConfig(server, idx2);
     ck_assert_ptr_nonnull(rp);
     ck_assert_uint_eq(rp->rolePermissionsSize, 1);
@@ -2336,6 +2387,108 @@ START_TEST(permissionEntry_slotReuse) {
     UA_NodeId_clear(&roleId);
 }
 END_TEST
+
+/* Removing a Role must delete all RolePermission entries that reference it, so
+ * no stale roleId lingers in a shared (deduplicated) permission entry. */
+START_TEST(removeRole_purgesRolePermissions) {
+    UA_NodeId purgeRoleId;
+    ck_assert_uint_eq(addTestRole("PurgeRole", 1, 55321, &purgeRoleId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId observerId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+
+    /* A plain Variable node carrying permissions for both Roles */
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 60001);
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_UInt32 val = 7;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, nodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "PurgeVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, nodeId, purgeRoleId,
+        UA_PERMISSIONTYPE_READ, false, false), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, nodeId, observerId,
+        UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
+
+    UA_PermissionIndex idx;
+    ck_assert_uint_eq(UA_Server_getNodePermissionIndex(server, nodeId, &idx),
+                      UA_STATUSCODE_GOOD);
+    const UA_RolePermissionSet *set = UA_Server_getRolePermissionConfig(server, idx);
+    ck_assert_ptr_nonnull(set);
+    ck_assert_uint_eq(set->rolePermissionsSize, 2);
+
+    /* Remove the Role -> its permission entry must be purged, Observer stays */
+    ck_assert_uint_eq(removeTestRole("PurgeRole", 1), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_getNodePermissionIndex(server, nodeId, &idx),
+                      UA_STATUSCODE_GOOD);
+    set = UA_Server_getRolePermissionConfig(server, idx);
+    ck_assert_ptr_nonnull(set);
+    ck_assert_uint_eq(set->rolePermissionsSize, 1);
+    ck_assert(UA_NodeId_equal(&set->rolePermissions[0].roleId, &observerId));
+
+    UA_Server_deleteNode(server, nodeId, true);
+    UA_NodeId_clear(&purgeRoleId);
+}
+END_TEST
+
+/* AddRole is bounded by UA_RBAC_MAX_ROLES to prevent unbounded growth. */
+START_TEST(addRole_quotaEnforced) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(UA_UInt32 i = 0; i < UA_RBAC_MAX_ROLES + 10; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "QuotaRole%u", i);
+        UA_Role role;
+        UA_Role_init(&role);
+        role.roleName = UA_QUALIFIEDNAME(1, name);
+        res = UA_Server_addRole(server, &role, NULL);
+        if(res != UA_STATUSCODE_GOOD)
+            break;
+    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+
+    size_t rolesSize = 0;
+    UA_QualifiedName *names = NULL;
+    ck_assert_uint_eq(UA_Server_getRoles(server, &rolesSize, &names),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_le(rolesSize, UA_RBAC_MAX_ROLES);
+    for(size_t i = 0; i < rolesSize; i++)
+        UA_QualifiedName_clear(&names[i]);
+    UA_free(names);
+}
+END_TEST
+
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+/* The RoleSet AddRole Method must only grant CALL to SecurityAdmin, while the
+ * public Roles keep BROWSE only (Part 18). */
+START_TEST(roleSetMethods_restrictedToAdmin) {
+    UA_NodeId addRoleId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
+    UA_PermissionIndex idx;
+    ck_assert_uint_eq(UA_Server_getNodePermissionIndex(server, addRoleId, &idx),
+                      UA_STATUSCODE_GOOD);
+    const UA_RolePermissionSet *set = UA_Server_getRolePermissionConfig(server, idx);
+    ck_assert_ptr_nonnull(set);
+
+    UA_NodeId secAdmin = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    UA_NodeId anon = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_Boolean adminCanCall = false, anonCanCall = false;
+    for(size_t i = 0; i < set->rolePermissionsSize; i++) {
+        if(UA_NodeId_equal(&set->rolePermissions[i].roleId, &secAdmin) &&
+           (set->rolePermissions[i].permissions & UA_PERMISSIONTYPE_CALL))
+            adminCanCall = true;
+        if(UA_NodeId_equal(&set->rolePermissions[i].roleId, &anon) &&
+           (set->rolePermissions[i].permissions & UA_PERMISSIONTYPE_CALL))
+            anonCanCall = true;
+    }
+    ck_assert(adminCanCall);
+    ck_assert(!anonCanCall);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
 
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
@@ -2355,6 +2508,7 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_add, addRole_nullRoleIdAllowed);
     tcase_add_test(tc_add, addRole_unsupportedCriteriaStored);
     tcase_add_test(tc_add, addRole_applicationFiltersStored);
+    tcase_add_test(tc_add, addRole_quotaEnforced);
     suite_add_tcase(s, tc_add);
 
     TCase *tc_get = tcase_create("GetRoles");
@@ -2369,6 +2523,7 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_rm, removeRole_basic);
     tcase_add_test(tc_rm, removeRole_notFound);
     tcase_add_test(tc_rm, removeRole_andVerifyGetRoles);
+    tcase_add_test(tc_rm, removeRole_purgesRolePermissions);
     suite_add_tcase(s, tc_rm);
 
     return s;
@@ -2403,7 +2558,7 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, effectivePermissions_logicalOR);
     tcase_add_test(tc, userRolePermissions_array);
     tcase_add_test(tc, permissionConfig_addAndGet);
-    tcase_add_test(tc, permissionEntry_slotReuse);
+    tcase_add_test(tc, permissionEntry_slotNoUnsafeReuse);
     tcase_add_test(tc, allPermissionsForAnonymous_config);
     suite_add_tcase(s, tc);
     return s;
@@ -2445,6 +2600,7 @@ static Suite *testSuite_InformationModel(void) {
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
     tcase_add_test(tc, addRemoveRoleMethod_updatesAddressSpace);
+    tcase_add_test(tc, roleSetMethods_restrictedToAdmin);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
     suite_add_tcase(s, tc);
 
@@ -2455,6 +2611,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc_session, sessionRoleNames);
     tcase_add_test(tc_session, trustedApplication_roleRegistered);
     tcase_add_test(tc_session, trustedApplication_assignedWhenTrusted);
+    tcase_add_test(tc_session, anonymousRole_alwaysAssigned);
     suite_add_tcase(s, tc_session);
 
     TCase *tc_perms = tcase_create("NodePermissions");

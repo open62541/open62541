@@ -22,6 +22,10 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 /*********************/
 /* Edit Node Context */
 /*********************/
@@ -684,6 +688,12 @@ copyObjectVariableChild(UA_Server *server, UA_Session *session,
     node->head.constructed = false;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     node->head.monitoredItems = NULL;
+#endif
+#ifdef UA_ENABLE_RBAC
+    /* The new instance child starts without explicit RolePermissions (falls
+     * back to the namespace defaults). Keeping the copied permissionIndex
+     * would reference the shared entry without adjusting its refCount. */
+    node->head.permissionIndex = UA_PERMISSION_INDEX_INVALID;
 #endif
 
     /* The value source callbacks are copied by default. But we don't want
@@ -2144,10 +2154,17 @@ deleteNodeSet(UA_Server *server, UA_Session *session,
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
         if(!member)
             continue;
-        UA_NODESTORE_RELEASE(server, member);
+#ifdef UA_ENABLE_RBAC
+        /* Release the reference of the deleted node on its shared
+         * role-permission entry */
+        UA_Server_decrementRolePermissionsRefCount(server, member->head.permissionIndex);
+#endif
+        /* Everything that dereferences member must happen before the node is
+         * released; remove by the RefTree's own NodeId copy afterwards. */
         if(removeTargetRefs)
             removeIncomingReferences(server, session, &member->head);
-        UA_NODESTORE_REMOVE(server, &member->head.nodeId);
+        UA_NODESTORE_RELEASE(server, member);
+        UA_NODESTORE_REMOVE(server, &refTree->targets[i-1].nodeId);
     }
 }
 

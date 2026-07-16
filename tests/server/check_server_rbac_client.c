@@ -423,6 +423,42 @@ START_TEST(Client_userwritemask_reflects_rbac) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_METHODCALLS
+/* A non-admin client over an unencrypted channel must not be able to call the
+ * RoleSet AddRole Method: C2 grants CALL only to SecurityAdmin and C1 requires
+ * an encrypted SecureChannel. */
+START_TEST(Client_roleSetMethod_denied) {
+    UA_Client *client = UA_Client_newForUnitTest();
+
+    UA_StatusCode retval = UA_Client_connectUsername(client,
+                                                      "opc.tcp://localhost:4840",
+                                                      "operator", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String roleName = UA_STRING("EvilRole");
+    UA_String nsUri = UA_STRING_NULL;
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &roleName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&input[1], &nsUri, &UA_TYPES[UA_TYPES_STRING]);
+
+    size_t outSize = 0;
+    UA_Variant *out = NULL;
+    retval = UA_Client_call(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE),
+        2, input, &outSize, &out);
+    printf("AddRole as non-admin over None security: %s\n",
+           UA_StatusCode_name(retval));
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+
+    if(out)
+        UA_Array_delete(out, outSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+#endif /* UA_ENABLE_METHODCALLS */
+
 static Suite *testSuite_Server_RBAC_Client(void) {
     Suite *s = suite_create("Server RBAC Client Integration");
     TCase *tc = tcase_create("Client Login and Role Assignment");
@@ -432,6 +468,9 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_anonymous_restricted_access);
     tcase_add_test(tc, Client_guest_limited_access);
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
+#ifdef UA_ENABLE_METHODCALLS
+    tcase_add_test(tc, Client_roleSetMethod_denied);
+#endif
     suite_add_tcase(s, tc);
     return s;
 }
