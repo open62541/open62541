@@ -2565,12 +2565,13 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeWithoutPayloadHeader);
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishOnDemand);
+    tcase_add_test(tc_pubsub_publish_subscribe, ValidDataSetConfigurationAddAndRemove);
+    tcase_add_test(tc_pubsub_publish_subscribe, AddAndRemoveReaderUsingDataSet);
 
     /*Test cases for the subscribed datasets */
     TCase *tc_pubsub_datasets = tcase_create("Subscriber using subscribed datasets");
-    tcase_add_test(tc_pubsub_datasets, ValidDataSetConfigurationAddAndRemove);
+    tcase_add_checked_fixture(tc_pubsub_datasets, setup, teardown);
     tcase_add_test(tc_pubsub_datasets, RejectUnsupportedStandaloneSubscribedDataSetMirror);
-    tcase_add_test(tc_pubsub_datasets, AddAndRemoveReaderUsingDataSet);
 
     TCase *tc_dataSetMessage_padding = tcase_create("PubSub DataSetMessage padding");
     tcase_add_checked_fixture(tc_dataSetMessage_padding, setup, teardown);
