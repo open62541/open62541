@@ -1753,7 +1753,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * implementation. */
 
 typedef enum {
-    UA_DRIVERTYPE_GENERIC = 0
+    UA_DRIVERTYPE_GENERIC = 0,
+    UA_DRIVERTYPE_GDS_RECEIVER
 } UA_DriverType;
 
 struct UA_Driver;

@@ -1157,16 +1157,16 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
 }
 
 UA_StatusCode
-UA_GDSReceiver_updateCertificate(UA_Server *server,
-                                const UA_NodeId certificateGroupId,
+UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
+                                 const UA_NodeId certificateGroupId,
                                 const UA_NodeId certificateTypeId,
                                 const UA_ByteString certificate,
                                 const UA_ByteString *privateKey) {
-    if(!server)
+    if(!receiver || !receiver->drv.server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(!gdsm || gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
+    UA_GDSManager *gdsm = (UA_GDSManager*)receiver;
+    if(gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
     if(gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
@@ -1192,6 +1192,7 @@ UA_GDSReceiver_updateCertificate(UA_Server *server,
         newPrivateKey = *privateKey;
     }
 
+    UA_Server *server = receiver->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     for(size_t i = 0; i < sc->endpointsSize; i++) {
         UA_EndpointDescription *ed = &sc->endpoints[i];
@@ -1225,18 +1226,18 @@ UA_GDSReceiver_updateCertificate(UA_Server *server,
 }
 
 UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_Server *server,
-                                   const UA_NodeId certificateGroupId,
+UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
+                                    const UA_NodeId certificateGroupId,
                                    const UA_NodeId certificateTypeId,
                                    const UA_String *subjectName,
                                    const UA_Boolean *regenerateKey,
                                    const UA_ByteString *nonce,
                                    UA_ByteString *csr) {
-    if(!server || !csr)
+    if(!receiver || !receiver->drv.server || !csr)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(!gdsm || gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
+    UA_GDSManager *gdsm = (UA_GDSManager*)receiver;
+    if(gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     static UA_NodeId defaultApplicationGroup =
@@ -1255,7 +1256,7 @@ UA_GDSReceiver_createSigningRequest(UA_Server *server,
        !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
                         &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1522,12 +1523,13 @@ UA_GDSManager_free(UA_Driver *drv) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Driver *
+UA_GDSReceiver *
 UA_GDSReceiver_new(void) {
     UA_GDSManager *gdsm = (UA_GDSManager*)UA_calloc(1, sizeof(UA_GDSManager));
     if(!gdsm)
         return NULL;
 
+    gdsm->drv.driverType = UA_DRIVERTYPE_GDS_RECEIVER;
     gdsm->drv.name = UA_STRING("gds-receiver");
     gdsm->drv.start = UA_GDSManager_start;
     gdsm->drv.stop = UA_GDSManager_stop;
@@ -1536,7 +1538,7 @@ UA_GDSReceiver_new(void) {
     gdsm->drv.notificationCallback = secureChannelNotificationCallback;
     gdsm->drv.notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL;
 
-    return &gdsm->drv;
+    return (UA_GDSReceiver*)gdsm;
 }
 
 #endif

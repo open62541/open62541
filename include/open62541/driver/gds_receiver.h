@@ -26,26 +26,31 @@
  * PushManagement additionally requires encryption and the full Namespace
  * Zero.
  *
- * Create the driver with UA_GDSReceiver_new() and attach it to the
- * server with UA_Server_addDriver() before calling UA_Server_run_startup(). A
- * server can have at most one GDS Receiver driver. The server takes
- * ownership of the driver after it has been added successfully. */
+ * Create the driver with UA_GDSReceiver_new() and attach its ``drv`` member to
+ * the server with UA_Server_addDriver() before calling
+ * UA_Server_run_startup(). A server can have at most one GDS Receiver driver.
+ * The server takes ownership of the receiver after it has been added
+ * successfully. */
 
 #ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
 
 _UA_BEGIN_DECLS
 
+typedef struct UA_GDSReceiver {
+    UA_Driver drv; /* Must be the first member */
+} UA_GDSReceiver;
+
 /* Create a GDS Receiver driver. The returned driver is heap-allocated and
  * must either be passed to UA_Server_addDriver() or released with its ``free``
  * callback. Returns NULL if allocation fails. */
-UA_EXPORT UA_Driver *
+UA_EXPORT UA_GDSReceiver *
 UA_GDSReceiver_new(void);
 
 /* Update the application certificate used by the server endpoints. The GDS
  * Receiver driver must be attached and started. If certificateGroupId is
  * null, the DefaultApplicationGroup is used. */
 UA_EXPORT UA_StatusCode
-UA_GDSReceiver_updateCertificate(UA_Server *server,
+UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
                                 const UA_NodeId certificateGroupId,
                                 const UA_NodeId certificateTypeId,
                                 const UA_ByteString certificate,
@@ -55,7 +60,7 @@ UA_GDSReceiver_updateCertificate(UA_Server *server,
  * driver must be attached and started. If certificateGroupId is null,
  * the DefaultApplicationGroup is used. */
 UA_EXPORT UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_Server *server,
+UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
                                    const UA_NodeId certificateGroupId,
                                    const UA_NodeId certificateTypeId,
                                    const UA_String *subjectName,
