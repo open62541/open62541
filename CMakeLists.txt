@@ -95,53 +95,67 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
-# Check if a C compiler flag is supported and add it (if supported)
-# Taken from https://stackoverflow.com/a/33266748
+# Helpers to collect C compiler flags. The flags are applied to all targets
+# via add_compile_options() at the end of the Compiler Settings section.
+# They are grouped into a config-agnostic list and one list per standard
+# build configuration:
+#   add_cc_flag("-foo")                      -> applied for every configuration
+#                                               (also custom ones like 'None')
+#   add_cc_flag("-foo" "Release;MinSizeRel") -> applied only for the given
+#                                               configurations
 include(CheckCCompilerFlag)
+set(ALL_TARGET_COMPILE_OPTIONS "")
 set(DEBUG_TARGET_COMPILE_OPTIONS "")
 set(RELEASE_TARGET_COMPILE_OPTIONS "")
 set(RELWITHDEBINFO_TARGET_COMPILE_OPTIONS "")
 set(MINSIZEREL_TARGET_COMPILE_OPTIONS "")
-function(check_add_cc_flag CC_FLAG BUILD_TYPE)
-    message(STATUS "Test CC flag ${CC_FLAG}")
-    check_c_compiler_flag("${CC_FLAG}" flag_supported)
-    if(flag_supported)
-      foreach(_cfg Debug Release RelWithDebInfo MinSizeRel)
-        list(FIND BUILD_TYPE "${_cfg}" _index)
-        if(${_index} GREATER -1)
-          string(TOUPPER "${_cfg}" _var)
-          set(_list ${${_var}_TARGET_COMPILE_OPTIONS})
-          list(APPEND _list "${CC_FLAG}")
-          list(REMOVE_DUPLICATES _list)
-          set(${_var}_TARGET_COMPILE_OPTIONS "${_list}" PARENT_SCOPE)
-        endif()
-      endforeach()
+
+# Add a C compiler flag without probing it first. Use when
+# check_c_compiler_flag() would give a false negative (e.g. flags that only
+# take effect in combination with others).
+function(add_cc_flag CC_FLAG)
+    if(ARGC GREATER 1)
+        set(_buckets "")
+        foreach(_cfg IN LISTS ARGN)
+            string(TOUPPER "${_cfg}" _bucket)
+            list(APPEND _buckets "${_bucket}")
+        endforeach()
+    else()
+        set(_buckets "ALL")
     endif()
-    unset(flag_supported CACHE)
+    foreach(_bucket IN LISTS _buckets)
+        list(APPEND ${_bucket}_TARGET_COMPILE_OPTIONS "${CC_FLAG}")
+        list(REMOVE_DUPLICATES ${_bucket}_TARGET_COMPILE_OPTIONS)
+        set(${_bucket}_TARGET_COMPILE_OPTIONS
+            "${${_bucket}_TARGET_COMPILE_OPTIONS}" PARENT_SCOPE)
+    endforeach()
 endfunction()
 
-# Add a C compiler flag for the given build configurations without probing it
-# first. Use when check_c_compiler_flag() would give a false negative (e.g.
-# flags that only take effect in combination with others).
-function(add_cc_flag CC_FLAG BUILD_TYPE)
-    foreach(_cfg Debug Release RelWithDebInfo MinSizeRel)
-        list(FIND BUILD_TYPE "${_cfg}" _index)
-        if(${_index} GREATER -1)
-            string(TOUPPER "${_cfg}" _var)
-            set(_list ${${_var}_TARGET_COMPILE_OPTIONS})
-            list(APPEND _list "${CC_FLAG}")
-            list(REMOVE_DUPLICATES _list)
-            set(${_var}_TARGET_COMPILE_OPTIONS "${_list}" PARENT_SCOPE)
-        endif()
-    endforeach()
+# Check if a C compiler flag is supported and add it (if supported).
+# The probe result is cached (CC_SUPPORTS_<flag>), so re-running cmake
+# does not repeat the probes.
+function(check_add_cc_flag CC_FLAG)
+    string(MAKE_C_IDENTIFIER "CC_SUPPORTS_${CC_FLAG}" _cachevar)
+    check_c_compiler_flag("${CC_FLAG}" ${_cachevar})
+    if(${_cachevar})
+        add_cc_flag("${CC_FLAG}" ${ARGN})
+        # add_cc_flag() set the lists in this function's scope; forward them
+        foreach(_bucket ALL DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+            set(${_bucket}_TARGET_COMPILE_OPTIONS
+                "${${_bucket}_TARGET_COMPILE_OPTIONS}" PARENT_SCOPE)
+        endforeach()
+    endif()
 endfunction()
 
 #################
 # Build Options #
 #################
 
-# Set default build type.
-if(NOT CMAKE_BUILD_TYPE)
+# Set default build type for single-config generators. Multi-config
+# generators (Visual Studio, Xcode, Ninja Multi-Config) ignore
+# CMAKE_BUILD_TYPE and select the configuration at build time instead.
+get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(NOT _isMultiConfig AND NOT CMAKE_BUILD_TYPE)
     message(STATUS "CMAKE_BUILD_TYPE not given; setting to 'Debug'")
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
@@ -330,8 +344,6 @@ if(UA_ENABLE_COVERAGE)
     # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
     set(ENABLE_COVERAGE ON)
     find_package(codecov REQUIRED)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
 option(UA_ENABLE_QUERY "Enable query support in the client (most servers don't support it)" OFF)
@@ -428,7 +440,6 @@ mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 # Auto-enable UA_DEBUG for Debug builds on single-config generators.
 # On multi-config generators (Visual Studio, Xcode) CMAKE_BUILD_TYPE is empty
 # at configure time, so the default is OFF; pass -DUA_DEBUG=ON explicitly.
-get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(_isMultiConfig)
     option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
 else()
@@ -598,91 +609,92 @@ endif()
 
 if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
     NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
-    check_add_cc_flag("-std=c99" "Debug;Release;RelWithDebInfo;MinSizeRel")   # C99 mode
-    check_add_cc_flag("-pipe" "Debug;Release;RelWithDebInfo;MinSizeRel")      # Avoid writing temporary files (for compiler speed)
-    check_add_cc_flag("-Wall" "Debug;Release;RelWithDebInfo;MinSizeRel")      # Warnings
-    check_add_cc_flag("-Wextra" "Debug;Release;RelWithDebInfo;MinSizeRel")    # More warnings
-    check_add_cc_flag("-Wpedantic" "Debug;Release;RelWithDebInfo;MinSizeRel") # Standard compliance
+    check_add_cc_flag("-std=c99")   # C99 mode
+    check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
+    check_add_cc_flag("-Wall")      # Warnings
+    check_add_cc_flag("-Wextra")    # More warnings
+    check_add_cc_flag("-Wpedantic") # Standard compliance
     if(UA_FORCE_WERROR)
-        check_add_cc_flag("-Wunused-command-line-argument" "Debug;Release;RelWithDebInfo;MinSizeRel") # Warning for command line args instead of error
-        check_add_cc_flag("-Werror" "Debug;Release;RelWithDebInfo;MinSizeRel")    # All warnings are errors
+        check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
+        check_add_cc_flag("-Werror")    # All warnings are errors
     endif()
 
     # Some methods need unused arguments to conform with a defined method pointer signature
-    check_add_cc_flag("-Wno-unused-parameter" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wno-unused-parameter")
 
     # Clang 22 added -Wcast-function-type-mismatch to -Wextra; suppress the parent group.
     # add_cc_flag bypasses check_c_compiler_flag which can give false negatives under -Werror.
     if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
        CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "13.0")
-        add_cc_flag("-Wno-cast-function-type" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        add_cc_flag("-Wno-cast-function-type")
     else()
-        check_add_cc_flag("-Wno-cast-function-type" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("-Wno-cast-function-type")
     endif()
 
     if(CMAKE_C_COMPILER_ID MATCHES "Clang")
         # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic
         # -std=c99.
-        check_add_cc_flag("-Wno-c2y-extensions" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("-Wno-c2y-extensions")
 
         # Newer glibc versions use _Generic in string.h headers
         # for const-qualified overloads. Clang reports this as
         # -Wc11-extensions when compiling in -std=c99 mode.
-        check_add_cc_flag("-Wno-c11-extensions" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("-Wno-c11-extensions")
     endif()
 
     # Overlength strings may occur in generated code and are not harmful
-    check_add_cc_flag("-Wno-overlength-strings" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wno-overlength-strings")
 
     # Use a strict subset of the C and C++ languages
-    check_add_cc_flag("-Wc++-compat" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wc++-compat")
 
     # Wc++-compat enables additional goto/jump restrictions.
     # But modern compilers do a detailed analysis of values
     # are actually used uninitialized after a jump:
     # TODO: The following flag should not be required
-    check_add_cc_flag("-Wno-jump-misses-init" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wno-jump-misses-init")
 
     # Check that format strings (printf/scanf) are sane
-    check_add_cc_flag("-Wformat" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wformat-security" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wformat-nonliteral" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wformat")
+    check_add_cc_flag("-Wformat-security")
+    check_add_cc_flag("-Wformat-nonliteral")
 
     # Check prototype definitions
-    check_add_cc_flag("-Wmissing-prototypes" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wstrict-prototypes" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wredundant-decls" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wmissing-prototypes")
+    check_add_cc_flag("-Wstrict-prototypes")
+    check_add_cc_flag("-Wredundant-decls")
 
-    check_add_cc_flag("-Wuninitialized" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Winit-self" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wcast-qual" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wstrict-overflow" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wnested-externs" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wmultichar" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-Wundef" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-fno-strict-aliasing" "Debug;Release;RelWithDebInfo;MinSizeRel") # fewer compiler assumptions about pointer types
-    check_add_cc_flag("-fexceptions" "Debug;Release;RelWithDebInfo;MinSizeRel") # recommended for multi-threaded C code, also in combination with C++ code
+    check_add_cc_flag("-Wuninitialized")
+    check_add_cc_flag("-Winit-self")
+    check_add_cc_flag("-Wcast-qual")
+    check_add_cc_flag("-Wstrict-overflow")
+    check_add_cc_flag("-Wnested-externs")
+    check_add_cc_flag("-Wmultichar")
+    check_add_cc_flag("-Wundef")
+    check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
+    check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
     # Tree-shaking so that only used functions and data get linked into static binaries
     # To be used in combination with --gc-sections below
-    check_add_cc_flag("-ffunction-sections" "Debug;Release;RelWithDebInfo;MinSizeRel")
-    check_add_cc_flag("-fdata-sections" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-ffunction-sections")
+    check_add_cc_flag("-fdata-sections")
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
-        check_add_cc_flag("-fPIC" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("-fPIC")
     endif()
 
     # Hardened build (stack protection, etc.)
     # See the GCC docs on which precise flags this enables.
     if(UA_ENABLE_HARDENING)
-        check_add_cc_flag("-fhardened" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("-fhardened")
     endif()
 
     # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
-        check_add_cc_flag("-pthread" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("-pthread")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pthread")
     endif()
 
     # Force 32bit build
@@ -695,13 +707,18 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
 
     # Coverage
     if(UA_ENABLE_COVERAGE)
-        check_add_cc_flag("--coverage" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        check_add_cc_flag("--coverage")
         if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-            check_add_cc_flag("-fprofile-instr-generate" "Debug;Release;RelWithDebInfo;MinSizeRel")
-            check_add_cc_flag("-fcoverage-mapping" "Debug;Release;RelWithDebInfo;MinSizeRel")
-            check_add_cc_flag("-fprofile-arcs" "Debug;Release;RelWithDebInfo;MinSizeRel")
-            check_add_cc_flag("-ftest-coverage" "Debug;Release;RelWithDebInfo;MinSizeRel")
+            check_add_cc_flag("-fprofile-instr-generate")
+            check_add_cc_flag("-fcoverage-mapping")
+            check_add_cc_flag("-fprofile-arcs")
+            check_add_cc_flag("-ftest-coverage")
         endif()
+        # Compile options no longer end up on the link line, so the coverage
+        # runtime must be linked explicitly (--coverage implies -lgcov for gcc
+        # and the profile runtime for clang)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
     endif()
 
     # IPO requires too much memory for unit tests
@@ -710,7 +727,15 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
         include(CheckIPOSupported)
         check_ipo_supported(RESULT CC_HAS_IPO)
         if(CC_HAS_IPO)
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            if(_isMultiConfig)
+                # Only optimize the non-debug configurations; keep the Debug
+                # configuration debuggable
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL ON)
+            else()
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            endif()
         endif()
     endif()
 
@@ -800,17 +825,20 @@ if(MSVC)
   endif()
 endif()
 
-# Apply the per-config compile options collected by check_add_cc_flag() above to
-# all targets defined below (library, plugins, tests, examples, tools). Setting
+# Apply the compile options collected by (check_)add_cc_flag() above to all
+# targets defined below (library, plugins, tests, examples, tools). Setting
 # them at directory scope replicates the previous global CMAKE_C_FLAGS behavior
 # without leaking the flags into the usage requirements of the installed targets.
+# The config-agnostic list applies to every configuration (also custom ones);
+# the per-config lists only to their matching standard configuration.
 # Generator expressions used here:
 #   $<CONFIG:cfg>          - evaluates to 1 when the active build config matches 'cfg'
 #   $<COMPILE_LANGUAGE:C>  - evaluates to 1 when the source file language is C
 #   $<AND:a,b>             - evaluates to 1 when all operands are 1
 #   $<condition:value>     - expands to 'value' when 'condition' is 1, empty otherwise
 # Reference: https://cmake.org/cmake/help/latest/manual/cmake-generator-expressions.7.html
-add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:Debug>>:${DEBUG_TARGET_COMPILE_OPTIONS}>"
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:${ALL_TARGET_COMPILE_OPTIONS}>"
+                    "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:Debug>>:${DEBUG_TARGET_COMPILE_OPTIONS}>"
                     "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:Release>>:${RELEASE_TARGET_COMPILE_OPTIONS}>"
                     "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RelWithDebInfo>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>"
                     "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MinSizeRel>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
