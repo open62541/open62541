@@ -286,7 +286,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     UA_StatusCode retVal =
         UA_DataSetReaderConfig_copy(dataSetReaderConfig, &dsr->config);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 
@@ -295,7 +296,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg,
                             "Adding the DataSetReader to the information model failed");
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 #else
@@ -313,14 +315,16 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
      * StandaloneSubscribedDataSet. */
     retVal = connectDSR2Standalone(psm, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 
     /* Validate the config */
     retVal = validateDSRConfig(psm, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 
@@ -332,7 +336,10 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
             componentLifecycleCallback(server, dsr->head.identifier,
                                        UA_PUBSUBCOMPONENT_DATASETREADER, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_DataSetReader_remove(psm, dsr);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the reader). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
             return res;
         }
     }

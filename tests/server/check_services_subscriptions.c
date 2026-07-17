@@ -1723,12 +1723,247 @@ START_TEST(Server_dataSourceSamplingIntervalZero) {
 }
 END_TEST
 
+/* ==== Subscription / MonitoredItem limit guards (white-box) ==== */
+
+START_TEST(Server_republish_unknownSequenceNumber) {
+    /* src/server/ua_services_subscription.c:491-494:
+     *   if(!entry) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADMESSAGENOTAVAILABLE;
+     *     return true;
+     *   }
+     * The existing Server_republish_invalid uses subscriptionId = 0
+     * (BADSUBSCRIPTIONIDINVALID branch at 472-475). The
+     * BADMESSAGENOTAVAILABLE branch needs a valid subscriptionId +
+     * a sequence number that is not in the retransmission queue. */
+    createSubscription();
+
+    UA_RepublishRequest request;
+    UA_RepublishRequest_init(&request);
+    request.subscriptionId = subscriptionId;
+    request.retransmitSequenceNumber = 99999; /* not in queue */
+
+    UA_RepublishResponse response;
+    UA_RepublishResponse_init(&response);
+
+    lockServer(server);
+    Service_Republish(server, session, &request, &response);
+    unlockServer(server);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
+    UA_RepublishResponse_clear(&response);
+} END_TEST
+
+START_TEST(Server_createSubscription_maxSubscriptionsPerSession) {
+    /* src/server/ua_services_subscription.c:109-115:
+     *   if(maxSubscriptionsPerSession != 0 &&
+     *      session->subscriptionsSize >= maxSubscriptionsPerSession) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
+     *     return true;
+     *   } */
+    createSubscription(); /* first subscription */
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 orig = cfg->maxSubscriptionsPerSession;
+    cfg->maxSubscriptionsPerSession = 1; /* already at the limit */
+
+    UA_CreateSubscriptionRequest req;
+    UA_CreateSubscriptionRequest_init(&req);
+    req.requestedPublishingInterval = 500.0;
+    req.requestedLifetimeCount = 100;
+    req.requestedMaxKeepAliveCount = 10;
+
+    UA_CreateSubscriptionResponse resp;
+    UA_CreateSubscriptionResponse_init(&resp);
+
+    lockServer(server);
+    UA_Boolean ok = Service_CreateSubscription(server, session, &req, &resp);
+    unlockServer(server);
+
+    ck_assert(ok);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS);
+    ck_assert_uint_eq(resp.subscriptionId, 0);
+
+    cfg->maxSubscriptionsPerSession = orig;
+    UA_CreateSubscriptionResponse_clear(&resp);
+} END_TEST
+
+START_TEST(Server_createMonitoredItems_maxPerSubscription) {
+    /* src/server/ua_services_monitoreditem.c:444-452 (Operation_CreateMonitoredItem):
+     *   if(!cmc->localMon &&
+     *      (...maxMonitoredItemsPerSubscription exceeded...)) {
+     *     result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
+     *   }
+     * The "per subscription" branch is the more commonly-triggered
+     * one (per-server limit is rarely hit). */
+    createSubscription();
+    createMonitoredItem();
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 orig = cfg->maxMonitoredItemsPerSubscription;
+    cfg->maxMonitoredItemsPerSubscription = 1; /* already at the limit */
+
+    UA_CreateMonitoredItemsRequest req;
+    UA_CreateMonitoredItemsRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    req.itemsToCreateSize = 1;
+    req.itemsToCreate = (UA_MonitoredItemCreateRequest*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
+    UA_MonitoredItemCreateRequest_init(&req.itemsToCreate[0]);
+    req.itemsToCreate[0].itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+
+    UA_CreateMonitoredItemsResponse resp;
+    UA_CreateMonitoredItemsResponse_init(&resp);
+
+    lockServer(server);
+    Service_CreateMonitoredItems(server, session, &req, &resp);
+    unlockServer(server);
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.resultsSize, 1);
+    ck_assert_uint_eq(resp.results[0].statusCode,
+                      UA_STATUSCODE_BADTOOMANYMONITOREDITEMS);
+
+    cfg->maxMonitoredItemsPerSubscription = orig;
+    UA_Array_delete(req.itemsToCreate, 1, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
+    UA_CreateMonitoredItemsResponse_clear(&resp);
+} END_TEST
+
+START_TEST(Server_createMonitoredItems_maxMonitoredItemsPerCall) {
+    /* src/server/ua_services_monitoreditem.c:606-610 (Service_CreateMonitoredItems):
+     *   if(maxMonitoredItemsPerCall != 0 &&
+     *      request->itemsToCreateSize > maxMonitoredItemsPerCall) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+     *     return true;
+     *   } */
+    createSubscription();
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 orig = cfg->maxMonitoredItemsPerCall;
+    cfg->maxMonitoredItemsPerCall = 1;
+
+    UA_CreateMonitoredItemsRequest req;
+    UA_CreateMonitoredItemsRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    req.itemsToCreateSize = 2; /* exceeds 1 */
+    req.itemsToCreate = (UA_MonitoredItemCreateRequest*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItemCreateRequest_init(&req.itemsToCreate[i]);
+        req.itemsToCreate[i].itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    }
+
+    UA_CreateMonitoredItemsResponse resp;
+    UA_CreateMonitoredItemsResponse_init(&resp);
+
+    lockServer(server);
+    Service_CreateMonitoredItems(server, session, &req, &resp);
+    unlockServer(server);
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(resp.resultsSize, 0);
+
+    cfg->maxMonitoredItemsPerCall = orig;
+    UA_Array_delete(req.itemsToCreate, 2, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
+    UA_CreateMonitoredItemsResponse_clear(&resp);
+} END_TEST
+
+/* ==== Service_ModifyMonitoredItems / Service_SetMonitoringMode guards ==== */
+
+START_TEST(Server_ModifyMonitoredItems_invalidTimestampsToReturn) {
+    /* src/server/ua_services_monitoreditem.c:889-893:
+     *   if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+     *     return true;
+     *   }
+     * The existing Server_modifyMonitoredItems test only uses the
+     * happy path with valid timestampsToReturn. */
+    createSubscription();
+    createMonitoredItem();
+
+    UA_ModifyMonitoredItemsRequest req;
+    UA_ModifyMonitoredItemsRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.timestampsToReturn = (UA_TimestampsToReturn)99; /* out of range */
+    req.itemsToModifySize = 1;
+    req.itemsToModify = (UA_MonitoredItemModifyRequest*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST]);
+    UA_MonitoredItemModifyRequest_init(&req.itemsToModify[0]);
+    req.itemsToModify[0].monitoredItemId = monitoredItemId;
+
+    UA_ModifyMonitoredItemsResponse resp;
+    UA_ModifyMonitoredItemsResponse_init(&resp);
+
+    lockServer(server);
+    Service_ModifyMonitoredItems(server, session, &req, &resp);
+    unlockServer(server);
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID);
+    ck_assert_uint_eq(resp.resultsSize, 0);
+
+    UA_Array_delete(req.itemsToModify, 1, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST]);
+    UA_ModifyMonitoredItemsResponse_clear(&resp);
+} END_TEST
+
+START_TEST(Server_SetMonitoringMode_maxMonitoredItemsPerCall) {
+    /* src/server/ua_services_monitoreditem.c:943-948:
+     *   if(maxMonitoredItemsPerCall != 0 &&
+     *      request->monitoredItemIdsSize > maxMonitoredItemsPerCall) {
+     *     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+     *   }
+     * The same guard exists in Service_CreateMonitoredItems (covered
+     * by Server_createMonitoredItems_maxMonitoredItemsPerCall) but
+     * the SetMonitoringMode path is a different code branch. */
+    createSubscription();
+    createMonitoredItem();
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 orig = cfg->maxMonitoredItemsPerCall;
+    cfg->maxMonitoredItemsPerCall = 1;
+
+    UA_SetMonitoringModeRequest req;
+    UA_SetMonitoringModeRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    req.monitoredItemIdsSize = 2; /* exceeds 1 */
+    req.monitoredItemIds = (UA_UInt32*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_UINT32]);
+    req.monitoredItemIds[0] = monitoredItemId;
+    req.monitoredItemIds[1] = monitoredItemId + 1; /* any value */
+
+    UA_SetMonitoringModeResponse resp;
+    UA_SetMonitoringModeResponse_init(&resp);
+
+    lockServer(server);
+    Service_SetMonitoringMode(server, session, &req, &resp);
+    unlockServer(server);
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(resp.resultsSize, 0);
+
+    cfg->maxMonitoredItemsPerCall = orig;
+    UA_Array_delete(req.monitoredItemIds, 2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_SetMonitoringModeResponse_clear(&resp);
+} END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription");
     TCase *tc_server = tcase_create("Server Subscription Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_createSubscription);
     tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
+    tcase_add_test(tc_server, Server_republish_unknownSequenceNumber);
+    tcase_add_test(tc_server, Server_createSubscription_maxSubscriptionsPerSession);
+    tcase_add_test(tc_server, Server_createMonitoredItems_maxPerSubscription);
+    tcase_add_test(tc_server, Server_createMonitoredItems_maxMonitoredItemsPerCall);
+    tcase_add_test(tc_server, Server_ModifyMonitoredItems_invalidTimestampsToReturn);
+    tcase_add_test(tc_server, Server_SetMonitoringMode_maxMonitoredItemsPerCall);
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
     tcase_add_test(tc_server, Server_negativeSamplingInterval);

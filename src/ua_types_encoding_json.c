@@ -568,6 +568,8 @@ ENCODE_JSON(LocalizedText) {
 
 ENCODE_JSON(QualifiedName) {
     const UA_QualifiedName *src = (const UA_QualifiedName*)p;
+    if(src->namespaceIndex == 0 && src->name.data == NULL)
+        return writeChars(ctx, "null", 4);
     UA_String out = UA_STRING_NULL;
     UA_StatusCode ret =
         UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
@@ -750,7 +752,11 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
 
 ENCODE_JSON(Variant) {
     const UA_Variant *src = (const UA_Variant*)p;
-    return writeJsonObjStart(ctx) | encodeVariantInner(ctx, src) | writeJsonObjEnd(ctx);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= writeJsonObjStart(ctx);
+    res |= encodeVariantInner(ctx, src);
+    res |= writeJsonObjEnd(ctx);
+    return res;
 }
 
 ENCODE_JSON(DataValue) {
@@ -867,7 +873,11 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src,
 
 static status
 encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
-    return writeJsonObjStart(ctx) | encodeJsonStructureContent(ctx, src, type) | writeJsonObjEnd(ctx);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= writeJsonObjStart(ctx);
+    res |= encodeJsonStructureContent(ctx, src, type);
+    res |= writeJsonObjEnd(ctx);
+    return res;
 }
 
 static status

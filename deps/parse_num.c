@@ -89,9 +89,16 @@ parseInt64(const char *str, size_t size, int64_t *result) {
             return 0;
         *result = (int64_t)n;
     } else {
+        /* n is unsigned, so 9223372036854775808UL == 2^63 fits without
+         * overflow. (int64_t)n would also fit for n in [0, 2^63], but
+         * the negation -(int64_t)(2^63) is undefined because the result
+         * (which is +2^63) cannot be represented. Use the unsigned
+         * representation and reinterpret as int64_t instead. */
         if(n > 9223372036854775808UL)
             return 0;
-        *result = -(int64_t)n;
+        *result = (n == 9223372036854775808UL)
+            ? (int64_t)(-9223372036854775807LL - 1)
+            : -(int64_t)n;
     }
     return len + i;
 }

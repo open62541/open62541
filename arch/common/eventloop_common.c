@@ -53,3 +53,27 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
 
     return UA_STATUSCODE_GOOD;
 }
+
+UA_StatusCode
+UA_EventLoopCommon_allocStaticBuffer(UA_KeyValueMap *params,
+                                     UA_QualifiedName name,
+                                     UA_UInt32 defaultSize,
+                                     UA_ByteString *buf) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_UInt32 bufSize = defaultSize;
+    const UA_UInt32 *configBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(params, name, &UA_TYPES[UA_TYPES_UINT32]);
+    if(configBufSize)
+        bufSize = *configBufSize;
+    else
+        /* Write the resolved default back into the params so the
+         * SecureChannel constraint logic in ua_server_binary.c caps the
+         * channel to the actual static-buffer size. */
+        res = UA_KeyValueMap_setScalar(params, name, &bufSize,
+                                       &UA_TYPES[UA_TYPES_UINT32]);
+    if(buf->length != bufSize) {
+        UA_ByteString_clear(buf);
+        res |= UA_ByteString_allocBuffer(buf, bufSize);
+    }
+    return res;
+}

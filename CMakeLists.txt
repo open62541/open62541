@@ -1633,12 +1633,23 @@ endif()
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
+# On the FreeRTOS architecture the open62541 target links against build-only
+# targets (freertos_kernel/freertos_config) that are not part of any export
+# set, so exporting the target fails at configure time. Still install the
+# library artifacts, but leave the target out of the export set there.
+if(UA_ARCHITECTURE_FREERTOS)
+install(TARGETS open62541
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+else()
 install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
+endif()
 
 set(open62541_install_tools_dir share/open62541)
 set(open62541_install_schema_dir share/open62541/schema)
@@ -1647,6 +1658,10 @@ foreach(f ${UA_NS0_NODESETS})
     list(APPEND open62541_install_ns0_nodesets "\${open62541_SCHEMA_DIR}/${f}")
 endforeach()
 
+# Create the CMake package files (open62541Config.cmake, ConfigVersion,
+# Targets). open62541Config.cmake includes open62541Targets.cmake, so they
+# must be installed together or not at all.
+if(NOT UA_ARCHITECTURE_FREERTOS)
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
@@ -1675,6 +1690,7 @@ install(EXPORT open62541Targets
 export(TARGETS open62541
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
+endif()
 
 # Generate and install open62541.pc
 set(pkgcfgpubliclibs "")
@@ -1696,7 +1712,7 @@ string(REPLACE ";" " " pkgcfg_requiresprivate "${pkgcfg_requiresprivate}")
 string(REPLACE ";" " " pkgcfg_libsprivate "${pkgcfg_libsprivate}")
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT UA_ARCHITECTURE_FREERTOS)
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()

@@ -97,7 +97,7 @@ function build_amalgamation {
 }
 
 function build_amalgamation_mingw_cross {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ARCHITECTURE=win32 \
@@ -143,7 +143,7 @@ function build_amalgamation_mt {
 }
 
 function build_amalgamation_none_arch {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ARCHITECTURE=none \
@@ -223,6 +223,7 @@ function unit_tests {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_MULTITHREADING=${MULTITHREADING} \
           ..
@@ -356,7 +357,7 @@ function unit_tests_alarms {
 }
 
 function unit_tests_alarms_memcheck {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DA=ON \
