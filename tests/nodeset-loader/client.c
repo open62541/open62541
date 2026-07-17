@@ -48,7 +48,6 @@ int main(int argc, char *argv[]) {
         nodeids = fopen(argv[i], "r");
         if(nodeids == NULL) {
             printf("Failed to open file: %s.\n", argv[i]);
-            fclose(nodeids);
             goto failure;
         }
 

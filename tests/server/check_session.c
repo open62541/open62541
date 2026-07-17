@@ -405,7 +405,7 @@ START_TEST(Session_getSessionAttribute) {
     UA_Variant badVar;
     UA_Variant_init(&badVar);
     retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, badKey, &badVar);
-    /* Returns GOOD but empty variant if not found */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
     ck_assert(badVar.type == NULL);
 
     /* CloseSession */
@@ -452,6 +452,7 @@ START_TEST(Session_deleteSessionAttribute) {
     UA_Variant getVar;
     UA_Variant_init(&getVar);
     retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, key, &getVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
     ck_assert(getVar.type == NULL);
 
     /* Cleanup */
