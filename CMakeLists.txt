@@ -120,7 +120,6 @@ option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
-option(UA_ENABLE_GDS_PUSHMANAGEMENT "Enable GDS pushManagement support" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 option(UA_ENABLE_RBAC "Enable Role-Based Access Control (EXPERIMENTAL - NOT FOR PRODUCTION)" OFF)
 
@@ -160,6 +159,8 @@ option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
 # Drivers
+option(UA_ENABLE_DRIVER_GDS_RECEIVE "Enable the GDS Push Receive driver" OFF)
+mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVE)
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
 set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
@@ -829,7 +830,6 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
-                ${PROJECT_SOURCE_DIR}/src/server/ua_gds_push.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
@@ -854,8 +854,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_gds_push.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_gds.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary_reverse.c
@@ -876,6 +874,16 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c)
+
+if(UA_ENABLE_DRIVER_GDS_RECEIVE)
+    list(APPEND exported_headers
+         ${PROJECT_SOURCE_DIR}/include/open62541/driver/gds_receive.h)
+    list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receive/gds_receive_internal.h)
+    list(APPEND lib_sources
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receive/gds_receive_push.c
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receive/ua_server_ns0_gds.c)
+endif()
 
 if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
@@ -1298,7 +1306,7 @@ else()
         list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
     endif()
 
-    if(UA_ENABLE_GDS_PUSHMANAGEMENT)
+    if(UA_ENABLE_DRIVER_GDS_RECEIVE)
         if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
             message(FATAL_ERROR "PushManagement needs the full Namespace Zero")
         endif()

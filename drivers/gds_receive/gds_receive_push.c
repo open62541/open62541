@@ -7,9 +7,9 @@
  */
 
 #include <open62541/plugin/certificategroup_default.h>
-#include "ua_gds_push.h"
+#include "gds_receive_internal.h"
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVE
 
 typedef enum UA_GDSTransactionChanges {
     UA_GDSTRANSACTIONCHANGES_NOTHING = 0,

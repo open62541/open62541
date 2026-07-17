@@ -515,7 +515,7 @@ if(UA_ENABLE_ENCRYPTION)
         ua_add_test(server/check_discovery.c)
     endif()
 
-    if(UA_ENABLE_GDS_PUSHMANAGEMENT)
+    if(UA_ENABLE_DRIVER_GDS_RECEIVE)
         ua_add_test(encryption/check_gds_informationmodel.c)
     endif()
 endif()

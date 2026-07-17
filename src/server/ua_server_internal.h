@@ -26,7 +26,6 @@
 #include "ua_session.h"
 #include "ua_services.h"
 #include "ua_server_async.h"
-#include "ua_gds_push.h"
 #include "../util/ua_util_internal.h"
 #include "ziptree.h"
 
