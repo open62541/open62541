@@ -262,7 +262,11 @@ START_TEST(deleteNonExistentNode) {
 START_TEST(checkDefaultAttributes) {
     /* Verify VariableAttributes default */
     UA_VariableAttributes vattr = UA_VariableAttributes_default;
-    ck_assert_int_eq(vattr.valueRank, UA_VALUERANK_ANY);
+    ck_assert_int_eq(vattr.valueRank, UA_VALUERANK_SCALAR);
+
+    /* Verify VariableTypeAttributes default */
+    UA_VariableTypeAttributes vtattr = UA_VariableTypeAttributes_default;
+    ck_assert_int_eq(vtattr.valueRank, UA_VALUERANK_SCALAR);
 
     /* Verify ObjectAttributes default */
     UA_ObjectAttributes oattr = UA_ObjectAttributes_default;
