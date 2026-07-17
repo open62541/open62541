@@ -510,11 +510,6 @@ UA_Server_init(UA_Server *server) {
     }
 #endif
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    res = addDriver(server, UA_GDSPushReceiveManager_new());
-    UA_CHECK_STATUS(res, goto cleanup);
-#endif
-
     /* For all custom datatypes, check if they are represented in the
      * information model. If not, add them. */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -853,14 +848,6 @@ UA_Server_updateCertificate(UA_Server *server,
 
     lockServer(server);
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(gdsm && gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADTRANSACTIONPENDING;
-    }
-#endif
-
     UA_NodeId defaultApplicationGroup =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId certGroupId = certificateGroupId;
@@ -994,14 +981,6 @@ UA_Server_createSigningRequest(UA_Server *server,
                 goto cleanup;
         }
     }
-
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(gdsm) {
-        UA_ByteString_clear(&gdsm->transaction.localCsrCertificate);
-        UA_ByteString_copy(csr, &gdsm->transaction.localCsrCertificate);
-    }
-#endif
 
 cleanup:
     if(newPrivateKey) {

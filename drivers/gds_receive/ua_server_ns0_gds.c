@@ -6,10 +6,10 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#include "ua_gds_push.h"
+#include "gds_receive_internal.h"
 #include <open62541/plugin/nodestore.h>
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVE
 
 UA_GDSManager *
 gdsManager(UA_Server *server) {

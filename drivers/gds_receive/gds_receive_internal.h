@@ -6,15 +6,13 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#ifndef UA_GDS_PUSH_H_
-#define UA_GDS_PUSH_H_
+#ifndef UA_DRIVER_GDS_RECEIVE_INTERNAL_H_
+#define UA_DRIVER_GDS_RECEIVE_INTERNAL_H_
 
-#include <open62541/util.h>
-#include <open62541/types.h>
-#include <open62541/server.h>
+#include <open62541/driver/gds_receive.h>
 
-#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
-#include "../../deps/open62541_queue.h"
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVE
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 
@@ -114,9 +112,6 @@ typedef struct {
      * sessions with an active transaction or an open trust list */
     UA_UInt64 checkSessionCallbackId;
 } UA_GDSManager;
-
-UA_Driver *
-UA_GDSPushReceiveManager_new(void);
 
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
@@ -226,6 +221,6 @@ gdsManager(UA_Server *server);
 
 _UA_END_DECLS
 
-#endif /* UA_ENABLE_GDS_PUSHMANAGEMENT */
+#endif /* UA_ENABLE_DRIVER_GDS_RECEIVE */
 
-#endif /* UA_GDS_PUSH_H_ */
+#endif /* UA_DRIVER_GDS_RECEIVE_INTERNAL_H_ */

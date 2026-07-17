@@ -9,6 +9,7 @@
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/driver/gds_receive.h>
 
 #include "ua_server_internal.h"
 
@@ -76,6 +77,10 @@ static void setup(void) {
                                                           trustList, trustListSize, issuerList, issuerListSize,
                                                           revocationList, revocationListSize);
     ck_assert(server != NULL);
+
+    UA_StatusCode res =
+        UA_Server_addDriver(server, UA_GDSPushReceiveManager_new());
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* Set the ApplicationUri used in the certificate */
