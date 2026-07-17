@@ -15,13 +15,11 @@
 #include <check.h>
 
 /* The body of this test exercises the auditing notification path and uses
- * threading + C11 atomics. Guard the platform-specific includes AND the
- * body so tcc (MULTITHREADING=0) and reduced build configs that don't enable
- * auditing still compile cleanly. */
+ * threading. Guard the platform-specific includes AND the body so reduced
+ * build configs that don't enable auditing still compile cleanly. */
 #ifdef UA_ENABLE_AUDITING
 #include <stdio.h>
 #include "thread_wrapper.h"
-#include <stdatomic.h>
 #endif /* UA_ENABLE_AUDITING */
 
 #ifdef UA_ENABLE_AUDITING
@@ -29,37 +27,51 @@ static UA_Server *server = NULL;
 static UA_Boolean running = false;
 static THREAD_HANDLE server_thread;
 
-/* Counters per audit-event type. Volatile because they are written from the
- * server thread and read from the test thread. */
-/* Counters per audit-event type. Updated from the server thread and read from
- * the test thread; use C11 atomics for well-defined cross-thread visibility. */
-static atomic_size_t totalAuditCalls = 0;
-static atomic_size_t totalGlobalCalls = 0;
-static atomic_size_t writeAuditCalls = 0;
-static atomic_size_t methodAuditCalls = 0;
-static atomic_size_t sessionCreateCalls = 0;
-static atomic_size_t sessionActivateCalls = 0;
-static atomic_size_t sessionCancelCalls = 0;
-static atomic_size_t channelOpenCalls = 0;
+/* Counters per audit-event type. Updated from the server thread and from the
+ * test thread (UA_Server_writeValue triggers the callback synchronously), so
+ * increments must be atomic. Use the UA_atomic_* helpers from config.h: they
+ * work for every compiler/config the library builds with, unlike a direct
+ * <stdatomic.h> include which is unavailable for tcc and for MSVC without
+ * /std:c11. */
+static UA_atomic(size_t) totalAuditCalls = 0;
+static UA_atomic(size_t) totalGlobalCalls = 0;
+static UA_atomic(size_t) writeAuditCalls = 0;
+static UA_atomic(size_t) methodAuditCalls = 0;
+static UA_atomic(size_t) sessionCreateCalls = 0;
+static UA_atomic(size_t) sessionActivateCalls = 0;
+static UA_atomic(size_t) sessionCancelCalls = 0;
+static UA_atomic(size_t) channelOpenCalls = 0;
+
+/* Atomic increment built on UA_atomic_cmpxchg (config.h has no fetch-add) */
+static void
+counterInc(UA_atomic(size_t) *c) {
+    size_t expected = UA_atomic_load(c);
+    for(;;) {
+        size_t old = expected;
+        UA_atomic_cmpxchg(c, &expected, old + 1);
+        if(expected == old)
+            return;
+    }
+}
 
 static void
 auditCb(UA_Server *s, UA_ApplicationNotificationType type,
         const UA_KeyValueMap payload) {
     (void)s; (void)payload;
-    atomic_fetch_add(&totalAuditCalls, 1);
+    counterInc(&totalAuditCalls);
     switch(type) {
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE:
-        atomic_fetch_add(&writeAuditCalls, 1); break;
+        counterInc(&writeAuditCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD:
-        atomic_fetch_add(&methodAuditCalls, 1); break;
+        counterInc(&methodAuditCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE:
-        atomic_fetch_add(&sessionCreateCalls, 1); break;
+        counterInc(&sessionCreateCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE:
-        atomic_fetch_add(&sessionActivateCalls, 1); break;
+        counterInc(&sessionActivateCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL:
-        atomic_fetch_add(&sessionCancelCalls, 1); break;
+        counterInc(&sessionCancelCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN:
-        atomic_fetch_add(&channelOpenCalls, 1); break;
+        counterInc(&channelOpenCalls); break;
     default:
         break;
     }
@@ -69,7 +81,7 @@ static void
 globalCb(UA_Server *s, UA_ApplicationNotificationType type,
          const UA_KeyValueMap payload) {
     (void)s; (void)type; (void)payload;
-    atomic_fetch_add(&totalGlobalCalls, 1);
+    counterInc(&totalGlobalCalls);
 }
 
 THREAD_CALLBACK(serverloop) {
@@ -79,14 +91,14 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void resetCounters(void) {
-    atomic_store(&totalAuditCalls, 0);
-    atomic_store(&totalGlobalCalls, 0);
-    atomic_store(&writeAuditCalls, 0);
-    atomic_store(&methodAuditCalls, 0);
-    atomic_store(&sessionCreateCalls, 0);
-    atomic_store(&sessionActivateCalls, 0);
-    atomic_store(&sessionCancelCalls, 0);
-    atomic_store(&channelOpenCalls, 0);
+    UA_atomic_store(&totalAuditCalls, 0);
+    UA_atomic_store(&totalGlobalCalls, 0);
+    UA_atomic_store(&writeAuditCalls, 0);
+    UA_atomic_store(&methodAuditCalls, 0);
+    UA_atomic_store(&sessionCreateCalls, 0);
+    UA_atomic_store(&sessionActivateCalls, 0);
+    UA_atomic_store(&sessionCancelCalls, 0);
+    UA_atomic_store(&channelOpenCalls, 0);
 }
 
 static void setup(void) {
@@ -130,8 +142,8 @@ START_TEST(WriteEmitsAuditEvent) {
         attr, NULL, NULL);
     ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
 
-    size_t writesBefore = atomic_load(&writeAuditCalls);
-    size_t globalBefore = atomic_load(&totalGlobalCalls);
+    size_t writesBefore = UA_atomic_load(&writeAuditCalls);
+    size_t globalBefore = UA_atomic_load(&totalGlobalCalls);
 
     UA_Variant newVal;
     UA_Int32 nv = 42;
@@ -142,8 +154,8 @@ START_TEST(WriteEmitsAuditEvent) {
 
     /* Either the dedicated audit callback or the global callback (or both)
      * fires for a write update. */
-    ck_assert(atomic_load(&writeAuditCalls) > writesBefore ||
-              atomic_load(&totalGlobalCalls) > globalBefore);
+    ck_assert(UA_atomic_load(&writeAuditCalls) > writesBefore ||
+              UA_atomic_load(&totalGlobalCalls) > globalBefore);
 } END_TEST
 
 /* Test: with auditingEnabled=false, no audit event is emitted. */
@@ -165,8 +177,8 @@ START_TEST(NoAuditWhenDisabled) {
         attr, NULL, NULL);
     ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
 
-    size_t totalBefore = atomic_load(&totalAuditCalls);
-    size_t globalBefore = atomic_load(&totalGlobalCalls);
+    size_t totalBefore = UA_atomic_load(&totalAuditCalls);
+    size_t globalBefore = UA_atomic_load(&totalGlobalCalls);
     UA_Variant newVal;
     UA_Int32 nv = 7;
     UA_Variant_init(&newVal);
@@ -175,8 +187,8 @@ START_TEST(NoAuditWhenDisabled) {
     ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
 
     /* No audit callback may fire when auditing is disabled. */
-    ck_assert_uint_eq(atomic_load(&totalAuditCalls), totalBefore);
-    ck_assert_uint_eq(atomic_load(&totalGlobalCalls), globalBefore);
+    ck_assert_uint_eq(UA_atomic_load(&totalAuditCalls), totalBefore);
+    ck_assert_uint_eq(UA_atomic_load(&totalGlobalCalls), globalBefore);
 
     /* Restore for teardown */
     cfg->auditingEnabled = true;
@@ -188,10 +200,10 @@ START_TEST(ClientConnectEmitsSessionAuditEvents) {
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_ptr_ne(client, NULL);
 
-    size_t channelBefore = atomic_load(&channelOpenCalls);
-    size_t createBefore = atomic_load(&sessionCreateCalls);
-    size_t activateBefore = atomic_load(&sessionActivateCalls);
-    size_t globalBefore = atomic_load(&totalGlobalCalls);
+    size_t channelBefore = UA_atomic_load(&channelOpenCalls);
+    size_t createBefore = UA_atomic_load(&sessionCreateCalls);
+    size_t activateBefore = UA_atomic_load(&sessionActivateCalls);
+    size_t globalBefore = UA_atomic_load(&totalGlobalCalls);
 
     UA_StatusCode r =
         UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -200,17 +212,17 @@ START_TEST(ClientConnectEmitsSessionAuditEvents) {
     /* Drive the client a bit and let the server thread emit any pending
      * audit notifications. We poll up to ~1 second. */
     for(int i = 0; i < 100; i++) {
-        if(atomic_load(&sessionCreateCalls) > createBefore &&
-           atomic_load(&sessionActivateCalls) > activateBefore)
+        if(UA_atomic_load(&sessionCreateCalls) > createBefore &&
+           UA_atomic_load(&sessionActivateCalls) > activateBefore)
             break;
         UA_Client_run_iterate(client, 10);
     }
 
     /* SESSION_CREATE and SESSION_ACTIVATE must have fired. CHANNEL_OPEN may
      * not fire on a None-security channel; we just check the global cb too. */
-    ck_assert(atomic_load(&sessionCreateCalls) > createBefore);
-    ck_assert(atomic_load(&sessionActivateCalls) > activateBefore);
-    ck_assert(atomic_load(&totalGlobalCalls) > globalBefore);
+    ck_assert(UA_atomic_load(&sessionCreateCalls) > createBefore);
+    ck_assert(UA_atomic_load(&sessionActivateCalls) > activateBefore);
+    ck_assert(UA_atomic_load(&totalGlobalCalls) > globalBefore);
     (void)channelBefore;
 
     UA_Client_disconnect(client);
@@ -238,14 +250,14 @@ START_TEST(ToggleWriteUpdateFlag) {
 
     /* Disable write-update audit, write should not produce a write audit. */
     cfg->auditWriteUpdateEnabled = false;
-    size_t writesBefore = atomic_load(&writeAuditCalls);
+    size_t writesBefore = UA_atomic_load(&writeAuditCalls);
 
     UA_Variant nv; UA_Int32 x = 11;
     UA_Variant_init(&nv);
     UA_Variant_setScalar(&nv, &x, &UA_TYPES[UA_TYPES_INT32]);
     r = UA_Server_writeValue(server, id, nv);
     ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(atomic_load(&writeAuditCalls), writesBefore);
+    ck_assert_uint_eq(UA_atomic_load(&writeAuditCalls), writesBefore);
 
     /* Re-enable and verify the path is back active. */
     cfg->auditWriteUpdateEnabled = true;
