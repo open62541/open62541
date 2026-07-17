@@ -158,6 +158,18 @@ START_TEST(update_certificate_noKey) {
 }
 END_TEST
 
+START_TEST(addDriver_rejectsDuplicateGDSReceiver) {
+    UA_GDSReceiver *duplicate = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(duplicate);
+
+    ck_assert_uint_eq(UA_Server_addDriver(server, &duplicate->drv),
+                      UA_STATUSCODE_BADALREADYEXISTS);
+    ck_assert_ptr_null(duplicate->drv.server);
+    ck_assert_uint_eq(duplicate->drv.free(&duplicate->drv),
+                      UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -166,6 +178,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate);
     tcase_add_test(tc_cert, update_certificate_wrongKey);
     tcase_add_test(tc_cert, update_certificate_noKey);
+    tcase_add_test(tc_cert, addDriver_rejectsDuplicateGDSReceiver);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -176,6 +189,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, update_certificate);
     tcase_add_test(tc_cert_filestore, update_certificate_wrongKey);
     tcase_add_test(tc_cert_filestore, update_certificate_noKey);
+    tcase_add_test(tc_cert_filestore, addDriver_rejectsDuplicateGDSReceiver);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
