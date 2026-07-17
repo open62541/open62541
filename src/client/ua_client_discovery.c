@@ -117,6 +117,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     }
 
     UA_StatusCode retval;
+    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
         retval = connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -128,6 +129,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     /* Prepare the request */
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
+    request.endpointUrl = url;
     request.serverUrisSize = serverUrisSize;
     request.serverUris = serverUris;
     request.localeIdsSize = localeIdsSize;
