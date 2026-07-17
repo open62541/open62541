@@ -480,6 +480,22 @@ recordSemanticPropertyChange(UA_Server *server, const UA_NodeHead *property) {
        server->modelChangeDepth == 0)
         return;
 
+    /* The common case has only a direct inverse HasProperty reference. */
+    UA_Boolean resolveSubtypes = false;
+    for(size_t i = 0; i < property->referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &property->references[i];
+        if(!rk->isInverse)
+            continue;
+        if(rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASPROPERTY) {
+            UA_NodeReferenceKind_iterate(rk, recordSemanticOwner, server);
+            continue;
+        }
+        resolveSubtypes = true;
+    }
+    if(!resolveSubtypes)
+        return;
+
+    /* Resolve HasProperty subtypes only for other inverse reference kinds. */
     UA_ReferenceTypeSet propertyRefs;
     const UA_NodeId hasProperty = UA_NS0ID(HASPROPERTY);
     UA_StatusCode res =
@@ -494,6 +510,7 @@ recordSemanticPropertyChange(UA_Server *server, const UA_NodeHead *property) {
     for(size_t i = 0; i < property->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &property->references[i];
         if(!rk->isInverse ||
+           rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASPROPERTY ||
            !UA_ReferenceTypeSet_contains(&propertyRefs,
                                          rk->referenceTypeIndex))
             continue;

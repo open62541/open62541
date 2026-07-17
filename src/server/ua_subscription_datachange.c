@@ -23,6 +23,12 @@ markSemanticsChanged(UA_Server *server, const UA_NodeId *affected) {
     if(!node)
         return;
 
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE &&
+       node->head.nodeClass != UA_NODECLASS_VARIABLETYPE) {
+        UA_NODESTORE_RELEASE(server, node);
+        return;
+    }
+
     UA_MonitoredItem *mon = node->head.monitoredItems;
     for(; mon != NULL; mon = mon->nodeListNext) {
         if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE)
