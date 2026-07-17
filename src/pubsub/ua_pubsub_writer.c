@@ -510,7 +510,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
             dff->value.hasSourceTimestamp = false;
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
-            dff->value.hasServerPicoseconds = false;
+            dff->value.hasSourcePicoseconds = false;
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
             dff->value.hasServerTimestamp = false;
