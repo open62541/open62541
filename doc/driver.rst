@@ -14,4 +14,4 @@ generic ``UA_Driver`` interface and lifecycle hooks.
 
    driver_mdns
    driver_alarms_conditions
-   driver_gds_receive
+   driver_gds_receiver

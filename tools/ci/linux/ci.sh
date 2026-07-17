@@ -378,7 +378,7 @@ function unit_tests_encryption {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
-          -DUA_ENABLE_DRIVER_GDS_RECEIVE=ON \
+          -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
@@ -559,7 +559,7 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_ENABLE_DRIVER_GDS_RECEIVE=ON \
+          -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
