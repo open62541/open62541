@@ -41,6 +41,28 @@ _UA_BEGIN_DECLS
 UA_EXPORT UA_Driver *
 UA_GDSPushReceiveManager_new(void);
 
+/* Update the application certificate used by the server endpoints. The GDS
+ * Push Receive driver must be attached and started. If certificateGroupId is
+ * null, the DefaultApplicationGroup is used. */
+UA_EXPORT UA_StatusCode
+UA_GDSReceive_updateCertificate(UA_Server *server,
+                                const UA_NodeId certificateGroupId,
+                                const UA_NodeId certificateTypeId,
+                                const UA_ByteString certificate,
+                                const UA_ByteString *privateKey);
+
+/* Create a PKCS #10 DER-encoded certificate signing request. The GDS Push
+ * Receive driver must be attached and started. If certificateGroupId is null,
+ * the DefaultApplicationGroup is used. */
+UA_EXPORT UA_StatusCode
+UA_GDSReceive_createSigningRequest(UA_Server *server,
+                                   const UA_NodeId certificateGroupId,
+                                   const UA_NodeId certificateTypeId,
+                                   const UA_String *subjectName,
+                                   const UA_Boolean *regenerateKey,
+                                   const UA_ByteString *nonce,
+                                   UA_ByteString *csr);
+
 _UA_END_DECLS
 
 #endif /* UA_ENABLE_DRIVER_GDS_RECEIVE */

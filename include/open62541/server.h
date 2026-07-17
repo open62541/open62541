@@ -2446,32 +2446,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_ServerConfig_clear(config);
 }
 
-/**
- * Update the Server Certificate at Runtime
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * If certificateGroupId is null the DefaultApplicationGroup is used.
- */
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_updateCertificate(UA_Server *server,
-                            const UA_NodeId certificateGroupId,
-                            const UA_NodeId certificateTypeId,
-                            const UA_ByteString certificate,
-                            const UA_ByteString *privateKey);
-
-/* Creates a PKCS #10 DER encoded certificate request signed with the server's
- * private key.
- * If certificateGroupId is null the DefaultApplicationGroup is used.
- */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_createSigningRequest(UA_Server *server,
-                               const UA_NodeId certificateGroupId,
-                               const UA_NodeId certificateTypeId,
-                               const UA_String *subjectName,
-                               const UA_Boolean *regenerateKey,
-                               const UA_ByteString *nonce,
-                               UA_ByteString *csr);
-
 /* Adds certificates and Certificate Revocation Lists (CRLs) to a specific
  * certificate group on the server.
  *

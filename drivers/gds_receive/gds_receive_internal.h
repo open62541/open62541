@@ -111,6 +111,9 @@ typedef struct {
     /* Holds the ID for the repeated callback that verifies the presence of
      * sessions with an active transaction or an open trust list */
     UA_UInt64 checkSessionCallbackId;
+
+    /* Delayed callbacks that must finish before the driver can stop. */
+    size_t pendingDelayedCallbacks;
 } UA_GDSManager;
 
 UA_StatusCode
