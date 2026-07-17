@@ -62,6 +62,7 @@ typedef struct UA_FileInfo {
 typedef struct ChannelMetadata {
     LIST_ENTRY(ChannelMetadata) pointers;
     UA_UInt32 channelId;
+    UA_NodeId certificateTypeId;
     UA_ByteString certificate;
 } ChannelMetadata;
 
@@ -1096,8 +1097,20 @@ secureChannel_delayedClose(void *application, void *context) {
 
     case UA_GDSTRANSACTIONCHANGES_BOTH:
     case UA_GDSTRANSACTIONCHANGES_CERTIFICATE:
-        /* Shutdown all SecureChannels */
+        /* Shutdown SecureChannels that use an updated certificate type. */
         LIST_FOREACH(cm, &gdsm->secureChannels, pointers) {
+            UA_Boolean certificateTypeUpdated = false;
+            for(size_t i = 0; i < gdsm->transaction.certificateInfosSize; i++) {
+                UA_GDSCertificateInfo *certInfo =
+                    &gdsm->transaction.certificateInfos[i];
+                if(UA_NodeId_equal(&cm->certificateTypeId,
+                                   &certInfo->certificateType)) {
+                    certificateTypeUpdated = true;
+                    break;
+                }
+            }
+            if(!certificateTypeUpdated)
+                continue;
             UA_Server_closeSecureChannel(server, cm->channelId,
                                          UA_SHUTDOWNREASON_CLOSE);
         }
@@ -1137,6 +1150,7 @@ getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
 typedef struct {
     UA_DelayedCallback dc;
     UA_GDSManager *gdsm;
+    UA_NodeId certificateTypeId;
 } CloseChannelsCallback;
 
 static void
@@ -1145,6 +1159,8 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
     UA_GDSManager *gdsm = ccb->gdsm;
     ChannelMetadata *cm, *cmTmp;
     LIST_FOREACH_SAFE(cm, &gdsm->secureChannels, pointers, cmTmp) {
+        if(!UA_NodeId_equal(&cm->certificateTypeId, &ccb->certificateTypeId))
+            continue;
         UA_Server_closeSecureChannel(gdsm->drv.server, cm->channelId,
                                      UA_SHUTDOWNREASON_CLOSE);
     }
@@ -1153,6 +1169,7 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
     if(gdsm->pendingDelayedCallbacks == 0 &&
        gdsm->drv.state == UA_LIFECYCLESTATE_STOPPING)
         gdsm->drv.state = UA_LIFECYCLESTATE_STOPPED;
+    UA_NodeId_clear(&ccb->certificateTypeId);
     UA_free(ccb);
 }
 
@@ -1218,6 +1235,12 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
     if(!ccb)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     ccb->gdsm = gdsm;
+    UA_StatusCode res =
+        UA_NodeId_copy(&certificateTypeId, &ccb->certificateTypeId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(ccb);
+        return res;
+    }
     ccb->dc.callback = closeChannelsAfterCertificateUpdate;
     ccb->dc.context = ccb;
     gdsm->pendingDelayedCallbacks++;
@@ -1419,6 +1442,12 @@ secureChannelNotificationCallback(UA_Driver *drv,
             UA_KeyValueMap_getScalar(&payload,
                                      UA_QUALIFIEDNAME(0, "remote-certificate"),
                                      &UA_TYPES[UA_TYPES_BYTESTRING]);
+        const UA_NodeId *certificateTypeId = (const UA_NodeId*)
+            UA_KeyValueMap_getScalar(&payload,
+                                     UA_QUALIFIEDNAME(0, "certificate-type-id"),
+                                     &UA_TYPES[UA_TYPES_NODEID]);
+        if(!certificateTypeId)
+            return;
 
         ChannelMetadata *cm = (ChannelMetadata*)UA_calloc(1, sizeof(ChannelMetadata));
         if(!cm) {
@@ -1428,7 +1457,16 @@ secureChannelNotificationCallback(UA_Driver *drv,
             return;
         }
         cm->channelId = channelId;
-        UA_ByteString_copy(&certificate, &cm->certificate);
+        UA_StatusCode res = UA_NodeId_copy(certificateTypeId,
+                                           &cm->certificateTypeId);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_ByteString_copy(&certificate, &cm->certificate);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_NodeId_clear(&cm->certificateTypeId);
+            UA_ByteString_clear(&cm->certificate);
+            UA_free(cm);
+            return;
+        }
         LIST_INSERT_HEAD(&gdsm->secureChannels, cm, pointers);
     } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED) {
         UA_UInt32 channelId = *(const UA_UInt32*)
@@ -1440,6 +1478,7 @@ secureChannelNotificationCallback(UA_Driver *drv,
             if(cm->channelId != channelId)
                 continue;
             LIST_REMOVE(cm, pointers);
+            UA_NodeId_clear(&cm->certificateTypeId);
             UA_ByteString_clear(&cm->certificate);
             UA_free(cm);
             break;
@@ -1515,6 +1554,7 @@ UA_GDSManager_free(UA_Driver *drv) {
     ChannelMetadata *cm, *cm_tmp;
     LIST_FOREACH_SAFE(cm, &gdsManager->secureChannels, pointers, cm_tmp) {
         LIST_REMOVE(cm, pointers);
+        UA_NodeId_clear(&cm->certificateTypeId);
         UA_ByteString_clear(&cm->certificate);
         UA_free(cm);
     }

@@ -252,6 +252,8 @@ typedef uint64_t UA_ApplicationNotificationType;
  *   The SecurityChannel can be unsigned, signed or signed+encrypted.
  * 0:security-policy-uri [String]
  *   Uri of the SecurityPolicy for this SecyrityChannel.
+ * 0:certificate-type-id [NodeId]
+ *   Certificate type used by the SecurityPolicy for this SecureChannel.
  * 0:remote-certificate [ByteString]
  *   Certificate used by the remote side during OpenSecureChannel. */
 #define UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL        \
