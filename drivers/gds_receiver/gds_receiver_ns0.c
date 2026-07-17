@@ -133,6 +133,7 @@ createFileInfos(UA_GDSReceiverContext *ctx) {
 static UA_StatusCode
 writeGroupVariables(UA_GDSReceiverContext *ctx) {
     UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_NodeId certificateTypes[2] = {
         UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
         UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE)
@@ -142,7 +143,7 @@ writeGroupVariables(UA_GDSReceiverContext *ctx) {
     UA_String supportedPrivateKeyFormats[2] =
         {UA_STRING("PEM"), UA_STRING("DER")};
     size_t supportedPrivateKeyFormatsSize = 2;
-    UA_UInt32  maxTrustListSize = 0;
+    UA_UInt32 maxTrustListSize = config->maxTrustListSize;
 
     /* Set variables */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
