@@ -116,6 +116,7 @@ add_example(custom_datatype_server custom_datatype/server_types_custom.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     add_example(server_events_random events/server_random_events.c)
+    add_example(server_modelchange events/server_modelchange.c)
     add_example(client_event_filter_queries events/client_filter_queries.c)
 endif()
 

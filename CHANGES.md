@@ -3,6 +3,16 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Automatic ModelChange and SemanticChange notifications
+
+Servers built with `UA_ENABLE_SUBSCRIPTIONS_EVENTS` now emit the standard
+`GeneralModelChangeEventType` and `SemanticChangeEventType` automatically for
+changes made through OPC UA Services and the corresponding local `UA_Server_*`
+APIs. Model changes update the affected Node's scalar String `NodeVersion`
+Property. Semantic changes also set the `SemanticsChanged` StatusCode bit on
+the next DataChange notification for Value MonitoredItems on the affected
+Variable.
+
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
 Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
