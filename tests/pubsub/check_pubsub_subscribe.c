@@ -2004,6 +2004,24 @@ START_TEST(ValidDataSetConfigurationAddAndRemove) {
 
 } END_TEST
 
+START_TEST(RejectUnsupportedStandaloneSubscribedDataSetMirror) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SubscribedDataSetConfig cfg;
+    UA_NodeId ret = UA_NODEID_NULL;
+    memset(&cfg, 0, sizeof(UA_SubscribedDataSetConfig));
+
+    UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
+    cfg.dataSetMetaData.name = UA_STRING("UnsupportedMirrorSDS");
+    cfg.name = UA_STRING("UnsupportedMirrorSDS");
+    cfg.subscribedDataSetType = UA_PUBSUB_SDS_MIRROR;
+
+    UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert(UA_NodeId_equal(&ret, &UA_NODEID_NULL));
+    ck_assert_ptr_eq(UA_SubscribedDataSet_findByName(psm, UA_STRING("UnsupportedMirrorSDS")), NULL);
+}
+END_TEST
+
 START_TEST(AddAndRemoveReaderUsingDataSet) {
     UA_PubSubManager *psm = getPSM(server);
     addTargetVariable();
@@ -2550,8 +2568,9 @@ int main(void) {
 
     /*Test cases for the subscribed datasets */
     TCase *tc_pubsub_datasets = tcase_create("Subscriber using subscribed datasets");
-    tcase_add_test(tc_pubsub_publish_subscribe, ValidDataSetConfigurationAddAndRemove);
-    tcase_add_test(tc_pubsub_publish_subscribe, AddAndRemoveReaderUsingDataSet);
+    tcase_add_test(tc_pubsub_datasets, ValidDataSetConfigurationAddAndRemove);
+    tcase_add_test(tc_pubsub_datasets, RejectUnsupportedStandaloneSubscribedDataSetMirror);
+    tcase_add_test(tc_pubsub_datasets, AddAndRemoveReaderUsingDataSet);
 
     TCase *tc_dataSetMessage_padding = tcase_create("PubSub DataSetMessage padding");
     tcase_add_checked_fixture(tc_dataSetMessage_padding, setup, teardown);
