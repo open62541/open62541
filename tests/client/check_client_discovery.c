@@ -86,16 +86,20 @@ END_TEST
 
 START_TEST(Client_findServers) {
     UA_Client *client = UA_Client_newForUnitTest();
+    const char *serverUrl = "opc.tcp://127.0.0.1:4840";
+    const UA_String requestedUrl = UA_STRING((char*)(uintptr_t)serverUrl);
 
     size_t serverCount = 0;
     UA_ApplicationDescription *servers = NULL;
     UA_StatusCode retval = UA_Client_findServers(client,
-                                "opc.tcp://localhost:4840",
+                                serverUrl,
                                 0, NULL, 0, NULL,
                                 &serverCount, &servers);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(serverCount > 0);
     ck_assert_ptr_ne(servers, NULL);
+    ck_assert_uint_eq(servers[0].discoveryUrlsSize, 1);
+    ck_assert(UA_String_equal(&servers[0].discoveryUrls[0], &requestedUrl));
 
     UA_Array_delete(servers, serverCount,
                     &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
