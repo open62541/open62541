@@ -112,6 +112,16 @@ modifySubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestI
     UA_ModifySubscriptionResponse_copy(r, (UA_ModifySubscriptionResponse *)userdata);
 }
 
+static UA_Client_Subscription *
+getClientSubscriptionById(UA_Client *client, UA_UInt32 subscriptionId) {
+    UA_Client_Subscription *sub;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        if(sub->subscriptionId == subscriptionId)
+            return sub;
+    }
+    return NULL;
+}
+
 static void
 createDataChangesCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                           UA_CreateMonitoredItemsResponse *r) {
@@ -344,6 +354,55 @@ START_TEST(Client_subscription_async) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_modifyFailureKeepsLocalState) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->timeout = 100; /* short timeout after server shutdown */
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_Client_Subscription *sub =
+        getClientSubscriptionById(client, response.subscriptionId);
+    ck_assert_ptr_nonnull(sub);
+
+    UA_Double originalPublishingInterval = sub->publishingInterval;
+    UA_UInt32 originalMaxKeepAliveCount = sub->maxKeepAliveCount;
+
+    UA_ModifySubscriptionRequest modifyRequest;
+    UA_ModifySubscriptionRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = response.subscriptionId;
+    modifyRequest.requestedPublishingInterval = originalPublishingInterval + 200.0;
+    modifyRequest.requestedMaxKeepAliveCount = originalMaxKeepAliveCount + 3;
+    modifyRequest.requestedLifetimeCount = response.revisedLifetimeCount + 30;
+
+    pauseServer();
+    UA_Server_run_shutdown(server);
+
+    UA_ModifySubscriptionResponse modifyResponse =
+        UA_Client_Subscriptions_modify(client, modifyRequest);
+    ck_assert_uint_ne(modifyResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    sub = getClientSubscriptionById(client, response.subscriptionId);
+    ck_assert_ptr_nonnull(sub);
+    ck_assert(sub->publishingInterval == originalPublishingInterval);
+    ck_assert_uint_eq(sub->maxKeepAliveCount, originalMaxKeepAliveCount);
+
+    UA_ModifySubscriptionResponse_clear(&modifyResponse);
+    UA_CreateSubscriptionResponse_clear(&response);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Restart the thread so teardown follows the usual shutdown path. */
+    runServer();
 }
 END_TEST
 
@@ -2058,6 +2117,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription);
     tcase_add_test(tc_client, Client_subscription_async);
+    tcase_add_test(tc_client, Client_subscription_modifyFailureKeepsLocalState);
     tcase_add_test(tc_client, Client_subscription_delete_async_noCallback);
     tcase_add_test(tc_client, Client_subscription_statusChange);
     tcase_add_test(tc_client, Client_subscription_timeout);
