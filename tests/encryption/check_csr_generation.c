@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
+#include <open62541/driver/gds_receive.h>
 
 #include <check.h>
 #include "test_helpers.h"
@@ -30,9 +31,14 @@ static void setup(void) {
                                                           NULL, 0,
                                                           NULL, 0);
     ck_assert(server != NULL);
+    ck_assert_uint_eq(UA_Server_addDriver(server,
+                                         UA_GDSPushReceiveManager_new()),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
 }
 
 static void teardown(void) {
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     UA_Server_delete(server);
 }
 
@@ -41,7 +47,7 @@ START_TEST(csr_generation_rsaSha) {
     UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, NULL, NULL, NULL, csr);
+            UA_GDSReceive_createSigningRequest(server, groupId, typeId, NULL, NULL, NULL, csr);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(csr->length, 0);
 
@@ -55,7 +61,7 @@ END_TEST
 /*     UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP); */
 /*     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
 /*     UA_StatusCode retval = */
-/*             UA_Server_createSigningRequest(server, groupId, typeId, NULL, NULL, NULL, csr); */
+/*             UA_GDSReceive_createSigningRequest(server, groupId, typeId, NULL, NULL, NULL, csr); */
 /*     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD); */
 /*     ck_assert_uint_ne(csr->length, 0); */
 
@@ -69,7 +75,7 @@ START_TEST(csr_generation_new_priv_key) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     UA_Boolean regenerateKey = true;
     UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, NULL, &regenerateKey, NULL, csr);
+            UA_GDSReceive_createSigningRequest(server, groupId, typeId, NULL, &regenerateKey, NULL, csr);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(csr->length, 0);
 
@@ -84,7 +90,7 @@ START_TEST(csr_generation_add_nonce) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     UA_Boolean regenerateKey = false;
     UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, NULL, &regenerateKey, &nonce, csr);
+            UA_GDSReceive_createSigningRequest(server, groupId, typeId, NULL, &regenerateKey, &nonce, csr);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(csr->length, 0);
 
@@ -99,7 +105,7 @@ START_TEST(csr_generation_add_subject_name) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     UA_Boolean regenerateKey = false;
     UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, &subjectName, &regenerateKey, NULL, csr);
+            UA_GDSReceive_createSigningRequest(server, groupId, typeId, &subjectName, &regenerateKey, NULL, csr);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(csr->length, 0);
 
@@ -114,7 +120,7 @@ START_TEST(csr_generation_wrong_typeId) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ECCCURVE448APPLICATIONCERTIFICATETYPE);
     UA_Boolean regenerateKey = false;
     UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, &subjectName, &regenerateKey, NULL, csr);
+            UA_GDSReceive_createSigningRequest(server, groupId, typeId, &subjectName, &regenerateKey, NULL, csr);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(csr->length, 0);
 
@@ -129,7 +135,7 @@ START_TEST(csr_generation_wrong_groupId) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     UA_Boolean regenerateKey = false;
     UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, &subjectName, &regenerateKey, NULL, csr);
+            UA_GDSReceive_createSigningRequest(server, groupId, typeId, &subjectName, &regenerateKey, NULL, csr);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(csr->length, 0);
 

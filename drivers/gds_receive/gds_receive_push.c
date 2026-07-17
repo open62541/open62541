@@ -1010,6 +1010,168 @@ getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
     return NULL;
 }
 
+typedef struct {
+    UA_DelayedCallback dc;
+    UA_GDSManager *gdsm;
+} CloseChannelsCallback;
+
+static void
+closeChannelsAfterCertificateUpdate(void *application, void *context) {
+    CloseChannelsCallback *ccb = (CloseChannelsCallback*)context;
+    UA_GDSManager *gdsm = ccb->gdsm;
+    ChannelMetadata *cm, *cmTmp;
+    LIST_FOREACH_SAFE(cm, &gdsm->secureChannels, pointers, cmTmp) {
+        UA_Server_closeSecureChannel(gdsm->drv.server, cm->channelId,
+                                     UA_SHUTDOWNREASON_CLOSE);
+    }
+    UA_assert(gdsm->pendingDelayedCallbacks > 0);
+    gdsm->pendingDelayedCallbacks--;
+    if(gdsm->pendingDelayedCallbacks == 0 &&
+       gdsm->drv.state == UA_LIFECYCLESTATE_STOPPING)
+        gdsm->drv.state = UA_LIFECYCLESTATE_STOPPED;
+    UA_free(ccb);
+}
+
+UA_StatusCode
+UA_GDSReceive_updateCertificate(UA_Server *server,
+                                const UA_NodeId certificateGroupId,
+                                const UA_NodeId certificateTypeId,
+                                const UA_ByteString certificate,
+                                const UA_ByteString *privateKey) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_GDSManager *gdsm = gdsManager(server);
+    if(!gdsm || gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    if(gdsm->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
+
+    static UA_NodeId defaultApplicationGroup =
+        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certGroupId = certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId))
+        certGroupId = defaultApplicationGroup;
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    static UA_NodeId certTypRsaSha256 =
+        STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+    if(privateKey) {
+        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) !=
+           UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        newPrivateKey = *privateKey;
+    }
+
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        UA_EndpointDescription *ed = &sc->endpoints[i];
+        UA_SecurityPolicy *sp = getSecPolicyByUri(sc, &ed->securityPolicyUri);
+        if(!sp)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
+            continue;
+
+        UA_StatusCode res =
+            sp->updateCertificate(sp, certificate, newPrivateKey);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        UA_ByteString_clear(&ed->serverCertificate);
+        res = UA_ByteString_copy(&certificate, &ed->serverCertificate);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    CloseChannelsCallback *ccb =
+        (CloseChannelsCallback*)UA_calloc(1, sizeof(CloseChannelsCallback));
+    if(!ccb)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    ccb->gdsm = gdsm;
+    ccb->dc.callback = closeChannelsAfterCertificateUpdate;
+    ccb->dc.context = ccb;
+    gdsm->pendingDelayedCallbacks++;
+    sc->eventLoop->addDelayedCallback(sc->eventLoop, &ccb->dc);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_GDSReceive_createSigningRequest(UA_Server *server,
+                                   const UA_NodeId certificateGroupId,
+                                   const UA_NodeId certificateTypeId,
+                                   const UA_String *subjectName,
+                                   const UA_Boolean *regenerateKey,
+                                   const UA_ByteString *nonce,
+                                   UA_ByteString *csr) {
+    if(!server || !csr)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_GDSManager *gdsm = gdsManager(server);
+    if(!gdsm || gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    static UA_NodeId defaultApplicationGroup =
+        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certGroupId = certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId))
+        certGroupId = defaultApplicationGroup;
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    static UA_NodeId rsaShaCertificateType =
+        STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    static UA_NodeId rsaMinCertificateType =
+        STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
+       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
+                        &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_ByteString *newPrivateKey = NULL;
+    if(regenerateKey && *regenerateKey)
+        newPrivateKey = UA_ByteString_new();
+
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        UA_SecurityPolicy *sp =
+            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+        if(!sp) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+            continue;
+        if(!UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) ||
+           !UA_NodeId_equal(&certGroupId, &sp->certificateGroupId))
+            continue;
+
+        retval = sp->createSigningRequest(sp, subjectName, nonce,
+                                          &UA_KEYVALUEMAP_NULL, csr,
+                                          newPrivateKey);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    UA_ByteString_clear(&gdsm->transaction.localCsrCertificate);
+    retval = UA_ByteString_copy(csr, &gdsm->transaction.localCsrCertificate);
+
+cleanup:
+    if(newPrivateKey) {
+        UA_ByteString_memZero(newPrivateKey);
+        UA_ByteString_delete(newPrivateKey);
+    }
+    return retval;
+}
+
 UA_StatusCode
 UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
     UA_Server *server = gdsm->drv.server;
@@ -1183,7 +1345,10 @@ UA_GDSManager_stop(UA_Driver *drv) {
         UA_Server_removeCallback(drv->server, gdsm->checkSessionCallbackId);
         gdsm->checkSessionCallbackId = 0;
     }
-    drv->state = UA_LIFECYCLESTATE_STOPPED;
+    if(gdsm->pendingDelayedCallbacks > 0)
+        drv->state = UA_LIFECYCLESTATE_STOPPING;
+    else
+        drv->state = UA_LIFECYCLESTATE_STOPPED;
 }
 
 /* TODO: Remove NS0 entries here for true "driver" semantics */

@@ -272,9 +272,9 @@ createSigningRequestAction(UA_Server *server,
     UA_ByteString *csr = UA_ByteString_new();
 
     UA_StatusCode retval =
-        UA_Server_createSigningRequest(server, *certificateGroupId,
-                                       *certificateTypeId, subjectName,
-                                       regenerateKey, nonce, csr);
+        UA_GDSReceive_createSigningRequest(server, *certificateGroupId,
+                                           *certificateTypeId, subjectName,
+                                           regenerateKey, nonce, csr);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_delete(csr);
