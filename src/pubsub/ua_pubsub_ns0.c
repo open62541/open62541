@@ -2459,7 +2459,7 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsI
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
                      dataSetMetaDataOnSdsId, true);
-    retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
+    retVal |= addRef(server, dsrId, UA_NS0ID(HASCOMPONENT),
                      subscribedDataSetOnSdsId, true);
     return retVal;
 }
