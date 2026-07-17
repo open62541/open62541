@@ -718,6 +718,17 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+START_TEST(ReadSingleAttributeDataTypeDefinitionForSimpleType) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_int_eq(UA_STATUSCODE_BADATTRIBUTEIDINVALID, resp.status);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 static UA_DataValue staticVal;
 static UA_DataValue *staticValPtr;
 
@@ -1781,6 +1792,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeServerTimestampOnError);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeSourceTimestampOnValueError);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionForSimpleType);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
 
     suite_add_tcase(s, tc_readSingleAttributes);

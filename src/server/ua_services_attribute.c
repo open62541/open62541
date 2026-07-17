@@ -558,6 +558,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
             UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
         } else {
+            UA_ExtensionObject_clear(&typeDescr);
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         }
 #else
