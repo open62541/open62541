@@ -6,15 +6,18 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#include "gds_receive_internal.h"
+#include "gds_receiver_internal.h"
 #include <open62541/plugin/nodestore.h>
 
-#ifdef UA_ENABLE_DRIVER_GDS_RECEIVE
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
+
+#define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
 UA_GDSManager *
 gdsManager(UA_Server *server) {
+    static const UA_String driverName = UA_STRING_STATIC("gds-receiver");
     UA_Driver *drv = UA_Server_getDrivers(server);
-    while(drv && drv->start != UA_GDSManager_start)
+    while(drv && !UA_String_equal(&drv->name, &driverName))
         drv = drv->next;
     return (UA_GDSManager *)drv;
 }
@@ -70,22 +73,24 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
     static UA_NodeId defaultUserTokenGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsManager(server), group->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt16 openCount;
+    UA_UtcTime lastUpdateTime;
+    UA_StatusCode res = UA_GDSManager_getFileInfoMetadata(
+        gdsManager(server), group->certificateGroupId, &openCount, &lastUpdateTime);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     if(UA_NodeId_equal(&group->certificateGroupId, &defaultApplicationGroup)) {
         static UA_NodeId appGroupOpenCount =
             STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENCOUNT);
-        return writeGDSNs0Variable(server, appGroupOpenCount, &fileInfo->openCount,
+        return writeGDSNs0Variable(server, appGroupOpenCount, &openCount,
                                    &UA_TYPES[UA_TYPES_UINT16]);
     }
 
     if(UA_NodeId_equal(&group->certificateGroupId, &defaultUserTokenGroup)) {
         static UA_NodeId tokenGroupOpenCount =
             STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENCOUNT);
-        return writeGDSNs0Variable(server, tokenGroupOpenCount, &fileInfo->openCount,
+        return writeGDSNs0Variable(server, tokenGroupOpenCount, &openCount,
                                    &UA_TYPES[UA_TYPES_UINT16]);
     }
 
@@ -99,22 +104,24 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
     static UA_NodeId defaultUserTokenGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    UA_FileInfo *fileInfo =
-        UA_GDSManager_getFileInfo(gdsManager(server), group->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt16 openCount;
+    UA_UtcTime lastUpdateTime;
+    UA_StatusCode res = UA_GDSManager_getFileInfoMetadata(
+        gdsManager(server), group->certificateGroupId, &openCount, &lastUpdateTime);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     if(UA_NodeId_equal(&group->certificateGroupId, &defaultApplicationGroup)) {
         static UA_NodeId appGroupLastUpdate =
             STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME);
-        return writeGDSNs0Variable(server, appGroupLastUpdate, &fileInfo->lastUpdateTime,
+        return writeGDSNs0Variable(server, appGroupLastUpdate, &lastUpdateTime,
                                    &UA_TYPES[UA_TYPES_UTCTIME]);
     }
 
     if(UA_NodeId_equal(&group->certificateGroupId, &defaultUserTokenGroup)) {
         static UA_NodeId tokenGroupLastUpdate =
             STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_LASTUPDATETIME);
-        return writeGDSNs0Variable(server, tokenGroupLastUpdate, &fileInfo->lastUpdateTime,
+        return writeGDSNs0Variable(server, tokenGroupLastUpdate, &lastUpdateTime,
                                    &UA_TYPES[UA_TYPES_UTCTIME]);
     }
 
@@ -127,30 +134,7 @@ createFileInfos(UA_Server *server) {
      * UserTokenGroup */
     UA_UtcTime lastUpdateTime = UA_DateTime_now();
 
-    /* Allocate two linked-list entries */
-    UA_FileInfo *fi = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
-    if(!fi)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_FileInfo *fi2 = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
-    if(!fi2) {
-        UA_free(fi);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    fi->next = fi2;
-
-    fi->certificateGroupId =
-        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    LIST_INIT(&fi->fileContext);
-    fi->lastUpdateTime = lastUpdateTime;
-
-    fi2->certificateGroupId =
-        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
-    LIST_INIT(&fi2->fileContext);
-    fi2->lastUpdateTime = lastUpdateTime;
-
-    gdsManager(server)->fileInfos = fi;
-
-    return UA_STATUSCODE_GOOD;
+    return UA_GDSManager_initFileInfos(gdsManager(server), lastUpdateTime);
 }
 
 static UA_StatusCode
@@ -179,33 +163,36 @@ writeGroupVariables(UA_Server *server) {
                                        certificateTypes, certificateTypesSize,
                                        &UA_TYPES[UA_TYPES_NODEID]);
 
-    /* DefaultApplicationGroup */
-    UA_FileInfo *fileInfoApplicationGroup =
-        UA_GDSManager_getFileInfo(gdsManager(server),
-                                  UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP));
-    if(!fileInfoApplicationGroup)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt16 openCount;
+    UA_UtcTime lastUpdateTime;
+    UA_StatusCode res = UA_GDSManager_getFileInfoMetadata(
+        gdsManager(server),
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP),
+        &openCount, &lastUpdateTime);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     retval |= writeGDSNs0Variable(server,
                                   UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENCOUNT),
-                                  &fileInfoApplicationGroup->openCount, &UA_TYPES[UA_TYPES_UINT16]);
+                                  &openCount, &UA_TYPES[UA_TYPES_UINT16]);
     retval |= writeGDSNs0Variable(server,
                                   UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_LASTUPDATETIME),
-                                  &fileInfoApplicationGroup->lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
+                                  &lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
 
     /* DefaultUserTokenGroup */
-    UA_FileInfo *fileInfoUserTokenGroup =
-        UA_GDSManager_getFileInfo(gdsManager(server),
-                                  UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP));
-    if(!fileInfoUserTokenGroup)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    res = UA_GDSManager_getFileInfoMetadata(
+        gdsManager(server),
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP),
+        &openCount, &lastUpdateTime);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     retval |= writeGDSNs0Variable(server,
                                   UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENCOUNT),
-                                  &fileInfoUserTokenGroup->openCount, &UA_TYPES[UA_TYPES_UINT16]);
+                                  &openCount, &UA_TYPES[UA_TYPES_UINT16]);
     retval |= writeGDSNs0Variable(server,
                                   UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_LASTUPDATETIME),
-                                  &fileInfoUserTokenGroup->lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
+                                  &lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
 
     return retval;
 }
@@ -272,7 +259,7 @@ createSigningRequestAction(UA_Server *server,
     UA_ByteString *csr = UA_ByteString_new();
 
     UA_StatusCode retval =
-        UA_GDSReceive_createSigningRequest(server, *certificateGroupId,
+        UA_GDSReceiver_createSigningRequest(server, *certificateGroupId,
                                            *certificateTypeId, subjectName,
                                            regenerateKey, nonce, csr);
 
@@ -304,19 +291,7 @@ applyChangesAction(UA_Server *server,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
-    UA_GDSManager *gdsm = gdsManager(server);
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-
-    /* Check that the current transaction belongs to the session */
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
-
-    /* Special non-good statuscode only for the public method */
-    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
-        return UA_STATUSCODE_BADNOTHINGTODO;
-
-    /* Do it */
-    return UA_GDSManager_applyChanges(gdsm);
+    return UA_GDSManager_applyChangesForSession(gdsManager(server), sessionId);
 }
 
 static UA_StatusCode
@@ -339,7 +314,7 @@ addCertificateAction(UA_Server *server,
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
     UA_GDSManager *gdsm = gdsManager(server);
-    if(gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
+    if(UA_GDSManager_transactionPending(gdsm))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
@@ -367,8 +342,7 @@ removeCertificateAction(UA_Server *server,
     UA_Boolean *isTrustedCertificate = (UA_Boolean *)input[1].data;
 
     UA_GDSManager *gdsm = gdsManager(server);
-    UA_GDSTransaction *transaction = &gdsm->transaction;
-    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
+    if(UA_GDSManager_transactionPending(gdsm))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);

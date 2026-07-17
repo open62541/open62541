@@ -7,9 +7,73 @@
  */
 
 #include <open62541/plugin/certificategroup_default.h>
-#include "gds_receive_internal.h"
+#include "gds_receiver_internal.h"
 
-#ifdef UA_ENABLE_DRIVER_GDS_RECEIVE
+#ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
+
+#include "open62541_queue.h"
+
+#define UA_SHA1_LENGTH 20
+#define CHECKACTIVESESSIONINTERVAL 10000 /* 10sec */
+#define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
+
+typedef enum {
+    UA_GDSTRANSACTIONSTATE_FRESH,
+    UA_GDSTRANSACTIONSTATE_PENDING,
+} UA_GDSTransactionState;
+
+typedef struct {
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
+    UA_NodeId certificateGroup;
+    UA_NodeId certificateType;
+} UA_GDSCertificateInfo;
+
+typedef struct {
+    UA_Server *server;
+    UA_NodeId sessionId;
+    UA_GDSTransactionState state;
+    UA_ByteString localCsrCertificate;
+    size_t certGroupSize;
+    UA_CertificateGroup *certGroups;
+    size_t certificateInfosSize;
+    UA_GDSCertificateInfo *certificateInfos;
+    UA_DelayedCallback dc;
+} UA_GDSTransaction;
+
+typedef struct UA_FileContext {
+    LIST_ENTRY(UA_FileContext) listEntry;
+    UA_ByteString file;
+    UA_ByteString dataToWrite;
+    UA_UInt32 fileHandle;
+    UA_NodeId sessionId;
+    UA_UInt64 currentPos;
+    UA_Byte openFileMode;
+} UA_FileContext;
+
+typedef struct UA_FileInfo {
+    struct UA_FileInfo *next;
+    UA_NodeId certificateGroupId;
+    UA_UInt16 openCount;
+    UA_UtcTime lastUpdateTime;
+    LIST_HEAD(, UA_FileContext) fileContext;
+} UA_FileInfo;
+
+typedef struct ChannelMetadata {
+    LIST_ENTRY(ChannelMetadata) pointers;
+    UA_UInt32 channelId;
+    UA_ByteString certificate;
+} ChannelMetadata;
+
+struct UA_GDSManager {
+    UA_Driver drv;
+    UA_Boolean initialized;
+    UA_GDSTransaction transaction;
+    UA_FileInfo *fileInfos;
+    LIST_HEAD(, ChannelMetadata) secureChannels;
+    UA_UInt64 checkSessionCallbackId;
+    size_t pendingDelayedCallbacks;
+};
 
 typedef enum UA_GDSTransactionChanges {
     UA_GDSTRANSACTIONCHANGES_NOTHING = 0,
@@ -17,6 +81,9 @@ typedef enum UA_GDSTransactionChanges {
     UA_GDSTRANSACTIONCHANGES_CERTIFICATE,
     UA_GDSTRANSACTIONCHANGES_BOTH,
 } UA_GDSTransactionChanges;
+
+static UA_StatusCode
+UA_GDSManager_applyChanges(UA_GDSManager *gdsm);
 
 static UA_FileContext*
 getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
@@ -196,7 +263,7 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
 /*   GDS Manager    */
 /********************/
 
-UA_FileInfo *
+static UA_FileInfo *
 UA_GDSManager_getFileInfo(UA_GDSManager *gdsm,
                           UA_NodeId certificateGroupId) {
     UA_FileInfo *fi = (UA_FileInfo*)gdsm->fileInfos;
@@ -206,6 +273,58 @@ UA_GDSManager_getFileInfo(UA_GDSManager *gdsm,
         fi = fi->next;
     }
     return NULL;
+}
+
+UA_StatusCode
+UA_GDSManager_initFileInfos(UA_GDSManager *gdsm, UA_UtcTime lastUpdateTime) {
+    UA_FileInfo *fi = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
+    if(!fi)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_FileInfo *fi2 = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
+    if(!fi2) {
+        UA_free(fi);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    fi->next = fi2;
+    fi->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    LIST_INIT(&fi->fileContext);
+    fi->lastUpdateTime = lastUpdateTime;
+    fi2->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    LIST_INIT(&fi2->fileContext);
+    fi2->lastUpdateTime = lastUpdateTime;
+    gdsm->fileInfos = fi;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_GDSManager_getFileInfoMetadata(UA_GDSManager *gdsm,
+                                  const UA_NodeId certificateGroupId,
+                                  UA_UInt16 *openCount,
+                                  UA_UtcTime *lastUpdateTime) {
+    UA_FileInfo *fi = UA_GDSManager_getFileInfo(gdsm, certificateGroupId);
+    if(!fi)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    *openCount = fi->openCount;
+    *lastUpdateTime = fi->lastUpdateTime;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_Boolean
+UA_GDSManager_transactionPending(UA_GDSManager *gdsm) {
+    return gdsm->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH;
+}
+
+UA_StatusCode
+UA_GDSManager_applyChangesForSession(UA_GDSManager *gdsm,
+                                     const UA_NodeId *sessionId) {
+    UA_GDSTransaction *transaction = &gdsm->transaction;
+    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+    return UA_GDSManager_applyChanges(gdsm);
 }
 
 /* This callback is triggered at regular intervals as long as a transaction is ongoing
@@ -998,6 +1117,11 @@ secureChannel_delayedClose(void *application, void *context) {
 
     UA_free(changes);
     UA_GDSTransaction_clear(&gdsm->transaction);
+    UA_assert(gdsm->pendingDelayedCallbacks > 0);
+    gdsm->pendingDelayedCallbacks--;
+    if(gdsm->pendingDelayedCallbacks == 0 &&
+       gdsm->drv.state == UA_LIFECYCLESTATE_STOPPING)
+        gdsm->drv.state = UA_LIFECYCLESTATE_STOPPED;
 }
 
 static UA_SecurityPolicy *
@@ -1033,7 +1157,7 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
 }
 
 UA_StatusCode
-UA_GDSReceive_updateCertificate(UA_Server *server,
+UA_GDSReceiver_updateCertificate(UA_Server *server,
                                 const UA_NodeId certificateGroupId,
                                 const UA_NodeId certificateTypeId,
                                 const UA_ByteString certificate,
@@ -1101,7 +1225,7 @@ UA_GDSReceive_updateCertificate(UA_Server *server,
 }
 
 UA_StatusCode
-UA_GDSReceive_createSigningRequest(UA_Server *server,
+UA_GDSReceiver_createSigningRequest(UA_Server *server,
                                    const UA_NodeId certificateGroupId,
                                    const UA_NodeId certificateTypeId,
                                    const UA_String *subjectName,
@@ -1172,7 +1296,7 @@ cleanup:
     return retval;
 }
 
-UA_StatusCode
+static UA_StatusCode
 UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
     UA_Server *server = gdsm->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -1270,6 +1394,7 @@ UA_GDSManager_applyChanges(UA_GDSManager *gdsm) {
     dc->context = server;
 
     UA_EventLoop *el = sc->eventLoop;
+    gdsm->pendingDelayedCallbacks++;
     el->addDelayedCallback(el, dc);
     return UA_STATUSCODE_GOOD;
 
@@ -1321,7 +1446,7 @@ secureChannelNotificationCallback(UA_Driver *drv,
     }
 }
 
-UA_StatusCode
+static UA_StatusCode
 UA_GDSManager_start(UA_Driver *drv) {
     UA_GDSManager *gdsm = (UA_GDSManager*)drv;
 
@@ -1398,12 +1523,12 @@ UA_GDSManager_free(UA_Driver *drv) {
 }
 
 UA_Driver *
-UA_GDSPushReceiveManager_new(void) {
+UA_GDSReceiver_new(void) {
     UA_GDSManager *gdsm = (UA_GDSManager*)UA_calloc(1, sizeof(UA_GDSManager));
     if(!gdsm)
         return NULL;
 
-    gdsm->drv.name = UA_STRING("gds-push-receive");
+    gdsm->drv.name = UA_STRING("gds-receiver");
     gdsm->drv.start = UA_GDSManager_start;
     gdsm->drv.stop = UA_GDSManager_stop;
     gdsm->drv.free = UA_GDSManager_free;
