@@ -1653,7 +1653,7 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
 
         /* Iterate over all MonitoredItems registered in the node  */
         for(UA_MonitoredItem *mon = node->head.monitoredItems;
-            mon != NULL; mon = mon->sampling.nodeListNext) {
+            mon != NULL; mon = mon->nodeListNext) {
             /* Is this an Event-MonitoredItem? */
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;

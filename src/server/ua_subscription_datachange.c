@@ -15,6 +15,26 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
+void
+markSemanticsChanged(UA_Server *server, const UA_NodeId *affected) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    const UA_Node *node = UA_NODESTORE_GET(server, affected);
+    if(!node)
+        return;
+
+    UA_MonitoredItem *mon = node->head.monitoredItems;
+    for(; mon != NULL; mon = mon->nodeListNext) {
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE)
+            continue;
+        mon->semanticsChangedPending = true;
+        if(mon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_EVENT)
+            UA_MonitoredItem_sample(server, mon);
+    }
+
+    UA_NODESTORE_RELEASE(server, node);
+}
+
 /* Detect value changes outside the deadband */
 #define UA_DETECT_DEADBAND(TYPE) do {                           \
     TYPE v1 = *(const TYPE*)data1;                              \
