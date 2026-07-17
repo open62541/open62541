@@ -15,9 +15,8 @@
 
 UA_GDSManager *
 gdsManager(UA_Server *server) {
-    static const UA_String driverName = UA_STRING_STATIC("gds-receiver");
     UA_Driver *drv = UA_Server_getDrivers(server);
-    while(drv && !UA_String_equal(&drv->name, &driverName))
+    while(drv && drv->driverType != UA_DRIVERTYPE_GDS_RECEIVER)
         drv = drv->next;
     return (UA_GDSManager *)drv;
 }
@@ -259,7 +258,8 @@ createSigningRequestAction(UA_Server *server,
     UA_ByteString *csr = UA_ByteString_new();
 
     UA_StatusCode retval =
-        UA_GDSReceiver_createSigningRequest(server, *certificateGroupId,
+        UA_GDSReceiver_createSigningRequest((UA_GDSReceiver*)gdsManager(server),
+                                           *certificateGroupId,
                                            *certificateTypeId, subjectName,
                                            regenerateKey, nonce, csr);
 

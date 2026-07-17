@@ -22,6 +22,7 @@
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 UA_Server *server;
+UA_GDSReceiver *receiver;
 
 static void setup(void) {
     /* Load certificate and private key */
@@ -36,8 +37,9 @@ static void setup(void) {
     server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
                                                           NULL, 0, NULL, 0, NULL, 0);
     ck_assert(server != NULL);
-    ck_assert_uint_eq(UA_Server_addDriver(server,
-                                         UA_GDSReceiver_new()),
+    receiver = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(receiver);
+    ck_assert_uint_eq(UA_Server_addDriver(server, &receiver->drv),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
 }
@@ -62,8 +64,9 @@ static void setup2(void) {
         UA_Server_newForUnitTestWithSecurityPolicies_Filestore(4840, &certificate,
                                                                &privateKey, storePath);
     ck_assert(server != NULL);
-    ck_assert_uint_eq(UA_Server_addDriver(server,
-                                         UA_GDSReceiver_new()),
+    receiver = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(receiver);
+    ck_assert_uint_eq(UA_Server_addDriver(server, &receiver->drv),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
 }
@@ -108,7 +111,7 @@ START_TEST(update_certificate) {
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
 
     UA_StatusCode retval =
-            UA_GDSReceiver_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
                                newCertificate, &newPrivateKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -131,7 +134,7 @@ START_TEST(update_certificate_wrongKey) {
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
 
     UA_StatusCode retval =
-            UA_GDSReceiver_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
                                         newCertificate, &wrongPrivateKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
 
@@ -149,7 +152,7 @@ START_TEST(update_certificate_noKey) {
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
 
     UA_StatusCode retval =
-            UA_GDSReceiver_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
                                         newCertificate, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
