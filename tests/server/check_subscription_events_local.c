@@ -702,13 +702,35 @@ START_TEST(semanticChangeDataNotification) {
     request.itemToMonitor.nodeId = owner;
     request.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
     request.monitoringMode = UA_MONITORINGMODE_REPORTING;
-    request.requestedParameters.samplingInterval = 0.0;
+    request.requestedParameters.samplingInterval = 1000000.0;
     request.requestedParameters.queueSize = 1;
     request.requestedParameters.discardOldest = true;
+    UA_MonitoredItemCreateResult slowMon = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL,
+        semanticDataChangeCallback);
+    ck_assert_uint_eq(slowMon.statusCode, UA_STATUSCODE_GOOD);
+
+    request.requestedParameters.samplingInterval = 0.0;
     UA_MonitoredItemCreateResult mon = UA_Server_createDataChangeMonitoredItem(
         server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL,
         semanticDataChangeCallback);
     ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+
+    /* Zero-interval items form the node-list prefix even when registered
+     * after a cyclic item. */
+    lockServer(server);
+    const UA_Node *ownerNode = UA_NODESTORE_GET(server, &owner);
+    ck_assert_ptr_ne(ownerNode, NULL);
+    UA_MonitoredItem *fast = ownerNode->head.monitoredItems;
+    ck_assert_ptr_ne(fast, NULL);
+    ck_assert_uint_eq(fast->monitoredItemId, mon.monitoredItemId);
+    ck_assert(fast->parameters.samplingInterval == 0.0);
+    UA_MonitoredItem *slow = fast->nodeListNext;
+    ck_assert_ptr_ne(slow, NULL);
+    ck_assert_uint_eq(slow->monitoredItemId, slowMon.monitoredItemId);
+    ck_assert(slow->parameters.samplingInterval > 0.0);
+    UA_NODESTORE_RELEASE(server, ownerNode);
+    unlockServer(server);
 
     /* Consume the initial notification. */
     UA_Server_run_iterate(server, false);
@@ -722,6 +744,9 @@ START_TEST(semanticChangeDataNotification) {
     UA_Variant_setScalar(&value, &propertyValue, &UA_TYPES[UA_TYPES_INT32]);
     res = UA_Server_writeValue(server, property, value);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* Cyclic items are found through the same node backpointer and retain the
+     * bit until their next scheduled sample. */
+    ck_assert(slow->semanticsChangedPending);
     ownerValue = 42;
     UA_Variant_setScalar(&value, &ownerValue, &UA_TYPES[UA_TYPES_INT32]);
     res = UA_Server_writeValue(server, owner, value);

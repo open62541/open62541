@@ -371,33 +371,6 @@ emitChangeEvent(UA_Server *server, UA_NodeId eventType,
                        UA_StatusCode_name(res));
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-static void
-markSemanticChangeInSubscription(UA_Server *server, UA_Subscription *sub,
-                                 const UA_NodeId *affected) {
-    if(!sub)
-        return;
-    UA_MonitoredItem *mon, *tmp;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp) {
-        if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED ||
-           mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
-           !UA_NodeId_equal(&mon->itemToMonitor.nodeId, affected))
-            continue;
-        mon->semanticsChangedPending = true;
-        if(mon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_EVENT)
-            UA_MonitoredItem_sample(server, mon);
-    }
-}
-
-static void
-markSemanticChange(UA_Server *server, const UA_NodeId *affected) {
-    markSemanticChangeInSubscription(server, server->adminSubscription, affected);
-    UA_Subscription *sub, *tmp;
-    LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, tmp)
-        markSemanticChangeInSubscription(server, sub, affected);
-}
-#endif
-
 void
 UA_ModelChangeAccumulator_finalize(UA_Server *server,
                                    UA_ModelChangeAccumulator *acc) {
@@ -441,7 +414,7 @@ UA_ModelChangeAccumulator_finalize(UA_Server *server,
     for(size_t i = 0; i < acc->changesSize; i++) {
         UA_ModelChangeStructureDataType *change = &acc->changes[i].change;
         if(change->verb & UA_MODELCHANGE_SEMANTIC)
-            markSemanticChange(server, &change->affected);
+            markSemanticsChanged(server, &change->affected);
     }
 #endif
 

@@ -1718,13 +1718,33 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 }
 
 /* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
- * interval */
+ * interval. This is reached after a successful attribute update from the
+ * network Write service, the UA_Server_write APIs and internal writeAttribute
+ * calls. Async writes enter here when Operation_Write is resumed. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 triggerImmediateDataChange(UA_Server *server, UA_Session *session,
                            UA_Node *node, const UA_WriteValue *wvalue) {
     UA_MonitoredItem *mon = node->head.monitoredItems;
-    for(; mon != NULL; mon = mon->sampling.nodeListNext) {
+    for(; mon != NULL; mon = mon->nodeListNext) {
+        /* Zero-interval items form the list prefix. Only items with a
+         * positive sampling interval follow. */
+        if(mon->parameters.samplingInterval > 0.0)
+            return;
+        switch(mon->samplingType) {
+        case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
+            /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
+             * EventNotifier and are dispatched by the event subsystem. Here
+             * we only sample zero-interval DataChange MonitoredItems. */
+            if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+                continue;
+            break;
+        case UA_MONITOREDITEMSAMPLINGTYPE_DELETED:
+        case UA_MONITOREDITEMSAMPLINGTYPE_NONE:
+        case UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC:
+        case UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH:
+            continue;
+        }
         if(mon->itemToMonitor.attributeId != wvalue->attributeId)
             continue;
         /* TODO: Allow async read for datachanges */
