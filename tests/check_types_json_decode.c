@@ -591,7 +591,7 @@ START_TEST(json_decode_large_json_tokenizer_realloc) {
         pos += snprintf(buf + pos, bufsize - (size_t)pos, "%d", i);
     }
     if((size_t)pos < bufsize)
-        pos += snprintf(buf + pos, bufsize - (size_t)pos, "]}");
+        snprintf(buf + pos, bufsize - (size_t)pos, "]}");
     UA_Variant v;
     UA_Variant_init(&v);
     UA_StatusCode res = decode(buf, &v, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -614,7 +614,7 @@ START_TEST(json_decode_large_object_tokenizer_realloc) {
                         ",\"field%d\":%d", i, i);
     }
     if((size_t)pos < bufsize)
-        pos += snprintf(buf + pos, bufsize - (size_t)pos, "}");
+        snprintf(buf + pos, bufsize - (size_t)pos, "}");
     UA_ExtensionObject eo;
     UA_ExtensionObject_init(&eo);
     UA_StatusCode res = decode(buf, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);

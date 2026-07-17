@@ -54,6 +54,7 @@ createEvent(void) {
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
     UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
                                               severity, message, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 }
 
 /* Ensure events are received with proper values */
