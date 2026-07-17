@@ -191,6 +191,21 @@ addDriver(UA_Server *server, UA_Driver *drv) {
     if(!drv)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* A server can expose the GDS PushManagement information model only once. */
+    if(drv->driverType == UA_DRIVERTYPE_GDS_RECEIVER) {
+        UA_Driver *registered = server->drivers;
+        while(registered) {
+            if(registered->driverType == UA_DRIVERTYPE_GDS_RECEIVER) {
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                             "Cannot add the driver \"%S\". A GDS Receiver "
+                             "driver is already configured",
+                             drv->name);
+                return UA_STATUSCODE_BADALREADYEXISTS;
+            }
+            registered = registered->next;
+        }
+    }
+
     /* If undefined, set the backpointer to the current server */
     if(!drv->server)
         drv->server = server;

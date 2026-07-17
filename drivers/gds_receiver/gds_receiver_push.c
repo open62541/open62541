@@ -1519,11 +1519,13 @@ UA_GDSManager_stop(UA_Driver *drv) {
 /* TODO: Remove NS0 entries here for true "driver" semantics */
 static UA_StatusCode
 UA_GDSManager_free(UA_Driver *drv) {
-    UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
     if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                     "Cannot delete the GDSPushReceive Driver because "
-                     "it is not stopped");
+        if(drv->server) {
+            UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
+            UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot delete the GDS Receiver driver because "
+                         "it is not stopped");
+        }
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
