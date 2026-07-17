@@ -1759,6 +1759,42 @@ START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
 }
 END_TEST
 
+START_TEST(PublicApiFindServersOnNetworkAppliesLimitAfterCapabilityFilter) {
+    UA_Server *localServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(localServer, NULL);
+
+    UA_ServerConfig *localConfig = UA_Server_getConfig(localServer);
+    localConfig->serversOnNetworkEnabled = true;
+    ck_assert_uint_eq(UA_Server_run_startup(localServer), UA_STATUSCODE_GOOD);
+
+    const char *capsDa[] = {"DA"};
+    const char *capsLds[] = {"LDS"};
+    registerServerOnNetwork(localServer, "candidate-da",
+                            "opc.tcp://localhost:4841", capsDa, 1);
+    registerServerOnNetwork(localServer, "candidate-lds",
+                            "opc.tcp://localhost:4842", capsLds, 1);
+
+    UA_String filter = UA_STRING("LDS");
+    UA_DateTime lastCounterResetTime = 0;
+    size_t serverOnNetworkSize = 0;
+    UA_ServerOnNetwork *serverOnNetwork = NULL;
+    UA_StatusCode retval =
+        UA_Server_findServersOnNetwork(localServer, UA_STRING_NULL, 0, 1, 1,
+                                       &filter, &lastCounterResetTime,
+                                       &serverOnNetworkSize, &serverOnNetwork);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(serverOnNetworkSize, 1);
+    UA_String expectedName = UA_STRING("candidate-lds");
+    ck_assert(UA_String_equal(&serverOnNetwork[0].serverName, &expectedName));
+
+    UA_Array_delete(serverOnNetwork, serverOnNetworkSize,
+                    &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    UA_Server_run_shutdown(localServer);
+    UA_Server_delete(localServer);
+}
+END_TEST
+
 START_TEST(MdnsDriverParamCopiessettingsOnStartup) {
     UA_Server *localServer = UA_Server_newForUnitTest();
     ck_assert_ptr_ne(localServer, NULL);
@@ -2352,6 +2388,11 @@ testSuite_DiscoveryMdnsd(void) {
     */
     (void)tc_config;
     suite_add_tcase(s, tc_config);
+
+    TCase *tc_public_api_core = tcase_create("Public discovery API core");
+    tcase_add_test(tc_public_api_core,
+                   PublicApiFindServersOnNetworkAppliesLimitAfterCapabilityFilter);
+    suite_add_tcase(s, tc_public_api_core);
 
     TCase *tc_integration = tcase_create("Public discovery API integration");
     tcase_add_unchecked_fixture(tc_integration,

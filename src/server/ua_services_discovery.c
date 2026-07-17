@@ -357,17 +357,16 @@ process_FindServersOnNetwork(UA_Server *server, UA_Session *session,
             break;
     }
 
-    /* Compute the max number of records to return */
+    /* Compute the number of candidate records after the record id cutoff */
     size_t recordCount = server->serversOnNetworkSize - recordOffset;
-    if(maxRecordsToReturn > 0 && maxRecordsToReturn < recordCount)
-        recordCount = maxRecordsToReturn;
     UA_assert(recordCount <= server->serversOnNetworkSize);
 
     /* Nothing to do */
     if(recordCount == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Iterate over all records and add to filtered list */
+    /* Iterate over all candidate records, apply the capability filter first
+     * and only then enforce the response size limit. */
     UA_UInt32 filteredCount = 0;
     UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
     for(size_t i = 0; i < recordCount; i++) {
@@ -376,6 +375,8 @@ process_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                          serverCapabilityFilter, son))
             continue;
         filtered[filteredCount++] = son;
+        if(maxRecordsToReturn > 0 && filteredCount >= maxRecordsToReturn)
+            break;
     }
 
     /* Nothing to do */
