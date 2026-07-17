@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Default ValueRank is scalar
+
+The default `ValueRank` for `UA_VariableAttributes` and
+`UA_VariableTypeAttributes` is now `UA_VALUERANK_SCALAR` (`-1`), as specified by
+the UANodeSet schema. The nodeset compiler now also applies this default when a
+Variable or VariableType omits the `ValueRank` attribute.
+
 ### Configure the advertised server profiles explicitly
 
 `UA_ServerConfig.serverProfileArray` and `serverProfileArraySize` now determine
