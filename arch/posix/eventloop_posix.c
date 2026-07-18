@@ -1076,7 +1076,7 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
 
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
-    int len = sizeof(addr);
+    socklen_t len = sizeof(addr);
     getsockname(lst, (struct sockaddr*)&addr, &len);
 
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
