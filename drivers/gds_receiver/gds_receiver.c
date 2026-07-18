@@ -1524,7 +1524,7 @@ UA_GDSReceiver_start(UA_Driver *drv) {
 
     /* Initialize ns0 entries only once */
     if(!ctx->initialized) {
-        UA_StatusCode res = initNS0PushManagement(drv->server);
+        UA_StatusCode res = initNS0PushManagement(ctx);
         if(res != UA_STATUSCODE_GOOD)
             return res;
         ctx->initialized = true;
