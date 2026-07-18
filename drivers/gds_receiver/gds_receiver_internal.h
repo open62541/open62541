@@ -17,20 +17,20 @@ _UA_BEGIN_DECLS
 
 typedef struct UA_GDSReceiverContext UA_GDSReceiverContext;
 
-UA_GDSReceiverContext *
-gdsReceiver(UA_Server *server);
-
 UA_StatusCode
 initNS0PushManagement(UA_GDSReceiverContext *ctx);
+
+void
+clearNS0PushManagement(UA_GDSReceiverContext *ctx);
 
 UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 
 UA_StatusCode
-writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group);
+writeOpenCountVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group);
 
 UA_StatusCode
-writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group);
+writeLastUpdateVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group);
 
 UA_StatusCode
 UA_GDSReceiver_initFileInfos(UA_GDSReceiverContext *ctx, UA_UtcTime lastUpdateTime);
