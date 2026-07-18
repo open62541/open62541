@@ -106,18 +106,13 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
  * This protects against unbounded memory usage. */
 #define UA_MONITOREDITEM_ASYNC_MAX 8
 
-/* The type of sampling for MonitoredItems depends on the sampling interval.
- *
- * >0: Cyclic callback
- * =0: Attached to the node. Sampling is triggered after every "write".
- * <0: Attached to the subscription. Triggered just before every "publish". */
+/* Lifecycle state and sampling backend of a MonitoredItem. */
 typedef enum {
-    UA_MONITOREDITEMSAMPLINGTYPE_NONE = 0,
+    UA_MONITOREDITEMSAMPLINGTYPE_DELETED = 0, /* Not registered in the server */
+    UA_MONITOREDITEMSAMPLINGTYPE_NONE,        /* Registered but not sampling */
     UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC, /* Cyclic callback */
-    UA_MONITOREDITEMSAMPLINGTYPE_EVENT,  /* Attached to the node. Can be a "write
-                                          * event" for DataChange MonitoredItems
-                                          * with a zero sampling interval .*/
-    UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH /* Attached to the subscription */
+    UA_MONITOREDITEMSAMPLINGTYPE_EVENT,  /* Triggered by an event or write */
+    UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH /* Sampled before publishing */
 } UA_MonitoredItemSamplingType;
 
 struct UA_MonitoredItem {
@@ -130,7 +125,6 @@ struct UA_MonitoredItem {
     UA_ReadValueId itemToMonitor;
     UA_MonitoringMode monitoringMode;
     UA_TimestampsToReturn timestampsToReturn;
-    UA_Boolean registered;       /* Registered in the server / Subscription */
     UA_DateTime triggeredUntil;  /* If the MonitoringMode is SAMPLING,
                                   * triggering the MonitoredItem puts the latest
                                   * Notification into the publishing queue (of
@@ -155,13 +149,17 @@ struct UA_MonitoredItem {
 
     /* Sampling */
     UA_MonitoredItemSamplingType samplingType;
+    UA_MonitoredItem *nodeListNext; /* Attached to the monitored Node. Items
+                                     * with samplingInterval == 0 form the
+                                     * prefix of the list. */
     union {
         UA_UInt64 callbackId;
-        UA_MonitoredItem *nodeListNext; /* Event-Based: Attached to Node */
         LIST_ENTRY(UA_MonitoredItem) subscriptionSampling; /* Linked to publish
                                                             * interval */
     } sampling;
     UA_DataValue lastValue;
+    UA_Boolean semanticsChangedPending; /* Add the SemanticsChanged bit to the
+                                         * next DataChange notification */
     UA_UInt32 outstandingAsyncReads; /* at most UA_MONITOREDITEM_ASYNC_MAX */
 
     /* Triggering Links */
@@ -175,6 +173,11 @@ struct UA_MonitoredItem {
     size_t eventOverflows; /* Separate counter for the queue. Can at most double
                             * the queue size */
 };
+
+/* Mark the Value MonitoredItems on the affected node so their next
+ * notification carries the SemanticsChanged StatusCode bit. */
+void
+markSemanticsChanged(UA_Server *server, const UA_NodeId *affected);
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolean notify);

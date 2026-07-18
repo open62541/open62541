@@ -338,8 +338,13 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     notifyApplication(server, nt, notifyPayloadMap);
 
     /* Process the service */
+    beginModelChange(server);
     UA_Boolean done = processServiceInternal(server, channel, session,
                                              requestId, sd, request, response);
+    endModelChange(server);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_assert(server->modelChangeDepth == 0);
+#endif
 
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END if the service was
      * completed synchronously. For async completion of a service, this gets

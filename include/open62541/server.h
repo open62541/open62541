@@ -1637,6 +1637,64 @@ UA_Server_createEventEx(UA_Server *server,
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
+/**
+ * .. _model-semantic-changes:
+ *
+ * Model and Semantic Changes
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * With ``UA_ENABLE_SUBSCRIPTIONS_EVENTS``, the server automatically emits the
+ * standard ``GeneralModelChangeEventType`` and ``SemanticChangeEventType`` for
+ * changes made through OPC UA Services and the corresponding local
+ * ``UA_Server_*`` APIs. Changes made while the server's namespace is initially
+ * populated are suppressed. Both EventTypes are emitted by the Server object.
+ *
+ * A structural change is reported only if the affected Node has a
+ * scalar ``NodeVersion`` Property with the String DataType. The server updates
+ * that Property with the decimal representation of a server-wide, increasing
+ * Int64. Nodes without a suitable ``NodeVersion`` Property are not
+ * included in a ModelChangeEvent. The following successful operations are
+ * reported:
+ *
+ * .. list-table::
+ *    :header-rows: 1
+ *
+ *    * - Operation
+ *      - ModelChange verb
+ *    * - Add a Node
+ *      - ``NodeAdded``
+ *    * - Delete a Node
+ *      - ``NodeDeleted``
+ *    * - Add a Reference
+ *      - ``ReferenceAdded``
+ *    * - Delete a Reference
+ *      - ``ReferenceDeleted``
+ *    * - Change the DataType Attribute
+ *      - ``DataTypeChanged``
+ *
+ * Changes to ValueRank and ArrayDimensions are not structural ModelChanges.
+ *
+ * A SemanticChange is reported when a successful Value write changes a
+ * Variable whose AccessLevel contains ``UA_ACCESSLEVELMASK_SEMANTICCHANGE``.
+ * The Variable must be a Property connected to its owner by ``HasProperty`` or
+ * a subtype. The owner is reported as the affected Node. Same-value writes are
+ * suppressed when the previous value is directly available. For callback-based
+ * value sources the previous value may not be available for comparison, so a
+ * successful write is treated as a SemanticChange.
+ *
+ * A SemanticChange also marks Value MonitoredItems on the affected Variable.
+ * Their next DataChange notification contains the ``SemanticsChanged``
+ * StatusCode bit. MonitoredItems with a zero SamplingInterval are sampled
+ * immediately. For cyclic sampling the bit remains pending until the next
+ * notification.
+ *
+ * Changes are accumulated until the outermost local operation or decoded
+ * Service request completes. Entries for the same affected Node are coalesced
+ * by combining their ModelChange verbs. Model and Semantic changes collected
+ * together are emitted as separate standard Events. Failed operations are not
+ * reported.
+ *
+ * See ``examples/events/server_modelchange.c`` for a complete local example. */
+
 #ifdef UA_ENABLE_DISCOVERY
 
 /**

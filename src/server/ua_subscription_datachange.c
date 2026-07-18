@@ -15,6 +15,32 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
+void
+markSemanticsChanged(UA_Server *server, const UA_NodeId *affected) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    const UA_Node *node = UA_NODESTORE_GET(server, affected);
+    if(!node)
+        return;
+
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE &&
+       node->head.nodeClass != UA_NODECLASS_VARIABLETYPE) {
+        UA_NODESTORE_RELEASE(server, node);
+        return;
+    }
+
+    UA_MonitoredItem *mon = node->head.monitoredItems;
+    for(; mon != NULL; mon = mon->nodeListNext) {
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE)
+            continue;
+        mon->semanticsChangedPending = true;
+        if(mon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_EVENT)
+            UA_MonitoredItem_sample(server, mon);
+    }
+
+    UA_NODESTORE_RELEASE(server, node);
+}
+
 /* Detect value changes outside the deadband.
  *
  * Integer types: compute the absolute difference in a wide unsigned type
@@ -168,6 +194,14 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredIte
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* SemanticsChanged is a one-shot notification bit. Keep it out of
+     * lastValue so it neither affects filtering nor causes a second status
+     * change when the bit disappears. */
+    if(mon->semanticsChangedPending) {
+        valueCopy.hasStatus = true;
+        valueCopy.status |= UA_STATUSCODE_SEMANTICSCHANGED;
+    }
+
     /* Allocate a new notification */
     UA_Notification *n = UA_Notification_new();
     if(!n) {
@@ -180,6 +214,7 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredIte
     n->data.dataChange.value = valueCopy;
     n->data.dataChange.clientHandle = mon->parameters.clientHandle;
     UA_Notification_enqueueAndTrigger(server, n);
+    mon->semanticsChangedPending = false;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -190,7 +225,8 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Has the value changed (with the filters applied)? */
-    UA_Boolean changed = detectValueChange(server, mon, value);
+    UA_Boolean changed = mon->semanticsChangedPending ||
+        detectValueChange(server, mon, value);
     if(!changed) {
         UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
                                   "MonitoredItem %" PRIi32 " | "
@@ -200,6 +236,7 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     }
 
     /* Prepare a notification and enqueue it */
+    UA_Boolean semanticsChanged = mon->semanticsChangedPending;
     UA_StatusCode res =
         UA_MonitoredItem_createDataChangeNotification(server, mon, value);
     if(res != UA_STATUSCODE_GOOD) {
@@ -219,6 +256,10 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
      * subscription. Do this at the very end. Because the callback might delete
      * the subscription. */
     if(!mon->subscription) {
+        if(semanticsChanged) {
+            value->hasStatus = true;
+            value->status |= UA_STATUSCODE_SEMANTICSCHANGED;
+        }
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);

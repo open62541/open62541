@@ -41,6 +41,7 @@ printh('''/** .. _statuscodes:
 /* These StatusCodes are manually generated. */
 #define UA_STATUSCODE_INFOTYPE_DATAVALUE ((UA_StatusCode) 0x00000400)
 #define UA_STATUSCODE_INFOBITS_OVERFLOW ((UA_StatusCode) 0x00000080)
+#define UA_STATUSCODE_SEMANTICSCHANGED ((UA_StatusCode) 0x00004000)
 ''')
 
 for row in rows:

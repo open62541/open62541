@@ -1835,13 +1835,33 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 }
 
 /* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
- * interval */
+ * interval. This is reached after a successful attribute update from the
+ * network Write service, the UA_Server_write APIs and internal writeAttribute
+ * calls. Async writes enter here when Operation_Write is resumed. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 triggerImmediateDataChange(UA_Server *server, UA_Session *session,
                            UA_Node *node, const UA_WriteValue *wvalue) {
     UA_MonitoredItem *mon = node->head.monitoredItems;
-    for(; mon != NULL; mon = mon->sampling.nodeListNext) {
+    for(; mon != NULL; mon = mon->nodeListNext) {
+        /* Zero-interval items form the list prefix. Only items with a
+         * positive sampling interval follow. */
+        if(mon->parameters.samplingInterval > 0.0)
+            return;
+        switch(mon->samplingType) {
+        case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
+            /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
+             * EventNotifier and are dispatched by the event subsystem. Here
+             * we only sample zero-interval DataChange MonitoredItems. */
+            if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+                continue;
+            break;
+        case UA_MONITOREDITEMSAMPLINGTYPE_DELETED:
+        case UA_MONITOREDITEMSAMPLINGTYPE_NONE:
+        case UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC:
+        case UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH:
+            continue;
+        }
         if(mon->itemToMonitor.attributeId != wvalue->attributeId)
             continue;
         /* TODO: Allow async read for datachanges */
@@ -1941,6 +1961,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
+        UA_Boolean semanticChange = false;
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the UserAccessLevel
              * attribute (masked with the AccessLevel attribute) */
@@ -1948,6 +1969,28 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
+            }
+
+            /* Fast SemanticChange detection. For ordinary Value writes this
+             * adds only an inline AccessLevel bit test. The more expensive
+             * equality and HasProperty-owner checks are reached only for
+             * explicitly marked Properties. */
+            semanticChange =
+                wvalue->value.hasValue &&
+                (node->variableNode.accessLevel &
+                 UA_ACCESSLEVELMASK_SEMANTICCHANGE) != 0;
+            if(semanticChange && wvalue->indexRange.length == 0) {
+                const UA_DataValue *oldValue = NULL;
+                if(node->variableNode.valueSourceType ==
+                   UA_VALUESOURCETYPE_INTERNAL)
+                    oldValue = &node->variableNode.valueSource.internal.value;
+                else if(node->variableNode.valueSourceType ==
+                        UA_VALUESOURCETYPE_EXTERNAL)
+                    oldValue = UA_atomic_load(
+                        node->variableNode.valueSource.external.value);
+                if(oldValue && oldValue->hasValue &&
+                   UA_Variant_equal(&oldValue->value, &wvalue->value.value))
+                    semanticChange = false;
             }
             /* Writing a StatusCode different to "Good" requires the
              * StatusWrite bit (see OPC specification 10000-3: AccessLevelType;
@@ -1989,6 +2032,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         }
         retval = writeNodeValueAttribute(server, session, &node->variableNode,
                                          &wvalue->value, &wvalue->indexRange);
+        if(retval == UA_STATUSCODE_GOOD && semanticChange)
+            recordSemanticPropertyChange(server, &node->head);
         break;
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -2082,6 +2127,28 @@ UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
+    beginModelChange(server);
+
+    /* DataType is an inline attribute. Remember its previous value so a
+     * same-value write does not produce a spurious DataTypeChanged event. */
+    UA_Boolean dataTypeChanged = false;
+    if(wv->attributeId == UA_ATTRIBUTEID_DATATYPE) {
+        const UA_Node *oldNode = UA_NODESTORE_GET(server, &wv->nodeId);
+        if(oldNode && (oldNode->head.nodeClass == UA_NODECLASS_VARIABLE ||
+                       oldNode->head.nodeClass == UA_NODECLASS_VARIABLETYPE)) {
+            const UA_NodeId *oldDataType =
+                (oldNode->head.nodeClass == UA_NODECLASS_VARIABLE) ?
+                &oldNode->variableNode.dataType : &oldNode->variableTypeNode.dataType;
+            if(wv->value.value.data &&
+               UA_NodeId_equal(oldDataType,
+                               (const UA_NodeId*)wv->value.value.data))
+                dataTypeChanged = false;
+            else
+                dataTypeChanged = true;
+        }
+        if(oldNode)
+            UA_NODESTORE_RELEASE(server, oldNode);
+    }
 
     /* Get the old value for the audit event */
 #ifdef UA_ENABLE_AUDITING
@@ -2107,6 +2174,15 @@ Operation_Write(UA_Server *server, UA_Session *session,
                        (void*)(uintptr_t)wv);
     UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 
+    /* Only DataType changes are structural model changes. ValueRank and
+     * ArrayDimensions changes do not use a ModelChange verb. SemanticChange
+     * events are triggered separately by Value changes of Properties whose
+     * AccessLevel has the SemanticChange bit set. */
+    if(*result == UA_STATUSCODE_GOOD && dataTypeChanged) {
+        recordModelChangeEvent(server, &wv->nodeId,
+                          UA_MODELCHANGESTRUCTUREVERBMASK_DATATYPECHANGED);
+    }
+
     /* Generate audit event for writing variables.
      * TODO: Audit events for async writes. */
 #ifdef UA_ENABLE_AUDITING
@@ -2119,6 +2195,7 @@ Operation_Write(UA_Server *server, UA_Session *session,
     UA_DataValue_clear(&oldValue);
 #endif
 
+    endModelChange(server);
     return done;
 }
 

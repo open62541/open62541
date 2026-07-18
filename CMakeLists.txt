@@ -915,7 +915,8 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         message(FATAL_ERROR "Event Filter Parsing require JSON to be enabled")
     endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_modelchange.c
+                            ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
 endif()
