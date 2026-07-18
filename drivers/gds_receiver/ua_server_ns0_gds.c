@@ -13,12 +13,12 @@
 
 #define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
-UA_GDSManager *
-gdsManager(UA_Server *server) {
+UA_GDSReceiverContext *
+gdsReceiver(UA_Server *server) {
     UA_Driver *drv = UA_Server_getDrivers(server);
     while(drv && drv->driverType != UA_DRIVERTYPE_GDS_RECEIVER)
         drv = drv->next;
-    return (UA_GDSManager *)drv;
+    return (UA_GDSReceiverContext *)drv;
 }
 
 UA_CertificateGroup*
@@ -74,8 +74,8 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
 
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
-    UA_StatusCode res = UA_GDSManager_getFileInfoMetadata(
-        gdsManager(server), group->certificateGroupId, &openCount, &lastUpdateTime);
+    UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
+        gdsReceiver(server), group->certificateGroupId, &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -105,8 +105,8 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
-    UA_StatusCode res = UA_GDSManager_getFileInfoMetadata(
-        gdsManager(server), group->certificateGroupId, &openCount, &lastUpdateTime);
+    UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
+        gdsReceiver(server), group->certificateGroupId, &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -133,7 +133,7 @@ createFileInfos(UA_Server *server) {
      * UserTokenGroup */
     UA_UtcTime lastUpdateTime = UA_DateTime_now();
 
-    return UA_GDSManager_initFileInfos(gdsManager(server), lastUpdateTime);
+    return UA_GDSReceiver_initFileInfos(gdsReceiver(server), lastUpdateTime);
 }
 
 static UA_StatusCode
@@ -164,8 +164,8 @@ writeGroupVariables(UA_Server *server) {
 
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
-    UA_StatusCode res = UA_GDSManager_getFileInfoMetadata(
-        gdsManager(server),
+    UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
+        gdsReceiver(server),
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP),
         &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
@@ -179,8 +179,8 @@ writeGroupVariables(UA_Server *server) {
                                   &lastUpdateTime, &UA_TYPES[UA_TYPES_UTCTIME]);
 
     /* DefaultUserTokenGroup */
-    res = UA_GDSManager_getFileInfoMetadata(
-        gdsManager(server),
+    res = UA_GDSReceiver_getFileInfoMetadata(
+        gdsReceiver(server),
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP),
         &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
@@ -222,7 +222,7 @@ updateCertificateAction(UA_Server *server,
     UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
 
     UA_StatusCode res =
-        UA_GDSManager_updateCertificate(gdsManager(server),
+        UA_GDSReceiver_stageCertificateUpdate(gdsReceiver(server),
                                         sessionId, certificateGroupId,
                                         certificateTypeId, certificate,
                                         privateKeyFormat, privateKey);
@@ -258,7 +258,7 @@ createSigningRequestAction(UA_Server *server,
     UA_ByteString *csr = UA_ByteString_new();
 
     UA_StatusCode retval =
-        UA_GDSReceiver_createSigningRequest((UA_GDSReceiver*)gdsManager(server),
+        UA_GDSReceiver_createSigningRequest((UA_GDSReceiver*)gdsReceiver(server),
                                            *certificateGroupId,
                                            *certificateTypeId, subjectName,
                                            regenerateKey, nonce, csr);
@@ -280,8 +280,8 @@ getRejectedListAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
-    UA_GDSManager *gdsm = gdsManager(server);
-    return UA_GDSManager_getRejectedList(gdsm, outputSize, output);
+    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    return UA_GDSReceiver_getRejectedList(ctx, outputSize, output);
 }
 
 static UA_StatusCode
@@ -291,7 +291,7 @@ applyChangesAction(UA_Server *server,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
-    return UA_GDSManager_applyChangesForSession(gdsManager(server), sessionId);
+    return UA_GDSReceiver_applyChangesForSession(gdsReceiver(server), sessionId);
 }
 
 static UA_StatusCode
@@ -313,15 +313,15 @@ addCertificateAction(UA_Server *server,
     if(!*isTrustedCertificate || certificate->length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(UA_GDSManager_transactionPending(gdsm))
+    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    if(UA_GDSReceiver_transactionPending(ctx))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    return UA_GDSManager_addCertificate(gdsm, certGroup, certificate,
+    return UA_GDSReceiver_addCertificate(ctx, certGroup, certificate,
                                         isTrustedCertificate);
 }
 
@@ -341,15 +341,15 @@ removeCertificateAction(UA_Server *server,
     UA_String *thumbprint = (UA_String *)input[0].data;
     UA_Boolean *isTrustedCertificate = (UA_Boolean *)input[1].data;
 
-    UA_GDSManager *gdsm = gdsManager(server);
-    if(UA_GDSManager_transactionPending(gdsm))
+    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    if(UA_GDSReceiver_transactionPending(ctx))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    return UA_GDSManager_removeCertificate(gdsm, certGroup, sessionId,
+    return UA_GDSReceiver_removeCertificate(ctx, certGroup, sessionId,
                                            thumbprint, isTrustedCertificate);
 }
 
@@ -369,8 +369,8 @@ openTrustListWithMaskAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsm = gdsManager(server);
-    return UA_GDSManager_openTrustListWithMask(gdsm, certGroup,
+    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    return UA_GDSReceiver_openTrustListWithMask(ctx, certGroup,
                                                sessionId, mask, output);
 }
 
@@ -390,8 +390,8 @@ closeAndUpdateTrustListAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSManager *gdsm = gdsManager(server);
-    return UA_GDSManager_closeAndUpdateTrustList(gdsm, certGroup, sessionId,
+    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    return UA_GDSReceiver_closeAndUpdateTrustList(ctx, certGroup, sessionId,
                                                  fileHandle, output);
 }
 
@@ -419,8 +419,8 @@ openFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSManager *gdsm = gdsManager(server);
-        retval = UA_GDSManager_openTrustList(gdsm, certGroup, sessionId,
+        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        retval = UA_GDSReceiver_openTrustList(ctx, certGroup, sessionId,
                                              fileOpenMode, output);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -464,8 +464,8 @@ readFileAction(UA_Server *server,
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
         /* Method was called on a trustlist */
-        UA_GDSManager *gdsm = gdsManager(server);
-        res = UA_GDSManager_readTrustList(gdsm, certGroup, sessionId,
+        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        res = UA_GDSReceiver_readTrustList(ctx, certGroup, sessionId,
                                           fileHandle, length, output);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -508,8 +508,8 @@ writeFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSManager *gdsm = gdsManager(server);
-        retval = UA_GDSManager_writeTrustList(gdsm, certGroup, sessionId,
+        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        retval = UA_GDSReceiver_writeTrustList(ctx, certGroup, sessionId,
                                               fileHandle, data);
     } else {
         retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -546,8 +546,8 @@ closeFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSManager *gdsm = gdsManager(server);
-        retval = UA_GDSManager_closeTrustList(gdsm, certGroup, sessionId, fileHandle);
+        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        retval = UA_GDSReceiver_closeTrustList(ctx, certGroup, sessionId, fileHandle);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
         retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -584,8 +584,8 @@ getPositionFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSManager *gdsm = gdsManager(server);
-        retval = UA_GDSManager_getPositionTrustList(gdsm, certGroup, sessionId,
+        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        retval = UA_GDSReceiver_getPositionTrustList(ctx, certGroup, sessionId,
                                                     fileHandle, output);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -626,8 +626,8 @@ setPositionFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSManager *gdsm = gdsManager(server);
-        retval = UA_GDSManager_setPositionTrustList(gdsm, certGroup,
+        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        retval = UA_GDSReceiver_setPositionTrustList(ctx, certGroup,
                                                     sessionId, fileHandle, position);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
