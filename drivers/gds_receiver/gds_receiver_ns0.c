@@ -257,6 +257,8 @@ createSigningRequestAction(UA_Server *server,
     UA_Boolean *regenerateKey = ((UA_Boolean *)input[3].data);
     UA_ByteString *nonce = (UA_ByteString *)input[4].data;
     UA_ByteString *csr = UA_ByteString_new();
+    if(!csr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_GDSReceiver *receiver = (UA_GDSReceiver*)methodContext;
     UA_StatusCode retval =
