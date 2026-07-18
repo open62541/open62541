@@ -85,8 +85,12 @@ latex_elements = {
 # Clean up the header and footer
 'preamble': r"""
 \usepackage{pifont}
-\DeclareUnicodeCharacter{2265}{$\geq$}
-\DeclareUnicodeCharacter{2717}{\ding{55}}
+% \DeclareUnicodeCharacter is only defined for 8-bit engines (pdflatex);
+% lualatex handles Unicode natively and errors on the undefined macro
+\ifdefined\DeclareUnicodeCharacter
+    \DeclareUnicodeCharacter{2265}{$\geq$}
+    \DeclareUnicodeCharacter{2717}{\ding{55}}
+\fi
 \fancypagestyle{normal}{
     \fancyhf{}
     \fancyfoot[RO,LE]{\thepage}
