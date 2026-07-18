@@ -464,7 +464,7 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 #if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
-    int res = clock_gettime(pel->clockSource, &ts);
+    int res = clock_gettime((clockid_t)pel->clockSource, &ts);
     if(UA_UNLIKELY(res != 0))
         return 0;
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
@@ -478,7 +478,7 @@ UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
 #if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
-    int res = clock_gettime(pel->clockSourceMonotonic, &ts);
+    int res = clock_gettime((clockid_t)pel->clockSourceMonotonic, &ts);
     if(UA_UNLIKELY(res != 0))
         return 0;
     /* Also add the unix epoch for the monotonic clock. So we get a "normal"
