@@ -199,8 +199,20 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         const UA_StructureField *sf = &sd->fields[i];
         UA_DataTypeMember *dtm = &type->members[i];
 
+        /* A datatype can contain itself only indirectly. Resolve a direct
+         * self-reference against the type currently being constructed instead
+         * of requiring it in customTypes. An inline self-member would have an
+         * infinitely large layout and is therefore not supported. */
+        const UA_Boolean selfReference =
+            UA_NodeId_equal(&sf->dataType, &type->typeId);
+        if(selfReference && sf->valueRank != 1 && !sf->isOptional) {
+            UA_DataType_clear(type);
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
         /* Find the referenced type */
-        dtm->memberType = UA_findDataTypeWithCustom(&sf->dataType, customTypes);
+        dtm->memberType = selfReference ? type :
+            UA_findDataTypeWithCustom(&sf->dataType, customTypes);
         if(!dtm->memberType) {
             UA_DataType_clear(type);
             return UA_STATUSCODE_BADNOTFOUND;
@@ -219,10 +231,14 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         *(char*)(uintptr_t)&dtm->memberName[sf->name.length] = '\0';
 #endif
 
-        /* Memory size and padding for the scalar case */
-        UA_Byte talignment = type_alignment(dtm->memberType);
-        size_t memSize = dtm->memberType->memSize;
-        dtm->padding = PADDING(type->memSize, talignment);
+        /* Memory size and padding for the scalar case. A supported
+         * self-reference is indirect and gets its layout below. */
+        size_t memSize = 0;
+        if(!selfReference) {
+            UA_Byte talignment = type_alignment(dtm->memberType);
+            memSize = dtm->memberType->memSize;
+            dtm->padding = PADDING(type->memSize, talignment);
+        }
 
         /* Handle valuerank and array dimensions */
         if(sf->valueRank == 1) {
