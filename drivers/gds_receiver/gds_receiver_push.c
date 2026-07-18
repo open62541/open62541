@@ -1173,15 +1173,12 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
     UA_free(ccb);
 }
 
-UA_StatusCode
-UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
-                                 const UA_NodeId certificateGroupId,
-                                const UA_NodeId certificateTypeId,
-                                const UA_ByteString certificate,
-                                const UA_ByteString *privateKey) {
-    if(!receiver || !receiver->drv.server)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+static UA_StatusCode
+updateCertificateLocked(UA_GDSReceiver *receiver,
+                        const UA_NodeId certificateGroupId,
+                        const UA_NodeId certificateTypeId,
+                        const UA_ByteString certificate,
+                        const UA_ByteString *privateKey) {
     UA_GDSManager *gdsm = (UA_GDSManager*)receiver;
     if(gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
@@ -1249,16 +1246,31 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 }
 
 UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
-                                    const UA_NodeId certificateGroupId,
-                                   const UA_NodeId certificateTypeId,
-                                   const UA_String *subjectName,
-                                   const UA_Boolean *regenerateKey,
-                                   const UA_ByteString *nonce,
-                                   UA_ByteString *csr) {
-    if(!receiver || !receiver->drv.server || !csr)
+UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
+                                 const UA_NodeId certificateGroupId,
+                                 const UA_NodeId certificateTypeId,
+                                 const UA_ByteString certificate,
+                                 const UA_ByteString *privateKey) {
+    if(!receiver || !receiver->drv.server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
+    sc->eventLoop->lock(sc->eventLoop);
+    UA_StatusCode res = updateCertificateLocked(receiver, certificateGroupId,
+                                                certificateTypeId, certificate,
+                                                privateKey);
+    sc->eventLoop->unlock(sc->eventLoop);
+    return res;
+}
+
+static UA_StatusCode
+createSigningRequestLocked(UA_GDSReceiver *receiver,
+                           const UA_NodeId certificateGroupId,
+                           const UA_NodeId certificateTypeId,
+                           const UA_String *subjectName,
+                           const UA_Boolean *regenerateKey,
+                           const UA_ByteString *nonce,
+                           UA_ByteString *csr) {
     UA_GDSManager *gdsm = (UA_GDSManager*)receiver;
     if(gdsm->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
@@ -1318,6 +1330,26 @@ cleanup:
         UA_ByteString_delete(newPrivateKey);
     }
     return retval;
+}
+
+UA_StatusCode
+UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
+                                    const UA_NodeId certificateGroupId,
+                                    const UA_NodeId certificateTypeId,
+                                    const UA_String *subjectName,
+                                    const UA_Boolean *regenerateKey,
+                                    const UA_ByteString *nonce,
+                                    UA_ByteString *csr) {
+    if(!receiver || !receiver->drv.server || !csr)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
+    sc->eventLoop->lock(sc->eventLoop);
+    UA_StatusCode res = createSigningRequestLocked(
+        receiver, certificateGroupId, certificateTypeId, subjectName,
+        regenerateKey, nonce, csr);
+    sc->eventLoop->unlock(sc->eventLoop);
+    return res;
 }
 
 static UA_StatusCode

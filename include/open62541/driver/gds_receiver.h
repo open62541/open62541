@@ -48,7 +48,7 @@ UA_GDSReceiver_new(void);
 
 /* Update the application certificate used by the server endpoints. The GDS
  * Receiver driver must be attached and started. If certificateGroupId is
- * null, the DefaultApplicationGroup is used. */
+ * null, the DefaultApplicationGroup is used. This function is thread-safe. */
 UA_EXPORT UA_StatusCode
 UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
                                 const UA_NodeId certificateGroupId,
@@ -58,7 +58,7 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 
 /* Create a PKCS #10 DER-encoded certificate signing request. The GDS Receiver
  * driver must be attached and started. If certificateGroupId is null,
- * the DefaultApplicationGroup is used. */
+ * the DefaultApplicationGroup is used. This function is thread-safe. */
 UA_EXPORT UA_StatusCode
 UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
                                    const UA_NodeId certificateGroupId,
