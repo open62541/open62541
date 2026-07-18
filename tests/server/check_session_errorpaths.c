@@ -543,7 +543,7 @@ int main(void) {
     SRunner *sr = srunner_create(s);
     /* CK_FORK so any segfault in a test is reported by the runner and
      * does not abort the whole binary. */
-    srunner_set_fork_status(sr, CK_FORK);
+    srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
     int failed = srunner_ntests_failed(sr);
     srunner_free(sr);

@@ -211,7 +211,7 @@ static Suite* testSuite_Utils(void) {
 int main(void) {
     Suite *s = testSuite_Utils();
     SRunner *sr = srunner_create(s);
-    srunner_set_fork_status(sr, CK_FORK);
+    srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
     int failed = srunner_ntests_failed(sr);
     srunner_free(sr);
