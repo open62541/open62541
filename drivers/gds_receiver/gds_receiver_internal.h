@@ -21,7 +21,7 @@ UA_GDSReceiverContext *
 gdsReceiver(UA_Server *server);
 
 UA_StatusCode
-initNS0PushManagement(UA_Server *server);
+initNS0PushManagement(UA_GDSReceiverContext *ctx);
 
 UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);

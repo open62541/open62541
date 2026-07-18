@@ -221,11 +221,12 @@ updateCertificateAction(UA_Server *server,
     UA_String *privateKeyFormat = (UA_String *)input[4].data;
     UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
 
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     UA_StatusCode res =
-        UA_GDSReceiver_stageCertificateUpdate(gdsReceiver(server),
-                                        sessionId, certificateGroupId,
-                                        certificateTypeId, certificate,
-                                        privateKeyFormat, privateKey);
+        UA_GDSReceiver_stageCertificateUpdate(ctx, sessionId,
+                                              certificateGroupId,
+                                              certificateTypeId, certificate,
+                                              privateKeyFormat, privateKey);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -257,9 +258,9 @@ createSigningRequestAction(UA_Server *server,
     UA_ByteString *nonce = (UA_ByteString *)input[4].data;
     UA_ByteString *csr = UA_ByteString_new();
 
+    UA_GDSReceiver *receiver = (UA_GDSReceiver*)methodContext;
     UA_StatusCode retval =
-        UA_GDSReceiver_createSigningRequest((UA_GDSReceiver*)gdsReceiver(server),
-                                           *certificateGroupId,
+        UA_GDSReceiver_createSigningRequest(receiver, *certificateGroupId,
                                            *certificateTypeId, subjectName,
                                            regenerateKey, nonce, csr);
 
@@ -280,7 +281,7 @@ getRejectedListAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_getRejectedList(ctx, outputSize, output);
 }
 
@@ -291,7 +292,8 @@ applyChangesAction(UA_Server *server,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
-    return UA_GDSReceiver_applyChangesForSession(gdsReceiver(server), sessionId);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
+    return UA_GDSReceiver_applyChangesForSession(ctx, sessionId);
 }
 
 static UA_StatusCode
@@ -313,7 +315,7 @@ addCertificateAction(UA_Server *server,
     if(!*isTrustedCertificate || certificate->length == 0)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     if(UA_GDSReceiver_transactionPending(ctx))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
@@ -341,7 +343,7 @@ removeCertificateAction(UA_Server *server,
     UA_String *thumbprint = (UA_String *)input[0].data;
     UA_Boolean *isTrustedCertificate = (UA_Boolean *)input[1].data;
 
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     if(UA_GDSReceiver_transactionPending(ctx))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
@@ -369,7 +371,7 @@ openTrustListWithMaskAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_openTrustListWithMask(ctx, certGroup,
                                                sessionId, mask, output);
 }
@@ -390,7 +392,7 @@ closeAndUpdateTrustListAction(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_closeAndUpdateTrustList(ctx, certGroup, sessionId,
                                                  fileHandle, output);
 }
@@ -419,7 +421,7 @@ openFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
         retval = UA_GDSReceiver_openTrustList(ctx, certGroup, sessionId,
                                              fileOpenMode, output);
     } else {
@@ -464,7 +466,7 @@ readFileAction(UA_Server *server,
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
         /* Method was called on a trustlist */
-        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
         res = UA_GDSReceiver_readTrustList(ctx, certGroup, sessionId,
                                           fileHandle, length, output);
     } else {
@@ -508,7 +510,7 @@ writeFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
         retval = UA_GDSReceiver_writeTrustList(ctx, certGroup, sessionId,
                                               fileHandle, data);
     } else {
@@ -546,7 +548,7 @@ closeFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
         retval = UA_GDSReceiver_closeTrustList(ctx, certGroup, sessionId, fileHandle);
     } else {
         UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -584,7 +586,7 @@ getPositionFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
         retval = UA_GDSReceiver_getPositionTrustList(ctx, certGroup, sessionId,
                                                     fileHandle, output);
     } else {
@@ -626,7 +628,7 @@ setPositionFileAction(UA_Server *server,
 
     static UA_NodeId trustListType = STATIC_NS0ID(TRUSTLISTTYPE);
     if(UA_NodeId_equal(&typeId, &trustListType)) {
-        UA_GDSReceiverContext *ctx = gdsReceiver(server);
+        UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
         retval = UA_GDSReceiver_setPositionTrustList(ctx, certGroup,
                                                     sessionId, fileHandle, position);
     } else {
@@ -641,8 +643,19 @@ setPositionFileAction(UA_Server *server,
     return retval;
 }
 
+static UA_StatusCode
+setMethodCallback(UA_GDSReceiverContext *ctx, UA_NodeId methodId,
+                  UA_MethodCallback callback) {
+    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
+    UA_StatusCode res = UA_Server_setNodeContext(server, methodId, ctx);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_Server_setMethodNodeCallback(server, methodId, callback);
+}
+
 UA_StatusCode
-initNS0PushManagement(UA_Server *server) {
+initNS0PushManagement(UA_GDSReceiverContext *ctx) {
+    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Create FileInfo */
@@ -652,30 +665,30 @@ initNS0PushManagement(UA_Server *server) {
     retval |= writeGroupVariables(server);
 
     /* Set method callbacks */
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_UPDATECERTIFICATE), updateCertificateAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CREATESIGNINGREQUEST), createSigningRequestAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_GETREJECTEDLIST), getRejectedListAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_APPLYCHANGES), applyChangesAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN), openFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN), openFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ), readFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ), readFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE), writeFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE), writeFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE), closeFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE), closeFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
-    retval |= UA_Server_setMethodNodeCallback(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_UPDATECERTIFICATE), updateCertificateAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CREATESIGNINGREQUEST), createSigningRequestAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_GETREJECTEDLIST), getRejectedListAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_APPLYCHANGES), applyChangesAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE), addCertificateAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE), removeCertificateAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS), openTrustListWithMaskAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE), closeAndUpdateTrustListAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN), openFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN), openFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ), readFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ), readFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE), writeFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE), writeFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE), closeFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE), closeFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
+    retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
     return retval;
 }
 
