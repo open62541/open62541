@@ -1243,6 +1243,126 @@ START_TEST(Highlevel_write_nullWriteValue) {
 }
 END_TEST
 
+START_TEST(Highlevel_writeValueAttribute_nullVariant_returnsTypeMismatch) {
+    /* src/client/ua_client_highlevel.c:533-534 (__Client_writeAttribute):
+     *   if(!in || !inDataType) return UA_STATUSCODE_BADTYPEMISMATCH;
+     * UA_Client_writeValueAttribute calls __Client_writeAttribute
+     * directly without checking for NULL itself. None of the existing
+     * tests passes a NULL Variant. */
+    UA_NodeId nodeReadWriteInt = UA_NODEID_NUMERIC(1, 60000);
+    UA_StatusCode retval =
+        UA_Client_writeValueAttribute(client, nodeReadWriteInt, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+
+    /* writeValueAttribute_scalar with NULL value also hits the
+     * same guard. */
+    retval = UA_Client_writeValueAttribute_scalar(
+        client, nodeReadWriteInt, NULL, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+
+    /* writeValueAttributeEx with NULL DataValue also hits the same
+     * guard. */
+    retval = UA_Client_writeValueAttributeEx(client, nodeReadWriteInt, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+}
+END_TEST
+
+
+START_TEST(Highlevel_addReference_invalidSource) {
+    UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_StatusCode retval = UA_Client_addReference(client,
+        UA_NODEID_NUMERIC(1, 99999),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_UNSPECIFIED);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(Highlevel_deleteReference_invalidSource) {
+    UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_StatusCode retval = UA_Client_deleteReference(client,
+        UA_NODEID_NUMERIC(1, 99999),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_TRUE, target, UA_TRUE);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(Highlevel_deleteNode_invalidNode) {
+    UA_StatusCode retval = UA_Client_deleteNode(client,
+        UA_NODEID_NUMERIC(1, 99999), UA_TRUE);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(Highlevel_deleteNode_notFound) {
+    UA_NodeId nonExistentNode = UA_NODEID_STRING(1, "non_existent_node_test_12345");
+    UA_StatusCode retval = UA_Client_deleteNode(client, nonExistentNode, UA_TRUE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+END_TEST
+
+START_TEST(Highlevel_addVariableNode_invalidParent) {
+    UA_NodeId invalidParent = UA_NODEID_NUMERIC(1, 99999);
+    UA_NodeId newNodeId = UA_NODEID_STRING(1, "test_invalid_parent");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Test Node");
+
+    UA_StatusCode retval = UA_Client_addVariableNode(client, newNodeId, invalidParent,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "Test"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(Highlevel_browse_invalidNode) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(1, 99999);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_BrowseResult_clear(&br);
+}
+END_TEST
+
+START_TEST(Highlevel_browseNext_noContinuationPoint) {
+    UA_ByteString nullContinuation = UA_BYTESTRING_NULL;
+    UA_BrowseResult br = UA_Client_browseNext(client, false, nullContinuation);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_BrowseResult_clear(&br);
+}
+END_TEST
+
+START_TEST(Highlevel_translateBrowsePath_invalidPath) {
+    UA_NodeId startingNode = UA_NODEID_NUMERIC(1, 99999);
+    UA_BrowsePath bp;
+    memset(&bp, 0, sizeof(UA_BrowsePath));
+    bp.startingNode = startingNode;
+
+    UA_BrowsePathResult bpr = UA_Client_translateBrowsePathToNodeIds(client, &bp);
+    ck_assert_uint_ne(bpr.statusCode, UA_STATUSCODE_GOOD);
+    UA_BrowsePathResult_clear(&bpr);
+}
+END_TEST
+
+START_TEST(Highlevel_writeValue_invalidNode) {
+    UA_NodeId invalidNode = UA_NODEID_NUMERIC(1, 99999);
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = invalidNode;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Variant_init(&wv.value.value);
+    wv.value.hasValue = true;
+
+    UA_StatusCode retval = UA_Client_write(client, &wv);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Client Highlevel");
     TCase *tc_misc = tcase_create("Client Highlevel Misc");
@@ -1306,13 +1426,35 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_ext, Highlevel_browseNext_emptyContinuation);
     tcase_add_test(tc_ext, Highlevel_translateBrowsePath_null);
     tcase_add_test(tc_ext, Highlevel_write_nullWriteValue);
+    tcase_add_test(tc_ext, Highlevel_writeValueAttribute_nullVariant_returnsTypeMismatch);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_ext, Highlevel_CallMethod_Error);
 #endif
+    tcase_add_test(tc_ext, Highlevel_addReference_invalidSource);
+    tcase_add_test(tc_ext, Highlevel_deleteReference_invalidSource);
+    tcase_add_test(tc_ext, Highlevel_deleteNode_invalidNode);
+    tcase_add_test(tc_ext, Highlevel_deleteNode_notFound);
+    tcase_add_test(tc_ext, Highlevel_addVariableNode_invalidParent);
+    tcase_add_test(tc_ext, Highlevel_browse_invalidNode);
+    tcase_add_test(tc_ext, Highlevel_browseNext_noContinuationPoint);
+    tcase_add_test(tc_ext, Highlevel_translateBrowsePath_invalidPath);
+    tcase_add_test(tc_ext, Highlevel_writeValue_invalidNode);
     suite_add_tcase(s, tc_ext);
 
     return s;
+
+
 }
+
+
+
+
+
+
+
+
+
+
 
 int main(void) {
     Suite *s = testSuite_Client();

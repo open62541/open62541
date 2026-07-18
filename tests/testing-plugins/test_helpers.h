@@ -9,6 +9,8 @@
 #include <open62541/server.h>
 #include "testing_clock.h"
 
+_UA_BEGIN_DECLS
+
 UA_Server *
 UA_Server_newForUnitTest(void);
 
@@ -35,7 +37,9 @@ UA_Client * UA_Client_newForUnitTest(void);
 
 UA_StatusCode
 UA_ClientConfig_newForUnitTestWithEncryption(UA_ClientConfig *config,
-                                             const UA_ByteString certificate,
-                                             const UA_ByteString privateKey);
+                                              const UA_ByteString certificate,
+                                              const UA_ByteString privateKey);
+
+_UA_END_DECLS
 
 #endif /* TEST_HELPERS_H_ */

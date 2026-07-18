@@ -41,12 +41,38 @@ markSemanticsChanged(UA_Server *server, const UA_NodeId *affected) {
     UA_NODESTORE_RELEASE(server, node);
 }
 
-/* Detect value changes outside the deadband */
-#define UA_DETECT_DEADBAND(TYPE) do {                           \
-    TYPE v1 = *(const TYPE*)data1;                              \
-    TYPE v2 = *(const TYPE*)data2;                              \
-    TYPE diff = (v1 > v2) ? (TYPE)(v1 - v2) : (TYPE)(v2 - v1);  \
-    return ((UA_Double)diff > deadband);                        \
+/* Detect value changes outside the deadband.
+ *
+ * Integer types: compute the absolute difference in a wide unsigned type
+ * (UA_UInt64) first, then widen only the *difference* to UA_Double for the
+ * deadband comparison. This avoids both signed integer overflow (e.g.
+ * (UA_SByte)(100 - (-50)) wraps to -106 instead of 150) and the 2^53
+ * precision loss that comes from casting the operands to UA_Double before
+ * subtracting: two huge but close Int64/UInt64 values would each round to a
+ * nearby representable double and the subtraction would accumulate the
+ * rounding error. Computing the exact integer magnitude first keeps the
+ * difference exact (it fits in UA_Double's 53-bit mantissa for any realistic
+ * deadband), so only the (usually small) delta is widened. The (UA_UInt64)
+ * cast of a negative signed value yields the correct unsigned magnitude on
+ * every platform. */
+#define UA_DETECT_DEADBAND(TYPE) do {                                      \
+    TYPE v1 = *(const TYPE*)data1;                                         \
+    TYPE v2 = *(const TYPE*)data2;                                         \
+    UA_UInt64 mag = (v1 > v2) ? (UA_UInt64)v1 - (UA_UInt64)v2               \
+                              : (UA_UInt64)v2 - (UA_UInt64)v1;              \
+    UA_Double diff = (UA_Double)mag;                                       \
+    return (diff > deadband);                                              \
+} while(false)
+
+/* Floating-point types: the integer magnitude approach would truncate the
+ * fractional part, so subtract directly in UA_Double. This is safe from
+ * overflow and exact (Float widens to Double without loss). */
+#define UA_DETECT_DEADBAND_FLOAT(TYPE) do {                                 \
+    TYPE v1 = *(const TYPE*)data1;                                         \
+    TYPE v2 = *(const TYPE*)data2;                                         \
+    UA_Double diff = (v1 > v2) ? (UA_Double)v1 - (UA_Double)v2             \
+                               : (UA_Double)v2 - (UA_Double)v1;            \
+    return (diff > deadband);                                              \
 } while(false)
 
 static UA_Boolean
@@ -69,9 +95,9 @@ detectScalarDeadBand(const void *data1, const void *data2,
     } else if(type->typeKind == UA_DATATYPEKIND_UINT64) {
         UA_DETECT_DEADBAND(UA_UInt64);
     } else if(type->typeKind == UA_DATATYPEKIND_FLOAT) {
-        UA_DETECT_DEADBAND(UA_Float);
+        UA_DETECT_DEADBAND_FLOAT(UA_Float);
     } else if(type->typeKind == UA_DATATYPEKIND_DOUBLE) {
-        UA_DETECT_DEADBAND(UA_Double);
+        UA_DETECT_DEADBAND_FLOAT(UA_Double);
     } else {
         return false; /* Not a known numerical type */
     }

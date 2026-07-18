@@ -211,6 +211,37 @@ START_TEST(Client_getEndpoints_badUrl_connected) {
 }
 END_TEST
 
+START_TEST(Client_findServersOnNetwork_paged) {
+    /* Test with maxRecordsToReturn to exercise paging code */
+    UA_Client *client = UA_Client_newForUnitTest();
+    size_t serverOnNetworkSize = 0;
+    UA_ServerOnNetwork *servers = NULL;
+    UA_StatusCode retval = UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4840",
+                                                            0, 1, 0, NULL,
+                                                            &serverOnNetworkSize, &servers);
+    /* Either success or error - both valid */
+    if(retval == UA_STATUSCODE_GOOD && servers)
+        UA_Array_delete(servers, serverOnNetworkSize,
+                        &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_findServersOnNetwork_disconnected) {
+    /* Test findServersOnNetwork without connecting first */
+    UA_Client *client = UA_Client_newForUnitTest();
+    size_t serverOnNetworkSize = 0;
+    UA_ServerOnNetwork *servers = NULL;
+    UA_StatusCode retval = UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4840",
+                                                            0, 0, 0, NULL,
+                                                            &serverOnNetworkSize, &servers);
+    if(retval == UA_STATUSCODE_GOOD && servers)
+        UA_Array_delete(servers, serverOnNetworkSize,
+                        &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Discovery");
@@ -222,6 +253,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_findServers_connected);
     tcase_add_test(tc_client, Client_findServersOnNetwork);
     tcase_add_test(tc_client, Client_findServersOnNetwork_badUrl_connected);
+    tcase_add_test(tc_client, Client_findServersOnNetwork_paged);
+    tcase_add_test(tc_client, Client_findServersOnNetwork_disconnected);
     tcase_add_test(tc_client, Client_getEndpoints_badUrl_connected);
     suite_add_tcase(s,tc_client);
     return s;

@@ -202,6 +202,14 @@ UA_Session *
 getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* A NULL sessionId is a programming error from the public API
+     * (UA_Server_closeSession) or from an internal caller that has
+     * no session id. Treat it as "not found" so callers like
+     * UA_Server_closeSession can return BADSESSIONIDINVALID instead
+     * of dereferencing NULL inside UA_NodeId_equal. */
+    if(!sessionId)
+        return NULL;
+
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
         /* Token does not match */

@@ -98,15 +98,16 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
 }
 
 /* Match PolicyUri and certificate. The returned SecurityPolicy instance carries
- * the private key to sign with the given ceertificate. */
+ * the private key to sign with the given certificate. When the certificate is
+ * NULL, only the PolicyUri is matched (used for non-X509 token types). */
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, const UA_String policyUri,
-                      const UA_ByteString certificate) {
+                      const UA_ByteString *certificate) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.authSecurityPolicies[i];
         if(!UA_String_equal(&policyUri, &sp->policyUri))
             continue;
-        if(!UA_ByteString_equal(&certificate, &sp->localCertificate))
+        if(certificate && !UA_ByteString_equal(certificate, &sp->localCertificate))
             continue;
         return sp;
     }
@@ -168,19 +169,24 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
     UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
         utp->securityPolicyUri : client->endpoint.securityPolicyUri;
 
-    /* Get the SecurityPolicy for authentication */
+    /* Get the SecurityPolicy for the UserIdentityToken. X509 tokens sign with
+     * a private key, so they must use an authSecurityPolicy (matched by
+     * PolicyUri and certificate). Other tokens only encrypt with the server
+     * certificate, so fall back to the SecureChannel securityPolicies. */
     UA_SecurityPolicy *utsp;
     if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
             client->config.userIdentityToken.content.decoded.data;
         utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri,
-                                     token->certificateData);
+                                     &token->certificateData);
     } else {
-        utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
+        utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri, NULL);
+        if(!utsp)
+            utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
     }
     if(!utsp) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "%s: SecurityPoliocy %S not available for the "
+                     "%s: SecurityPolicy %S not available for the "
                      "UserTokenPolicy", logPrefix, tokenSecurityPolicyUri);
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     }
@@ -190,8 +196,8 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
         if(!UA_String_equal(&client->utpSp->policyUri,
                             &tokenSecurityPolicyUri)) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "%s: SecurityPoliocy %S cannot be instantiated. "
-                         "A different SecurityPolicy %s is in place already",
+                         "%s: SecurityPolicy %S cannot be instantiated. "
+                         "A different SecurityPolicy %S is in place already",
                          logPrefix, tokenSecurityPolicyUri,
                          client->utpSp->policyUri);
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
@@ -1253,15 +1259,19 @@ matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
     if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS)
         return true;
 
-    /* Get the SecurityPolicy */
+    /* Get the SecurityPolicy for the UserIdentityToken (see
+     * initUserTokenPolicy for the authSecurityPolicies/securityPolicies
+     * lookup rationale). */
     UA_SecurityPolicy *utsp;
     if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
             client->config.userIdentityToken.content.decoded.data;
         utsp = getAuthSecurityPolicy(client, tokenPolicyUri,
-                                     token->certificateData);
+                                     &token->certificateData);
     } else {
-        utsp = getSecurityPolicy(client, tokenPolicyUri);
+        utsp = getAuthSecurityPolicy(client, tokenPolicyUri, NULL);
+        if(!utsp)
+            utsp = getSecurityPolicy(client, tokenPolicyUri);
     }
     if(!utsp) {
         if(logPrefix) {

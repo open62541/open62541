@@ -389,7 +389,7 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
 
 typedef struct {
     UA_Server *server;
-    UA_Session *session;
+    UA_Session *session; /* may be NULL if no session is attached. */
     UA_EventDescription ed; /* shallow copy */
     UA_EventFilter filter;  /* shallow copy */
 

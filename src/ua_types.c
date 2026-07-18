@@ -408,12 +408,6 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_StatusCode
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping) {
-    /* If the QualifiedName is NULL, return a NULL string */
-    if(qn->name.data == NULL && qn->namespaceIndex == 0) {
-        UA_String_clear(output);
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* Start tracking the output length */
     size_t len = qn->name.length;
 
@@ -3009,6 +3003,12 @@ UA_NamespaceMapping_clear(UA_NamespaceMapping *nm) {
     UA_Array_delete(nm->namespaceUris, nm->namespaceUrisSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(nm->local2remote, nm->local2remoteSize, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Array_delete(nm->remote2local, nm->remote2localSize, &UA_TYPES[UA_TYPES_UINT16]);
+    nm->namespaceUris = NULL;
+    nm->local2remote = NULL;
+    nm->remote2local = NULL;
+    nm->namespaceUrisSize = 0;
+    nm->local2remoteSize = 0;
+    nm->remote2localSize = 0;
 }
 
 void

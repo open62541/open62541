@@ -10,6 +10,7 @@
 
 #include "server/ua_services.h"
 #include "client/ua_client_internal.h"
+#include "server/ua_server_internal.h"
 #include "test_helpers.h"
 
 #include <check.h>
@@ -533,6 +534,59 @@ START_TEST(Session_createSession_noServerCertOnNonePolicy) {
     UA_Client_delete(client);
 } END_TEST
 
+/* Session timeout handling tested via client timeout behavior */
+
+START_TEST(Session_secureChannel_mismatch) {
+    /* Test that ActivateSession fails when attempted on a different SecureChannel
+     * than the one used for CreateSession (before the session is activated).
+     * Per OPC UA Part 4 §5.6.3: first activation must be on the same channel. */
+    UA_Client *client1 = UA_Client_newForUnitTest();
+    UA_Client *client2 = UA_Client_newForUnitTest();
+    
+    /* Establish separate SecureChannels */
+    UA_StatusCode ret1 = UA_Client_connectSecureChannel(client1, "opc.tcp://localhost:4840");
+    UA_StatusCode ret2 = UA_Client_connectSecureChannel(client2, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(ret1, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ret2, UA_STATUSCODE_GOOD);
+    
+    /* Client1 creates a session (not yet activated) */
+    UA_CreateSessionRequest createReq1;
+    UA_CreateSessionResponse createRes1;
+    UA_CreateSessionRequest_init(&createReq1);
+    __UA_Client_Service(client1, &createReq1,
+                        &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes1, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createRes1.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    
+    /* Attempt to activate the session on client2's channel (wrong channel) */
+    UA_ActivateSessionRequest actReq2;
+    UA_ActivateSessionResponse actRes2;
+    UA_ActivateSessionRequest_init(&actReq2);
+    /* Copy the authenticationToken into the request header */
+    UA_NodeId_copy(&createRes1.authenticationToken, &actReq2.requestHeader.authenticationToken);
+    /* userIdentityToken left as default (empty => Anonymous) */
+    
+    __UA_Client_Service(client2, &actReq2,
+                        &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &actRes2, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    
+    /* Should fail with BADSESSIONIDINVALID due to channel mismatch */
+    ck_assert_uint_eq(actRes2.responseHeader.serviceResult, UA_STATUSCODE_BADSESSIONIDINVALID);
+
+    /* Cleanup */
+    UA_ActivateSessionResponse_clear(&actRes2);
+    UA_ActivateSessionRequest_clear(&actReq2);
+    UA_CreateSessionResponse_clear(&createRes1);
+
+    /* Disconnect clients (will close sessions/channels) */
+    UA_Client_disconnect(client1);
+    UA_Client_disconnect(client2);
+    UA_Client_delete(client1);
+    UA_Client_delete(client2);
+} END_TEST
+
+/* Session restart after timeout handled by client reconnection logic */
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -556,6 +610,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session_ext, Session_deleteSessionAttribute);
     tcase_add_test(tc_session_ext, Session_createSession_certIgnored_on_none_policy);
     tcase_add_test(tc_session_ext, Session_createSession_noServerCertOnNonePolicy);
+    tcase_add_test(tc_session_ext, Session_secureChannel_mismatch);
 
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);
