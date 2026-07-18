@@ -170,6 +170,54 @@ START_TEST(addDriver_rejectsDuplicateGDSReceiver) {
 }
 END_TEST
 
+START_TEST(update_certificate_preflightsAllEndpoints) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_NodeId certificateType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_SecurityPolicy *policy = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(UA_NodeId_equal(&config->securityPolicies[i].certificateTypeId,
+                           &certificateType)) {
+            policy = &config->securityPolicies[i];
+            break;
+        }
+    }
+    ck_assert_ptr_nonnull(policy);
+
+    UA_ByteString oldCertificate = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_copy(&policy->localCertificate,
+                                        &oldCertificate),
+                      UA_STATUSCODE_GOOD);
+
+    size_t oldSize = config->endpointsSize;
+    UA_EndpointDescription *endpoints = (UA_EndpointDescription*)
+        UA_realloc(config->endpoints,
+                   sizeof(UA_EndpointDescription) * (oldSize + 1));
+    ck_assert_ptr_nonnull(endpoints);
+    config->endpoints = endpoints;
+    UA_EndpointDescription_init(&config->endpoints[oldSize]);
+    config->endpoints[oldSize].securityPolicyUri =
+        UA_STRING_ALLOC("urn:invalid-security-policy");
+    config->endpointsSize++;
+
+    UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+    generateCertificate(&newCertificate, &newPrivateKey);
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_StatusCode res = UA_GDSReceiver_updateCertificate(
+        receiver, defaultApplicationGroup, certificateType,
+        newCertificate, &newPrivateKey);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert(UA_ByteString_equal(&policy->localCertificate, &oldCertificate));
+
+    UA_ByteString_clear(&newCertificate);
+    UA_ByteString_clear(&newPrivateKey);
+    UA_ByteString_clear(&oldCertificate);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -179,6 +227,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_wrongKey);
     tcase_add_test(tc_cert, update_certificate_noKey);
     tcase_add_test(tc_cert, addDriver_rejectsDuplicateGDSReceiver);
+    tcase_add_test(tc_cert, update_certificate_preflightsAllEndpoints);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -190,6 +239,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, update_certificate_wrongKey);
     tcase_add_test(tc_cert_filestore, update_certificate_noKey);
     tcase_add_test(tc_cert_filestore, addDriver_rejectsDuplicateGDSReceiver);
+    tcase_add_test(tc_cert_filestore, update_certificate_preflightsAllEndpoints);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
