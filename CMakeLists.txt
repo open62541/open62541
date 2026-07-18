@@ -881,8 +881,8 @@ if(UA_ENABLE_DRIVER_GDS_RECEIVER)
     list(APPEND lib_headers
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_internal.h)
     list(APPEND lib_sources
-         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_push.c
-         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/ua_server_ns0_gds.c)
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver.c
+         ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c)
 endif()
 
 if(UA_ENABLE_RBAC)
