@@ -119,8 +119,12 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server,
 
     memset(transaction, 0, sizeof(UA_GDSTransaction));
 
+    UA_StatusCode res = UA_NodeId_copy(&sessionId, &transaction->sessionId);
+    if(res != UA_STATUSCODE_GOOD) {
+        transaction->localCsrCertificate = csr;
+        return res;
+    }
     transaction->state = UA_GDSTRANSACTIONSTATE_PENDING;
-    UA_NodeId_copy(&sessionId, &transaction->sessionId);
     transaction->server = server;
     transaction->localCsrCertificate = csr;
 
@@ -146,11 +150,12 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     }
 
     /* If the certGroup does not exist, create a new one */
-    transaction->certGroups = (UA_CertificateGroup*)
+    UA_CertificateGroup *newGroups = (UA_CertificateGroup*)
         UA_realloc(transaction->certGroups,
                    (transaction->certGroupSize + 1) * sizeof(UA_CertificateGroup));
-    if(!transaction->certGroups)
+    if(!newGroups)
         return NULL;
+    transaction->certGroups = newGroups;
 
     transaction->certGroupSize++;
 
@@ -161,7 +166,13 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-    certGroup->getTrustList((UA_CertificateGroup*)(uintptr_t)certGroup, &trustList);
+    UA_StatusCode res = certGroup->getTrustList(
+        (UA_CertificateGroup*)(uintptr_t)certGroup, &trustList);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        transaction->certGroupSize--;
+        return NULL;
+    }
 
     /* Set up the parameters */
     UA_KeyValuePair params[1] = {{{0, UA_STRING_STATIC("max-trust-listsize")}, {0}}};
@@ -171,11 +182,15 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
                          &UA_TYPES[UA_TYPES_UINT32]);
 
     /* Initialize the CertificateGroup */
-    UA_CertificateGroup_Memorystore(newGroup,
-                                    (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId,
-                                    &trustList, certGroup->logging, &paramsMap);
+    res = UA_CertificateGroup_Memorystore(
+        newGroup, (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId,
+        &trustList, certGroup->logging, &paramsMap);
 
     UA_TrustListDataType_clear(&trustList);
+    if(res != UA_STATUSCODE_GOOD) {
+        transaction->certGroupSize--;
+        return NULL;
+    }
     return newGroup;
 }
 
@@ -199,31 +214,52 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
            !UA_NodeId_equal(&certInfo->certificateType, &certificateTypeId))
             continue;
 
+        UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+        UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+        UA_StatusCode res = UA_ByteString_copy(certificate, &newCertificate);
+        if(privateKey)
+            res |= UA_ByteString_copy(privateKey, &newPrivateKey);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ByteString_clear(&newCertificate);
+            UA_ByteString_clear(&newPrivateKey);
+            return res;
+        }
         UA_ByteString_clear(&certInfo->certificate);
         UA_ByteString_clear(&certInfo->privateKey);
-        UA_ByteString_copy(certificate, &certInfo->certificate);
-        if(privateKey)
-            UA_ByteString_copy(privateKey, &certInfo->privateKey);
+        certInfo->certificate = newCertificate;
+        certInfo->privateKey = newPrivateKey;
         return UA_STATUSCODE_GOOD;
+    }
+
+    UA_GDSCertificateInfo stagedInfo;
+    memset(&stagedInfo, 0, sizeof(stagedInfo));
+    UA_StatusCode res = UA_ByteString_copy(certificate, &stagedInfo.certificate);
+    res |= UA_NodeId_copy(&certificateGroupId, &stagedInfo.certificateGroup);
+    res |= UA_NodeId_copy(&certificateTypeId, &stagedInfo.certificateType);
+    if(privateKey)
+        res |= UA_ByteString_copy(privateKey, &stagedInfo.privateKey);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&stagedInfo.certificate);
+        UA_ByteString_clear(&stagedInfo.privateKey);
+        UA_NodeId_clear(&stagedInfo.certificateGroup);
+        UA_NodeId_clear(&stagedInfo.certificateType);
+        return res;
     }
 
     UA_GDSCertificateInfo *newCertInfos = (UA_GDSCertificateInfo *)
         UA_realloc(transaction->certificateInfos,
                    (transaction->certificateInfosSize + 1) * sizeof(UA_GDSCertificateInfo));
-    if(!newCertInfos)
+    if(!newCertInfos) {
+        UA_ByteString_clear(&stagedInfo.certificate);
+        UA_ByteString_clear(&stagedInfo.privateKey);
+        UA_NodeId_clear(&stagedInfo.certificateGroup);
+        UA_NodeId_clear(&stagedInfo.certificateType);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     transaction->certificateInfos = newCertInfos;
 
-    UA_GDSCertificateInfo *newCertInfo =
-        &transaction->certificateInfos[transaction->certificateInfosSize];
-    UA_ByteString_copy(certificate, &newCertInfo->certificate);
-    UA_NodeId_copy(&certificateGroupId, &newCertInfo->certificateGroup);
-    UA_NodeId_copy(&certificateTypeId, &newCertInfo->certificateType);
-    newCertInfo->privateKey = UA_BYTESTRING_NULL;
-    if(privateKey)
-        UA_ByteString_copy(privateKey, &newCertInfo->privateKey);
-
+    transaction->certificateInfos[transaction->certificateInfosSize] = stagedInfo;
     transaction->certificateInfosSize++;
 
     return UA_STATUSCODE_GOOD;
@@ -533,8 +569,8 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
     /* Output arg, indicates that the ApplyChanges Method shall be called before
      * the new trust list will be used. */
     UA_Boolean applyChangesRequired = true;
-    UA_Variant_setScalarCopy(output, &applyChangesRequired, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    return UA_STATUSCODE_GOOD;
+    return UA_Variant_setScalarCopy(output, &applyChangesRequired,
+                                    &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 UA_StatusCode
@@ -603,11 +639,14 @@ UA_GDSReceiver_readTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     if(length > 0) {
         readBuffer.length = (size_t)length;
         readBuffer.data = fileContext->file.data+fileContext->currentPos;
-        fileContext->currentPos += (UA_UInt64)length;
     }
 
-    UA_Variant_setScalarCopy(output, &readBuffer, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode res =
+        UA_Variant_setScalarCopy(output, &readBuffer,
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(res == UA_STATUSCODE_GOOD)
+        fileContext->currentPos += (UA_UInt64)length;
+    return res;
 }
 
 /* TODO: Handle isTrustedCertificate */
@@ -774,7 +813,12 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
 
     UA_ByteString *certificates;
     size_t certificatesSize = 0;
-    certGroup->getTrustList(certGroup, &trustList);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        UA_GDSTransaction_clear(transaction);
+        return retval;
+    }
 
     if(*isTrustedCertificate) {
         certificates = trustList.trustedCertificates;
@@ -796,7 +840,9 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
     for(size_t i = 0; i < certificatesSize; i++) {
         /* Compare thumbprint */
         certificate = certificates[i];
-        UA_CertificateUtils_getThumbprint(&certificate, &thumbpr);
+        retval = UA_CertificateUtils_getThumbprint(&certificate, &thumbpr);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
         if(!String_equal_ignorecase(thumbprint, &thumbpr))
             continue;
 
@@ -846,6 +892,8 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
 cleanup:
     UA_TrustListDataType_clear(&trustList);
     UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_GDSTransaction_clear(transaction);
     return retval;
 }
 
@@ -861,19 +909,39 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
     UA_CertificateGroup *certGroup = &sc->secureChannelPKI;
     UA_ByteString *rejectedListSecureChannel = NULL;
     size_t rejectedListSecureChannelSize = 0;
-    certGroup->getRejectedList(certGroup, &rejectedListSecureChannel,
-                               &rejectedListSecureChannelSize);
+    UA_StatusCode res = certGroup->getRejectedList(
+        certGroup, &rejectedListSecureChannel, &rejectedListSecureChannelSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(rejectedListSecureChannel,
+                        rejectedListSecureChannelSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+        return res;
+    }
     rejectedListSize += rejectedListSecureChannelSize;
 
     /* DefaultUserTokenGroup */
     certGroup = &sc->sessionPKI;
     UA_ByteString *rejectedListSession = NULL;
     size_t rejectedListSessionSize = 0;
-    certGroup->getRejectedList(certGroup, &rejectedListSession, &rejectedListSessionSize);
+    res = certGroup->getRejectedList(certGroup, &rejectedListSession,
+                                     &rejectedListSessionSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(rejectedListSecureChannel,
+                        rejectedListSecureChannelSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(rejectedListSession, rejectedListSessionSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+        return res;
+    }
     rejectedListSize += rejectedListSessionSize;
 
     if(rejectedListSize == 0) {
         UA_Variant_setArray(&output[0], NULL, 0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(rejectedListSecureChannel,
+                        rejectedListSecureChannelSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Array_delete(rejectedListSession, rejectedListSessionSize,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -895,8 +963,8 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
            rejectedListSession, rejectedListSessionSize * sizeof(UA_ByteString));
 
     /* Set the array in the output */
-    UA_Variant_setArrayCopy(&output[0], rejectedList, rejectedListSize,
-                            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    res = UA_Variant_setArrayCopy(&output[0], rejectedList, rejectedListSize,
+                                  &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     /* Clean up */
     UA_Array_delete(rejectedListSecureChannel, rejectedListSecureChannelSize,
@@ -904,7 +972,7 @@ UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
     UA_Array_delete(rejectedListSession, rejectedListSessionSize,
                     &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_free(rejectedList);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode
@@ -957,7 +1025,11 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = mask;
-    certGroup->getTrustList(certGroup, &trustList);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
     retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
@@ -971,7 +1043,7 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
     UA_FileContext *fileContext = (UA_FileContext*)
         UA_calloc(1, sizeof(UA_FileContext));
     if(!fileContext) {
-        UA_ByteString_clear(&fileContext->file);
+        UA_ByteString_clear(&encTrustList);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
         
@@ -987,9 +1059,14 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
         return retval;
     }
 
+    retval = UA_Variant_setScalarCopy(output, &fileContext->fileHandle,
+                                      &UA_TYPES[UA_TYPES_UINT32]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&fileContext->file);
+        UA_free(fileContext);
+        return retval;
+    }
     fileInfo->openCount += 1;
-    UA_Variant_setScalarCopy(output, &fileContext->fileHandle,
-                             &UA_TYPES[UA_TYPES_UINT32]);
 
     /* Updating OpenCount Variable in the information model */
     writeOpenCountVariable(server, certGroup);
@@ -1047,7 +1124,11 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     UA_TrustListDataType trustList;
     memset(&trustList, 0, sizeof(UA_TrustListDataType));
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-    certGroup->getTrustList(certGroup, &trustList);
+    retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
     retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
@@ -1059,6 +1140,10 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     }
 
     UA_FileContext *fileContext = (UA_FileContext*)UA_calloc(1, sizeof(UA_FileContext));
+    if(!fileContext) {
+        UA_ByteString_clear(&encTrustList);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     fileContext->file = encTrustList;
     fileContext->sessionId = *sessionId;
     fileContext->openFileMode = fileOpenMode;
@@ -1071,9 +1156,14 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
         return retval;
     }
 
+    retval = UA_Variant_setScalarCopy(output, &fileContext->fileHandle,
+                                      &UA_TYPES[UA_TYPES_UINT32]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&fileContext->file);
+        UA_free(fileContext);
+        return retval;
+    }
     fileInfo->openCount += 1;
-    UA_Variant_setScalarCopy(output, &fileContext->fileHandle,
-                             &UA_TYPES[UA_TYPES_UINT32]);
 
     /* Updating OpenCount Variable in the information model */
     writeOpenCountVariable(server, certGroup);
@@ -1369,8 +1459,11 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ByteString *newPrivateKey = NULL;
-    if(regenerateKey && *regenerateKey)
+    if(regenerateKey && *regenerateKey) {
         newPrivateKey = UA_ByteString_new();
+        if(!newPrivateKey)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     for(size_t i = 0; i < sc->endpointsSize; i++) {
         UA_SecurityPolicy *sp =
@@ -1392,8 +1485,12 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
             goto cleanup;
     }
 
-    UA_ByteString_clear(&ctx->transaction.localCsrCertificate);
-    retval = UA_ByteString_copy(csr, &ctx->transaction.localCsrCertificate);
+    UA_ByteString localCsrCertificate = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_copy(csr, &localCsrCertificate);
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&ctx->transaction.localCsrCertificate);
+        ctx->transaction.localCsrCertificate = localCsrCertificate;
+    }
 
 cleanup:
     if(newPrivateKey) {
@@ -1453,7 +1550,12 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
         UA_TrustListDataType trustList;
         UA_TrustListDataType_init(&trustList);
         trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-        transactionCertGroup.getTrustList(&transactionCertGroup, &trustList);
+        retval = transactionCertGroup.getTrustList(&transactionCertGroup,
+                                                   &trustList);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&trustList);
+            goto cleanup;
+        }
 
         UA_CertificateGroup *certGroup =
             getCertGroup(server, &transactionCertGroup.certificateGroupId);
@@ -1546,8 +1648,7 @@ secureChannelNotificationCallback(UA_Driver *drv,
         cm->channelId = channelId;
         UA_StatusCode res = UA_NodeId_copy(certificateTypeId,
                                            &cm->certificateTypeId);
-        if(res == UA_STATUSCODE_GOOD)
-            res = UA_ByteString_copy(&certificate, &cm->certificate);
+        res |= UA_ByteString_copy(&certificate, &cm->certificate);
         if(res != UA_STATUSCODE_GOOD) {
             UA_NodeId_clear(&cm->certificateTypeId);
             UA_ByteString_clear(&cm->certificate);
