@@ -13,14 +13,6 @@
 
 #define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
-UA_GDSReceiverContext *
-gdsReceiver(UA_Server *server) {
-    UA_Driver *drv = UA_Server_getDrivers(server);
-    while(drv && drv->driverType != UA_DRIVERTYPE_GDS_RECEIVER)
-        drv = drv->next;
-    return (UA_GDSReceiverContext *)drv;
-}
-
 UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -66,7 +58,8 @@ writeGDSNs0Variable(UA_Server *server, const UA_NodeId id,
 }
 
 UA_StatusCode
-writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
+writeOpenCountVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group) {
+    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     static UA_NodeId defaultApplicationGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     static UA_NodeId defaultUserTokenGroup =
@@ -75,7 +68,7 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
     UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
-        gdsReceiver(server), group->certificateGroupId, &openCount, &lastUpdateTime);
+        ctx, group->certificateGroupId, &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -97,7 +90,8 @@ writeOpenCountVariable(UA_Server *server, UA_CertificateGroup *group) {
 }
 
 UA_StatusCode
-writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
+writeLastUpdateVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group) {
+    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     static UA_NodeId defaultApplicationGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     static UA_NodeId defaultUserTokenGroup =
@@ -106,7 +100,7 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
     UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
-        gdsReceiver(server), group->certificateGroupId, &openCount, &lastUpdateTime);
+        ctx, group->certificateGroupId, &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -128,16 +122,17 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
 }
 
 static UA_StatusCode
-createFileInfos(UA_Server *server) {
+createFileInfos(UA_GDSReceiverContext *ctx) {
     /* The server currently only supports the DefaultApplicationGroup and
      * UserTokenGroup */
     UA_UtcTime lastUpdateTime = UA_DateTime_now();
 
-    return UA_GDSReceiver_initFileInfos(gdsReceiver(server), lastUpdateTime);
+    return UA_GDSReceiver_initFileInfos(ctx, lastUpdateTime);
 }
 
 static UA_StatusCode
-writeGroupVariables(UA_Server *server) {
+writeGroupVariables(UA_GDSReceiverContext *ctx) {
+    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     UA_NodeId certificateTypes[2] = {
         UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
         UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE)
@@ -165,7 +160,7 @@ writeGroupVariables(UA_Server *server) {
     UA_UInt16 openCount;
     UA_UtcTime lastUpdateTime;
     UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
-        gdsReceiver(server),
+        ctx,
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP),
         &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
@@ -180,7 +175,7 @@ writeGroupVariables(UA_Server *server) {
 
     /* DefaultUserTokenGroup */
     res = UA_GDSReceiver_getFileInfoMetadata(
-        gdsReceiver(server),
+        ctx,
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP),
         &openCount, &lastUpdateTime);
     if(res != UA_STATUSCODE_GOOD)
@@ -657,14 +652,22 @@ setMethodCallback(UA_GDSReceiverContext *ctx, UA_NodeId methodId,
 
 UA_StatusCode
 initNS0PushManagement(UA_GDSReceiverContext *ctx) {
-    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    /* Create FileInfo */
-    retval |= createFileInfos(server);
+    /* Create the persistent FileInfo state only once. The Namespace Zero
+     * callbacks themselves are installed again when the driver is restarted. */
+    UA_UInt16 openCount;
+    UA_UtcTime lastUpdateTime;
+    UA_StatusCode res = UA_GDSReceiver_getFileInfoMetadata(
+        ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP),
+        &openCount, &lastUpdateTime);
+    if(res == UA_STATUSCODE_BADNOTFOUND)
+        retval |= createFileInfos(ctx);
+    else
+        retval |= res;
 
     /* Set variables */
-    retval |= writeGroupVariables(server);
+    retval |= writeGroupVariables(ctx);
 
     /* Set method callbacks */
     retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_UPDATECERTIFICATE), updateCertificateAction);
@@ -691,7 +694,46 @@ initNS0PushManagement(UA_GDSReceiverContext *ctx) {
     retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION), getPositionFileAction);
     retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
     retval |= setMethodCallback(ctx, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION), setPositionFileAction);
+    if(retval != UA_STATUSCODE_GOOD)
+        clearNS0PushManagement(ctx);
     return retval;
+}
+
+void
+clearNS0PushManagement(UA_GDSReceiverContext *ctx) {
+    UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
+    static const UA_UInt32 methodIds[] = {
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST,
+        UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST,
+        UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_ADDCERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_REMOVECERTIFICATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPENWITHMASKS,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSEANDUPDATE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_OPEN,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_READ,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_WRITE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_CLOSE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_GETPOSITION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST_SETPOSITION
+    };
+
+    for(size_t i = 0; i < sizeof(methodIds) / sizeof(methodIds[0]); i++) {
+        UA_NodeId methodId = UA_NODEID_NUMERIC(0, methodIds[i]);
+        UA_Server_setMethodNodeCallback(server, methodId, NULL);
+        UA_Server_setNodeContext(server, methodId, NULL);
+    }
 }
 
 #endif

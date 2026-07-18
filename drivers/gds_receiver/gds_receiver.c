@@ -343,7 +343,7 @@ UA_GDSReceiver_getFileInfoMetadata(UA_GDSReceiverContext *ctx,
                                   UA_UtcTime *lastUpdateTime) {
     UA_FileInfo *fi = UA_GDSReceiver_getFileInfo(ctx, certificateGroupId);
     if(!fi)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADNOTFOUND;
     *openCount = fi->openCount;
     *lastUpdateTime = fi->lastUpdateTime;
     return UA_STATUSCODE_GOOD;
@@ -375,7 +375,7 @@ checkSessionActive(UA_Server *server, void *data) {
     UA_EventLoop *el = sc->eventLoop;
     el->lock(el);
 
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)data;
     UA_GDSTransaction *transaction = &ctx->transaction;
     UA_Boolean removingCallback = false;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
@@ -428,7 +428,7 @@ checkSessionActive(UA_Server *server, void *data) {
             UA_free(fileContext);
 
             /* Updating OpenCount Variable in the information model */
-            writeOpenCountVariable(server, certGroup);
+            writeOpenCountVariable(ctx, certGroup);
         }
     }
 
@@ -521,7 +521,6 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
                                       UA_UInt32 fileHandle,
                                       UA_Variant *output) {
     UA_assert(certGroup != NULL);
-    UA_Server *server = ctx->drv.server;
 
     UA_GDSTransaction *transaction = &ctx->transaction;
     UA_FileInfo *fileInfo =
@@ -564,7 +563,7 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
     UA_free(fileContext);
 
     /* Updating OpenCount Variable in the information model */
-    writeOpenCountVariable(server, certGroup);
+    writeOpenCountVariable(ctx, certGroup);
 
     /* Output arg, indicates that the ApplyChanges Method shall be called before
      * the new trust list will be used. */
@@ -579,7 +578,6 @@ UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
                              const UA_NodeId *sessionId,
                              UA_UInt32 fileHandle) {
     UA_assert(certGroup != NULL);
-    UA_Server *server = ctx->drv.server;
 
     UA_GDSTransaction *transaction = &ctx->transaction;
     UA_FileInfo *fileInfo =
@@ -605,7 +603,7 @@ UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
     UA_free(fileContext);
 
     /* Updating OpenCount Variable in the information model */
-    writeOpenCountVariable(server, certGroup);
+    writeOpenCountVariable(ctx, certGroup);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -615,7 +613,6 @@ UA_GDSReceiver_readTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
                             UA_Int32 length, UA_Variant *output) {
     UA_assert(certGroup != NULL);
 
-    /* UA_GDSReceiverContext *ctx = gdsReceiver(server); */
     UA_FileInfo *fileInfo =
         UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
@@ -688,7 +685,7 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
 
     /* Updating LastUpdateTime Variable in the information model */
     fileInfo->lastUpdateTime = UA_DateTime_now();
-    writeLastUpdateVariable(server, certGroup);
+    writeLastUpdateVariable(ctx, certGroup);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -736,7 +733,7 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
 
     if(ctx->checkSessionCallbackId == 0) {
         retval = UA_Server_addRepeatedCallback(ctx->drv.server, checkSessionActive,
-                                               NULL, CHECKACTIVESESSIONINTERVAL,
+                                               ctx, CHECKACTIVESESSIONINTERVAL,
                                                &ctx->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -1015,7 +1012,7 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(ctx->checkSessionCallbackId == 0) {
-        retval = UA_Server_addRepeatedCallback(server, checkSessionActive, NULL,
+        retval = UA_Server_addRepeatedCallback(server, checkSessionActive, ctx,
                                                CHECKACTIVESESSIONINTERVAL,
                                                &ctx->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1069,7 +1066,7 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
     fileInfo->openCount += 1;
 
     /* Updating OpenCount Variable in the information model */
-    writeOpenCountVariable(server, certGroup);
+    writeOpenCountVariable(ctx, certGroup);
 
     LIST_INSERT_HEAD(&fileInfo->fileContext, fileContext, listEntry);
 
@@ -1114,7 +1111,7 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     }
 
     if(ctx->checkSessionCallbackId == 0) {
-        retval = UA_Server_addRepeatedCallback(server, checkSessionActive, NULL,
+        retval = UA_Server_addRepeatedCallback(server, checkSessionActive, ctx,
                                                CHECKACTIVESESSIONINTERVAL,
                                                &ctx->checkSessionCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1166,7 +1163,7 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     fileInfo->openCount += 1;
 
     /* Updating OpenCount Variable in the information model */
-    writeOpenCountVariable(server, certGroup);
+    writeOpenCountVariable(ctx, certGroup);
 
     LIST_INSERT_HEAD(&fileInfo->fileContext, fileContext, listEntry);
 
@@ -1175,9 +1172,9 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
 
 static void
 secureChannel_delayedClose(void *application, void *context) {
-    UA_Server *server = (UA_Server*)context;
+    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)context;
+    UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
-    UA_GDSReceiverContext *ctx = gdsReceiver(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
 
     ChannelMetadata *cm;
@@ -1412,8 +1409,10 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
                                  const UA_NodeId certificateTypeId,
                                  const UA_ByteString certificate,
                                  const UA_ByteString *privateKey) {
-    if(!receiver || !receiver->drv.server)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!receiver || certificate.length == 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!receiver->drv.server)
+        return UA_STATUSCODE_BADINVALIDSTATE;
 
     UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     sc->eventLoop->lock(sc->eventLoop);
@@ -1508,8 +1507,10 @@ UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
                                     const UA_Boolean *regenerateKey,
                                     const UA_ByteString *nonce,
                                     UA_ByteString *csr) {
-    if(!receiver || !receiver->drv.server || !csr)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!receiver || !csr)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!receiver->drv.server)
+        return UA_STATUSCODE_BADINVALIDSTATE;
 
     UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     sc->eventLoop->lock(sc->eventLoop);
@@ -1543,50 +1544,53 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     if(!changes)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Apply Trust list changes */
-    for(size_t i = 0; i < transaction->certGroupSize; i++) {
-        *changes = UA_GDSTRANSACTIONCHANGES_TRUSTLIST;
-        UA_CertificateGroup transactionCertGroup = transaction->certGroups[i];
-        UA_TrustListDataType trustList;
-        UA_TrustListDataType_init(&trustList);
-        trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-        retval = transactionCertGroup.getTrustList(&transactionCertGroup,
-                                                   &trustList);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_TrustListDataType_clear(&trustList);
+    size_t groupsSize = transaction->certGroupSize;
+    UA_CertificateGroup **groups = NULL;
+    UA_TrustListDataType *newTrustLists = NULL;
+    UA_TrustListDataType *oldTrustLists = NULL;
+    if(groupsSize > 0) {
+        groups = (UA_CertificateGroup**)UA_calloc(groupsSize, sizeof(void*));
+        newTrustLists = (UA_TrustListDataType*)
+            UA_calloc(groupsSize, sizeof(UA_TrustListDataType));
+        oldTrustLists = (UA_TrustListDataType*)
+            UA_calloc(groupsSize, sizeof(UA_TrustListDataType));
+        if(!groups || !newTrustLists || !oldTrustLists) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
         }
+    }
 
-        UA_CertificateGroup *certGroup =
-            getCertGroup(server, &transactionCertGroup.certificateGroupId);
-        if(!certGroup) {
-            UA_TrustListDataType_clear(&trustList);
-            goto cleanup;
-        }
-        retval = certGroup->setTrustList(certGroup, &trustList);
-        UA_TrustListDataType_clear(&trustList);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-
-        UA_FileInfo *fileInfo =
-            UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
-        if(!fileInfo) {
+    /* Resolve every live group and snapshot both the staged and current trust
+     * lists before mutating configuration. The snapshots permit rolling back
+     * all trust-list changes if any subsequent operation fails. */
+    for(size_t i = 0; i < groupsSize; i++) {
+        UA_CertificateGroup *stagedGroup = &transaction->certGroups[i];
+        groups[i] = getCertGroup(server, &stagedGroup->certificateGroupId);
+        if(!groups[i]) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
+        newTrustLists[i].specifiedLists = UA_TRUSTLISTMASKS_ALL;
+        oldTrustLists[i].specifiedLists = UA_TRUSTLISTMASKS_ALL;
+        retval = stagedGroup->getTrustList(stagedGroup, &newTrustLists[i]);
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = groups[i]->getTrustList(groups[i], &oldTrustLists[i]);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
 
-        /* Updating LastUpdateTime Variable in the information model */
-        fileInfo->lastUpdateTime = UA_DateTime_now();
-        writeLastUpdateVariable(server, certGroup);
+    size_t appliedGroups = 0;
+    for(size_t i = 0; i < groupsSize; i++) {
+        /* Include the current group in rollback even if its plugin reports an
+         * error after partially changing its internal state. */
+        appliedGroups = i + 1;
+        retval = groups[i]->setTrustList(groups[i], &newTrustLists[i]);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto rollback;
     }
 
     /* Apply Server certificate changes */
     for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
-        if(*changes != UA_GDSTRANSACTIONCHANGES_NOTHING) {
-            *changes = UA_GDSTRANSACTIONCHANGES_BOTH;
-        } else {
-            *changes = UA_GDSTRANSACTIONCHANGES_CERTIFICATE;
-        }
         UA_GDSCertificateInfo certInfo = transaction->certificateInfos[i];
         UA_NodeId certTypeId = certInfo.certificateType;
         UA_ByteString certificate = certInfo.certificate;
@@ -1595,7 +1599,23 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
         retval = applyCertificateToPolicies(sc, &certTypeId, certificate,
                                             privateKey);
         if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+            goto rollback;
+    }
+
+    if(groupsSize > 0 && transaction->certificateInfosSize > 0)
+        *changes = UA_GDSTRANSACTIONCHANGES_BOTH;
+    else if(groupsSize > 0)
+        *changes = UA_GDSTRANSACTIONCHANGES_TRUSTLIST;
+    else if(transaction->certificateInfosSize > 0)
+        *changes = UA_GDSTRANSACTIONCHANGES_CERTIFICATE;
+
+    /* Publish metadata only after the complete transaction has succeeded. */
+    for(size_t i = 0; i < groupsSize; i++) {
+        UA_FileInfo *fileInfo =
+            UA_GDSReceiver_getFileInfo(ctx, groups[i]->certificateGroupId);
+        UA_assert(fileInfo != NULL);
+        fileInfo->lastUpdateTime = UA_DateTime_now();
+        writeLastUpdateVariable(ctx, groups[i]);
     }
 
     /* Add to the delayed callback list. Will be cleaned up in the next
@@ -1604,14 +1624,42 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     UA_DelayedCallback *dc = &transaction->dc;
     dc->callback = secureChannel_delayedClose;
     dc->application = changes;
-    dc->context = server;
+    dc->context = ctx;
 
     UA_EventLoop *el = sc->eventLoop;
     ctx->pendingDelayedCallbacks++;
     el->addDelayedCallback(el, dc);
+    for(size_t i = 0; i < groupsSize; i++) {
+        UA_TrustListDataType_clear(&newTrustLists[i]);
+        UA_TrustListDataType_clear(&oldTrustLists[i]);
+    }
+    UA_free(groups);
+    UA_free(newTrustLists);
+    UA_free(oldTrustLists);
     return UA_STATUSCODE_GOOD;
 
+rollback:
+    while(appliedGroups > 0) {
+        appliedGroups--;
+        UA_StatusCode rollbackRes = groups[appliedGroups]->setTrustList(
+            groups[appliedGroups], &oldTrustLists[appliedGroups]);
+        if(rollbackRes != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
+                         "Could not roll back a GDS Receiver trust-list update");
+    }
+
 cleanup:
+    if(newTrustLists) {
+        for(size_t i = 0; i < groupsSize; i++)
+            UA_TrustListDataType_clear(&newTrustLists[i]);
+    }
+    if(oldTrustLists) {
+        for(size_t i = 0; i < groupsSize; i++)
+            UA_TrustListDataType_clear(&oldTrustLists[i]);
+    }
+    UA_free(groups);
+    UA_free(newTrustLists);
+    UA_free(oldTrustLists);
     UA_GDSTransaction_clear(transaction);
     UA_free(changes);
     return retval;
@@ -1694,6 +1742,10 @@ UA_GDSReceiver_start(UA_Driver *drv) {
 static void
 UA_GDSReceiver_stop(UA_Driver *drv) {
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
+    if(ctx->initialized) {
+        clearNS0PushManagement(ctx);
+        ctx->initialized = false;
+    }
     if(ctx->checkSessionCallbackId != 0) {
         UA_Server_removeCallback(drv->server, ctx->checkSessionCallbackId);
         ctx->checkSessionCallbackId = 0;
@@ -1704,7 +1756,6 @@ UA_GDSReceiver_stop(UA_Driver *drv) {
         drv->state = UA_LIFECYCLESTATE_STOPPED;
 }
 
-/* TODO: Remove NS0 entries here for true "driver" semantics */
 static UA_StatusCode
 UA_GDSReceiver_free(UA_Driver *drv) {
     if(drv->state != UA_LIFECYCLESTATE_STOPPED) {

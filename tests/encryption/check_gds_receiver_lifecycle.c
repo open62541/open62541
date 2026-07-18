@@ -69,6 +69,17 @@ createSigningRequest(void) {
     return res;
 }
 
+static void
+checkHelpersDuringShutdown(void *application, void *context) {
+    UA_Server *server_ = (UA_Server*)application;
+    ck_assert_ptr_eq(server_, server);
+    ck_assert_uint_eq(UA_Server_getLifecycleState(server),
+                      UA_LIFECYCLESTATE_STOPPING);
+    ck_assert_uint_eq(updateCertificate(), UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(createSigningRequest(), UA_STATUSCODE_BADINVALIDSTATE);
+    *(UA_Boolean*)context = true;
+}
+
 static UA_StatusCode
 stageAndApplyCertificateUpdate(void) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
@@ -143,28 +154,70 @@ START_TEST(rejectDuplicateReceiver) {
 } END_TEST
 
 START_TEST(helpersBeforeStartupAndDuringShutdown) {
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+                          NULL, defaultApplicationGroup,
+                          rsaSha256CertificateType, certificate, &privateKey),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+                          receiver, defaultApplicationGroup,
+                          rsaSha256CertificateType, UA_BYTESTRING_NULL,
+                          &privateKey),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_GDSReceiver_createSigningRequest(
+                          receiver, defaultApplicationGroup,
+                          rsaSha256CertificateType, NULL, NULL, NULL, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
     ck_assert_uint_eq(updateCertificate(), UA_STATUSCODE_BADINVALIDSTATE);
     ck_assert_uint_eq(createSigningRequest(), UA_STATUSCODE_BADINVALIDSTATE);
 
     startup();
     ck_assert_uint_eq(updateCertificate(), UA_STATUSCODE_GOOD);
-    receiver->drv.stop(&receiver->drv);
-    ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPING);
-    ck_assert_uint_eq(updateCertificate(), UA_STATUSCODE_BADINVALIDSTATE);
-    ck_assert_uint_eq(createSigningRequest(), UA_STATUSCODE_BADINVALIDSTATE);
-
-    UA_Server_run_iterate(server, false);
+    UA_Boolean callbackCalled = false;
+    UA_DelayedCallback callback = {0};
+    callback.callback = checkHelpersDuringShutdown;
+    callback.application = server;
+    callback.context = &callbackCalled;
+    UA_EventLoop *eventLoop = UA_Server_getConfig(server)->eventLoop;
+    eventLoop->addDelayedCallback(eventLoop, &callback);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    serverStarted = false;
+    ck_assert(callbackCalled);
     ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
 START_TEST(removeStoppedReceiver) {
     startup();
-    receiver->drv.stop(&receiver->drv);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    serverStarted = false;
     ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    void *methodContext = receiver;
+    ck_assert_uint_eq(UA_Server_getNodeContext(
+                          server,
+                          UA_NODEID_NUMERIC(
+                              0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+                          &methodContext),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(methodContext);
     ck_assert_uint_eq(UA_Server_removeDriver(server, &receiver->drv),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(receiver->drv.free(&receiver->drv), UA_STATUSCODE_GOOD);
     receiver = NULL;
+
+    receiver = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(receiver);
+    ck_assert_uint_eq(UA_Server_addDriver(server, &receiver->drv),
+                      UA_STATUSCODE_GOOD);
+    startup();
+    methodContext = NULL;
+    ck_assert_uint_eq(UA_Server_getNodeContext(
+                          server,
+                          UA_NODEID_NUMERIC(
+                              0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+                          &methodContext),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(methodContext, receiver);
 } END_TEST
 
 int
