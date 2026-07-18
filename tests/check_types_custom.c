@@ -322,6 +322,55 @@ typeRoundTripCheckEqual(const UA_DataType *t) {
     UA_DataType_clear(&typeCopy);
 }
 
+static UA_StatusCode
+createDirectSelfType(UA_DataType *type, UA_Boolean isArray,
+                     UA_Boolean isOptional) {
+    UA_StructureField field;
+    UA_StructureField_init(&field);
+    field.name = UA_STRING("Self");
+    field.dataType = UA_NODEID_NUMERIC(2, 4003);
+    field.valueRank = isArray ? 1 : UA_VALUERANK_SCALAR;
+    field.isOptional = isOptional;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = field.dataType;
+    description.name = UA_QUALIFIEDNAME(2, "DirectSelfType");
+    description.structureDefinition.defaultEncodingId =
+        UA_NODEID_NUMERIC(2, 5003);
+    description.structureDefinition.structureType = isOptional ?
+        UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS :
+        UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fieldsSize = 1;
+    description.structureDefinition.fields = &field;
+
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_setValueNoDelete(
+        &eo, &description, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    return UA_DataType_fromDescription(type, &eo, NULL);
+}
+
+START_TEST(directSelfContainingTypeDefinitions) {
+    UA_DataType type;
+    UA_StatusCode retval = createDirectSelfType(&type, true, false);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(type.members[0].memberType, &type);
+    ck_assert(type.members[0].isArray);
+    UA_DataType_clear(&type);
+
+    retval = createDirectSelfType(&type, false, true);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(type.members[0].memberType, &type);
+    ck_assert(type.members[0].isOptional);
+    UA_DataType_clear(&type);
+} END_TEST
+
+START_TEST(requiredScalarSelfMemberIsRejected) {
+    UA_DataType type;
+    UA_StatusCode retval = createDirectSelfType(&type, false, false);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+} END_TEST
+
 START_TEST(parseCustomScalar) {
     Point p;
     p.x = 1.0;
@@ -793,6 +842,8 @@ int main(void) {
     tcase_add_test(tc, parseCustomUnion);
     tcase_add_test(tc, parseSelfContainingUnionNormalMember);
     tcase_add_test(tc, parseSelfContainingUnionSelfMember);
+    tcase_add_test(tc, directSelfContainingTypeDefinitions);
+    tcase_add_test(tc, requiredScalarSelfMemberIsRejected);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayNotContained);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayContained);
     tcase_add_test(tc, customTypeStructureDefinitionPadding);
