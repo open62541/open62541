@@ -423,30 +423,43 @@ typedef uint64_t UA_ApplicationNotificationType;
  * Properties from the super-type are inherited.
  *
  * - AuditEventType
+ *
  *   - AuditSecurityEventType
+ *
  *     - AuditChannelEventType
+ *
  *       - AuditOpenSecureChannelEventType
+ *
  *     - AuditSessionEventType
+ *
  *       - AuditCreateSessionEventType
  *       - AuditActivateSessionEventType
  *       - AuditCancelEventType
+ *
  *     - AuditCertificateEventType
+ *
  *       - AuditCertificateDataMismatchEventType
  *       - AuditCertificateExpiredEventType
  *       - AuditCertificateInvalidEventType
  *       - AuditCertificateUntrustedEventType
  *       - AuditCertificateRevokedEventType
  *       - AuditCertificateMismatchEventType
+ *
  *   - AuditNodeManagementEventType
+ *
  *     - AuditAddNodesEventType
  *     - AuditDeleteNodesEventType
  *     - AuditAddReferencesEventType
  *     - AuditDeleteReferencesEventType
+ *
  *   - AuditUpdateEventType
+ *
  *     - AuditWriteUpdateEventType
  *     - AuditHistoryUpdateEventType
+ *
  *   - AuditUpdateMethodEventType
  *   - AuditClientEventType
+ *
  *     - AuditClientUpdateMethodResultEventType */
 #define UA_APPLICATIONNOTIFICATIONTYPE_AUDIT                                   \
     (0x40ULL << 32)
