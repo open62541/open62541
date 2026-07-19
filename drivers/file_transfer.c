@@ -117,30 +117,26 @@ errnoToStatusCode(int err) {
     }
 }
 
+static UA_Boolean validEntryName(const UA_String name);
+
 /* Only well-formed relative paths reach the storage: no leading, trailing or
  * double slashes, no "." or ".." segments, no backslashes or NUL bytes. This
- * guarantees that the resulting path cannot escape the root directory. */
+ * guarantees that the resulting path cannot escape the root directory. Each
+ * '/'-separated segment is validated with validEntryName so the traversal
+ * safety policy lives in a single place. */
 static UA_StatusCode
 checkRelativePath(const UA_String path) {
     if(path.length == 0)
         return UA_STATUSCODE_GOOD; /* The mount root */
 
-    for(size_t i = 0; i < path.length; i++) {
-        if(path.data[i] == '\\' || path.data[i] == 0)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
     size_t segStart = 0;
     for(size_t i = 0; i <= path.length; i++) {
         if(i < path.length && path.data[i] != '/')
             continue;
-        size_t segLen = i - segStart;
-        if(segLen == 0)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(segLen == 1 && path.data[segStart] == '.')
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(segLen == 2 && path.data[segStart] == '.' &&
-           path.data[segStart + 1] == '.')
+        UA_String segment;
+        segment.length = i - segStart;
+        segment.data = path.data + segStart;
+        if(!validEntryName(segment))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         segStart = i + 1;
     }
@@ -1903,6 +1899,16 @@ moveOrCopyMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
 
+    /* Copying or moving a directory into itself or its own subtree would
+     * recurse without bound: copyBackendTree creates the destination inside the
+     * source and then lists the source, which now contains the fresh copy. */
+    if(source->isDirectory && sameMount &&
+       pathWithinSubtree(destPath, source->path)) {
+        UA_String_clear(&name);
+        UA_String_clear(&destPath);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     UA_Boolean isDir = source->isDirectory;
     UA_FileTransferBackend *srcB = &source->mount->backend;
     UA_FileTransferBackend *dstB = &targetDir->mount->backend;
@@ -2382,8 +2388,15 @@ FileTransferDriver_free(UA_Driver *drv) {
     /* All handles are closed during stop */
     UA_assert(LIST_EMPTY(&ftd->handles));
 
+    /* Delete the mirrored Objects from the address space before freeing the
+     * FTNodes. Their Size/UserWritable/LastModifiedTime value sources carry the
+     * FTNode as node context; leaving the nodes live after free would leave the
+     * callbacks pointing at freed memory (use-after-free on a later Read when
+     * the driver is removed from a running server). Deleting a directory root
+     * removes its children recursively; the later per-child delete then no-ops. */
     FTNode *node, *nodeTmp;
     LIST_FOREACH_SAFE(node, &ftd->nodes, listEntry, nodeTmp) {
+        UA_Server_deleteNode(drv->server, node->nodeId, true);
         removeFTNode(ftd, node);
     }
 
