@@ -856,9 +856,10 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
+    if (rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+        rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Received a messaage for a non-operational ReaderGroup");
+            "Received a message for a disabled ReaderGroup");
         unlockServer(server);
         return;
     }
