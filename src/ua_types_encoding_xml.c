@@ -1030,18 +1030,63 @@ DECODE_XML(Guid) {
     return ret;
 }
 
+static size_t
+compactXmlBase64(const UA_Byte *data, size_t length, UA_Byte *out) {
+    size_t pos = 0;
+    for(size_t i = 0; i < length; i++) {
+        if(data[i] != ' ' && data[i] != '\t' &&
+           data[i] != '\r' && data[i] != '\n') {
+            if(out)
+                out[pos] = data[i];
+            pos++;
+        }
+    }
+    return pos;
+}
+
 DECODE_XML(ByteString) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
 
+    /* Trim whitespace around the content. The tokenizer can include CDATA
+     * delimiters in the content range if whitespace precedes the section. */
+    while(length > 0 && (data[0] == ' ' || data[0] == '\t' ||
+                         data[0] == '\r' || data[0] == '\n')) {
+        data++;
+        length--;
+    }
+    while(length > 0 && (data[length - 1] == ' ' || data[length - 1] == '\t' ||
+                         data[length - 1] == '\r' || data[length - 1] == '\n'))
+        length--;
+
+    /* Remove an exact CDATA wrapper before compacting the Base64 payload. */
+    if(length >= 12 && memcmp(data, "<![CDATA[", 9) == 0 &&
+       memcmp(&data[length - 3], "]]>", 3) == 0) {
+        data += 9;
+        length -= 12;
+    }
+
+    /* XML allows insignificant whitespace inside Base64 content. */
+    size_t encodedLength = compactXmlBase64(data, length, NULL);
+
     /* Empty bytestring? */
-    if(length == 0) {
+    if(encodedLength == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
     } else {
+        const unsigned char *encoded = (const unsigned char*)data;
+        unsigned char *compact = NULL;
+        if(encodedLength != length) {
+            compact = (unsigned char*)UA_malloc(encodedLength);
+            if(!compact)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            compactXmlBase64(data, length, compact);
+            encoded = compact;
+        }
         size_t flen = 0;
-        unsigned char* unB64 = UA_unbase64((const unsigned char*)data, length, &flen);
+        unsigned char *unB64 = UA_unbase64(encoded, encodedLength, &flen);
+        UA_free(compact);
         if(!unB64)
             return UA_STATUSCODE_BADDECODINGERROR;
         dst->data = (UA_Byte*)unB64;

@@ -3214,6 +3214,22 @@ START_TEST(UA_ByteString_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_ByteString_whitespace_xml_decode) {
+    UA_ByteString out;
+    UA_ByteString_init(&out);
+    UA_ByteString buf = UA_STRING(
+        "<ByteString>\n  <![CDATA[\n  YXNk\n\tZmFz ZGY=\r\n]]>\n</ByteString>");
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("asdfasdf");
+    ck_assert(UA_ByteString_equal(&out, &expected));
+    UA_ByteString_clear(&out);
+}
+END_TEST
+
 /* TODO: Add option for escaping special chars. */
 // START_TEST(UA_ByteString_bad_xml_decode) {
 //     UA_ByteString out;
@@ -4400,6 +4416,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_Guid_wrong_xml_decode);
 
     tcase_add_test(tc_xml_decode, UA_ByteString_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ByteString_whitespace_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ByteString_null_xml_decode);
 
     tcase_add_test(tc_xml_decode, UA_NodeId_Nummeric_xml_decode);
