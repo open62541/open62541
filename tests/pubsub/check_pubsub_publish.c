@@ -563,7 +563,6 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
 
         UA_ServerConfig *config = UA_Server_getConfig(server);
         config->pubSubConfig.enableDeltaFrames = true;
-        setupDataSetFieldTestEnvironment();
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -608,6 +607,8 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = node2;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        setupDataSetFieldTestEnvironment();
 
         retVal = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
