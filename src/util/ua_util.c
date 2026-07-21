@@ -134,11 +134,11 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
-#define UA_SCHEMAS_SIZE 4
+#define UA_SCHEMAS_SIZE 6
 #define UA_ETH_SCHEMA_INDEX 2
 
 static const char* schemas[UA_SCHEMAS_SIZE] = {
-    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://"
+    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://", "opc.ws://", "opc.wss://"
 };
 
 UA_StatusCode
