@@ -909,7 +909,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         rfd->eventSourceCB(rfd->es, rfd, event);
 
         /* The fd has removed itself */
-        if(i == el->fdsSize || rfd != el->fds[i])
+        if(i >= el->fdsSize || rfd != el->fds[i])
             i--;
     }
     return UA_STATUSCODE_GOOD;
