@@ -169,6 +169,12 @@ set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
 
 option(UA_ENABLE_LWS "Includes the libwebsockets library" OFF)
 mark_as_advanced(UA_ENABLE_LWS)
+option(UA_ENABLE_LWS_MQTT "Enable the libwebsockets MQTT ConnectionManager" OFF)
+mark_as_advanced(UA_ENABLE_LWS_MQTT)
+
+if(UA_ENABLE_LWS_MQTT AND NOT UA_ENABLE_LWS)
+    message(FATAL_ERROR "UA_ENABLE_LWS_MQTT requires UA_ENABLE_LWS")
+endif()
 
 if(UA_ENABLE_LWS)
     if(NOT UA_ARCHITECTURE_POSIX)
@@ -537,17 +543,30 @@ if(UA_ENABLE_LWS)
     include(CMakePushCheckState)
     cmake_push_check_state(RESET)
     set(CMAKE_REQUIRED_INCLUDES ${LIBWEBSOCKETS_INCLUDE_DIR})
-    check_c_source_compiles("#include <libwebsockets.h>
+    check_c_source_compiles("#include <lws_config.h>
         #if !defined(LWS_WITH_TLS) || defined(LWS_WITH_MBEDTLS) || \
             defined(USE_WOLFSSL) || defined(LWS_WITH_BORINGSSL) || \
             defined(LWS_WITH_AWSLC)
         # error libwebsockets does not use OpenSSL
         #endif
         int main(void) { return 0; }" UA_LWS_USES_OPENSSL)
+
+    if(UA_ENABLE_LWS_MQTT)
+        check_c_source_compiles("#include <lws_config.h>
+            #if !defined(LWS_ROLE_MQTT)
+            # error libwebsockets does not include the MQTT role
+            #endif
+            int main(void) { return 0; }" UA_LWS_HAS_MQTT)
+        if(NOT UA_LWS_HAS_MQTT)
+            message(FATAL_ERROR "UA_ENABLE_LWS_MQTT requires libwebsockets "
+                                "built with LWS_ROLE_MQTT=ON")
+        endif()
+    endif()
     cmake_pop_check_state()
 
     if(UA_LWS_USES_OPENSSL)
         find_package(OpenSSL REQUIRED COMPONENTS SSL)
+        include_directories(${OPENSSL_INCLUDE_DIR})
         list(APPEND open62541_LIBRARIES OpenSSL::SSL)
         list(APPEND pkgcfg_requiresprivate "openssl")
     endif()
@@ -1197,6 +1216,10 @@ if(UA_ENABLE_LWS)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.h
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c)
+    if(UA_ENABLE_LWS_MQTT)
+        list(APPEND plugin_sources
+             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_mqtt_lws.c)
+    endif()
 endif()
 
 if(UA_ENABLE_MQTT)

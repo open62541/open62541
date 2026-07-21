@@ -26,4 +26,13 @@ extern lws_log_cx_t open62541_log_cx;
 void
 UA_LWS_disableProtocolPlugins(struct lws_context_creation_info *info);
 
+struct lws_context *
+UA_LWS_acquireContext(UA_EventLoop *eventLoop);
+
+void
+UA_LWS_releaseContext(UA_EventLoop *eventLoop);
+
+void
+UA_LWS_requestWritable(struct lws *wsi);
+
 #endif /* UA_EVENTLOOP_LIBWEBSOCKETS_H_ */

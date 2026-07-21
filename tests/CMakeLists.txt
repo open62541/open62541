@@ -314,6 +314,11 @@ if(UA_ENABLE_MQTT)
     ua_add_test(check_eventloop_mqtt.c)
 endif()
 
+if(UA_ENABLE_LWS_MQTT)
+    ua_add_test(check_eventloop_mqtt_lws.c WRAPPER ${Python3_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tools/lws/mqttBroker.py --run-test)
+endif()
+
 if(UA_ENABLE_LWS)
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
