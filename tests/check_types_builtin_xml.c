@@ -441,6 +441,25 @@ START_TEST(UA_Int32_Zero_Number_xml_encode) {
 }
 END_TEST
 
+START_TEST(UA_Enum_xml_roundtrip) {
+    UA_ApplicationType src = UA_APPLICATIONTYPE_CLIENT;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_APPLICATIONTYPE];
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+
+    UA_StatusCode retval = UA_encodeXml(&src, type, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected =
+        UA_BYTESTRING("<ApplicationType>Client_1</ApplicationType>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_ApplicationType decoded = UA_APPLICATIONTYPE_SERVER;
+    retval = UA_decodeXml(&encoded, &decoded, type, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(decoded, src);
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
 START_TEST(UA_Int32_smallbuf_Number_xml_encode) {
     UA_Int32 *src = UA_Int32_new();
     *src = 127;
@@ -3965,7 +3984,7 @@ START_TEST(UA_ExtensionObject_EncodedXml_3_xml_decode) {
                                       "<ServerStatusDataType xmlns=\"http://opcfoundation.org/UA/2008/02/Types.xsd\">"
                                         "<StartTime>2000-01-01T00:00:00Z</StartTime>"
                                         "<CurrentTime>2000-01-01T00:00:00Z</CurrentTime>"
-                                        "<State>5</State>"
+                                        "<State>Test_5</State>"
                                         "<BuildInfo>"
                                           "<ProductUri>open62541</ProductUri>"
                                           "<ManufacturerName>oss</ManufacturerName>"
@@ -4423,6 +4442,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_Int32_Max_Number_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Int32_Min_Number_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Int32_Zero_Number_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_Enum_xml_roundtrip);
     tcase_add_test(tc_xml_encode, UA_Int32_smallbuf_Number_xml_encode);
 
     tcase_add_test(tc_xml_encode, UA_UInt32_Max_Number_xml_encode);
