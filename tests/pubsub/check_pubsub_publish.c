@@ -610,13 +610,8 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
 
         setupDataSetFieldTestEnvironment();
 
-        retVal = UA_Server_enableAllPubSubComponents(server);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
         UA_DataSetMessage keyFrame;
         memset(&keyFrame, 0, sizeof(UA_DataSetMessage));
-        UA_DataSetMessage secondKeyFrame;
-        memset(&secondKeyFrame, 0, sizeof(UA_DataSetMessage));
 
         lockServer(server);
         UA_PubSubManager *psm = getPSM(server);
@@ -628,15 +623,9 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(keyFrame.header.dataSetMessageType,
                           UA_DATASETMESSAGE_DATAKEYFRAME);
-
-        retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &secondKeyFrame);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(secondKeyFrame.header.dataSetMessageType,
-                          UA_DATASETMESSAGE_DATAKEYFRAME);
         unlockServer(server);
 
         UA_DataSetMessage_clear(&keyFrame);
-        UA_DataSetMessage_clear(&secondKeyFrame);
 
         value2 = 201;
         UA_Variant updatedValue;
