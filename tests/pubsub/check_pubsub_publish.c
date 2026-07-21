@@ -561,10 +561,10 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
 
 START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         setupPublishedDataSetTestEnvironment();
-        setupDataSetFieldTestEnvironment();
 
         UA_ServerConfig *config = UA_Server_getConfig(server);
         config->pubSubConfig.enableDeltaFrames = true;
+        setupDataSetFieldTestEnvironment();
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
