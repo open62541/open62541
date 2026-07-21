@@ -3596,6 +3596,65 @@ START_TEST(UA_StatusCode_3_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_DataValue_xml_decode) {
+    UA_DataValue out;
+    UA_DataValue_init(&out);
+    UA_ByteString buf = UA_STRING(
+        "<DataValue>"
+        "<Value><Int32>42</Int32></Value>"
+        "<StatusCode><Code>2</Code></StatusCode>"
+        "<SourcePicoseconds>7</SourcePicoseconds>"
+        "</DataValue>");
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(out.hasValue);
+    ck_assert_ptr_eq(out.value.type, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(*(UA_Int32*)out.value.data, 42);
+    ck_assert(out.hasStatus);
+    ck_assert_uint_eq(out.status, 2);
+    ck_assert(out.hasSourcePicoseconds);
+    ck_assert_uint_eq(out.sourcePicoseconds, 7);
+    ck_assert(!out.hasSourceTimestamp);
+    ck_assert(!out.hasServerTimestamp);
+    ck_assert(!out.hasServerPicoseconds);
+
+    UA_DataValue_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_DiagnosticInfo_xml_decode) {
+    UA_DiagnosticInfo out;
+    UA_DiagnosticInfo_init(&out);
+    UA_ByteString buf = UA_STRING(
+        "<DiagnosticInfo>"
+        "<SymbolicId>1</SymbolicId>"
+        "<AdditionalInfo>detail</AdditionalInfo>"
+        "<InnerStatusCode><Code>2</Code></InnerStatusCode>"
+        "<InnerDiagnosticInfo><Locale>3</Locale></InnerDiagnosticInfo>"
+        "</DiagnosticInfo>");
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], NULL);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(out.hasSymbolicId);
+    ck_assert_int_eq(out.symbolicId, 1);
+    ck_assert(out.hasAdditionalInfo);
+    ck_assert(UA_String_equal(&out.additionalInfo, &UA_STRING("detail")));
+    ck_assert(out.hasInnerStatusCode);
+    ck_assert_uint_eq(out.innerStatusCode, 2);
+    ck_assert(out.hasInnerDiagnosticInfo);
+    ck_assert_ptr_ne(out.innerDiagnosticInfo, NULL);
+    ck_assert(out.innerDiagnosticInfo->hasLocale);
+    ck_assert_int_eq(out.innerDiagnosticInfo->locale, 3);
+
+    UA_DiagnosticInfo_clear(&out);
+}
+END_TEST
+
 /* QualifiedName */
 START_TEST(UA_QualifiedName_1_xml_decode) {
     UA_QualifiedName out;
@@ -4459,6 +4518,8 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_StatusCode_0_xml_decode);
     tcase_add_test(tc_xml_decode, UA_StatusCode_2_xml_decode);
     tcase_add_test(tc_xml_decode, UA_StatusCode_3_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_DataValue_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_DiagnosticInfo_xml_decode);
 
     tcase_add_test(tc_xml_decode, UA_QualifiedName_1_xml_decode);
     tcase_add_test(tc_xml_decode, UA_QualifiedName_2_xml_decode);
