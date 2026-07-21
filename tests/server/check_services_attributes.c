@@ -707,6 +707,60 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+START_TEST(ReadStructureDataTypeDefinitionOwnsTransferredContent) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT);
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+
+    UA_DataValue resp =
+        UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+
+    UA_DataValue copy;
+    UA_DataValue_init(&copy);
+    ck_assert_uint_eq(UA_DataValue_copy(&resp, &copy), UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&resp);
+
+    ck_assert(copy.hasValue);
+    ck_assert_ptr_eq(copy.value.type, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+    UA_StructureDefinition *def = (UA_StructureDefinition*)copy.value.data;
+    ck_assert_ptr_ne(def, NULL);
+    ck_assert_uint_eq(def->fieldsSize, 5);
+    ck_assert_ptr_ne(def->fields, NULL);
+    UA_DataValue_clear(&copy);
+} END_TEST
+
+START_TEST(ReadEnumDataTypeDefinitionOwnsTransferredContent) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_TYPES[UA_TYPES_MESSAGESECURITYMODE].typeId;
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+
+    UA_DataValue resp =
+        UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+
+    UA_DataValue copy;
+    UA_DataValue_init(&copy);
+    ck_assert_uint_eq(UA_DataValue_copy(&resp, &copy), UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&resp);
+
+    ck_assert(copy.hasValue);
+    ck_assert_ptr_eq(copy.value.type, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+    UA_EnumDefinition *def = (UA_EnumDefinition*)copy.value.data;
+    ck_assert_ptr_ne(def, NULL);
+    ck_assert_uint_gt(def->fieldsSize, 0);
+    ck_assert_ptr_ne(def->fields, NULL);
+    UA_DataValue_clear(&copy);
+} END_TEST
+#endif
+
 static UA_DataValue staticVal;
 static UA_DataValue *staticValPtr;
 
@@ -1662,6 +1716,12 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeServerTimestampOnError);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeSourceTimestampOnValueError);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    tcase_add_test(tc_readSingleAttributes,
+                   ReadStructureDataTypeDefinitionOwnsTransferredContent);
+    tcase_add_test(tc_readSingleAttributes,
+                   ReadEnumDataTypeDefinitionOwnsTransferredContent);
+#endif
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
 
     suite_add_tcase(s, tc_readSingleAttributes);
