@@ -571,25 +571,27 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
 
         UA_Int32 value1 = 100;
         UA_Variant_setScalar(&attr.value, &value1, &UA_TYPES[UA_TYPES_INT32]);
-        UA_NodeId node1 = UA_NODEID_NUMERIC(1, 50010);
+        UA_NodeId node1;
+        UA_NodeId_init(&node1);
         UA_StatusCode retVal =
-            UA_Server_addVariableNode(server, node1,
+            UA_Server_addVariableNode(server, UA_NODEID_NULL,
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                       UA_QUALIFIEDNAME(1, "DeltaFrameFieldCount1"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                      attr, NULL, NULL);
+                                      attr, NULL, &node1);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         UA_Int32 value2 = 200;
         UA_Variant_setScalar(&attr.value, &value2, &UA_TYPES[UA_TYPES_INT32]);
-        UA_NodeId node2 = UA_NODEID_NUMERIC(1, 50011);
-        retVal |= UA_Server_addVariableNode(server, node2,
+        UA_NodeId node2;
+        UA_NodeId_init(&node2);
+        retVal |= UA_Server_addVariableNode(server, UA_NODEID_NULL,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                             UA_QUALIFIEDNAME(1, "DeltaFrameFieldCount2"),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                            attr, NULL, NULL);
+                                            attr, NULL, &node2);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         UA_DataSetFieldConfig dataSetFieldConfig;
@@ -652,6 +654,8 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         ck_assert_int_eq(*(UA_Int32 *)deltaFrame.data.deltaFrameFields[0].value.value.data,
                          value2);
         UA_DataSetMessage_clear(&deltaFrame);
+        UA_NodeId_clear(&node1);
+        UA_NodeId_clear(&node2);
     } END_TEST
 
 
