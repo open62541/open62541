@@ -331,6 +331,11 @@ ENCODE_XML(String) {
     return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
+/* XmlElement */
+ENCODE_XML(XmlElement) {
+    return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
+}
+
 /* Guid */
 ENCODE_XML(Guid) {
     UA_Byte buf[36];
@@ -561,7 +566,7 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)DateTime_encodeXml,         /* DateTime */
     (encodeXmlSignature)Guid_encodeXml,             /* Guid */
     (encodeXmlSignature)ByteString_encodeXml,       /* ByteString */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* XmlElement */
+    (encodeXmlSignature)XmlElement_encodeXml,       /* XmlElement */
     (encodeXmlSignature)NodeId_encodeXml,           /* NodeId */
     (encodeXmlSignature)ExpandedNodeId_encodeXml,   /* ExpandedNodeId */
     (encodeXmlSignature)StatusCode_encodeXml,       /* StatusCode */
