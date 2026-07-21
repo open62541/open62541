@@ -13,13 +13,78 @@
 
 #include <open62541/plugin/log_stdout.h>
 
+#if defined(LWS_WITH_TLS) && !defined(LWS_WITH_MBEDTLS) && \
+    !defined(USE_WOLFSSL) && !defined(LWS_WITH_BORINGSSL) && \
+    !defined(LWS_WITH_AWSLC)
+# define UA_LWS_USE_OPENSSL
+#endif
+
+/* Creating and destroying an lws context accesses process-global state in
+ * libwebsockets. Initialize the recursive mutex once at runtime because a
+ * portable static recursive-mutex initializer is not available. */
+static pthread_once_t lwsLifecycleMutexOnce = PTHREAD_ONCE_INIT;
+static UA_Lock lwsLifecycleMutex;
+static size_t lwsContextCount;
+
+#ifdef UA_LWS_USE_OPENSSL
+/* OpenSSL cannot be initialized again after OPENSSL_cleanup(). Keep one client
+ * SSL context alive for the process as a lifetime safeguard. */
+static SSL_CTX *lwsClientSslContext;
+#endif
+
+static void
+initializeLwsLifecycleMutex(void) {
+    UA_LOCK_INIT(&lwsLifecycleMutex);
+}
+
+static void
+lockLwsLifecycle(void) {
+    int res = pthread_once(&lwsLifecycleMutexOnce, initializeLwsLifecycleMutex);
+    UA_assert(res == 0);
+    UA_LOCK(&lwsLifecycleMutex);
+}
+
+static void
+unlockLwsLifecycle(void) {
+    UA_UNLOCK(&lwsLifecycleMutex);
+}
+
+#ifdef UA_LWS_USE_OPENSSL
+static UA_Boolean
+initializeLwsClientSslContext(void) {
+    if(lwsClientSslContext)
+        return true;
+
+#if defined(LWS_HAVE_TLS_CLIENT_METHOD)
+    const SSL_METHOD *method = TLS_client_method();
+#else
+    const SSL_METHOD *method = SSLv23_client_method();
+#endif
+    if(!method)
+        return false;
+
+    lwsClientSslContext = SSL_CTX_new(method);
+    if(!lwsClientSslContext)
+        return false;
+
+#ifdef SSL_OP_NO_COMPRESSION
+    SSL_CTX_set_options(lwsClientSslContext, SSL_OP_NO_COMPRESSION);
+#endif
+    SSL_CTX_set_options(lwsClientSslContext, SSL_OP_CIPHER_SERVER_PREFERENCE);
+    SSL_CTX_set_mode(lwsClientSslContext, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+                     SSL_MODE_RELEASE_BUFFERS);
+    SSL_CTX_set_default_verify_paths(lwsClientSslContext);
+    return true;
+}
+#endif
+
 typedef struct {
     UA_RegisteredFD rfd;
-
-    UA_ConnectionManager_connectionCallback applicationCB;
-    void *application;
     void *context;
 }LWS_FD;
+
+static void
+io_custom(struct lws *wsi, unsigned int flags);
 
 static void
 connectionCallback(UA_ConnectionManager *cm, LWS_FD *conn, short event) {
@@ -46,10 +111,23 @@ connectionCallback(UA_ConnectionManager *cm, LWS_FD *conn, short event) {
     while(!lws_service_adjust_timeout((struct lws_context*)conn->context, 1, 0)) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_EVENTLOOP,
                      "Process connection with pending work.");
-        eventfd.events = LWS_POLLIN;
-        eventfd.revents =  LWS_POLLIN;
-        lws_service_fd((struct lws_context*)conn->context, &eventfd);
+        /* A timeout of -1 services only logical connections that LWS has
+         * marked for forced service. This includes multiplexed MQTT streams,
+         * which do not own a socket and therefore cannot be serviced by
+         * synthesizing an event for the network fd. */
+        lws_service_tsi((struct lws_context*)conn->context, -1, 0);
     }
+}
+
+void
+UA_LWS_requestWritable(struct lws *wsi) {
+    lws_callback_on_writable(wsi);
+
+    /* LWS does not notify a custom event library when a multiplexed stream
+     * requests a writable callback. Explicitly enable write events on the
+     * underlying network WSI. */
+    struct lws *networkWsi = lws_get_network_wsi(wsi);
+    io_custom(networkWsi, LWS_EV_START | LWS_EV_WRITE);
 }
 
 /*
@@ -103,8 +181,6 @@ sock_accept_custom(struct lws *wsi) {
     newConn->rfd.listenEvents = UA_FDEVENT_IN;
     newConn->rfd.es = NULL;
     newConn->rfd.eventSourceCB = (UA_FDCallback)connectionCallback;
-    newConn->applicationCB = NULL;
-    newConn->application = NULL;
     newConn->context = (void*)priv->context;
 
     UA_StatusCode retval = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
@@ -133,7 +209,6 @@ io_custom(struct lws *wsi, unsigned int flags) {
         return;
     }
 
-    conn->rfd.listenEvents = 0;
     if(flags & LWS_EV_START) {
         if(flags & LWS_EV_WRITE)
             conn->rfd.listenEvents |= UA_FDEVENT_OUT;
@@ -141,9 +216,9 @@ io_custom(struct lws *wsi, unsigned int flags) {
             conn->rfd.listenEvents |= UA_FDEVENT_IN;
     } else {
         if(flags & LWS_EV_WRITE)
-            conn->rfd.listenEvents |= UA_FDEVENT_IN;
+            conn->rfd.listenEvents &= (short)~UA_FDEVENT_OUT;
         if(flags & LWS_EV_READ)
-            conn->rfd.listenEvents |= UA_FDEVENT_IN;
+            conn->rfd.listenEvents &= (short)~UA_FDEVENT_IN;
     }
 
     UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
@@ -155,7 +230,7 @@ delayedClose(void *application, void *context) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)application;
     LWS_FD *conn = (LWS_FD*)context;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "HTTP %u\t| Delayed closing of the connection",
+                 "LWS %u\t| Delayed closing of the connection",
                  (unsigned)conn->rfd.fd);
     UA_free(conn);
     conn = NULL;
@@ -289,3 +364,57 @@ lws_log_cx_t open62541_log_cx = {
                  LLL_WARN | LLL_NOTICE | LLL_USER,
     .u.emit_cx = open62541_log_emit_cx,
 };
+
+struct lws_context *
+UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)eventLoop;
+
+    lockLwsLifecycle();
+    if(!el->lwsContext) {
+        struct lws_context_creation_info info;
+        memset(&info, 0, sizeof(info));
+        info.options = LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
+#ifdef UA_LWS_USE_OPENSSL
+        if(!initializeLwsClientSslContext()) {
+            unlockLwsLifecycle();
+            return NULL;
+        }
+        info.provided_client_ssl_ctx = lwsClientSslContext;
+#else
+        info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+#endif
+        info.port = CONTEXT_PORT_NO_LISTEN;
+        info.log_cx = &open62541_log_cx;
+        info.event_lib_custom = &evlib_open62541;
+        el->lwsForeignLoop = &el->eventLoop;
+        info.foreign_loops = (void**)&el->lwsForeignLoop;
+        UA_LWS_disableProtocolPlugins(&info);
+
+        el->lwsContext = lws_create_context(&info);
+        if(el->lwsContext)
+            ++lwsContextCount;
+    }
+
+    if(el->lwsContext)
+        ++el->lwsContextUsers;
+    struct lws_context *context = (struct lws_context*)el->lwsContext;
+    unlockLwsLifecycle();
+    return context;
+}
+
+void
+UA_LWS_releaseContext(UA_EventLoop *eventLoop) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)eventLoop;
+
+    lockLwsLifecycle();
+    UA_assert(el->lwsContextUsers > 0);
+    --el->lwsContextUsers;
+    if(el->lwsContextUsers == 0) {
+        struct lws_context *context = (struct lws_context*)el->lwsContext;
+        el->lwsContext = NULL;
+        lws_context_destroy(context);
+        UA_assert(lwsContextCount > 0);
+        --lwsContextCount;
+    }
+    unlockLwsLifecycle();
+}

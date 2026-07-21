@@ -833,6 +833,17 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
 
 /**
+ * Libwebsockets MQTT Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Implements the same MQTT ConnectionManager contract and parameters as
+ * ``UA_ConnectionManager_new_MQTT``, using the MQTT client role provided by
+ * libwebsockets. Enable this implementation with ``UA_ENABLE_LWS_MQTT``. The
+ * libwebsockets library must be built with
+ * ``LWS_ROLE_MQTT=ON``. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWS_MQTT(const UA_String eventSourceName);
+
+/**
  * Signal Interrupt Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~
  * Create an instance of the interrupt manager that handles POSX signals. This

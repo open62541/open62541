@@ -9,12 +9,6 @@
 
 #include "eventloop_posix_lws.h"
 
-#if defined(LWS_WITH_TLS) && !defined(LWS_WITH_MBEDTLS) && \
-    !defined(USE_WOLFSSL) && !defined(LWS_WITH_BORINGSSL) && \
-    !defined(LWS_WITH_AWSLC)
-# define UA_LWS_USE_OPENSSL
-#endif
-
 struct HTTPConnectionManager;
 typedef struct HTTPConnectionManager HTTPConnectionManager;
 
@@ -47,68 +41,6 @@ static UA_KeyValueRestriction httpSendParams[HTTP_SENDPARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("method")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("header")}, &UA_TYPES[UA_TYPES_STRING], false, true, false}
 };
-
-/* Creating and destroying an lws context accesses process-global state in
- * libwebsockets. Statically initializing a recursive mutex is not portable,
- * so initialize it exactly once at runtime. Keep it alive until process exit
- * so a context can be created again after the number of contexts reached
- * zero. */
-static pthread_once_t lwsLifecycleMutexOnce = PTHREAD_ONCE_INIT;
-static UA_Lock lwsLifecycleMutex;
-static size_t lwsContextCount;
-
-#ifdef UA_LWS_USE_OPENSSL
-/* OpenSSL cannot be initialized again after OPENSSL_cleanup(). Keep one client
- * SSL context alive for the process as a lifetime safeguard. Per-connection
- * certificate configuration is held by the client SSL context of its vhost. */
-static SSL_CTX *lwsClientSslContext;
-#endif
-
-static void
-initializeLwsLifecycleMutex(void) {
-    UA_LOCK_INIT(&lwsLifecycleMutex);
-}
-
-static void
-lockLwsLifecycle(void) {
-    int res = pthread_once(&lwsLifecycleMutexOnce, initializeLwsLifecycleMutex);
-    UA_assert(res == 0);
-    UA_LOCK(&lwsLifecycleMutex);
-}
-
-static void
-unlockLwsLifecycle(void) {
-    UA_UNLOCK(&lwsLifecycleMutex);
-}
-
-#ifdef UA_LWS_USE_OPENSSL
-static UA_Boolean
-initializeLwsClientSslContext(void) {
-    if(lwsClientSslContext)
-        return true;
-
-#if defined(LWS_HAVE_TLS_CLIENT_METHOD)
-    const SSL_METHOD *method = TLS_client_method();
-#else
-    const SSL_METHOD *method = SSLv23_client_method();
-#endif
-    if(!method)
-        return false;
-
-    lwsClientSslContext = SSL_CTX_new(method);
-    if(!lwsClientSslContext)
-        return false;
-
-#ifdef SSL_OP_NO_COMPRESSION
-    SSL_CTX_set_options(lwsClientSslContext, SSL_OP_NO_COMPRESSION);
-#endif
-    SSL_CTX_set_options(lwsClientSslContext, SSL_OP_CIPHER_SERVER_PREFERENCE);
-    SSL_CTX_set_mode(lwsClientSslContext, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-                     SSL_MODE_RELEASE_BUFFERS);
-    SSL_CTX_set_default_verify_paths(lwsClientSslContext);
-    return true;
-}
-#endif
 
 struct HTTPConnection {
     LIST_ENTRY(HTTPConnection) next;
@@ -143,23 +75,6 @@ struct HTTPConnectionManager {
 };
 
 static void
-releaseLwsContext(HTTPConnectionManager *hcm) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)hcm->cm.eventSource.eventLoop;
-
-    lockLwsLifecycle();
-    UA_assert(el->lwsContextUsers > 0);
-    --el->lwsContextUsers;
-    if(el->lwsContextUsers == 0) {
-        struct lws_context *context = (struct lws_context*)el->lwsContext;
-        el->lwsContext = NULL;
-        lws_context_destroy(context);
-        UA_assert(lwsContextCount > 0);
-        --lwsContextCount;
-    }
-    unlockLwsLifecycle();
-}
-
-static void
 removeHTTPConnection(HTTPConnection *hc) {
     if(!hc->closing || !LIST_EMPTY(&hc->requests))
         return;
@@ -174,7 +89,7 @@ removeHTTPConnection(HTTPConnection *hc) {
 
     UA_KeyValueMap_clear(&hc->params);
     UA_free(hc);
-    releaseLwsContext(hcm);
+    UA_LWS_releaseContext(hcm->cm.eventSource.eventLoop);
 
     /* EventSource is stopped when the last connection is removed */
     if(hcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING &&
@@ -409,45 +324,6 @@ static const struct lws_protocols protocols[] = {
     LWS_PROTOCOL_LIST_TERM
 };
 
-static struct lws_context *
-acquireLwsContext(HTTPConnectionManager *hcm) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)hcm->cm.eventSource.eventLoop;
-
-    lockLwsLifecycle();
-    if(!el->lwsContext) {
-        struct lws_context_creation_info info;
-        memset(&info, 0, sizeof(info));
-        info.options =
-            LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE |
-            LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
-#ifdef UA_LWS_USE_OPENSSL
-        if(!initializeLwsClientSslContext()) {
-            unlockLwsLifecycle();
-            return NULL;
-        }
-        info.provided_client_ssl_ctx = lwsClientSslContext;
-#else
-        info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
-#endif
-        info.port = CONTEXT_PORT_NO_LISTEN;
-        info.log_cx = &open62541_log_cx;
-        info.event_lib_custom = &evlib_open62541;
-        el->lwsForeignLoop = &el->eventLoop;
-        info.foreign_loops = (void**)&el->lwsForeignLoop;
-        UA_LWS_disableProtocolPlugins(&info);
-
-        el->lwsContext = lws_create_context(&info);
-        if(el->lwsContext)
-            ++lwsContextCount;
-    }
-
-    if(el->lwsContext)
-        ++el->lwsContextUsers;
-    struct lws_context *context = (struct lws_context*)el->lwsContext;
-    unlockLwsLifecycle();
-    return context;
-}
-
 static struct lws_vhost *
 createLwsVhost(struct lws_context *context, const UA_KeyValueMap *params,
                const UA_UInt16 *timeout) {
@@ -564,7 +440,8 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "timeout"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     /* Acquire the lws context shared by all users of this EventLoop. */
-    struct lws_context *lwsContext = acquireLwsContext(hcm);
+    struct lws_context *lwsContext =
+        UA_LWS_acquireContext(hcm->cm.eventSource.eventLoop);
     if(!lwsContext) {
         UA_LOG_ERROR(hc->hcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                      "HTTP\t| Could not create context for new connection");
@@ -579,7 +456,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_LOG_ERROR(hc->hcm->cm.eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
                      "HTTP\t| Could not create vhost for new connection");
-        releaseLwsContext(hcm);
+        UA_LWS_releaseContext(hcm->cm.eventSource.eventLoop);
         UA_KeyValueMap_clear(&hc->params);
         UA_free(hc);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
