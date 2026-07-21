@@ -83,6 +83,10 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
+if(UA_ENABLE_JSON_ENCODING)
+    list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_config_json.c)
+endif()
+
 if(UA_ENABLE_MQTT)
     list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
 endif()
@@ -134,6 +138,7 @@ add_fuzzer(fuzz_base64_decode fuzz_base64_decode.cc)
 if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
+    add_fuzzer(fuzz_config_json fuzz_config_json.cc)
 endif()
 
 # Run fuzzer on existing corpus to avoid regression
