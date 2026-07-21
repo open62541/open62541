@@ -1661,12 +1661,15 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
         entries[i].found = false;
         ptr += m->padding;
         entries[i].fieldPointer = (void*)ptr;
-        if(!m->isArray) {
+        if(!m->isArray && !m->isOptional) {
             entries[i].function = NULL;
             ptr += mt->memSize;
-        } else {
+        } else if(m->isArray) {
             entries[i].function = (decodeXmlSignature)Array_decodeXml;
             ptr += sizeof(size_t) + sizeof(void*);
+        } else {
+            entries[i].function = (decodeXmlSignature)Optional_decodeXml;
+            ptr += sizeof(void*);
         }
     }
 
@@ -1676,6 +1679,15 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
     return ret;
+}
+
+static status
+Optional_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    void **target = (void**)dst;
+    *target = UA_new(type);
+    if(!*target)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    return decodeXmlJumpTable[type->typeKind](ctx, *target, type);
 }
 
 static status
@@ -1713,7 +1725,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
     (decodeXmlSignature)Int32_decodeXml,            /* Enum */
     (decodeXmlSignature)decodeXmlStructure,         /* Structure */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Structure with optional fields */
+    (decodeXmlSignature)decodeXmlStructure,         /* Structure with optional fields */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Union */
     (decodeXmlSignature)decodeXmlNotImplemented     /* BitfieldCluster */
 };
