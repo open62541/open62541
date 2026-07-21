@@ -1252,6 +1252,22 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* The InputArguments metadata that the Call service validates against is
+ * resolved from the (mutable) node graph. Namespace-0 methods can have their
+ * InputArguments property re-bound to a forged VariableNode, so the actual
+ * runtime types of the EventId/Comment arguments must be checked here before
+ * they are reinterpreted as UA_ByteString / UA_LocalizedText. */
+static UA_StatusCode
+checkEventIdCommentArguments(size_t inputSize, const UA_Variant *input) {
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *sessionContext, const UA_NodeId *methodId,
@@ -1259,6 +1275,10 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *objectContext, size_t inputSize,
                          const UA_Variant *input, size_t outputSize,
                          UA_Variant *output) {
+    UA_StatusCode retval = checkEventIdCommentArguments(inputSize, input);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_QualifiedName fieldSourceTimeStamp =
         UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONDITIONVARIABLE_SOURCETIMESTAMP);
@@ -1281,8 +1301,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
      * in current implementation, methods are only being referenced from their ObjectType Node.
      * Because of that, the correct instance (Condition) will be found through
      * its last EventId */
-    UA_StatusCode retval = getConditionBranchNodeId(server, (UA_ByteString *)input[0].data,
-                                                    &triggerEvent);
+    retval = getConditionBranchNodeId(server, (UA_ByteString *)input[0].data,
+                                      &triggerEvent);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "ConditionId based on EventId not found",);
 
     /* Check if enabled */
@@ -1343,6 +1363,10 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                           void *objectContext, size_t inputSize,
                           const UA_Variant *input, size_t outputSize,
                           UA_Variant *output) {
+    UA_StatusCode retval = checkEventIdCommentArguments(inputSize, input);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1356,8 +1380,8 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Get condition branch to trigger the correct event */
     UA_NodeId conditionNode;
-    UA_StatusCode retval = getConditionBranchNodeId(server, (UA_ByteString *)input[0].data,
-                                                    &conditionNode);
+    retval = getConditionBranchNodeId(server, (UA_ByteString *)input[0].data,
+                                      &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "ConditionId based on EventId not found",);
 
     /* Check if retained */
@@ -1419,6 +1443,10 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_StatusCode retval = checkEventIdCommentArguments(inputSize, input);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1432,8 +1460,8 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Get condition branch to trigger the correct event */
     UA_NodeId conditionNode;
-    UA_StatusCode retval = getConditionBranchNodeId(server, (UA_ByteString *)input[0].data,
-                                                    &conditionNode);
+    retval = getConditionBranchNodeId(server, (UA_ByteString *)input[0].data,
+                                      &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "ConditionId based on EventId not found",);
 
     /* Check if retained */
