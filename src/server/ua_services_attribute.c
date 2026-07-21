@@ -714,6 +714,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             UA_QualifiedName_clear(&sd->name);
             memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
             UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+            UA_ExtensionObject_init(&typeDescr); /* Ownership moved to the Variant */
         } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
             if(type->membersSize > 0) {
                 /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
@@ -725,6 +726,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
                 UA_QualifiedName_clear(&ed->name);
                 memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
                 UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+                UA_ExtensionObject_init(&typeDescr); /* Ownership moved to the Variant */
             } else {
                 /* No compiled members: build from the EnumValues/EnumStrings
                  * property (OPC UA Part 3 v1.05, Section 5.8.3) */
