@@ -379,6 +379,21 @@ START_TEST(checkServerAddReference) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(checkServerAddReferenceToRemoteTarget) {
+    UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NUMERIC(1, 1000);
+    target.serverIndex = 1;
+
+    UA_StatusCode retval = UA_Server_addReference(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), target, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_deleteReference(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), true, target, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(checkServerReadDataType) {
     /* Read the DataType attribute of the CurrentTime variable */
     UA_NodeId dataType;
@@ -680,6 +695,7 @@ int main(void) {
     tcase_add_test(tc_ext, checkServerTranslateBrowsePath);
     tcase_add_test(tc_ext, checkServerAddMethodNode);
     tcase_add_test(tc_ext, checkServerAddReference);
+    tcase_add_test(tc_ext, checkServerAddReferenceToRemoteTarget);
     tcase_add_test(tc_ext, checkServerReadDataType);
     tcase_add_test(tc_ext, checkServerRepeatedCallback);
     tcase_add_test(tc_ext, checkCallbackManagement);
