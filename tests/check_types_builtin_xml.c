@@ -802,6 +802,29 @@ START_TEST(UA_String_xml_encode) {
 }
 END_TEST
 
+START_TEST(UA_XmlElement_xml_roundtrip) {
+    UA_XmlElement src = UA_STRING("<Test><Value>42</Value></Test>");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_XMLELEMENT];
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_encodeXml(&src, type, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString expected = UA_BYTESTRING(
+        "<XmlElement><Test><Value>42</Value></Test></XmlElement>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_XmlElement decoded;
+    UA_String_init(&decoded);
+    retval = UA_decodeXml(&encoded, &decoded, type, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&decoded, &src));
+
+    UA_String_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
 START_TEST(UA_String_Empty_xml_encode) {
     UA_String src = UA_STRING("");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
@@ -4282,6 +4305,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_Double_nan_xml_encode);
 
     tcase_add_test(tc_xml_encode, UA_String_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_XmlElement_xml_roundtrip);
     tcase_add_test(tc_xml_encode, UA_String_Empty_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_Null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_escapesimple_xml_encode);
