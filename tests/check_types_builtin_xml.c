@@ -12,6 +12,33 @@
 #include <math.h>
 #include <stdlib.h>
 
+typedef struct {
+    UA_Int32 required;
+    UA_String *optional;
+} XmlOptionalStructure;
+
+#define XML_OPTIONAL_PADDING \
+    (offsetof(XmlOptionalStructure, optional) - sizeof(UA_Int32))
+
+static UA_DataTypeMember xmlOptionalStructureMembers[2] = {
+    {UA_TYPENAME("Required") &UA_TYPES[UA_TYPES_INT32], 0, false, false},
+    {UA_TYPENAME("Optional") &UA_TYPES[UA_TYPES_STRING],
+     XML_OPTIONAL_PADDING, false, true}
+};
+
+static UA_DataType xmlOptionalStructureType = {
+    UA_TYPENAME("XmlOptionalStructure")
+    {1, UA_NODEIDTYPE_NUMERIC, {3001}},
+    {1, UA_NODEIDTYPE_NUMERIC, {5001}},
+    {1, UA_NODEIDTYPE_NUMERIC, {6001}},
+    sizeof(XmlOptionalStructure), UA_DATATYPEKIND_OPTSTRUCT,
+    false, false, 2, xmlOptionalStructureMembers
+};
+
+static UA_DataTypeArray xmlOptionalStructureTypes = {
+    NULL, 1, &xmlOptionalStructureType, false
+};
+
 #if defined(_MSC_VER)
 # pragma warning(disable: 4146)
 #endif
@@ -821,6 +848,39 @@ START_TEST(UA_XmlElement_xml_roundtrip) {
     ck_assert(UA_String_equal(&decoded, &src));
 
     UA_String_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
+START_TEST(UA_OptionalStructure_xml_roundtrip) {
+    UA_String optional = UA_STRING("present");
+    XmlOptionalStructure src = {42, &optional};
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+
+    UA_StatusCode retval =
+        UA_encodeXml(&src, &xmlOptionalStructureType, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING(
+        "<XmlOptionalStructure><Required>42</Required>"
+        "<Optional>present</Optional></XmlOptionalStructure>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    XmlOptionalStructure decoded = {0};
+    UA_DecodeXmlOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &xmlOptionalStructureTypes;
+    retval = UA_decodeXml(&encoded, &decoded, &xmlOptionalStructureType, &options);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&src, &decoded, &xmlOptionalStructureType));
+    UA_clear(&decoded, &xmlOptionalStructureType);
+    UA_ByteString_clear(&encoded);
+
+    src.optional = NULL;
+    retval = UA_encodeXml(&src, &xmlOptionalStructureType, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<XmlOptionalStructure><Required>42</Required></XmlOptionalStructure>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
     UA_ByteString_clear(&encoded);
 }
 END_TEST
@@ -3655,7 +3715,8 @@ START_TEST(UA_DiagnosticInfo_xml_decode) {
     ck_assert(out.hasSymbolicId);
     ck_assert_int_eq(out.symbolicId, 1);
     ck_assert(out.hasAdditionalInfo);
-    ck_assert(UA_String_equal(&out.additionalInfo, &UA_STRING("detail")));
+    UA_String expectedAdditionalInfo = UA_STRING("detail");
+    ck_assert(UA_String_equal(&out.additionalInfo, &expectedAdditionalInfo));
     ck_assert(out.hasInnerStatusCode);
     ck_assert_uint_eq(out.innerStatusCode, 2);
     ck_assert(out.hasInnerDiagnosticInfo);
@@ -4389,6 +4450,7 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_encode, UA_String_xml_encode);
     tcase_add_test(tc_xml_encode, UA_XmlElement_xml_roundtrip);
+    tcase_add_test(tc_xml_encode, UA_OptionalStructure_xml_roundtrip);
     tcase_add_test(tc_xml_encode, UA_String_Empty_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_Null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_escapesimple_xml_encode);

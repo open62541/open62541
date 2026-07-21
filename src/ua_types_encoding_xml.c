@@ -514,6 +514,46 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     return ret;
 }
 
+static status
+encodeXmlStructure(CtxXml *ctx, const void *src, const UA_DataType *type) {
+    uintptr_t ptr = (uintptr_t)src;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < type->membersSize && ret == UA_STATUSCODE_GOOD; i++) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        ptr += m->padding;
+
+        if(m->isArray) {
+            size_t length = *(const size_t*)ptr;
+            ptr += sizeof(size_t);
+            const void *data = *(void* const*)ptr;
+            ptr += sizeof(void*);
+            if(m->isOptional && !data)
+                continue;
+            ret |= writeXmlElemNameBegin(ctx, m->memberName);
+            uintptr_t elem = (uintptr_t)data;
+            for(size_t j = 0; j < length && ret == UA_STATUSCODE_GOOD; j++) {
+                ret |= writeXmlElement(ctx, mt->typeName, (const void*)elem, mt);
+                elem += mt->memSize;
+            }
+            ret |= writeXmlElemNameEnd(ctx, m->memberName);
+            continue;
+        }
+
+        const void *value = (const void*)ptr;
+        if(m->isOptional) {
+            value = *(void* const*)ptr;
+            ptr += sizeof(void*);
+            if(!value)
+                continue;
+        } else {
+            ptr += mt->memSize;
+        }
+        ret |= writeXmlElement(ctx, m->memberName, value, mt);
+    }
+    return ret;
+}
+
 ENCODE_XML(Variant) {
     if(!src->type)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -629,8 +669,8 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)DiagnosticInfo_encodeXml,   /* DiagnosticInfo */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Decimal */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Enum */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* Structure */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* Structure with optional fields */
+    (encodeXmlSignature)encodeXmlStructure,         /* Structure */
+    (encodeXmlSignature)encodeXmlStructure,         /* Structure with optional fields */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Union */
     (encodeXmlSignature)encodeXmlNotImplemented     /* BitfieldCluster */
 };
