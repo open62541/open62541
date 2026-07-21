@@ -1096,6 +1096,29 @@ DECODE_XML(ByteString) {
     return UA_STATUSCODE_GOOD;
 }
 
+DECODE_XML(XmlElement) {
+    CHECK_DATA_BOUNDS;
+    xml_token *token = &ctx->tokens[ctx->index];
+    size_t begin = token->start;
+    while(begin < token->end && ctx->xml[begin] != '>')
+        begin++;
+    if(begin == token->end)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    begin++;
+    size_t end = token->end;
+    while(end > begin && ctx->xml[end - 1] != '<')
+        end--;
+    if(end == begin)
+        end = token->end;
+    else
+        end--;
+    UA_StatusCode ret = UA_ByteString_allocBuffer((UA_ByteString*)dst, end - begin);
+    if(ret == UA_STATUSCODE_GOOD && end > begin)
+        memcpy(dst->data, &ctx->xml[begin], end - begin);
+    skipXmlObject(ctx);
+    return ret;
+}
+
 DECODE_XML(NodeId) {
     CHECK_DATA_BOUNDS;
     UA_String str;
@@ -1548,7 +1571,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)DateTime_decodeXml,         /* DateTime */
     (decodeXmlSignature)Guid_decodeXml,             /* Guid */
     (decodeXmlSignature)ByteString_decodeXml,       /* ByteString */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* XmlElement */
+    (decodeXmlSignature)XmlElement_decodeXml,       /* XmlElement */
     (decodeXmlSignature)NodeId_decodeXml,           /* NodeId */
     (decodeXmlSignature)ExpandedNodeId_decodeXml,   /* ExpandedNodeId */
     (decodeXmlSignature)StatusCode_decodeXml,       /* StatusCode */
