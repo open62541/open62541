@@ -701,8 +701,8 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
-           channel->state != UA_SECURECHANNELSTATE_CLOSING)
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSED ||
+           channel->state == UA_SECURECHANNELSTATE_CLOSING)
             continue;
         if(channel->remoteCertificate.length == 0)
             continue; /* SecureChannels w/o security */
