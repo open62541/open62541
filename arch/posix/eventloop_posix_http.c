@@ -27,14 +27,18 @@ typedef struct HTTPRequest HTTPRequest;
 #define MAX_POST_DATA_SIZE 1024
 #define MAX_GET_DATA_SIZE 1024
 
-#define HTTP_PARAMETERSSIZE 6
+#define HTTP_PARAMETERSSIZE 10
 static UA_KeyValueRestriction httpConnectionParams[HTTP_PARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("address")},    &UA_TYPES[UA_TYPES_STRING], true, true, false},
     {{0, UA_STRING_STATIC("port")},       &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("timeout")},    &UA_TYPES[UA_TYPES_UINT16], false, true, false},
     {{0, UA_STRING_STATIC("useSSL")},     &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("username")},   &UA_TYPES[UA_TYPES_STRING], false, true, false},
-    {{0, UA_STRING_STATIC("password")},   &UA_TYPES[UA_TYPES_STRING], false, true, false}
+    {{0, UA_STRING_STATIC("password")},   &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("ca-cert")},    &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("client-cert")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("client-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("client-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false}
 };
 
 #define HTTP_SENDPARAMETERSSIZE 3
@@ -55,7 +59,8 @@ static size_t lwsContextCount;
 
 #ifdef UA_LWS_USE_OPENSSL
 /* OpenSSL cannot be initialized again after OPENSSL_cleanup(). Keep one client
- * SSL context alive for the process and let all lws contexts share it. */
+ * SSL context alive for the process as a lifetime safeguard. Per-connection
+ * certificate configuration is held by the client SSL context of its vhost. */
 static SSL_CTX *lwsClientSslContext;
 #endif
 
@@ -444,20 +449,76 @@ acquireLwsContext(HTTPConnectionManager *hcm) {
 }
 
 static struct lws_vhost *
-createLwsVhost(struct lws_context *context, const UA_UInt16 *timeout) {
+createLwsVhost(struct lws_context *context, const UA_KeyValueMap *params,
+               const UA_UInt16 *timeout) {
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
-    info.options =
-        LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
-#ifdef UA_LWS_USE_OPENSSL
-    info.provided_client_ssl_ctx = lwsClientSslContext;
-#else
-    info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
-#endif
+    info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE |
+                   LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = CONTEXT_PORT_NO_LISTEN;
     info.protocols = protocols;
     info.connect_timeout_secs = timeout ? *timeout : 30;
-    return lws_create_vhost(context, &info);
+    struct lws_vhost *vhost = lws_create_vhost(context, &info);
+    if(!vhost)
+        return NULL;
+
+    const UA_Boolean *useSSL = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "useSSL"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!useSSL || !*useSSL)
+        return vhost;
+
+#ifdef LWS_WITH_TLS
+    const UA_ByteString *caCert = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "ca-cert"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_ByteString *clientCert = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "client-cert"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_ByteString *clientKey = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "client-key"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_String *keyPassword = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "client-key-password"),
+                                 &UA_TYPES[UA_TYPES_STRING]);
+
+    if((caCert && caCert->length > UINT_MAX) ||
+       (clientCert && clientCert->length > UINT_MAX) ||
+       (clientKey && clientKey->length > UINT_MAX)) {
+        lws_vhost_destroy(vhost);
+        return NULL;
+    }
+
+    info.client_ssl_ca_mem = caCert ? caCert->data : NULL;
+    info.client_ssl_ca_mem_len = caCert ? (unsigned int)caCert->length : 0;
+    info.client_ssl_cert_mem = clientCert ? clientCert->data : NULL;
+    info.client_ssl_cert_mem_len = clientCert ? (unsigned int)clientCert->length : 0;
+    info.client_ssl_key_mem = clientKey ? clientKey->data : NULL;
+    info.client_ssl_key_mem_len = clientKey ? (unsigned int)clientKey->length : 0;
+
+    char *password = NULL;
+    if(keyPassword) {
+        password = (char*)UA_malloc(keyPassword->length + 1);
+        if(!password) {
+            lws_vhost_destroy(vhost);
+            return NULL;
+        }
+        memcpy(password, keyPassword->data, keyPassword->length);
+        password[keyPassword->length] = '\0';
+        info.client_ssl_private_key_password = password;
+    }
+
+    int res = lws_init_vhost_client_ssl(&info, vhost);
+    UA_free(password);
+    if(res) {
+        lws_vhost_destroy(vhost);
+        return NULL;
+    }
+    return vhost;
+#else
+    lws_vhost_destroy(vhost);
+    return NULL;
+#endif
 }
 
 static HTTPConnection *
@@ -513,7 +574,7 @@ HTTP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     }
 
     /* A vhost carries the settings that may differ between connections. */
-    hc->lwsVhost = createLwsVhost(lwsContext, timeout);
+    hc->lwsVhost = createLwsVhost(lwsContext, params, timeout);
     if(!hc->lwsVhost) {
         UA_LOG_ERROR(hc->hcm->cm.eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
