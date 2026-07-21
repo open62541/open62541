@@ -623,6 +623,14 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
                           UA_DATASETMESSAGE_DATAKEYFRAME);
         UA_DataSetMessage_clear(&keyFrame);
 
+        UA_DataSetMessage secondKeyFrame;
+        memset(&secondKeyFrame, 0, sizeof(UA_DataSetMessage));
+        retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &secondKeyFrame);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(secondKeyFrame.header.dataSetMessageType,
+                          UA_DATASETMESSAGE_DATAKEYFRAME);
+        UA_DataSetMessage_clear(&secondKeyFrame);
+
         value2 = 201;
         UA_Variant updatedValue;
         UA_Variant_init(&updatedValue);
