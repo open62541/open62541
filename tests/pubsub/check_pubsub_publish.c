@@ -558,6 +558,94 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
+START_TEST(DeltaFrameFieldCountMatchesChangedFields){
+        setupPublishedDataSetTestEnvironment();
+        setupDataSetFieldTestEnvironment();
+
+        UA_ServerConfig *config = UA_Server_getConfig(server);
+        config->pubSubConfig.enableDeltaFrames = true;
+
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+
+        UA_Int32 value1 = 100;
+        UA_Variant_setScalar(&attr.value, &value1, &UA_TYPES[UA_TYPES_INT32]);
+        UA_NodeId node1 = UA_NODEID_NUMERIC(1, 50010);
+        UA_StatusCode retVal =
+            UA_Server_addVariableNode(server, node1,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                      UA_QUALIFIEDNAME(1, "DeltaFrameFieldCount1"),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      attr, NULL, NULL);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_Int32 value2 = 200;
+        UA_Variant_setScalar(&attr.value, &value2, &UA_TYPES[UA_TYPES_INT32]);
+        UA_NodeId node2 = UA_NODEID_NUMERIC(1, 50011);
+        retVal |= UA_Server_addVariableNode(server, node2,
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                            UA_QUALIFIEDNAME(1, "DeltaFrameFieldCount2"),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                            attr, NULL, NULL);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(dataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = node1;
+        retVal = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("field 2");
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = node2;
+        retVal = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        retVal = UA_Server_enableAllPubSubComponents(server);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_PubSubManager *psm = getPSM(server);
+        UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+        ck_assert_ptr_nonnull(dsw);
+        dsw->config.keyFrameCount = 3;
+
+        UA_DataSetMessage keyFrame;
+        UA_DataSetMessage_init(&keyFrame);
+        retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &keyFrame);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(keyFrame.header.dataSetMessageType,
+                          UA_DATASETMESSAGE_DATAKEYFRAME);
+        UA_DataSetMessage_clear(&keyFrame);
+
+        value2 = 201;
+        UA_Variant updatedValue;
+        UA_Variant_init(&updatedValue);
+        UA_Variant_setScalar(&updatedValue, &value2, &UA_TYPES[UA_TYPES_INT32]);
+        retVal = UA_Server_writeValue(server, node2, updatedValue);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_DataSetMessage deltaFrame;
+        UA_DataSetMessage_init(&deltaFrame);
+        retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &deltaFrame);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deltaFrame.header.dataSetMessageType,
+                          UA_DATASETMESSAGE_DATADELTAFRAME);
+        ck_assert_uint_eq(deltaFrame.fieldCount, 1);
+        ck_assert_ptr_nonnull(deltaFrame.data.deltaFrameFields);
+        ck_assert_uint_eq(deltaFrame.data.deltaFrameFields[0].index, 1);
+        ck_assert_ptr_eq(deltaFrame.data.deltaFrameFields[0].value.value.type,
+                         &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_int_eq(*(UA_Int32 *)deltaFrame.data.deltaFrameFields[0].value.value.data,
+                         value2);
+        UA_DataSetMessage_clear(&deltaFrame);
+    } END_TEST
+
 
 /* Test DataSetOrdering reconfiguration (OPC UA Part 14, section 6.3.1.1.3) 
  * 
@@ -707,6 +795,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
+    tcase_add_test(tc_pubsub_publish, DeltaFrameFieldCountMatchesChangedFields);
 
     TCase *tc_pubsub_datasetordering = tcase_create("PubSub DataSetOrdering (OPC UA Part 14)");
     tcase_add_checked_fixture(tc_pubsub_datasetordering, setup, teardown);
