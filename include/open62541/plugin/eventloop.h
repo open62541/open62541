@@ -745,6 +745,19 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  *    Password for HTTP Basic authentication. The authorization header is added
  *    only if both ``username`` and ``password`` are set.
  *
+ * 0:ca-cert [bytestring]
+ *    DER or PEM encoded CA certificate or certificate bundle used to verify
+ *    the server. If unset, the operating system trust store is used.
+ *
+ * 0:client-cert [bytestring]
+ *    DER or PEM encoded client certificate for mutual TLS.
+ *
+ * 0:client-key [bytestring]
+ *    DER or PEM encoded private key for the client certificate.
+ *
+ * 0:client-key-password [string]
+ *    Password for an encrypted client private key.
+ *
  * **Send Parameters:**
  *
  * 0:path [string]
