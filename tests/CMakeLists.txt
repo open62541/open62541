@@ -93,6 +93,10 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
+if(UA_ENABLE_JSON_ENCODING)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_config_json.c)
+endif()
+
 if(UA_ENABLE_MQTT)
     list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
 endif()
@@ -274,6 +278,10 @@ if(UA_ENABLE_MQTT)
 endif()
 
 # Test Server
+
+if(UA_ENABLE_JSON_ENCODING)
+    ua_add_test(server/check_server_config_json.c)
+endif()
 
 ua_add_test(server/check_accesscontrol.c)
 ua_add_test(server/check_services_view.c)

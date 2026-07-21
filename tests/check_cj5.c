@@ -215,6 +215,107 @@ START_TEST(parseNegInf) {
     ck_assert_msg(val == -INFINITY, "val: %f", val);
 } END_TEST
 
+/* Regression tests for GHSA-38g6-5hfj-2fj7: cj5_get_str() must leave its
+ * output buffer NUL-terminated on every return path, not just on success.
+ * BuildInfo_parseJson() and its siblings in plugins/ua_config_json.c
+ * allocate the buffer with exactly UA_malloc(tok.size + 1) bytes and use it
+ * with strcmp()/"%s" logging without checking cj5_get_str()'s return code,
+ * so an unterminated buffer is read out of bounds.
+ *
+ * Note: cj5_parse()'s tokenizer already rejects most malformed \u escapes
+ * (e.g. "\u12") before cj5_get_str() is ever reached. The bug is only
+ * reachable through an unpaired/truncated UTF-16 surrogate pair, where the
+ * tokenizer's lookahead succeeds but cj5_get_str()'s stricter, token-local
+ * revalidation fails. */
+START_TEST(getStrTruncatedSurrogateIsTerminated) {
+    const char *json = "{'a':\"\\uD800\"}";
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2; /* the value string "\uD800" */
+    ck_assert_int_eq(tokens[idx].type, CJ5_TOKEN_STRING);
+
+    char *buf = (char*)malloc(tokens[idx].size + 1); /* exactly like UA_malloc(tok.size+1) */
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_INVALID);
+
+    /* buf must be a valid, in-bounds C string regardless of the error */
+    ck_assert_uint_eq(strlen(buf), outlen);
+    ck_assert_uint_le(outlen, tokens[idx].size);
+    ck_assert_int_ne(strcmp(buf, "productUri"), 0); /* the exact BuildInfo_parseJson() pattern */
+    free(buf);
+} END_TEST
+
+START_TEST(getStrUnpairedLowSurrogateIsTerminated) {
+    const char *json = "{'a':\"\\uDC00\"}";
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2;
+    char *buf = (char*)malloc(tokens[idx].size + 1);
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_INVALID);
+    ck_assert_uint_eq(strlen(buf), outlen);
+    free(buf);
+} END_TEST
+
+START_TEST(getStrSurrogateBadContinuationIsTerminated) {
+    const char *json = "{'a':\"\\uD800XX\"}";
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2;
+    char *buf = (char*)malloc(tokens[idx].size + 1);
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_INVALID);
+    ck_assert_uint_eq(strlen(buf), outlen);
+    free(buf);
+} END_TEST
+
+/* Direct unit test of the very first early-return path (wrong token type),
+ * which is not reachable through cj5_parse() from a real document but is
+ * part of cj5_get_str()'s public contract. */
+START_TEST(getStrWrongTokenTypeIsTerminated) {
+    const char *json = "{'a':42}";
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2; /* the NUMBER token 42, not a string */
+    ck_assert_int_eq(tokens[idx].type, CJ5_TOKEN_NUMBER);
+
+    char *buf = (char*)malloc(tokens[idx].size + 1);
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_INVALID);
+    ck_assert_uint_eq(strlen(buf), 0);
+    free(buf);
+} END_TEST
+
+/* Positive control: a valid surrogate pair must still decode correctly.
+ * Guards against the fix accidentally breaking legitimate Unicode input. */
+START_TEST(getStrValidSurrogatePairStillWorks) {
+    const char *json = "{'a':\"\\uD834\\uDD1E\"}"; /* U+1D11E, MUSICAL SYMBOL G CLEF */
+    cj5_token tokens[16];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 16, NULL);
+    ck_assert_int_eq(r.error, CJ5_ERROR_NONE);
+
+    unsigned int idx = 2;
+    char *buf = (char*)malloc(tokens[idx].size + 1);
+    unsigned int outlen = 0;
+    cj5_error_code err = cj5_get_str(&r, idx, buf, &outlen);
+    ck_assert_int_eq(err, CJ5_ERROR_NONE);
+    ck_assert_uint_eq(outlen, 4); /* 4-byte UTF-8 encoding of U+1D11E */
+    ck_assert_uint_eq(strlen(buf), 4);
+    free(buf);
+} END_TEST
+
 static Suite *testSuite_builtin_json(void) {
     TCase *tc_parse= tcase_create("cj5_parse");
     tcase_add_test(tc_parse, parseObject);
@@ -235,8 +336,16 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_parse, parseInf);
     tcase_add_test(tc_parse, parseNegInf);
 
+    TCase *tc_get_str = tcase_create("cj5_get_str_termination");
+    tcase_add_test(tc_get_str, getStrTruncatedSurrogateIsTerminated);
+    tcase_add_test(tc_get_str, getStrUnpairedLowSurrogateIsTerminated);
+    tcase_add_test(tc_get_str, getStrSurrogateBadContinuationIsTerminated);
+    tcase_add_test(tc_get_str, getStrWrongTokenTypeIsTerminated);
+    tcase_add_test(tc_get_str, getStrValidSurrogatePairStillWorks);
+
     Suite *s = suite_create("Test JSON decoding with the cj5 library");
     suite_add_tcase(s, tc_parse);
+    suite_add_tcase(s, tc_get_str);
     return s;
 }
 
