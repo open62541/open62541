@@ -612,25 +612,29 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         retVal = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+        UA_DataSetMessage keyFrame;
+        memset(&keyFrame, 0, sizeof(UA_DataSetMessage));
+        UA_DataSetMessage secondKeyFrame;
+        memset(&secondKeyFrame, 0, sizeof(UA_DataSetMessage));
+
+        lockServer(server);
         UA_PubSubManager *psm = getPSM(server);
         UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
         ck_assert_ptr_nonnull(dsw);
         dsw->config.keyFrameCount = 3;
 
-        UA_DataSetMessage keyFrame;
-        memset(&keyFrame, 0, sizeof(UA_DataSetMessage));
         retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &keyFrame);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(keyFrame.header.dataSetMessageType,
                           UA_DATASETMESSAGE_DATAKEYFRAME);
-        UA_DataSetMessage_clear(&keyFrame);
 
-        UA_DataSetMessage secondKeyFrame;
-        memset(&secondKeyFrame, 0, sizeof(UA_DataSetMessage));
         retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &secondKeyFrame);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(secondKeyFrame.header.dataSetMessageType,
                           UA_DATASETMESSAGE_DATAKEYFRAME);
+        unlockServer(server);
+
+        UA_DataSetMessage_clear(&keyFrame);
         UA_DataSetMessage_clear(&secondKeyFrame);
 
         value2 = 201;
@@ -642,6 +646,10 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
 
         UA_DataSetMessage deltaFrame;
         memset(&deltaFrame, 0, sizeof(UA_DataSetMessage));
+        lockServer(server);
+        psm = getPSM(server);
+        dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+        ck_assert_ptr_nonnull(dsw);
         retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &deltaFrame);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deltaFrame.header.dataSetMessageType,
@@ -653,6 +661,7 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
                          &UA_TYPES[UA_TYPES_INT32]);
         ck_assert_int_eq(*(UA_Int32 *)deltaFrame.data.deltaFrameFields[0].value.value.data,
                          value2);
+        unlockServer(server);
         UA_DataSetMessage_clear(&deltaFrame);
         UA_NodeId_clear(&node1);
         UA_NodeId_clear(&node2);
