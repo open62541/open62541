@@ -322,6 +322,7 @@ endif()
 if(UA_ENABLE_LWS)
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
+    ua_add_test(check_eventloop_websocket_lws.c)
 endif()
 
 # Test Server

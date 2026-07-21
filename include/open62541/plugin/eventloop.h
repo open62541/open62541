@@ -778,6 +778,36 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
 
 /**
+ * Libwebsockets WebSocket Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Provides binary WebSocket client and server connections. Each buffer passed
+ * to ``sendWithConnection`` is sent as one binary WebSocket message. Incoming
+ * fragments are reassembled before they are passed to the connection callback.
+ *
+ * **Open Connection Parameters:**
+ *
+ * 0:address [string]
+ *    Remote hostname for clients or local interface for listeners. Listeners
+ *    default to all interfaces.
+ *
+ * 0:port [uint16]
+ *    Remote or listening port (required; zero selects a dynamic server port).
+ *
+ * 0:listen [boolean]
+ *    Create a listening connection (default: false).
+ *
+ * 0:path [string]
+ *    WebSocket request path for clients (default: ``/``).
+ *
+ * 0:validate [boolean]
+ *    Validate parameters without opening a connection.
+ *
+ * Listener callbacks provide ``listen-address`` and ``listen-port``. Active
+ * and accepted connections provide ``remote-address``. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
+
+/**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~
  * The MQTT ConnectionManager reuses the TCP ConnectionManager that is
