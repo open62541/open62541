@@ -616,7 +616,7 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         dsw->config.keyFrameCount = 3;
 
         UA_DataSetMessage keyFrame;
-        UA_DataSetMessage_init(&keyFrame);
+        memset(&keyFrame, 0, sizeof(UA_DataSetMessage));
         retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &keyFrame);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(keyFrame.header.dataSetMessageType,
@@ -631,7 +631,7 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         UA_DataSetMessage deltaFrame;
-        UA_DataSetMessage_init(&deltaFrame);
+        memset(&deltaFrame, 0, sizeof(UA_DataSetMessage));
         retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &deltaFrame);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deltaFrame.header.dataSetMessageType,
