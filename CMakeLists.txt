@@ -95,17 +95,70 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
     set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
+# Helpers to collect C compiler flags. The flags are applied to all targets
+# via add_compile_options() at the end of the Compiler Settings section.
+# They are grouped into a config-agnostic list and one list per standard
+# build configuration:
+#   add_cc_flag("-foo")                      -> applied for every configuration
+#                                               (also custom ones like 'None')
+#   add_cc_flag("-foo" "Release;MinSizeRel") -> applied only for the given
+#                                               configurations
+include(CheckCCompilerFlag)
+set(ALL_TARGET_COMPILE_OPTIONS "")
+set(DEBUG_TARGET_COMPILE_OPTIONS "")
+set(RELEASE_TARGET_COMPILE_OPTIONS "")
+set(RELWITHDEBINFO_TARGET_COMPILE_OPTIONS "")
+set(MINSIZEREL_TARGET_COMPILE_OPTIONS "")
+
+# Add a C compiler flag without probing it first. Use when
+# check_c_compiler_flag() would give a false negative (e.g. flags that only
+# take effect in combination with others).
+function(add_cc_flag CC_FLAG)
+    if(ARGC GREATER 1)
+        set(_buckets "")
+        foreach(_cfg IN LISTS ARGN)
+            string(TOUPPER "${_cfg}" _bucket)
+            list(APPEND _buckets "${_bucket}")
+        endforeach()
+    else()
+        set(_buckets "ALL")
+    endif()
+    foreach(_bucket IN LISTS _buckets)
+        list(APPEND ${_bucket}_TARGET_COMPILE_OPTIONS "${CC_FLAG}")
+        list(REMOVE_DUPLICATES ${_bucket}_TARGET_COMPILE_OPTIONS)
+        set(${_bucket}_TARGET_COMPILE_OPTIONS
+            "${${_bucket}_TARGET_COMPILE_OPTIONS}" PARENT_SCOPE)
+    endforeach()
+endfunction()
+
+# Check if a C compiler flag is supported and add it (if supported).
+# The probe result is cached (CC_SUPPORTS_<flag>), so re-running cmake
+# does not repeat the probes.
+function(check_add_cc_flag CC_FLAG)
+    string(MAKE_C_IDENTIFIER "CC_SUPPORTS_${CC_FLAG}" _cachevar)
+    check_c_compiler_flag("${CC_FLAG}" ${_cachevar})
+    if(${_cachevar})
+        add_cc_flag("${CC_FLAG}" ${ARGN})
+        # add_cc_flag() set the lists in this function's scope; forward them
+        foreach(_bucket ALL DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+            set(${_bucket}_TARGET_COMPILE_OPTIONS
+                "${${_bucket}_TARGET_COMPILE_OPTIONS}" PARENT_SCOPE)
+        endforeach()
+    endif()
+endfunction()
+
 #################
 # Build Options #
 #################
 
-# Set default build type.
-if(NOT CMAKE_BUILD_TYPE)
+# Set default build type for single-config generators. Multi-config
+# generators (Visual Studio, Xcode, Ninja Multi-Config) ignore
+# CMAKE_BUILD_TYPE and select the configuration at build time instead.
+get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(NOT _isMultiConfig AND NOT CMAKE_BUILD_TYPE)
     message(STATUS "CMAKE_BUILD_TYPE not given; setting to 'Debug'")
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
-
-string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -385,11 +438,19 @@ option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
 # Build options for debugging
-option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
-mark_as_advanced(UA_DEBUG)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(UA_DEBUG ON)
+# Auto-enable UA_DEBUG for Debug builds on single-config generators.
+# On multi-config generators (Visual Studio, Xcode) CMAKE_BUILD_TYPE is empty
+# at configure time, so the default is OFF; pass -DUA_DEBUG=ON explicitly.
+if(_isMultiConfig)
+    option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
+else()
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" ON)
+    else()
+        option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
+    endif()
 endif()
+mark_as_advanced(UA_DEBUG)
 
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
@@ -402,10 +463,6 @@ endif()
 
 option(UA_DEBUG_FILE_LINE_INFO "Enable file and line information as additional debugging output for error messages" OFF)
 mark_as_advanced(UA_DEBUG_FILE_LINE_INFO)
-
-if(CMAKE_BUILD_TYPE MATCHES DEBUG)
-    set(UA_DEBUG_FILE_LINE_INFO ON)
-endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
@@ -551,39 +608,16 @@ endif()
 # Compiler Settings #
 #####################
 
-# Check if a C compiler flag is supported and add it (if supported)
-# Taken from https://stackoverflow.com/a/33266748
-include(CheckCCompilerFlag)
-function(check_add_cc_flag CC_FLAG)
-    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
-    if(flag_already_set EQUAL -1)
-        message(STATUS "Test CC flag ${CC_FLAG}")
-        check_c_compiler_flag("${CC_FLAG}" flag_supported)
-        if(flag_supported)
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" CACHE INTERNAL "C Compiler Flags")
-        endif()
-        unset(flag_supported CACHE)
-    endif()
-endfunction()
-function(add_cc_flag CC_FLAG)
-    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
-    if(flag_already_set EQUAL -1)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" CACHE INTERNAL "C Compiler Flags")
-    endif()
-endfunction()
-
 if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
     NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
-
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
-    #check_add_cc_flag("-Wshadow")  # still disabled per default
     if(UA_FORCE_WERROR)
-        check_add_cc_flag("-Werror") # All warnings are errors
         check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
+        check_add_cc_flag("-Werror")    # All warnings are errors
     endif()
 
     # Some methods need unused arguments to conform with a defined method pointer signature
@@ -629,14 +663,12 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
     # Check prototype definitions
     check_add_cc_flag("-Wmissing-prototypes")
     check_add_cc_flag("-Wstrict-prototypes")
-
     check_add_cc_flag("-Wredundant-decls")
 
     check_add_cc_flag("-Wuninitialized")
     check_add_cc_flag("-Winit-self")
     check_add_cc_flag("-Wcast-qual")
     check_add_cc_flag("-Wstrict-overflow")
-
     check_add_cc_flag("-Wnested-externs")
     check_add_cc_flag("-Wmultichar")
     check_add_cc_flag("-Wundef")
@@ -650,7 +682,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
-        add_cc_flag("-fPIC")
+        check_add_cc_flag("-fPIC")
     endif()
 
     # Hardened build (stack protection, etc.)
@@ -662,14 +694,16 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
     # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pthread")
     endif()
 
     # Force 32bit build
     if(UA_FORCE_32BIT)
-        if(MSVC)
-            message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
-        endif()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
+      if(MSVC)
+        message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
+      endif()
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     # Coverage
@@ -681,72 +715,90 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
             check_add_cc_flag("-fprofile-arcs")
             check_add_cc_flag("-ftest-coverage")
         endif()
+        # Compile options no longer end up on the link line, so the coverage
+        # runtime must be linked explicitly (--coverage implies -lgcov for gcc
+        # and the profile runtime for clang)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
     endif()
 
-    # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
     # IPO requires too much memory for unit tests
     # GCC docu recommends to compile all files with the same options, therefore ignore it completely
     if(NOT UA_DEBUG AND NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
         include(CheckIPOSupported)
         check_ipo_supported(RESULT CC_HAS_IPO)
         if(CC_HAS_IPO)
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            if(_isMultiConfig)
+                # Only optimize the non-debug configurations; keep the Debug
+                # configuration debuggable
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL ON)
+            else()
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            endif()
         endif()
     endif()
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
     if(APPLE)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-dead_strip")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
     else()
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
     endif()
 
     # Debug
-    if(UA_ENABLE_DEBUG_SANITIZER AND BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
+    if(UA_ENABLE_DEBUG_SANITIZER AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
        CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
-        set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -fsanitize=address,undefined")
+        set(SANITIZER_FLAGS "-g;-fno-omit-frame-pointer;-fsanitize=address,undefined")
         if(CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
-            set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
+            set(SANITIZER_FLAGS "${SANITIZER_FLAGS};-fsanitize-coverage=trace-pc-guard")
         endif()
+        # Probe with the flags also on the probe's link line, otherwise the
+        # sanitizer runtime symbols would be unresolved and the probe fails.
+        string(REPLACE ";" " " SANITIZER_FLAGS_STR "${SANITIZER_FLAGS}")
         set(CMAKE_REQUIRED_FLAGS_BACKUP "${CMAKE_REQUIRED_FLAGS}")
-        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${SANITIZER_FLAGS}")
-        check_c_compiler_flag("${SANITIZER_FLAGS}" CC_HAS_DEBUG_SANITIZER)
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${SANITIZER_FLAGS_STR}")
+        check_c_compiler_flag("${SANITIZER_FLAGS_STR}" CC_HAS_DEBUG_SANITIZER)
         set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS_BACKUP}")
         unset(CMAKE_REQUIRED_FLAGS_BACKUP)
         if(CC_HAS_DEBUG_SANITIZER)
             message(STATUS "Sanitizer enabled")
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+            list(APPEND DEBUG_TARGET_COMPILE_OPTIONS ${SANITIZER_FLAGS})
+            set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${SANITIZER_FLAGS_STR}")
+            # The sanitizer runtimes must also be linked into executables and
+            # shared libraries (the Apple linker rejects undefined symbols)
+            set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined")
+            set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined")
         else()
-            message(STATUS "Sanitizer disabled: compiler does not support ${SANITIZER_FLAGS}")
+            message(STATUS "Sanitizer disabled: compiler does not support ${SANITIZER_FLAGS_STR}")
         endif()
         unset(CC_HAS_DEBUG_SANITIZER CACHE)
     endif()
 
     # Strip release builds
-    if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        check_add_cc_flag("-fno-unwind-tables")
-        check_add_cc_flag("-fno-asynchronous-unwind-tables")
-        check_add_cc_flag("-fno-math-errno")
-#        check_add_cc_flag("-fno-ident")
+    check_add_cc_flag("-fno-unwind-tables" "Release;MinSizeRel")
+    check_add_cc_flag("-fno-asynchronous-unwind-tables" "Release;MinSizeRel")
+    check_add_cc_flag("-fno-math-errno" "Release;MinSizeRel")
+#   check_add_cc_flag("-fno-ident" "Release;MinSizeRel")
 
-        # remove stack-protector with MinSizeRel
-        if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-            check_add_cc_flag("-fno-stack-protector")
-        endif()
-        if(NOT OS9)
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
-        endif()
-        if(NOT WIN32 AND NOT CYGWIN AND NOT APPLE)
-            # these settings reduce the binary size by ~2kb
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
-        endif()
+    # remove stack-protector with MinSizeRel
+    check_add_cc_flag("-fno-stack-protector" "MinSizeRel")
+    if(NOT OS9)
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -s")
+        set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -s")
+        set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} -s")
+        set(CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL "${CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL} -s")
+    endif()
+    if(NOT WIN32 AND NOT CYGWIN AND NOT APPLE)
+        # these settings reduce the binary size by ~2kb
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
+        set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "${CMAKE_EXE_LINKER_FLAGS_MINSIZEREL} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
     endif()
 endif()
 
@@ -755,6 +807,10 @@ if(APPLE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
 endif()
 
+# The MSVC flags are config-agnostic and stay in CMAKE_C_FLAGS: subdirectories
+# (e.g. tests) lower the warning level by appending /W1 to CMAKE_C_FLAGS, which
+# only works when /W3 comes earlier in the same variable. Compile options added
+# via add_compile_options() would be emitted after CMAKE_C_FLAGS and win again.
 if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /w44996")
   if(UA_FORCE_WERROR)
@@ -769,6 +825,24 @@ if(MSVC)
     endforeach()
   endif()
 endif()
+
+# Apply the compile options collected by (check_)add_cc_flag() above to all
+# targets defined below (library, plugins, tests, examples, tools). Setting
+# them at directory scope replicates the previous global CMAKE_C_FLAGS behavior
+# without leaking the flags into the usage requirements of the installed targets.
+# The config-agnostic list applies to every configuration (also custom ones);
+# the per-config lists only to their matching standard configuration.
+# Generator expressions used here:
+#   $<CONFIG:cfg>          - evaluates to 1 when the active build config matches 'cfg'
+#   $<COMPILE_LANGUAGE:C>  - evaluates to 1 when the source file language is C
+#   $<AND:a,b>             - evaluates to 1 when all operands are 1
+#   $<condition:value>     - expands to 'value' when 'condition' is 1, empty otherwise
+# Reference: https://cmake.org/cmake/help/latest/manual/cmake-generator-expressions.7.html
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:${ALL_TARGET_COMPILE_OPTIONS}>"
+                    "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:Debug>>:${DEBUG_TARGET_COMPILE_OPTIONS}>"
+                    "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:Release>>:${RELEASE_TARGET_COMPILE_OPTIONS}>"
+                    "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RelWithDebInfo>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>"
+                    "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MinSizeRel>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     add_compile_definitions(UA_ARCH_HEADER="${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_arch.h")

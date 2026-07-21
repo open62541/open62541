@@ -82,6 +82,11 @@ jobs:
             cmd_action: build_amalgamation_none_arch
 
           - name: "Build All Companion Specifications"
+            cmd_deps: |
+              # The three consecutive Debug builds with all companion nodesets and
+              # unit tests can exceed the free disk space of the hosted runners.
+              # Remove unused preinstalled toolchains to make room.
+              sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/powershell /usr/share/swift
             cmd_action: build_all_companion_specs
 
         include:          
