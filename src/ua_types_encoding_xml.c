@@ -278,6 +278,24 @@ ENCODE_XML(Int32) {
     return encodeSigned(ctx, *src, buf);
 }
 
+static status
+Enum_encodeXml(CtxXml *ctx, const void *src, const UA_DataType *type) {
+    const UA_Int32 valueToEncode = *(const UA_Int32*)src;
+    for(size_t i = 0; i < type->membersSize; i++) {
+        const UA_DataTypeMember *m = &type->members[i];
+        UA_Int32 value = (UA_Int32)(uintptr_t)m->memberType;
+        if(value != valueToEncode)
+            continue;
+        UA_StatusCode ret = xmlEncodeWriteChars(ctx, m->memberName,
+                                                strlen(m->memberName));
+        ret |= xmlEncodeWriteChars(ctx, "_", 1);
+        char buf[12];
+        ret |= encodeSigned(ctx, value, buf);
+        return ret;
+    }
+    return UA_STATUSCODE_BADENCODINGERROR;
+}
+
 /* UInt32 */
 ENCODE_XML(UInt32) {
     char buf[11];
@@ -486,6 +504,8 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     char arrName[128];
     UA_ExtensionObject eo;
 
+    if(type->typeKind == UA_DATATYPEKIND_ENUM)
+        type = &UA_TYPES[UA_TYPES_INT32];
     UA_Boolean wrapEO = (type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO);
     if(wrapEO) {
         UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, type);
@@ -570,7 +590,9 @@ ENCODE_XML(Variant) {
         const UA_DataType *srctype = src->type;
         void *ptr = src->data;
         UA_ExtensionObject eo;
-        if(srctype->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO) {
+        if(srctype->typeKind == UA_DATATYPEKIND_ENUM) {
+            srctype = &UA_TYPES[UA_TYPES_INT32];
+        } else if(srctype->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO) {
             /* Wrap value in an ExtensionObject */
             UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, srctype);
             ptr = &eo;
@@ -668,7 +690,7 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)Variant_encodeXml,          /* Variant */
     (encodeXmlSignature)DiagnosticInfo_encodeXml,   /* DiagnosticInfo */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Decimal */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* Enum */
+    (encodeXmlSignature)Enum_encodeXml,             /* Enum */
     (encodeXmlSignature)encodeXmlStructure,         /* Structure */
     (encodeXmlSignature)encodeXmlStructure,         /* Structure with optional fields */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Union */
@@ -899,6 +921,30 @@ DECODE_XML(Int32) {
 
     *dst = (UA_Int32)out;
     return UA_STATUSCODE_GOOD;
+}
+
+static status
+Enum_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    CHECK_DATA_BOUNDS;
+    GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
+
+    for(size_t i = 0; i < type->membersSize; i++) {
+        const UA_DataTypeMember *m = &type->members[i];
+        size_t nameLength = strlen(m->memberName);
+        if(length <= nameLength + 1 || data[nameLength] != '_' ||
+           memcmp(data, m->memberName, nameLength) != 0)
+            continue;
+        UA_Int64 value = 0;
+        UA_StatusCode ret = decodeSigned(&data[nameLength + 1],
+                                         length - nameLength - 1, &value);
+        UA_Int32 expected = (UA_Int32)(uintptr_t)m->memberType;
+        if(ret == UA_STATUSCODE_GOOD && value == expected) {
+            *(UA_Int32*)dst = expected;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    return UA_STATUSCODE_BADDECODINGERROR;
 }
 
 DECODE_XML(UInt32) {
@@ -1763,7 +1809,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)Variant_decodeXml,          /* Variant */
     (decodeXmlSignature)DiagnosticInfo_decodeXml,   /* DiagnosticInfo */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
-    (decodeXmlSignature)Int32_decodeXml,            /* Enum */
+    (decodeXmlSignature)Enum_decodeXml,             /* Enum */
     (decodeXmlSignature)decodeXmlStructure,         /* Structure */
     (decodeXmlSignature)decodeXmlStructure,         /* Structure with optional fields */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Union */
