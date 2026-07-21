@@ -1442,27 +1442,9 @@ decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
     return (dimLen == dst->arrayLength) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADDECODINGERROR;
 }
 
-DECODE_XML(Variant) {
-    CHECK_DATA_BOUNDS;
-
-    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION)
-        return UA_STATUSCODE_BADENCODINGERROR;
-
+static status
+decodeXmlVariantValue(ParseCtxXml *ctx, UA_Variant *dst) {
     xml_token *tok = &ctx->tokens[ctx->index];
-    if(tok->children == 0)
-        return UA_STATUSCODE_GOOD;
-    if(tok->children != 1)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* Move forward to the content */
-    if(ctx->index + 2 >= ctx->tokensSize)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
-    tok = &ctx->tokens[ctx->index];
-    static UA_String valName = UA_STRING_STATIC("Value");
-    if(!UA_String_equal(&tok->name, &valName))
-        return UA_STATUSCODE_BADDECODINGERROR;
     if(tok->children != 1)
         return UA_STATUSCODE_BADDECODINGERROR;
 
@@ -1517,6 +1499,97 @@ DECODE_XML(Variant) {
     ctx->depth--;
     return ret;
 }
+
+DECODE_XML(Variant) {
+    CHECK_DATA_BOUNDS;
+
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children == 0)
+        return UA_STATUSCODE_GOOD;
+    if(tok->children != 1 || ctx->index + 2 >= ctx->tokensSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+    static UA_String valName = UA_STRING_STATIC("Value");
+    if(!UA_String_equal(&tok->name, &valName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+    return decodeXmlVariantValue(ctx, dst);
+}
+
+static status
+DataValueValue_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    (void)type;
+    return decodeXmlVariantValue(ctx, &((UA_DataValue*)dst)->value);
+}
+
+DECODE_XML(DataValue) {
+    XmlDecodeEntry entries[6] = {
+        {UA_STRING_STATIC("Value"), dst, DataValueValue_decodeXml, false, NULL},
+        {UA_STRING_STATIC("StatusCode"), &dst->status, NULL, false,
+         &UA_TYPES[UA_TYPES_STATUSCODE]},
+        {UA_STRING_STATIC("SourceTimestamp"), &dst->sourceTimestamp, NULL, false,
+         &UA_TYPES[UA_TYPES_DATETIME]},
+        {UA_STRING_STATIC("SourcePicoseconds"), &dst->sourcePicoseconds, NULL, false,
+         &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_STRING_STATIC("ServerTimestamp"), &dst->serverTimestamp, NULL, false,
+         &UA_TYPES[UA_TYPES_DATETIME]},
+        {UA_STRING_STATIC("ServerPicoseconds"), &dst->serverPicoseconds, NULL, false,
+         &UA_TYPES[UA_TYPES_UINT16]}
+    };
+    status ret = decodeXmlFields(ctx, entries, 6);
+    dst->hasValue = entries[0].found;
+    dst->hasStatus = entries[1].found;
+    dst->hasSourceTimestamp = entries[2].found;
+    dst->hasSourcePicoseconds = entries[3].found;
+    dst->hasServerTimestamp = entries[4].found;
+    dst->hasServerPicoseconds = entries[5].found;
+    return ret;
+}
+
+static status DiagnosticInfo_decodeXml(ParseCtxXml*, UA_DiagnosticInfo*, const UA_DataType*);
+
+static status
+DiagnosticInfoInner_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    UA_DiagnosticInfo **target = (UA_DiagnosticInfo**)dst;
+    *target = (UA_DiagnosticInfo*)UA_calloc(1, sizeof(UA_DiagnosticInfo));
+    if(!*target)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    return DiagnosticInfo_decodeXml(ctx, *target, type);
+}
+
+DECODE_XML(DiagnosticInfo) {
+    XmlDecodeEntry entries[7] = {
+        {UA_STRING_STATIC("SymbolicId"), &dst->symbolicId, NULL, false,
+         &UA_TYPES[UA_TYPES_INT32]},
+        {UA_STRING_STATIC("NamespaceUri"), &dst->namespaceUri, NULL, false,
+         &UA_TYPES[UA_TYPES_INT32]},
+        {UA_STRING_STATIC("LocalizedText"), &dst->localizedText, NULL, false,
+         &UA_TYPES[UA_TYPES_INT32]},
+        {UA_STRING_STATIC("Locale"), &dst->locale, NULL, false,
+         &UA_TYPES[UA_TYPES_INT32]},
+        {UA_STRING_STATIC("AdditionalInfo"), &dst->additionalInfo, NULL, false,
+         &UA_TYPES[UA_TYPES_STRING]},
+        {UA_STRING_STATIC("InnerStatusCode"), &dst->innerStatusCode, NULL, false,
+         &UA_TYPES[UA_TYPES_STATUSCODE]},
+        {UA_STRING_STATIC("InnerDiagnosticInfo"), &dst->innerDiagnosticInfo,
+         DiagnosticInfoInner_decodeXml, false, NULL}
+    };
+    status ret = decodeXmlFields(ctx, entries, 7);
+    dst->hasSymbolicId = entries[0].found;
+    dst->hasNamespaceUri = entries[1].found;
+    dst->hasLocalizedText = entries[2].found;
+    dst->hasLocale = entries[3].found;
+    dst->hasAdditionalInfo = entries[4].found;
+    dst->hasInnerStatusCode = entries[5].found;
+    dst->hasInnerDiagnosticInfo = entries[6].found;
+    return ret;
+}
+
+static status Optional_decodeXml(ParseCtxXml*, void*, const UA_DataType*);
 
 static status
 decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
@@ -1583,9 +1656,9 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)QualifiedName_decodeXml,    /* QualifiedName */
     (decodeXmlSignature)LocalizedText_decodeXml,    /* LocalizedText */
     (decodeXmlSignature)ExtensionObject_decodeXml,  /* ExtensionObject */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* DataValue */
+    (decodeXmlSignature)DataValue_decodeXml,        /* DataValue */
     (decodeXmlSignature)Variant_decodeXml,          /* Variant */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* DiagnosticInfo */
+    (decodeXmlSignature)DiagnosticInfo_decodeXml,   /* DiagnosticInfo */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
     (decodeXmlSignature)Int32_decodeXml,            /* Enum */
     (decodeXmlSignature)decodeXmlStructure,         /* Structure */
