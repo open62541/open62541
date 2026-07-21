@@ -544,6 +544,57 @@ ENCODE_XML(Variant) {
     return ret;
 }
 
+ENCODE_XML(DataValue) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(src->hasValue)
+        ret |= Variant_encodeXml(ctx, &src->value, &UA_TYPES[UA_TYPES_VARIANT]);
+    if(src->hasStatus)
+        ret |= writeXmlElement(ctx, "StatusCode", &src->status,
+                               &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(src->hasSourceTimestamp)
+        ret |= writeXmlElement(ctx, "SourceTimestamp", &src->sourceTimestamp,
+                               &UA_TYPES[UA_TYPES_DATETIME]);
+    if(src->hasSourcePicoseconds)
+        ret |= writeXmlElement(ctx, "SourcePicoseconds", &src->sourcePicoseconds,
+                               &UA_TYPES[UA_TYPES_UINT16]);
+    if(src->hasServerTimestamp)
+        ret |= writeXmlElement(ctx, "ServerTimestamp", &src->serverTimestamp,
+                               &UA_TYPES[UA_TYPES_DATETIME]);
+    if(src->hasServerPicoseconds)
+        ret |= writeXmlElement(ctx, "ServerPicoseconds", &src->serverPicoseconds,
+                               &UA_TYPES[UA_TYPES_UINT16]);
+    return ret;
+}
+
+ENCODE_XML(DiagnosticInfo) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(src->hasSymbolicId)
+        ret |= writeXmlElement(ctx, "SymbolicId", &src->symbolicId,
+                               &UA_TYPES[UA_TYPES_INT32]);
+    if(src->hasNamespaceUri)
+        ret |= writeXmlElement(ctx, "NamespaceUri", &src->namespaceUri,
+                               &UA_TYPES[UA_TYPES_INT32]);
+    if(src->hasLocalizedText)
+        ret |= writeXmlElement(ctx, "LocalizedText", &src->localizedText,
+                               &UA_TYPES[UA_TYPES_INT32]);
+    if(src->hasLocale)
+        ret |= writeXmlElement(ctx, "Locale", &src->locale,
+                               &UA_TYPES[UA_TYPES_INT32]);
+    if(src->hasAdditionalInfo)
+        ret |= writeXmlElement(ctx, "AdditionalInfo", &src->additionalInfo,
+                               &UA_TYPES[UA_TYPES_STRING]);
+    if(src->hasInnerStatusCode)
+        ret |= writeXmlElement(ctx, "InnerStatusCode", &src->innerStatusCode,
+                               &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(src->hasInnerDiagnosticInfo) {
+        if(!src->innerDiagnosticInfo)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        ret |= writeXmlElement(ctx, "InnerDiagnosticInfo", src->innerDiagnosticInfo,
+                               &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+    }
+    return ret;
+}
+
 static status
 encodeXmlNotImplemented(CtxXml *ctx, const void *src, const UA_DataType *type) {
     (void)ctx, (void)src, (void)type;
@@ -573,9 +624,9 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)QualifiedName_encodeXml,    /* QualifiedName */
     (encodeXmlSignature)LocalizedText_encodeXml,    /* LocalizedText */
     (encodeXmlSignature)ExtensionObject_encodeXml,  /* ExtensionObject */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* DataValue */
+    (encodeXmlSignature)DataValue_encodeXml,        /* DataValue */
     (encodeXmlSignature)Variant_encodeXml,          /* Variant */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* DiagnosticInfo */
+    (encodeXmlSignature)DiagnosticInfo_encodeXml,   /* DiagnosticInfo */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Decimal */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Enum */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Structure */

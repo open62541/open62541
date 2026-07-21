@@ -3621,6 +3621,18 @@ START_TEST(UA_DataValue_xml_decode) {
     ck_assert(!out.hasServerTimestamp);
     ck_assert(!out.hasServerPicoseconds);
 
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    retval = UA_encodeXml(&out, &UA_TYPES[UA_TYPES_DATAVALUE], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_DataValue roundtrip;
+    UA_DataValue_init(&roundtrip);
+    retval = UA_decodeXml(&encoded, &roundtrip,
+                          &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&out, &roundtrip, &UA_TYPES[UA_TYPES_DATAVALUE]));
+
+    UA_DataValue_clear(&roundtrip);
+    UA_ByteString_clear(&encoded);
     UA_DataValue_clear(&out);
 }
 END_TEST
@@ -3651,6 +3663,18 @@ START_TEST(UA_DiagnosticInfo_xml_decode) {
     ck_assert(out.innerDiagnosticInfo->hasLocale);
     ck_assert_int_eq(out.innerDiagnosticInfo->locale, 3);
 
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    retval = UA_encodeXml(&out, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_DiagnosticInfo roundtrip;
+    UA_DiagnosticInfo_init(&roundtrip);
+    retval = UA_decodeXml(&encoded, &roundtrip,
+                          &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&out, &roundtrip, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]));
+
+    UA_DiagnosticInfo_clear(&roundtrip);
+    UA_ByteString_clear(&encoded);
     UA_DiagnosticInfo_clear(&out);
 }
 END_TEST
