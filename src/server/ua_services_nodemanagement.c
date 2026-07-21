@@ -2398,7 +2398,8 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
     }
 
     /* Add the first direction */
-    UA_UInt32 targetNameHash = UA_QualifiedName_hash(&targetNode->head.browseName);
+    UA_UInt32 targetNameHash = targetNode ?
+        UA_QualifiedName_hash(&targetNode->head.browseName) : 0;
     *retval = UA_Node_addReference(sourceNode, refTypeIndex, item->isForward,
                                    &item->targetNodeId, targetNameHash);
     UA_Boolean firstExisted = false;
