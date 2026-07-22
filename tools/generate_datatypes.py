@@ -192,6 +192,32 @@ class CGenerator:
         self.fd = None
         self.fe = None
 
+    def _build_ns_index_map(self):
+        """Assign a fixed ("baked") namespace index to every namespace URI
+        that appears in the generated type array. Index 0 is always the
+        OPC UA namespace. Additional namespaces get the index provided via
+        --namespaceMap, otherwise ascending indices starting at 1."""
+        nsIndexMap = dict(self.namespaceMap)  # URI -> baked index (has ns0 -> 0)
+        used = set(nsIndexMap.values())
+        nextIdx = 1
+        for ns in self.filtered_types:
+            if ns in nsIndexMap:
+                continue
+            while nextIdx in used:
+                nextIdx += 1
+            nsIndexMap[ns] = nextIdx
+            used.add(nextIdx)
+        self.nsIndexMap = nsIndexMap
+
+    def _can_be_const(self):
+        """The type array can be declared const (and reside in read-only
+        memory) when the namespace index of every contained type is fixed at
+        generation time: either the type belongs to namespace 0 or its
+        namespace index was pinned via --namespaceMap. Without pinning, the
+        namespace indices get rewritten in-place when the nodeset is loaded
+        into a server, so the array must remain mutable."""
+        return all(ns in self.namespaceMap for ns in self.filtered_types)
+
     @staticmethod
     def get_type_index(datatype):
         if isinstance(datatype,  BuiltinType):
@@ -247,12 +273,21 @@ class CGenerator:
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype):
-        nsIdx, bareNodeId = splitNodeidNs(datatype.nodeId)
-        typeid = "{{{}, {}}}".format(nsIdx, getNodeidTypeAndId(bareNodeId))
-        binNs, bareBinId = splitNodeidNs(datatype.binaryEncodingId)
-        binaryEncodingId = "{{{}, {}}}".format(binNs, getNodeidTypeAndId(bareBinId))
-        xmlNs, bareXmlId = splitNodeidNs(datatype.xmlEncodingId)
-        xmlEncodingId = "{{{}, {}}}".format(xmlNs, getNodeidTypeAndId(bareXmlId))
+        # The namespace index is derived from the namespace URI of the type
+        # (see _build_ns_index_map). Null NodeIds (e.g. missing encoding
+        # ids) stay in namespace 0. Explicit ns= prefixes in the id strings
+        # are ignored; they carry file-local indices without a defined
+        # runtime meaning.
+        nsIdx = self.nsIndexMap.get(datatype.namespaceUri, 0)
+        _, bareNodeId = splitNodeidNs(datatype.nodeId)
+        typeid = "{{{}, {}}}".format(nsIdx if bareNodeId else 0,
+                                     getNodeidTypeAndId(bareNodeId))
+        _, bareBinId = splitNodeidNs(datatype.binaryEncodingId)
+        binaryEncodingId = "{{{}, {}}}".format(nsIdx if bareBinId else 0,
+                                               getNodeidTypeAndId(bareBinId))
+        _, bareXmlId = splitNodeidNs(datatype.xmlEncodingId)
+        xmlEncodingId = "{{{}, {}}}".format(nsIdx if bareXmlId else 0,
+                                            getNodeidTypeAndId(bareXmlId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
@@ -278,7 +313,7 @@ class CGenerator:
         if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
+        members = "static const UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
         before = None
         size = len(datatype.elements) if isEnum else len(datatype.members)
         if isEnum:
@@ -463,6 +498,7 @@ class CGenerator:
         self.fc = open(self.outfile + "_generated.c", 'w')
 
         self.filtered_types = self.iter_types(self.parser.types)
+        self._build_ns_index_map()
 
         self.print_header()
         self.print_description_array()
@@ -584,9 +620,17 @@ _UA_BEGIN_DECLS
         self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(totalCount)))
 
         if totalCount > 0:
-
+            outUpper = self.parser.outname.upper()
+            const_q = "const " if self._can_be_const() else ""
+            if self._can_be_const():
+                self.printh("""
+/* All namespace indices in the type array are fixed at generation time
+ * (--namespaceMap). The array is const and can reside in read-only memory.
+ * The server must assign exactly the baked namespace indices at runtime,
+ * i.e. the nodesets must be loaded in the generation order. */""")
+                self.printh("#define UA_" + outUpper + "_IS_CONST 1")
             self.printh(
-                "extern UA_EXPORT UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+                "extern UA_EXPORT " + const_q + "UA_DataType UA_" + outUpper + "[UA_" + outUpper + "_COUNT];")
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -647,8 +691,10 @@ _UA_END_DECLS
                 self.printc(CGenerator.print_members(t))
 
         if totalCount > 0:
+            outUpper = self.parser.outname.upper()
+            const_q = "const " if self._can_be_const() else ""
             self.printc(
-                "UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
+                "{}UA_DataType UA_{}[UA_{}_COUNT] = {{".format(const_q, outUpper, outUpper))
 
             for ns in self.filtered_types:
                 for _, t_name in enumerate(self.filtered_types[ns]):

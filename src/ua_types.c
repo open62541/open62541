@@ -113,14 +113,14 @@ UA_DataType_clear(UA_DataType *type) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     UA_free((void*)(uintptr_t)type->typeName);
     for(size_t j = 0; j < type->membersSize; ++j) {
-        UA_DataTypeMember *m = &type->members[j];
+        const UA_DataTypeMember *m = &type->members[j];
         UA_free((void*)(uintptr_t)m->memberName);
     }
 #endif
     UA_NodeId_clear(&type->typeId);
     UA_NodeId_clear(&type->binaryEncodingId);
     UA_NodeId_clear(&type->xmlEncodingId);
-    UA_free(type->members);
+    UA_free((void*)(uintptr_t)type->members);
     memset(type, 0, sizeof(UA_DataType));
 }
 
@@ -146,15 +146,16 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
 
     /* Copy the members */
     if(t1->membersSize > 0) {
-        t2->members = (UA_DataTypeMember*)
+        UA_DataTypeMember *newMembers = (UA_DataTypeMember*)
             UA_calloc(t1->membersSize, sizeof(UA_DataTypeMember));
-        if(!t2->members) {
+        if(!newMembers) {
             res = UA_STATUSCODE_BADOUTOFMEMORY;
             goto errout;
         }
+        t2->members = newMembers;
         for(size_t i = 0; i < t1->membersSize; i++) {
             const UA_DataTypeMember *m1 = &t1->members[i];
-            UA_DataTypeMember *m2 = &t2->members[i];
+            UA_DataTypeMember *m2 = &newMembers[i];
             memcpy(m2, m1, sizeof(UA_DataTypeMember));
 #ifdef UA_ENABLE_TYPEDESCRIPTION
             nameLen = strlen(m1->memberName) + 1;
@@ -182,10 +183,10 @@ UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes) {
         UA_DataTypeArray *next = customTypes->next;
         if(customTypes->cleanup) {
             for(size_t i = 0; i < customTypes->typesSize; ++i) {
-                UA_DataType *type = &customTypes->types[i];
+                UA_DataType *type = (UA_DataType*)(uintptr_t)&customTypes->types[i];
                 UA_DataType_clear(type);
             }
-            UA_free(customTypes->types);
+            UA_free((void*)(uintptr_t)customTypes->types);
             UA_free(customTypes);
         }
         customTypes = next;

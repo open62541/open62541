@@ -177,12 +177,13 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     UA_CHECK_STATUS(res, UA_DataType_clear(type); return res);
 
     /* Allocate the members array */
-    type->members = (UA_DataTypeMember *)
+    UA_DataTypeMember *newMembers = (UA_DataTypeMember *)
         UA_calloc(sd->fieldsSize, sizeof(UA_DataTypeMember));
-    if((sd->fieldsSize > 0) && !type->members) {
+    if((sd->fieldsSize > 0) && !newMembers) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    type->members = newMembers;
     type->membersSize = (UA_Byte)sd->fieldsSize;
 
     /* Try to get pointerFree and overlayable handling shortcuts.
@@ -197,7 +198,7 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     /* Populate the members array */
     for(size_t i = 0; i < sd->fieldsSize; i++) {
         const UA_StructureField *sf = &sd->fields[i];
-        UA_DataTypeMember *dtm = &type->members[i];
+        UA_DataTypeMember *dtm = &newMembers[i];
 
         /* A datatype can contain itself only indirectly. Resolve a direct
          * self-reference against the type currently being constructed instead
@@ -401,17 +402,18 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
     type->overlayable = true;
 
     /* Allocate the members array */
-    type->members = (UA_DataTypeMember *)
+    UA_DataTypeMember *newMembers = (UA_DataTypeMember *)
         UA_calloc(descr->enumDefinition.fieldsSize, sizeof(UA_DataTypeMember));
-    if((descr->enumDefinition.fieldsSize > 0) && !type->members) {
+    if((descr->enumDefinition.fieldsSize > 0) && !newMembers) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    type->members = newMembers;
     type->membersSize = (UA_Byte)descr->enumDefinition.fieldsSize;
 
     /* Copy the enum fields into the members array */
     for(size_t i = 0; i < type->membersSize; i++) {
-        UA_DataTypeMember *dtm = &type->members[i];
+        UA_DataTypeMember *dtm = &newMembers[i];
         const UA_EnumField *ef = &descr->enumDefinition.fields[i];
         dtm->memberType = (const UA_DataType*)(uintptr_t)ef->value;
 #ifdef UA_ENABLE_TYPEDESCRIPTION

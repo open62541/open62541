@@ -649,20 +649,43 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     writec("nsMapping.remote2local = nsMappingTable;")
     writec(f"nsMapping.remote2localSize = {len(mapping)};")
 
-    # Change namespaceIndex from the current namespace,
-    # but only if it defines its own data types, otherwise it is not necessary.
+    # Change namespaceIndex from the current namespace, but only if the
+    # nodeset defines its own data types and the array is mutable. For const
+    # arrays (namespace indices pinned at generation time via --namespaceMap)
+    # verify instead that the runtime namespace order matches the pinning.
     if len(typesArray) > 0:
         typeArr = typesArray[-1]
         # Build the name of the TypeArray to compare if the current nodeset defines data types.
         currentTypeArr = '_'.join(outfilebase.upper().split('_')[1:-1])
         if typeArr != "UA_TYPES" and typeArr != "ns0" and typeArr == "UA_TYPES_"+currentTypeArr:
+            nsIdx = "ns[" + str(len(nodeset.namespaces)-1) + "]"
+            writec("#ifndef " + typeArr + "_IS_CONST")
             writec("/* Change namespaceIndex from current namespace */")
             writec("#if " + typeArr + "_COUNT" + " > 0")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
-            writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
-            writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
+            writec(typeArr + "[i]" + ".typeId.namespaceIndex = " + nsIdx + ";")
+            writec("if(!UA_NodeId_isNull(&" + typeArr + "[i]" + ".binaryEncodingId))")
+            writec("    " + typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = " + nsIdx + ";")
+            writec("if(!UA_NodeId_isNull(&" + typeArr + "[i]" + ".xmlEncodingId))")
+            writec("    " + typeArr + "[i]" + ".xmlEncodingId.namespaceIndex = " + nsIdx + ";")
             writec("}")
             writec("#endif")
+            writec("#else")
+            writec("/* Namespace indices are baked into the const type array. Verify that")
+            writec(" * the runtime namespace order matches the generation-time pinning. */")
+            writec("#if " + typeArr + "_COUNT" + " > 0")
+            writec("if(" + nsIdx + " != " + typeArr + "[0].typeId.namespaceIndex) {")
+            writec("    UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,")
+            writec("                 \"The runtime namespace index (%u) does not match the index \"")
+            writec("                 \"baked into the const DataType array " + typeArr + " (%u). \"")
+            writec("                 \"Load the nodesets in the generation order or regenerate \"")
+            writec("                 \"without NAMESPACE_MAP.\",")
+            writec("                 (unsigned)" + nsIdx + ",")
+            writec("                 (unsigned)" + typeArr + "[0].typeId.namespaceIndex);")
+            writec("    return UA_STATUSCODE_BADINTERNALERROR;")
+            writec("}")
+            writec("#endif")
+            writec("#endif /* " + typeArr + "_IS_CONST */")
 
     # Add generated types to the server
     writec("\n/* Load custom datatype definitions into the server */")
