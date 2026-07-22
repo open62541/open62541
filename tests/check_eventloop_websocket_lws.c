@@ -5,6 +5,36 @@
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/log_stdout.h>
 #include <check.h>
+#include <stdio.h>
+
+static UA_Boolean certificateVerified;
+static UA_Boolean certificateGroupCleared;
+
+static UA_ByteString loadFile(const char *path) {
+    UA_ByteString out = UA_BYTESTRING_NULL;
+    FILE *f = fopen(path, "rb");
+    if(!f || fseek(f, 0, SEEK_END) || (out.length = (size_t)ftell(f)) == 0 ||
+       fseek(f, 0, SEEK_SET) ||
+       UA_ByteString_allocBuffer(&out, out.length) != UA_STATUSCODE_GOOD ||
+       fread(out.data, 1, out.length, f) != out.length)
+        UA_ByteString_clear(&out);
+    if(f)
+        fclose(f);
+    return out;
+}
+
+static UA_StatusCode verifyCertificate(UA_CertificateGroup *cg,
+                                       const UA_ByteString *certificate) {
+    (void)cg;
+    certificateVerified = certificate && certificate->length > 0;
+    return certificateVerified ? UA_STATUSCODE_GOOD :
+        UA_STATUSCODE_BADCERTIFICATEINVALID;
+}
+
+static void clearCertificateGroup(UA_CertificateGroup *cg) {
+    (void)cg;
+    certificateGroupCleared = true;
+}
 
 typedef struct {
     uintptr_t listenerId, acceptedId, clientId;
@@ -103,10 +133,84 @@ START_TEST(clientServerBinary) {
 }
 END_TEST
 
+START_TEST(clientServerTlsCertificateGroup) {
+    certificateVerified = false;
+    certificateGroupCleared = false;
+    TestContext ctx = {0};
+    UA_ConnectionManager *ws =
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("wss"));
+    UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
+    ws->certificateGroup = (UA_CertificateGroup*)UA_calloc(1, sizeof(UA_CertificateGroup));
+    ck_assert_ptr_nonnull(ws->certificateGroup);
+    ws->certificateGroup->verifyCertificate = verifyCertificate;
+    ws->certificateGroup->clear = clearCertificateGroup;
+    ws->certificateGroupOwned = true;
+    ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0;
+    UA_Boolean listen = true;
+    UA_Boolean useSSL = true;
+    UA_ByteString certificate = loadFile("server_cert.der");
+    UA_ByteString privateKey = loadFile("server_key.der");
+    ck_assert_ptr_nonnull(certificate.data);
+    ck_assert_ptr_nonnull(privateKey.data);
+    UA_KeyValuePair lp[5] = {0};
+    lp[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&lp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    lp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&lp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    lp[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    UA_Variant_setScalar(&lp[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    lp[3].key = UA_QUALIFIEDNAME(0, "certificate");
+    UA_Variant_setScalar(&lp[3].value, &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    lp[4].key = UA_QUALIFIEDNAME(0, "private-key");
+    UA_Variant_setScalar(&lp[4].value, &privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_KeyValueMap lpm = {5, lp};
+    ck_assert_uint_eq(ws->openConnection(ws, &lpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
+
+    UA_String address = UA_STRING("127.0.0.1");
+    UA_KeyValuePair cp[3] = {0};
+    cp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    cp[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&cp[1].value, &ctx.port, &UA_TYPES[UA_TYPES_UINT16]);
+    cp[2].key = UA_QUALIFIEDNAME(0, "useSSL");
+    UA_Variant_setScalar(&cp[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap cpm = {3, cp};
+    ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+    ctx.clientId = ctx.listenerId + 1;
+    UA_Boolean connected = false;
+    for(size_t i = 0; i < 200 && !connected; i++) {
+        el->run(el, 50);
+        connected = ctx.acceptedId != 0 && ctx.clientEstablished;
+    }
+    ck_assert(connected);
+    ck_assert(certificateVerified);
+
+    el->stop(el);
+    UA_Boolean stopped = false;
+    for(size_t i = 0; i < 200 && !stopped; i++) {
+        el->run(el, 50);
+        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
+    }
+    ck_assert(stopped);
+    el->free(el);
+    ck_assert(certificateGroupCleared);
+}
+END_TEST
+
 int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
-    tcase_add_test(tc, clientServerBinary); suite_add_tcase(s, tc);
+    tcase_add_test(tc, clientServerBinary);
+    tcase_add_test(tc, clientServerTlsCertificateGroup);
+    suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s); srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL); int failed = srunner_ntests_failed(sr);
     srunner_free(sr); return failed ? EXIT_FAILURE : EXIT_SUCCESS;

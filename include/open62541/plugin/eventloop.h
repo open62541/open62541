@@ -13,6 +13,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
+#include <open62541/plugin/certificategroup.h>
 
 _UA_BEGIN_DECLS
 
@@ -327,6 +328,13 @@ struct UA_ConnectionManager {
     /* Name of the protocol supported by the ConnectionManager. For example
      * "mqtt", "udp", "mqtt". */
     UA_String protocol;
+
+    /* Optional certificate validation for secure transports. Configure before
+     * the EventLoop is started. If certificateGroupOwned is set, the
+     * ConnectionManager calls certificateGroup->clear and frees the group when
+     * it is deleted. Otherwise the group must outlive the ConnectionManager. */
+    UA_CertificateGroup *certificateGroup;
+    UA_Boolean certificateGroupOwned;
 
     /* Open a Connection
      * ~~~~~~~~~~~~~~~~~
@@ -799,11 +807,27 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
  * 0:path [string]
  *    WebSocket request path for clients (default: ``/``).
  *
+ * 0:useSSL [bool]
+ *    Encrypt the connection with TLS (default: false). TLS listeners require
+ *    ``certificate`` and ``private-key``.
+ *
+ * 0:certificate [bytestring]
+ *    DER or PEM encoded local certificate. For listeners this is the server
+ *    certificate. For clients it enables mutual TLS.
+ *
+ * 0:private-key [bytestring]
+ *    DER or PEM encoded private key for ``certificate``.
+ *
+ * 0:private-key-password [string]
+ *    Password for an encrypted private key.
+ *
  * 0:validate [boolean]
  *    Validate parameters without opening a connection.
  *
  * Listener callbacks provide ``listen-address`` and ``listen-port``. Active
- * and accepted connections provide ``remote-address``. */
+ * and accepted connections provide ``remote-address``. If the ConnectionManager
+ * has a ``certificateGroup``, it validates the server certificate of secure
+ * client connections. Otherwise libwebsockets uses the system trust store. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
 
@@ -832,6 +856,21 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  *
  * 0:password [string]
  *    Password to use (default: none)
+ *
+ * 0:useSSL [bool]
+ *    Encrypt the broker connection with TLS (default: false).
+ *
+ * 0:certificate [bytestring]
+ *    DER or PEM encoded client certificate for mutual TLS.
+ *
+ * 0:private-key [bytestring]
+ *    DER or PEM encoded private key for ``certificate``.
+ *
+ * 0:private-key-password [string]
+ *    Password for an encrypted private key.
+ *
+ * If the ConnectionManager has a ``certificateGroup``, it validates the broker
+ * certificate. Otherwise libwebsockets uses the system trust store.
  *
  * 0:keep-alive [uint16]
  *   Number of seconds for the keep-alive (ping) (default: 400).
