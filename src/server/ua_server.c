@@ -570,8 +570,8 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize namespace 0 */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
-    /* Standard configuration: generate NS0 nodes at runtime */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
+    /* Generate NS0 nodes at runtime or create the minimal NS0 */
     res = initNS0(server);
 #else
     /* NONE configuration: NS0 pre-loaded by external nodestore (e.g., ROM).
