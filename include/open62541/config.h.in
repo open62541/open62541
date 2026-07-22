@@ -18,7 +18,13 @@
 /**
  * Architecture
  * ------------
- * Define one of the following. */
+ * Definitions to enable architecture-specific includes and features. */
+
+/* Define UA_ARCH_HEADER externally to include architecture-specific
+ * definitions before the defaults below are set. */
+#if defined(UA_ARCH_HEADER)
+#include UA_ARCH_HEADER
+#endif
 
 #cmakedefine UA_ARCHITECTURE_WIN32
 #cmakedefine UA_ARCHITECTURE_POSIX
@@ -327,8 +333,8 @@ UA_atomic_load(void **addr) {
  * pointers can be switched out at runtime. Use-cases for this are testing of
  * constrained memory conditions and arena-based custom memory management.
  *
- * If the flag is undefined, then ``UA_malloc`` etc. are set to the default
- * malloc, as defined in ``/arch/<architecture>/ua_architecture.h``.
+ * If the flag is undefined and ``UA_malloc`` has not been defined by the
+ * architecture header, then ``UA_malloc`` etc. use the standard allocator.
  */
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
@@ -340,7 +346,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_free(ptr) UA_freeSingleton(ptr)
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
-#else
+#elif !defined(UA_malloc)
 # include <stdlib.h>
 # define UA_free free
 # define UA_malloc malloc
