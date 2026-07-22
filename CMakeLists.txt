@@ -398,6 +398,9 @@ option(UA_ENABLE_MALLOC_SINGLETON
        "Use a global variable pointer for malloc (and free, ...) that can be switched at runtime" OFF)
 mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
 
+option(UA_LWIP_EXTERNAL "LwIP is provided by the parent project" OFF)
+mark_as_advanced(UA_LWIP_EXTERNAL)
+
 option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
 mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
 
@@ -584,8 +587,12 @@ if(UA_ARCHITECTURE_LWIP)
     #                   ../lwip/contrib/ports/unix/posixlib/include;
     #                   ../lwip/src/include
     # LWIP_LIBRARIES    ../lwip/contrib/ports/unix/lib/build/liblwip.so
-    find_package(LWIP REQUIRED)
-    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
+    if(NOT UA_LWIP_EXTERNAL)
+        find_package(LWIP REQUIRED)
+    endif()
+    if(LWIP_LIBRARIES)
+        list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
+    endif()
 endif()
 
 #####################
