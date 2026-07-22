@@ -36,6 +36,7 @@ struct WSConnection {
     char *address;
     char *path;
     UA_UInt16 port;
+    UA_Boolean useSSL;
     UA_ByteString receive;
     size_t receiveSize;
     TAILQ_HEAD(, WSMessage) outgoing;
@@ -63,6 +64,10 @@ static const UA_KeyValueRestriction wsParams[] = {
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("path")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("private-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("private-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
 };
 
@@ -194,6 +199,9 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
     case LWS_CALLBACK_ESTABLISHED:
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
         c->wsi = wsi;
+        if(c->useSSL && !c->listener &&
+           UA_LWS_verifyPeerCertificate(&c->manager->cm, wsi) != UA_STATUSCODE_GOOD)
+            return -1;
         c->state = WS_STATE_ESTABLISHED;
         notify(c, UA_CONNECTIONSTATE_ESTABLISHED, UA_BYTESTRING_NULL, true);
         UA_free(c->path);
@@ -266,6 +274,7 @@ static UA_StatusCode deleteManager(UA_ConnectionManager *cm) {
     WSManager *m = (WSManager*)cm;
     if(m->lwsContext)
         UA_LWS_releaseContext(cm->eventSource.eventLoop);
+    UA_LWS_clearCertificateGroup(cm);
     UA_String_clear(&cm->eventSource.name);
     UA_free(m);
     return UA_STATUSCODE_GOOD;
@@ -302,7 +311,25 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         params, UA_QUALIFIEDNAME(0, "path"), &UA_TYPES[UA_TYPES_STRING]);
     const UA_Boolean *listen = (const UA_Boolean*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "listen"), &UA_TYPES[UA_TYPES_BOOLEAN]);
+    const UA_Boolean *useSSL = (const UA_Boolean*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "useSSL"), &UA_TYPES[UA_TYPES_BOOLEAN]);
+    const UA_ByteString *certificate = (const UA_ByteString*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "certificate"), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_ByteString *privateKey = (const UA_ByteString*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "private-key"), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_String *keyPassword = (const UA_String*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "private-key-password"), &UA_TYPES[UA_TYPES_STRING]);
     if((!listen || !*listen) && (!address || !address->length))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Boolean secure = useSSL && *useSSL;
+#ifdef LWS_WITH_MBEDTLS
+    if(secure && cm->certificateGroup)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+    if((certificate && !privateKey) || (!certificate && privateKey) ||
+       (certificate && (certificate->length > UINT_MAX ||
+                        privateKey->length > UINT_MAX)) ||
+       (certificate && !secure) || ((listen && *listen) && secure && !certificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     WSManager *m = (WSManager*)cm;
@@ -310,6 +337,7 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     c->listener = listen && *listen;
+    c->useSSL = secure;
     c->address = copyString(address, "");
     if(!c->listener)
         c->path = copyString(path, "/");
@@ -326,7 +354,39 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     vi.user = c;
     vi.port = c->listener ? c->port : CONTEXT_PORT_NO_LISTEN;
     vi.iface = c->listener && c->address[0] ? c->address : NULL;
+    if(c->useSSL)
+        vi.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+#ifdef LWS_WITH_TLS
+    char *password = copyString(keyPassword, "");
+    if(keyPassword && !password)
+        goto fail;
+    if(certificate) {
+        if(c->listener) {
+            vi.server_ssl_cert_mem = certificate->data;
+            vi.server_ssl_cert_mem_len = (unsigned int)certificate->length;
+            vi.server_ssl_private_key_mem = privateKey->data;
+            vi.server_ssl_private_key_mem_len = (unsigned int)privateKey->length;
+            vi.ssl_private_key_password = password;
+        } else {
+            vi.client_ssl_cert_mem = certificate->data;
+            vi.client_ssl_cert_mem_len = (unsigned int)certificate->length;
+            vi.client_ssl_key_mem = privateKey->data;
+            vi.client_ssl_key_mem_len = (unsigned int)privateKey->length;
+            vi.client_ssl_private_key_password = password;
+        }
+    }
+#else
+    char *password = NULL;
+    if(c->useSSL || certificate)
+        goto fail;
+#endif
     c->vhost = lws_create_vhost(m->lwsContext, &vi);
+    if(c->vhost && c->useSSL && !c->listener &&
+       lws_init_vhost_client_ssl(&vi, c->vhost)) {
+        lws_vhost_destroy(c->vhost);
+        c->vhost = NULL;
+    }
+    UA_free(password);
     if(!c->vhost)
         goto fail;
     c->ownsVhost = true;
@@ -350,6 +410,13 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     ci.protocol = "open62541";
     ci.local_protocol_name = "open62541";
     ci.opaque_user_data = c;
+    if(c->useSSL) {
+        ci.ssl_connection |= LCCSCF_USE_SSL;
+        if(cm->certificateGroup)
+            ci.ssl_connection |= LCCSCF_ALLOW_INSECURE |
+                                 LCCSCF_ALLOW_SELFSIGNED |
+                                 LCCSCF_ALLOW_EXPIRED;
+    }
     c->wsi = lws_client_connect_via_info(&ci);
     if(!c->wsi)
         goto failVhost;

@@ -19,6 +19,10 @@ static const UA_KeyValueRestriction mqttLwsConnectionParams[] = {
     {{0, UA_STRING_STATIC("keep-alive")}, &UA_TYPES[UA_TYPES_UINT16], false, true, false},
     {{0, UA_STRING_STATIC("username")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("private-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("private-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("subscribe")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("topic")}, &UA_TYPES[UA_TYPES_STRING], true, true, false}
@@ -37,6 +41,7 @@ struct MQTTLwsConnection {
     MQTTLwsConnectionManager *manager;
     uintptr_t connectionId;
     struct lws *wsi;
+    struct lws_vhost *vhost;
 
     char *address;
     char *topic;
@@ -44,6 +49,7 @@ struct MQTTLwsConnection {
     char *password;
     UA_UInt16 port;
     UA_Boolean subscribe;
+    UA_Boolean useSSL;
     UA_Boolean established;
     UA_Boolean closing;
     UA_Boolean subscribePending;
@@ -63,7 +69,6 @@ struct MQTTLwsConnection {
 struct MQTTLwsConnectionManager {
     UA_ConnectionManager cm;
     struct lws_context *lwsContext;
-    struct lws_vhost *lwsVhost;
     LIST_HEAD(, MQTTLwsConnection) connections;
     uintptr_t lastConnectionId;
 };
@@ -117,6 +122,8 @@ clearPendingPublishes(MQTTLwsConnection *connection) {
 
 static void
 clearConnection(MQTTLwsConnection *connection) {
+    if(connection->vhost)
+        lws_vhost_destroy(connection->vhost);
     UA_free(connection->address);
     UA_free(connection->topic);
     UA_free(connection->username);
@@ -221,6 +228,10 @@ callbackMqtt(struct lws *wsi, enum lws_callback_reasons reason,
          * All subsequent MQTT operations must use that child so per-stream
          * acknowledgement and subscription state is updated correctly. */
         connection->wsi = wsi;
+        if(connection->useSSL &&
+           UA_LWS_verifyPeerCertificate(&connection->manager->cm, wsi) !=
+               UA_STATUSCODE_GOOD)
+            return -1;
         if(connection->subscribe) {
             connection->subscribePending = true;
             UA_LWS_requestWritable(wsi);
@@ -304,17 +315,6 @@ eventSourceStart(UA_ConnectionManager *cm) {
         manager->lwsContext = UA_LWS_acquireContext(el);
         if(!manager->lwsContext)
             return UA_STATUSCODE_BADINTERNALERROR;
-
-        struct lws_context_creation_info info;
-        memset(&info, 0, sizeof(info));
-        info.port = CONTEXT_PORT_NO_LISTEN;
-        info.protocols = mqttProtocols;
-        manager->lwsVhost = lws_create_vhost(manager->lwsContext, &info);
-        if(!manager->lwsVhost) {
-            UA_LWS_releaseContext(el);
-            manager->lwsContext = NULL;
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
     }
 
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
@@ -345,10 +345,9 @@ eventSourceStop(UA_ConnectionManager *cm) {
 static UA_StatusCode
 eventSourceDelete(UA_ConnectionManager *cm) {
     MQTTLwsConnectionManager *manager = (MQTTLwsConnectionManager*)cm;
-    if(manager->lwsVhost)
-        lws_vhost_destroy(manager->lwsVhost);
     if(manager->lwsContext)
         UA_LWS_releaseContext(cm->eventSource.eventLoop);
+    UA_LWS_clearCertificateGroup(cm);
     UA_String_clear(&cm->eventSource.name);
     UA_free(manager);
     return UA_STATUSCODE_GOOD;
@@ -436,6 +435,17 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "subscribe"),
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     connection->subscribe = subscribe && *subscribe;
+    const UA_Boolean *useSSL = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "useSSL"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connection->useSSL = useSSL && *useSSL;
+#ifdef LWS_WITH_MBEDTLS
+    if(connection->useSSL && cm->certificateGroup) {
+        clearConnection(connection);
+        UA_free(connection);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+#endif
     const UA_UInt16 *keepAlive = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "keep-alive"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
@@ -447,10 +457,69 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     connection->connectParams.username_nofree = 1;
     connection->connectParams.password_nofree = 1;
 
+    const UA_ByteString *certificate = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "certificate"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_ByteString *privateKey = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "private-key"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_String *keyPassword = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "private-key-password"),
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if((certificate && !privateKey) || (!certificate && privateKey) ||
+       (certificate && (certificate->length > UINT_MAX ||
+                        privateKey->length > UINT_MAX)) ||
+       (certificate && !connection->useSSL)) {
+        clearConnection(connection);
+        UA_free(connection);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    struct lws_context_creation_info vi;
+    memset(&vi, 0, sizeof(vi));
+    vi.port = CONTEXT_PORT_NO_LISTEN;
+    vi.protocols = mqttProtocols;
+    if(connection->useSSL)
+        vi.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+#ifdef LWS_WITH_TLS
+    char *keyPasswordCString = copyCString(keyPassword);
+    if(keyPassword && !keyPasswordCString) {
+        clearConnection(connection);
+        UA_free(connection);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    if(certificate) {
+        vi.client_ssl_cert_mem = certificate->data;
+        vi.client_ssl_cert_mem_len = (unsigned int)certificate->length;
+        vi.client_ssl_key_mem = privateKey->data;
+        vi.client_ssl_key_mem_len = (unsigned int)privateKey->length;
+        vi.client_ssl_private_key_password = keyPasswordCString;
+    }
+#else
+    char *keyPasswordCString = NULL;
+    if(connection->useSSL || certificate) {
+        clearConnection(connection);
+        UA_free(connection);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+#endif
+    connection->vhost = lws_create_vhost(manager->lwsContext, &vi);
+    if(connection->vhost && connection->useSSL &&
+       lws_init_vhost_client_ssl(&vi, connection->vhost)) {
+        lws_vhost_destroy(connection->vhost);
+        connection->vhost = NULL;
+    }
+    UA_free(keyPasswordCString);
+    if(!connection->vhost) {
+        clearConnection(connection);
+        UA_free(connection);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     struct lws_client_connect_info info;
     memset(&info, 0, sizeof(info));
     info.context = manager->lwsContext;
-    info.vhost = manager->lwsVhost;
+    info.vhost = connection->vhost;
     info.address = connection->address;
     info.host = connection->address;
     info.port = connection->port;
@@ -460,6 +529,13 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     info.mqtt_cp = &connection->connectParams;
     info.userdata = connection;
     info.opaque_user_data = connection;
+    if(connection->useSSL) {
+        info.ssl_connection |= LCCSCF_USE_SSL;
+        if(cm->certificateGroup)
+            info.ssl_connection |= LCCSCF_ALLOW_INSECURE |
+                                   LCCSCF_ALLOW_SELFSIGNED |
+                                   LCCSCF_ALLOW_EXPIRED;
+    }
 
     LIST_INSERT_HEAD(&manager->connections, connection, next);
     struct lws *wsi = lws_client_connect_via_info(&info);
@@ -538,6 +614,7 @@ closeConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     } else {
         lws_set_timeout(connection->wsi, PENDING_TIMEOUT_CLOSE_SEND,
                         LWS_TO_KILL_ASYNC);
+        UA_LWS_requestWritable(connection->wsi);
     }
     return UA_STATUSCODE_GOOD;
 }

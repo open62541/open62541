@@ -4,7 +4,9 @@
 
 import argparse
 import os
+from pathlib import Path
 import socketserver
+import ssl
 import subprocess
 import threading
 
@@ -129,16 +131,44 @@ class ThreadingBroker(socketserver.ThreadingTCPServer):
 
 
 def run_test(command):
-    with ThreadingBroker(("127.0.0.1", 0), MqttHandler) as broker:
+    certificate_dir = Path(__file__).resolve().parents[2] / "tests/client/client_json"
+    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    tls_context.load_cert_chain(certificate_dir / "server_cert.pem",
+                                certificate_dir / "server_key.pem")
+    mtls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    mtls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    mtls_context.load_cert_chain(certificate_dir / "server_cert.pem",
+                                 certificate_dir / "server_key.pem")
+    mtls_context.load_verify_locations(certificate_dir / "server_cert.pem")
+    mtls_context.verify_mode = ssl.CERT_REQUIRED
+
+    with (ThreadingBroker(("127.0.0.1", 0), MqttHandler) as broker,
+          ThreadingBroker(("127.0.0.1", 0), MqttHandler) as tls_broker,
+          ThreadingBroker(("127.0.0.1", 0), MqttHandler) as mtls_broker):
+        tls_broker.socket = tls_context.wrap_socket(tls_broker.socket,
+                                                    server_side=True)
+        mtls_broker.socket = mtls_context.wrap_socket(mtls_broker.socket,
+                                                      server_side=True)
         thread = threading.Thread(target=broker.serve_forever, daemon=True)
+        tls_thread = threading.Thread(target=tls_broker.serve_forever, daemon=True)
+        mtls_thread = threading.Thread(target=mtls_broker.serve_forever, daemon=True)
         thread.start()
+        tls_thread.start()
+        mtls_thread.start()
         env = os.environ.copy()
         env["OPEN62541_TEST_MQTT_PORT"] = str(broker.server_address[1])
+        env["OPEN62541_TEST_MQTTS_PORT"] = str(tls_broker.server_address[1])
+        env["OPEN62541_TEST_MQTTS_MTLS_PORT"] = str(mtls_broker.server_address[1])
         try:
             return subprocess.run(command, env=env, check=False).returncode
         finally:
             broker.shutdown()
+            tls_broker.shutdown()
+            mtls_broker.shutdown()
             thread.join()
+            tls_thread.join()
+            mtls_thread.join()
 
 
 def main():
