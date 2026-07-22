@@ -1095,12 +1095,14 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConfigurationDataType_init(configDT);
-    configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
-        UA_calloc(psm->publishedDataSetsSize,
-                  sizeof(UA_PublishedDataSetDataType));
-    if(configDT->publishedDataSets == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
     configDT->publishedDataSetsSize = psm->publishedDataSetsSize;
+    if(configDT->publishedDataSetsSize > 0) {
+        configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
+            UA_calloc(configDT->publishedDataSetsSize,
+                      sizeof(UA_PublishedDataSetDataType));
+        if(configDT->publishedDataSets == NULL)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_PublishedDataSet *pds;
     UA_UInt32 pdsIndex = 0;
@@ -1117,11 +1119,14 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
         pdsIndex++;
     }
 
-    configDT->connections = (UA_PubSubConnectionDataType*)
-        UA_calloc(psm->connectionsSize, sizeof(UA_PubSubConnectionDataType));
-    if(configDT->connections == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
     configDT->connectionsSize = psm->connectionsSize;
+    if(configDT->connectionsSize > 0) {
+        configDT->connections = (UA_PubSubConnectionDataType*)
+            UA_calloc(configDT->connectionsSize,
+                      sizeof(UA_PubSubConnectionDataType));
+        if(configDT->connections == NULL)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_UInt32 connectionIndex = 0;
     UA_PubSubConnection *connection;
