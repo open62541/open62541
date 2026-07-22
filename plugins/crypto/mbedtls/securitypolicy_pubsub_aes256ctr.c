@@ -130,10 +130,13 @@ encrypt_pubsub_aes256ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     /* Keylength in bits */
     unsigned int keylength = (unsigned int)(UA_AES256CTR_KEY_LENGTH * 8);
     mbedtls_aes_context aesContext;
+    mbedtls_aes_init(&aesContext);
     int mbedErr =
         mbedtls_aes_setkey_enc(&aesContext, gc->encryptingKey, keylength);
-    if(mbedErr)
+    if(mbedErr) {
+        mbedtls_aes_free(&aesContext);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Prepare the counterBlock required for encryption/decryption
      * Block counter starts at 1 according to part 14 (7.2.2.4.3.2)*/
@@ -149,6 +152,7 @@ encrypt_pubsub_aes256ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     UA_Byte aesBuffer[UA_AES256CTR_ENCRYPTION_BLOCK_SIZE];
     mbedErr = mbedtls_aes_crypt_ctr(&aesContext, data->length, &counterblockoffset,
                                     counterBlockCopy, aesBuffer, data->data, data->data);
+    mbedtls_aes_free(&aesContext);
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
