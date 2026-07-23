@@ -71,6 +71,19 @@ START_TEST(AddVariableNode) {
     ck_assert_ptr_eq(nodeCalled, (void *)4);
 } END_TEST
 
+START_TEST(ValueRankConstraintAcceptsEquality) {
+    const UA_Int32 ranks[] = {
+        UA_VALUERANK_SCALAR_OR_ONE_DIMENSION,
+        UA_VALUERANK_ANY,
+        UA_VALUERANK_SCALAR,
+        UA_VALUERANK_ONE_OR_MORE_DIMENSIONS,
+        UA_VALUERANK_ONE_DIMENSION,
+        UA_VALUERANK_TWO_DIMENSIONS
+    };
+    for(size_t i = 0; i < sizeof(ranks) / sizeof(ranks[0]); i++)
+        ck_assert(compatibleValueRanks(ranks[i], ranks[i]));
+} END_TEST
+
 START_TEST(AddVariableNode_ValueRankZero) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array ValueRank 0");
@@ -1390,6 +1403,7 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, ValueRankConstraintAcceptsEquality);
     tcase_add_test(tc_addnodes, AddVariableNode_ValueRankZero);
     tcase_add_test(tc_addnodes, AddVariableNode_EmptyValueWithNonZeroValueRank);
     tcase_add_test(tc_addnodes, AddVariableNode_Matrix);
