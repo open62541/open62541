@@ -10,6 +10,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"
+#include "testing_clock.h"
 #include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
@@ -35,7 +36,7 @@ UA_DataSetReaderConfig readerConfig;
 
 static char* get_mqtt_broker_address(void) {
     char* broker = getenv("OPEN62541_TEST_MQTT_BROKER");
-    if (!broker) broker = "opc.mqtt://localhost:1883";
+    if (!broker) broker = "opc.mqtt://127.0.0.1:1883";
     return broker;
 }
 
@@ -88,44 +89,18 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_DataSetMetaDataType_init (pMetaData);
     pMetaData->name = UA_STRING ("DataSet 1");
 
-    /* Static definition of number of fields size to 4 to create four different
-     * targetVariables of distinct datatype
-     * Currently the publisher sends only DateTime data type */
-    pMetaData->fieldsSize = 4;
+    /* The published ServerStatus.State value is a UInt32. */
+    pMetaData->fieldsSize = 1;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
-    /* DateTime DataType */
+    /* ServerStatus.State DataType */
     UA_FieldMetaData_init (&pMetaData->fields[0]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT32].typeId,
                     &pMetaData->fields[0].dataType);
-    pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
-    pMetaData->fields[0].name =  UA_STRING ("DateTime");
+    pMetaData->fields[0].builtInType = UA_NS0ID_UINT32;
+    pMetaData->fields[0].name =  UA_STRING ("ServerState");
     pMetaData->fields[0].valueRank = -1; /* scalar */
-
-    /* Int32 DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[1]);
-    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId,
-                   &pMetaData->fields[1].dataType);
-    pMetaData->fields[1].builtInType = UA_NS0ID_INT32;
-    pMetaData->fields[1].name =  UA_STRING ("Int32");
-    pMetaData->fields[1].valueRank = -1; /* scalar */
-
-    /* Int64 DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[2]);
-    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT64].typeId,
-                   &pMetaData->fields[2].dataType);
-    pMetaData->fields[2].builtInType = UA_NS0ID_INT64;
-    pMetaData->fields[2].name =  UA_STRING ("Int64");
-    pMetaData->fields[2].valueRank = -1; /* scalar */
-
-    /* Boolean DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[3]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_BOOLEAN].typeId,
-                    &pMetaData->fields[3].dataType);
-    pMetaData->fields[3].builtInType = UA_NS0ID_BOOLEAN;
-    pMetaData->fields[3].name =  UA_STRING ("BoolToggle");
-    pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
 START_TEST(SinglePublishSubscribeDateTime){
@@ -214,8 +189,6 @@ START_TEST(SinglePublishSubscribeDateTime){
 
         while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             UA_Server_run_iterate(server, false);
-
-        UA_WriterGroup_publishCallback(psm, wg);
 
         /*---------------------------------------------------------------------*/
 
@@ -317,6 +290,29 @@ START_TEST(SinglePublishSubscribeDateTime){
 
         retval = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        /* Wait for the MQTT subscription, publish, and process the message.
+         * The ReaderGroup starts PREOPERATIONAL and becomes OPERATIONAL only
+         * after its first valid NetworkMessage has been received. */
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
+        ck_assert(rg != NULL);
+        for(size_t i = 0;
+            i < 200 && rg->head.state != UA_PUBSUBSTATE_OPERATIONAL; i++) {
+            UA_fakeSleep(10);
+            UA_Server_run_iterate(server, false);
+        }
+        ck_assert_int_eq(rg->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+
+        UA_Variant receivedValue;
+        UA_Variant_init(&receivedValue);
+        retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 500000),
+                                     &receivedValue);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(UA_Variant_hasScalarType(&receivedValue,
+                                           &UA_TYPES[UA_TYPES_UINT32]));
+        UA_UInt32 serverState = *(UA_UInt32*)receivedValue.data;
+        ck_assert_uint_eq(serverState, UA_SERVERSTATE_RUNNING);
+        UA_Variant_clear(&receivedValue);
 
     } END_TEST
 

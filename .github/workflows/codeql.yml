@@ -35,7 +35,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx check
-          sudo apt-get install -y -qq tcc clang-14 clang-tools-14 valgrind mosquitto
+          sudo apt-get install -y -qq tcc clang-14 clang-tools-14 valgrind
           sudo apt-get install -y -qq libmbedtls-dev openssl libpcap-dev
 
       - name: Initialize CodeQL

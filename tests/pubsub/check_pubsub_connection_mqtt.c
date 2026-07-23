@@ -22,7 +22,7 @@ UA_ServerConfig *config = NULL;
 
 static char* get_mqtt_broker_address(void) {
     char* broker = getenv("OPEN62541_TEST_MQTT_BROKER");
-    if (!broker) broker = "opc.mqtt://localhost:1883";
+    if (!broker) broker = "opc.mqtt://127.0.0.1:1883";
     return broker;
 }
 
