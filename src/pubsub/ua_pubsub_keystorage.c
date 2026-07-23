@@ -172,7 +172,7 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
     if(*callbackID != 0)
         el->removeTimer(el, *callbackID);
 
-    return el->addTimer(el, (UA_Callback)callback, psm, ks,
+    return el->addTimer(el, callback, psm, ks,
                         timeToNextMs, NULL, UA_TIMERPOLICY_ONCE, callbackID);
 
 }
@@ -310,7 +310,10 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
 }
 
 static void
-nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
+nextGetSecuritykeysCallback(void *application /* UA_PubSubManager */,
+                            void *context /* UA_PubSubKeyStorage */) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage*)context;
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     if(!ks) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
@@ -326,13 +329,16 @@ nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
 }
 
 void
-UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
+UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */,
+                                        void *context /* UA_PubSubKeyStorage */) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage*)context;
     /* Callbacks from the EventLoop are initially unlocked */
     lockServer(psm->drv.server);
 
     UA_StatusCode retval =
         UA_PubSubKeyStorage_addKeyRolloverCallback(psm, ks,
-                                                   (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
+                                                   UA_PubSubKeyStorage_keyRolloverCallback,
                                                    ks->keyLifeTime, &ks->callBackId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
@@ -355,7 +361,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
          * of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = ks->keyLifeTime / 2;
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
-        retval = el->addTimer(el, (UA_Callback)nextGetSecuritykeysCallback, psm,
+        retval = el->addTimer(el, nextGetSecuritykeysCallback, psm,
                               ks, msTimeToNextGetSecurityKeys, NULL,
                               UA_TIMERPOLICY_ONCE, NULL);
     }
@@ -494,7 +500,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     if(!(msTimeToNextKey > 0))
         msTimeToNextKey = ks->keyLifeTime;
     retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
-        psm, ks, (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
+        psm, ks, UA_PubSubKeyStorage_keyRolloverCallback,
         msTimeToNextKey, &ks->callBackId);
 
 cleanup:

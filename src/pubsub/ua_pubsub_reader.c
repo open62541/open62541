@@ -563,8 +563,10 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
 }
 
 static void
-UA_DataSetReader_handleMessageReceiveTimeout(UA_PubSubManager *psm,
-                                             UA_DataSetReader *dsr) {
+UA_DataSetReader_handleMessageReceiveTimeout(void *application /* UA_PubSubManager */,
+                                             void *context /* UA_DataSetReader */) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_DataSetReader *dsr = (UA_DataSetReader*)context;
     UA_assert(dsr->head.componentType == UA_PUBSUBCOMPONENT_DATASETREADER);
 
     /* Don't signal an error if we don't expect messages to arrive */
@@ -627,7 +629,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     if(dsr->config.messageReceiveTimeout > 0.0) {
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
-            el->addTimer(el, (UA_Callback)UA_DataSetReader_handleMessageReceiveTimeout,
+            el->addTimer(el, UA_DataSetReader_handleMessageReceiveTimeout,
                          psm, dsr, dsr->config.messageReceiveTimeout, NULL,
                          UA_TIMERPOLICY_CURRENTTIME, &dsr->msgRcvTimeoutTimerId);
         } else {

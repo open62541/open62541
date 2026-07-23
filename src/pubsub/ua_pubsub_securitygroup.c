@@ -99,7 +99,10 @@ generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
 }
 
 static void
-updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
+updateSKSKeyStorage(void *application /* UA_PubSubManager */,
+                    void *context /* UA_SecurityGroup */) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_SecurityGroup *sg = (UA_SecurityGroup*)context;
     if(!sg) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "UpdateSKSKeyStorage callback failed with Error: %s ",
@@ -211,7 +214,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         goto cleanup;
 
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
-    retval = el->addTimer(el, (UA_Callback)updateSKSKeyStorage, psm,
+    retval = el->addTimer(el, updateSKSKeyStorage, psm,
                           sg, sg->config.keyLifeTime, NULL,
                           UA_TIMERPOLICY_CURRENTTIME, &sg->callbackId);
 
