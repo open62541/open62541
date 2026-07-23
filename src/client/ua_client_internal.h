@@ -91,7 +91,12 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client,
 typedef union {
     UA_ClientAsyncCallCallback call;
     UA_ClientAsyncAddNodesCallback addNodes;
+    UA_ClientAsyncReadCallback read;
     UA_ClientAsyncWriteCallback write;
+    UA_ClientAsyncBrowseCallback browse;
+    UA_ClientAsyncBrowseNextCallback browseNext;
+    UA_ClientAsyncSetMonitoringModeCallback setMonitoringMode;
+    UA_ClientAsyncSetTriggeringCallback setTriggering;
     UA_ClientAsyncReadAttributeCallback dataValue;
     UA_ClientAsyncReadDataTypeAttributeCallback nodeId;
     UA_ClientReadArrayDimensionsAttributeCallback variant;
@@ -135,7 +140,13 @@ __Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 typedef struct CustomCallback {
     UA_UInt32 callbackId;
 
-    UA_ClientAsyncServiceCallback userCallback;
+    union {
+        UA_ClientAsyncCreateSubscriptionCallback createSubscription;
+        UA_ClientAsyncModifySubscriptionCallback modifySubscription;
+        UA_ClientAsyncCreateMonitoredItemsCallback createMonitoredItems;
+        UA_ClientAsyncModifyMonitoredItemsCallback modifyMonitoredItems;
+        UA_ClientAsyncDeleteMonitoredItemsCallback deleteMonitoredItems;
+    } callback;
     void *userData;
 
     void *clientData;

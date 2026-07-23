@@ -26,7 +26,7 @@
 #include "../ua_types_encoding_binary.h"
 
 static void
-clientHouseKeeping(UA_Client *client, void *_);
+clientHouseKeeping(void *client, void *_);
 
 /********************/
 /* Client Lifecycle */
@@ -1020,7 +1020,8 @@ asyncServiceTimeoutCheck(UA_Client *client) {
 
 static void
 backgroundConnectivityCallback(UA_Client *client, void *userdata,
-                               UA_UInt32 requestId, const UA_ReadResponse *response) {
+                               UA_UInt32 requestId, void *response_) {
+    const UA_ReadResponse *response = (const UA_ReadResponse*)response_;
     lockClient(client);
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         if(client->config.inactivityCallback)
@@ -1058,7 +1059,7 @@ __Client_backgroundConnectivity(UA_Client *client) {
     request.nodesToReadSize = 1;
     UA_StatusCode retval =
         __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                              (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
+                              backgroundConnectivityCallback,
                               &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
     if(retval == UA_STATUSCODE_GOOD)
         client->pendingConnectivityCheck = true;
@@ -1066,7 +1067,8 @@ __Client_backgroundConnectivity(UA_Client *client) {
 
 /* Regular housekeeping activities in the client -- called via a cyclic callback */
 static void
-clientHouseKeeping(UA_Client *client, void *_) {
+clientHouseKeeping(void *client_, void *_) {
+    UA_Client *client = (UA_Client*)client_;
     lockClient(client);
 
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1112,7 +1114,7 @@ __UA_Client_startup(UA_Client *client) {
      * mutex again */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     if(!client->houseKeepingCallbackId) {
-        rv = el->addTimer(el, (UA_Callback)clientHouseKeeping,
+        rv = el->addTimer(el, clientHouseKeeping,
                           client, NULL, 1000.0, NULL,
                           UA_TIMERPOLICY_CURRENTTIME,
                           &client->houseKeepingCallbackId);
@@ -1527,6 +1529,42 @@ UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request
 /* Async Shorthands */
 /********************/
 
+static void
+asyncReadCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                  void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.read)
+        ctx->callback.read(client, ctx->userdata, requestId,
+                           (UA_ReadResponse*)response);
+}
+
+static void
+asyncWriteCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                   void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.write)
+        ctx->callback.write(client, ctx->userdata, requestId,
+                            (UA_WriteResponse*)response);
+}
+
+static void
+asyncBrowseCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                    void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.browse)
+        ctx->callback.browse(client, ctx->userdata, requestId,
+                             (UA_BrowseResponse*)response);
+}
+
+static void
+asyncBrowseNextCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                        void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.browseNext)
+        ctx->callback.browseNext(client, ctx->userdata, requestId,
+                                 (UA_BrowseNextResponse*)response);
+}
+
 UA_StatusCode
 __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
@@ -1545,27 +1583,51 @@ UA_StatusCode
 UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
                                UA_ClientAsyncReadCallback readCallback,
                                void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_READREQUEST],
-                                    (UA_ClientAsyncServiceCallback)readCallback,
-                                    &UA_TYPES[UA_TYPES_READRESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.read = readCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_READREQUEST], asyncReadCallback,
+        &UA_TYPES[UA_TYPES_READRESPONSE], NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }
 
 UA_StatusCode
 UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
                                 UA_ClientAsyncWriteCallback writeCallback,
                                 void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
-                                    (UA_ClientAsyncServiceCallback)writeCallback,
-                                    &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.write = writeCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST], asyncWriteCallback,
+        &UA_TYPES[UA_TYPES_WRITERESPONSE], NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }
 
 UA_StatusCode
 UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
                                  UA_ClientAsyncBrowseCallback browseCallback,
                                  void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
-                                    (UA_ClientAsyncServiceCallback)browseCallback,
-                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.browse = browseCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], asyncBrowseCallback,
+        &UA_TYPES[UA_TYPES_BROWSERESPONSE], NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }
 
 UA_StatusCode
@@ -1573,7 +1635,16 @@ UA_Client_sendAsyncBrowseNextRequest(UA_Client *client,
                                      UA_BrowseNextRequest *request,
                                      UA_ClientAsyncBrowseNextCallback browseNextCallback,
                                      void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
-                                    (UA_ClientAsyncServiceCallback)browseNextCallback,
-                                    &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.browseNext = browseNextCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+        asyncBrowseNextCallback, &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE],
+        NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }

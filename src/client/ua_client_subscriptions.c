@@ -99,8 +99,8 @@ Subscriptions_create_handler(UA_Client *client, void *data,
     Subscription_create(client, newSub, response);
 
 cleanup:
-    if(cc->userCallback)
-        cc->userCallback(client, cc->userData, requestId, response);
+    if(cc->callback.createSubscription)
+        cc->callback.createSubscription(client, cc->userData, requestId, response);
     UA_free(cc);
 }
 
@@ -161,7 +161,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
 
-    cc->userCallback = (UA_ClientAsyncServiceCallback)createCallback;
+    cc->callback.createSubscription = createCallback;
     cc->userData = userdata;
     cc->clientData = sub;
 
@@ -213,8 +213,8 @@ Subscription_modify_handler(UA_Client *client, void *data,
                     (UA_UInt32)(uintptr_t)cc->clientData);
     }
 
-    if(cc->userCallback)
-        cc->userCallback(client, cc->userData, requestId, response);
+    if(cc->callback.modifySubscription)
+        cc->callback.modifySubscription(client, cc->userData, requestId, response);
     UA_free(cc);
 }
 
@@ -307,7 +307,7 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
 
     cc->clientData = (void *)(uintptr_t)request.subscriptionId;
     cc->userData = userdata;
-    cc->userCallback = (UA_ClientAsyncServiceCallback)callback;
+    cc->callback.modifySubscription = callback;
 
     UA_StatusCode res =
         __Client_AsyncService(client, &request,
@@ -390,7 +390,7 @@ __Client_Subscription_processDelete(UA_Client *client,
 
 typedef struct {
     UA_DeleteSubscriptionsRequest request;
-    UA_ClientAsyncServiceCallback userCallback;
+    UA_ClientAsyncDeleteSubscriptionsCallback userCallback;
     void *userData;
 } DeleteSubscriptionCallback;
 
@@ -428,7 +428,7 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
         UA_malloc(sizeof(DeleteSubscriptionCallback));
     if(!dsc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    dsc->userCallback = (UA_ClientAsyncServiceCallback)callback;
+    dsc->userCallback = callback;
     dsc->userData = userdata;
     UA_StatusCode res = UA_DeleteSubscriptionsRequest_copy(&request, &dsc->request);
     if(res != UA_STATUSCODE_GOOD) {
@@ -833,11 +833,8 @@ MonitoredItems_create_async_handler(UA_Client *client, void *data,
     }
 
     /* Notify the application */
-    if(cc->userCallback) {
-        UA_ClientAsyncCreateMonitoredItemsCallback cb =
-            (UA_ClientAsyncCreateMonitoredItemsCallback)cc->userCallback;
-        cb(client, cc->userData, requestId, response);
-    }
+    if(cc->callback.createMonitoredItems)
+        cc->callback.createMonitoredItems(client, cc->userData, requestId, response);
 
     /* Clean up */
     UA_free(handles);
@@ -851,7 +848,7 @@ Client_MonitoredItems_createAsync(UA_Client *client,
                                   const UA_CreateMonitoredItemsRequest *constRequest,
                                   void **contexts, void **handlingCallbacks,
                                   UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
-                                  UA_ClientAsyncServiceCallback createCallback,
+                                  UA_ClientAsyncCreateMonitoredItemsCallback createCallback,
                                   void *userdata, UA_UInt32 *requestId) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
@@ -923,7 +920,7 @@ Client_MonitoredItems_createAsync(UA_Client *client,
         handles[i+2] = mons[i]->parameters.clientHandle;
     }
     cc->clientData = handles;
-    cc->userCallback = createCallback;
+    cc->callback.createMonitoredItems = createCallback;
     cc->userData = userdata;
 
     /* Call the service asynchronously */
@@ -960,7 +957,7 @@ UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
     UA_StatusCode res =
         Client_MonitoredItems_createAsync(client, &request, contexts,
                                           (void **)callbacks, deleteCallbacks,
-                                          (UA_ClientAsyncServiceCallback)createCallback,
+                                          createCallback,
                                           userdata, requestId);
     unlockClient(client);
     return res;
@@ -978,7 +975,7 @@ UA_Client_MonitoredItems_createEvents_async(UA_Client *client,
     UA_StatusCode res =
         Client_MonitoredItems_createAsync(client, &request, contexts,
                                           (void **)callbacks, deleteCallbacks,
-                                          (UA_ClientAsyncServiceCallback)createCallback,
+                                          createCallback,
                                           userdata, requestId);
     unlockClient(client);
     return res;
@@ -1035,8 +1032,8 @@ MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, v
     MonitoredItems_delete(client, sub, request, response);
 
 cleanup:
-    if(cc->userCallback)
-        cc->userCallback(client, cc->userData, requestId, response);
+    if(cc->callback.deleteMonitoredItems)
+        cc->callback.deleteMonitoredItems(client, cc->userData, requestId, response);
     UA_DeleteMonitoredItemsRequest_delete(request);
     UA_free(cc);
 
@@ -1093,7 +1090,7 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
 
     UA_DeleteMonitoredItemsRequest_copy(&request, req_copy);
     cc->clientData = req_copy;
-    cc->userCallback = (UA_ClientAsyncServiceCallback)callback;
+    cc->callback.deleteMonitoredItems = callback;
     cc->userData = userdata;
 
     UA_StatusCode res =
@@ -1281,11 +1278,9 @@ MonitoredItems_modify_async_handler(UA_Client *client, void *data,
     if(sub)
         MonitoredItems_reconcileModify(sub, request, response);
 
-    if(cc->userCallback) {
-        UA_ClientAsyncModifyMonitoredItemsCallback cb =
-            (UA_ClientAsyncModifyMonitoredItemsCallback)cc->userCallback;
-        cb(client, cc->userData, requestId, response);
-    }
+    if(cc->callback.modifyMonitoredItems)
+        cc->callback.modifyMonitoredItems(client, cc->userData,
+                                          requestId, response);
 
     UA_ModifyMonitoredItemsRequest_delete(request);
     UA_free(cc);
@@ -1333,7 +1328,7 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     cc->clientData = requestCopy;
-    cc->userCallback = (UA_ClientAsyncServiceCallback)callback;
+    cc->callback.modifyMonitoredItems = callback;
     cc->userData = userdata;
 
     /* Call the service */
@@ -1341,7 +1336,6 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
         client, requestCopy, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
         MonitoredItems_modify_async_handler,
         &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], cc, requestId);
-
     if(statusCode != UA_STATUSCODE_GOOD) {
         MonitoredItems_reconcileModify(sub, requestCopy, NULL);
         UA_ModifyMonitoredItemsRequest_delete(requestCopy);
@@ -1864,16 +1858,33 @@ UA_Client_MonitoredItems_setMonitoringMode(UA_Client *client,
     return response;
 }
 
+static void
+MonitoredItems_setMonitoringMode_async_handler(UA_Client *client, void *userdata,
+                                               UA_UInt32 requestId, void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.setMonitoringMode)
+        ctx->callback.setMonitoringMode(
+            client, ctx->userdata, requestId,
+            (UA_SetMonitoringModeResponse*)response);
+}
+
 UA_StatusCode
 UA_Client_MonitoredItems_setMonitoringMode_async(UA_Client *client,
                                                  const UA_SetMonitoringModeRequest request,
                                                  UA_ClientAsyncSetMonitoringModeCallback callback,
                                                  void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, &request,
-                                    &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
-                                    (UA_ClientAsyncServiceCallback)callback,
-                                    &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE],
-                                    userdata, requestId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.setMonitoringMode = callback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, &request, &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
+        MonitoredItems_setMonitoringMode_async_handler,
+        &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE], NULL, &ctx, requestId);
+    unlockClient(client);
+    return res;
 }
 
 UA_SetTriggeringResponse
@@ -1885,14 +1896,31 @@ UA_Client_MonitoredItems_setTriggering(UA_Client *client,
     return response;
 }
 
+static void
+MonitoredItems_setTriggering_async_handler(UA_Client *client, void *userdata,
+                                           UA_UInt32 requestId, void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.setTriggering)
+        ctx->callback.setTriggering(
+            client, ctx->userdata, requestId,
+            (UA_SetTriggeringResponse*)response);
+}
+
 UA_StatusCode
 UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
                                              const UA_SetTriggeringRequest request,
                                              UA_ClientAsyncSetTriggeringCallback callback,
                                              void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, &request,
-                                    &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
-                                    (UA_ClientAsyncServiceCallback)callback,
-                                    &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE],
-                                    userdata, requestId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.setTriggering = callback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
+        MonitoredItems_setTriggering_async_handler,
+        &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE], NULL, &ctx, requestId);
+    unlockClient(client);
+    return res;
 }
