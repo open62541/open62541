@@ -636,8 +636,10 @@ copyAllChildren(UA_Server *server, UA_Session *session,
                 const UA_NodeId *source, const UA_NodeId *destination);
 
 static void
-Operation_addReference(UA_Server *server, UA_Session *session, void *context,
-                       const UA_AddReferencesItem *item, UA_StatusCode *retval);
+Operation_addReference(UA_Server *server, UA_Session *session,
+                       const void *context /* unused */,
+                       const void *request /* UA_AddReferencesItem */,
+                       void *response /* UA_StatusCode */);
 
 UA_StatusCode
 addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
@@ -1745,8 +1747,13 @@ Operation_addNode_inner(UA_Server *server, UA_Session *session, void *nodeContex
 }
 
 static void
-Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
-                  const UA_AddNodesItem *item, UA_AddNodesResult *result) {
+Operation_addNode(UA_Server *server, UA_Session *session,
+                  const void *context /* void *nodeContext */,
+                  const void *request /* UA_AddNodesItem */,
+                  void *response /* UA_AddNodesResult */) {
+    void *nodeContext = (void*)(uintptr_t)context;
+    const UA_AddNodesItem *item = (const UA_AddNodesItem*)request;
+    UA_AddNodesResult *result = (UA_AddNodesResult*)response;
     beginModelChange(server);
     Operation_addNode_inner(server, session, nodeContext, item, result);
     endModelChange(server);
@@ -1768,7 +1775,7 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_addNode, NULL,
+                                      Operation_addNode, NULL,
                                       &request->nodesToAddSize,
                                       &UA_TYPES[UA_TYPES_ADDNODESITEM],
                                       &response->resultsSize,
@@ -1974,8 +1981,10 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId) {
 /****************/
 
 static void
-Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
-                          const UA_DeleteReferencesItem *item, UA_StatusCode *retval);
+Operation_deleteReference(UA_Server *server, UA_Session *session,
+                          const void *context /* unused */,
+                          const void *request /* UA_DeleteReferencesItem */,
+                          void *response /* UA_StatusCode */);
 
 struct RemoveIncomingContext {
     UA_Server *server;
@@ -2281,8 +2290,12 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
 }
 
 static void
-deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
-                    const UA_DeleteNodesItem *item, UA_StatusCode *result) {
+deleteNodeOperation(UA_Server *server, UA_Session *session,
+                    const void *context /* unused */,
+                    const void *request /* UA_DeleteNodesItem */,
+                    void *response /* UA_StatusCode */) {
+    const UA_DeleteNodesItem *item = (const UA_DeleteNodesItem*)request;
+    UA_StatusCode *result = (UA_StatusCode*)response;
     (void)context;
     beginModelChange(server);
     deleteNodeOperation_inner(server, session, item, result);
@@ -2306,7 +2319,7 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)deleteNodeOperation,
+                                      deleteNodeOperation,
                                       NULL,
                                       &request->nodesToDeleteSize,
                                       &UA_TYPES[UA_TYPES_DELETENODESITEM],
@@ -2509,10 +2522,15 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
 }
 
 static void
-Operation_addReference(UA_Server *server, UA_Session *session, void *context,
-                       const UA_AddReferencesItem *item, UA_StatusCode *retval) {
+Operation_addReference(UA_Server *server, UA_Session *session,
+                       const void *context /* unused */,
+                       const void *request /* UA_AddReferencesItem */,
+                       void *response /* UA_StatusCode */) {
+    void *operationContext = (void*)(uintptr_t)context;
+    const UA_AddReferencesItem *item = (const UA_AddReferencesItem*)request;
+    UA_StatusCode *retval = (UA_StatusCode*)response;
     beginModelChange(server);
-    Operation_addReference_inner(server, session, context, item, retval);
+    Operation_addReference_inner(server, session, operationContext, item, retval);
     endModelChange(server);
 }
 
@@ -2534,7 +2552,7 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_addReference,
+                                      Operation_addReference,
                                       NULL, &request->referencesToAddSize,
                                       &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
                                       &response->resultsSize,
@@ -2648,10 +2666,15 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
 }
 
 static void
-Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
-                          const UA_DeleteReferencesItem *item, UA_StatusCode *retval) {
+Operation_deleteReference(UA_Server *server, UA_Session *session,
+                          const void *context /* unused */,
+                          const void *request /* UA_DeleteReferencesItem */,
+                          void *response /* UA_StatusCode */) {
+    void *operationContext = (void*)(uintptr_t)context;
+    const UA_DeleteReferencesItem *item = (const UA_DeleteReferencesItem*)request;
+    UA_StatusCode *retval = (UA_StatusCode*)response;
     beginModelChange(server);
-    Operation_deleteReference_inner(server, session, context, item, retval);
+    Operation_deleteReference_inner(server, session, operationContext, item, retval);
     endModelChange(server);
 }
 
@@ -2672,7 +2695,7 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_deleteReference,
+                                      Operation_deleteReference,
                                       NULL, &request->referencesToDeleteSize,
                                       &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
                                       &response->resultsSize,

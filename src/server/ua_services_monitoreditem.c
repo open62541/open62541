@@ -429,9 +429,13 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
 
 static void
 Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
-                              struct createMonContext *cmc,
-                              const UA_MonitoredItemCreateRequest *request,
-                              UA_MonitoredItemCreateResult *result) {
+                              const void *context /* struct createMonContext */,
+                              const void *request_ /* UA_MonitoredItemCreateRequest */,
+                              void *response /* UA_MonitoredItemCreateResult */) {
+    struct createMonContext *cmc = (struct createMonContext*)(uintptr_t)context;
+    const UA_MonitoredItemCreateRequest *request =
+        (const UA_MonitoredItemCreateRequest*)request_;
+    UA_MonitoredItemCreateResult *result = (UA_MonitoredItemCreateResult*)response;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check available capacity */
@@ -627,7 +631,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_CreateMonitoredItem,
+                                      Operation_CreateMonitoredItem,
                                       &cmc, &request->itemsToCreateSize,
                                       &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
                                       &response->resultsSize,
@@ -782,9 +786,14 @@ UA_Server_createEventMonitoredItem(UA_Server *server, const UA_NodeId nodeId,
 #endif
 
 static void
-Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
-                              const UA_MonitoredItemModifyRequest *request,
-                              UA_MonitoredItemModifyResult *result) {
+Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session,
+                              const void *context /* UA_Subscription */,
+                              const void *request_ /* UA_MonitoredItemModifyRequest */,
+                              void *response /* UA_MonitoredItemModifyResult */) {
+    UA_Subscription *sub = (UA_Subscription*)(uintptr_t)context;
+    const UA_MonitoredItemModifyRequest *request =
+        (const UA_MonitoredItemModifyRequest*)request_;
+    UA_MonitoredItemModifyResult *result = (UA_MonitoredItemModifyResult*)response;
     /* Get the MonitoredItem */
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->monitoredItemId);
     if(!mon) {
@@ -898,7 +907,7 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_ModifyMonitoredItem,
+                                      Operation_ModifyMonitoredItem,
                                       sub, &request->itemsToModifySize,
                                       &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
                                       &response->resultsSize,
@@ -914,8 +923,12 @@ struct setMonitoringContext {
 
 static void
 Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
-                            struct setMonitoringContext *smc,
-                            const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
+                            const void *context /* struct setMonitoringContext */,
+                            const void *request /* UA_UInt32 */,
+                            void *response /* UA_StatusCode */) {
+    struct setMonitoringContext *smc = (struct setMonitoringContext*)(uintptr_t)context;
+    const UA_UInt32 *monitoredItemId = (const UA_UInt32*)request;
+    UA_StatusCode *result = (UA_StatusCode*)response;
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(smc->sub, *monitoredItemId);
     if(!mon) {
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
@@ -959,7 +972,7 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_SetMonitoringMode,
+                                      Operation_SetMonitoringMode,
                                       &smc, &request->monitoredItemIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32],
                                       &response->resultsSize,
@@ -969,8 +982,13 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
-                              const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
+Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session,
+                              const void *context /* UA_Subscription */,
+                              const void *request /* UA_UInt32 */,
+                              void *response /* UA_StatusCode */) {
+    UA_Subscription *sub = (UA_Subscription*)(uintptr_t)context;
+    const UA_UInt32 *monitoredItemId = (const UA_UInt32*)request;
+    UA_StatusCode *result = (UA_StatusCode*)response;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, *monitoredItemId);
@@ -1009,7 +1027,7 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_DeleteMonitoredItem,
+                                      Operation_DeleteMonitoredItem,
                                       sub, &request->monitoredItemIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32],
                                       &response->resultsSize,
