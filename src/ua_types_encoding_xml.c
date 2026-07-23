@@ -182,7 +182,7 @@ typedef struct {
 /************/
 
 #define ENCODE_XML(TYPE) static status \
-    TYPE##_encodeXml(CtxXml *ctx, const UA_##TYPE *src, const UA_DataType *type)
+    TYPE##_encodeXml(CtxXml *ctx, const void *src_, const UA_DataType *type)
 
 #define ENCODE_DIRECT_XML(SRC, TYPE) \
     TYPE##_encodeXml(ctx, (const UA_##TYPE*)SRC, NULL)
@@ -233,6 +233,7 @@ writeXmlElement(CtxXml *ctx, const char *name,
 
 /* Boolean */
 ENCODE_XML(Boolean) {
+    const UA_Boolean *src = (const UA_Boolean*)src_;
     if(*src == true)
         return xmlEncodeWriteChars(ctx, "true", 4);
     return xmlEncodeWriteChars(ctx, "false", 5);
@@ -250,30 +251,35 @@ static status encodeUnsigned(CtxXml *ctx, UA_UInt64 value, char* buffer) {
 
 /* signed Byte */
 ENCODE_XML(SByte) {
+    const UA_SByte *src = (const UA_SByte*)src_;
     char buf[5];
     return encodeSigned(ctx, *src, buf);
 }
 
 /* Byte */
 ENCODE_XML(Byte) {
+    const UA_Byte *src = (const UA_Byte*)src_;
     char buf[4];
     return encodeUnsigned(ctx, *src, buf);
 }
 
 /* Int16 */
 ENCODE_XML(Int16) {
+    const UA_Int16 *src = (const UA_Int16*)src_;
     char buf[7];
     return encodeSigned(ctx, *src, buf);
 }
 
 /* UInt16 */
 ENCODE_XML(UInt16) {
+    const UA_UInt16 *src = (const UA_UInt16*)src_;
     char buf[6];
     return encodeUnsigned(ctx, *src, buf);
 }
 
 /* Int32 */
 ENCODE_XML(Int32) {
+    const UA_Int32 *src = (const UA_Int32*)src_;
     char buf[12];
     return encodeSigned(ctx, *src, buf);
 }
@@ -298,24 +304,28 @@ Enum_encodeXml(CtxXml *ctx, const void *src, const UA_DataType *type) {
 
 /* UInt32 */
 ENCODE_XML(UInt32) {
+    const UA_UInt32 *src = (const UA_UInt32*)src_;
     char buf[11];
     return encodeUnsigned(ctx, *src, buf);
 }
 
 /* Int64 */
 ENCODE_XML(Int64) {
+    const UA_Int64 *src = (const UA_Int64*)src_;
     char buf[23];
     return encodeSigned(ctx, *src, buf);
 }
 
 /* UInt64 */
 ENCODE_XML(UInt64) {
+    const UA_UInt64 *src = (const UA_UInt64*)src_;
     char buf[23];
     return encodeUnsigned(ctx, *src, buf);
 }
 
 /* Float */
 ENCODE_XML(Float) {
+    const UA_Float *src = (const UA_Float*)src_;
     char buffer[32];
     size_t len;
     if(*src != *src)
@@ -331,6 +341,7 @@ ENCODE_XML(Float) {
 
 /* Double */
 ENCODE_XML(Double) {
+    const UA_Double *src = (const UA_Double*)src_;
     char buffer[32];
     size_t len;
     if(*src != *src)
@@ -346,16 +357,19 @@ ENCODE_XML(Double) {
 
 /* String */
 ENCODE_XML(String) {
+    const UA_String *src = (const UA_String*)src_;
     return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
 /* XmlElement */
 ENCODE_XML(XmlElement) {
+    const UA_XmlElement *src = (const UA_XmlElement*)src_;
     return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
 /* Guid */
 ENCODE_XML(Guid) {
+    const UA_Guid *src = (const UA_Guid*)src_;
     UA_Byte buf[36];
     UA_ByteString hexBuf = {36, buf};
     UA_Guid_to_hex(src, hexBuf.data, false);
@@ -365,6 +379,7 @@ ENCODE_XML(Guid) {
 
 /* DateTime */
 ENCODE_XML(DateTime) {
+    const UA_DateTime *src = (const UA_DateTime*)src_;
     UA_Byte buffer[40];
     UA_String str = {40, buffer};
     encodeDateTime(*src, &str);
@@ -373,6 +388,7 @@ ENCODE_XML(DateTime) {
 
 /* ByteString */
 ENCODE_XML(ByteString) {
+    const UA_ByteString *src = (const UA_ByteString*)src_;
     if(!src->data)
         return xmlEncodeWriteChars(ctx, "null", 4);
 
@@ -404,6 +420,7 @@ ENCODE_XML(ByteString) {
 
 /* NodeId */
 ENCODE_XML(NodeId) {
+    const UA_NodeId *src = (const UA_NodeId*)src_;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_String out = UA_STRING_NULL;
     ret |= UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
@@ -415,6 +432,7 @@ ENCODE_XML(NodeId) {
 
 /* ExpandedNodeId */
 ENCODE_XML(ExpandedNodeId) {
+    const UA_ExpandedNodeId *src = (const UA_ExpandedNodeId*)src_;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_String out = UA_STRING_NULL;
     ret |= UA_ExpandedNodeId_printEx(src, &out,
@@ -429,12 +447,14 @@ ENCODE_XML(ExpandedNodeId) {
 
 /* StatusCode */
 ENCODE_XML(StatusCode) {
+    const UA_StatusCode *src = (const UA_StatusCode*)src_;
     return writeXmlElement(ctx, UA_XML_STATUSCODE_CODE,
                            src, &UA_TYPES[UA_TYPES_UINT32]);
 }
 
 /* QualifiedName */
 ENCODE_XML(QualifiedName) {
+    const UA_QualifiedName *src = (const UA_QualifiedName*)src_;
     /* Map the NamespaceIndex */
     UA_UInt16 index = src->namespaceIndex;
     if(ctx->namespaceMapping)
@@ -451,6 +471,7 @@ ENCODE_XML(QualifiedName) {
 
 /* LocalizedText */
 ENCODE_XML(LocalizedText) {
+    const UA_LocalizedText *src = (const UA_LocalizedText*)src_;
     return writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
                            &src->locale, &UA_TYPES[UA_TYPES_STRING]) |
         writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
@@ -459,6 +480,7 @@ ENCODE_XML(LocalizedText) {
 
 /* ExtensionObject */
 ENCODE_XML(ExtensionObject) {
+    const UA_ExtensionObject *src = (const UA_ExtensionObject*)src_;
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
@@ -586,6 +608,7 @@ encodeXmlStructure(CtxXml *ctx, const void *src, const UA_DataType *type) {
 }
 
 ENCODE_XML(Variant) {
+    const UA_Variant *src = (const UA_Variant*)src_;
     if(!src->type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
@@ -618,6 +641,7 @@ ENCODE_XML(Variant) {
 }
 
 ENCODE_XML(DataValue) {
+    const UA_DataValue *src = (const UA_DataValue*)src_;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if(src->hasValue)
         ret |= Variant_encodeXml(ctx, &src->value, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -640,6 +664,7 @@ ENCODE_XML(DataValue) {
 }
 
 ENCODE_XML(DiagnosticInfo) {
+    const UA_DiagnosticInfo *src = (const UA_DiagnosticInfo*)src_;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if(src->hasSymbolicId)
         ret |= writeXmlElement(ctx, "SymbolicId", &src->symbolicId,
@@ -675,37 +700,37 @@ encodeXmlNotImplemented(CtxXml *ctx, const void *src, const UA_DataType *type) {
 }
 
 const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
-    (encodeXmlSignature)Boolean_encodeXml,          /* Boolean */
-    (encodeXmlSignature)SByte_encodeXml,            /* SByte */
-    (encodeXmlSignature)Byte_encodeXml,             /* Byte */
-    (encodeXmlSignature)Int16_encodeXml,            /* Int16 */
-    (encodeXmlSignature)UInt16_encodeXml,           /* UInt16 */
-    (encodeXmlSignature)Int32_encodeXml,            /* Int32 */
-    (encodeXmlSignature)UInt32_encodeXml,           /* UInt32 */
-    (encodeXmlSignature)Int64_encodeXml,            /* Int64 */
-    (encodeXmlSignature)UInt64_encodeXml,           /* UInt64 */
-    (encodeXmlSignature)Float_encodeXml,            /* Float */
-    (encodeXmlSignature)Double_encodeXml,           /* Double */
-    (encodeXmlSignature)String_encodeXml,           /* String */
-    (encodeXmlSignature)DateTime_encodeXml,         /* DateTime */
-    (encodeXmlSignature)Guid_encodeXml,             /* Guid */
-    (encodeXmlSignature)ByteString_encodeXml,       /* ByteString */
-    (encodeXmlSignature)XmlElement_encodeXml,       /* XmlElement */
-    (encodeXmlSignature)NodeId_encodeXml,           /* NodeId */
-    (encodeXmlSignature)ExpandedNodeId_encodeXml,   /* ExpandedNodeId */
-    (encodeXmlSignature)StatusCode_encodeXml,       /* StatusCode */
-    (encodeXmlSignature)QualifiedName_encodeXml,    /* QualifiedName */
-    (encodeXmlSignature)LocalizedText_encodeXml,    /* LocalizedText */
-    (encodeXmlSignature)ExtensionObject_encodeXml,  /* ExtensionObject */
-    (encodeXmlSignature)DataValue_encodeXml,        /* DataValue */
-    (encodeXmlSignature)Variant_encodeXml,          /* Variant */
-    (encodeXmlSignature)DiagnosticInfo_encodeXml,   /* DiagnosticInfo */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* Decimal */
-    (encodeXmlSignature)Enum_encodeXml,             /* Enum */
-    (encodeXmlSignature)encodeXmlStructure,         /* Structure */
-    (encodeXmlSignature)encodeXmlStructure,         /* Structure with optional fields */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* Union */
-    (encodeXmlSignature)encodeXmlNotImplemented     /* BitfieldCluster */
+    Boolean_encodeXml,          /* Boolean */
+    SByte_encodeXml,            /* SByte */
+    Byte_encodeXml,             /* Byte */
+    Int16_encodeXml,            /* Int16 */
+    UInt16_encodeXml,           /* UInt16 */
+    Int32_encodeXml,            /* Int32 */
+    UInt32_encodeXml,           /* UInt32 */
+    Int64_encodeXml,            /* Int64 */
+    UInt64_encodeXml,           /* UInt64 */
+    Float_encodeXml,            /* Float */
+    Double_encodeXml,           /* Double */
+    String_encodeXml,           /* String */
+    DateTime_encodeXml,         /* DateTime */
+    Guid_encodeXml,             /* Guid */
+    ByteString_encodeXml,       /* ByteString */
+    XmlElement_encodeXml,       /* XmlElement */
+    NodeId_encodeXml,           /* NodeId */
+    ExpandedNodeId_encodeXml,   /* ExpandedNodeId */
+    StatusCode_encodeXml,       /* StatusCode */
+    QualifiedName_encodeXml,    /* QualifiedName */
+    LocalizedText_encodeXml,    /* LocalizedText */
+    ExtensionObject_encodeXml,  /* ExtensionObject */
+    DataValue_encodeXml,        /* DataValue */
+    Variant_encodeXml,          /* Variant */
+    DiagnosticInfo_encodeXml,   /* DiagnosticInfo */
+    encodeXmlNotImplemented,    /* Decimal */
+    Enum_encodeXml,             /* Enum */
+    encodeXmlStructure,         /* Structure */
+    encodeXmlStructure,         /* Structure with optional fields */
+    encodeXmlNotImplemented,    /* Union */
+    encodeXmlNotImplemented     /* BitfieldCluster */
 };
 
 UA_StatusCode
@@ -785,8 +810,8 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
 /* Decode */
 /**********/
 
-#define DECODE_XML(TYPE) static status                  \
-    TYPE##_decodeXml(ParseCtxXml *ctx, UA_##TYPE *dst, const UA_DataType *type)
+#define DECODE_XML(TYPE) static status \
+    TYPE##_decodeXml(ParseCtxXml *ctx, void *dst_, const UA_DataType *type)
 
 #define CHECK_DATA_BOUNDS                           \
     if(ctx->index >= ctx->tokensSize)               \
@@ -808,6 +833,7 @@ skipXmlObject(ParseCtxXml *ctx) {
 }
 
 DECODE_XML(Boolean) {
+    UA_Boolean *dst = (UA_Boolean*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -865,6 +891,7 @@ decodeUnsigned(const UA_Byte *data, size_t dataSize, UA_UInt64 *dst) {
 }
 
 DECODE_XML(SByte) {
+    UA_SByte *dst = (UA_SByte*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -879,6 +906,7 @@ DECODE_XML(SByte) {
 }
 
 DECODE_XML(Byte) {
+    UA_Byte *dst = (UA_Byte*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -893,6 +921,7 @@ DECODE_XML(Byte) {
 }
 
 DECODE_XML(Int16) {
+    UA_Int16 *dst = (UA_Int16*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -907,6 +936,7 @@ DECODE_XML(Int16) {
 }
 
 DECODE_XML(UInt16) {
+    UA_UInt16 *dst = (UA_UInt16*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -921,6 +951,7 @@ DECODE_XML(UInt16) {
 }
 
 DECODE_XML(Int32) {
+    UA_Int32 *dst = (UA_Int32*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -959,6 +990,7 @@ Enum_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 }
 
 DECODE_XML(UInt32) {
+    UA_UInt32 *dst = (UA_UInt32*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -973,6 +1005,7 @@ DECODE_XML(UInt32) {
 }
 
 DECODE_XML(Int64) {
+    UA_Int64 *dst = (UA_Int64*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -987,6 +1020,7 @@ DECODE_XML(Int64) {
 }
 
 DECODE_XML(UInt64) {
+    UA_UInt64 *dst = (UA_UInt64*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -1001,6 +1035,7 @@ DECODE_XML(UInt64) {
 }
 
 DECODE_XML(Double) {
+    UA_Double *dst = (UA_Double*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -1049,6 +1084,7 @@ DECODE_XML(Double) {
 }
 
 DECODE_XML(Float) {
+    UA_Float *dst = (UA_Float*)dst_;
     UA_Double v = 0.0;
     UA_StatusCode res = Double_decodeXml(ctx, &v, NULL);
     *dst = (UA_Float)v;
@@ -1056,6 +1092,7 @@ DECODE_XML(Float) {
 }
 
 DECODE_XML(String) {
+    UA_String *dst = (UA_String*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -1072,6 +1109,7 @@ DECODE_XML(String) {
 }
 
 DECODE_XML(DateTime) {
+    UA_DateTime *dst = (UA_DateTime*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -1172,6 +1210,7 @@ errout:
 }
 
 DECODE_XML(Guid) {
+    UA_Guid *dst = (UA_Guid*)dst_;
     CHECK_DATA_BOUNDS;
     UA_String str;
     UA_String_init(&str);
@@ -1198,6 +1237,7 @@ compactXmlBase64(const UA_Byte *data, size_t length, UA_Byte *out) {
 }
 
 DECODE_XML(ByteString) {
+    UA_ByteString *dst = (UA_ByteString*)dst_;
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
@@ -1250,6 +1290,7 @@ DECODE_XML(ByteString) {
 }
 
 DECODE_XML(XmlElement) {
+    UA_XmlElement *dst = (UA_XmlElement*)dst_;
     CHECK_DATA_BOUNDS;
     xml_token *token = &ctx->tokens[ctx->index];
     size_t begin = token->start;
@@ -1273,6 +1314,7 @@ DECODE_XML(XmlElement) {
 }
 
 DECODE_XML(NodeId) {
+    UA_NodeId *dst = (UA_NodeId*)dst_;
     CHECK_DATA_BOUNDS;
     UA_String str;
     static UA_String identifier = UA_STRING_STATIC(UA_XML_NODEID_IDENTIFIER);
@@ -1283,6 +1325,7 @@ DECODE_XML(NodeId) {
 }
 
 DECODE_XML(ExpandedNodeId) {
+    UA_ExpandedNodeId *dst = (UA_ExpandedNodeId*)dst_;
     CHECK_DATA_BOUNDS;
     UA_String str;
     static UA_String expidentifier = UA_STRING_STATIC(UA_XML_EXPANDEDNODEID_IDENTIFIER);
@@ -1294,6 +1337,7 @@ DECODE_XML(ExpandedNodeId) {
 }
 
 DECODE_XML(StatusCode) {
+    UA_StatusCode *dst = (UA_StatusCode*)dst_;
     CHECK_DATA_BOUNDS;
     UA_String str;
     static UA_String statusidentifier = UA_STRING_STATIC(UA_XML_STATUSCODE_CODE);
@@ -1310,6 +1354,7 @@ DECODE_XML(StatusCode) {
 }
 
 DECODE_XML(QualifiedName) {
+    UA_QualifiedName *dst = (UA_QualifiedName*)dst_;
     CHECK_DATA_BOUNDS;
 
     /* Decode the elements */
@@ -1330,6 +1375,7 @@ DECODE_XML(QualifiedName) {
 }
 
 DECODE_XML(LocalizedText) {
+    UA_LocalizedText *dst = (UA_LocalizedText*)dst_;
     CHECK_DATA_BOUNDS;
 
     XmlDecodeEntry entries[2] = {
@@ -1430,6 +1476,7 @@ decodeExtensionObjectBody(ParseCtxXml *ctx, void *dst, const UA_DataType *type) 
 }
 
 DECODE_XML(ExtensionObject) {
+    UA_ExtensionObject *dst = (UA_ExtensionObject*)dst_;
     CHECK_DATA_BOUNDS;
     xml_token *tok = &ctx->tokens[ctx->index];
     if(tok->children == 0)
@@ -1445,7 +1492,9 @@ DECODE_XML(ExtensionObject) {
 }
 
 static status
-Array_decodeXml(ParseCtxXml *ctx, size_t *dstSize, const UA_DataType *type) {
+Array_decodeXml(ParseCtxXml *ctx, void *dst_, const UA_DataType *type) {
+    size_t *dstSize = (size_t*)dst_;
+
     /* Allocate memory */
     size_t length = ctx->tokens[ctx->index].children;
     void **dst = (void**)((uintptr_t)dstSize + sizeof(void*));
@@ -1654,6 +1703,7 @@ decodeXmlVariantValue(ParseCtxXml *ctx, UA_Variant *dst) {
 }
 
 DECODE_XML(Variant) {
+    UA_Variant *dst = (UA_Variant*)dst_;
     CHECK_DATA_BOUNDS;
 
     if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION)
@@ -1680,6 +1730,7 @@ DataValueValue_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 }
 
 DECODE_XML(DataValue) {
+    UA_DataValue *dst = (UA_DataValue*)dst_;
     XmlDecodeEntry entries[6] = {
         {UA_STRING_STATIC("Value"), dst, DataValueValue_decodeXml, false, NULL},
         {UA_STRING_STATIC("StatusCode"), &dst->status, NULL, false,
@@ -1703,7 +1754,7 @@ DECODE_XML(DataValue) {
     return ret;
 }
 
-static status DiagnosticInfo_decodeXml(ParseCtxXml*, UA_DiagnosticInfo*, const UA_DataType*);
+static status DiagnosticInfo_decodeXml(ParseCtxXml*, void*, const UA_DataType*);
 
 static status
 DiagnosticInfoInner_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
@@ -1715,6 +1766,7 @@ DiagnosticInfoInner_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *ty
 }
 
 DECODE_XML(DiagnosticInfo) {
+    UA_DiagnosticInfo *dst = (UA_DiagnosticInfo*)dst_;
     XmlDecodeEntry entries[7] = {
         {UA_STRING_STATIC("SymbolicId"), &dst->symbolicId, NULL, false,
          &UA_TYPES[UA_TYPES_INT32]},
@@ -1767,10 +1819,10 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
             entries[i].function = NULL;
             ptr += mt->memSize;
         } else if(m->isArray) {
-            entries[i].function = (decodeXmlSignature)Array_decodeXml;
+            entries[i].function = Array_decodeXml;
             ptr += sizeof(size_t) + sizeof(void*);
         } else {
-            entries[i].function = (decodeXmlSignature)Optional_decodeXml;
+            entries[i].function = Optional_decodeXml;
             ptr += sizeof(void*);
         }
     }
@@ -1799,37 +1851,37 @@ decodeXmlNotImplemented(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 }
 
 const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
-    (decodeXmlSignature)Boolean_decodeXml,          /* Boolean */
-    (decodeXmlSignature)SByte_decodeXml,            /* SByte */
-    (decodeXmlSignature)Byte_decodeXml,             /* Byte */
-    (decodeXmlSignature)Int16_decodeXml,            /* Int16 */
-    (decodeXmlSignature)UInt16_decodeXml,           /* UInt16 */
-    (decodeXmlSignature)Int32_decodeXml,            /* Int32 */
-    (decodeXmlSignature)UInt32_decodeXml,           /* UInt32 */
-    (decodeXmlSignature)Int64_decodeXml,            /* Int64 */
-    (decodeXmlSignature)UInt64_decodeXml,           /* UInt64 */
-    (decodeXmlSignature)Float_decodeXml,            /* Float */
-    (decodeXmlSignature)Double_decodeXml,           /* Double */
-    (decodeXmlSignature)String_decodeXml,           /* String */
-    (decodeXmlSignature)DateTime_decodeXml,         /* DateTime */
-    (decodeXmlSignature)Guid_decodeXml,             /* Guid */
-    (decodeXmlSignature)ByteString_decodeXml,       /* ByteString */
-    (decodeXmlSignature)XmlElement_decodeXml,       /* XmlElement */
-    (decodeXmlSignature)NodeId_decodeXml,           /* NodeId */
-    (decodeXmlSignature)ExpandedNodeId_decodeXml,   /* ExpandedNodeId */
-    (decodeXmlSignature)StatusCode_decodeXml,       /* StatusCode */
-    (decodeXmlSignature)QualifiedName_decodeXml,    /* QualifiedName */
-    (decodeXmlSignature)LocalizedText_decodeXml,    /* LocalizedText */
-    (decodeXmlSignature)ExtensionObject_decodeXml,  /* ExtensionObject */
-    (decodeXmlSignature)DataValue_decodeXml,        /* DataValue */
-    (decodeXmlSignature)Variant_decodeXml,          /* Variant */
-    (decodeXmlSignature)DiagnosticInfo_decodeXml,   /* DiagnosticInfo */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
-    (decodeXmlSignature)Enum_decodeXml,             /* Enum */
-    (decodeXmlSignature)decodeXmlStructure,         /* Structure */
-    (decodeXmlSignature)decodeXmlStructure,         /* Structure with optional fields */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Union */
-    (decodeXmlSignature)decodeXmlNotImplemented     /* BitfieldCluster */
+    Boolean_decodeXml,          /* Boolean */
+    SByte_decodeXml,            /* SByte */
+    Byte_decodeXml,             /* Byte */
+    Int16_decodeXml,            /* Int16 */
+    UInt16_decodeXml,           /* UInt16 */
+    Int32_decodeXml,            /* Int32 */
+    UInt32_decodeXml,           /* UInt32 */
+    Int64_decodeXml,            /* Int64 */
+    UInt64_decodeXml,           /* UInt64 */
+    Float_decodeXml,            /* Float */
+    Double_decodeXml,           /* Double */
+    String_decodeXml,           /* String */
+    DateTime_decodeXml,         /* DateTime */
+    Guid_decodeXml,             /* Guid */
+    ByteString_decodeXml,       /* ByteString */
+    XmlElement_decodeXml,       /* XmlElement */
+    NodeId_decodeXml,           /* NodeId */
+    ExpandedNodeId_decodeXml,   /* ExpandedNodeId */
+    StatusCode_decodeXml,       /* StatusCode */
+    QualifiedName_decodeXml,    /* QualifiedName */
+    LocalizedText_decodeXml,    /* LocalizedText */
+    ExtensionObject_decodeXml,  /* ExtensionObject */
+    DataValue_decodeXml,        /* DataValue */
+    Variant_decodeXml,          /* Variant */
+    DiagnosticInfo_decodeXml,   /* DiagnosticInfo */
+    decodeXmlNotImplemented,    /* Decimal */
+    Enum_decodeXml,             /* Enum */
+    decodeXmlStructure,         /* Structure */
+    decodeXmlStructure,         /* Structure with optional fields */
+    decodeXmlNotImplemented,    /* Union */
+    decodeXmlNotImplemented     /* BitfieldCluster */
 };
 
 UA_StatusCode
