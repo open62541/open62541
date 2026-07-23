@@ -61,7 +61,10 @@ notifySession(UA_Server *server, UA_Session *session,
 
 /* Delayed callback to free the session memory */
 static void
-removeSessionCallback(UA_Server *server, session_list_entry *entry) {
+removeSessionCallback(void *application /* UA_Server */,
+                      void *context /* session_list_entry */) {
+    UA_Server *server = (UA_Server*)application;
+    session_list_entry *entry = (session_list_entry*)context;
     lockServer(server);
     UA_Session_clear(&entry->session, server);
     unlockServer(server);
@@ -148,7 +151,7 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
 
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
-    sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
+    sentry->cleanupCallback.callback = removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
