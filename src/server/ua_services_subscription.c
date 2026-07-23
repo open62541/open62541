@@ -257,9 +257,12 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 
 static void
 Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
-                            const UA_Boolean *publishingEnabled,
-                            const UA_UInt32 *subscriptionId,
-                            UA_StatusCode *result) {
+                            const void *context /* UA_Boolean */,
+                            const void *request /* UA_UInt32 */,
+                            void *response /* UA_StatusCode */) {
+    const UA_Boolean *publishingEnabled = (const UA_Boolean*)context;
+    const UA_UInt32 *subscriptionId = (const UA_UInt32*)request;
+    UA_StatusCode *result = (UA_StatusCode*)response;
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
@@ -292,7 +295,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
     UA_Boolean publishingEnabled = request->publishingEnabled; /* request is const */
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_SetPublishingMode,
+                                      Operation_SetPublishingMode,
                                       &publishingEnabled, &request->subscriptionIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32], &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
@@ -421,8 +424,13 @@ Service_Publish(UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
-                             const UA_UInt32 *subscriptionId, UA_StatusCode *result) {
+Operation_DeleteSubscription(UA_Server *server, UA_Session *session,
+                             const void *context /* unused */,
+                             const void *request /* UA_UInt32 */,
+                             void *response /* UA_StatusCode */) {
+    const UA_UInt32 *subscriptionId = (const UA_UInt32*)request;
+    UA_StatusCode *result = (UA_StatusCode*)response;
+    (void)context;
     /* Find the Subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
@@ -450,7 +458,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_DeleteSubscription,
+                                      Operation_DeleteSubscription,
                                       NULL, &request->subscriptionIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32], &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
@@ -527,9 +535,12 @@ setTransferredSequenceNumbers(const UA_Subscription *sub, UA_TransferResult *res
 
 static void
 Operation_TransferSubscription(UA_Server *server, UA_Session *session,
-                               const UA_Boolean *sendInitialValues,
-                               const UA_UInt32 *subscriptionId,
-                               UA_TransferResult *result) {
+                               const void *context /* UA_Boolean */,
+                               const void *request /* UA_UInt32 */,
+                               void *response /* UA_TransferResult */) {
+    const UA_Boolean *sendInitialValues = (const UA_Boolean*)context;
+    const UA_UInt32 *subscriptionId = (const UA_UInt32*)request;
+    UA_TransferResult *result = (UA_TransferResult*)response;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get the subscription. This requires a server-wide lookup instead of the
@@ -711,7 +722,7 @@ Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_TransferSubscription,
+                                      Operation_TransferSubscription,
                                       &request->sendInitialValues,
                                       &request->subscriptionIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32],
