@@ -498,7 +498,7 @@ int UA_EventLoopPOSIX_pipe(UA_FD fds[2]);
 
 /* Cancel the current _run by sending to the self-pipe */
 void
-UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el);
+UA_EventLoopPOSIX_cancel(UA_EventLoop *el);
 
 void
 UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
