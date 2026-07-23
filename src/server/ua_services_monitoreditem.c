@@ -81,8 +81,9 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_SetTriggering(UA_Server *server, UA_Session *session,
-                      const UA_SetTriggeringRequest *request,
-                      UA_SetTriggeringResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_SetTriggeringRequest *request = (const UA_SetTriggeringRequest*)request_;
+    UA_SetTriggeringResponse *response = (UA_SetTriggeringResponse*)response_;
     /* Nothing to do? */
     if(request->linksToRemoveSize == 0 &&
        request->linksToAddSize == 0) {
@@ -587,8 +588,9 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                             const UA_CreateMonitoredItemsRequest *request,
-                             UA_CreateMonitoredItemsResponse *response) {
+                             const void *request_, void *response_) {
+    const UA_CreateMonitoredItemsRequest *request = (const UA_CreateMonitoredItemsRequest*)request_;
+    UA_CreateMonitoredItemsResponse *response = (UA_CreateMonitoredItemsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing CreateMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -865,8 +867,9 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
 UA_Boolean
 Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
-                             const UA_ModifyMonitoredItemsRequest *request,
-                             UA_ModifyMonitoredItemsResponse *response) {
+                             const void *request_, void *response_) {
+    const UA_ModifyMonitoredItemsRequest *request = (const UA_ModifyMonitoredItemsRequest*)request_;
+    UA_ModifyMonitoredItemsResponse *response = (UA_ModifyMonitoredItemsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing ModifyMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -926,8 +929,9 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
-                          const UA_SetMonitoringModeRequest *request,
-                          UA_SetMonitoringModeResponse *response) {
+                          const void *request_, void *response_) {
+    const UA_SetMonitoringModeRequest *request = (const UA_SetMonitoringModeRequest*)request_;
+    UA_SetMonitoringModeResponse *response = (UA_SetMonitoringModeResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing SetMonitoringMode");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -980,8 +984,9 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
 UA_Boolean
 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
-                             const UA_DeleteMonitoredItemsRequest *request,
-                             UA_DeleteMonitoredItemsResponse *response) {
+                             const void *request_, void *response_) {
+    const UA_DeleteMonitoredItemsRequest *request = (const UA_DeleteMonitoredItemsRequest*)request_;
+    UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
