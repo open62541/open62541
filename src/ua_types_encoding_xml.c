@@ -534,6 +534,13 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     return ret;
 }
 
+static UA_Boolean
+isDefaultValue(const void *value, const UA_DataType *type) {
+    UA_STACKARRAY(UA_Byte, defaultValue, type->memSize);
+    memset(defaultValue, 0, type->memSize);
+    return UA_equal(value, defaultValue, type);
+}
+
 static status
 encodeXmlStructure(CtxXml *ctx, const void *src, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)src;
@@ -549,6 +556,8 @@ encodeXmlStructure(CtxXml *ctx, const void *src, const UA_DataType *type) {
             const void *data = *(void* const*)ptr;
             ptr += sizeof(void*);
             if(m->isOptional && !data)
+                continue;
+            if(!m->isOptional && length == 0 && !data)
                 continue;
             ret |= writeXmlElemNameBegin(ctx, m->memberName);
             uintptr_t elem = (uintptr_t)data;
@@ -568,6 +577,8 @@ encodeXmlStructure(CtxXml *ctx, const void *src, const UA_DataType *type) {
                 continue;
         } else {
             ptr += mt->memSize;
+            if(isDefaultValue(value, mt))
+                continue;
         }
         ret |= writeXmlElement(ctx, m->memberName, value, mt);
     }

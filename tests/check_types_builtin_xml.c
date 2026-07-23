@@ -904,6 +904,49 @@ START_TEST(UA_OptionalStructure_xml_roundtrip) {
 }
 END_TEST
 
+START_TEST(UA_DefaultStructure_xml_encode) {
+    UA_CurrencyUnitType currency;
+    UA_CurrencyUnitType_init(&currency);
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+
+    UA_StatusCode retval = UA_encodeXml(
+        &currency, &UA_TYPES[UA_TYPES_CURRENCYUNITTYPE], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected =
+        UA_BYTESTRING("<CurrencyUnitType></CurrencyUnitType>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+
+    /* Empty and null Strings are distinct. Keep an empty String present. */
+    currency.alphabeticCode = UA_STRING("");
+    retval = UA_encodeXml(
+        &currency, &UA_TYPES[UA_TYPES_CURRENCYUNITTYPE], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<CurrencyUnitType><AlphabeticCode></AlphabeticCode>"
+        "</CurrencyUnitType>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+
+    /* The default null array is omitted, but an empty array remains present. */
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    retval = UA_encodeXml(&argument, &UA_TYPES[UA_TYPES_ARGUMENT], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING("<Argument></Argument>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+
+    argument.arrayDimensions = (UA_UInt32*)UA_EMPTY_ARRAY_SENTINEL;
+    retval = UA_encodeXml(&argument, &UA_TYPES[UA_TYPES_ARGUMENT], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<Argument><ArrayDimensions></ArrayDimensions></Argument>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
 START_TEST(UA_String_Empty_xml_encode) {
     UA_String src = UA_STRING("");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
@@ -4471,6 +4514,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_String_xml_encode);
     tcase_add_test(tc_xml_encode, UA_XmlElement_xml_roundtrip);
     tcase_add_test(tc_xml_encode, UA_OptionalStructure_xml_roundtrip);
+    tcase_add_test(tc_xml_encode, UA_DefaultStructure_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_Empty_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_Null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_escapesimple_xml_encode);
