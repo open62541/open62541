@@ -34,9 +34,39 @@ UA_PubSubTest_getUdpMulticastUrlIPv6_4840(void) {
     return url;
 }
 
+/* Semantic PubSub tests do not need to exercise multicast routing. Hosted
+ * macOS runners do not provide a reliable multicast route, so use loopback
+ * unicast there. Other platforms keep using multicast to retain coverage. */
+static UA_INLINE char *
+UA_PubSubTest_getUdpSemanticUrl4840(void) {
+#ifdef __APPLE__
+    static char url[] = "opc.udp://127.0.0.1:4840/";
+#else
+    static char url[] = "opc.udp://224.0.0.22:4840/";
+#endif
+    return url;
+}
+
+static UA_INLINE char *
+UA_PubSubTest_getUdpSemanticUrl4801(void) {
+#ifdef __APPLE__
+    static char url[] = "opc.udp://127.0.0.1:4801/";
+#else
+    static char url[] = "opc.udp://224.0.0.22:4801/";
+#endif
+    return url;
+}
+
 #define UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840 UA_PubSubTest_getUdpMulticastUrl4840()
 #define UA_PUBSUB_TEST_UDP_MULTICAST_URL_4801 UA_PubSubTest_getUdpMulticastUrl4801()
 #define UA_PUBSUB_TEST_UDP_MULTICAST_URL_IPV6_4840 UA_PubSubTest_getUdpMulticastUrlIPv6_4840()
+#define UA_PUBSUB_TEST_UDP_SEMANTIC_URL_4840 UA_PubSubTest_getUdpSemanticUrl4840()
+#define UA_PUBSUB_TEST_UDP_SEMANTIC_URL_4801 UA_PubSubTest_getUdpSemanticUrl4801()
+
+#define UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4840 \
+    {UA_STRING_NULL, UA_STRING(UA_PUBSUB_TEST_UDP_SEMANTIC_URL_4840)}
+#define UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4801 \
+    {UA_STRING_NULL, UA_STRING(UA_PUBSUB_TEST_UDP_SEMANTIC_URL_4801)}
 
 static UA_INLINE UA_String
 UA_PubSubTest_getMulticastInterface(void) {
@@ -101,6 +131,16 @@ UA_PubSubTest_initNetworkAddressUrlAlloc(UA_NetworkAddressUrlDataType *address,
     }
     address->url = UA_String_fromChars(url);
     if(address->url.length == 0 && url && url[0] != '\0')
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_INLINE UA_StatusCode
+UA_PubSubTest_initSemanticNetworkAddressUrlAlloc(
+    UA_NetworkAddressUrlDataType *address) {
+    UA_NetworkAddressUrlDataType_init(address);
+    address->url = UA_String_fromChars(UA_PUBSUB_TEST_UDP_SEMANTIC_URL_4840);
+    if(address->url.length == 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     return UA_STATUSCODE_GOOD;
 }
