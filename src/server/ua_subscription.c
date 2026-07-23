@@ -1012,7 +1012,9 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
 }
 
 static void
-sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
+sampleAndPublishCallback(UA_Server *server,
+                         void *data /* UA_Subscription */) {
+    UA_Subscription *sub = (UA_Subscription*)data;
     UA_assert(sub);
 
     lockServer(server);
@@ -1046,7 +1048,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
         }
     } else if(sub->publishCallbackId == 0) {
         UA_StatusCode res =
-            addRepeatedCallback(server, (UA_ServerCallback)sampleAndPublishCallback,
+            addRepeatedCallback(server, sampleAndPublishCallback,
                                 sub, sub->publishingInterval, &sub->publishCallbackId);
         if(res != UA_STATUSCODE_GOOD) {
             sub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
@@ -1572,7 +1574,9 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 }
 
 static void
-UA_MonitoredItem_lockAndSample(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_lockAndSample(UA_Server *server,
+                               void *data /* UA_MonitoredItem */) {
+    UA_MonitoredItem *mon = (UA_MonitoredItem*)data;
     lockServer(server);
     UA_MonitoredItem_sample(server, mon);
     unlockServer(server);
@@ -1636,8 +1640,7 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     }
 
     /* Standard sampling with a repeated callback */
-    res = addRepeatedCallback(server,
-                              (UA_ServerCallback)UA_MonitoredItem_lockAndSample,
+    res = addRepeatedCallback(server, UA_MonitoredItem_lockAndSample,
                               mon, mon->parameters.samplingInterval,
                               &mon->sampling.callbackId);
     if(res == UA_STATUSCODE_GOOD) {
