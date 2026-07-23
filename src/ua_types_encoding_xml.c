@@ -1462,7 +1462,10 @@ static const UA_DataType *
 lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
     /* Search in the builtin types */
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(strncmp((char*)typeName.data, UA_TYPES[i].typeName, typeName.length) == 0)
+        const UA_DataType *type = &UA_TYPES[i];
+        size_t length = strlen(type->typeName);
+        if(length == typeName.length &&
+           strncmp((char*)typeName.data, type->typeName, typeName.length) == 0)
             return &UA_TYPES[i];
     }
 
@@ -1471,7 +1474,9 @@ lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
     while(customTypes) {
         for(size_t i = 0; i < customTypes->typesSize; ++i) {
             const UA_DataType *type = &customTypes->types[i];
-            if(strncmp((char*)typeName.data, type->typeName, typeName.length) == 0)
+            size_t length = strlen(type->typeName);
+            if(length == typeName.length &&
+               strncmp((char*)typeName.data, type->typeName, typeName.length) == 0)
                 return type;
         }
         customTypes = customTypes->next;
