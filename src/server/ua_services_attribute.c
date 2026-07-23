@@ -1887,7 +1887,8 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
  * are registered. So that pointer needs to be stable. */
 static UA_StatusCode
 copyAttributeIntoNode(UA_Server *server, UA_Session *session,
-                      UA_Node *node, const UA_WriteValue *wvalue) {
+                      UA_Node *node, void *context /* UA_WriteValue */) {
+    const UA_WriteValue *wvalue = (const UA_WriteValue*)context;
     UA_assert(session != NULL);
     const void *value = wvalue->value.value.data;
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
@@ -2171,7 +2172,7 @@ Operation_Write(UA_Server *server, UA_Session *session,
 
     *result = editNode(server, session, &wv->nodeId, wv->attributeId,
                        UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                       (UA_EditNodeCallback)copyAttributeIntoNode,
+                       copyAttributeIntoNode,
                        (void*)(uintptr_t)wv);
     UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 
@@ -2380,18 +2381,6 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
 }
 
 #ifdef UA_ENABLE_HISTORIZING
-typedef void
- (*UA_HistoryDatabase_readFunc)(UA_Server *server, void *hdbContext,
-                                const UA_NodeId *sessionId, void *sessionContext,
-                                const UA_RequestHeader *requestHeader,
-                                const void *historyReadDetails,
-                                UA_TimestampsToReturn timestampsToReturn,
-                                UA_Boolean releaseContinuationPoints,
-                                size_t nodesToReadSize,
-                                const UA_HistoryReadValueId *nodesToRead,
-                                UA_HistoryReadResponse *response,
-                                void * const * const historyData);
-
 UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const void *request_, void *response_) {
@@ -2409,33 +2398,34 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    enum HistoryReadKind {
+        HISTORYREAD_RAW,
+        HISTORYREAD_MODIFIED,
+        HISTORYREAD_EVENT,
+        HISTORYREAD_PROCESSED,
+        HISTORYREAD_ATTIME
+    } readKind;
     const UA_DataType *historyDataType = &UA_TYPES[UA_TYPES_HISTORYDATA];
-    UA_HistoryDatabase_readFunc readHistory = NULL;
     if(request->historyReadDetails.content.decoded.type ==
        &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
         UA_ReadRawModifiedDetails *details = (UA_ReadRawModifiedDetails*)
             request->historyReadDetails.content.decoded.data;
         if(!details->isReadModified) {
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readRaw;
+            readKind = HISTORYREAD_RAW;
         } else {
             historyDataType = &UA_TYPES[UA_TYPES_HISTORYMODIFIEDDATA];
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readModified;
+            readKind = HISTORYREAD_MODIFIED;
         }
     } else if(request->historyReadDetails.content.decoded.type ==
               &UA_TYPES[UA_TYPES_READEVENTDETAILS]) {
         historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
-        readHistory = (UA_HistoryDatabase_readFunc)
-            server->config.historyDatabase.readEvent;
+        readKind = HISTORYREAD_EVENT;
     } else if(request->historyReadDetails.content.decoded.type ==
               &UA_TYPES[UA_TYPES_READPROCESSEDDETAILS]) {
-        readHistory = (UA_HistoryDatabase_readFunc)
-            server->config.historyDatabase.readProcessed;
+        readKind = HISTORYREAD_PROCESSED;
     } else if(request->historyReadDetails.content.decoded.type ==
               &UA_TYPES[UA_TYPES_READATTIMEDETAILS]) {
-        readHistory = (UA_HistoryDatabase_readFunc)
-            server->config.historyDatabase.readAtTime;
+        readKind = HISTORYREAD_ATTIME;
     } else {
         /* TODO handle more request->historyReadDetails.content.decoded.type types */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
@@ -2443,7 +2433,11 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the configured History-Backend supports the requested history type */
-    if(!readHistory) {
+    if((readKind == HISTORYREAD_RAW && !server->config.historyDatabase.readRaw) ||
+       (readKind == HISTORYREAD_MODIFIED && !server->config.historyDatabase.readModified) ||
+       (readKind == HISTORYREAD_EVENT && !server->config.historyDatabase.readEvent) ||
+       (readKind == HISTORYREAD_PROCESSED && !server->config.historyDatabase.readProcessed) ||
+       (readKind == HISTORYREAD_ATTIME && !server->config.historyDatabase.readAtTime)) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "The configured HistoryBackend does not support the selected history-type");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
@@ -2488,14 +2482,38 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                                     data, historyDataType);
         historyData[i] = data;
     }
-    readHistory(server, server->config.historyDatabase.context,
-                &session->sessionId, session->context,
-                &request->requestHeader,
-                request->historyReadDetails.content.decoded.data,
-                request->timestampsToReturn,
-                request->releaseContinuationPoints,
-                request->nodesToReadSize, request->nodesToRead,
-                response, historyData);
+#define CALL_HISTORY_READ(FUNC, DETAILS, DATA)                               \
+    FUNC(server, server->config.historyDatabase.context,                    \
+         &session->sessionId, session->context, &request->requestHeader,    \
+         (const DETAILS*)request->historyReadDetails.content.decoded.data,  \
+         request->timestampsToReturn, request->releaseContinuationPoints,   \
+         request->nodesToReadSize, request->nodesToRead, response,          \
+         (DATA * const * const)historyData)
+
+    switch(readKind) {
+    case HISTORYREAD_RAW:
+        CALL_HISTORY_READ(server->config.historyDatabase.readRaw,
+                          UA_ReadRawModifiedDetails, UA_HistoryData);
+        break;
+    case HISTORYREAD_MODIFIED:
+        CALL_HISTORY_READ(server->config.historyDatabase.readModified,
+                          UA_ReadRawModifiedDetails, UA_HistoryModifiedData);
+        break;
+    case HISTORYREAD_EVENT:
+        CALL_HISTORY_READ(server->config.historyDatabase.readEvent,
+                          UA_ReadEventDetails, UA_HistoryEvent);
+        break;
+    case HISTORYREAD_PROCESSED:
+        CALL_HISTORY_READ(server->config.historyDatabase.readProcessed,
+                          UA_ReadProcessedDetails, UA_HistoryData);
+        break;
+    case HISTORYREAD_ATTIME:
+        CALL_HISTORY_READ(server->config.historyDatabase.readAtTime,
+                          UA_ReadAtTimeDetails, UA_HistoryData);
+        break;
+    }
+
+#undef CALL_HISTORY_READ
     UA_free(historyData);
 
     return true;

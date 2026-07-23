@@ -52,16 +52,16 @@ getNodeContext(UA_Server *server, UA_NodeId nodeId,
 
 static UA_StatusCode
 setDeconstructedNode(UA_Server *server, UA_Session *session,
-                     UA_NodeHead *head, void *context) {
-    head->constructed = false;
+                     UA_Node *node, void *context /* unused */) {
+    node->head.constructed = false;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 setConstructedNodeContext(UA_Server *server, UA_Session *session,
-                          UA_NodeHead *head, void *context) {
-    head->context = context;
-    head->constructed = true;
+                          UA_Node *node, void *context /* nodeContext */) {
+    node->head.context = context;
+    node->head.constructed = true;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1453,7 +1453,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     /* Set the context *and* mark the node as constructed */
     retval = editNode(server, &server->adminSession, nodeId,
                       0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                      (UA_EditNodeCallback)setConstructedNodeContext, context);
+                      setConstructedNodeContext, context);
     if(retval != UA_STATUSCODE_GOOD)
         goto local_destructor;
 
@@ -2107,7 +2107,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         /* Set the constructed flag to false */
         editNode(server, &server->adminSession, &refTree->targets[i].nodeId,
                  0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                 (UA_EditNodeCallback)setDeconstructedNode, NULL);
+                 setDeconstructedNode, NULL);
     }
 }
 
@@ -2748,12 +2748,13 @@ struct SetInternalValueContext {
 
 static UA_StatusCode
 setInternalValueSourceCB(UA_Server *server, UA_Session *session,
-                         UA_VariableNode *vn, const void *ctx) {
+                         UA_Node *node, void *context /* SetInternalValueContext */) {
     const struct SetInternalValueContext *ivc =
-        (const struct SetInternalValueContext*)ctx;
+        (const struct SetInternalValueContext*)context;
+    UA_VariableNode *vn = &node->variableNode;
 
     /* Check the node class */
-    if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
 
     /* Make a copy of the supplied value */
@@ -2799,7 +2800,7 @@ setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
     return editNode(server, &server->adminSession, &nodeId,
                     UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
                     UA_BROWSEDIRECTION_INVALID,
-                    (UA_EditNodeCallback)setInternalValueSourceCB, &ctx);
+                    setInternalValueSourceCB, &ctx);
 }
 
 UA_StatusCode
@@ -2823,12 +2824,13 @@ struct SetExternalValueContext {
 
 static UA_StatusCode
 setExternalValueSourceCB(UA_Server *server, UA_Session *session,
-                         UA_VariableNode *vn, const void *ctx) {
+                         UA_Node *node, void *context /* SetExternalValueContext */) {
     const struct SetExternalValueContext *evc =
-        (const struct SetExternalValueContext*)ctx;
+        (const struct SetExternalValueContext*)context;
+    UA_VariableNode *vn = &node->variableNode;
 
     /* Check the node class */
-    if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
 
     /* Clean the previous internal value */
@@ -2862,7 +2864,7 @@ UA_Server_setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId
     UA_StatusCode res = editNode(server, &server->adminSession, &nodeId,
                                  UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
                                  UA_BROWSEDIRECTION_INVALID,
-                                 (UA_EditNodeCallback)setExternalValueSourceCB, &ctx);
+                                 setExternalValueSourceCB, &ctx);
     unlockServer(server);
     return res;
 }
@@ -2873,11 +2875,12 @@ UA_Server_setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId
 
 static UA_StatusCode
 setCallbackValueSourceCB(UA_Server *server, UA_Session *session,
-                         UA_VariableNode *vn, const void *ctx) {
-    const UA_CallbackValueSource *evs = (const UA_CallbackValueSource*)ctx;
+                         UA_Node *node, void *context /* UA_CallbackValueSource */) {
+    const UA_CallbackValueSource *evs = (const UA_CallbackValueSource*)context;
+    UA_VariableNode *vn = &node->variableNode;
 
     /* Check the node class */
-    if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
 
     /* Clean up the internal value */
@@ -2896,7 +2899,7 @@ setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
                                     const UA_CallbackValueSource evs) {
     return editNode(server, &server->adminSession, &nodeId, UA_NODEATTRIBUTESMASK_VALUE,
                     UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                    (UA_EditNodeCallback)setCallbackValueSourceCB,
+                    setCallbackValueSourceCB,
                     (void*)(uintptr_t)&evs);
 }
 
@@ -3209,7 +3212,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
 static UA_StatusCode
 editMethodCallback(UA_Server *server, UA_Session* session,
-                   UA_Node *node, UA_MethodCallback methodCallback) {
+                   UA_Node *node, void *context /* UA_MethodCallback */) {
+    UA_MethodCallback methodCallback = *(UA_MethodCallback*)context;
     if(node->head.nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->methodNode.method = methodCallback;
@@ -3223,8 +3227,7 @@ setMethodNode_callback(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     return editNode(server, &server->adminSession, &methodNodeId,
                     0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                    (UA_EditNodeCallback)editMethodCallback,
-                    (void*)(uintptr_t)methodCallback);
+                    editMethodCallback, &methodCallback);
 }
 
 UA_StatusCode
@@ -3274,7 +3277,8 @@ UA_Server_setAdminSessionContext(UA_Server *server,
 
 static UA_StatusCode
 setNodeTypeLifecycleCallback(UA_Server *server, UA_Session *session,
-                             UA_Node *node, UA_NodeTypeLifecycle *lifecycle) {
+                             UA_Node *node, void *context /* UA_NodeTypeLifecycle */) {
+    UA_NodeTypeLifecycle *lifecycle = (UA_NodeTypeLifecycle*)context;
     if(node->head.nodeClass == UA_NODECLASS_OBJECTTYPE) {
         node->objectTypeNode.lifecycle = *lifecycle;
     } else if(node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
@@ -3290,7 +3294,7 @@ setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle) {
     return editNode(server, &server->adminSession, &nodeId, 0,
                     UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                    (UA_EditNodeCallback)setNodeTypeLifecycleCallback,
+                    setNodeTypeLifecycleCallback,
                     &lifecycle);
 }
 
