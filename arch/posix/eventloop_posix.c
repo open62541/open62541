@@ -166,7 +166,8 @@ processDelayed(UA_EventLoopPOSIX *el) {
 /***********************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
+UA_EventLoopPOSIX_start(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH &&
@@ -301,7 +302,8 @@ checkClosed(UA_EventLoopPOSIX *el) {
 }
 
 static void
-UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
+UA_EventLoopPOSIX_stop(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
@@ -334,7 +336,8 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
+UA_EventLoopPOSIX_run(UA_EventLoop *public_el, UA_UInt32 timeout) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
 
     if(el->executing) {
@@ -406,8 +409,9 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 /*****************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopPOSIX_registerEventSource(UA_EventLoop *public_el,
                                       UA_EventSource *es) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
 
     /* Already registered? */
@@ -437,8 +441,9 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoop *public_el,
                                         UA_EventSource *es) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
 
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
@@ -512,7 +517,8 @@ UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
 /*************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
+UA_EventLoopPOSIX_free(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
 
     /* Check if the EventLoop can be deleted */
@@ -527,7 +533,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
-        UA_EventLoopPOSIX_deregisterEventSource(el, es);
+        UA_EventLoopPOSIX_deregisterEventSource(public_el, es);
         es->free(es);
     }
 
@@ -599,11 +605,11 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 #endif
 
     /* Set the method pointers for the interface */
-    el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
-    el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
-    el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;
-    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPOSIX_run;
-    el->eventLoop.cancel = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_cancel;
+    el->eventLoop.start = UA_EventLoopPOSIX_start;
+    el->eventLoop.stop = UA_EventLoopPOSIX_stop;
+    el->eventLoop.free = UA_EventLoopPOSIX_free;
+    el->eventLoop.run = UA_EventLoopPOSIX_run;
+    el->eventLoop.cancel = UA_EventLoopPOSIX_cancel;
 
     el->eventLoop.dateTime_now = UA_EventLoopPOSIX_DateTime_now;
     el->eventLoop.dateTime_nowMonotonic =
@@ -618,12 +624,8 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
     el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
 
-    el->eventLoop.registerEventSource =
-        (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_registerEventSource;
-    el->eventLoop.deregisterEventSource =
-        (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_deregisterEventSource;
+    el->eventLoop.registerEventSource = UA_EventLoopPOSIX_registerEventSource;
+    el->eventLoop.deregisterEventSource = UA_EventLoopPOSIX_deregisterEventSource;
 
     el->eventLoop.lock = UA_EventLoopPOSIX_lock;
     el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
@@ -1092,7 +1094,8 @@ int UA_EventLoopPOSIX_pipe(UA_FD fds[2]) {
 #endif
 
 void
-UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
+UA_EventLoopPOSIX_cancel(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     /* Nothing to do if the EventLoop is not executing */
     if(!el->executing)
         return;
