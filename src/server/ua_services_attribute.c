@@ -1160,6 +1160,9 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
+    if(valueRank == constraintValueRank)
+        return true;
+
     /* Check if the valuerank of the variabletype allows the change. */
     switch(constraintValueRank) {
     case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* the value can be a scalar or a
