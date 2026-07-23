@@ -190,8 +190,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
      * register a delayed callback for "local publishing". */
     if(sub == server->adminSubscription && !sub->delayedCallbackRegistered) {
         sub->delayedCallbackRegistered = true;
-        sub->delayedMoreNotifications.callback =
-            (UA_Callback)UA_Subscription_localPublish;
+        sub->delayedMoreNotifications.callback = UA_Subscription_localPublish;
         sub->delayedMoreNotifications.application = server;
         sub->delayedMoreNotifications.context = sub;
 
@@ -661,7 +660,10 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
  * method. This is done async from a delayed callback registered in the
  * EventLoop. */
 void
-UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
+UA_Subscription_localPublish(void *application /* UA_Server */,
+                             void *context /* UA_Subscription */) {
+    UA_Server *server = (UA_Server*)application;
+    UA_Subscription *sub = (UA_Subscription*)context;
     lockServer(server);
     sub->delayedCallbackRegistered = false;
 
@@ -717,7 +719,10 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
 }
 
 static void
-delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
+delayedPublishNotifications(void *application /* UA_Server */,
+                            void *context /* UA_Subscription */) {
+    UA_Server *server = (UA_Server*)application;
+    UA_Subscription *sub = (UA_Subscription*)context;
     lockServer(server);
     sub->delayedCallbackRegistered = false;
     UA_Subscription_publish(server, sub);
@@ -940,7 +945,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     if(!done && !sub->delayedCallbackRegistered) {
         sub->delayedCallbackRegistered = true;
 
-        sub->delayedMoreNotifications.callback = (UA_Callback)delayedPublishNotifications;
+        sub->delayedMoreNotifications.callback = delayedPublishNotifications;
         sub->delayedMoreNotifications.application = server;
         sub->delayedMoreNotifications.context = sub;
 

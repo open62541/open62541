@@ -228,7 +228,10 @@ directOpCallback(UA_Server *server, UA_AsyncOperation *op) {
 
 /* Called from the EventLoop via a delayed callback */
 static void
-UA_AsyncManager_processReady(UA_Server *server, UA_AsyncManager *am) {
+UA_AsyncManager_processReady(void *application /* UA_Server */,
+                             void *context /* UA_AsyncManager */) {
+    UA_Server *server = (UA_Server*)application;
+    UA_AsyncManager *am = (UA_AsyncManager*)context;
     lockServer(server);
 
     /* Reset the delayed callback */
@@ -279,7 +282,7 @@ processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     /* Trigger the main server thread to handle ready operations and responses */
     if(am->dc.callback == NULL) {
         UA_EventLoop *el = server->config.eventLoop;
-        am->dc.callback = (UA_Callback)UA_AsyncManager_processReady;
+        am->dc.callback = UA_AsyncManager_processReady;
         am->dc.application = server;
         am->dc.context = am;
         el->addDelayedCallback(el, &am->dc);

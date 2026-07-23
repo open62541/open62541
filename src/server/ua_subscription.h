@@ -343,7 +343,8 @@ void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 
 void
-UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub);
+UA_Subscription_localPublish(void *application /* UA_Server */,
+                             void *context /* UA_Subscription */);
 
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);
