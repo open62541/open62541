@@ -1349,24 +1349,27 @@ static void
 callAsyncCallback(UA_Client *client, void *userdata,
                   UA_UInt32 requestId, void *response) {
     UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
-    ctx->callback.call(client, ctx->userdata, requestId,
-                       (UA_CallResponse*)response);
+    if(ctx->callback.call)
+        ctx->callback.call(client, ctx->userdata, requestId,
+                           (UA_CallResponse*)response);
 }
 
 static void
 addNodesAsyncCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *response) {
     UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
-    ctx->callback.addNodes(client, ctx->userdata, requestId,
-                           (UA_AddNodesResponse*)response);
+    if(ctx->callback.addNodes)
+        ctx->callback.addNodes(client, ctx->userdata, requestId,
+                               (UA_AddNodesResponse*)response);
 }
 
 static void
 writeAsyncCallback(UA_Client *client, void *userdata,
                    UA_UInt32 requestId, void *response) {
     UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
-    ctx->callback.write(client, ctx->userdata, requestId,
-                        (UA_WriteResponse*)response);
+    if(ctx->callback.write)
+        ctx->callback.write(client, ctx->userdata, requestId,
+                            (UA_WriteResponse*)response);
 }
 
 static UA_StatusCode
@@ -1454,48 +1457,59 @@ invokeAttributeReadCallback(UA_Client *client, UA_AsyncCallbackContext *ctx,
                             void *result) {
     switch(ctx->resultType->typeKind) {
     case UA_DATATYPEKIND_DATAVALUE:
-        ctx->callback.dataValue(client, ctx->userdata, requestId, status,
-                                (UA_DataValue*)result);
+        if(ctx->callback.dataValue)
+            ctx->callback.dataValue(client, ctx->userdata, requestId, status,
+                                    (UA_DataValue*)result);
         break;
     case UA_DATATYPEKIND_NODEID:
-        ctx->callback.nodeId(client, ctx->userdata, requestId, status,
-                             (UA_NodeId*)result);
+        if(ctx->callback.nodeId)
+            ctx->callback.nodeId(client, ctx->userdata, requestId, status,
+                                 (UA_NodeId*)result);
         break;
     case UA_DATATYPEKIND_VARIANT:
-        ctx->callback.variant(client, ctx->userdata, requestId, status,
-                              (UA_Variant*)result);
+        if(ctx->callback.variant)
+            ctx->callback.variant(client, ctx->userdata, requestId, status,
+                                  (UA_Variant*)result);
         break;
     case UA_DATATYPEKIND_ENUM:
-        ctx->callback.nodeClass(client, ctx->userdata, requestId, status,
-                                (UA_NodeClass*)result);
+        if(ctx->callback.nodeClass)
+            ctx->callback.nodeClass(client, ctx->userdata, requestId, status,
+                                    (UA_NodeClass*)result);
         break;
     case UA_DATATYPEKIND_QUALIFIEDNAME:
-        ctx->callback.qualifiedName(client, ctx->userdata, requestId, status,
-                                    (UA_QualifiedName*)result);
+        if(ctx->callback.qualifiedName)
+            ctx->callback.qualifiedName(client, ctx->userdata, requestId, status,
+                                        (UA_QualifiedName*)result);
         break;
     case UA_DATATYPEKIND_LOCALIZEDTEXT:
-        ctx->callback.localizedText(client, ctx->userdata, requestId, status,
-                                    (UA_LocalizedText*)result);
+        if(ctx->callback.localizedText)
+            ctx->callback.localizedText(client, ctx->userdata, requestId, status,
+                                        (UA_LocalizedText*)result);
         break;
     case UA_DATATYPEKIND_UINT32:
-        ctx->callback.uint32(client, ctx->userdata, requestId, status,
-                             (UA_UInt32*)result);
+        if(ctx->callback.uint32)
+            ctx->callback.uint32(client, ctx->userdata, requestId, status,
+                                 (UA_UInt32*)result);
         break;
     case UA_DATATYPEKIND_BOOLEAN:
-        ctx->callback.boolean(client, ctx->userdata, requestId, status,
-                              (UA_Boolean*)result);
+        if(ctx->callback.boolean)
+            ctx->callback.boolean(client, ctx->userdata, requestId, status,
+                                  (UA_Boolean*)result);
         break;
     case UA_DATATYPEKIND_BYTE:
-        ctx->callback.byte(client, ctx->userdata, requestId, status,
-                           (UA_Byte*)result);
+        if(ctx->callback.byte)
+            ctx->callback.byte(client, ctx->userdata, requestId, status,
+                               (UA_Byte*)result);
         break;
     case UA_DATATYPEKIND_INT32:
-        ctx->callback.int32(client, ctx->userdata, requestId, status,
-                            (UA_Int32*)result);
+        if(ctx->callback.int32)
+            ctx->callback.int32(client, ctx->userdata, requestId, status,
+                                (UA_Int32*)result);
         break;
     case UA_DATATYPEKIND_DOUBLE:
-        ctx->callback.doubleValue(client, ctx->userdata, requestId, status,
-                                  (UA_Double*)result);
+        if(ctx->callback.doubleValue)
+            ctx->callback.doubleValue(client, ctx->userdata, requestId, status,
+                                      (UA_Double*)result);
         break;
     default:
         UA_assert(false);
