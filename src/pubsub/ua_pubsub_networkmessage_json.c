@@ -309,7 +309,8 @@ struct PayloadData {
 };
 
 static status
-DataSetPayload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, void *data, const UA_DataType *_) {
+DataSetPayload_decodeJsonInternal(ParseCtx *ctx_, void *data, const UA_DataType *_) {
+    PubSubDecodeJsonCtx *ctx = (PubSubDecodeJsonCtx*)ctx_;
     struct PayloadData *pd = (struct PayloadData*)data;
     UA_NetworkMessage *nm = pd->nm;
     UA_DataSetMessage *dsm = &nm->payload.dataSetMessages[pd->dsmIndex];
@@ -382,7 +383,7 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
         {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
         {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_MESSAGETYPE, NULL, NULL, false, NULL},
-        {UA_DECODEKEY_PAYLOAD, &pd, (decodeJsonSignature)DataSetPayload_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_PAYLOAD, &pd, DataSetPayload_decodeJsonInternal, false, NULL}
     };
     status ret = decodeFields(&ctx->ctx, entries, 7);
 
@@ -408,8 +409,10 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
 }
 
 static status
-DatasetMessage_Array_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, void *UA_RESTRICT dst,
+DatasetMessage_Array_decodeJsonInternal(ParseCtx *ctx_, void *UA_RESTRICT dst,
                                         const UA_DataType *_) {
+    PubSubDecodeJsonCtx *ctx = (PubSubDecodeJsonCtx*)ctx_;
+
     /* Array or object */
     size_t length = 1;
     if(currentTokenType(&ctx->ctx) == CJ5_TOKEN_ARRAY) {
@@ -518,7 +521,7 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
         {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, decodePublisherIdJsonInternal, false, NULL},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
-        {UA_DECODEKEY_MESSAGES, dst, (decodeJsonSignature)DatasetMessage_Array_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_MESSAGES, dst, DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
     status ret = decodeFields(&ctx->ctx, entries, 5);
