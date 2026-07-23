@@ -273,8 +273,10 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
 /* We know the result is a deep-copy. So we can abuse the const result-pointer
  * and take ownership of the value. */
 static void
-processMonitoredItemAsyncRead(UA_Server *server, UA_MonitoredItem *mon,
+processMonitoredItemAsyncRead(UA_Server *server,
+                              void *asyncOpContext /* UA_MonitoredItem */,
                               const UA_DataValue *result) {
+    UA_MonitoredItem *mon = (UA_MonitoredItem*)asyncOpContext;
     mon->outstandingAsyncReads--;
     UA_DataValue *mut_result = (UA_DataValue*)(uintptr_t)result;
     if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST)
@@ -301,7 +303,7 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_StatusCode res = UA_STATUSCODE_BADTOOMANYOPERATIONS;
     if(UA_LIKELY(mon->outstandingAsyncReads < UA_MONITOREDITEM_ASYNC_MAX)) {
         res = read_async(server, session, &mon->itemToMonitor, mon->timestampsToReturn,
-                         (UA_ServerAsyncReadResultCallback)processMonitoredItemAsyncRead, mon, 0);
+                         processMonitoredItemAsyncRead, mon, 0);
     }
     if(res == UA_STATUSCODE_GOOD) {
         mon->outstandingAsyncReads++;
