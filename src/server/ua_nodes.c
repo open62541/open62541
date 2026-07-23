@@ -343,14 +343,29 @@ UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk) {
     return UA_STATUSCODE_GOOD;
 }
 
+struct ReferenceIterator {
+    UA_NodeReferenceKind_iterateCallback callback;
+    void *context;
+};
+
+static void *
+iterateReferenceTarget(void *context, UA_ReferenceTargetTreeElem *elem) {
+    struct ReferenceIterator *iterator = (struct ReferenceIterator*)context;
+    return iterator->callback(iterator->context, &elem->target);
+}
+
 void *
 UA_NodeReferenceKind_iterate(UA_NodeReferenceKind *rk,
                              UA_NodeReferenceKind_iterateCallback callback,
                              void *context) {
-    if(rk->hasRefTree)
+    if(rk->hasRefTree) {
+        struct ReferenceIterator iterator;
+        iterator.callback = callback;
+        iterator.context = context;
         return ZIP_ITER(UA_ReferenceIdTree,
                         (UA_ReferenceIdTree*)&rk->targets.tree.idRoot,
-                        (UA_ReferenceIdTree_cb)callback, context);
+                        iterateReferenceTarget, &iterator);
+    }
     for(size_t i = 0; i < rk->targetsSize; i++) {
         void *res = callback(context, &rk->targets.array[i]);
         if(res)
