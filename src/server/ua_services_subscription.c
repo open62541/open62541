@@ -93,8 +93,9 @@ notifySubscription(UA_Server *server, UA_Subscription *sub,
 
 UA_Boolean
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
-                           const UA_CreateSubscriptionRequest *request,
-                           UA_CreateSubscriptionResponse *response) {
+                           const void *request_, void *response_) {
+    const UA_CreateSubscriptionRequest *request = (const UA_CreateSubscriptionRequest*)request_;
+    UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse*)response_;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check with AccessControl if the creation is allowed */
@@ -183,8 +184,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
-                           const UA_ModifySubscriptionRequest *request,
-                           UA_ModifySubscriptionResponse *response) {
+                           const void *request_, void *response_) {
+    const UA_ModifySubscriptionRequest *request = (const UA_ModifySubscriptionRequest*)request_;
+    UA_ModifySubscriptionResponse *response = (UA_ModifySubscriptionResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing ModifySubscriptionRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -280,8 +282,9 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
-                          const UA_SetPublishingModeRequest *request,
-                          UA_SetPublishingModeResponse *response) {
+                          const void *request_, void *response_) {
+    const UA_SetPublishingModeRequest *request = (const UA_SetPublishingModeRequest*)request_;
+    UA_SetPublishingModeResponse *response = (UA_SetPublishingModeResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing SetPublishingModeRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -299,8 +302,9 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request,
-                UA_PublishResponse *response) {
+                const void *request_, void *response_) {
+    const UA_PublishRequest *request = (const UA_PublishRequest*)request_;
+    UA_PublishResponse *response = (UA_PublishResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing PublishRequest with RequestId %u",
                          server->asyncManager.currentRequestId);
@@ -437,8 +441,9 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
 
 UA_Boolean
 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
-                            const UA_DeleteSubscriptionsRequest *request,
-                            UA_DeleteSubscriptionsResponse *response) {
+                            const void *request_, void *response_) {
+    const UA_DeleteSubscriptionsRequest *request = (const UA_DeleteSubscriptionsRequest*)request_;
+    UA_DeleteSubscriptionsResponse *response = (UA_DeleteSubscriptionsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteSubscriptionsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -454,8 +459,9 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_Republish(UA_Server *server, UA_Session *session,
-                  const UA_RepublishRequest *request,
-                  UA_RepublishResponse *response) {
+                  const void *request_, void *response_) {
+    const UA_RepublishRequest *request = (const UA_RepublishRequest*)request_;
+    UA_RepublishResponse *response = (UA_RepublishResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RepublishRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -695,8 +701,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
-                              const UA_TransferSubscriptionsRequest *request,
-                              UA_TransferSubscriptionsResponse *response) {
+                              const void *request_, void *response_) {
+    const UA_TransferSubscriptionsRequest *request =
+        (const UA_TransferSubscriptionsRequest*)request_;
+    UA_TransferSubscriptionsResponse *response = (UA_TransferSubscriptionsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TransferSubscriptionsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);

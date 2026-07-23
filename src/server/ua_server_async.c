@@ -536,8 +536,9 @@ UA_Server_cancelAsync(UA_Server *server, void *context, UA_StatusCode opstatus,
 /********/
 
 UA_Boolean
-Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
-             UA_ReadResponse *response) {
+Service_Read(UA_Server *server, UA_Session *session, const void *request_, void *response_) {
+    const UA_ReadRequest *request = (const UA_ReadRequest*)request_;
+    UA_ReadResponse *response = (UA_ReadResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -665,7 +666,9 @@ UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result) {
 
 UA_Boolean
 Service_Write(UA_Server *server, UA_Session *session,
-              const UA_WriteRequest *request, UA_WriteResponse *response) {
+              const void *request_, void *response_) {
+    const UA_WriteRequest *request = (const UA_WriteRequest*)request_;
+    UA_WriteResponse *response = (UA_WriteResponse*)response_;
     UA_assert(session != NULL);
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing WriteRequest");
@@ -794,7 +797,9 @@ UA_Server_setAsyncWriteResult(UA_Server *server,
 #ifdef UA_ENABLE_METHODCALLS
 UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
-             const UA_CallRequest *request, UA_CallResponse *response) {
+             const void *request_, void *response_) {
+    const UA_CallRequest *request = (const UA_CallRequest*)request_;
+    UA_CallResponse *response = (UA_CallResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 

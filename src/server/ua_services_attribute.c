@@ -2394,8 +2394,9 @@ typedef void
 
 UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
-                    const UA_HistoryReadRequest *request,
-                    UA_HistoryReadResponse *response) {
+                    const void *request_, void *response_) {
+    const UA_HistoryReadRequest *request = (const UA_HistoryReadRequest*)request_;
+    UA_HistoryReadResponse *response = (UA_HistoryReadResponse*)response_;
     UA_assert(session != NULL);
     UA_LOCK_ASSERT(&server->serviceMutex);
     if(server->config.historyDatabase.context == NULL) {
@@ -2502,8 +2503,9 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_HistoryUpdate(UA_Server *server, UA_Session *session,
-                      const UA_HistoryUpdateRequest *request,
-                      UA_HistoryUpdateResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_HistoryUpdateRequest *request = (const UA_HistoryUpdateRequest*)request_;
+    UA_HistoryUpdateResponse *response = (UA_HistoryUpdateResponse*)response_;
     UA_assert(session != NULL);
     UA_LOCK_ASSERT(&server->serviceMutex);
 

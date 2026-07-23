@@ -1036,7 +1036,9 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
 
 UA_Boolean
 Service_Browse(UA_Server *server, UA_Session *session,
-               const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+               const void *request_, void *response_) {
+    const UA_BrowseRequest *request = (const UA_BrowseRequest*)request_;
+    UA_BrowseResponse *response = (UA_BrowseResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing BrowseRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -1151,8 +1153,9 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_BrowseNext(UA_Server *server, UA_Session *session,
-                   const UA_BrowseNextRequest *request,
-                   UA_BrowseNextResponse *response) {
+                   const void *request_, void *response_) {
+    const UA_BrowseNextRequest *request = (const UA_BrowseNextRequest*)request_;
+    UA_BrowseNextResponse *response = (UA_BrowseNextResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing BrowseNextRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1497,8 +1500,11 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
 
 UA_Boolean
 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-                                      const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-                                      UA_TranslateBrowsePathsToNodeIdsResponse *response) {
+                                      const void *request_, void *response_) {
+    const UA_TranslateBrowsePathsToNodeIdsRequest *request =
+        (const UA_TranslateBrowsePathsToNodeIdsRequest*)request_;
+    UA_TranslateBrowsePathsToNodeIdsResponse *response =
+        (UA_TranslateBrowsePathsToNodeIdsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1571,8 +1577,9 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 
 UA_Boolean
 Service_RegisterNodes(UA_Server *server, UA_Session *session,
-                      const UA_RegisterNodesRequest *request,
-                      UA_RegisterNodesResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_RegisterNodesRequest *request = (const UA_RegisterNodesRequest*)request_;
+    UA_RegisterNodesResponse *response = (UA_RegisterNodesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1601,8 +1608,9 @@ Service_RegisterNodes(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_UnregisterNodes(UA_Server *server, UA_Session *session,
-                        const UA_UnregisterNodesRequest *request,
-                        UA_UnregisterNodesResponse *response) {
+                        const void *request_, void *response_) {
+    const UA_UnregisterNodesRequest *request = (const UA_UnregisterNodesRequest*)request_;
+    UA_UnregisterNodesResponse *response = (UA_UnregisterNodesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing UnRegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);

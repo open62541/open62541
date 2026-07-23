@@ -208,8 +208,9 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                          UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
+                          void *request_, void *response_) {
+    UA_OpenSecureChannelRequest *request = (UA_OpenSecureChannelRequest*)request_;
+    UA_OpenSecureChannelResponse *response = (UA_OpenSecureChannelResponse*)response_;
     /* Call the main OpenSecureChannel implementation */
     Service_OpenSecureChannel_inner(server, channel, request, response);
 

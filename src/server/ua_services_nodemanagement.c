@@ -1754,8 +1754,9 @@ Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
 
 UA_Boolean
 Service_AddNodes(UA_Server *server, UA_Session *session,
-                 const UA_AddNodesRequest *request,
-                 UA_AddNodesResponse *response) {
+                 const void *request_, void *response_) {
+    const UA_AddNodesRequest *request = (const UA_AddNodesRequest*)request_;
+    UA_AddNodesResponse *response = (UA_AddNodesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing AddNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -2290,8 +2291,9 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
 
 UA_Boolean
 Service_DeleteNodes(UA_Server *server, UA_Session *session,
-                    const UA_DeleteNodesRequest *request,
-                    UA_DeleteNodesResponse *response) {
+                    const void *request_, void *response_) {
+    const UA_DeleteNodesRequest *request = (const UA_DeleteNodesRequest*)request_;
+    UA_DeleteNodesResponse *response = (UA_DeleteNodesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -2516,8 +2518,9 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
 
 UA_Boolean
 Service_AddReferences(UA_Server *server, UA_Session *session,
-                      const UA_AddReferencesRequest *request,
-                      UA_AddReferencesResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_AddReferencesRequest *request = (const UA_AddReferencesRequest*)request_;
+    UA_AddReferencesResponse *response = (UA_AddReferencesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing AddReferencesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -2654,8 +2657,9 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
 
 UA_Boolean
 Service_DeleteReferences(UA_Server *server, UA_Session *session,
-                         const UA_DeleteReferencesRequest *request,
-                         UA_DeleteReferencesResponse *response) {
+                         const void *request_, void *response_) {
+    const UA_DeleteReferencesRequest *request = (const UA_DeleteReferencesRequest*)request_;
+    UA_DeleteReferencesResponse *response = (UA_DeleteReferencesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteReferencesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
