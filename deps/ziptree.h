@@ -99,16 +99,21 @@ typedef void * (*zip_iter_cb)(void *context, void *elm);
 /* Macro to generate typed ziptree methods */
 #define ZIP_FUNCTIONS(name, type, field, keytype, keyfield, cmp)        \
                                                                         \
+ZIP_UNUSED static ZIP_INLINE enum ZIP_CMP                               \
+name##_ZIP_CMP(const void *a, const void *b) {                          \
+    return cmp((const keytype*)a, (const keytype*)b);                   \
+}                                                                       \
+                                                                        \
 ZIP_UNUSED static ZIP_INLINE void                                       \
 name##_ZIP_INSERT(struct name *head, struct type *el) {                 \
-    __ZIP_INSERT(head, (zip_cmp_cb)cmp, offsetof(struct type, field),   \
+    __ZIP_INSERT(head, name##_ZIP_CMP, offsetof(struct type, field),    \
                  offsetof(struct type, keyfield), el);                  \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
 name##_ZIP_REMOVE(struct name *head, struct type *elm) {                \
     return (struct type*)                                               \
-        __ZIP_REMOVE(head, (zip_cmp_cb)cmp,                             \
+        __ZIP_REMOVE(head, name##_ZIP_CMP,                              \
                      offsetof(struct type, field),                      \
                      offsetof(struct type, keyfield), elm);             \
 }                                                                       \
@@ -217,7 +222,7 @@ name##_ZIP_ZIP(struct type *left, struct type *right) {                 \
 ZIP_UNUSED static ZIP_INLINE void                                       \
 name##_ZIP_UNZIP(struct name *head, const keytype *key,                 \
                  struct name *left, struct name *right) {               \
-    __ZIP_UNZIP((zip_cmp_cb)cmp, offsetof(struct type, field),          \
+    __ZIP_UNZIP(name##_ZIP_CMP, offsetof(struct type, field),           \
                 offsetof(struct type, keyfield), key,                   \
                 head, left, right);                                     \
 }
