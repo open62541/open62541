@@ -64,7 +64,7 @@ UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Use EventLoop for cyclic callbacks */
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
-    return el->addTimer(el, (UA_Callback)UA_WriterGroup_publishCallback,
+    return el->addTimer(el, UA_WriterGroup_publishCallback,
                         psm, wg, wg->config.publishingInterval,
                         NULL /* TODO: use basetime */,
                         UA_TIMERPOLICY_CURRENTTIME,
@@ -918,7 +918,10 @@ sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnectio
 /* This callback triggers the collection and publish of NetworkMessages and the
  * contained DataSetMessages. */
 void
-UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
+UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
+                               void *context /* UA_WriterGroup */) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_WriterGroup *wg = (UA_WriterGroup*)context;
     UA_assert(wg != NULL);
     UA_assert(psm != NULL);
 

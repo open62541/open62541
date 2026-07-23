@@ -386,7 +386,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                               UA_PubSubState targetState);
 
 void
-UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
+UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
+                               void *context /* UA_WriterGroup */);
 
 /**********************************************/
 /*               DataSetField                 */
