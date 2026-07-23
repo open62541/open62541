@@ -818,11 +818,13 @@ __Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
 }
 
 UA_StatusCode
-__Client_AsyncService(UA_Client *client, const void *request,
-                      const UA_DataType *requestType,
-                      UA_ClientAsyncServiceCallback callback,
-                      const UA_DataType *responseType,
-                      void *userdata, UA_UInt32 *requestId) {
+__Client_AsyncServiceWithContext(UA_Client *client, const void *request,
+                                 const UA_DataType *requestType,
+                                 UA_ClientAsyncServiceCallback callback,
+                                 const UA_DataType *responseType,
+                                 void *userdata,
+                                 const UA_AsyncCallbackContext *context,
+                                 UA_UInt32 *requestId) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
     /* Is the SecureChannel connected? */
@@ -854,7 +856,12 @@ __Client_AsyncService(UA_Client *client, const void *request,
     const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
     ac->callback = callback;
     ac->responseType = responseType;
-    ac->userdata = userdata;
+    if(context) {
+        ac->context = *context;
+        ac->userdata = &ac->context;
+    } else {
+        ac->userdata = userdata;
+    }
     ac->syncResponse = NULL;
     ac->start = el->dateTime_nowMonotonic(el);
     ac->timeout = rh->timeoutHint;
@@ -872,6 +879,17 @@ __Client_AsyncService(UA_Client *client, const void *request,
     notifyClientState(client);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+__Client_AsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback callback,
+                      const UA_DataType *responseType,
+                      void *userdata, UA_UInt32 *requestId) {
+    return __Client_AsyncServiceWithContext(client, request, requestType,
+                                            callback, responseType, userdata, NULL,
+                                            requestId);
 }
 
 static UA_StatusCode

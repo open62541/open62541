@@ -88,6 +88,29 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client,
 /* Client */
 /**********/
 
+typedef union {
+    UA_ClientAsyncCallCallback call;
+    UA_ClientAsyncAddNodesCallback addNodes;
+    UA_ClientAsyncWriteCallback write;
+    UA_ClientAsyncReadAttributeCallback dataValue;
+    UA_ClientAsyncReadDataTypeAttributeCallback nodeId;
+    UA_ClientReadArrayDimensionsAttributeCallback variant;
+    UA_ClientAsyncReadNodeClassAttributeCallback nodeClass;
+    UA_ClientAsyncReadBrowseNameAttributeCallback qualifiedName;
+    UA_ClientAsyncReadDisplayNameAttributeCallback localizedText;
+    UA_ClientAsyncReadWriteMaskAttributeCallback uint32;
+    UA_ClientAsyncReadIsAbstractAttributeCallback boolean;
+    UA_ClientAsyncReadEventNotifierAttributeCallback byte;
+    UA_ClientAsyncReadValueRankAttributeCallback int32;
+    UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback doubleValue;
+} UA_AsyncCallback;
+
+typedef struct {
+    UA_AsyncCallback callback;
+    void *userdata;
+    const UA_DataType *resultType;
+} UA_AsyncCallbackContext;
+
 typedef struct AsyncServiceCall {
     LIST_ENTRY(AsyncServiceCall) pointers;
     UA_UInt32 requestId;     /* Unique id */
@@ -101,6 +124,7 @@ typedef struct AsyncServiceCall {
     UA_Response *syncResponse; /* If non-null, then this is the synchronous
                                 * response to be filled. Set back to null to
                                 * indicate that the response was filled. */
+    UA_AsyncCallbackContext context;
 } AsyncServiceCall;
 
 typedef LIST_HEAD(UA_AsyncServiceList, AsyncServiceCall) UA_AsyncServiceList;
@@ -216,6 +240,15 @@ __Client_AsyncService(UA_Client *client, const void *request,
                       UA_ClientAsyncServiceCallback callback,
                       const UA_DataType *responseType,
                       void *userdata, UA_UInt32 *requestId);
+
+UA_StatusCode
+__Client_AsyncServiceWithContext(UA_Client *client, const void *request,
+                                 const UA_DataType *requestType,
+                                 UA_ClientAsyncServiceCallback callback,
+                                 const UA_DataType *responseType,
+                                 void *userdata,
+                                 const UA_AsyncCallbackContext *context,
+                                 UA_UInt32 *requestId);
 
 void
 __Client_Service(UA_Client *client, const void *request,
