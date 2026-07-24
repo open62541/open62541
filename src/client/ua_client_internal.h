@@ -38,6 +38,7 @@ typedef struct UA_Client_MonitoredItem {
     ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
     UA_MonitoringParameters parameters;
+    UA_MonitoringParameters pendingParameters;
     void *context;
     UA_Client_DeleteMonitoredItemCallback deleteCallback;
     union {
@@ -76,6 +77,12 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
+
+/* Exposed for unit tests and fuzzing of notification ordering */
+void
+__Client_Subscriptions_processPublishResponse(UA_Client *client,
+                                              UA_PublishRequest *request,
+                                              UA_PublishResponse *response);
 
 /**********/
 /* Client */
