@@ -483,7 +483,6 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    dsm->fieldCount = counter;
     dsm->data.deltaFrameFields = deltaFields;
 
     size_t currentDeltaField = 0;
