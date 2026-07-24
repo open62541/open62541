@@ -962,6 +962,28 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
                            "#define ERR(...)  mdnsd_log(LOG_ERR, __VA_ARGS__)"
                            _content "${_content}")
         endif()
+        if(_f STREQUAL "mdnsd.c")
+            string(REPLACE
+[=[		c->rr.rdname = strdup(r->known.ns.name);]=]
+[=[		if (!r->known.ns.name) {
+			free(c->rr.rdata);
+			free(c->rr.name);
+			free(c);
+			return 1;
+		}
+		c->rr.rdname = strdup(r->known.ns.name);]=]
+                _content "${_content}")
+            string(REPLACE
+[=[		c->rr.rdname = strdup(r->known.srv.name);]=]
+[=[		if (!r->known.srv.name) {
+			free(c->rr.rdata);
+			free(c->rr.name);
+			free(c);
+			return 1;
+		}
+		c->rr.rdname = strdup(r->known.srv.name);]=]
+                _content "${_content}")
+        endif()
         file(WRITE "${MDNSD_GENERATED_DIR}/${_f}" "${_content}")
     endforeach()
 
