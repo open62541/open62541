@@ -1651,6 +1651,13 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
         }
         newEntries[0].permissions = permissions;
     } else {
+        /* Detect problems in the Nodestore. The index should always be valid. */
+        if(currentIndex >= server->rolePermissionsSize) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "RBAC: Node %N returned an invalid permission index", &nodeId);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
         /* Copy existing entries and modify/add the role entry */
         UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
 
@@ -1812,6 +1819,13 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
     if(currentIndex == UA_PERMISSION_INDEX_INVALID)
         return UA_STATUSCODE_GOOD;
 
+    /* Detect problems in the Nodestore. The index should always be valid. */
+    if(currentIndex >= server->rolePermissionsSize) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "RBAC: Node %N returned an invalid permission index", &nodeId);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
 
     /* Find the role in current permissions */
@@ -1951,9 +1965,10 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
 static UA_StatusCode
 setNodePermissionIndexDirect(UA_Server *server, const UA_NodeId *nodeId,
                              UA_PermissionIndex permissionIndex) {
+    /* Detect problems in the Nodestore. The index should always be valid. */
     if(permissionIndex != UA_PERMISSION_INDEX_INVALID &&
        permissionIndex >= server->rolePermissionsSize)
-        return UA_STATUSCODE_BADOUTOFRANGE;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node)
