@@ -42,6 +42,14 @@ UA_ClientHandle_cmp(const void *a, const void *b) {
 ZIP_FUNCTIONS(MonitorItemsTree, UA_Client_MonitoredItem, zipfields,
               UA_Client_MonitoredItem, zipfields, UA_ClientHandle_cmp)
 
+static UA_Client_MonitoredItem *
+findMonitoredItemByHandle(UA_Client_Subscription *sub, UA_UInt32 clientHandle) {
+    UA_Client_MonitoredItem dummy;
+    memset(&dummy, 0, sizeof(dummy));
+    dummy.clientHandle = clientHandle;
+    return ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+}
+
 static void
 MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                      UA_Client_MonitoredItem *mon);
@@ -791,12 +799,10 @@ MonitoredItems_create_async_handler(UA_Client *client, void *data,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
     /* Update the MonitoredItems */
-    UA_Client_MonitoredItem dummy;
     for(size_t i = 0; sub && i < monSize; i++) {
         /* Get the MonitoredItem from the ClientHandle */
-        dummy.clientHandle = monHandles[i];
         UA_Client_MonitoredItem *mon =
-            ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+            findMonitoredItemByHandle(sub, monHandles[i]);
         if(!mon)
             continue;
 
@@ -1324,10 +1330,8 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
         UA_MonitoredItemNotification *min = &dataChangeNotification->monitoredItems[j];
 
         /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon;
-        UA_Client_MonitoredItem dummy;
-        dummy.clientHandle = min->clientHandle;
-        mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+        UA_Client_MonitoredItem *mon =
+            findMonitoredItemByHandle(sub, min->clientHandle);
 
         if(!mon) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1362,10 +1366,8 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         UA_EventFieldList *efl = &eventNotificationList->events[j];
 
         /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon;
-        UA_Client_MonitoredItem dummy;
-        dummy.clientHandle = efl->clientHandle;
-        mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+        UA_Client_MonitoredItem *mon =
+            findMonitoredItemByHandle(sub, efl->clientHandle);
 
         if(!mon) {
             UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
