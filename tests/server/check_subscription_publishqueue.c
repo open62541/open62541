@@ -7,13 +7,12 @@
  *
  * Focus:
  *   - UA_Session_ensurePublishQueueSpace
- *     (src/server/ua_subscription.c:979-1002)
  *
- * The default server config has maxPublishReqPerSession == 0, so
- * the early-return at line 981-982 is reachable without any queue
- * setup. The while-loop at 984-1001 requires a populated response
- * queue and is harder to drive deterministically; covered by
- * the existing check_client_subscriptions tests in a real run.
+ * Setting maxPublishReqPerSession to 0 makes the early-return at
+ * the start of the function reachable without any queue setup. The
+ * while-loop requires a populated response queue and is harder to drive
+ * deterministically; covered by the existing check_client_subscriptions
+ * tests in a real run.
  *
  * This test focuses on the early-return which is never called
  * from any existing test.
@@ -66,14 +65,16 @@ static void teardown(void) {
 /* ==== UA_Session_ensurePublishQueueSpace ==== */
 
 START_TEST(Session_ensurePublishQueueSpace_zeroLimit_returnsImmediately) {
-    /* src/server/ua_subscription.c:981-982:
+    /* If maxPublishReqPerSession is zero, the function returns immediately.
+     *
      *   if(server->config.maxPublishReqPerSession == 0)
      *     return;
-     * The default config has maxPublishReqPerSession == 0. The
-     * function must be a safe no-op and not touch the session's
-     * response queue. None of the existing tests calls
+     * A configured maxPublishReqPerSession of zero disables the
+     * limit. The function must be a safe no-op and not touch the
+     * session's response queue. None of the existing tests calls
      * UA_Session_ensurePublishQueueSpace directly. */
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->maxPublishReqPerSession = 0;
     ck_assert_uint_eq(cfg->maxPublishReqPerSession, 0);
 
     /* The session was just created with an empty response queue. */

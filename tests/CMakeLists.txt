@@ -279,6 +279,10 @@ endif()
 
 # Test Server
 
+if(UA_ENABLE_JSON_ENCODING)
+    ua_add_test(server/check_server_config_json.c)
+endif()
+
 ua_add_test(server/check_accesscontrol.c)
 ua_add_test(server/check_services_view.c)
 ua_add_test(server/check_services_attributes.c)
