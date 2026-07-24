@@ -37,7 +37,7 @@ typedef struct UA_Client_NotificationsAckNumber {
 typedef struct UA_Client_MonitoredItem {
     ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
-    UA_UInt32 clientHandle;
+    UA_MonitoringParameters parameters;
     void *context;
     UA_Client_DeleteMonitoredItemCallback deleteCallback;
     union {
@@ -45,8 +45,7 @@ typedef struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
-
-    UA_KeyValueMap eventFields; /* Cached names */
+    UA_KeyValueMap eventFields; /* Lazily cached names for the active filter */
 } UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);

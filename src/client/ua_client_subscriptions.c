@@ -32,9 +32,9 @@ static enum ZIP_CMP
 UA_ClientHandle_cmp(const void *a, const void *b) {
     const UA_Client_MonitoredItem *aa = (const UA_Client_MonitoredItem *)a;
     const UA_Client_MonitoredItem *bb = (const UA_Client_MonitoredItem *)b;
-    if(aa->clientHandle < bb->clientHandle)
+    if(aa->parameters.clientHandle < bb->parameters.clientHandle)
         return ZIP_CMP_LESS;
-    if(aa->clientHandle > bb->clientHandle)
+    if(aa->parameters.clientHandle > bb->parameters.clientHandle)
         return ZIP_CMP_MORE;
     return ZIP_CMP_EQ;
 }
@@ -46,7 +46,7 @@ static UA_Client_MonitoredItem *
 findMonitoredItemByHandle(UA_Client_Subscription *sub, UA_UInt32 clientHandle) {
     UA_Client_MonitoredItem dummy;
     memset(&dummy, 0, sizeof(dummy));
-    dummy.clientHandle = clientHandle;
+    dummy.parameters.clientHandle = clientHandle;
     return ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
 }
 
@@ -490,6 +490,15 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 /******************/
 
 static void
+EventFields_clear(UA_KeyValueMap *eventFields) {
+    /* The values are borrowed from the PublishResponse. Detach them before
+     * clearing the map-owned field-name keys. */
+    for(size_t i = 0; i < eventFields->mapSize; i++)
+        UA_Variant_init(&eventFields->map[i].value);
+    UA_KeyValueMap_clear(eventFields);
+}
+
+static void
 MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                      UA_Client_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -498,15 +507,13 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
     if(mon->deleteCallback)
         mon->deleteCallback(client, sub->subscriptionId, sub->context,
                             mon->monitoredItemId, mon->context);
-    for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
-        UA_Variant_init(&mon->eventFields.map[i].value);
-    }
-    UA_KeyValueMap_clear(&mon->eventFields);
+    EventFields_clear(&mon->eventFields);
+    UA_MonitoringParameters_clear(&mon->parameters);
     UA_free(mon);
 }
 
 static UA_StatusCode
-prepareEventFieldsMap(UA_Client_MonitoredItem *newMon,
+prepareEventFieldsMap(UA_KeyValueMap *eventFields,
                       UA_MonitoringParameters *params) {
     /* Get the EventFilter */
     UA_ExtensionObject *eo = &params->filter;
@@ -520,16 +527,16 @@ prepareEventFieldsMap(UA_Client_MonitoredItem *newMon,
         return UA_STATUSCODE_GOOD;
 
     /* Allocate the map */
-    newMon->eventFields.map = (UA_KeyValuePair*)
+    eventFields->map = (UA_KeyValuePair*)
         UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
-    if(!newMon->eventFields.map)
+    if(!eventFields->map)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    newMon->eventFields.mapSize = ef->selectClausesSize;
+    eventFields->mapSize = ef->selectClausesSize;
 
     /* Create the key-strings for the fields */
-    for(size_t i = 0; i < newMon->eventFields.mapSize; i++) {
+    for(size_t i = 0; i < eventFields->mapSize; i++) {
         res |= UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
-                                               &newMon->eventFields.map[i].key.name);
+                                               &eventFields->map[i].key.name);
     }
 
     return res;
@@ -547,22 +554,20 @@ MonitoredItem_createBegin(UA_Client *client, UA_Client_Subscription *sub,
     if(!mon)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Cache the field name map */
-    mon->isEventMonitoredItem =
-        (item->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
-    if(mon->isEventMonitoredItem) {
-        UA_StatusCode res = prepareEventFieldsMap(mon, &item->requestedParameters);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_free(mon);
-            return res;
-        }
+    /* Set a unique ClientHandle and retain the active parameters. */
+    item->requestedParameters.clientHandle = ++client->monitoredItemHandles;
+    UA_StatusCode res =
+        UA_MonitoringParameters_copy(&item->requestedParameters,
+                                     &mon->parameters);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(mon);
+        return res;
     }
 
-    /* Set a unique ClientHandle */
-    item->requestedParameters.clientHandle = ++client->monitoredItemHandles;
+    mon->isEventMonitoredItem =
+        (item->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Fill in members and add to the client  */
-    mon->clientHandle = item->requestedParameters.clientHandle;
     mon->context = context;
     mon->deleteCallback = deleteCallback;
     mon->handler.dataChangeCallback =
@@ -571,7 +576,7 @@ MonitoredItem_createBegin(UA_Client *client, UA_Client_Subscription *sub,
 
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
-                 sub->subscriptionId, mon->clientHandle);
+                 sub->subscriptionId, mon->parameters.clientHandle);
 
     *outMon = mon;
     return UA_STATUSCODE_GOOD;
@@ -906,7 +911,7 @@ Client_MonitoredItems_createAsync(UA_Client *client,
     handles[0] = sub->subscriptionId;
     handles[1] = (UA_UInt32)request.itemsToCreateSize;
     for(size_t i = 0; i < request.itemsToCreateSize; i++) {
-        handles[i+2] = mons[i]->clientHandle;
+        handles[i+2] = mons[i]->parameters.clientHandle;
     }
     cc->clientData = handles;
     cc->userCallback = createCallback;
@@ -1382,6 +1387,20 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
                          "MonitoredItem is configured for DataChanges. But received a "
                          "EventNotification");
             continue;
+        }
+
+        /* Build the callback metadata from the active filter only when it is
+         * first needed. */
+        if(mon->eventFields.mapSize == 0) {
+            UA_StatusCode res =
+                prepareEventFieldsMap(&mon->eventFields, &mon->parameters);
+            if(res != UA_STATUSCODE_GOOD) {
+                EventFields_clear(&mon->eventFields);
+                UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                               "Could not prepare event fields: %s",
+                               UA_StatusCode_name(res));
+                continue;
+            }
         }
 
         if(mon->eventFields.mapSize != efl->eventFieldsSize) {
