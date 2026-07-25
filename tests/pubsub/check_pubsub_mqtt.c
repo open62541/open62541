@@ -299,7 +299,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         for(size_t i = 0;
             i < 200 && rg->head.state != UA_PUBSUBSTATE_OPERATIONAL; i++) {
             UA_fakeSleep(10);
-            UA_Server_run_iterate(server, false);
+            /* Give the external broker time to process the socket traffic. */
+            server->config.eventLoop->run(server->config.eventLoop, 10);
         }
         ck_assert_int_eq(rg->head.state, UA_PUBSUBSTATE_OPERATIONAL);
 
