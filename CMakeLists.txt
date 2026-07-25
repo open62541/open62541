@@ -262,6 +262,12 @@ else()
     set(UA_GENERATED_NAMESPACE_ZERO ON)
 endif()
 
+if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
+    set(UA_NAMESPACE_ZERO_MINIMAL ON)
+else()
+    set(UA_NAMESPACE_ZERO_MINIMAL OFF)
+endif()
+
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_GENERATED_NAMESPACE_ZERO_FULL ON)
 else()
@@ -377,6 +383,9 @@ mark_as_advanced(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS)
 
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
+
+option(UA_LWIP_EXTERNAL "LwIP is provided by the parent project" OFF)
+mark_as_advanced(UA_LWIP_EXTERNAL)
 
 option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
 mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
@@ -595,8 +604,12 @@ if(UA_ARCHITECTURE_LWIP)
     #                   ../lwip/contrib/ports/unix/posixlib/include;
     #                   ../lwip/src/include
     # LWIP_LIBRARIES    ../lwip/contrib/ports/unix/lib/build/liblwip.so
-    find_package(LWIP REQUIRED)
-    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
+    if(NOT UA_LWIP_EXTERNAL)
+        find_package(LWIP REQUIRED)
+    endif()
+    if(LWIP_LIBRARIES)
+        list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
+    endif()
 endif()
 
 #####################
@@ -1048,8 +1061,35 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
             "${MDNSD_GENERATED_DIR}/${_f}"
             COPYONLY)
         file(READ "${MDNSD_GENERATED_DIR}/${_f}" _content)
+        # Ensure open62541/config.h (which sets _GNU_SOURCE etc.) is included
+        # before any system header, then remove any original config.h include.
+        string(PREPEND _content "#include \"open62541/config.h\"\n")
+        string(REGEX REPLACE "#include \"config\\.h\"\n?" "" _content "${_content}")
         string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2"
                _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])class([^A-Za-z0-9_])" "\\1clazz\\2"
+               _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2"
+               _content "${_content}")
+        string(REGEX REPLACE "([^A-Za-z0-9_])new([^A-Za-z0-9_])" "\\1new_\\2"
+               _content "${_content}")
+        if(_f STREQUAL "mdnsd.h")
+            string(REPLACE "#define DBG(fmt, args...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, ##args)"
+                           "#define DBG(fmt, ...)  mdnsd_log(LOG_DEBUG, \"%s(): \" fmt, __func__, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define INFO(fmt, args...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, ##args)"
+                           "#define INFO(fmt, ...) mdnsd_log(LOG_INFO, \"%s(): \" fmt, __func__, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define NOTE(fmt, args...) mdnsd_log(LOG_NOTICE, fmt, ##args)"
+                           "#define NOTE(...) mdnsd_log(LOG_NOTICE, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define WARN(fmt, args...) mdnsd_log(LOG_WARNING, fmt, ##args)"
+                           "#define WARN(...) mdnsd_log(LOG_WARNING, __VA_ARGS__)"
+                           _content "${_content}")
+            string(REPLACE "#define ERR(fmt, args...)  mdnsd_log(LOG_ERR, fmt, ##args)"
+                           "#define ERR(...)  mdnsd_log(LOG_ERR, __VA_ARGS__)"
+                           _content "${_content}")
+        endif()
         if(_f STREQUAL "xht.c")
             string(REPLACE
 [=[	_xht_set(h, ckey, cval, 1);]=]
@@ -1059,6 +1099,26 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
 	}]=]
                 _content "${_content}")
         elseif(_f STREQUAL "mdnsd.c")
+            string(REPLACE
+[=[		c->rr.rdname = strdup(r->known.ns.name);]=]
+[=[		if (!r->known.ns.name) {
+			free(c->rr.rdata);
+			free(c->rr.name);
+			free(c);
+			return 1;
+		}
+		c->rr.rdname = strdup(r->known.ns.name);]=]
+                _content "${_content}")
+            string(REPLACE
+[=[		c->rr.rdname = strdup(r->known.srv.name);]=]
+[=[		if (!r->known.srv.name) {
+			free(c->rr.rdata);
+			free(c->rr.name);
+			free(c);
+			return 1;
+		}
+		c->rr.rdname = strdup(r->known.srv.name);]=]
+                _content "${_content}")
             string(REPLACE
 [=[	memset(buf, 0, sizeof(buf));]=]
 [=[	memset(buf, 0, sizeof(buf));

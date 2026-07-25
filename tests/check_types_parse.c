@@ -408,12 +408,14 @@ START_TEST(parseQualifiedNameWithSemicolon) {
     UA_ByteString encoded;
     UA_ByteString_init(&encoded);
     const UA_StatusCode enc = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &encoded, NULL);
+    ck_assert_uint_eq(enc, UA_STATUSCODE_GOOD);
     UA_String expected_enc = UA_STRING("\"123:te;st\"");
     ck_assert(UA_String_equal(&encoded, &expected_enc));
 
     UA_QualifiedName decoded;
     UA_QualifiedName_init(&decoded);
     const UA_StatusCode dec = UA_decodeJson(&encoded, &decoded, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
+    ck_assert_uint_eq(dec, UA_STATUSCODE_GOOD);
     UA_String expected_dec = UA_STRING("te;st");
     ck_assert(UA_String_equal(&decoded.name, &expected_dec));
     ck_assert_uint_eq(decoded.namespaceIndex, 123);

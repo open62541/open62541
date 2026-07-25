@@ -288,7 +288,7 @@ START_TEST(Client_reconnect) {
 
     printf("Reconnect client \n");
     fflush(stdout);
-    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
 
     UA_SessionState ss;

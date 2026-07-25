@@ -156,6 +156,11 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
     memcpy(commonNameBuffer, commonName.data, commonName.length);
     commonNameBuffer[commonName.length] = '\0';
 
+    for(char *c = commonNameBuffer; *c; c++) {
+        if(*c == '/' || *c == '\\')
+            *c = '_';
+    }
+
     if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]", path, commonNameBuffer,
                    thumbprintBuffer) < 0)
         retval = UA_STATUSCODE_BADINTERNALERROR;
