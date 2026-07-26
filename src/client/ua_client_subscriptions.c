@@ -176,6 +176,9 @@ findSubscriptionById(const UA_Client *client, UA_UInt32 subscriptionId) {
 static void
 Subscription_modify(UA_Client *client, UA_Client_Subscription *sub,
                     const UA_ModifySubscriptionResponse *response) {
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return;
+
     sub->publishingInterval = response->revisedPublishingInterval;
     sub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
 }
