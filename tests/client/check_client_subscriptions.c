@@ -125,6 +125,102 @@ deleteMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 reques
 }
 
 static void
+modifyMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                             UA_ModifyMonitoredItemsResponse *response) {
+    UA_ModifyMonitoredItemsResponse_copy(
+        response, (UA_ModifyMonitoredItemsResponse*)userdata);
+}
+
+static void
+injectNotification(UA_Client *client, UA_Client_Subscription *sub,
+                   const UA_DataType *notificationType, void *notification) {
+    UA_ExtensionObject notificationData;
+    UA_ExtensionObject_init(&notificationData);
+    notificationData.encoding = UA_EXTENSIONOBJECT_DECODED;
+    notificationData.content.decoded.type = notificationType;
+    notificationData.content.decoded.data = notification;
+
+    UA_PublishRequest request;
+    UA_PublishRequest_init(&request);
+    UA_PublishResponse response;
+    UA_PublishResponse_init(&response);
+    response.responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    response.subscriptionId = sub->subscriptionId;
+    response.notificationMessage.sequenceNumber = sub->sequenceNumber + 1;
+    response.notificationMessage.notificationData = &notificationData;
+    response.notificationMessage.notificationDataSize = 1;
+
+    lockClient(client);
+    client->currentlyOutStandingPublishRequests++;
+    __Client_Subscriptions_processPublishResponse(client, &request, &response);
+    unlockClient(client);
+}
+
+static void
+injectDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
+                             UA_UInt32 clientHandle) {
+    UA_MonitoredItemNotification min;
+    UA_MonitoredItemNotification_init(&min);
+    min.clientHandle = clientHandle;
+
+    UA_DataChangeNotification dcn;
+    UA_DataChangeNotification_init(&dcn);
+    dcn.monitoredItems = &min;
+    dcn.monitoredItemsSize = 1;
+    injectNotification(client, sub,
+                       &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION], &dcn);
+}
+
+static size_t eventFieldsSize;
+
+static void
+eventHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
+             UA_UInt32 monId, void *monContext,
+             const UA_KeyValueMap eventFields) {
+    eventFieldsSize = eventFields.mapSize;
+}
+
+static void
+injectEventNotification(UA_Client *client, UA_Client_Subscription *sub,
+                        UA_UInt32 clientHandle, size_t fieldsSize) {
+    UA_STACKARRAY(UA_Variant, fields, fieldsSize);
+    for(size_t i = 0; i < fieldsSize; i++)
+        UA_Variant_init(&fields[i]);
+
+    UA_EventFieldList efl;
+    UA_EventFieldList_init(&efl);
+    efl.clientHandle = clientHandle;
+    efl.eventFields = fields;
+    efl.eventFieldsSize = fieldsSize;
+
+    UA_EventNotificationList enl;
+    UA_EventNotificationList_init(&enl);
+    enl.events = &efl;
+    enl.eventsSize = 1;
+    injectNotification(client, sub,
+                       &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST], &enl);
+}
+
+static UA_Client_MonitoredItem *
+findTestMonitoredItem(UA_Client_MonitoredItem *mon, UA_UInt32 monitoredItemId) {
+    if(!mon || mon->monitoredItemId == monitoredItemId)
+        return mon;
+    UA_Client_MonitoredItem *found =
+        findTestMonitoredItem(ZIP_LEFT(mon, zipfields), monitoredItemId);
+    if(found)
+        return found;
+    return findTestMonitoredItem(ZIP_RIGHT(mon, zipfields), monitoredItemId);
+}
+
+static size_t
+countTestMonitoredItems(UA_Client_MonitoredItem *mon) {
+    if(!mon)
+        return 0;
+    return 1 + countTestMonitoredItems(ZIP_LEFT(mon, zipfields)) +
+        countTestMonitoredItems(ZIP_RIGHT(mon, zipfields));
+}
+
+static void
 deleteSubscriptionsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                             UA_DeleteSubscriptionsResponse *r) {
     UA_DeleteSubscriptionsResponse_copy(r, (UA_DeleteSubscriptionsResponse *)userdata);
@@ -704,6 +800,437 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     retval = UA_Client_Subscriptions_deleteSingle(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Notifications are injected below in a deterministic order. */
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+
+    UA_CreateSubscriptionRequest subRequest =
+        UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse subResponse =
+        UA_Client_Subscriptions_create(client, subRequest, NULL, NULL, NULL);
+    ck_assert_uint_eq(subResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(
+            client, subResponse.subscriptionId, UA_TIMESTAMPSTORETURN_BOTH,
+            monRequest, NULL, dataChangeHandler, NULL);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_Client_Subscription *sub = LIST_FIRST(&client->subscriptions);
+    ck_assert_ptr_ne(sub, NULL);
+    UA_Client_MonitoredItem *mon = ZIP_ROOT(&sub->monitoredItems);
+    ck_assert_ptr_ne(mon, NULL);
+    UA_UInt32 oldHandle =
+        mon->parameters.clientHandle;
+    UA_Double oldSamplingInterval = mon->parameters.samplingInterval;
+
+    UA_MonitoredItemModifyRequest item;
+    UA_MonitoredItemModifyRequest_init(&item);
+    item.monitoredItemId = monResponse.monitoredItemId;
+    item.requestedParameters.samplingInterval = 1000.0;
+    item.requestedParameters.queueSize = 1;
+    item.requestedParameters.discardOldest = true;
+
+    UA_ModifyMonitoredItemsRequest request;
+    UA_ModifyMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subResponse.subscriptionId;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.itemsToModify = &item;
+    request.itemsToModifySize = 1;
+
+    /* First exercise response-before-notification. */
+    UA_ModifyMonitoredItemsResponse response =
+        UA_Client_MonitoredItems_modify(client, request);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_ModifyMonitoredItemsResponse_clear(&response);
+
+    ck_assert(mon->pendingParameters.clientHandle);
+    ck_assert(mon->parameters.samplingInterval == oldSamplingInterval);
+    ck_assert(mon->pendingParameters.samplingInterval == 1000.0);
+    UA_UInt32 newHandle =
+        mon->pendingParameters.clientHandle;
+    ck_assert_uint_ne(oldHandle, newHandle);
+
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    injectDataChangeNotification(client, sub, oldHandle);
+    ck_assert(notificationReceived);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(mon->parameters.clientHandle, oldHandle);
+    ck_assert(mon->pendingParameters.clientHandle);
+
+    injectDataChangeNotification(client, sub, newHandle);
+    ck_assert_uint_eq(countNotificationReceived, 2);
+    ck_assert_uint_eq(mon->parameters.clientHandle, newHandle);
+    ck_assert(!mon->pendingParameters.clientHandle);
+    ck_assert(mon->parameters.samplingInterval == 1000.0);
+
+    /* Now deliver the new handle before the asynchronous modify response. */
+    pauseServer();
+    item.requestedParameters.samplingInterval = 2000.0;
+    UA_ModifyMonitoredItemsResponse asyncResponse;
+    UA_ModifyMonitoredItemsResponse_init(&asyncResponse);
+    UA_UInt32 requestId = 0;
+    retval = UA_Client_MonitoredItems_modify_async(
+        client, request, modifyMonitoredItemsCallback, &asyncResponse, &requestId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(mon->pendingParameters.clientHandle);
+    UA_UInt32 newestHandle =
+        mon->pendingParameters.clientHandle;
+    ck_assert_uint_ne(newHandle, newestHandle);
+
+    injectDataChangeNotification(client, sub, newestHandle);
+    ck_assert_uint_eq(mon->parameters.clientHandle,
+                      newestHandle);
+    ck_assert(!mon->pendingParameters.clientHandle);
+    ck_assert(mon->parameters.samplingInterval == 2000.0);
+
+    runServer();
+    for(size_t i = 0; i < 1000 && asyncResponse.resultsSize == 0; i++)
+        UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(asyncResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(asyncResponse.resultsSize, 1);
+    ck_assert_uint_eq(asyncResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(mon->parameters.clientHandle,
+                      newestHandle);
+    UA_ModifyMonitoredItemsResponse_clear(&asyncResponse);
+
+    /* A newer pending generation supersedes the previous one. */
+    item.requestedParameters.samplingInterval = 3000.0;
+    response = UA_Client_MonitoredItems_modify(client, request);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ModifyMonitoredItemsResponse_clear(&response);
+    UA_UInt32 supersededHandle =
+        mon->pendingParameters.clientHandle;
+
+    item.requestedParameters.samplingInterval = 4000.0;
+    response = UA_Client_MonitoredItems_modify(client, request);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ModifyMonitoredItemsResponse_clear(&response);
+    UA_UInt32 latestHandle =
+        mon->pendingParameters.clientHandle;
+    ck_assert_uint_ne(supersededHandle, latestHandle);
+
+    UA_UInt32 notificationCount = countNotificationReceived;
+    injectDataChangeNotification(client, sub, supersededHandle);
+    ck_assert_uint_eq(countNotificationReceived, notificationCount);
+    ck_assert_uint_eq(mon->parameters.clientHandle,
+                      newestHandle);
+    ck_assert(mon->pendingParameters.clientHandle);
+
+    injectDataChangeNotification(client, sub, latestHandle);
+    ck_assert_uint_eq(countNotificationReceived, notificationCount + 1);
+    ck_assert_uint_eq(mon->parameters.clientHandle,
+                      latestHandle);
+    ck_assert(!mon->pendingParameters.clientHandle);
+
+    /* A rejected modification drops only its matching pending slot. */
+    request.timestampsToReturn = (UA_TimestampsToReturn)100;
+    response = UA_Client_MonitoredItems_modify(client, request);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID);
+    ck_assert(!mon->pendingParameters.clientHandle);
+    ck_assert_uint_eq(mon->parameters.clientHandle,
+                      latestHandle);
+    UA_ModifyMonitoredItemsResponse_clear(&response);
+
+    retval = UA_Client_Subscriptions_deleteSingle(client,
+                                                   subResponse.subscriptionId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_modifyEventFilter_doubleBuffer) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+
+    UA_CreateSubscriptionRequest subRequest =
+        UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse subResponse =
+        UA_Client_Subscriptions_create(client, subRequest, NULL, NULL, NULL);
+    ck_assert_uint_eq(subResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName oldBrowsePath = UA_QUALIFIEDNAME(0, "Message");
+    UA_SimpleAttributeOperand oldClause;
+    UA_SimpleAttributeOperand_init(&oldClause);
+    oldClause.typeDefinitionId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    oldClause.browsePath = &oldBrowsePath;
+    oldClause.browsePathSize = 1;
+    oldClause.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_EventFilter oldFilter;
+    UA_EventFilter_init(&oldFilter);
+    oldFilter.selectClauses = &oldClause;
+    oldFilter.selectClausesSize = 1;
+
+    UA_MonitoredItemCreateRequest monRequest;
+    UA_MonitoredItemCreateRequest_init(&monRequest);
+    monRequest.itemToMonitor.nodeId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    monRequest.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    monRequest.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    monRequest.requestedParameters.queueSize = 1;
+    monRequest.requestedParameters.discardOldest = true;
+    UA_ExtensionObject_setValueNoDelete(
+        &monRequest.requestedParameters.filter, &oldFilter,
+        &UA_TYPES[UA_TYPES_EVENTFILTER]);
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createEvent(
+            client, subResponse.subscriptionId, UA_TIMESTAMPSTORETURN_BOTH,
+            monRequest, NULL, eventHandler, NULL);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_Client_Subscription *sub = LIST_FIRST(&client->subscriptions);
+    ck_assert_ptr_ne(sub, NULL);
+    UA_Client_MonitoredItem *mon = ZIP_ROOT(&sub->monitoredItems);
+    ck_assert_ptr_ne(mon, NULL);
+    ck_assert_uint_eq(mon->eventFields.mapSize, 0);
+    UA_UInt32 oldHandle =
+        mon->parameters.clientHandle;
+
+    UA_QualifiedName newBrowsePaths[2] = {
+        UA_QUALIFIEDNAME(0, "Severity"),
+        UA_QUALIFIEDNAME(0, "SourceName")
+    };
+    UA_SimpleAttributeOperand newClauses[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_SimpleAttributeOperand_init(&newClauses[i]);
+        newClauses[i].typeDefinitionId =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        newClauses[i].browsePath = &newBrowsePaths[i];
+        newClauses[i].browsePathSize = 1;
+        newClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+    }
+
+    UA_EventFilter newFilter;
+    UA_EventFilter_init(&newFilter);
+    newFilter.selectClauses = newClauses;
+    newFilter.selectClausesSize = 2;
+
+    UA_MonitoredItemModifyRequest item;
+    UA_MonitoredItemModifyRequest_init(&item);
+    item.monitoredItemId = monResponse.monitoredItemId;
+    item.requestedParameters.queueSize = 1;
+    item.requestedParameters.discardOldest = true;
+    UA_ExtensionObject_setValueNoDelete(
+        &item.requestedParameters.filter, &newFilter,
+        &UA_TYPES[UA_TYPES_EVENTFILTER]);
+
+    UA_ModifyMonitoredItemsRequest request;
+    UA_ModifyMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subResponse.subscriptionId;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.itemsToModify = &item;
+    request.itemsToModifySize = 1;
+    UA_ModifyMonitoredItemsResponse response =
+        UA_Client_MonitoredItems_modify(client, request);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_ModifyMonitoredItemsResponse_clear(&response);
+
+    ck_assert(mon->pendingParameters.clientHandle);
+    ck_assert_uint_eq(mon->eventFields.mapSize, 0);
+    ck_assert_ptr_eq(mon->parameters.filter.content.decoded.type,
+                     &UA_TYPES[UA_TYPES_EVENTFILTER]);
+    ck_assert_ptr_eq(mon->pendingParameters.filter.content.decoded.type,
+                     &UA_TYPES[UA_TYPES_EVENTFILTER]);
+    UA_EventFilter *activeFilter = (UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+    UA_EventFilter *pendingFilter = (UA_EventFilter*)
+        mon->pendingParameters.filter.content.decoded.data;
+    ck_assert_uint_eq(activeFilter->selectClausesSize, 1);
+    ck_assert_uint_eq(pendingFilter->selectClausesSize, 2);
+    ck_assert_ptr_ne(pendingFilter, &newFilter);
+    UA_UInt32 newHandle =
+        mon->pendingParameters.clientHandle;
+
+    eventFieldsSize = 0;
+    injectEventNotification(client, sub, oldHandle, 1);
+    ck_assert_uint_eq(eventFieldsSize, 1);
+    ck_assert_uint_eq(mon->eventFields.mapSize, 1);
+    ck_assert_uint_eq(mon->parameters.clientHandle, oldHandle);
+    ck_assert(mon->pendingParameters.clientHandle);
+
+    injectEventNotification(client, sub, newHandle, 2);
+    ck_assert_uint_eq(eventFieldsSize, 2);
+    ck_assert_uint_eq(mon->eventFields.mapSize, 2);
+    ck_assert_uint_eq(mon->parameters.clientHandle, newHandle);
+    ck_assert(!mon->pendingParameters.clientHandle);
+    activeFilter = (UA_EventFilter*)mon->parameters.filter.content.decoded.data;
+    ck_assert_uint_eq(activeFilter->selectClausesSize, 2);
+
+    retval = UA_Client_Subscriptions_deleteSingle(client,
+                                                   subResponse.subscriptionId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_modifyMonitoredItem_edgeCases) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+
+    UA_CreateSubscriptionRequest subRequest =
+        UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse subResponse =
+        UA_Client_Subscriptions_create(client, subRequest, NULL, NULL, NULL);
+    ck_assert_uint_eq(subResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = subResponse.subscriptionId;
+
+    UA_MonitoredItemCreateRequest items[3] = {
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE)),
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME)),
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN))
+    };
+    UA_Client_DataChangeNotificationCallback callbacks[3] = {
+        dataChangeHandler, dataChangeHandler, dataChangeHandler
+    };
+    void *contexts[3] = {NULL, NULL, NULL};
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[3] = {
+        NULL, NULL, NULL
+    };
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    createRequest.itemsToCreate = items;
+    createRequest.itemsToCreateSize = 3;
+    UA_CreateMonitoredItemsResponse createResponse =
+        UA_Client_MonitoredItems_createDataChanges(
+            client, createRequest, contexts, callbacks, deleteCallbacks);
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.resultsSize, 3);
+
+    UA_UInt32 monIds[3];
+    for(size_t i = 0; i < 3; i++) {
+        ck_assert_uint_eq(createResponse.results[i].statusCode, UA_STATUSCODE_GOOD);
+        monIds[i] = createResponse.results[i].monitoredItemId;
+    }
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    UA_Client_Subscription *sub = LIST_FIRST(&client->subscriptions);
+    ck_assert_ptr_ne(sub, NULL);
+    UA_Client_MonitoredItem *mons[3];
+    for(size_t i = 0; i < 3; i++) {
+        mons[i] = findTestMonitoredItem(ZIP_ROOT(&sub->monitoredItems), monIds[i]);
+        ck_assert_ptr_ne(mons[i], NULL);
+    }
+    ck_assert_uint_eq(countTestMonitoredItems(ZIP_ROOT(&sub->monitoredItems)), 3);
+
+    /* A mixed response keeps the successful item's pending state and rolls
+     * back only the failed item. */
+    UA_MonitoredItemModifyRequest modifyItems[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItemModifyRequest_init(&modifyItems[i]);
+        modifyItems[i].monitoredItemId = monIds[i];
+        modifyItems[i].requestedParameters.samplingInterval = 1000.0;
+        modifyItems[i].requestedParameters.queueSize = 1;
+        modifyItems[i].requestedParameters.discardOldest = true;
+    }
+    UA_DataChangeFilter unsupportedFilter;
+    UA_DataChangeFilter_init(&unsupportedFilter);
+    unsupportedFilter.deadbandType = (UA_DeadbandType)100;
+    UA_ExtensionObject_setValueNoDelete(
+        &modifyItems[1].requestedParameters.filter, &unsupportedFilter,
+        &UA_TYPES[UA_TYPES_DATACHANGEFILTER]);
+
+    UA_ModifyMonitoredItemsRequest modifyRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = subId;
+    modifyRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    modifyRequest.itemsToModify = modifyItems;
+    modifyRequest.itemsToModifySize = 2;
+    UA_ModifyMonitoredItemsResponse modifyResponse =
+        UA_Client_MonitoredItems_modify(client, modifyRequest);
+    ck_assert_uint_eq(modifyResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modifyResponse.resultsSize, 2);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(modifyResponse.results[1].statusCode, UA_STATUSCODE_GOOD);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
+    ck_assert(mons[0]->pendingParameters.clientHandle);
+    ck_assert(!mons[1]->pendingParameters.clientHandle);
+    ck_assert(!mons[2]->pendingParameters.clientHandle);
+
+    /* Find and promote a pending handle while several monitored items exist. */
+    UA_UInt32 pendingHandle =
+        mons[0]->pendingParameters.clientHandle;
+    UA_UInt32 otherHandles[2] = {
+        mons[1]->parameters.clientHandle,
+        mons[2]->parameters.clientHandle
+    };
+    injectDataChangeNotification(client, sub, pendingHandle);
+    ck_assert_uint_eq(mons[0]->parameters.clientHandle,
+                      pendingHandle);
+    ck_assert_uint_eq(mons[1]->parameters.clientHandle,
+                      otherHandles[0]);
+    ck_assert_uint_eq(mons[2]->parameters.clientHandle,
+                      otherHandles[1]);
+
+    /* Deletion clears both embedded slots while settings are pending. */
+    modifyRequest.itemsToModify = &modifyItems[1];
+    modifyRequest.itemsToModifySize = 1;
+    UA_ExtensionObject_init(&modifyItems[1].requestedParameters.filter);
+    modifyResponse = UA_Client_MonitoredItems_modify(client, modifyRequest);
+    ck_assert_uint_eq(modifyResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
+    ck_assert(mons[1]->pendingParameters.clientHandle);
+    retval = UA_Client_MonitoredItems_deleteSingle(client, subId, monIds[1]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(findTestMonitoredItem(ZIP_ROOT(&sub->monitoredItems), monIds[1]),
+                     NULL);
+    ck_assert_uint_eq(countTestMonitoredItems(ZIP_ROOT(&sub->monitoredItems)), 2);
+
+    /* A local asynchronous submission failure rolls back the prepared slot. */
+    UA_MonitoredItemModifyRequest asyncItem;
+    UA_MonitoredItemModifyRequest_init(&asyncItem);
+    asyncItem.monitoredItemId = monIds[2];
+    asyncItem.requestedParameters.samplingInterval = 2000.0;
+    asyncItem.requestedParameters.queueSize = 1;
+    asyncItem.requestedParameters.discardOldest = true;
+    modifyRequest.itemsToModify = &asyncItem;
+    modifyRequest.itemsToModifySize = 1;
+    UA_SecureChannelState channelState = client->channel.state;
+    client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
+    retval = UA_Client_MonitoredItems_modify_async(
+        client, modifyRequest, NULL, NULL, NULL);
+    client->channel.state = channelState;
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSERVERNOTCONNECTED);
+    ck_assert(!mons[2]->pendingParameters.clientHandle);
+    ck_assert_uint_eq(mons[2]->parameters.clientHandle,
+                      otherHandles[1]);
+
+    retval = UA_Client_Subscriptions_deleteSingle(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -2139,6 +2666,16 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_modifyAsync_invalidSubscriptionId);
     tcase_add_test(tc_client, Client_renewSecureChannel_returnsGoodCallAgain);
     suite_add_tcase(s,tc_client);
+
+    TCase *tc_doubleBuffer = tcase_create("MonitoredItem Double Buffer");
+    tcase_add_checked_fixture(tc_doubleBuffer, setup, teardown);
+    tcase_add_test(tc_doubleBuffer,
+                   Client_subscription_modifyMonitoredItem_doubleBuffer);
+    tcase_add_test(tc_doubleBuffer,
+                   Client_subscription_modifyEventFilter_doubleBuffer);
+    tcase_add_test(tc_doubleBuffer,
+                   Client_subscription_modifyMonitoredItem_edgeCases);
+    suite_add_tcase(s, tc_doubleBuffer);
 
 #ifdef UA_ENABLE_METHODCALLS
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
