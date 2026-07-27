@@ -56,7 +56,11 @@ _UA_BEGIN_DECLS
  * 0:interface [string]
  *    Network interface for listening or sending. Can be either the IP address
  *    of the network interface or the interface name (e.g. 'eth0'). Cf. the UDP
- *    ConnectionManager parameters. */
+ *    ConnectionManager parameters.
+ *
+ * 0:send-to-all-interfaces [bool]
+ *    Open a separate send connection on every usable IPv4 network interface
+ *    and send announcements out on all of them. Defaults to false. */
 
 typedef struct UA_MdnsDriver UA_MdnsDriver;
 

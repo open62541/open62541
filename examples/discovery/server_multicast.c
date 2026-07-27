@@ -38,7 +38,7 @@ static UA_StatusCode
 addMdnsDiscoveryDriver(UA_Server *server) {
     UA_Boolean enabled = true;
     UA_UInt32 queryInterval = 30;
-    UA_KeyValuePair params[5];
+    UA_KeyValuePair params[6];
     params[0].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[0].value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
     params[1].key = UA_QUALIFIEDNAME(0, "announce");
@@ -50,7 +50,9 @@ addMdnsDiscoveryDriver(UA_Server *server) {
     params[4].key = UA_QUALIFIEDNAME(0, "query-interval");
     UA_Variant_setScalar(&params[4].value, &queryInterval,
                          &UA_TYPES[UA_TYPES_UINT32]);
-    UA_KeyValueMap paramsMap = {5, params};
+    params[5].key = UA_QUALIFIEDNAME(0, "send-to-all-interfaces");
+    UA_Variant_setScalar(&params[5].value, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap paramsMap = {6, params};
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
     UA_MdnsDriver *mdns = UA_MdnsDriver_Avahi(paramsMap);

@@ -24,6 +24,7 @@
 # include <winsock2.h>
 # include <iphlpapi.h>
 # include <ws2tcpip.h>
+# define ADDR_BUFFER_SIZE 15000 /* recommended size in the MSVC docs */
 #else
 # include <unistd.h>
 # include <sys/types.h>
@@ -39,6 +40,7 @@
 #endif
 
 #define UA_MAXMDNSRECVSOCKETS 8
+#define UA_MAXMDNSSENDSOCKETS 8
 #define UA_MDNS_POLL_INTERVAL_MS 1000
 #define UA_MDNS_MAX_RECORD_NAME_LENGTH 256
 #define UA_MDNS_OPCUA_TCP_LOCAL "_opcua-tcp._tcp.local."
@@ -121,7 +123,8 @@ typedef struct {
     mdns_daemon_t *mdnsDaemon;
 
     UA_ConnectionManager *cm;
-    uintptr_t mdnsSendConnection;
+    uintptr_t mdnsSendConnections[UA_MAXMDNSSENDSOCKETS];
+    size_t mdnsSendConnectionsSize;
     uintptr_t mdnsRecvConnections[UA_MAXMDNSRECVSOCKETS];
     size_t mdnsRecvConnectionsSize;
     UA_UInt64 sendCallbackId;
@@ -137,6 +140,7 @@ typedef struct {
     UA_UInt32 queryInterval;
     UA_UInt32 announceTTL;
     UA_String interfaceName;
+    UA_Boolean sendToAllInterfaces;
 } MdnsdDriver;
 
 static void
@@ -510,7 +514,7 @@ processRecord(const struct resource *r, void *data) {
 static void
 flushMulticastMessages(MdnsdDriver *md) {
     UA_ConnectionManager *cm = md->cm;
-    if(!cm || md->mdnsSendConnection == 0)
+    if(!cm || md->mdnsSendConnectionsSize == 0)
         return;
 
     struct message mm;
@@ -523,14 +527,18 @@ flushMulticastMessages(MdnsdDriver *md) {
         char* buf = (char*)message_packet(&mm);
         if(len <= 0)
             continue;
-        UA_ByteString sendBuf = UA_BYTESTRING_NULL;
-        UA_StatusCode rv = cm->allocNetworkBuffer(cm, md->mdnsSendConnection,
-                                                  &sendBuf, (size_t)len);
-        if(rv != UA_STATUSCODE_GOOD)
-            continue;
-        memcpy(sendBuf.data, buf, sendBuf.length);
-        cm->sendWithConnection(cm, md->mdnsSendConnection,
-                               &UA_KEYVALUEMAP_NULL, &sendBuf);
+        for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
+            if(md->mdnsSendConnections[i] == 0)
+                continue;
+            UA_ByteString sendBuf = UA_BYTESTRING_NULL;
+            UA_StatusCode rv = cm->allocNetworkBuffer(cm, md->mdnsSendConnections[i],
+                                                      &sendBuf, (size_t)len);
+            if(rv != UA_STATUSCODE_GOOD)
+                continue;
+            memcpy(sendBuf.data, buf, sendBuf.length);
+            cm->sendWithConnection(cm, md->mdnsSendConnections[i],
+                                   &UA_KEYVALUEMAP_NULL, &sendBuf);
+        }
     }
 }
 
@@ -914,7 +922,18 @@ static void
 addConnection(MdnsdDriver *md, uintptr_t connectionId,
               UA_Boolean recv) {
     if(!recv) {
-        md->mdnsSendConnection = connectionId;
+        size_t freeSendIdx = UA_MAXMDNSSENDSOCKETS;
+        for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
+            uintptr_t sendConn = md->mdnsSendConnections[i];
+            if(sendConn == connectionId)
+                return;
+            if(sendConn == 0 && freeSendIdx == UA_MAXMDNSSENDSOCKETS)
+                freeSendIdx = i;
+        }
+        if(freeSendIdx == UA_MAXMDNSSENDSOCKETS)
+            return;
+        md->mdnsSendConnections[freeSendIdx] = connectionId;
+        md->mdnsSendConnectionsSize++;
         return;
     }
     size_t freeIdx = UA_MAXMDNSRECVSOCKETS;
@@ -934,8 +953,11 @@ addConnection(MdnsdDriver *md, uintptr_t connectionId,
 
 static void
 removeConnection(MdnsdDriver *md, uintptr_t connectionId) {
-    if(md->mdnsSendConnection == connectionId) {
-        md->mdnsSendConnection = 0;
+    for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
+        if(md->mdnsSendConnections[i] != connectionId)
+            continue;
+        md->mdnsSendConnections[i] = 0;
+        md->mdnsSendConnectionsSize--;
         return;
     }
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
@@ -949,7 +971,7 @@ removeConnection(MdnsdDriver *md, uintptr_t connectionId) {
 
 static UA_Boolean
 allConnectionsClosed(MdnsdDriver *md) {
-    if(md->mdnsSendConnection != 0)
+    if(md->mdnsSendConnectionsSize != 0)
         return false;
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
         if(md->mdnsRecvConnections[i] != 0)
@@ -982,6 +1004,99 @@ MulticastDiscoverySendCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                state, params, msg, false);
 }
 
+static bool
+#ifdef UA_ARCHITECTURE_WIN32
+isAddressValid(LPSOCKADDR addr) {
+    char sourceAddr[NI_MAXHOST];
+    if(addr->sa_family == AF_INET) {
+        inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr, sourceAddr,
+                  sizeof(sourceAddr));
+#else
+isAddressValid(struct ifaddrs *ifa) {
+    char sourceAddr[NI_MAXHOST];
+    if(ifa->ifa_addr->sa_family == AF_INET) {
+        getnameinfo(ifa->ifa_addr,
+                    (ifa->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in)
+                                                          : sizeof(struct sockaddr_in6),
+                    sourceAddr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+#endif
+        /* Skip link-local (169.254.x.x) addresses */
+        return !(sourceAddr[0] == '1' && sourceAddr[1] == '6' && sourceAddr[2] == '9' &&
+                 sourceAddr[3] == '.' && sourceAddr[4] == '2' && sourceAddr[5] == '5' &&
+                 sourceAddr[6] == '4');
+    }
+    return false;
+}
+
+/* Open a send connection on every usable IPv4 interface */
+static void
+createMultiSendConnections(MdnsdDriver *md, UA_KeyValueMap *kvm) {
+    char sourceAddr[NI_MAXHOST];
+    size_t ifaceIdx = kvm->mapSize;
+    kvm->mapSize++;
+    kvm->map[ifaceIdx].key = UA_QUALIFIEDNAME(0, "interface");
+#ifdef UA_ARCHITECTURE_WIN32
+    ULONG outBufLen = ADDR_BUFFER_SIZE;
+    char addrBuf[ADDR_BUFFER_SIZE];
+    PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
+    ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                  GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
+    GetAdaptersAddresses(AF_INET, flags, NULL, ifaddr, &outBufLen);
+    for(PIP_ADAPTER_ADDRESSES ifa = ifaddr; ifa != NULL; ifa = ifa->Next) {
+        for(PIP_ADAPTER_UNICAST_ADDRESS u = ifa->FirstUnicastAddress; u; u = u->Next) {
+            LPSOCKADDR addr = u->Address.lpSockaddr;
+            if(isAddressValid(addr)) {
+                inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr, sourceAddr,
+                          sizeof(sourceAddr));
+#elif defined(UA_HAS_GETIFADDR)
+    struct ifaddrs *ifaddr;
+    if(getifaddrs(&ifaddr) == -1)
+        return;
+    for(struct ifaddrs *ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_addr)
+            continue;
+        if(isAddressValid(ifa)) {
+            getnameinfo(ifa->ifa_addr,
+                        (ifa->ifa_addr->sa_family == AF_INET)
+                            ? sizeof(struct sockaddr_in)
+                            : sizeof(struct sockaddr_in6),
+                        sourceAddr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+#else
+    if(false) {
+        {
+#endif
+#if defined(UA_ARCHITECTURE_WIN32) || defined(UA_HAS_GETIFADDR)
+                UA_String ifaceAddr = UA_String_fromChars(sourceAddr);
+                UA_Variant_setScalar(&kvm->map[ifaceIdx].value, &ifaceAddr,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+                UA_StatusCode res = md->cm->openConnection(
+                    md->cm, kvm, md->mdns.drv.server, md,
+                    MulticastDiscoverySendCallback);
+                if(res == UA_STATUSCODE_GOOD)
+                    UA_LOG_INFO(md->logging, UA_LOGCATEGORY_DISCOVERY,
+                                "mDNS: UDP multicast send connection created for '%S'",
+                                ifaceAddr);
+                else
+                    UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
+                                 "mDNS: Could not create the UDP multicast send "
+                                 "connection for '%S'", ifaceAddr);
+                UA_String_clear(&ifaceAddr);
+#endif
+#ifdef UA_ARCHITECTURE_WIN32
+            }
+        }
+    }
+#elif defined(UA_HAS_GETIFADDR)
+        }
+    }
+    freeifaddrs(ifaddr);
+#else
+        }
+    }
+#endif
+    kvm->mapSize--;
+}
+
 /* Create multicast 224.0.0.251:5353 socket */
 static void
 createMulticastSocket(MdnsdDriver *md) {
@@ -1011,7 +1126,7 @@ createMulticastSocket(MdnsdDriver *md) {
     }
 
     /* Set up the parameters */
-    UA_KeyValuePair params[6];
+    UA_KeyValuePair params[7];
     size_t paramsSize = 5;
 
     UA_UInt16 port = 5353;
@@ -1049,14 +1164,18 @@ createMulticastSocket(MdnsdDriver *md) {
                          "mDNS: Could not create the UDP multicast listen connection");
     }
 
-    /* Open the send connection */
+    /* Open the send connection(s) */
     if((md->announce || md->queryPresence || md->queryDetails) &&
-       md->mdnsSendConnection == 0) {
-        res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,
-                                     MulticastDiscoverySendCallback);
-        if(res != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
-                         "mDNS: Could not create the UDP multicast send connection");
+       md->mdnsSendConnectionsSize == 0) {
+        if(md->sendToAllInterfaces) {
+            createMultiSendConnections(md, &kvm);
+        } else {
+            res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,
+                                         MulticastDiscoverySendCallback);
+            if(res != UA_STATUSCODE_GOOD)
+                UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
+                             "mDNS: Could not create the UDP multicast send connection");
+        }
     }
 }
 
@@ -1080,7 +1199,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         } else if(md->mdns.drv.state == UA_LIFECYCLESTATE_STARTED) {
             /* Restart mdns sockets if not shutting down */
             createMulticastSocket(md);
-            if(md->mdnsSendConnection == 0)
+            if(md->mdnsSendConnectionsSize == 0)
                 UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
                              "mDNS: Could not create UDP multicast socket");
         }
@@ -1308,8 +1427,9 @@ MdnsdDriver_stop(UA_Driver *drv) {
 
     /* Close the sockets (async) */
     if(md->cm) {
-        if(md->mdnsSendConnection)
-            md->cm->closeConnection(md->cm, md->mdnsSendConnection);
+        for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++)
+            if(md->mdnsSendConnections[i] != 0)
+                md->cm->closeConnection(md->cm, md->mdnsSendConnections[i]);
         for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++)
             if(md->mdnsRecvConnections[i] != 0)
                 md->cm->closeConnection(md->cm, md->mdnsRecvConnections[i]);
@@ -1404,6 +1524,12 @@ MdnsdDriver_start(UA_Driver *drv) {
     if(interfaceName)
         UA_String_copy(interfaceName, &md->interfaceName);
 
+    const UA_Boolean *sendToAllInterfaces = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&drv->params,
+                                 UA_QUALIFIEDNAME(0, "send-to-all-interfaces"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    md->sendToAllInterfaces = sendToAllInterfaces ? *sendToAllInterfaces : false;
+
     /* Create mDNS daemon */
     if(!md->mdnsDaemon) {
         md->mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
@@ -1418,9 +1544,9 @@ MdnsdDriver_start(UA_Driver *drv) {
 
     /* Open the UDP sockets if needed */
     if(md->listen || md->announce || md->queryPresence || md->queryDetails) {
-        if(md->mdnsSendConnection == 0)
+        if(md->mdnsSendConnectionsSize == 0)
             createMulticastSocket(md);
-        if(md->mdnsSendConnection == 0) {
+        if(md->mdnsSendConnectionsSize == 0) {
             UA_LOG_ERROR(md->logging, UA_LOGCATEGORY_DISCOVERY,
                          "mDNS: Could not create UDP multicast socket");
             MdnsdDriver_stop(&md->mdns.drv);
