@@ -182,6 +182,15 @@ if(UA_ENABLE_LWS)
     endif()
 endif()
 
+option(UA_ENABLE_EVENTLOOP_GLIB "Enable the GLib-based EventLoop implementation (requires glib-2.0)" OFF)
+mark_as_advanced(UA_ENABLE_EVENTLOOP_GLIB)
+
+if(UA_ENABLE_EVENTLOOP_GLIB)
+    if(NOT UA_ARCHITECTURE_POSIX)
+        message(FATAL_ERROR "The GLib EventLoop cannot be used without posix")
+    endif()
+endif()
+
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
@@ -579,6 +588,14 @@ if(UA_ENABLE_LWS)
         list(APPEND open62541_LIBRARIES OpenSSL::SSL)
         list(APPEND pkgcfg_requiresprivate "openssl")
     endif()
+endif()
+
+if(UA_ENABLE_EVENTLOOP_GLIB)
+    find_package(PkgConfig REQUIRED)
+    pkg_search_module(GLIB2 REQUIRED glib-2.0)
+    include_directories(${GLIB2_INCLUDE_DIRS})
+    list(APPEND open62541_LIBRARIES ${GLIB2_LIBRARIES})
+    list(APPEND pkgcfg_requiresprivate "glib-2.0")
 endif()
 
 if(MINGW)
@@ -1256,6 +1273,11 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+    if(UA_ENABLE_EVENTLOOP_GLIB)
+        list(APPEND plugin_sources
+             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.h
+             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.c)
+    endif()
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)

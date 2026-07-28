@@ -306,6 +306,10 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 
+if(UA_ENABLE_EVENTLOOP_GLIB)
+    ua_add_test(check_eventloop_tcp_glib.c)
+endif()
+
 if((${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR
      ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin") AND
    NOT UA_ARCHITECTURE_LWIP)

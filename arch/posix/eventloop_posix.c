@@ -15,7 +15,7 @@
 /* Timer */
 /*********/
 
-static UA_DateTime
+UA_DateTime
 UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     if(el->delayedHead1 > (UA_DelayedCallback *)0x01 ||
@@ -24,7 +24,7 @@ UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
     return UA_Timer_next(&el->timer);
 }
 
-static UA_StatusCode
+UA_StatusCode
 UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
                            void *application, void *data, UA_Double interval_ms,
                            UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
@@ -35,7 +35,7 @@ UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
                         baseTime, timerPolicy, callbackId);
 }
 
-static UA_StatusCode
+UA_StatusCode
 UA_EventLoopPOSIX_modifyTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId,
                               UA_Double interval_ms,
@@ -47,7 +47,7 @@ UA_EventLoopPOSIX_modifyTimer(UA_EventLoop *public_el,
                            baseTime, timerPolicy);
 }
 
-static void
+void
 UA_EventLoopPOSIX_removeTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
@@ -100,7 +100,7 @@ resetDelayedQueue(UA_EventLoopPOSIX *el,
     UA_atomic_xchg(&el->delayedTail, inactiveHead, oldTail);
 }
 
-static void
+void
 UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
                                         UA_DelayedCallback *dc) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
@@ -132,8 +132,8 @@ UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
     UA_UNLOCK(&el->elMutex);
 }
 
-static void
-processDelayed(UA_EventLoopPOSIX *el) {
+void
+UA_EventLoopPOSIX_processDelayed(UA_EventLoopPOSIX *el) {
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Process delayed callbacks");
 
@@ -373,7 +373,7 @@ UA_EventLoopPOSIX_run(UA_EventLoop *public_el, UA_UInt32 timeout) {
      * - The timeout for polling is selected to be ready in time for the next
      *   cyclic callback. So we want to do little work between the timeout
      *   running out and executing the due cyclic callbacks. */
-    processDelayed(el);
+    UA_EventLoopPOSIX_processDelayed(el);
 
     /* A delayed callback could create another delayed callback (or re-add
      * itself). In that case we don't want to wait (indefinitely) for an event
@@ -408,7 +408,7 @@ UA_EventLoopPOSIX_run(UA_EventLoop *public_el, UA_UInt32 timeout) {
 /* Registering Event Sources */
 /*****************************/
 
-static UA_StatusCode
+UA_StatusCode
 UA_EventLoopPOSIX_registerEventSource(UA_EventLoop *public_el,
                                       UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
@@ -440,7 +440,7 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoop *public_el,
     return res;
 }
 
-static UA_StatusCode
+UA_StatusCode
 UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoop *public_el,
                                         UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
@@ -476,7 +476,7 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoop *public_el,
 /* Time Domain */
 /***************/
 
-static UA_DateTime
+UA_DateTime
 UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 #if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
@@ -490,7 +490,7 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 #endif
 }
 
-static UA_DateTime
+UA_DateTime
 UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
 #if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
@@ -506,7 +506,7 @@ UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
 #endif
 }
 
-static UA_Int64
+UA_Int64
 UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
     /* TODO: Fix for custom clock sources */
     return UA_DateTime_localTimeUtcOffset();
@@ -541,7 +541,7 @@ UA_EventLoopPOSIX_free(UA_EventLoop *public_el) {
     UA_Timer_clear(&el->timer);
 
     /* Process remaining delayed callbacks */
-    processDelayed(el);
+    UA_EventLoopPOSIX_processDelayed(el);
 
 #ifdef UA_ARCHITECTURE_WIN32
     /* Stop the Windows networking subsystem */
@@ -557,14 +557,26 @@ UA_EventLoopPOSIX_free(UA_EventLoop *public_el) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
 UA_EventLoopPOSIX_lock(UA_EventLoop *public_el) {
     UA_LOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
 }
-static void
+void
 UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
     UA_UNLOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
 }
+
+/* Forward declarations for the FD-polling backend implementations further
+ * down in this file (select or epoll, chosen at compile time). */
+#if defined(UA_HAVE_EPOLL)
+static UA_StatusCode registerFD_epoll(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+static UA_StatusCode modifyFD_epoll(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+static void deregisterFD_epoll(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+#else
+static UA_StatusCode registerFD_select(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+static UA_StatusCode modifyFD_select(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+static void deregisterFD_select(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+#endif
 
 UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger) {
@@ -629,6 +641,17 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 
     el->eventLoop.lock = UA_EventLoopPOSIX_lock;
     el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
+
+    /* Select the FD polling backend */
+#if defined(UA_HAVE_EPOLL)
+    el->registerFD = registerFD_epoll;
+    el->modifyFD = modifyFD_epoll;
+    el->deregisterFD = deregisterFD_epoll;
+#else
+    el->registerFD = registerFD_select;
+    el->modifyFD = modifyFD_select;
+    el->deregisterFD = deregisterFD_select;
+#endif
 
     return &el->eventLoop;
 }
@@ -748,8 +771,8 @@ flushSelfPipe(UA_SOCKET s) {
 
 #if !defined(UA_HAVE_EPOLL)
 
-UA_StatusCode
-UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+static UA_StatusCode
+registerFD_select(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Registering fd: %u", (unsigned)rfd->fd);
@@ -768,15 +791,15 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+static UA_StatusCode
+modifyFD_select(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     /* Do nothing, it is enough if the data was changed in the rfd */
     UA_LOCK_ASSERT(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
-void
-UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+static void
+deregisterFD_select(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Unregistering fd: %u", (unsigned)rfd->fd);
@@ -919,8 +942,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
 #else /* defined(UA_HAVE_EPOLL) */
 
-UA_StatusCode
-UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+static UA_StatusCode
+registerFD_epoll(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     struct epoll_event event;
     memset(&event, 0, sizeof(struct epoll_event));
     event.data.ptr = rfd;
@@ -941,8 +964,8 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+static UA_StatusCode
+modifyFD_epoll(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     struct epoll_event event;
     memset(&event, 0, sizeof(struct epoll_event));
     event.data.ptr = rfd;
@@ -963,8 +986,8 @@ UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-void
-UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+static void
+deregisterFD_epoll(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     int res = epoll_ctl(el->epollfd, EPOLL_CTL_DEL, rfd->fd, NULL);
     if(res != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -1049,6 +1072,26 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 }
 
 #endif /* defined(UA_HAVE_EPOLL) */
+
+/* Thin wrappers dispatching through the backend selected in
+ * UA_EventLoop_new_POSIX / UA_EventLoop_new_GLib. This is what
+ * ConnectionManagers (TCP, UDP, Ethernet, ...) actually call -- they do not
+ * need to know which backend is behind a given EventLoop instance. */
+
+UA_StatusCode
+UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+    return el->registerFD(el, rfd);
+}
+
+UA_StatusCode
+UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+    return el->modifyFD(el, rfd);
+}
+
+void
+UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+    el->deregisterFD(el, rfd);
+}
 
 #ifdef UA_ARCHITECTURE_WIN32
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
