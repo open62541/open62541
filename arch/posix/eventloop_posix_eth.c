@@ -320,8 +320,9 @@ ETH_delayedClose(void *application, void *context) {
 
 /* Gets called when a socket receives data or closes */
 static void
-ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
+ETH_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
                              short event) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
@@ -723,7 +724,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     conn->rfd.fd = sockfd;
     conn->rfd.es = &pcm->cm.eventSource;
-    conn->rfd.eventSourceCB = (UA_FDCallback)ETH_connectionSocketCallback;
+    conn->rfd.eventSourceCB = ETH_connectionSocketCallback;
     conn->context = context;
     conn->application = application;
     conn->applicationCB = connectionCallback;
@@ -1005,7 +1006,8 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-ETH_eventSourceStart(UA_ConnectionManager *cm) {
+ETH_eventSourceStart(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
@@ -1048,7 +1050,8 @@ ETH_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 }
 
 static void
-ETH_eventSourceStop(UA_ConnectionManager *cm) {
+ETH_eventSourceStop(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
@@ -1070,7 +1073,8 @@ ETH_eventSourceStop(UA_ConnectionManager *cm) {
 }
 
 static UA_StatusCode
-ETH_eventSourceDelete(UA_ConnectionManager *cm) {
+ETH_eventSourceDelete(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -1097,9 +1101,9 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName) {
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))ETH_eventSourceStart;
-    cm->cm.eventSource.stop = (void (*)(UA_EventSource *))ETH_eventSourceStop;
-    cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))ETH_eventSourceDelete;
+    cm->cm.eventSource.start = ETH_eventSourceStart;
+    cm->cm.eventSource.stop = ETH_eventSourceStop;
+    cm->cm.eventSource.free = ETH_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)ethName);
     cm->cm.openConnection = ETH_openConnection;
     cm->cm.allocNetworkBuffer = ETH_allocNetworkBuffer;
@@ -1110,4 +1114,3 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName) {
 }
 
 #endif /* defined(UA_ARCHITECTURE_POSIX) && defined(__linux__) */
-
