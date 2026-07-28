@@ -356,6 +356,14 @@ struct UA_RegisteredFD {
 
     UA_EventSource *es; /* Backpointer to the EventSource */
     UA_FDCallback eventSourceCB;
+
+#ifdef UA_ENABLE_EVENTLOOP_GLIB
+    /* Heap-allocated GPollFD used to register this fd with the GLib
+     * EventLoop backend (arch/posix/eventloop_glib.c). Must have a stable
+     * address for the lifetime of the registration, as GLib keeps a pointer
+     * to it. NULL unless the fd is registered in a GLib-backed EventLoop. */
+    void *glibPollFD;
+#endif
 };
 
 enum ZIP_CMP cmpFD(const UA_FD *a, const UA_FD *b);
@@ -387,7 +395,8 @@ typedef struct {
     UA_DeregisteredListenFDList listenFDs;
 } UA_POSIXConnectionManager;
 
-typedef struct {
+typedef struct UA_EventLoopPOSIX UA_EventLoopPOSIX;
+struct UA_EventLoopPOSIX {
     UA_EventLoop eventLoop;
 
     /* Timer */
@@ -419,14 +428,27 @@ typedef struct {
     UA_Int32 clockSource;
     UA_Int32 clockSourceMonotonic;
 
+    /* FD polling backend. Selected once when the EventLoop instance is
+     * created (UA_EventLoop_new_POSIX or UA_EventLoop_new_GLib) and not
+     * changed afterwards. This indirection allows EventLoop instances with
+     * different polling backends (select, epoll, GLib, ...) to coexist in
+     * the same process, while the ConnectionManagers (TCP, UDP, Ethernet,
+     * ...) always call the same UA_EventLoopPOSIX_registerFD/modifyFD/
+     * deregisterFD wrapper functions regardless of the backend in use. */
+    UA_StatusCode (*registerFD)(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+    UA_StatusCode (*modifyFD)(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+    void (*deregisterFD)(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+
 #if defined(UA_HAVE_EPOLL)
     UA_FD epollfd;
-#else
+#endif
+    /* Flat array of all fds registered in the EventLoop. Used by the select
+     * and GLib backends (epoll keeps the rfd pointer directly in
+     * epoll_event.data.ptr instead and does not need this list). */
     UA_RegisteredFD **fds;
     size_t fdsSize;
-#endif
 
-    /* Self-pipe to cancel blocking wait */
+    /* Self-pipe to cancel a blocking select()/epoll_wait() */
     UA_FD selfpipe[2]; /* 0: read, 1: write */
 
 #ifdef UA_ENABLE_LWS
@@ -436,12 +458,24 @@ typedef struct {
     UA_EventLoop *lwsForeignLoop;
 #endif
 
+#ifdef UA_ENABLE_EVENTLOOP_GLIB
+    /* GLib backend state. Only used for EventLoop instances created via
+     * UA_EventLoop_new_GLib (see arch/posix/eventloop_glib.c). Kept here
+     * (instead of a separate struct) so that the ConnectionManagers can cast
+     * any EventLoop of this architecture to UA_EventLoopPOSIX* regardless of
+     * the backend that created it. */
+    void *glibContext; /* GMainContext* */
+    void *glibSource;  /* GSource* */
+#endif
+
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
 #endif
-} UA_EventLoopPOSIX;
+};
 
-/* The following functions differ between epoll and normal select */
+/* The following wrapper functions dispatch through el->registerFD/modifyFD/
+ * deregisterFD. The actual implementation differs between the select, epoll
+ * and GLib backends (see UA_EventLoop_new_POSIX / UA_EventLoop_new_GLib). */
 
 /* Register to start receiving events */
 UA_StatusCode
@@ -455,8 +489,63 @@ UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 void
 UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 
+/* Only used internally by the select/epoll backend's own "run" method. */
 UA_StatusCode
 UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
+
+/* Timer, delayed-callback and DateTime methods. These only operate on the
+ * generic (backend-independent) parts of UA_EventLoopPOSIX. They are shared
+ * between the select/epoll backend (UA_EventLoop_new_POSIX) and the GLib
+ * backend (UA_EventLoop_new_GLib, see eventloop_glib.c). */
+
+UA_DateTime
+UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el);
+
+UA_StatusCode
+UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
+                           void *application, void *data, UA_Double interval_ms,
+                           UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                           UA_UInt64 *callbackId);
+
+UA_StatusCode
+UA_EventLoopPOSIX_modifyTimer(UA_EventLoop *public_el, UA_UInt64 callbackId,
+                              UA_Double interval_ms, UA_DateTime *baseTime,
+                              UA_TimerPolicy timerPolicy);
+
+void
+UA_EventLoopPOSIX_removeTimer(UA_EventLoop *public_el, UA_UInt64 callbackId);
+
+void
+UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
+                                        UA_DelayedCallback *dc);
+
+/* Executes all queued delayed callbacks. Caller must hold el->elMutex. */
+void
+UA_EventLoopPOSIX_processDelayed(UA_EventLoopPOSIX *el);
+
+UA_DateTime
+UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el);
+
+UA_DateTime
+UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el);
+
+UA_Int64
+UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el);
+
+/* Register/deregister an EventSource. Caller must hold el->elMutex is NOT
+ * required -- these take the lock themselves. Shared between the select/
+ * epoll and GLib backends. */
+UA_StatusCode
+UA_EventLoopPOSIX_registerEventSource(UA_EventLoop *el, UA_EventSource *es);
+
+UA_StatusCode
+UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoop *el, UA_EventSource *es);
+
+void
+UA_EventLoopPOSIX_lock(UA_EventLoop *public_el);
+
+void
+UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el);
 
 /* Helper functions across EventSources */
 

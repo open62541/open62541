@@ -485,6 +485,36 @@ struct UA_InterruptManager {
 UA_EXPORT UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger);
 
+#ifdef UA_ENABLE_EVENTLOOP_GLIB
+
+/**
+ * GLib EventLoop Implementation
+ * ------------------------------
+ * A drop-in alternative to ``UA_EventLoop_new_POSIX`` that is driven by a
+ * GLib ``GMainContext`` instead of directly calling select()/epoll_wait().
+ * All ConnectionManagers documented below (TCP, UDP, Ethernet, ...) work
+ * unchanged with this EventLoop.
+ *
+ * Once started, the EventLoop attaches a ``GSource`` to the given
+ * ``GMainContext``. From that point on, sockets and timers are serviced
+ * automatically whenever that context is iterated -- for example by
+ * ``g_main_loop_run()``, ``gtk_main()``, ``g_application_run()``, or any
+ * other GLib-based application main loop. It is therefore not necessary to
+ * call the EventLoop's own ``run`` method at all; the open62541 stack can be
+ * fully driven by GLib. ``run`` is still provided (performing a single
+ * bounded iteration of the ``GMainContext``) for backwards compatibility
+ * with code that pumps the EventLoop itself (e.g. ``UA_Server_run``).
+ *
+ * @param logger The logger for the EventLoop.
+ * @param glibMainContext The ``GMainContext*`` to attach to. If ``NULL``,
+ *        the process-wide default context (``g_main_context_default()``) is
+ *        used -- the same context iterated by a plain
+ *        ``g_main_loop_new(NULL, ...)`` or by GTK/GNOME applications. */
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_GLib(const UA_Logger *logger, void *glibMainContext);
+
+#endif /* UA_ENABLE_EVENTLOOP_GLIB */
+
 /**
  * TCP Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~
