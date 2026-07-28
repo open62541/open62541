@@ -263,7 +263,13 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client,
 
 /**
  * The "ClientHandle" is part of the MonitoredItem configuration. The handle is
- * set internally and not exposed to the user. */
+ * set internally and not exposed to the user. A modification uses a new
+ * ClientHandle. Until the first notification with that handle arrives, queued
+ * notifications with the old handle are processed with the old settings.
+ *
+ * If the same MonitoredItem is modified again before a notification with the
+ * pending handle arrives, the newer modification supersedes the pending one.
+ * Notifications with the superseded handle are ignored. */
 
 UA_ModifyMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify(UA_Client *client,
@@ -272,7 +278,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
 typedef void
 (*UA_ClientAsyncModifyMonitoredItemsCallback)(
     UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_DeleteMonitoredItemsResponse *response);
+    UA_ModifyMonitoredItemsResponse *response);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify_async(UA_Client *client,

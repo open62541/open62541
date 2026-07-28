@@ -221,7 +221,7 @@ auditCloseSecureChannelEvent(UA_Server *server, UA_SecureChannel *channel) {
         {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 7 */
     };
 
-    UA_KeyValueMap payload = {14, closeAuditPayload};
+    UA_KeyValueMap payload = {8, closeAuditPayload};
     auditChannelEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL,
                       channel, NULL, "CloseSecureChannel", true,
                       UA_STATUSCODE_GOOD, payload);

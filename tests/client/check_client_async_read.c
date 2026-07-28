@@ -1007,6 +1007,7 @@ START_TEST(client_disconnectSecureChannel) {
     UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     res = UA_Client_disconnectSecureChannel(client);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     for(int i = 0; i < 20; i++)
         UA_Client_run_iterate(client, 50);
     UA_Client_delete(client);

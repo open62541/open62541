@@ -96,7 +96,26 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     ck_assert_uint_eq(connectionCount, 1);
     ck_assert_uint_eq(readerGroupCount, 1);
     ck_assert_uint_eq(dataSetReaderCount, 1);
+
+    /* A subscriber-only configuration has no PublishedDataSets and must still
+     * be serializable. */
+    UA_ByteString savedConfiguration = UA_BYTESTRING_NULL;
+    retVal = UA_Server_writePubSubConfigurationToByteString(server,
+                                                            &savedConfiguration);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(savedConfiguration.length, 0);
+    UA_ByteString_clear(&savedConfiguration);
     UA_ByteString_clear(&subscriberConfiguration);
+} END_TEST
+
+START_TEST(SaveEmptyConfiguration) {
+    UA_ByteString savedConfiguration = UA_BYTESTRING_NULL;
+    UA_StatusCode retVal =
+        UA_Server_writePubSubConfigurationToByteString(server,
+                                                       &savedConfiguration);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(savedConfiguration.length, 0);
+    UA_ByteString_clear(&savedConfiguration);
 } END_TEST
 
 int main(void) {
@@ -104,6 +123,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_file_configuration, setup, teardown);
     tcase_add_test(tc_pubsub_file_configuration, AddPublisherUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, AddSubscriberUsingBinaryFile);
+    tcase_add_test(tc_pubsub_file_configuration, SaveEmptyConfiguration);
 
     Suite *s = suite_create("PubSub file configuration");
     suite_add_tcase(s, tc_pubsub_file_configuration);

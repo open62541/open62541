@@ -1501,7 +1501,8 @@ START_TEST(TestEnableDisableWriterGroup){
     callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
     
-    UA_Boolean enableSucceeded = (callResponse.results[0].statusCode == UA_STATUSCODE_GOOD);
+    ck_assert(callResponse.results[0].statusCode == UA_STATUSCODE_GOOD ||
+              callResponse.results[0].statusCode == UA_STATUSCODE_BADINVALIDSTATE);
 
     UA_CallResponse_clear(&callResponse);
 
@@ -1575,7 +1576,8 @@ START_TEST(TestEnableDisableReaderGroup){
     callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
     
-    UA_Boolean enableSucceeded = (callResponse.results[0].statusCode == UA_STATUSCODE_GOOD);
+    ck_assert(callResponse.results[0].statusCode == UA_STATUSCODE_GOOD ||
+              callResponse.results[0].statusCode == UA_STATUSCODE_BADINVALIDSTATE);
 
     UA_CallResponse_clear(&callResponse);
 

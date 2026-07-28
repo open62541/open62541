@@ -218,6 +218,7 @@ START_TEST(roundtripEmpty) {
 
     size_t dec_len = 0;
     unsigned char *dec = UA_unbase64(enc, enc_len, &dec_len);
+    ck_assert(dec != NULL);
     ck_assert_uint_eq(dec_len, 0);
 } END_TEST
 
