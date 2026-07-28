@@ -140,7 +140,6 @@ typedef struct {
     UA_UInt32 queryInterval;
     UA_UInt32 announceTTL;
     UA_String interfaceName;
-    UA_Boolean sendToAllInterfaces;
 } MdnsdDriver;
 
 static void
@@ -1164,10 +1163,11 @@ createMulticastSocket(MdnsdDriver *md) {
                          "mDNS: Could not create the UDP multicast listen connection");
     }
 
-    /* Open the send connection(s) */
+    /* Open the send connection(s). If no interface is configured, send on all
+     * usable interfaces. */
     if((md->announce || md->queryPresence || md->queryDetails) &&
        md->mdnsSendConnectionsSize == 0) {
-        if(md->sendToAllInterfaces) {
+        if(md->interfaceName.length == 0) {
             createMultiSendConnections(md, &kvm);
         } else {
             res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,
@@ -1523,12 +1523,6 @@ MdnsdDriver_start(UA_Driver *drv) {
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(interfaceName)
         UA_String_copy(interfaceName, &md->interfaceName);
-
-    const UA_Boolean *sendToAllInterfaces = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(&drv->params,
-                                 UA_QUALIFIEDNAME(0, "send-to-all-interfaces"),
-                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
-    md->sendToAllInterfaces = sendToAllInterfaces ? *sendToAllInterfaces : false;
 
     /* Create mDNS daemon */
     if(!md->mdnsDaemon) {
