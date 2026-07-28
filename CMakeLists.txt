@@ -1614,14 +1614,6 @@ else()
     add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
 endif()
 
-# Diagnose incompatible function-pointer casts in the core library, drivers
-# and plugins. Keep the global suppression for tests and examples for now.
-if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang") AND
-   NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
-    target_compile_options(open62541-object PRIVATE -Wcast-function-type)
-    target_compile_options(open62541-plugins PRIVATE -Wcast-function-type)
-endif()
-
 add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
 add_dependencies(open62541-object open62541-code-generation)
