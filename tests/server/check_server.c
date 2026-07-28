@@ -125,10 +125,14 @@ START_TEST(checkGetLifecycleState) {
     /* Before startup, server should be in stopped state */
     UA_LifecycleState state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_int_eq(UA_Server_getConfig(server)->eventLoop->state,
+                     UA_EVENTLOOPSTATE_FRESH);
 
     /* After startup, server should be in started state */
     UA_StatusCode ret = UA_Server_run_startup(server);
     ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getConfig(server)->eventLoop->state,
+                     UA_EVENTLOOPSTATE_STARTED);
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STARTED);
