@@ -89,5 +89,7 @@
 
   namespaces: [],
 
+  maxAsyncServiceCalls: 17,
+  asyncServiceCallRule: 3, // UA_RULEHANDLING_ACCEPT
   outStandingPublishRequests: 0
 }

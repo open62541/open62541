@@ -905,7 +905,7 @@ readNamespacesArrayAsync(UA_Client *client) {
 
     /* Send the async read request */
     UA_StatusCode res =
-        __Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
+        __Client_AsyncServiceInternal(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
                               (UA_ClientAsyncServiceCallback)responseReadNamespacesArray,
                               &UA_TYPES[UA_TYPES_READRESPONSE],
                               NULL, NULL);
@@ -1104,7 +1104,7 @@ activateSessionAsync(UA_Client *client) {
 
     /* Send the request */
     if(UA_LIKELY(retval == UA_STATUSCODE_GOOD))
-        retval = __Client_AsyncService(client, &request,
+        retval = __Client_AsyncServiceInternal(client, &request,
                                        &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                                        (UA_ClientAsyncServiceCallback)responseActivateSession,
                                        &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE],
@@ -1521,7 +1521,7 @@ requestGetEndpoints(UA_Client *client) {
     request.endpointUrl = getEndpointUrl(client);
 
     UA_StatusCode retval =
-        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
+        __Client_AsyncServiceInternal(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                               (UA_ClientAsyncServiceCallback) responseGetEndpoints,
                               &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1635,7 +1635,7 @@ requestFindServers(UA_Client *client) {
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->config.endpointUrl;
     UA_StatusCode retval =
-        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
+        __Client_AsyncServiceInternal(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
                               (UA_ClientAsyncServiceCallback) responseFindServers,
                               &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE], NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1810,7 +1810,7 @@ createSessionAsync(UA_Client *client) {
         return res;
 
     /* Send the request */
-    res = __Client_AsyncService(client, &request,
+    res = __Client_AsyncServiceInternal(client, &request,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                                 (UA_ClientAsyncServiceCallback)createSessionCallback,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
@@ -2942,7 +2942,7 @@ UA_Client_disconnectAsync(UA_Client *client) {
     UA_CloseSessionRequest_init(&request);
     request.deleteSubscriptions = true;
     UA_StatusCode res =
-        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+        __Client_AsyncServiceInternal(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                               (UA_ClientAsyncServiceCallback)closeSessionCallback,
                               &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {

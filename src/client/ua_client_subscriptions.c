@@ -293,6 +293,12 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
                                      void *userdata, UA_UInt32 *requestId) {
     lockClient(client);
 
+    UA_StatusCode res = __Client_AsyncServiceAdmission(client);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockClient(client);
+        return res;
+    }
+
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
         unlockClient(client);
@@ -309,12 +315,12 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
     cc->userData = userdata;
     cc->callback.modifySubscription = callback;
 
-    UA_StatusCode res =
-        __Client_AsyncService(client, &request,
-                              &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
-                              Subscription_modify_handler,
-                              &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE],
-                              cc, requestId);
+    res = __Client_AsyncServiceAdmitted(
+        client, &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
+        Subscription_modify_handler,
+        &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE], cc, requestId);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_free(cc);
 
     unlockClient(client);
     return res;
@@ -852,6 +858,10 @@ Client_MonitoredItems_createAsync(UA_Client *client,
                                   void *userdata, UA_UInt32 *requestId) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
+    UA_StatusCode res = __Client_AsyncServiceAdmission(client);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Get the Subscription */
     UA_Client_Subscription *sub =
         findSubscriptionById(client, constRequest->subscriptionId);
@@ -865,8 +875,7 @@ Client_MonitoredItems_createAsync(UA_Client *client,
     /* Make a mutable copy. We modify the request to set the internal
      * clientHandle. */
     UA_CreateMonitoredItemsRequest request;
-    UA_StatusCode res =
-        UA_CreateMonitoredItemsRequest_copy(constRequest, &request);
+    res = UA_CreateMonitoredItemsRequest_copy(constRequest, &request);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -924,11 +933,10 @@ Client_MonitoredItems_createAsync(UA_Client *client,
     cc->userData = userdata;
 
     /* Call the service asynchronously */
-    res = __Client_AsyncService(client, &request,
-                                &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
-                                MonitoredItems_create_async_handler,
-                                &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
-                                cc, requestId);
+    res = __Client_AsyncServiceAdmitted(
+        client, &request, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+        MonitoredItems_create_async_handler,
+        &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE], cc, requestId);
 
     /* Manually clean up the context in the failure case */
     if(res != UA_STATUSCODE_GOOD) {
@@ -1305,6 +1313,13 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
 
     lockClient(client);
 
+    res = __Client_AsyncServiceAdmission(client);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockClient(client);
+        UA_ModifyMonitoredItemsRequest_delete(requestCopy);
+        return res;
+    }
+
     /* Get the subscription */
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
@@ -1332,7 +1347,7 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
     cc->userData = userdata;
 
     /* Call the service */
-    UA_StatusCode statusCode = __Client_AsyncService(
+    UA_StatusCode statusCode = __Client_AsyncServiceAdmitted(
         client, requestCopy, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
         MonitoredItems_modify_async_handler,
         &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], cc, requestId);
@@ -1826,7 +1841,7 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
             return;
         }
 
-        retval = __Client_AsyncService(client, request,
+        retval = __Client_AsyncServiceInternal(client, request,
                                          &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
                                          processPublishResponseAsync,
                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
