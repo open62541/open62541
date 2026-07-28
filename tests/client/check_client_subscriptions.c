@@ -113,6 +113,12 @@ modifySubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestI
 }
 
 static void
+clearSubscriptionsOnRead(UA_Client *client, void *userdata,
+                         UA_UInt32 requestId, void *response) {
+    __Client_Subscriptions_clear(client);
+}
+
+static void
 createDataChangesCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                           UA_CreateMonitoredItemsResponse *r) {
     UA_CreateMonitoredItemsResponse_copy(r, (UA_CreateMonitoredItemsResponse *)userdata);
@@ -2608,6 +2614,59 @@ START_TEST(Client_subscription_modifyAsync_invalidSubscriptionId) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Client_subscription_admission_before_state_lookup) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->outStandingPublishRequests = 0;
+    cc->maxAsyncServiceCalls = 1;
+    cc->asyncServiceCallRule = UA_RULEHANDLING_ACCEPT;
+
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest createRequest =
+        UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse createResponse =
+        UA_Client_Subscriptions_create(client, createRequest, NULL, NULL, NULL);
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = createResponse.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&createResponse);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvid.nodeId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_ReadRequest readRequest;
+    UA_ReadRequest_init(&readRequest);
+    readRequest.nodesToRead = &rvid;
+    readRequest.nodesToReadSize = 1;
+
+    res = __UA_Client_AsyncService(
+        client, &readRequest, &UA_TYPES[UA_TYPES_READREQUEST],
+        clearSubscriptionsOnRead, &UA_TYPES[UA_TYPES_READRESPONSE],
+        &subId, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ModifySubscriptionRequest modifyRequest;
+    UA_ModifySubscriptionRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = subId;
+    modifyRequest.requestedPublishingInterval = 500.0;
+    modifyRequest.requestedLifetimeCount = 100;
+    modifyRequest.requestedMaxKeepAliveCount = 10;
+
+    /* Admission processes the read callback first. The callback deletes the
+     * subscription, so the state lookup afterwards must observe its removal. */
+    res = UA_Client_Subscriptions_modify_async(
+        client, modifyRequest, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+    ck_assert_uint_eq(client->outstandingAsyncServiceCalls, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(Client_renewSecureChannel_returnsGoodCallAgain) {
     /* src/client/ua_client_connect.c:712-715:
      *   if(channel.state != OPEN || renewState == SENT || nextRenewal > now)
@@ -2639,6 +2698,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription);
     tcase_add_test(tc_client, Client_subscription_async);
+    tcase_add_test(tc_client,
+                   Client_subscription_admission_before_state_lookup);
     tcase_add_test(tc_client, Client_subscription_delete_async_noCallback);
     tcase_add_test(tc_client, Client_subscription_statusChange);
     tcase_add_test(tc_client, Client_subscription_timeout);

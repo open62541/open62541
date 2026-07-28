@@ -126,6 +126,7 @@ typedef struct AsyncServiceCall {
     void *userdata;
     UA_DateTime start;
     UA_UInt32 timeout;
+    UA_Boolean applicationCall; /* Counts towards maxAsyncServiceCalls */
     UA_Response *syncResponse; /* If non-null, then this is the synchronous
                                 * response to be filled. Set back to null to
                                 * indicate that the response was filled. */
@@ -217,6 +218,7 @@ struct UA_Client {
 
     /* Async Service */
     UA_AsyncServiceList asyncServiceCalls;
+    size_t outstandingAsyncServiceCalls;
 
     /* Subscriptions */
     LIST_HEAD(, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
@@ -252,6 +254,27 @@ __Client_AsyncService(UA_Client *client, const void *request,
                       const UA_DataType *responseType,
                       void *userdata, UA_UInt32 *requestId);
 
+/* Wait for application-level async service capacity before preparing local
+ * client state. The client lock must be held until the admitted call is sent. */
+UA_StatusCode
+__Client_AsyncServiceAdmission(UA_Client *client);
+
+UA_StatusCode
+__Client_AsyncServiceAdmitted(UA_Client *client, const void *request,
+                              const UA_DataType *requestType,
+                              UA_ClientAsyncServiceCallback callback,
+                              const UA_DataType *responseType,
+                              void *userdata, UA_UInt32 *requestId);
+
+/* Async service calls required for client-internal progress. These bypass the
+ * application-level maxAsyncServiceCalls limit. */
+UA_StatusCode
+__Client_AsyncServiceInternal(UA_Client *client, const void *request,
+                              const UA_DataType *requestType,
+                              UA_ClientAsyncServiceCallback callback,
+                              const UA_DataType *responseType,
+                              void *userdata, UA_UInt32 *requestId);
+
 UA_StatusCode
 __Client_AsyncServiceWithContext(UA_Client *client, const void *request,
                                  const UA_DataType *requestType,
@@ -260,6 +283,13 @@ __Client_AsyncServiceWithContext(UA_Client *client, const void *request,
                                  void *userdata,
                                  const UA_AsyncCallbackContext *context,
                                  UA_UInt32 *requestId);
+
+UA_StatusCode
+__Client_AsyncServiceWithContextAdmitted(
+    UA_Client *client, const void *request, const UA_DataType *requestType,
+    UA_ClientAsyncServiceCallback callback, const UA_DataType *responseType,
+    void *userdata, const UA_AsyncCallbackContext *context,
+    UA_UInt32 *requestId);
 
 void
 __Client_Service(UA_Client *client, const void *request,

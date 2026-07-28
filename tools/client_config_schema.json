@@ -133,6 +133,19 @@
       },
       "description": "List of namespace URIs"
     },
+    "maxAsyncServiceCalls": {
+      "type": "integer",
+      "description": "Maximum number of outstanding application-level asynchronous service calls; 0 disables the limit",
+      "minimum": 0,
+      "default": 32
+    },
+    "asyncServiceCallRule": {
+      "type": "integer",
+      "description": "Behavior at the asynchronous service-call limit: Default (0) or Abort (1) rejects; Warn (2) logs and waits; Accept (3) waits silently",
+      "minimum": 0,
+      "maximum": 3,
+      "default": 0
+    },
     "outStandingPublishRequests": {
       "type": "integer",
       "description": "Number of outstanding publish requests",
