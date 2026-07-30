@@ -267,6 +267,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
 
     /* Verify the type of the response */
     UA_Response response;
+    UA_init(&response, ac->responseType);
     const UA_DataType *responseType = ac->responseType;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_equal(responseTypeId, &ac->responseType->binaryEncodingId)) {
