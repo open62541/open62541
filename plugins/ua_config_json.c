@@ -15,6 +15,8 @@
 #include "open62541/plugin/securitypolicy_default.h"
 #ifdef UA_ENABLE_ENCRYPTION
 #include "open62541/plugin/certificategroup_default.h"
+#endif
+#if defined(UA_ENABLE_ENCRYPTION) || defined(UA_ENABLE_LWS)
 #include <stdio.h>
 #include <errno.h>
 #endif
@@ -69,7 +71,7 @@ nextToken(ParsingCtx *ctx) {
 typedef UA_StatusCode
 (*parseJsonSignature)(ParsingCtx *ctx, void *configField, size_t *configFieldSize);
 
-#ifdef UA_ENABLE_ENCRYPTION
+#if defined(UA_ENABLE_ENCRYPTION) || defined(UA_ENABLE_LWS)
 static UA_ByteString
 loadCertificateFile(const char *const path);
 #endif
@@ -792,7 +794,7 @@ PARSE_JSON(CertificateFileField) {
     UA_StatusCode retval = StringField_parseJson(ctx, &filename, NULL);
     if(retval == UA_STATUSCODE_GOOD) {
         if (filename.length > 0) {
-#ifdef UA_ENABLE_ENCRYPTION
+#if defined(UA_ENABLE_ENCRYPTION) || defined(UA_ENABLE_LWS)
             char *certfile = (char *)UA_malloc(filename.length + 1);
             memcpy(certfile, filename.data, filename.length);
             certfile[filename.length] = '\0';
@@ -808,6 +810,51 @@ PARSE_JSON(CertificateFileField) {
     }
     return retval;
 }
+
+#ifdef UA_ENABLE_LWS
+PARSE_JSON(WebSocketConfigurationField) {
+    UA_ServerConfig *config = (UA_ServerConfig*)configField;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size / 2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING)
+            continue;
+
+        char *field = (char*)UA_malloc(tok.size + 1);
+        if(!field)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        unsigned int strLen = 0;
+        cj5_get_str(&ctx->result, (unsigned int)ctx->index, field, &strLen);
+
+        if(strcmp(field, "webSocketBufSize") == 0) {
+            retval = UInt32Field_parseJson(ctx, &config->webSocketBufSize, NULL);
+        } else if(strcmp(field, "webSocketMaxMsgSize") == 0) {
+            retval = UInt32Field_parseJson(ctx, &config->webSocketMaxMsgSize, NULL);
+        } else if(strcmp(field, "webSocketMaxChunks") == 0) {
+            retval = UInt32Field_parseJson(ctx, &config->webSocketMaxChunks, NULL);
+        } else if(strcmp(field, "certificate") == 0) {
+            UA_ByteString_clear(&config->webSocketCertificate);
+            retval = CertificateFileField_parseJson(
+                ctx, &config->webSocketCertificate, NULL);
+        } else if(strcmp(field, "privateKey") == 0) {
+            UA_ByteString_clear(&config->webSocketPrivateKey);
+            retval = CertificateFileField_parseJson(
+                ctx, &config->webSocketPrivateKey, NULL);
+        } else if(strcmp(field, "privateKeyPassword") == 0) {
+            UA_String_clear(&config->webSocketPrivateKeyPassword);
+            retval = StringField_parseJson(
+                ctx, &config->webSocketPrivateKeyPassword, NULL);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, field);
+        }
+        UA_free(field);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 static UA_StatusCode
 SecurityPolicyField_parseJson(ParsingCtx *ctx, UA_SecurityPolicy *field,
@@ -1022,6 +1069,12 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->tcpEnabled, NULL);
                 else if(strcmp(field, "tcp") == 0)
                     retval = TcpConfigurationField_parseJson(&ctx, config, NULL);
+#ifdef UA_ENABLE_LWS
+                else if(strcmp(field, "webSocketEnabled") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->webSocketEnabled, NULL);
+                else if(strcmp(field, "webSocket") == 0)
+                    retval = WebSocketConfigurationField_parseJson(&ctx, config, NULL);
+#endif
                 else if(strcmp(field, "securityPolicyNoneDiscoveryOnly") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->securityPolicyNoneDiscoveryOnly, NULL);
                 else if(strcmp(field, "modellingRulesOnInstances") == 0)
@@ -1663,7 +1716,7 @@ UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString jsonCo
     return res;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
+#if defined(UA_ENABLE_ENCRYPTION) || defined(UA_ENABLE_LWS)
 static UA_ByteString
 loadCertificateFile(const char *const path) {
     UA_ByteString fileContents = UA_BYTESTRING_NULL;

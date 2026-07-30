@@ -134,17 +134,17 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
-#define UA_SCHEMAS_SIZE 4
+#define UA_SCHEMAS_SIZE 5
 #define UA_ETH_SCHEMA_INDEX 2
 
 static const char* schemas[UA_SCHEMAS_SIZE] = {
-    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://"
+    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://", "opc.wss://"
 };
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     UA_UInt16 *outPort, UA_String *outPath) {
-    /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
+    /* Url must begin with a supported OPC UA URL scheme */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
     }

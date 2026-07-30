@@ -700,6 +700,18 @@ updateEndpointUserIdentityToken(UA_Server *server,
 
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
+#ifdef UA_ENABLE_LWS
+static const UA_String wssBinaryTransportProfile = UA_STRING_STATIC(
+    "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
+
+static UA_Boolean
+isWebSocketEndpointUrl(const UA_String *url) {
+    const UA_String prefix = UA_STRING_STATIC("opc.wss://");
+    return url->length >= prefix.length &&
+        memcmp(url->data, prefix.data, prefix.length) == 0;
+}
+#endif
+
 UA_StatusCode
 setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
@@ -723,19 +735,6 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
     for(size_t j = 0; j < sc->endpointsSize; ++j) {
         const UA_EndpointDescription *ep = &sc->endpoints[j];
 
-        /* Test if the supported binary profile shall be returned */
-        UA_Boolean usable = (profileUrisSize == 0);
-        if(!usable) {
-            for(size_t i = 0; i < profileUrisSize; ++i) {
-                if(!UA_String_equal(&profileUris[i], &ep->transportProfileUri))
-                    continue;
-                usable = true;
-                break;
-            }
-        }
-        if(!usable)
-            continue;
-
         /* Get the SecurityPolicy */
         UA_SecurityPolicy *sp =
             getSecurityPolicyByUri(server, &ep->securityPolicyUri);
@@ -748,9 +747,35 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
 
         /* Copy into the results */
         for(size_t i = 0; i < clone_times; ++i) {
+            const UA_String *currentEndpointUrl = &endpointUrl;
+            if(endpointUrl.length == 0)
+                currentEndpointUrl = &sc->applicationDescription.discoveryUrls[i];
+
+            const UA_String *transportProfileUri = &ep->transportProfileUri;
+#ifdef UA_ENABLE_LWS
+            if(isWebSocketEndpointUrl(currentEndpointUrl))
+                transportProfileUri = &wssBinaryTransportProfile;
+#endif
+
+            /* Test if the effective transport profile shall be returned */
+            UA_Boolean usable = (profileUrisSize == 0);
+            if(!usable) {
+                for(size_t p = 0; p < profileUrisSize; ++p) {
+                    if(!UA_String_equal(&profileUris[p], transportProfileUri))
+                        continue;
+                    usable = true;
+                    break;
+                }
+            }
+            if(!usable)
+                continue;
+
             /* Copy the endpoint with a current ApplicationDescription */
             UA_EndpointDescription *ed = &(*arr)[pos];
             retval |= UA_EndpointDescription_copy(&sc->endpoints[j], ed);
+            UA_String_clear(&ed->transportProfileUri);
+            retval |= UA_String_copy(transportProfileUri,
+                                     &ed->transportProfileUri);
             UA_ApplicationDescription_clear(&ed->server);
             retval |= UA_ApplicationDescription_copy(&sc->applicationDescription,
                                                      &ed->server);
@@ -789,8 +814,7 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
             /* Set the EndpointURL */
             UA_String_clear(&ed->endpointUrl);
             if(endpointUrl.length == 0) {
-                retval |= UA_String_copy(&sc->applicationDescription.discoveryUrls[i],
-                                         &ed->endpointUrl);
+                retval |= UA_String_copy(currentEndpointUrl, &ed->endpointUrl);
             } else {
                 /* Mirror back the requested EndpointUrl and also add it to the
                  * array of discovery urls */

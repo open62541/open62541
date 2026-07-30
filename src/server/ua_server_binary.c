@@ -517,7 +517,9 @@ purgeFirstChannelWithoutSession(UA_Server *server) {
 }
 
 UA_StatusCode
-createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
+createServerSecureChannel(UA_Server *server,
+                          const UA_ConnectionConfig *connectionConfig,
+                          UA_ConnectionManager *cm,
                           uintptr_t connectionId, const UA_KeyValueMap *params,
                           UA_SecureChannel **outChannel) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -535,14 +537,7 @@ createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set up the initial connection config */
-    UA_ConnectionConfig connConfig;
-    connConfig.protocolVersion = 0;
-    connConfig.recvBufferSize = config->tcpBufSize;
-    connConfig.sendBufferSize = config->tcpBufSize;
-    connConfig.localMaxMessageSize = config->tcpMaxMsgSize;
-    connConfig.remoteMaxMessageSize = config->tcpMaxMsgSize;
-    connConfig.localMaxChunkCount = config->tcpMaxChunks;
-    connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
+    UA_ConnectionConfig connConfig = *connectionConfig;
 
     /* Further constrain the bufsize if the ConnectionManager has static rx/tx
      * buffers configured. Also applies when tcpBufSize is unset (0), so that
@@ -709,7 +704,9 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(serverSocket) {
         /* A new connection is opening. This is the only place where
          * createSecureChannel is used. */
-        retval = createServerSecureChannel(bpm->drv.server, cm, connectionId,
+        retval = createServerSecureChannel(bpm->drv.server,
+                                           &bpm->connectionConfig,
+                                           cm, connectionId,
                                            params, &channel);
 
         if(retval != UA_STATUSCODE_GOOD) {
@@ -799,8 +796,8 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
 
-    UA_SecureChannel *channel;
-    TAILQ_FOREACH(channel, &bpm->channels, componentEntry) {
+    UA_SecureChannel *channel, *channelTmp;
+    TAILQ_FOREACH_SAFE(channel, &bpm->channels, componentEntry, channelTmp) {
         UA_Boolean timeout = UA_SecureChannel_checkTimeout(channel, nowMonotonic);
         if(timeout) {
             UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel has timed out");
@@ -847,8 +844,8 @@ UA_BinaryProtocolManager_stop(UA_Driver *drv) {
     bpm->houseKeepingCallbackId = 0;
 
     /* Stop all SecureChannels */
-    UA_SecureChannel *channel;
-    TAILQ_FOREACH(channel, &bpm->channels, componentEntry) {
+    UA_SecureChannel *channel, *channelTmp;
+    TAILQ_FOREACH_SAFE(channel, &bpm->channels, componentEntry, channelTmp) {
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
 
@@ -898,4 +895,17 @@ UA_BinaryProtocolManager_init(
 
     /* Gets set during start */
     /* bpm->drv.server = server; */
+}
+
+void
+UA_BinaryConnectionConfig_set(UA_ConnectionConfig *connectionConfig,
+                              UA_UInt32 bufSize, UA_UInt32 maxMsgSize,
+                              UA_UInt32 maxChunks) {
+    connectionConfig->protocolVersion = 0;
+    connectionConfig->recvBufferSize = bufSize;
+    connectionConfig->sendBufferSize = bufSize;
+    connectionConfig->localMaxMessageSize = maxMsgSize;
+    connectionConfig->remoteMaxMessageSize = maxMsgSize;
+    connectionConfig->localMaxChunkCount = maxChunks;
+    connectionConfig->remoteMaxChunkCount = maxChunks;
 }

@@ -5,6 +5,13 @@
 #include "ua_server_internal.h"
 #include "mp_printf.h"
 
+static UA_Boolean
+isTcpUrl(const UA_String *url) {
+    const UA_String prefix = UA_STRING_STATIC("opc.tcp://");
+    return url->length >= prefix.length &&
+        memcmp(url->data, prefix.data, prefix.length) == 0;
+}
+
 static void
 addTcpDiscoveryUrl(UA_BinaryProtocolManager *bpm,
                    const UA_KeyValueMap *params) {
@@ -48,6 +55,9 @@ addTcpDiscoveryUrl(UA_BinaryProtocolManager *bpm,
 static UA_StatusCode
 createServerConnection(UA_BinaryProtocolManager *bpm,
                        const UA_String *serverUrl) {
+    if(!isTcpUrl(serverUrl))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
     UA_Server *server = bpm->drv.server;
     UA_ServerConfig *config = &server->config;
 
@@ -114,8 +124,16 @@ startTcpTransport(UA_BinaryProtocolManager *bpm) {
     UA_Server *server = bpm->drv.server;
     UA_ServerConfig *config = &server->config;
 
+    if(!config->tcpEnabled)
+        return UA_STATUSCODE_GOOD;
+
+    UA_BinaryConnectionConfig_set(&bpm->connectionConfig, config->tcpBufSize,
+                                  config->tcpMaxMsgSize,
+                                  config->tcpMaxChunks);
+
     /* Open server sockets */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_Boolean haveTcpUrl = false;
     UA_Boolean haveServerSocket = false;
     if(config->serverUrlsSize == 0) {
         /* Empty hostname -> listen on all devices */
@@ -128,11 +146,18 @@ startTcpTransport(UA_BinaryProtocolManager *bpm) {
             haveServerSocket = true;
     } else {
         for(size_t i = 0; i < config->serverUrlsSize; i++) {
+            if(!isTcpUrl(&config->serverUrls[i]))
+                continue;
+            haveTcpUrl = true;
             retVal = createServerConnection(bpm, &config->serverUrls[i]);
             if(retVal == UA_STATUSCODE_GOOD)
                 haveServerSocket = true;
         }
     }
+
+    /* The TCP transport is optional when another transport is configured. */
+    if(config->serverUrlsSize > 0 && !haveTcpUrl)
+        return UA_STATUSCODE_GOOD;
 
     if(!haveServerSocket) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
@@ -144,6 +169,8 @@ startTcpTransport(UA_BinaryProtocolManager *bpm) {
      * discovery. Don't add the urls with an empty host (listening on all
      * interfaces) */
     for(size_t i = 0; i < config->serverUrlsSize; i++) {
+        if(!isTcpUrl(&config->serverUrls[i]))
+            continue;
         UA_String hostname = UA_STRING_NULL;
         UA_String path = UA_STRING_NULL;
         UA_UInt16 port = 0;

@@ -150,7 +150,13 @@ serverReverseConnectionCallbackLocked(UA_ConnectionManager *cm, uintptr_t connec
      * createServerSecureChannel is used. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(!context->channel) {
-        res = createServerSecureChannel(rpm->drv.server, cm, connectionId,
+        UA_ServerConfig *config = &rpm->drv.server->config;
+        UA_ConnectionConfig connectionConfig;
+        UA_BinaryConnectionConfig_set(&connectionConfig, config->tcpBufSize,
+                                      config->tcpMaxMsgSize,
+                                      config->tcpMaxChunks);
+        res = createServerSecureChannel(rpm->drv.server, &connectionConfig,
+                                        cm, connectionId,
                                         params, &context->channel);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(rpm->logging, UA_LOGCATEGORY_SERVER,

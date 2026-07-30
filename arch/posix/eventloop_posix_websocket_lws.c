@@ -555,6 +555,14 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     c->ownsVhost = true;
 
     if(c->listener) {
+        if(c->address[0] == 0) {
+            const char *hostname = lws_canonical_hostname(m->lwsContext);
+            char *hostnameCopy = copyString(NULL, hostname ? hostname : "");
+            if(!hostnameCopy)
+                goto failVhost;
+            UA_free(c->address);
+            c->address = hostnameCopy;
+        }
         c->port = (UA_UInt16)lws_get_vhost_listen_port(c->vhost);
         c->state = WS_STATE_ESTABLISHED;
         notify(c, UA_CONNECTIONSTATE_ESTABLISHED, UA_BYTESTRING_NULL, true);
