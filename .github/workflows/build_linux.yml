@@ -27,6 +27,10 @@ jobs:
           - name: "Debug Build & Unit Tests with multithreading (gcc)"
             cmd_action: unit_tests_mt
 
+          - name: "Debug Build & Unit Tests with GLib EventLoop (gcc)"
+            cmd_deps: sudo apt-get install -y -qq libglib2.0-dev
+            cmd_action: unit_tests_glib
+
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_action: unit_tests_alarms
 
