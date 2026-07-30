@@ -116,6 +116,24 @@ START_TEST(Client_connect) {
 }
 END_TEST
 
+START_TEST(Client_connect_invalidEndpointUrl) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp:[invalid:host]:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_connect_unknownHost) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp://WrongHost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_connect_username) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
@@ -977,6 +995,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, ClientConfig_Copy);
     tcase_add_test(tc_client, Client_connect);
+    tcase_add_test(tc_client, Client_connect_invalidEndpointUrl);
+    tcase_add_test(tc_client, Client_connect_unknownHost);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);
     tcase_add_test(tc_client, Client_new_default);

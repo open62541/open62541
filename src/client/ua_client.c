@@ -56,6 +56,14 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+#ifdef UA_ENABLE_LWS
+    retval = UA_ByteString_copy(&src->webSocketCaCertificate,
+                                &dst->webSocketCaCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    dst->webSocketMaxQueueSize = src->webSocketMaxQueueSize;
+#endif
+
     retval = UA_Array_copy(src->sessionLocaleIds, src->sessionLocaleIdsSize,
                            (void **)&dst->sessionLocaleIds, &UA_TYPES[UA_TYPES_LOCALEID]);
     if(retval != UA_STATUSCODE_GOOD)
@@ -167,6 +175,9 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
 
     UA_String_clear(&config->applicationUri);
+#ifdef UA_ENABLE_LWS
+    UA_ByteString_clear(&config->webSocketCaCertificate);
+#endif
 
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);

@@ -684,6 +684,8 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     config->tcpBufSize = recvBufferSize;
 #ifdef UA_ENABLE_LWS
     config->webSocketBufSize = recvBufferSize;
+    config->webSocketMaxQueueSize =
+        recvBufferSize > UINT32_MAX / 16 ? UINT32_MAX : recvBufferSize * 16;
 #endif
 
     /* Allocate the SecurityPolicies */
@@ -2103,6 +2105,17 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 #endif
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
 
+#ifdef UA_ENABLE_LWS
+        /* Add the WebSocket connection manager. The client selects it
+         * automatically for opc.wss EndpointUrls. */
+        UA_ConnectionManager *wsCM =
+            UA_ConnectionManager_new_LWS_WebSocket(
+                UA_STRING("websocket connection manager"));
+        if(wsCM)
+            config->eventLoop->registerEventSource(config->eventLoop,
+                                                    (UA_EventSource*)wsCM);
+#endif
+
 #if defined(UA_ARCHITECTURE_LWIP)
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udp connection manager"));
@@ -2129,6 +2142,14 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
+
+#ifdef UA_ENABLE_LWS
+    if(config->webSocketMaxQueueSize == 0) {
+        UA_UInt32 sendBufferSize = config->localConnectionConfig.sendBufferSize;
+        config->webSocketMaxQueueSize = sendBufferSize > UINT32_MAX / 16 ?
+            UINT32_MAX : sendBufferSize * 16;
+    }
+#endif
 
     if(!config->certificateVerification.logging) {
         config->certificateVerification.logging = config->logging;

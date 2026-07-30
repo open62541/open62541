@@ -316,6 +316,10 @@ START_TEST(loadClientConfig) {
     ck_assert_uint_eq(clientConfig.requestedSessionTimeout, 1000);
     ck_assert_uint_eq(clientConfig.connectivityCheckInterval, 0);
     ck_assert_uint_eq(clientConfig.tcpReuseAddr, true);
+#ifdef UA_ENABLE_LWS
+    ck_assert_uint_gt(clientConfig.webSocketCaCertificate.length, 0);
+    ck_assert_uint_eq(clientConfig.webSocketMaxQueueSize, 2000000);
+#endif
 
     /* test security/filtering fields */
     ck_assert(UA_String_equal(&clientConfig.applicationUri,
@@ -470,6 +474,10 @@ START_TEST(loadClientAndClientConfigAndCompare) {
     ck_assert_uint_eq(cc2->requestedSessionTimeout, clientConfig.requestedSessionTimeout);
     ck_assert_uint_eq(cc2->connectivityCheckInterval, clientConfig.connectivityCheckInterval);
     ck_assert_uint_eq(cc2->tcpReuseAddr, clientConfig.tcpReuseAddr);
+#ifdef UA_ENABLE_LWS
+    ck_assert(UA_ByteString_equal(&cc2->webSocketCaCertificate,
+                                  &clientConfig.webSocketCaCertificate));
+#endif
 
     /* test security/filtering fields */
     ck_assert(UA_String_equal(&cc2->applicationUri,

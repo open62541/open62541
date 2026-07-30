@@ -331,6 +331,11 @@
           "description": "WebSocket maximum OPC UA chunks per message; zero is unbounded",
           "minimum": 0
         },
+        "webSocketMaxQueueSize": {
+          "type": "integer",
+          "description": "Maximum bytes queued for a slow WebSocket peer",
+          "minimum": 1
+        },
         "certificate": {
           "type": "string",
           "description": "Path to the WebSocket TLS certificate in DER or PEM format"
