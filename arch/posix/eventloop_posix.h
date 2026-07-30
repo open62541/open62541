@@ -275,7 +275,7 @@ typedef int SOCKET;
 #endif /* __linux__ */
 #include <sys/stat.h>
 
-#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(__OpenBSD__)
+#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__OHOS__)
 #include <bits/stdio_lim.h>
 #endif
 
