@@ -178,7 +178,7 @@ endif()
 
 if(UA_ENABLE_LWS)
     if(NOT UA_ARCHITECTURE_POSIX)
-        message(FATAL_ERROR "Libwebsockets cannot be used without posix")
+        message(FATAL_ERROR "libwebsockets cannot be used without POSIX")
     endif()
 endif()
 

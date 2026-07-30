@@ -35,10 +35,17 @@ struct WSConnection {
     WSState state;
     char *address;
     char *path;
+    char *subprotocol;
+    struct lws_protocols protocols[2];
     UA_UInt16 port;
     UA_Boolean useSSL;
+    UA_Boolean binaryOnly;
     UA_ByteString receive;
     size_t receiveSize;
+    size_t recvMaxMessageSize;
+    size_t sendMaxMessageSize;
+    size_t sendMaxQueueSize;
+    size_t sendQueueSize;
     TAILQ_HEAD(, WSMessage) outgoing;
     UA_DelayedCallback freeCallback;
     void *application;
@@ -54,20 +61,21 @@ struct WSManager {
 };
 
 static int wsCallback(struct lws*, enum lws_callback_reasons, void*, void*, size_t);
-static const struct lws_protocols wsProtocols[] = {
-    {"open62541", wsCallback, 0, 0, 0, NULL, 0},
-    LWS_PROTOCOL_LIST_TERM
-};
-
 static const UA_KeyValueRestriction wsParams[] = {
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("path")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("subprotocol")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("binary-only")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("useSSL")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
     {{0, UA_STRING_STATIC("private-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
     {{0, UA_STRING_STATIC("private-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("ca-certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
+    {{0, UA_STRING_STATIC("recv-max-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("send-max-message-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("send-max-queue-size")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
 };
 
@@ -110,6 +118,7 @@ static void clearMessages(WSConnection *c) {
         TAILQ_REMOVE(&c->outgoing, m, next);
         UA_free(m);
     }
+    c->sendQueueSize = 0;
 }
 
 static void destroyConnection(WSConnection *c) {
@@ -117,6 +126,7 @@ static void destroyConnection(WSConnection *c) {
         lws_vhost_destroy(c->vhost);
     UA_free(c->address);
     UA_free(c->path);
+    UA_free(c->subprotocol);
     UA_ByteString_clear(&c->receive);
     clearMessages(c);
     UA_free(c);
@@ -132,8 +142,7 @@ static void removeConnection(WSConnection *c) {
         return;
     WSManager *m = c->manager;
     LIST_REMOVE(c, next);
-    if(c->state != WS_STATE_CLOSING)
-        notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
+    notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
     c->state = WS_STATE_REMOVED;
     c->wsi = NULL;
     c->freeCallback.callback = freeConnection;
@@ -163,9 +172,15 @@ static int writePending(WSConnection *c) {
         return 0;
     UA_Byte *payload = (UA_Byte*)(m + 1) + LWS_PRE;
     int written = lws_write(c->wsi, payload, m->size, LWS_WRITE_BINARY);
-    if(written < 0 || (size_t)written != m->size)
+    if(written < 0 || (size_t)written != m->size) {
+        UA_LOG_WARNING(c->manager->cm.eventSource.eventLoop->logger,
+                       UA_LOGCATEGORY_NETWORK,
+                       "WebSocket %lu\t| Could not write the queued frame",
+                       (unsigned long)c->id);
         return -1;
+    }
     TAILQ_REMOVE(&c->outgoing, m, next);
+    c->sendQueueSize -= m->size;
     UA_free(m);
     if(!TAILQ_EMPTY(&c->outgoing))
         UA_LWS_requestWritable(c->wsi);
@@ -175,6 +190,86 @@ static int writePending(WSConnection *c) {
 static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
                       void *user, void *in, size_t len) {
     WSConnection *c = (WSConnection*)lws_get_opaque_user_data(wsi);
+    if(reason == LWS_CALLBACK_FILTER_PROTOCOL_CONNECTION) {
+        WSConnection *listener =
+            (WSConnection*)lws_get_vhost_user(lws_get_vhost(wsi));
+        if(!listener)
+            return -1;
+
+        int protocolLength = lws_hdr_total_length(wsi, WSI_TOKEN_PROTOCOL);
+        if(listener->subprotocol) {
+            if(protocolLength <= 0) {
+                UA_LOG_DEBUG(listener->manager->cm.eventSource.eventLoop->logger,
+                             UA_LOGCATEGORY_NETWORK,
+                             "WebSocket listener %lu\t| Client did not offer "
+                             "the required subprotocol",
+                             (unsigned long)listener->id);
+                return -1;
+            }
+            char *offered = (char*)UA_malloc((size_t)protocolLength + 1);
+            if(!offered)
+                return -1;
+            int copied = lws_hdr_copy(wsi, offered, protocolLength + 1,
+                                      WSI_TOKEN_PROTOCOL);
+            UA_Boolean supported = false;
+            if(copied == protocolLength) {
+                const char *pos = offered;
+                size_t expected = strlen(listener->subprotocol);
+                while(*pos) {
+                    while(*pos == ' ' || *pos == '\t' || *pos == ',')
+                        pos++;
+                    const char *end = pos;
+                    while(*end && *end != ',')
+                        end++;
+                    const char *trimmed = end;
+                    while(trimmed > pos &&
+                          (trimmed[-1] == ' ' || trimmed[-1] == '\t'))
+                        trimmed--;
+                    if((size_t)(trimmed - pos) == expected &&
+                       memcmp(pos, listener->subprotocol, expected) == 0) {
+                        supported = true;
+                        break;
+                    }
+                    pos = end;
+                }
+            }
+            UA_free(offered);
+            if(!supported) {
+                UA_LOG_DEBUG(listener->manager->cm.eventSource.eventLoop->logger,
+                             UA_LOGCATEGORY_NETWORK,
+                             "WebSocket listener %lu\t| Client offered no "
+                             "supported subprotocol",
+                             (unsigned long)listener->id);
+                return -1;
+            }
+        } else if(protocolLength > 0) {
+            UA_LOG_DEBUG(listener->manager->cm.eventSource.eventLoop->logger,
+                         UA_LOGCATEGORY_NETWORK,
+                         "WebSocket listener %lu\t| Unexpected subprotocol",
+                         (unsigned long)listener->id);
+            return -1;
+        }
+
+        int pathLength = lws_hdr_total_length(wsi, WSI_TOKEN_GET_URI);
+        size_t expectedLength = strlen(listener->path);
+        if(pathLength < 0 || (size_t)pathLength != expectedLength)
+            return -1;
+        char *requestedPath = (char*)UA_malloc((size_t)pathLength + 1);
+        if(!requestedPath)
+            return -1;
+        int copied = lws_hdr_copy(wsi, requestedPath, pathLength + 1,
+                                  WSI_TOKEN_GET_URI);
+        UA_Boolean pathMatches =
+            copied == pathLength &&
+            memcmp(requestedPath, listener->path, expectedLength) == 0;
+        UA_free(requestedPath);
+        if(!pathMatches)
+            UA_LOG_DEBUG(listener->manager->cm.eventSource.eventLoop->logger,
+                         UA_LOGCATEGORY_NETWORK,
+                         "WebSocket listener %lu\t| Requested path does not match",
+                         (unsigned long)listener->id);
+        return pathMatches ? 0 : -1;
+    }
     if(reason == LWS_CALLBACK_ESTABLISHED && !c) {
         WSConnection *listener = (WSConnection*)lws_get_vhost_user(lws_get_vhost(wsi));
         if(!listener)
@@ -190,6 +285,10 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
         c->application = listener->application;
         c->context = listener->context;
         c->callback = listener->callback;
+        c->binaryOnly = listener->binaryOnly;
+        c->recvMaxMessageSize = listener->recvMaxMessageSize;
+        c->sendMaxMessageSize = listener->sendMaxMessageSize;
+        c->sendMaxQueueSize = listener->sendMaxQueueSize;
         lws_set_opaque_user_data(wsi, c);
     }
     if(!c)
@@ -199,9 +298,6 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
     case LWS_CALLBACK_ESTABLISHED:
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
         c->wsi = wsi;
-        if(c->useSSL && !c->listener &&
-           UA_LWS_verifyPeerCertificate(&c->manager->cm, wsi) != UA_STATUSCODE_GOOD)
-            return -1;
         c->state = WS_STATE_ESTABLISHED;
         notify(c, UA_CONNECTIONSTATE_ESTABLISHED, UA_BYTESTRING_NULL, true);
         UA_free(c->path);
@@ -209,14 +305,30 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
         return 0;
     case LWS_CALLBACK_RECEIVE:
     case LWS_CALLBACK_CLIENT_RECEIVE: {
-        if(!lws_frame_is_binary(wsi))
+        if(c->binaryOnly && !lws_frame_is_binary(wsi)) {
+            UA_LOG_WARNING(c->manager->cm.eventSource.eventLoop->logger,
+                           UA_LOGCATEGORY_NETWORK,
+                           "WebSocket %lu\t| Text frame rejected on a "
+                           "binary-only connection", (unsigned long)c->id);
             return -1;
+        }
         if(lws_is_first_fragment(wsi)) {
             UA_ByteString_clear(&c->receive);
             c->receiveSize = 0;
         }
-        size_t required = c->receiveSize + len +
-                          lws_remaining_packet_payload(wsi);
+        size_t remaining = lws_remaining_packet_payload(wsi);
+        if(len > SIZE_MAX - c->receiveSize ||
+           remaining > SIZE_MAX - c->receiveSize - len)
+            return -1;
+        size_t required = c->receiveSize + len + remaining;
+        if(c->recvMaxMessageSize > 0 && required > c->recvMaxMessageSize) {
+            UA_LOG_WARNING(c->manager->cm.eventSource.eventLoop->logger,
+                           UA_LOGCATEGORY_NETWORK,
+                           "WebSocket %lu\t| Incoming frame exceeds the "
+                           "configured limit", (unsigned long)c->id);
+            lws_close_reason(wsi, LWS_CLOSE_STATUS_MESSAGE_TOO_LARGE, NULL, 0);
+            return -1;
+        }
         if(required > c->receive.length) {
             UA_Byte *data = (UA_Byte*)UA_realloc(c->receive.data, required);
             if(!data)
@@ -240,6 +352,13 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
             return -1;
         return writePending(c);
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+        UA_LOG_WARNING(c->manager->cm.eventSource.eventLoop->logger,
+                       UA_LOGCATEGORY_NETWORK,
+                       "WebSocket %lu\t| Connection failed%s%s",
+                       (unsigned long)c->id, in ? ": " : "",
+                       in ? (const char*)in : "");
+        removeConnection(c);
+        return 0;
     case LWS_CALLBACK_CLOSED:
     case LWS_CALLBACK_CLIENT_CLOSED:
         removeConnection(c);
@@ -274,7 +393,7 @@ static UA_StatusCode deleteManager(UA_ConnectionManager *cm) {
     WSManager *m = (WSManager*)cm;
     if(m->lwsContext)
         UA_LWS_releaseContext(cm->eventSource.eventLoop);
-    UA_LWS_clearCertificateGroup(cm);
+    UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(m);
     return UA_STATUSCODE_GOOD;
@@ -309,6 +428,10 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         params, UA_QUALIFIEDNAME(0, "address"), &UA_TYPES[UA_TYPES_STRING]);
     const UA_String *path = (const UA_String*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "path"), &UA_TYPES[UA_TYPES_STRING]);
+    const UA_String *subprotocol = (const UA_String*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "subprotocol"), &UA_TYPES[UA_TYPES_STRING]);
+    const UA_Boolean *binaryOnly = (const UA_Boolean*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "binary-only"), &UA_TYPES[UA_TYPES_BOOLEAN]);
     const UA_Boolean *listen = (const UA_Boolean*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "listen"), &UA_TYPES[UA_TYPES_BOOLEAN]);
     const UA_Boolean *useSSL = (const UA_Boolean*)UA_KeyValueMap_getScalar(
@@ -319,38 +442,63 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         params, UA_QUALIFIEDNAME(0, "private-key"), &UA_TYPES[UA_TYPES_BYTESTRING]);
     const UA_String *keyPassword = (const UA_String*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "private-key-password"), &UA_TYPES[UA_TYPES_STRING]);
+    const UA_ByteString *caCertificate =
+        (const UA_ByteString*)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "ca-certificate"),
+            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_UInt32 *recvMaxMessageSize = (const UA_UInt32*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "recv-max-message-size"), &UA_TYPES[UA_TYPES_UINT32]);
+    const UA_UInt32 *sendMaxMessageSize = (const UA_UInt32*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "send-max-message-size"), &UA_TYPES[UA_TYPES_UINT32]);
+    const UA_UInt32 *sendMaxQueueSize = (const UA_UInt32*)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "send-max-queue-size"), &UA_TYPES[UA_TYPES_UINT32]);
     if((!listen || !*listen) && (!address || !address->length))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if((path && path->length > 0 && path->data[0] != '/') ||
+       (subprotocol && subprotocol->length == 0))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_Boolean secure = useSSL && *useSSL;
-#ifdef LWS_WITH_MBEDTLS
-    if(secure && cm->certificateGroup)
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
     if((certificate && !privateKey) || (!certificate && privateKey) ||
        (certificate && (certificate->length > UINT_MAX ||
                         privateKey->length > UINT_MAX)) ||
-       (certificate && !secure) || ((listen && *listen) && secure && !certificate))
+       (caCertificate && caCertificate->length > UINT_MAX) ||
+       (certificate && !secure) || (caCertificate && !secure) ||
+       ((listen && *listen) && secure && !certificate) ||
+       ((listen && *listen) && caCertificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_StatusCode failureStatus = UA_STATUSCODE_BADNOTCONNECTED;
     WSManager *m = (WSManager*)cm;
     WSConnection *c = newConnection(m);
     if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     c->listener = listen && *listen;
     c->useSSL = secure;
+    c->binaryOnly = !binaryOnly || *binaryOnly;
+    c->recvMaxMessageSize = recvMaxMessageSize ? *recvMaxMessageSize : 0;
+    c->sendMaxMessageSize = sendMaxMessageSize ? *sendMaxMessageSize : 0;
+    c->sendMaxQueueSize = sendMaxQueueSize ? *sendMaxQueueSize : 0;
     c->address = copyString(address, "");
-    if(!c->listener)
-        c->path = copyString(path, "/");
+    c->path = copyString(path && path->length > 0 ? path : NULL, "/");
+    if(subprotocol)
+        c->subprotocol = copyString(subprotocol, "");
     c->port = *port;
     c->application = application;
     c->context = context;
     c->callback = cb;
-    if(!c->address || (!c->listener && !c->path))
+    if(!c->address || !c->path || (subprotocol && !c->subprotocol)) {
+        failureStatus = UA_STATUSCODE_BADOUTOFMEMORY;
         goto fail;
+    }
+
+    /* libwebsockets needs a local protocol name for callback dispatch. This
+     * fallback is not sent as a WebSocket subprotocol. */
+    c->protocols[0].name = c->subprotocol ? c->subprotocol : "websocket";
+    c->protocols[0].callback = wsCallback;
 
     struct lws_context_creation_info vi;
     memset(&vi, 0, sizeof(vi));
-    vi.protocols = wsProtocols;
+    vi.protocols = c->protocols;
     vi.user = c;
     vi.port = c->listener ? c->port : CONTEXT_PORT_NO_LISTEN;
     vi.iface = c->listener && c->address[0] ? c->address : NULL;
@@ -358,8 +506,10 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         vi.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
 #ifdef LWS_WITH_TLS
     char *password = copyString(keyPassword, "");
-    if(keyPassword && !password)
+    if(keyPassword && !password) {
+        failureStatus = UA_STATUSCODE_BADOUTOFMEMORY;
         goto fail;
+    }
     if(certificate) {
         if(c->listener) {
             vi.server_ssl_cert_mem = certificate->data;
@@ -375,10 +525,16 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
             vi.client_ssl_private_key_password = password;
         }
     }
+    if(caCertificate) {
+        vi.client_ssl_ca_mem = caCertificate->data;
+        vi.client_ssl_ca_mem_len = (unsigned int)caCertificate->length;
+    }
 #else
     char *password = NULL;
-    if(c->useSSL || certificate)
+    if(c->useSSL || certificate || caCertificate) {
+        failureStatus = UA_STATUSCODE_BADNOTSUPPORTED;
         goto fail;
+    }
 #endif
     c->vhost = lws_create_vhost(m->lwsContext, &vi);
     if(c->vhost && c->useSSL && !c->listener &&
@@ -387,8 +543,15 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         c->vhost = NULL;
     }
     UA_free(password);
-    if(!c->vhost)
+    if(!c->vhost) {
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                       "WebSocket %lu\t| Could not create the %s vhost for "
+                       "%s:%u", (unsigned long)c->id,
+                       c->listener ? "listener" : "client", c->address,
+                       (unsigned)c->port);
+        failureStatus = UA_STATUSCODE_BADCONNECTIONREJECTED;
         goto fail;
+    }
     c->ownsVhost = true;
 
     if(c->listener) {
@@ -407,19 +570,23 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
     ci.origin = c->address;
     ci.port = c->port;
     ci.path = c->path;
-    ci.protocol = "open62541";
-    ci.local_protocol_name = "open62541";
+    ci.protocol = c->subprotocol;
+    ci.local_protocol_name = c->protocols[0].name;
     ci.opaque_user_data = c;
-    if(c->useSSL) {
+    if(c->useSSL)
         ci.ssl_connection |= LCCSCF_USE_SSL;
-        if(cm->certificateGroup)
-            ci.ssl_connection |= LCCSCF_ALLOW_INSECURE |
-                                 LCCSCF_ALLOW_SELFSIGNED |
-                                 LCCSCF_ALLOW_EXPIRED;
-    }
     c->wsi = lws_client_connect_via_info(&ci);
-    if(!c->wsi)
+    if(!c->wsi) {
+        /* The connection-error callback can run before
+         * lws_client_connect_via_info returns. In that case removal and the
+         * closing notification have already been scheduled. */
+        if(c->state == WS_STATE_REMOVED)
+            return UA_STATUSCODE_GOOD;
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                        "WebSocket %lu\t| Could not start the connection to %s:%u%s",
+                        (unsigned long)c->id, c->address, (unsigned)c->port, c->path);
         goto failVhost;
+    }
     notify(c, UA_CONNECTIONSTATE_OPENING, UA_BYTESTRING_NULL, true);
     return UA_STATUSCODE_GOOD;
 
@@ -430,12 +597,14 @@ failVhost:
 fail:
     LIST_REMOVE(c, next);
     destroyConnection(c);
-    return UA_STATUSCODE_BADNOTCONNECTED;
+    return failureStatus;
 }
 
 static UA_StatusCode allocBuffer(UA_ConnectionManager *cm, uintptr_t id,
                                  UA_ByteString *buf, size_t size) {
-    (void)cm; (void)id;
+    WSConnection *c = findConnection((WSManager*)cm, id);
+    if(c && c->sendMaxMessageSize > 0 && size > c->sendMaxMessageSize)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     if(size > SIZE_MAX - sizeof(WSMessage) - LWS_PRE)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     WSMessage *msg = (WSMessage*)UA_malloc(sizeof(WSMessage) + LWS_PRE + size);
@@ -465,8 +634,25 @@ static UA_StatusCode sendConnection(UA_ConnectionManager *cm, uintptr_t id,
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
     WSMessage *msg = (WSMessage*)(buf->data - LWS_PRE) - 1;
+    if(buf->length > msg->size) {
+        freeBuffer(cm, id, buf);
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    }
+    /* The caller can shorten the allocated buffer to the encoded message.
+     * Send exactly that length as one WebSocket message. */
+    msg->size = buf->length;
+    if(c->sendMaxQueueSize > 0 &&
+       (msg->size > c->sendMaxQueueSize ||
+        c->sendQueueSize > c->sendMaxQueueSize - msg->size)) {
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                       "WebSocket %lu\t| Outgoing queue limit exceeded",
+                       (unsigned long)id);
+        freeBuffer(cm, id, buf);
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    }
     *buf = UA_BYTESTRING_NULL;
     TAILQ_INSERT_TAIL(&c->outgoing, msg, next);
+    c->sendQueueSize += msg->size;
     UA_LWS_requestWritable(c->wsi);
     return UA_STATUSCODE_GOOD;
 }
@@ -478,7 +664,6 @@ static UA_StatusCode closeConnection(UA_ConnectionManager *cm, uintptr_t id) {
     if(c->state == WS_STATE_CLOSING)
         return UA_STATUSCODE_GOOD;
     c->state = WS_STATE_CLOSING;
-    notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
     if(c->listener) {
         lws_vhost_destroy(c->vhost);
         c->vhost = NULL;

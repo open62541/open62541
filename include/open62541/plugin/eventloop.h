@@ -329,13 +329,6 @@ struct UA_ConnectionManager {
      * "mqtt", "udp", "mqtt". */
     UA_String protocol;
 
-    /* Optional certificate validation for secure transports. Configure before
-     * the EventLoop is started. If certificateGroupOwned is set, the
-     * ConnectionManager calls certificateGroup->clear and frees the group when
-     * it is deleted. Otherwise the group must outlive the ConnectionManager. */
-    UA_CertificateGroup *certificateGroup;
-    UA_Boolean certificateGroupOwned;
-
     /* Open a Connection
      * ~~~~~~~~~~~~~~~~~
      * Connecting is asynchronous. The connection-callback is called when the
@@ -786,11 +779,12 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
 
 /**
- * Libwebsockets WebSocket Connection Manager
+ * libwebsockets WebSocket Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Provides binary WebSocket client and server connections. Each buffer passed
- * to ``sendWithConnection`` is sent as one binary WebSocket message. Incoming
- * fragments are reassembled before they are passed to the connection callback.
+ * Provides WebSocket client and server connections. Each buffer passed to
+ * ``sendWithConnection`` is sent as one binary WebSocket message. Incoming
+ * fragments belonging to one WebSocket message are reassembled and delivered
+ * together in one connection callback.
  *
  * **Open Connection Parameters:**
  *
@@ -805,7 +799,17 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
  *    Create a listening connection (default: false).
  *
  * 0:path [string]
- *    WebSocket request path for clients (default: ``/``).
+ *    WebSocket request path (default: ``/``). Clients request this path and
+ *    listeners reject upgrade requests for any other path.
+ *
+ * 0:subprotocol [string]
+ *    WebSocket subprotocol to request or accept. By default no subprotocol is
+ *    negotiated. When configured, listeners reject clients that do not
+ *    offer this exact subprotocol. A client may offer additional protocols.
+ *
+ * 0:binary-only [boolean]
+ *    Reject incoming text messages and accept only binary WebSocket messages
+ *    (default: true).
  *
  * 0:useSSL [bool]
  *    Encrypt the connection with TLS (default: false). TLS listeners require
@@ -821,13 +825,31 @@ UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
  * 0:private-key-password [string]
  *    Password for an encrypted private key.
  *
+ * 0:ca-certificate [bytestring]
+ *    DER or PEM encoded CA certificate used to validate the TLS peer for
+ *    client connections. If omitted, the system trust store is used.
+ *
+ * 0:recv-max-message-size [uint32]
+ *    Maximum size of one reconstructed incoming WebSocket message. Zero or
+ *    omission means unlimited. For ``opcua+uacp`` this is the negotiated
+ *    receive buffer size because each WebSocket message carries one UACP
+ *    MessageChunk.
+ *
+ * 0:send-max-message-size [uint32]
+ *    Maximum size of one outgoing WebSocket message. Zero or omission means
+ *    unlimited. For ``opcua+uacp`` this is the negotiated send buffer size.
+ *
+ * 0:send-max-queue-size [uint32]
+ *    Maximum total payload size queued for sending on one connection. Zero or
+ *    omission means unlimited.
+ *
  * 0:validate [boolean]
  *    Validate parameters without opening a connection.
  *
  * Listener callbacks provide ``listen-address`` and ``listen-port``. Active
- * and accepted connections provide ``remote-address``. If the ConnectionManager
- * has a ``certificateGroup``, it validates the server certificate of secure
- * client connections. Otherwise libwebsockets uses the system trust store. */
+ * and accepted connections provide ``remote-address``. Secure client
+ * connections validate the server certificate and hostname using either
+ * ``ca-certificate`` or the system trust store. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
 

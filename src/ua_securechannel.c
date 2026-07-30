@@ -192,8 +192,8 @@ UA_SecureChannel_shutdown(UA_SecureChannel *channel,
 
     /* Trigger the async closing of the connection */
     UA_ConnectionManager *cm = channel->connectionManager;
-    cm->closeConnection(cm, channel->connectionId);
     channel->state = UA_SECURECHANNELSTATE_CLOSING;
+    cm->closeConnection(cm, channel->connectionId);
 }
 
 void
