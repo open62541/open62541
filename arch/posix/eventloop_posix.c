@@ -525,6 +525,12 @@ UA_EventLoopPOSIX_free(UA_EventLoop *public_el) {
     /* Remove the repeated timed callbacks */
     UA_Timer_clear(&el->timer);
 
+#ifdef UA_ENABLE_LWS
+    /* The LWS context can only be destroyed synchronously outside an LWS
+     * service callback. All EventSources have released it at this point. */
+    UA_LWS_destroyContext(public_el);
+#endif
+
     /* Process remaining delayed callbacks */
     UA_EventLoopPOSIX_processDelayed(el);
 

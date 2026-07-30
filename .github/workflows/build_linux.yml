@@ -174,12 +174,20 @@ jobs:
                 git clone --branch v4.3.3 --depth 1 https://github.com/warmcat/libwebsockets.git /tmp/libwebsockets
                 cmake -S /tmp/libwebsockets -B /tmp/libwebsockets-build \
                   -DCMAKE_BUILD_TYPE=Release \
-                  -DLWS_WITH_MQTT=ON \
+                  -DLWS_ROLE_MQTT=ON \
                   -DLWS_WITHOUT_TESTAPPS=ON
                 cmake --build /tmp/libwebsockets-build --parallel
                 sudo cmake --install /tmp/libwebsockets-build
                 sudo ldconfig
               cmd_action: unit_tests_libwebsockets
+
+          # Exercise the public ABI from the unmodified distribution package.
+          # MQTT is not required here because package build options vary.
+          - os: ubuntu-26.04
+            build:
+              name: "Debug Build & Unit Tests with packaged libwebsockets (gcc)"
+              cmd_deps: sudo apt-get install -y -qq build-essential cmake gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev
+              cmd_action: LWS_MQTT=OFF unit_tests_libwebsockets
 
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04

@@ -167,7 +167,9 @@ set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
 set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
 set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
 
-option(UA_ENABLE_LWS "Includes the libwebsockets library" OFF)
+option(UA_ENABLE_LWS
+       "Enable the libwebsockets provider for HTTP and WebSocket transports"
+       OFF)
 mark_as_advanced(UA_ENABLE_LWS)
 option(UA_ENABLE_LWS_MQTT "Enable the libwebsockets MQTT ConnectionManager" OFF)
 mark_as_advanced(UA_ENABLE_LWS_MQTT)
@@ -557,6 +559,23 @@ endif()
 if(UA_ENABLE_LWS)
     find_package(libwebsockets 4.3 REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
+
+    # libwebsockets 5.x conditionally adds trailing ABI padding to
+    # lws_context_creation_info when __STRICT_ANSI__ is not defined. Binary
+    # distribution packages are normally built in a GNU dialect, while
+    # open62541 otherwise uses strict C99. Compile only the LWS adapter boundary
+    # in GNU99 so both sides agree on the public structure layout. A library
+    # built with the smaller strict layout safely ignores the trailing padding.
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        set_source_files_properties(
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http.c
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_client.c
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_server.c
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_websocket_lws.c
+            ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_mqtt_lws.c
+            PROPERTIES COMPILE_OPTIONS "-std=gnu99")
+    endif()
 
     include(CheckCSourceCompiles)
     include(CMakePushCheckState)

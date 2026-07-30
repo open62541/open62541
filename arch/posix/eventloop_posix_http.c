@@ -329,12 +329,14 @@ createLwsVhost(struct lws_context *context, const UA_KeyValueMap *params,
                const UA_UInt16 *timeout) {
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
+    UA_LWS_useContextLogger(&info, context);
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE |
                    LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = CONTEXT_PORT_NO_LISTEN;
     info.protocols = protocols;
     info.connect_timeout_secs = timeout ? *timeout : 30;
     struct lws_vhost *vhost = lws_create_vhost(context, &info);
+    UA_LWS_clearActiveLogger();
     if(!vhost)
         return NULL;
 
@@ -625,11 +627,6 @@ HTTP_closeConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 HTTP_eventSourceStart(UA_ConnectionManager *cm) {
-    /* Shut off LibWebsockets logging
-     * LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG */
-    int logs = 0;
-    lws_set_log_level(logs, NULL);
-
     UA_EventLoop *el = cm->eventSource.eventLoop;
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;

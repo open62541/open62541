@@ -312,6 +312,7 @@ struct UA_EventLoopPOSIX {
 #ifdef UA_ENABLE_LWS
     /* One libwebsockets context shared by all users of this EventLoop */
     void *lwsContext;
+    void *lwsLogContext;
     size_t lwsContextUsers;
     UA_EventLoop *lwsForeignLoop;
 #endif
@@ -420,6 +421,11 @@ void
 UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf);
+
+#ifdef UA_ENABLE_LWS
+void
+UA_LWS_destroyContext(UA_EventLoop *eventLoop);
+#endif
 
 /* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
  * connections inherit this state. */

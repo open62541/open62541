@@ -266,7 +266,9 @@ function unit_tests_libwebsockets {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_LWS_MQTT=${LWS_MQTT:-ON} \
           -DUA_ENABLE_PUBSUB=OFF \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_FORCE_WERROR=ON \
