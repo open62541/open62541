@@ -40,6 +40,7 @@ typedef struct {
     uintptr_t listenerId, acceptedId, clientId;
     UA_UInt16 port;
     UA_Boolean clientEstablished;
+    UA_Boolean clientClosed;
     size_t serverMessages, clientMessages;
 } TestContext;
 
@@ -60,6 +61,8 @@ static void callback(UA_ConnectionManager *cm, uintptr_t id, void *application,
         ctx->acceptedId = id;
     if(state == UA_CONNECTIONSTATE_ESTABLISHED && id == ctx->clientId)
         ctx->clientEstablished = true;
+    if(state == UA_CONNECTIONSTATE_CLOSING && id == ctx->clientId)
+        ctx->clientClosed = true;
     if(msg.length) {
         if(id == ctx->clientId)
             ctx->clientMessages++;
@@ -85,22 +88,35 @@ START_TEST(clientServerBinary) {
 
     UA_UInt16 port = 0;
     UA_Boolean listen = true;
-    UA_KeyValuePair lp[2];
+    UA_String path = UA_STRING("/opcua");
+    UA_String subprotocol = UA_STRING("opcua+uacp");
+    UA_Boolean binaryOnly = true;
+    UA_KeyValuePair lp[5];
     lp[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&lp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     lp[1].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&lp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_KeyValueMap lpm = {2, lp};
+    lp[2].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&lp[2].value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    lp[3].key = UA_QUALIFIEDNAME(0, "subprotocol");
+    UA_Variant_setScalar(&lp[3].value, &subprotocol, &UA_TYPES[UA_TYPES_STRING]);
+    lp[4].key = UA_QUALIFIEDNAME(0, "binary-only");
+    UA_Variant_setScalar(&lp[4].value, &binaryOnly, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap lpm = {5, lp};
     ck_assert_uint_eq(ws->openConnection(ws, &lpm, &ctx, &ctx, callback), UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(ctx.port, 0);
 
     UA_String address = UA_STRING("127.0.0.1");
-    UA_KeyValuePair cp[2];
+    UA_KeyValuePair cp[4];
     cp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     cp[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&cp[1].value, &ctx.port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_KeyValueMap cpm = {2, cp};
+    cp[2].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&cp[2].value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    cp[3].key = UA_QUALIFIEDNAME(0, "subprotocol");
+    UA_Variant_setScalar(&cp[3].value, &subprotocol, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap cpm = {4, cp};
     ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback), UA_STATUSCODE_GOOD);
     ctx.clientId = ctx.listenerId + 1;
     UA_Boolean connected = false;
@@ -128,6 +144,74 @@ START_TEST(clientServerBinary) {
     el->stop(el);
     UA_Boolean stopped = false;
     for(size_t i = 0; i < 200 && !stopped; i++) { el->run(el, 50); stopped = el->state == UA_EVENTLOOPSTATE_STOPPED; }
+    ck_assert(stopped);
+    el->free(el);
+}
+END_TEST
+
+START_TEST(clientServerRejectsPolicyMismatch) {
+    TestContext ctx = {0};
+    UA_ConnectionManager *ws =
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-policy"));
+    UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
+    ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0;
+    UA_Boolean listen = true;
+    UA_String path = UA_STRING("/opcua");
+    UA_String subprotocol = UA_STRING("opcua+uacp");
+    UA_KeyValuePair lp[4];
+    lp[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&lp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    lp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&lp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    lp[2].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&lp[2].value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    lp[3].key = UA_QUALIFIEDNAME(0, "subprotocol");
+    UA_Variant_setScalar(&lp[3].value, &subprotocol, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap lpm = {4, lp};
+    ck_assert_uint_eq(ws->openConnection(ws, &lpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+
+    UA_String address = UA_STRING("127.0.0.1");
+    UA_String unsupported = UA_STRING("unsupported");
+    UA_KeyValuePair cp[4];
+    cp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    cp[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&cp[1].value, &ctx.port, &UA_TYPES[UA_TYPES_UINT16]);
+    cp[2].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&cp[2].value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    cp[3].key = UA_QUALIFIEDNAME(0, "subprotocol");
+    UA_Variant_setScalar(&cp[3].value, &unsupported, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap cpm = {4, cp};
+    ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+    ctx.clientId = ctx.listenerId + 1;
+    run(el, &ctx.clientClosed);
+    ck_assert(!ctx.clientEstablished);
+    ck_assert_uint_eq(ctx.acceptedId, 0);
+
+    ctx.clientClosed = false;
+    UA_String wrongPath = UA_STRING("/wrong");
+    UA_Variant_setScalar(&cp[2].value, &wrongPath, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&cp[3].value, &subprotocol, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+    ctx.clientId++;
+    run(el, &ctx.clientClosed);
+    ck_assert(!ctx.clientEstablished);
+    ck_assert_uint_eq(ctx.acceptedId, 0);
+
+    el->stop(el);
+    UA_Boolean stopped = false;
+    for(size_t i = 0; i < 200 && !stopped; i++) {
+        el->run(el, 50);
+        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
+    }
     ck_assert(stopped);
     el->free(el);
 }
@@ -209,6 +293,7 @@ int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
     tcase_add_test(tc, clientServerBinary);
+    tcase_add_test(tc, clientServerRejectsPolicyMismatch);
     tcase_add_test(tc, clientServerTlsCertificateGroup);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s); srunner_set_fork_status(sr, CK_NOFORK);
