@@ -665,8 +665,12 @@ UDP_delayedClose(void *application, void *context) {
 
 /* Gets called when a socket receives data or closes */
 static void
-UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
+UDP_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
                              short event) {
+    /* The event source is a UA_POSIXConnectionManager and the registered FD a
+     * UDP_FD. */
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)es;
+    UDP_FD *conn = (UDP_FD*)rfd;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
@@ -911,7 +915,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     newudpfd->rfd.fd = listenSocket;
     newudpfd->rfd.es = &pcm->cm.eventSource;
     newudpfd->rfd.listenEvents = UA_FDEVENT_IN;
-    newudpfd->rfd.eventSourceCB = (UA_FDCallback)UDP_connectionSocketCallback;
+    newudpfd->rfd.eventSourceCB = UDP_connectionSocketCallback;
     newudpfd->applicationCB = connectionCallback;
     newudpfd->application = application;
     newudpfd->context = context;
@@ -1229,7 +1233,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
     conn->rfd.fd = newSock;
     conn->rfd.listenEvents = 0;
     conn->rfd.es = &pcm->cm.eventSource;
-    conn->rfd.eventSourceCB = (UA_FDCallback)UDP_connectionSocketCallback;
+    conn->rfd.eventSourceCB = UDP_connectionSocketCallback;
     conn->applicationCB = connectionCallback;
     conn->application = application;
     conn->context = context;
@@ -1365,7 +1369,9 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 }
 
 static UA_StatusCode
-UDP_eventSourceStart(UA_ConnectionManager *cm) {
+UDP_eventSourceStart(UA_EventSource *es) {
+    /* The event source is a UA_ConnectionManager. */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     if(!el)
@@ -1411,7 +1417,9 @@ UDP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 }
 
 static void
-UDP_eventSourceStop(UA_ConnectionManager *cm) {
+UDP_eventSourceStop(UA_EventSource *es) {
+    /* The event source is a UA_ConnectionManager. */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     (void)el;
@@ -1434,7 +1442,9 @@ UDP_eventSourceStop(UA_ConnectionManager *cm) {
 }
 
 static UA_StatusCode
-UDP_eventSourceDelete(UA_ConnectionManager *cm) {
+UDP_eventSourceDelete(UA_EventSource *es) {
+    /* The event source is a UA_ConnectionManager. */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -1462,9 +1472,9 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName) {
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))UDP_eventSourceStart;
-    cm->cm.eventSource.stop = (void (*)(UA_EventSource *))UDP_eventSourceStop;
-    cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))UDP_eventSourceDelete;
+    cm->cm.eventSource.start = UDP_eventSourceStart;
+    cm->cm.eventSource.stop = UDP_eventSourceStop;
+    cm->cm.eventSource.free = UDP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)udpName);
     cm->cm.openConnection = UDP_openConnection;
     cm->cm.allocNetworkBuffer = UA_EventLoopPOSIX_allocNetworkBuffer;

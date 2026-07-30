@@ -651,12 +651,16 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
  * DataSetMessages. This can be used to inject an a-priori known number of
  * NetworkMessages and their DataSetWriterIds if the payload header is
  * disabled. */
-void
+UA_StatusCode
 UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOptions *eo,
                                              UA_NetworkMessage *nm) {
     UA_assert(nm->payloadHeaderEnabled == false);
 
     if(eo->metaDataSize > 0) {
+        /* Validate bounds and pointer before writing into the fixed-size array */
+        if(eo->metaDataSize > UA_NETWORKMESSAGE_MAXMESSAGECOUNT ||
+           eo->metaData == NULL)
+            return UA_STATUSCODE_BADDECODINGERROR;
         nm->messageCount = (UA_Byte)eo->metaDataSize;
         for(size_t i = 0; i < nm->messageCount; i++)
             nm->dataSetWriterIds[i] = eo->metaData[i].dataSetWriterId;
@@ -667,6 +671,7 @@ UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOpt
          * payload. */
         nm->messageCount = 1;
     }
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -805,8 +810,10 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
     UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Handle missing payload header and "inject" metadata */
-    if(!nm->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+    if(!nm->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+        UA_CHECK_STATUS(rv, goto cleanup);
+    }
 
     /* Decode the payload */
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
@@ -852,8 +859,14 @@ UA_NetworkMessage_decodeBinaryHeaders(const UA_ByteString *src,
     }
 
     /* Handle missing payload header and "inject" metadata */
-    if(!dst->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, dst);
+    if(!dst->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, dst);
+        if(rv != UA_STATUSCODE_GOOD) {
+            if(!ctx.ctx.opts.calloc)
+                UA_NetworkMessage_clear(dst);
+            return rv;
+        }
+    }
 
     /* Set the offset */
     if(payloadOffset)

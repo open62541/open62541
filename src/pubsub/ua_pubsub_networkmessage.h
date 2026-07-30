@@ -116,7 +116,7 @@ UA_StatusCode
 UA_NetworkMessage_decodeFooters(PubSubDecodeCtx *ctx,
                                 UA_NetworkMessage *dst);
 
-void
+UA_StatusCode
 UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOptions *eo,
                                              UA_NetworkMessage *dst);
 

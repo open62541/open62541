@@ -531,7 +531,7 @@ RefResult_clear(RefResult *rr) {
 }
 
 struct ContinuationPoint {
-    ContinuationPoint *next;
+    TAILQ_ENTRY(ContinuationPoint) pointers;
     UA_ByteString identifier;
 
     /* Parameters of the Browse Request */
@@ -547,12 +547,22 @@ struct ContinuationPoint {
     UA_Boolean lastRefInverse;
 };
 
-ContinuationPoint *
+static void
 ContinuationPoint_clear(ContinuationPoint *cp) {
     UA_ByteString_clear(&cp->identifier);
     UA_BrowseDescription_clear(&cp->browseDescription);
     UA_NodePointer_clear(&cp->lastTarget);
-    return cp->next;
+}
+
+void
+ContinuationPointQueue_clear(ContinuationPointQueue *queue) {
+    ContinuationPoint *cp;
+    while((cp = TAILQ_FIRST(queue))) {
+        TAILQ_REMOVE(queue, cp, pointers);
+        UA_assert(cp != TAILQ_FIRST(queue));
+        ContinuationPoint_clear(cp);
+        UA_free(cp);
+    }
 }
 
 struct BrowseContext {
@@ -873,14 +883,25 @@ browse(struct BrowseContext *bc) {
     }
 }
 
+typedef struct {
+    UA_UInt32 maxReferences;
+    ContinuationPoint *lastPriorContinuationPoint;
+} BrowseOperationContext;
+
 /* Start to browse with no previous cp */
-void
-Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
-                 const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+static void
+Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
+                            const void *context_ /* BrowseOperationContext */,
+                            const void *request /* UA_BrowseDescription */,
+                            void *response /* UA_BrowseResult */) {
+    BrowseOperationContext *context =
+        (BrowseOperationContext*)(uintptr_t)context_;
+    const UA_BrowseDescription *descr = (const UA_BrowseDescription*)request;
+    UA_BrowseResult *result = (UA_BrowseResult*)response;
     /* Stack-allocate a temporary cp */
     ContinuationPoint cp;
     memset(&cp, 0, sizeof(ContinuationPoint));
-    cp.maxReferences = *maxrefs;
+    cp.maxReferences = context->maxReferences;
     cp.browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
 
     /* How many references can we return at most? */
@@ -943,9 +964,22 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Enough space for the continuation point? */
-    if(session->availableContinuationPoints == 0) {
-        retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
-        goto cleanup;
+    if(session->continuationPointsSize >= UA_MAXCONTINUATIONPOINTS) {
+        /* Reclaim the oldest continuation point from a prior Browse request.
+         * Points created by other operations in this request are not eligible. */
+        if(!context->lastPriorContinuationPoint) {
+            retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+            goto cleanup;
+        }
+
+        ContinuationPoint *reclaimed =
+            TAILQ_FIRST(&session->continuationPoints);
+        if(reclaimed == context->lastPriorContinuationPoint)
+            context->lastPriorContinuationPoint = NULL;
+        TAILQ_REMOVE(&session->continuationPoints, reclaimed, pointers);
+        ContinuationPoint_clear(reclaimed);
+        UA_free(reclaimed);
+        --session->continuationPointsSize;
     }
 
     /* Allocate and fill the data structure */
@@ -982,9 +1016,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
 
     /* Attach the cp to the session */
-    cp2->next = session->continuationPoints;
-    session->continuationPoints = cp2;
-    --session->availableContinuationPoints;
+    TAILQ_INSERT_TAIL(&session->continuationPoints, cp2, pointers);
+    ++session->continuationPointsSize;
     return;
 
  cleanup:
@@ -997,9 +1030,22 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     result->statusCode = retval;
 }
 
+void
+Operation_Browse(UA_Server *server, UA_Session *session,
+                 const void *context /* UA_UInt32 */,
+                 const void *request /* UA_BrowseDescription */,
+                 void *response /* UA_BrowseResult */) {
+    const UA_UInt32 *maxrefs = (const UA_UInt32*)context;
+    BrowseOperationContext browseContext = {
+        *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    Operation_BrowseWithContext(server, session, &browseContext, request, response);
+}
+
 UA_Boolean
 Service_Browse(UA_Server *server, UA_Session *session,
-               const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+               const void *request_, void *response_) {
+    const UA_BrowseRequest *request = (const UA_BrowseRequest*)request_;
+    UA_BrowseResponse *response = (UA_BrowseResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing BrowseRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -1016,10 +1062,13 @@ Service_Browse(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    BrowseOperationContext context = {request->requestedMaxReferencesPerNode,
+        TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_Browse,
-                                      &request->requestedMaxReferencesPerNode,
+                                      Operation_BrowseWithContext,
+                                      &context,
                                       &request->nodesToBrowseSize,
                                       &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
                                       &response->resultsSize,
@@ -1040,15 +1089,17 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
 
 static void
 Operation_BrowseNext(UA_Server *server, UA_Session *session,
-                     const UA_Boolean *releaseContinuationPoints,
-                     const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
+                     const void *context /* UA_Boolean */,
+                     const void *request /* UA_ByteString */,
+                     void *response /* UA_BrowseResult */) {
+    const UA_Boolean *releaseContinuationPoints = (const UA_Boolean*)context;
+    const UA_ByteString *continuationPoint = (const UA_ByteString*)request;
+    UA_BrowseResult *result = (UA_BrowseResult*)response;
     /* Find the continuation point */
-    ContinuationPoint **prev = &session->continuationPoints;
-    ContinuationPoint *cp;
-    while((cp = *prev)) {
+    ContinuationPoint *cp = NULL;
+    TAILQ_FOREACH(cp, &session->continuationPoints, pointers) {
         if(UA_ByteString_equal(&cp->identifier, continuationPoint))
             break;
-        prev = &cp->next;
     }
     if(!cp) {
         result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
@@ -1057,9 +1108,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     /* Remove the cp */
     if(*releaseContinuationPoints) {
-        *prev = ContinuationPoint_clear(cp);
+        TAILQ_REMOVE(&session->continuationPoints, cp, pointers);
+        ContinuationPoint_clear(cp);
         UA_free(cp);
-        ++session->availableContinuationPoints;
+        --session->continuationPointsSize;
         return;
     }
 
@@ -1104,15 +1156,17 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
  remove_cp:
     /* Remove the cp */
-    *prev = ContinuationPoint_clear(cp);
+    TAILQ_REMOVE(&session->continuationPoints, cp, pointers);
+    ContinuationPoint_clear(cp);
     UA_free(cp);
-    ++session->availableContinuationPoints;
+    --session->continuationPointsSize;
 }
 
 UA_Boolean
 Service_BrowseNext(UA_Server *server, UA_Session *session,
-                   const UA_BrowseNextRequest *request,
-                   UA_BrowseNextResponse *response) {
+                   const void *request_, void *response_) {
+    const UA_BrowseNextRequest *request = (const UA_BrowseNextRequest*)request_;
+    UA_BrowseNextResponse *response = (UA_BrowseNextResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing BrowseNextRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1121,7 +1175,7 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
         request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_BrowseNext,
+                                      Operation_BrowseNext,
                                       &releaseContinuationPoints,
                                       &request->continuationPointsSize,
                                       &UA_TYPES[UA_TYPES_BYTESTRING],
@@ -1288,9 +1342,12 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
 
 static void
 Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
-                                       const UA_UInt32 *nodeClassMask,
-                                       const UA_BrowsePath *path,
-                                       UA_BrowsePathResult *result) {
+                                       const void *context /* UA_UInt32 */,
+                                       const void *request /* UA_BrowsePath */,
+                                       void *response /* UA_BrowsePathResult */) {
+    const UA_UInt32 *nodeClassMask = (const UA_UInt32*)context;
+    const UA_BrowsePath *path = (const UA_BrowsePath*)request;
+    UA_BrowsePathResult *result = (UA_BrowsePathResult*)response;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(path->relativePath.elementsSize == 0) {
@@ -1457,8 +1514,11 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
 
 UA_Boolean
 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-                                      const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-                                      UA_TranslateBrowsePathsToNodeIdsResponse *response) {
+                                      const void *request_, void *response_) {
+    const UA_TranslateBrowsePathsToNodeIdsRequest *request =
+        (const UA_TranslateBrowsePathsToNodeIdsRequest*)request_;
+    UA_TranslateBrowsePathsToNodeIdsResponse *response =
+        (UA_TranslateBrowsePathsToNodeIdsResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1473,7 +1533,7 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
     UA_UInt32 nodeClassMask = 0; /* All node classes */
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+                                      Operation_TranslateBrowsePathToNodeIds,
                                       &nodeClassMask, &request->browsePathsSize,
                                       &UA_TYPES[UA_TYPES_BROWSEPATH], &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
@@ -1531,8 +1591,9 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 
 UA_Boolean
 Service_RegisterNodes(UA_Server *server, UA_Session *session,
-                      const UA_RegisterNodesRequest *request,
-                      UA_RegisterNodesResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_RegisterNodesRequest *request = (const UA_RegisterNodesRequest*)request_;
+    UA_RegisterNodesResponse *response = (UA_RegisterNodesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1561,8 +1622,9 @@ Service_RegisterNodes(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_UnregisterNodes(UA_Server *server, UA_Session *session,
-                        const UA_UnregisterNodesRequest *request,
-                        UA_UnregisterNodesResponse *response) {
+                        const void *request_, void *response_) {
+    const UA_UnregisterNodesRequest *request = (const UA_UnregisterNodesRequest*)request_;
+    UA_UnregisterNodesResponse *response = (UA_UnregisterNodesResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing UnRegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);

@@ -661,19 +661,24 @@ int main(int argc, char *argv[]) {
             struct {
                 const char *label;
                 const char *curve;
+                const char *certName;  /* cert/key file stem; defaults to curve */
                 const char *policyUri;
             } eccTests[] = {
-                {"T-10", "nistP256",
+                {"T-10", "nistP256", "nistP256",
                  "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256"},
-                {"T-11", "nistP384",
+                {"T-11", "nistP256_AesGcm", "nistP256",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm"},
+                {"T-12", "nistP256_ChaChaPoly", "nistP256",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly"},
+                {"T-13", "nistP384", "nistP384",
                  "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384"},
-                {"T-12", "brainpoolP256r1",
+                {"T-14", "brainpoolP256r1", "brainpoolP256r1",
                  "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1"},
-                {"T-13", "brainpoolP384r1",
+                {"T-15", "brainpoolP384r1", "brainpoolP384r1",
                  "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1"},
-                {"T-14", "curve25519",
+                {"T-16", "curve25519", "curve25519",
                  "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519"},
-                {"T-15", "curve448",
+                {"T-17", "curve448", "curve448",
                  "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448"}
             };
             size_t numEcc = sizeof(eccTests) / sizeof(eccTests[0]);
@@ -681,9 +686,9 @@ int main(int argc, char *argv[]) {
             for(size_t i = 0; i < numEcc; i++) {
                 char certPath[512], keyPath[512];
                 snprintf(certPath, sizeof(certPath),
-                         "%s/client_c_%s.cert.der", eccDir, eccTests[i].curve);
+                         "%s/client_c_%s.cert.der", eccDir, eccTests[i].certName);
                 snprintf(keyPath, sizeof(keyPath),
-                         "%s/client_c_%s.key.der", eccDir, eccTests[i].curve);
+                         "%s/client_c_%s.key.der", eccDir, eccTests[i].certName);
 
                 UA_ByteString eccCert = loadFileFromDisk(certPath);
                 UA_ByteString eccKey = loadFileFromDisk(keyPath);
@@ -708,11 +713,13 @@ int main(int argc, char *argv[]) {
             }
         } else {
             interop_skip("T-10 ECC_nistP256 (no ECC cert dir)");
-            interop_skip("T-11 ECC_nistP384 (no ECC cert dir)");
-            interop_skip("T-12 ECC_brainpoolP256r1 (no ECC cert dir)");
-            interop_skip("T-13 ECC_brainpoolP384r1 (no ECC cert dir)");
-            interop_skip("T-14 ECC_curve25519 (no ECC cert dir)");
-            interop_skip("T-15 ECC_curve448 (no ECC cert dir)");
+            interop_skip("T-11 ECC_nistP256_AesGcm (no ECC cert dir)");
+            interop_skip("T-12 ECC_nistP256_ChaChaPoly (no ECC cert dir)");
+            interop_skip("T-13 ECC_nistP384 (no ECC cert dir)");
+            interop_skip("T-14 ECC_brainpoolP256r1 (no ECC cert dir)");
+            interop_skip("T-15 ECC_brainpoolP384r1 (no ECC cert dir)");
+            interop_skip("T-16 ECC_curve25519 (no ECC cert dir)");
+            interop_skip("T-17 ECC_curve448 (no ECC cert dir)");
         }
 
         /* Safety net: when INTEROP_REQUIRE_ECC is set, at least one ECC
@@ -732,11 +739,13 @@ int main(int argc, char *argv[]) {
     interop_skip("T-8 Username over encrypted (no encryption support)");
     interop_skip("T-9 X509 certificate auth (no encryption support)");
     interop_skip("T-10 ECC_nistP256 (no encryption support)");
-    interop_skip("T-11 ECC_nistP384 (no encryption support)");
-    interop_skip("T-12 ECC_brainpoolP256r1 (no encryption support)");
-    interop_skip("T-13 ECC_brainpoolP384r1 (no encryption support)");
-    interop_skip("T-14 ECC_curve25519 (no encryption support)");
-    interop_skip("T-15 ECC_curve448 (no encryption support)");
+    interop_skip("T-11 ECC_nistP256_AesGcm (no encryption support)");
+    interop_skip("T-12 ECC_nistP256_ChaChaPoly (no encryption support)");
+    interop_skip("T-13 ECC_nistP384 (no encryption support)");
+    interop_skip("T-14 ECC_brainpoolP256r1 (no encryption support)");
+    interop_skip("T-15 ECC_brainpoolP384r1 (no encryption support)");
+    interop_skip("T-16 ECC_curve25519 (no encryption support)");
+    interop_skip("T-17 ECC_curve448 (no encryption support)");
 #endif
 
     /* Cleanup */

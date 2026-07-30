@@ -13,6 +13,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
+#include <open62541/plugin/certificategroup.h>
 
 _UA_BEGIN_DECLS
 
@@ -327,6 +328,13 @@ struct UA_ConnectionManager {
     /* Name of the protocol supported by the ConnectionManager. For example
      * "mqtt", "udp", "mqtt". */
     UA_String protocol;
+
+    /* Optional certificate validation for secure transports. Configure before
+     * the EventLoop is started. If certificateGroupOwned is set, the
+     * ConnectionManager calls certificateGroup->clear and frees the group when
+     * it is deleted. Otherwise the group must outlive the ConnectionManager. */
+    UA_CertificateGroup *certificateGroup;
+    UA_Boolean certificateGroupOwned;
 
     /* Open a Connection
      * ~~~~~~~~~~~~~~~~~
@@ -716,6 +724,113 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 #endif
 
+
+/**
+ * HTTP Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * The HTTP ConnectionManager uses the libwebsockets library to send HTTP requests.
+ *
+ * **Open Connection Parameters:**
+ *
+ * 0:address [string]
+ *    Hostname or IPv4/IPv6 address of the target (required).
+ *
+ * 0:port [uint16]
+ *    Port of the target host (required).
+ *
+ * 0:timeout [uint16]
+ *    Connection timeout in seconds (default: 30).
+ *
+ * 0:useSSL [bool]
+ *    Encrypt the connection with TLS (default: false).
+ *
+ * 0:username [string]
+ *    Username for HTTP Basic authentication. The authorization header is added
+ *    only if both ``username`` and ``password`` are set.
+ *
+ * 0:password [string]
+ *    Password for HTTP Basic authentication. The authorization header is added
+ *    only if both ``username`` and ``password`` are set.
+ *
+ * 0:ca-cert [bytestring]
+ *    DER or PEM encoded CA certificate or certificate bundle used to verify
+ *    the server. If unset, the operating system trust store is used.
+ *
+ * 0:client-cert [bytestring]
+ *    DER or PEM encoded client certificate for mutual TLS.
+ *
+ * 0:client-key [bytestring]
+ *    DER or PEM encoded private key for the client certificate.
+ *
+ * 0:client-key-password [string]
+ *    Password for an encrypted client private key.
+ *
+ * **Send Parameters:**
+ *
+ * 0:path [string]
+ *    Request-target path (default: ``/``).
+ *
+ * 0:method [string]
+ *    HTTP request method (default: ``GET``).
+ *
+ * 0:header [string]
+ *    Additional request headers encoded as ampersand-separated key-value
+ *    pairs, for example ``Accept=application/json&X-Trace=yes``. Header names
+ *    and values therefore cannot contain unescaped ``&`` or ``=`` characters.
+ *
+ * The ``buf`` argument passed to ``sendWithConnection`` is used as the request
+ * body. It may be ``NULL`` for an empty body and, like all ConnectionManager
+ * send buffers, is released internally even if sending fails. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
+
+/**
+ * Libwebsockets WebSocket Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Provides binary WebSocket client and server connections. Each buffer passed
+ * to ``sendWithConnection`` is sent as one binary WebSocket message. Incoming
+ * fragments are reassembled before they are passed to the connection callback.
+ *
+ * **Open Connection Parameters:**
+ *
+ * 0:address [string]
+ *    Remote hostname for clients or local interface for listeners. Listeners
+ *    default to all interfaces.
+ *
+ * 0:port [uint16]
+ *    Remote or listening port (required; zero selects a dynamic server port).
+ *
+ * 0:listen [boolean]
+ *    Create a listening connection (default: false).
+ *
+ * 0:path [string]
+ *    WebSocket request path for clients (default: ``/``).
+ *
+ * 0:useSSL [bool]
+ *    Encrypt the connection with TLS (default: false). TLS listeners require
+ *    ``certificate`` and ``private-key``.
+ *
+ * 0:certificate [bytestring]
+ *    DER or PEM encoded local certificate. For listeners this is the server
+ *    certificate. For clients it enables mutual TLS.
+ *
+ * 0:private-key [bytestring]
+ *    DER or PEM encoded private key for ``certificate``.
+ *
+ * 0:private-key-password [string]
+ *    Password for an encrypted private key.
+ *
+ * 0:validate [boolean]
+ *    Validate parameters without opening a connection.
+ *
+ * Listener callbacks provide ``listen-address`` and ``listen-port``. Active
+ * and accepted connections provide ``remote-address``. If the ConnectionManager
+ * has a ``certificateGroup``, it validates the server certificate of secure
+ * client connections. Otherwise libwebsockets uses the system trust store. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
+
 /**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~
@@ -741,6 +856,21 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  *
  * 0:password [string]
  *    Password to use (default: none)
+ *
+ * 0:useSSL [bool]
+ *    Encrypt the broker connection with TLS (default: false).
+ *
+ * 0:certificate [bytestring]
+ *    DER or PEM encoded client certificate for mutual TLS.
+ *
+ * 0:private-key [bytestring]
+ *    DER or PEM encoded private key for ``certificate``.
+ *
+ * 0:private-key-password [string]
+ *    Password for an encrypted private key.
+ *
+ * If the ConnectionManager has a ``certificateGroup``, it validates the broker
+ * certificate. Otherwise libwebsockets uses the system trust store.
  *
  * 0:keep-alive [uint16]
  *   Number of seconds for the keep-alive (ping) (default: 400).
@@ -770,6 +900,17 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * No additional parameters for sending over an Ethernet connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
+
+/**
+ * Libwebsockets MQTT Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Implements the same MQTT ConnectionManager contract and parameters as
+ * ``UA_ConnectionManager_new_MQTT``, using the MQTT client role provided by
+ * libwebsockets. Enable this implementation with ``UA_ENABLE_LWS_MQTT``. The
+ * libwebsockets library must be built with
+ * ``LWS_ROLE_MQTT=ON``. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWS_MQTT(const UA_String eventSourceName);
 
 /**
  * Signal Interrupt Manager

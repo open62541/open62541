@@ -2507,6 +2507,329 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
         UA_Server_run_iterate(server, false);
 } END_TEST
 
+/* ---------------------------------------------------------------------------
+ * Additional coverage tests:
+ * Additional coverage tests (Phase A2):
+ *  - ReaderGroup / DataSetReader state transitions
+ *  - Double remove returns BADNOTFOUND
+ *  - removeReaderGroup cascades to its DataSetReaders
+ *  - updateReaderGroupConfig / updateDataSetReaderConfig invalid arg paths
+ *  - getReaderGroupState invalid args
+ * ------------------------------------------------------------------------- */
+
+static void addMinimalDSR(UA_NodeId rgId, const char *name, UA_NodeId *out) {
+    UA_DataSetReaderConfig rc;
+    memset(&rc, 0, sizeof(rc));
+    rc.name = UA_STRING((char*)(uintptr_t)name);
+    rc.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    rc.publisherId.id.uint16 = PUBLISHER_ID;
+    rc.writerGroupId   = WRITER_GROUP_ID;
+    rc.dataSetWriterId = DATASET_WRITER_ID;
+    UA_DataSetMetaDataType_init(&rc.dataSetMetaData);
+    rc.dataSetMetaData.name = UA_STRING("DSR-MD");
+    UA_StatusCode r = UA_Server_addDataSetReader(server, rgId, &rc, out);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+}
+
+START_TEST(ReaderGroupStateTransitions) {
+    UA_StatusCode retVal;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-State");
+    UA_NodeId rgId;
+    retVal = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PubSubState state = UA_PUBSUBSTATE_ERROR;
+    retVal = UA_Server_getReaderGroupState(server, rgId, &state);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(state, UA_PUBSUBSTATE_DISABLED);
+
+    retVal = UA_Server_enableReaderGroup(server, rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_getReaderGroupState(server, rgId, &state);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert(UA_PubSubState_isEnabled(state));
+
+    /* idempotent enable */
+    retVal = UA_Server_enableReaderGroup(server, rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_disableReaderGroup(server, rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_getReaderGroupState(server, rgId, &state);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(state, UA_PUBSUBSTATE_DISABLED);
+
+    /* idempotent disable */
+    retVal = UA_Server_disableReaderGroup(server, rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* unknown id paths */
+    retVal = UA_Server_enableReaderGroup(server,
+                                         UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_disableReaderGroup(server,
+                                          UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_getReaderGroupState(server,
+                                           UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
+                                           &state);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
+START_TEST(DataSetReaderStateTransitions) {
+    UA_StatusCode retVal;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-DSR-State");
+    UA_NodeId rgId;
+    retVal = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_NodeId dsrId;
+    addMinimalDSR(rgId, "DSR-State", &dsrId);
+
+    UA_PubSubState state = UA_PUBSUBSTATE_ERROR;
+    retVal = UA_Server_getDataSetReaderState(server, dsrId, &state);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_enableDataSetReader(server, dsrId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_disableDataSetReader(server, dsrId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* unknown ids */
+    retVal = UA_Server_enableDataSetReader(server,
+                                           UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+    retVal = UA_Server_disableDataSetReader(server,
+                                            UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+    retVal = UA_Server_getDataSetReaderState(server,
+                                             UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
+                                             &state);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
+START_TEST(RemoveDataSetReaderTwiceReturnsBadNotFound) {
+    UA_StatusCode retVal;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-DSR-DoubleRemove");
+    UA_NodeId rgId;
+    retVal = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_NodeId dsrId;
+    addMinimalDSR(rgId, "DSR-DoubleRemove", &dsrId);
+
+    retVal = UA_Server_removeDataSetReader(server, dsrId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_removeDataSetReader(server, dsrId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+    retVal = UA_Server_removeDataSetReader(server,
+                                           UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
+START_TEST(RemoveReaderGroupCascadesReaders) {
+    UA_StatusCode retVal;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-Cascade");
+    UA_NodeId rgId;
+    retVal = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_NodeId dsr1, dsr2;
+    addMinimalDSR(rgId, "DSR-C1", &dsr1);
+    addMinimalDSR(rgId, "DSR-C2", &dsr2);
+
+    UA_PubSubManager *psm = getPSM(server);
+    ck_assert_ptr_ne(UA_DataSetReader_find(psm, dsr1), NULL);
+    ck_assert_ptr_ne(UA_DataSetReader_find(psm, dsr2), NULL);
+
+    retVal = UA_Server_removeReaderGroup(server, rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    ck_assert_ptr_eq(UA_DataSetReader_find(psm, dsr1), NULL);
+    ck_assert_ptr_eq(UA_DataSetReader_find(psm, dsr2), NULL);
+
+    /* Second remove must fail */
+    retVal = UA_Server_removeReaderGroup(server, rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+} END_TEST
+
+START_TEST(UpdateDataSetReaderConfigInvalid) {
+    UA_StatusCode retVal;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-DSR-Update");
+    UA_NodeId rgId;
+    retVal = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_NodeId dsrId;
+    addMinimalDSR(rgId, "DSR-Update", &dsrId);
+
+    /* NULL config */
+    retVal = UA_Server_updateDataSetReaderConfig(server, dsrId, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* unknown id */
+    UA_DataSetReaderConfig dummy;
+    memset(&dummy, 0, sizeof(dummy));
+    dummy.name = UA_STRING("dummy");
+    retVal = UA_Server_updateDataSetReaderConfig(server,
+                                                 UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
+                                                 &dummy);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTFOUND);
+
+    /* update while enabled -> rejected */
+    retVal = UA_Server_enableDataSetReader(server, dsrId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetReaderConfig copy;
+    retVal = UA_Server_getDataSetReaderConfig(server, dsrId, &copy);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_updateDataSetReaderConfig(server, dsrId, &copy);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    UA_DataSetReaderConfig_clear(&copy);
+
+    UA_Server_disableDataSetReader(server, dsrId);
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
+/* ---- Additional reader/reader-group public-API coverage ---- */
+
+START_TEST(GetReaderGroupStateAndConfigInvalid) {
+    UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
+    UA_StatusCode r = UA_Server_getReaderGroupState(server,
+                          UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &state);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_ReaderGroupConfig rgc;
+    r = UA_Server_getReaderGroupConfig(server,
+                                       UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
+                                       &rgc);
+    ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(UpdateReaderGroupConfigInvalid) {
+    UA_StatusCode r;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-Upd");
+    UA_NodeId rgId;
+    r = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    /* NULL config */
+    r = UA_Server_updateReaderGroupConfig(server, rgId, NULL);
+    ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
+
+    /* unknown id */
+    UA_ReaderGroupConfig dummy;
+    memset(&dummy, 0, sizeof(dummy));
+    dummy.name = UA_STRING("x");
+    r = UA_Server_updateReaderGroupConfig(server,
+            UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dummy);
+    ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
+
+    /* update while enabled -> rejected */
+    r = UA_Server_enableReaderGroup(server, rgId);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+    UA_ReaderGroupConfig copy;
+    r = UA_Server_getReaderGroupConfig(server, rgId, &copy);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+    r = UA_Server_updateReaderGroupConfig(server, rgId, &copy);
+    ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
+    UA_ReaderGroupConfig_clear(&copy);
+
+    UA_Server_disableReaderGroup(server, rgId);
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
+START_TEST(DataSetReaderIdentifierMismatchPaths) {
+    UA_StatusCode r;
+
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-Identifier");
+    rgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_NodeId rgId;
+    r = UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    UA_NodeId dsrId;
+    addMinimalDSR(rgId, "DSR-Identifier", &dsrId);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    ck_assert_ptr_ne(dsr, NULL);
+
+    UA_NetworkMessage msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.publisherIdEnabled = true;
+    msg.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    msg.publisherId.id.uint16 = PUBLISHER_ID;
+    msg.groupHeaderEnabled = true;
+    msg.groupHeader.writerGroupIdEnabled = true;
+    msg.groupHeader.writerGroupId = WRITER_GROUP_ID;
+    msg.payloadHeaderEnabled = true;
+    msg.messageCount = 1;
+    msg.dataSetWriterIds[0] = DATASET_WRITER_ID;
+
+    /* Fully matching identifiers */
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    /* PublisherId mismatch by type */
+    msg.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    msg.publisherId.id.uint32 = PUBLISHER_ID;
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+
+    /* PublisherId mismatch by value */
+    msg.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    msg.publisherId.id.uint16 = (UA_UInt16)(PUBLISHER_ID + 1);
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+
+    /* WriterGroupId mismatch */
+    msg.publisherId.id.uint16 = PUBLISHER_ID;
+    msg.groupHeader.writerGroupId = (UA_UInt16)(WRITER_GROUP_ID + 1);
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+
+    /* DataSetWriterId mismatch in payload */
+    msg.groupHeader.writerGroupId = WRITER_GROUP_ID;
+    msg.dataSetWriterIds[0] = (UA_UInt16)(DATASET_WRITER_ID + 1);
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+
+    /* If no payload header is present, matching publisher/group identifiers are enough */
+    msg.payloadHeaderEnabled = false;
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
+START_TEST(GetDataSetReaderStateInvalid) {
+    UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
+    UA_StatusCode r = UA_Server_getDataSetReaderState(server,
+                          UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &state);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -2559,11 +2882,25 @@ int main(void) {
     tcase_add_test(tc_dataSetMessage_padding, ValidConfiguredSizPublishSubscribe);
     tcase_add_test(tc_dataSetMessage_padding, InvalidConfiguredSizPublishSubscribe);
 
+    TCase *tc_pubsub_reader_lifecycle =
+        tcase_create("PubSub Reader/ReaderGroup lifecycle and edge cases");
+    tcase_add_checked_fixture(tc_pubsub_reader_lifecycle, setup, teardown);
+    tcase_add_test(tc_pubsub_reader_lifecycle, ReaderGroupStateTransitions);
+    tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderStateTransitions);
+    tcase_add_test(tc_pubsub_reader_lifecycle, RemoveDataSetReaderTwiceReturnsBadNotFound);
+    tcase_add_test(tc_pubsub_reader_lifecycle, RemoveReaderGroupCascadesReaders);
+    tcase_add_test(tc_pubsub_reader_lifecycle, UpdateDataSetReaderConfigInvalid);
+    tcase_add_test(tc_pubsub_reader_lifecycle, GetReaderGroupStateAndConfigInvalid);
+    tcase_add_test(tc_pubsub_reader_lifecycle, UpdateReaderGroupConfigInvalid);
+    tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderIdentifierMismatchPaths);
+    tcase_add_test(tc_pubsub_reader_lifecycle, GetDataSetReaderStateInvalid);
+
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
     suite_add_tcase(suite, tc_pubsub_datasets);
     suite_add_tcase(suite, tc_dataSetMessage_padding);
+    suite_add_tcase(suite, tc_pubsub_reader_lifecycle);
 
     SRunner *suiteRunner = srunner_create(suite);
     srunner_set_fork_status(suiteRunner, CK_NOFORK);

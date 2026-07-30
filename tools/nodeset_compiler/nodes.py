@@ -346,4 +346,4 @@ class ViewNode(Node):
             if at == "ContainsNoLoops":
                 self.containsNoLoops = "false" not in av.lower()
             if at == "EventNotifier":
-                self.eventNotifier = "false" not in av.lower()
+                self.eventNotifier = int(av)

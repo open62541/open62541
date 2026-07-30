@@ -477,6 +477,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->maxNotificationsPerPublish = 1000;
     conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
+    conf->maxPublishReqPerSession = 512; /* limit outstanding publish requests per session */
 # ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
 # endif
@@ -661,7 +662,10 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    /* Set the TCP settings */
+    /* Set the TCP settings. Only recvBufferSize is stored; it drives both
+     * connConfig.recvBufferSize and connConfig.sendBufferSize. sendBufferSize is
+     * intentionally ignored (see the doxygen note on the declaration). */
+    (void)sendBufferSize;
     config->tcpBufSize = recvBufferSize;
 
     /* Allocate the SecurityPolicies */
@@ -2051,6 +2055,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->timeout = 5 * 1000; /* 5 seconds */
     if(config->secureChannelLifeTime == 0)
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
+    if(config->maxAsyncServiceCalls == 0)
+        config->maxAsyncServiceCalls = 32;
 
     if(config->logging == NULL)
         config->logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
@@ -2141,6 +2147,27 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
             return retval;
         }
         config->securityPoliciesSize = 1;
+    }
+
+    /* Initialize authSecurityPolicies with the None policy as a fallback.
+     * This is needed so that non-X509 token types (e.g. username/password,
+     * anonymous) can look up a matching SecurityPolicy for authentication.
+     * When UA_ClientConfig_setAuthenticationCert is called later, this gets
+     * replaced with the full set of authentication SecurityPolicies. */
+    if(config->authSecurityPoliciesSize == 0) {
+        config->authSecurityPolicies =
+            (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
+        if(!config->authSecurityPolicies)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_StatusCode retval =
+            UA_SecurityPolicy_None(config->authSecurityPolicies,
+                                   UA_BYTESTRING_NULL, config->logging);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_free(config->authSecurityPolicies);
+            config->authSecurityPolicies = NULL;
+            return retval;
+        }
+        config->authSecurityPoliciesSize = 1;
     }
 
     if(config->requestedSessionTimeout == 0)

@@ -208,8 +208,9 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                          UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
+                          void *request_, void *response_) {
+    UA_OpenSecureChannelRequest *request = (UA_OpenSecureChannelRequest*)request_;
+    UA_OpenSecureChannelResponse *response = (UA_OpenSecureChannelResponse*)response_;
     /* Call the main OpenSecureChannel implementation */
     Service_OpenSecureChannel_inner(server, channel, request, response);
 
@@ -235,7 +236,7 @@ void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type) {
     /* Prepare the payload */
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifySCData[16] = {
         {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
         {{0, UA_STRING_STATIC("connection-manager-name")}, {0}},
         {{0, UA_STRING_STATIC("connection-id")}, {0}},
@@ -250,9 +251,10 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
         {{0, UA_STRING_STATIC("endpoint-url")}, {0}},
         {{0, UA_STRING_STATIC("security-mode")}, {0}},
         {{0, UA_STRING_STATIC("security-policy-url")}, {0}},
+        {{0, UA_STRING_STATIC("certificate-type-id")}, {0}},
         {{0, UA_STRING_STATIC("remote-certificate")}, {0}}
     };
-    UA_KeyValueMap notifySCMap = {15, notifySCData};
+    UA_KeyValueMap notifySCMap = {16, notifySCData};
 
     UA_Variant_setScalar(&notifySCData[0].value, &channel->securityToken.channelId,
                          &UA_TYPES[UA_TYPES_UINT32]);
@@ -287,7 +289,12 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
         securityPolicyUri = channel->securityPolicy->policyUri;
     UA_Variant_setScalar(&notifySCData[13].value, &securityPolicyUri,
                          &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&notifySCData[14].value, &channel->remoteCertificate,
+    UA_NodeId certificateTypeId = UA_NODEID_NULL;
+    if(channel->securityPolicy)
+        certificateTypeId = channel->securityPolicy->certificateTypeId;
+    UA_Variant_setScalar(&notifySCData[14].value, &certificateTypeId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&notifySCData[15].value, &channel->remoteCertificate,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     /* Notify the application */

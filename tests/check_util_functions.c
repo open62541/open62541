@@ -524,6 +524,56 @@ START_TEST(parseEndpointUrlEthernet_noVid) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* === Additional utility edge cases === */
+
+START_TEST(order_uint64) {
+    UA_UInt64 a = 0, b = 1;
+    UA_UInt64 max = UA_UINT64_MAX;
+    UA_Order o = UA_order(&a, &b, &UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_int_eq(o, UA_ORDER_LESS);
+
+    o = UA_order(&b, &a, &UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_int_eq(o, UA_ORDER_MORE);
+
+    o = UA_order(&a, &a, &UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_int_eq(o, UA_ORDER_EQ);
+
+    o = UA_order(&b, &max, &UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_int_eq(o, UA_ORDER_LESS);
+} END_TEST
+
+START_TEST(bytestring_allocBuffer_zero) {
+    UA_ByteString bs;
+    UA_ByteString_init(&bs);
+    UA_StatusCode res = UA_ByteString_allocBuffer(&bs, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bs.length, 0);
+    UA_ByteString_clear(&bs);
+} END_TEST
+
+START_TEST(string_equal_edge_cases) {
+    UA_String nullStr = UA_STRING_NULL;
+    UA_String emptyStr = UA_STRING("");
+    UA_String normalStr = UA_STRING("test");
+
+    /* NULL vs empty */
+    ck_assert(!UA_String_equal(&nullStr, &emptyStr));
+    ck_assert(!UA_String_equal(&emptyStr, &nullStr));
+
+    /* NULL vs NULL */
+    ck_assert(UA_String_equal(&nullStr, &nullStr));
+
+    /* Empty vs empty */
+    ck_assert(UA_String_equal(&emptyStr, &emptyStr));
+
+    /* Normal vs NULL */
+    ck_assert(!UA_String_equal(&normalStr, &nullStr));
+    ck_assert(!UA_String_equal(&nullStr, &normalStr));
+
+    /* Normal vs empty */
+    ck_assert(!UA_String_equal(&normalStr, &emptyStr));
+} END_TEST
+
 static Suite *testSuite_util(void) {
     TCase *tc_random = tcase_create("Random");
     tcase_add_test(tc_random, random_seed_deterministic);
@@ -586,6 +636,13 @@ static Suite *testSuite_util(void) {
     suite_add_tcase(s, tc_trustlist);
     suite_add_tcase(s, tc_numbers);
     suite_add_tcase(s, tc_print);
+
+    TCase *tc_misc = tcase_create("MiscEdges");
+    tcase_add_test(tc_misc, order_uint64);
+    tcase_add_test(tc_misc, bytestring_allocBuffer_zero);
+    tcase_add_test(tc_misc, string_equal_edge_cases);
+    suite_add_tcase(s, tc_misc);
+
     return s;
 }
 

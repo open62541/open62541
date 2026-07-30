@@ -18,6 +18,15 @@
 
 #include <check.h>
 #include <stdlib.h>
+
+/* On libcheck < 0.11 (ubuntu-20.04 ships 0.10), ck_assert_ptr_null /
+ * ck_assert_ptr_nonnull are missing. Shim them to ck_assert_msg. */
+#ifndef ck_assert_ptr_null
+# define ck_assert_ptr_null(p) ck_assert_msg((p) == NULL, #p " is not NULL")
+#endif
+#ifndef ck_assert_ptr_nonnull
+# define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " is NULL")
+#endif
 #include <stdio.h>
 
 #include "test_helpers.h"
@@ -694,6 +703,69 @@ START_TEST(evaluateFilterWhereClause) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
 }
 END_TEST
+
+/* ==== cacheEventId and UA_FilterEvalContext_reset edge cases ==== */
+
+START_TEST(cacheEventId_randomIdBranch) {
+    /* src/server/ua subscription_event.c:168-175 (cacheEventId):
+     * The "If nothing is explicitly defined, create a random
+     * 16-byte ByteString" branch is the only reachable path when
+     * the context has no eventFields and no eventInstance. The
+     * existing createEvent_withOutEventId test exercises the
+     * public UA_Server_createEvent wrapper, but the random-16-byte
+     * branch in cacheEventId directly is not covered. */
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.session = &server->adminSession;
+    /* ed.eventFields = NULL (zero-init), ed.eventInstance = NULL */
+    /* No cache hit -- forced to take the random branch */
+
+    lockServer(server);
+    UA_StatusCode rv = cacheEventId(&ctx);
+    unlockServer(server);
+
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert(ctx.eventId.length == 16);
+    ck_assert(ctx.eventId.data == ctx.eventIdBuf);
+
+    UA_FilterEvalContext_reset(&ctx);
+} END_TEST
+
+START_TEST(FilterEvalContext_reset_randomEventId_doesNotFree) {
+    /* src/server/ua subscription_event.c:106-115 (UA_FilterEvalContext_reset):
+     *   if(ctx->eventId.data != ctx->eventIdBuf)
+     *     UA_ByteString_init(&ctx->eventId);
+     * When the eventId data points at eventIdBuf (the random-id
+     * branch), reset must NOT free the data (the buffer is owned
+     * by the context). When the data points elsewhere (a deep
+     * copy), reset must init the ByteString to avoid double-free
+     * by the eventual freeEventId call. */
+    /* Random-eventId branch: data == eventIdBuf */
+    {
+        UA_FilterEvalContext ctx;
+        UA_FilterEvalContext_init(&ctx);
+        ctx.eventId = (UA_ByteString){16, ctx.eventIdBuf};
+        /* reset must not free ctx.eventIdBuf */
+        UA_FilterEvalContext_reset(&ctx);
+        ck_assert_uint_eq(ctx.eventId.length, 16);
+        ck_assert(ctx.eventId.data == ctx.eventIdBuf);
+        /* No second reset; the data was not freed. */
+    }
+    /* Copied-eventId branch: data != eventIdBuf -- use a stack
+     * buffer that we own, simulate that the cache filled in a deep
+     * copy. */
+    {
+        UA_FilterEvalContext ctx;
+        UA_FilterEvalContext_init(&ctx);
+        UA_ByteString stackBuf = {4, (UA_Byte*)"\x01\x02\x03\x04"};
+        ctx.eventId = stackBuf; /* data != eventIdBuf */
+        UA_FilterEvalContext_reset(&ctx);
+        /* After reset, the eventId is initialized (no leak risk) */
+        ck_assert_uint_eq(ctx.eventId.length, 0);
+        ck_assert_ptr_null(ctx.eventId.data);
+    }
+} END_TEST
 
 /* ---- WHERE clause filter operator tests ---- */
 
@@ -2605,6 +2677,8 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
+    tcase_add_test(tc_server, cacheEventId_randomIdBranch);
+    tcase_add_test(tc_server, FilterEvalContext_reset_randomEventId_doesNotFree);
     tcase_add_test(tc_server, filterEquals_int);
     tcase_add_test(tc_server, filterEquals_string);
     tcase_add_test(tc_server, filterGreaterThan);

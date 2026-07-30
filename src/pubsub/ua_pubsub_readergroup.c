@@ -140,7 +140,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, newGroup,
                             "Could not validate the connection parameters");
-        UA_ReaderGroup_remove(psm, newGroup);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
         return retval;
     }
 
@@ -152,7 +153,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, newGroup,
                                 "Attaching the SKS KeyStorage failed");
-            UA_ReaderGroup_remove(psm, newGroup);
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
             return retval;
         }
     }
@@ -162,7 +164,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval |= addReaderGroupRepresentation(psm->drv.server, newGroup);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ReaderGroup_remove(psm, newGroup);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
         return retval;
     }
 #else
@@ -177,7 +180,10 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
             componentLifecycleCallback(server, newGroup->head.identifier,
                                        UA_PUBSUBCOMPONENT_READERGROUP, false);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_ReaderGroup_remove(psm, newGroup);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the group). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
             return retval;
         }
     }
@@ -533,8 +539,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     }
 
     /* Handle missing payload header and "inject" metadata */
-    if(!nm->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+    if(!nm->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_NetworkMessage_clear(nm);
+            return rv;
+        }
+    }
 
     /* Decrypt */
     rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
@@ -688,6 +699,11 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     /* Validate the signature */
     if(doValidate) {
         size_t sigSize = sp->getSignatureSize(sp, cc);
+        if(buffer.length < sigSize) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "PubSub receive. Message too short for signature");
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
@@ -840,9 +856,10 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
+    if (rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+        rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Received a messaage for a non-operational ReaderGroup");
+            "Received a message for a disabled ReaderGroup");
         unlockServer(server);
         return;
     }

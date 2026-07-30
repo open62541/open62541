@@ -12,7 +12,65 @@
 
 #ifdef UA_ENABLE_RBAC
 
-/* RBAC NS0 information model integration */
+#include "ua_server_rbac.h"
+
+/* RBAC NS0 information model integration.
+ * Known RBAC limitations are documented in ua_server_rbac.c. */
+
+/* Resolve the Role Object owning a property (inverse HasProperty), so the data
+ * source callbacks need no per-node context to release on node deletion. */
+static UA_StatusCode
+getRoleIdOfProperty(UA_Server *server, const UA_NodeId *propertyId,
+                    UA_NodeId *roleId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *propertyId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_NONE;
+
+    UA_BrowseResult br = UA_Server_browse(server, 1, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        if(br.referencesSize > 0)
+            res = UA_NodeId_copy(&br.references[0].nodeId.nodeId, roleId);
+        else
+            res = UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+/* Find the Variable child with the given BrowseName name */
+static UA_StatusCode
+findPropertyChild(UA_Server *server, const UA_NodeId parentId,
+                  const char *name, UA_NodeId *childId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        UA_String nameStr = UA_STRING((char*)(uintptr_t)name);
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_String_equal(&br.references[i].browseName.name, &nameStr)) {
+                res = UA_NodeId_copy(&br.references[i].nodeId.nodeId, childId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
 
 static UA_StatusCode
 readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId,
@@ -21,9 +79,14 @@ readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId,
                    UA_Boolean includeSourceTimeStamp,
                    const UA_NumericRange *range,
                    UA_DataValue *value) {
-    UA_NodeId roleId = *(UA_NodeId*)nodeContext;
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Role role;
-    UA_StatusCode res = UA_Server_getRoleById(server, roleId, &role);
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -42,9 +105,14 @@ readRoleApplications(UA_Server *server, const UA_NodeId *sessionId,
                      UA_Boolean includeSourceTimeStamp,
                      const UA_NumericRange *range,
                      UA_DataValue *value) {
-    UA_NodeId roleId = *(UA_NodeId*)nodeContext;
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Role role;
-    UA_StatusCode res = UA_Server_getRoleById(server, roleId, &role);
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -63,9 +131,14 @@ readRoleEndpoints(UA_Server *server, const UA_NodeId *sessionId,
                   UA_Boolean includeSourceTimeStamp,
                   const UA_NumericRange *range,
                   UA_DataValue *value) {
-    UA_NodeId roleId = *(UA_NodeId*)nodeContext;
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Role role;
-    UA_StatusCode res = UA_Server_getRoleById(server, roleId, &role);
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -98,46 +171,20 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
 
     res = UA_Server_addObjectNode(server, role->roleId,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   role->roleName,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE),
                                   oAttr, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = role->roleId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    bd.includeSubtypes = false;
-    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
-    bd.resultMask = UA_BROWSERESULTMASK_ALL;
-
-    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
-
-    UA_NodeId identitiesNodeId = UA_NODEID_NULL;
-    UA_String identitiesStr = UA_STRING("Identities");
-    for(size_t i = 0; i < br.referencesSize; i++) {
-        if(UA_String_equal(&br.references[i].browseName.name, &identitiesStr)) {
-            UA_NodeId_copy(&br.references[i].nodeId.nodeId, &identitiesNodeId);
-            break;
-        }
-    }
-    UA_BrowseResult_clear(&br);
-
-    if(UA_NodeId_isNull(&identitiesNodeId)) {
+    /* Back the mandatory Identities property with the role registry */
+    UA_NodeId identitiesNodeId;
+    res = findPropertyChild(server, role->roleId, "Identities", &identitiesNodeId);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADNOTFOUND;
+        return res;
     }
-
-    UA_NodeId *identitiesCtx = UA_NodeId_new();
-    if(!identitiesCtx) {
-        UA_NodeId_clear(&identitiesNodeId);
-        UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_NodeId_copy(&role->roleId, identitiesCtx);
 
     UA_DataSource identitiesDataSource;
     identitiesDataSource.read = readRoleIdentities;
@@ -145,22 +192,13 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
 
     res = UA_Server_setVariableNode_dataSource(server, identitiesNodeId,
                                                identitiesDataSource);
-    res |= UA_Server_setNodeContext(server, identitiesNodeId, identitiesCtx);
     UA_NodeId_clear(&identitiesNodeId);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_delete(identitiesCtx);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
 
     /* Add optional Applications property with DataSource */
-    UA_NodeId *applicationsCtx = UA_NodeId_new();
-    if(!applicationsCtx) {
-        UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_NodeId_copy(&role->roleId, applicationsCtx);
-
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Applications");
     vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
@@ -171,28 +209,19 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     applicationsDataSource.read = readRoleApplications;
     applicationsDataSource.write = NULL;
 
-    UA_NodeId applicationsNodeId;
     res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                               role->roleId,
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                               UA_QUALIFIEDNAME(0, "Applications"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                               vAttr, applicationsDataSource,
-                                              applicationsCtx, &applicationsNodeId);
+                                              NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_delete(applicationsCtx);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
 
     /* Add optional Endpoints property with DataSource */
-    UA_NodeId *endpointsCtx = UA_NodeId_new();
-    if(!endpointsCtx) {
-        UA_Server_deleteNode(server, role->roleId, true);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_NodeId_copy(&role->roleId, endpointsCtx);
-
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Endpoints");
     vAttr.dataType = UA_TYPES[UA_TYPES_ENDPOINTTYPE].typeId;
     vAttr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
@@ -201,21 +230,16 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     endpointsDataSource.read = readRoleEndpoints;
     endpointsDataSource.write = NULL;
 
-    UA_NodeId endpointsNodeId;
     res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                               role->roleId,
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                               UA_QUALIFIEDNAME(0, "Endpoints"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                               vAttr, endpointsDataSource,
-                                              endpointsCtx, &endpointsNodeId);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_NodeId_delete(endpointsCtx);
+                                              NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD)
         UA_Server_deleteNode(server, role->roleId, true);
-        return res;
-    }
-
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Remove Role object from NS0 */
@@ -230,11 +254,14 @@ removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId) {
 
 static UA_StatusCode
 addRoleMethodCallback(UA_Server *server,
-                      const UA_NodeId *objectId, void *objectContext,
+                      const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
-                      const UA_NodeId *inputType, void *inputContext,
+                      const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 2 ||
        input[0].type != &UA_TYPES[UA_TYPES_STRING] ||
        input[1].type != &UA_TYPES[UA_TYPES_STRING])
@@ -263,10 +290,11 @@ addRoleMethodCallback(UA_Server *server,
     UA_NodeId newRoleId = UA_NODEID_NULL;
     UA_StatusCode retval = UA_Server_addRole(server, &role, &newRoleId);
     UA_Role_clear(&role);
-
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* UA_Server_addRole already published the Role Object under the RoleSet
+     * (Part 18 §4.2.2, §4.3). */
     if(outputSize >= 1)
         UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
 
@@ -276,11 +304,14 @@ addRoleMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 removeRoleMethodCallback(UA_Server *server,
-                         const UA_NodeId *objectId, void *objectContext,
+                         const UA_NodeId *sessionId, void *sessionContext,
                          const UA_NodeId *methodId, void *methodContext,
-                         const UA_NodeId *inputType, void *inputContext,
+                         const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_NODEID])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -296,6 +327,8 @@ removeRoleMethodCallback(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* UA_Server_removeRole also drops the published Role Object from the
+     * AddressSpace (Part 18 §4.2.3, §4.3). */
     res = UA_Server_removeRole(server, roleName);
     UA_QualifiedName_clear(&roleName);
     return res;
@@ -308,6 +341,9 @@ addIdentityMethodCallback(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -353,6 +389,9 @@ removeIdentityMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -369,10 +408,11 @@ removeIdentityMethodCallback(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Find and remove the matching identity rule */
+    /* Find and remove the identity rule that matches in both criteriaType and
+     * criteria; several rules may share a criteriaType. */
     size_t idx = SIZE_MAX;
     for(size_t i = 0; i < role.identityMappingRulesSize; i++) {
-        if(role.identityMappingRules[i].criteriaType == rule->criteriaType) {
+        if(UA_IdentityMappingRuleType_equal(&role.identityMappingRules[i], rule)) {
             idx = i;
             break;
         }
@@ -402,6 +442,9 @@ addApplicationMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -438,6 +481,9 @@ removeApplicationMethodCallback(UA_Server *server,
                                 const UA_NodeId *objectId, void *objectContext,
                                 size_t inputSize, const UA_Variant *input,
                                 size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -478,6 +524,9 @@ addEndpointMethodCallback(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -519,6 +568,9 @@ removeEndpointMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
+    UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
+    if(access != UA_STATUSCODE_GOOD)
+        return access;
     if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -555,6 +607,78 @@ removeEndpointMethodCallback(UA_Server *server,
     res = UA_Server_updateRole(server, &role);
     UA_Role_clear(&role);
     return res;
+}
+
+/* Restrict the RoleSet Object and the security-sensitive RoleSet/RoleType
+ * Methods to the SecurityAdmin Role (OPC UA Part 18). The RoleSet stays
+ * browsable for the Anonymous/AuthenticatedUser Roles. Skipped when the NS0
+ * RBAC information model is unavailable. */
+UA_StatusCode
+initRoleSetRolePermissions(UA_Server *server) {
+    UA_NodeId roleSetId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
+    UA_QualifiedName bn;
+    if(UA_Server_readBrowseName(server, roleSetId, &bn) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD; /* no NS0 RBAC model -> nothing to protect */
+    UA_QualifiedName_clear(&bn);
+
+    const UA_NodeId secAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    const UA_NodeId publicRoles[] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
+    };
+
+    /* Nodes whose CALL is restricted to SecurityAdmin. The RoleSet Object is
+     * included because the Call service checks CALL on both the Object and the
+     * Method node. BROWSE is granted back to the public Roles so the nodes
+     * stay visible. */
+    const UA_UInt32 callNodes[] = {
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE,
+        UA_NS0ID_ROLETYPE_ADDIDENTITY,
+        UA_NS0ID_ROLETYPE_REMOVEIDENTITY,
+        UA_NS0ID_ROLETYPE_ADDAPPLICATION,
+        UA_NS0ID_ROLETYPE_REMOVEAPPLICATION,
+        UA_NS0ID_ROLETYPE_ADDENDPOINT,
+        UA_NS0ID_ROLETYPE_REMOVEENDPOINT
+    };
+
+    /* StatusCodes are not bit flags, so check each result individually.
+     * A missing node (BadNodeIdUnknown) is tolerated: a reduced nodeset may
+     * omit individual Methods. Any other failure aborts. */
+    UA_StatusCode retval;
+
+    /* Admin may additionally read the RolePermissions attribute of the RoleSet */
+    retval = UA_Server_addRolePermissions(server, roleSetId, secAdmin,
+                                          UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                          false, false);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return retval;
+
+    for(size_t i = 0; i < sizeof(callNodes) / sizeof(callNodes[0]); i++) {
+        UA_NodeId nodeId = UA_NODEID_NUMERIC(0, callNodes[i]);
+
+        /* SecurityAdmin: browse + call */
+        retval = UA_Server_addRolePermissions(server, nodeId, secAdmin,
+                                              UA_PERMISSIONTYPE_BROWSE |
+                                              UA_PERMISSIONTYPE_CALL,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
+
+        /* Public Roles: browse only (visible but not callable) */
+        for(size_t j = 0; j < sizeof(publicRoles) / sizeof(publicRoles[0]); j++) {
+            retval = UA_Server_addRolePermissions(server, nodeId, publicRoles[j],
+                                                  UA_PERMISSIONTYPE_BROWSE,
+                                                  false, false);
+            if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+                return retval;
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -595,18 +719,24 @@ initNS0RBAC(UA_Server *server) {
         UA_QualifiedName_clear(&bn);
     }
 
-    /* Ensure the 8 well-known role instance nodes exist under the RoleSet */
+    /* Ensure the well-known role instance nodes exist under the RoleSet */
     struct { UA_UInt32 id; const char *name; } roles[] = {
-        {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,         "Anonymous"},
+        {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,          "Anonymous"},
         {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,  "AuthenticatedUser"},
+        {UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION, "TrustedApplication"},
         {UA_NS0ID_WELLKNOWNROLE_OBSERVER,           "Observer"},
         {UA_NS0ID_WELLKNOWNROLE_OPERATOR,           "Operator"},
         {UA_NS0ID_WELLKNOWNROLE_ENGINEER,           "Engineer"},
         {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR,         "Supervisor"},
         {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN,     "ConfigureAdmin"},
         {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN,      "SecurityAdmin"}
+#ifdef UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN
+        ,{UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN,  "SecurityKeyServerAdmin"}
+        ,{UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERPUSH,   "SecurityKeyServerPush"}
+        ,{UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERACCESS, "SecurityKeyServerAccess"}
+#endif
     };
-    for(size_t i = 0; i < 8; i++) {
+    for(size_t i = 0; i < sizeof(roles) / sizeof(roles[0]); i++) {
         UA_NodeId rId = UA_NODEID_NUMERIC(0, roles[i].id);
         if(UA_Server_readBrowseName(server, rId, &bn) != UA_STATUSCODE_GOOD) {
             UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -620,13 +750,29 @@ initNS0RBAC(UA_Server *server) {
         } else {
             UA_QualifiedName_clear(&bn);
         }
+
+        /* Back the Identities property with the role registry so that reads
+         * return the currently configured identity mapping rules */
+        UA_NodeId identitiesId;
+        if(findPropertyChild(server, rId, "Identities",
+                             &identitiesId) == UA_STATUSCODE_GOOD) {
+            UA_DataSource identitiesDataSource;
+            identitiesDataSource.read = readRoleIdentities;
+            identitiesDataSource.write = NULL;
+            retval |= UA_Server_setVariableNode_dataSource(server, identitiesId,
+                                                           identitiesDataSource);
+            UA_NodeId_clear(&identitiesId);
+        }
     }
 
+    /* The method callbacks must be attached to the RoleSet *instance* methods.
+     * A Call resolves the object's own HasComponent method (the instance node),
+     * not the type method, so a callback on the type node would never fire. */
     retval |= UA_Server_setMethodNode_callback(
-        server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_ADDROLE),
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE),
         addRoleMethodCallback);
     retval |= UA_Server_setMethodNode_callback(
-        server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_REMOVEROLE),
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE),
         removeRoleMethodCallback);
 
     retval |= UA_Server_setMethodNode_callback(

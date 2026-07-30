@@ -20,6 +20,13 @@
 #endif
 
 /* Configuration parameters */
+#define UDP_MANAGERPARAMS 2
+
+static UA_KeyValueRestriction udpManagerParams[UDP_MANAGERPARAMS] = {
+    {{0, UA_STRING_STATIC("recv-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("send-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
+};
+
 #define UDP_PARAMETERSSIZE 10
 #define UDP_PARAMINDEX_RECVBUF 0
 #define UDP_PARAMINDEX_LISTEN 1
@@ -1301,7 +1308,7 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Check the parameters */
     UA_StatusCode res =
         UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        UDPConfigParameters, 1,
+                                        udpManagerParams, UDP_MANAGERPARAMS,
                                         &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;

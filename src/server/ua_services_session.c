@@ -61,7 +61,10 @@ notifySession(UA_Server *server, UA_Session *session,
 
 /* Delayed callback to free the session memory */
 static void
-removeSessionCallback(UA_Server *server, session_list_entry *entry) {
+removeSessionCallback(void *application /* UA_Server */,
+                      void *context /* session_list_entry */) {
+    UA_Server *server = (UA_Server*)application;
+    session_list_entry *entry = (session_list_entry*)context;
     lockServer(server);
     UA_Session_clear(&entry->session, server);
     unlockServer(server);
@@ -148,7 +151,7 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
 
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
-    sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
+    sentry->cleanupCallback.callback = removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
@@ -201,6 +204,14 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
 UA_Session *
 getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* A NULL sessionId is a programming error from the public API
+     * (UA_Server_closeSession) or from an internal caller that has
+     * no session id. Treat it as "not found" so callers like
+     * UA_Server_closeSession can return BADSESSIONIDINVALID instead
+     * of dereferencing NULL inside UA_NodeId_equal. */
+    if(!sessionId)
+        return NULL;
 
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
@@ -714,8 +725,9 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                      const UA_CreateSessionRequest *request,
-                      UA_CreateSessionResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_CreateSessionRequest *request = (const UA_CreateSessionRequest*)request_;
+    UA_CreateSessionResponse *response = (UA_CreateSessionResponse*)response_;
     /* Call the inner implementation */
     UA_Session *session = NULL;
     Service_CreateSession_inner(server, channel, request, response, &session);
@@ -1212,11 +1224,18 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_RBAC
-    /* Evaluate identity mapping rules and assign matching roles to the session */
+    /* Evaluate identity mapping rules and assign matching roles to the session.
+     * The client application counts as trusted when its application instance
+     * certificate was validated during OpenSecureChannel, i.e. on a signed or
+     * encrypted SecureChannel (Part 18 §4.4.3 TrustedApplication). */
+    UA_Boolean trustedApp = (channel->securityPolicy != NULL &&
+        channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+        channel->remoteCertificate.length > 0);
     size_t rolesSize = 0;
     UA_NodeId *roleIds = NULL;
     rh->serviceResult = UA_Server_evaluateSessionRoles(server,
                                                        &req->userIdentityToken,
+                                                       trustedApp,
                                                        &rolesSize, &roleIds);
     if(rh->serviceResult == UA_STATUSCODE_GOOD && rolesSize > 0) {
         UA_Session_setRoles(server, session, roleIds, rolesSize);
@@ -1361,8 +1380,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_ActivateSessionRequest *request,
-                        UA_ActivateSessionResponse *response) {
+                        const void *request_, void *response_) {
+    const UA_ActivateSessionRequest *request = (const UA_ActivateSessionRequest*)request_;
+    UA_ActivateSessionResponse *response = (UA_ActivateSessionResponse*)response_;
     /* Call the inner implementation */
     UA_Session *session = NULL;
     Service_ActivateSession_inner(server, channel, request, response, &session);
@@ -1375,8 +1395,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
-                     const UA_CloseSessionRequest *request,
-                     UA_CloseSessionResponse *response) {
+                     const void *request_, void *response_) {
+    const UA_CloseSessionRequest *request = (const UA_CloseSessionRequest*)request_;
+    UA_CloseSessionResponse *response = (UA_CloseSessionResponse*)response_;
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &response->responseHeader;
 
@@ -1419,7 +1440,9 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 
 UA_Boolean
 Service_Cancel(UA_Server *server, UA_Session *session,
-               const UA_CancelRequest *request, UA_CancelResponse *response) {
+               const void *request_, void *response_) {
+    const UA_CancelRequest *request = (const UA_CancelRequest*)request_;
+    UA_CancelResponse *response = (UA_CancelResponse*)response_;
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */

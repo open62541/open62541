@@ -116,6 +116,7 @@ add_example(custom_datatype_server custom_datatype/server_types_custom.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     add_example(server_events_random events/server_random_events.c)
+    add_example(server_modelchange events/server_modelchange.c)
     add_example(client_event_filter_queries events/client_filter_queries.c)
 endif()
 
@@ -161,6 +162,11 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     add_example(discovery_server_register discovery/server_register.c)
     add_example(discovery_client_find_servers discovery/client_find_servers.c)
     add_example(discovery_server_multicast discovery/server_multicast.c)
+endif()
+
+if(UA_ENABLE_LWS)
+    add_example(server_lws_http_client lws/server_lws_http_client.c)
+    add_example(server_lws_http_client_post lws/server_lws_http_client_post.c)
 endif()
 
 add_subdirectory(nodeset)

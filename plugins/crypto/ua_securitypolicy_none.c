@@ -133,12 +133,40 @@ compareCertificate_none(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
+setLocalCertificate_none(UA_SecurityPolicy *policy,
+                         const UA_ByteString certificate) {
+    UA_ByteString_clear(&policy->localCertificate);
+    /* #None does no crypto, so an empty certificate is valid and a no-op. */
+    if(certificate.length == 0)
+        return UA_STATUSCODE_GOOD;
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
+    defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    /* Use the crypto backend to convert the certificate to DER for the wire */
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_StatusCode retval =
+        UA_mbedTLS_LoadLocalCertificate(&certificate, &policy->localCertificate);
+#else
+    UA_StatusCode retval =
+        UA_OpenSSL_LoadLocalCertificate(&certificate, &policy->localCertificate,
+                                        EVP_PKEY_NONE);
+#endif
+    if(retval == UA_STATUSCODE_GOOD)
+        return retval;
+    /* #None never uses the certificate cryptographically. Store a certificate
+     * the backend cannot parse (e.g. EdDSA) verbatim instead of failing. */
+    UA_LOG_WARNING(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy#None: The local certificate could not be "
+                   "parsed by the crypto backend. Storing it unmodified.");
+#endif
+    return UA_ByteString_copy(&certificate, &policy->localCertificate);
+}
+
+static UA_StatusCode
 updateCertificate_none(UA_SecurityPolicy *policy,
                        const UA_ByteString certificate,
                        const UA_ByteString privateKey) {
-    UA_ByteString_clear(&policy->localCertificate);
-    UA_ByteString_copy(&certificate, &policy->localCertificate);
-    return UA_STATUSCODE_GOOD;
+    return setLocalCertificate_none(policy, certificate);
 }
 
 
@@ -206,14 +234,5 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
     sp->createSigningRequest = NULL;
     sp->clear = policy_clear_none;
 
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
-#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
-                                    EVP_PKEY_NONE);
-#else
-    UA_ByteString_copy(&localCertificate, &sp->localCertificate);
-#endif
-
-    return UA_STATUSCODE_GOOD;
+    return setLocalCertificate_none(sp, localCertificate);
 }

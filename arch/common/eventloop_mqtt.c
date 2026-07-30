@@ -179,7 +179,8 @@ mqtt_pal_recvall(MQTTBrokerConnection *bc, void* buf, size_t bufsz, int flags) {
 }
 
 static UA_StatusCode
-MQTT_eventSourceStart(UA_ConnectionManager *cm) {
+MQTT_eventSourceStart(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     MQTTConnectionManager *mcm = (MQTTConnectionManager*)cm;
     UA_EventLoop *el = cm->eventSource.eventLoop;
     if(!el)
@@ -239,7 +240,8 @@ shutdownBrokerConnection(MQTTBrokerConnection *bc) {
 }
 
 static void
-MQTT_eventSourceStop(UA_ConnectionManager *cm) {
+MQTT_eventSourceStop(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     if(cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPING ||
        cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPED)
         return;
@@ -261,7 +263,8 @@ MQTT_eventSourceStop(UA_ConnectionManager *cm) {
 }
 
 static UA_StatusCode
-MQTT_eventSourceDelete(UA_ConnectionManager *cm) {
+MQTT_eventSourceDelete(UA_EventSource *es) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
     return UA_STATUSCODE_GOOD;
@@ -408,8 +411,9 @@ findTopicConnection(MQTTConnectionManager *mcm, uintptr_t id) {
 }
 
 static void
-MQTTKeepAliveCallback(void *app, MQTTBrokerConnection *bc) {
+MQTTKeepAliveCallback(void *app, void *context) {
     (void)app;
+    MQTTBrokerConnection *bc = (MQTTBrokerConnection*)context;
     mqtt_ping(&bc->client);
     __mqtt_send(&bc->client);
 }
@@ -640,7 +644,7 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
     }
 
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
-    res = el->addTimer(el, (UA_Callback)MQTTKeepAliveCallback, NULL, bc,
+    res = el->addTimer(el, MQTTKeepAliveCallback, NULL, bc,
                        (UA_Double)(bc->keepalive * 0.75 * UA_DATETIME_MSEC),
                        NULL, UA_TIMERPOLICY_CURRENTTIME, &bc->keepAliveCallbackId);
     if(res != UA_STATUSCODE_GOOD) {
@@ -848,9 +852,9 @@ UA_ConnectionManager_new_MQTT(const UA_String eventSourceName) {
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))MQTT_eventSourceStart;
-    cm->cm.eventSource.stop = (void (*)(UA_EventSource *))MQTT_eventSourceStop;
-    cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))MQTT_eventSourceDelete;
+    cm->cm.eventSource.start = MQTT_eventSourceStart;
+    cm->cm.eventSource.stop = MQTT_eventSourceStop;
+    cm->cm.eventSource.free = MQTT_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)mqttName);
     cm->cm.openConnection = MQTT_openConnection;
     cm->cm.allocNetworkBuffer = MQTT_allocNetworkBuffer;

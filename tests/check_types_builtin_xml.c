@@ -12,6 +12,33 @@
 #include <math.h>
 #include <stdlib.h>
 
+typedef struct {
+    UA_Int32 required;
+    UA_String *optional;
+} XmlOptionalStructure;
+
+#define XML_OPTIONAL_PADDING \
+    (offsetof(XmlOptionalStructure, optional) - sizeof(UA_Int32))
+
+static UA_DataTypeMember xmlOptionalStructureMembers[2] = {
+    {UA_TYPENAME("Required") &UA_TYPES[UA_TYPES_INT32], 0, false, false},
+    {UA_TYPENAME("Optional") &UA_TYPES[UA_TYPES_STRING],
+     XML_OPTIONAL_PADDING, false, true}
+};
+
+static UA_DataType xmlOptionalStructureType = {
+    UA_TYPENAME("XmlOptionalStructure")
+    {1, UA_NODEIDTYPE_NUMERIC, {3001}},
+    {1, UA_NODEIDTYPE_NUMERIC, {5001}},
+    {1, UA_NODEIDTYPE_NUMERIC, {6001}},
+    sizeof(XmlOptionalStructure), UA_DATATYPEKIND_OPTSTRUCT,
+    false, false, 2, xmlOptionalStructureMembers
+};
+
+static UA_DataTypeArray xmlOptionalStructureTypes = {
+    NULL, 1, &xmlOptionalStructureType, false
+};
+
 #if defined(_MSC_VER)
 # pragma warning(disable: 4146)
 #endif
@@ -414,6 +441,25 @@ START_TEST(UA_Int32_Zero_Number_xml_encode) {
 }
 END_TEST
 
+START_TEST(UA_Enum_xml_roundtrip) {
+    UA_ApplicationType src = UA_APPLICATIONTYPE_CLIENT;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_APPLICATIONTYPE];
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+
+    UA_StatusCode retval = UA_encodeXml(&src, type, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected =
+        UA_BYTESTRING("<ApplicationType>Client_1</ApplicationType>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_ApplicationType decoded = UA_APPLICATIONTYPE_SERVER;
+    retval = UA_decodeXml(&encoded, &decoded, type, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(decoded, src);
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
 START_TEST(UA_Int32_smallbuf_Number_xml_encode) {
     UA_Int32 *src = UA_Int32_new();
     *src = 127;
@@ -799,6 +845,105 @@ START_TEST(UA_String_xml_encode) {
     ck_assert_str_eq(result, (char*)buf.data);
 
     UA_ByteString_clear(&buf);
+}
+END_TEST
+
+START_TEST(UA_XmlElement_xml_roundtrip) {
+    UA_XmlElement src = UA_STRING("<Test><Value>42</Value></Test>");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_XMLELEMENT];
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_encodeXml(&src, type, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString expected = UA_BYTESTRING(
+        "<XmlElement><Test><Value>42</Value></Test></XmlElement>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_XmlElement decoded;
+    UA_String_init(&decoded);
+    retval = UA_decodeXml(&encoded, &decoded, type, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&decoded, &src));
+
+    UA_String_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
+START_TEST(UA_OptionalStructure_xml_roundtrip) {
+    UA_String optional = UA_STRING("present");
+    XmlOptionalStructure src = {42, &optional};
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+
+    UA_StatusCode retval =
+        UA_encodeXml(&src, &xmlOptionalStructureType, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING(
+        "<XmlOptionalStructure><Required>42</Required>"
+        "<Optional>present</Optional></XmlOptionalStructure>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    XmlOptionalStructure decoded = {0};
+    UA_DecodeXmlOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = &xmlOptionalStructureTypes;
+    retval = UA_decodeXml(&encoded, &decoded, &xmlOptionalStructureType, &options);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&src, &decoded, &xmlOptionalStructureType));
+    UA_clear(&decoded, &xmlOptionalStructureType);
+    UA_ByteString_clear(&encoded);
+
+    src.optional = NULL;
+    retval = UA_encodeXml(&src, &xmlOptionalStructureType, &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<XmlOptionalStructure><Required>42</Required></XmlOptionalStructure>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
+START_TEST(UA_DefaultStructure_xml_encode) {
+    UA_CurrencyUnitType currency;
+    UA_CurrencyUnitType_init(&currency);
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+
+    UA_StatusCode retval = UA_encodeXml(
+        &currency, &UA_TYPES[UA_TYPES_CURRENCYUNITTYPE], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected =
+        UA_BYTESTRING("<CurrencyUnitType></CurrencyUnitType>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+
+    /* Empty and null Strings are distinct. Keep an empty String present. */
+    currency.alphabeticCode = UA_STRING("");
+    retval = UA_encodeXml(
+        &currency, &UA_TYPES[UA_TYPES_CURRENCYUNITTYPE], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<CurrencyUnitType><AlphabeticCode></AlphabeticCode>"
+        "</CurrencyUnitType>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+
+    /* The default null array is omitted, but an empty array remains present. */
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    retval = UA_encodeXml(&argument, &UA_TYPES[UA_TYPES_ARGUMENT], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING("<Argument></Argument>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
+
+    argument.arrayDimensions = (UA_UInt32*)UA_EMPTY_ARRAY_SENTINEL;
+    retval = UA_encodeXml(&argument, &UA_TYPES[UA_TYPES_ARGUMENT], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<Argument><ArrayDimensions></ArrayDimensions></Argument>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+    UA_ByteString_clear(&encoded);
 }
 END_TEST
 
@@ -3214,6 +3359,22 @@ START_TEST(UA_ByteString_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_ByteString_whitespace_xml_decode) {
+    UA_ByteString out;
+    UA_ByteString_init(&out);
+    UA_ByteString buf = UA_STRING(
+        "<ByteString>\n  <![CDATA[\n  YXNk\n\tZmFz ZGY=\r\n]]>\n</ByteString>");
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("asdfasdf");
+    ck_assert(UA_ByteString_equal(&out, &expected));
+    UA_ByteString_clear(&out);
+}
+END_TEST
+
 /* TODO: Add option for escaping special chars. */
 // START_TEST(UA_ByteString_bad_xml_decode) {
 //     UA_ByteString out;
@@ -3557,6 +3718,90 @@ START_TEST(UA_StatusCode_3_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_DataValue_xml_decode) {
+    UA_DataValue out;
+    UA_DataValue_init(&out);
+    UA_ByteString buf = UA_STRING(
+        "<DataValue>"
+        "<Value><Int32>42</Int32></Value>"
+        "<StatusCode><Code>2</Code></StatusCode>"
+        "<SourcePicoseconds>7</SourcePicoseconds>"
+        "</DataValue>");
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(out.hasValue);
+    ck_assert_ptr_eq(out.value.type, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(*(UA_Int32*)out.value.data, 42);
+    ck_assert(out.hasStatus);
+    ck_assert_uint_eq(out.status, 2);
+    ck_assert(out.hasSourcePicoseconds);
+    ck_assert_uint_eq(out.sourcePicoseconds, 7);
+    ck_assert(!out.hasSourceTimestamp);
+    ck_assert(!out.hasServerTimestamp);
+    ck_assert(!out.hasServerPicoseconds);
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    retval = UA_encodeXml(&out, &UA_TYPES[UA_TYPES_DATAVALUE], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_DataValue roundtrip;
+    UA_DataValue_init(&roundtrip);
+    retval = UA_decodeXml(&encoded, &roundtrip,
+                          &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&out, &roundtrip, &UA_TYPES[UA_TYPES_DATAVALUE]));
+
+    UA_DataValue_clear(&roundtrip);
+    UA_ByteString_clear(&encoded);
+    UA_DataValue_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_DiagnosticInfo_xml_decode) {
+    UA_DiagnosticInfo out;
+    UA_DiagnosticInfo_init(&out);
+    UA_ByteString buf = UA_STRING(
+        "<DiagnosticInfo>"
+        "<SymbolicId>1</SymbolicId>"
+        "<AdditionalInfo>detail</AdditionalInfo>"
+        "<InnerStatusCode><Code>2</Code></InnerStatusCode>"
+        "<InnerDiagnosticInfo><Locale>3</Locale></InnerDiagnosticInfo>"
+        "</DiagnosticInfo>");
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], NULL);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(out.hasSymbolicId);
+    ck_assert_int_eq(out.symbolicId, 1);
+    ck_assert(out.hasAdditionalInfo);
+    UA_String expectedAdditionalInfo = UA_STRING("detail");
+    ck_assert(UA_String_equal(&out.additionalInfo, &expectedAdditionalInfo));
+    ck_assert(out.hasInnerStatusCode);
+    ck_assert_uint_eq(out.innerStatusCode, 2);
+    ck_assert(out.hasInnerDiagnosticInfo);
+    ck_assert_ptr_ne(out.innerDiagnosticInfo, NULL);
+    ck_assert(out.innerDiagnosticInfo->hasLocale);
+    ck_assert_int_eq(out.innerDiagnosticInfo->locale, 3);
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    retval = UA_encodeXml(&out, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_DiagnosticInfo roundtrip;
+    UA_DiagnosticInfo_init(&roundtrip);
+    retval = UA_decodeXml(&encoded, &roundtrip,
+                          &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&out, &roundtrip, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]));
+
+    UA_DiagnosticInfo_clear(&roundtrip);
+    UA_ByteString_clear(&encoded);
+    UA_DiagnosticInfo_clear(&out);
+}
+END_TEST
+
 /* QualifiedName */
 START_TEST(UA_QualifiedName_1_xml_decode) {
     UA_QualifiedName out;
@@ -3782,7 +4027,7 @@ START_TEST(UA_ExtensionObject_EncodedXml_3_xml_decode) {
                                       "<ServerStatusDataType xmlns=\"http://opcfoundation.org/UA/2008/02/Types.xsd\">"
                                         "<StartTime>2000-01-01T00:00:00Z</StartTime>"
                                         "<CurrentTime>2000-01-01T00:00:00Z</CurrentTime>"
-                                        "<State>5</State>"
+                                        "<State>Test_5</State>"
                                         "<BuildInfo>"
                                           "<ProductUri>open62541</ProductUri>"
                                           "<ManufacturerName>oss</ManufacturerName>"
@@ -4240,6 +4485,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_Int32_Max_Number_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Int32_Min_Number_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Int32_Zero_Number_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_Enum_xml_roundtrip);
     tcase_add_test(tc_xml_encode, UA_Int32_smallbuf_Number_xml_encode);
 
     tcase_add_test(tc_xml_encode, UA_UInt32_Max_Number_xml_encode);
@@ -4266,6 +4512,9 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_Double_nan_xml_encode);
 
     tcase_add_test(tc_xml_encode, UA_String_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_XmlElement_xml_roundtrip);
+    tcase_add_test(tc_xml_encode, UA_OptionalStructure_xml_roundtrip);
+    tcase_add_test(tc_xml_encode, UA_DefaultStructure_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_Empty_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_Null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_escapesimple_xml_encode);
@@ -4400,6 +4649,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_Guid_wrong_xml_decode);
 
     tcase_add_test(tc_xml_decode, UA_ByteString_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ByteString_whitespace_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ByteString_null_xml_decode);
 
     tcase_add_test(tc_xml_decode, UA_NodeId_Nummeric_xml_decode);
@@ -4418,6 +4668,8 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_StatusCode_0_xml_decode);
     tcase_add_test(tc_xml_decode, UA_StatusCode_2_xml_decode);
     tcase_add_test(tc_xml_decode, UA_StatusCode_3_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_DataValue_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_DiagnosticInfo_xml_decode);
 
     tcase_add_test(tc_xml_decode, UA_QualifiedName_1_xml_decode);
     tcase_add_test(tc_xml_decode, UA_QualifiedName_2_xml_decode);

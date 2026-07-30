@@ -17,18 +17,30 @@ _UA_BEGIN_DECLS
 
 #include "ua_session.h"
 
+/* Bounds the Role registry so repeated AddRole calls cannot allocate
+ * unbounded memory (DoS mitigation) */
+#define UA_RBAC_MAX_ROLES 1024
+
 /* Set roles on a session. Validates all role IDs against the server registry.
  * Must be called with the server lock held. */
 UA_StatusCode
 UA_Session_setRoles(UA_Server *server, UA_Session *session,
                     const UA_NodeId *roleIds, size_t rolesSize);
 
-/* Evaluate identity mapping rules for all roles against the given user token.
- * Returns the matching role IDs in a newly allocated array.
+/* Access guard for the RoleSet/RoleType Methods (Part 18): requires an
+ * encrypted SecureChannel and the SecurityAdmin Role.
  * Must be called with the server lock held. */
+UA_StatusCode
+checkRBACMethodAccess(UA_Server *server, const UA_NodeId *sessionId);
+
+/* Evaluate identity mapping rules for all roles against the given user token.
+ * trustedApplication satisfies the TrustedApplication identity criteria
+ * (validated application instance certificate). Returns the matching role IDs
+ * in a newly allocated array. Must be called with the server lock held. */
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
                                const UA_ExtensionObject *userIdentityToken,
+                               UA_Boolean trustedApplication,
                                size_t *outRolesSize, UA_NodeId **outRoleIds);
 
 /* Decrement the refCount of a role permission entry at the given index.
@@ -62,6 +74,20 @@ UA_Server_updateRolePermissionConfig(UA_Server *server,
                                      UA_PermissionIndex index,
                                      size_t entriesSize,
                                      const UA_RolePermission *entries);
+
+/* NS0 representation of a role under Server/ServerCapabilities/RoleSet
+ * (defined in ua_server_ns0_rbac.c). Keeps the published Role Objects in sync
+ * with the registry. */
+UA_StatusCode
+addRoleRepresentation(UA_Server *server, UA_Role *role);
+
+UA_StatusCode
+removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
+
+/* Restrict the RoleSet Object and its security-sensitive Methods to the
+ * SecurityAdmin Role (defined in ua_server_ns0_rbac.c) */
+UA_StatusCode
+initRoleSetRolePermissions(UA_Server *server);
 
 /* Effective permission queries (internal, used by attribute service and tests) */
 UA_StatusCode

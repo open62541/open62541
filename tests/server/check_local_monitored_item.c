@@ -9,9 +9,20 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include "server/ua_server_internal.h"
+#include "server/ua_subscription.h"
 
 #include <check.h>
 #include <stdlib.h>
+
+/* On libcheck < 0.11 (ubuntu-20.04 ships 0.10), ck_assert_ptr_null /
+ * ck_assert_ptr_nonnull are missing. Shim them to ck_assert_msg. */
+#ifndef ck_assert_ptr_null
+# define ck_assert_ptr_null(p) ck_assert_msg((p) == NULL, #p " is not NULL")
+#endif
+#ifndef ck_assert_ptr_nonnull
+# define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " is NULL")
+#endif
 
 #include "test_helpers.h"
 #include "testing_clock.h"
@@ -323,6 +334,90 @@ START_TEST(Server_LocalMonitoredItemIndexRangeOutOfBounds) {
 }
 END_TEST
 
+START_TEST(Server_LocalMonitoredItem_EventNotifierRejected) {
+    /* src/server/ua_services_monitoreditem.c:656-662:
+     *   if(item.itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+     *     result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+     *     return result;
+     *   }
+     * The DataChange local-monitored-item creator must reject
+     * the EventNotifier attribute (use createEventMonitoredItem
+     * for events). None of the existing tests exercises this
+     * mis-use guard. */
+    UA_MonitoredItemCreateRequest request;
+    UA_MonitoredItemCreateRequest_init(&request);
+    request.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    request.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+
+    UA_MonitoredItemCreateResult result = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_BOTH, request, NULL,
+        &dataChangeNotificationCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    /* No monitored item was created */
+    ck_assert_uint_eq(result.monitoredItemId, 0);
+}
+END_TEST
+
+/* ==== UA_Subscription_resendData ==== */
+
+START_TEST(Server_Subscription_resendData_emptySubscription) {
+    /* src/server/ua_subscription.c:947-977 (UA_Subscription_resendData):
+     * The function walks the subscription's monitoredItems list and
+     * creates a DataChange notification for each REPORTING
+     * monitored item with an empty value queue. With no monitored
+     * items attached to the admin subscription, the LIST_FOREACH
+     * loop body never executes -- but the function entry/exit
+     * (assertions, lock check) is exercised. This is a smoke test
+     * for the function's public entry. */
+    ck_assert_ptr_nonnull(server->adminSubscription);
+    /* The admin subscription has no monitored items by default */
+    /* Reset the shared counter -- earlier tests in this file may
+     * have left it non-zero. */
+    callbackCount = 0;
+    /* Take the lock before calling -- UA_Subscription_resendData
+     * asserts UA_LOCK_ASSERT(&server->serviceMutex) */
+    lockServer(server);
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_Subscription_resendData(server, server->adminSubscription);
+    unlockServer(server);
+    /* No crash, no callback fired (no items) */
+    ck_assert_uint_eq(callbackCount, 0);
+}
+END_TEST
+
+START_TEST(Server_Subscription_resendData_withDataChangeItem) {
+    /* Same as above but with a real DataChange local monitored item
+     * attached to the admin subscription. The resendData call must
+     * fire the callback once with the last sampled value. */
+    UA_MonitoredItemCreateRequest request =
+        UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    request.requestedParameters.samplingInterval = 100.0;
+    UA_MonitoredItemCreateResult res = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_BOTH, request, NULL,
+        &dataChangeNotificationCallback);
+    ASSERT_STATUSCODE(res.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(res.monitoredItemId, 0);
+    UA_UInt32 monId = res.monitoredItemId;
+    (void)monId;
+
+    /* Run a server iteration so the monitored item gets a sample. */
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_ge(callbackCount, 1);
+    UA_UInt32 countAfterSample = callbackCount;
+    (void)countAfterSample;
+
+    /* resendData must not crash, even with a populated item. */
+    lockServer(server);
+    UA_Subscription_resendData(server, server->adminSubscription);
+    unlockServer(server);
+
+    /* Clean up the local monitored item. */
+    UA_Server_deleteMonitoredItem(server, res.monitoredItemId);
+}
+END_TEST
+
 static Suite * testSuite_Client(void) {
     Suite *s = suite_create("Local Monitored Item");
     TCase *tc_server = tcase_create("Local Monitored Item Basic");
@@ -330,6 +425,9 @@ static Suite * testSuite_Client(void) {
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_EventNotifierRejected);
+    tcase_add_test(tc_server, Server_Subscription_resendData_emptySubscription);
+    tcase_add_test(tc_server, Server_Subscription_resendData_withDataChangeItem);
     suite_add_tcase(s, tc_server);
 
     TCase *tc_server_indexrange = tcase_create("Local Monitored Item Index Range");

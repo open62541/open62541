@@ -571,18 +571,23 @@ createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
     connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
 
     /* Further constrain the bufsize if the ConnectionManager has static rx/tx
-     * buffers configured */
+     * buffers configured. Also applies when tcpBufSize is unset (0), so that
+     * chunks always fit into the static buffers. Never constrain below 8192
+     * bytes: the transport buffer must be at least that size to fit a single
+     * MessageChunk (OPC UA Part 6 v1.05.07 §6.7.1 and §6.7.2.4). */
     const UA_UInt32 *bufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&cm->eventSource.params,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),
                                  &UA_TYPES[UA_TYPES_UINT32]);
-    if(bufSize && *bufSize < connConfig.recvBufferSize)
+    if(bufSize && *bufSize >= 8192 &&
+       (connConfig.recvBufferSize == 0 || *bufSize < connConfig.recvBufferSize))
         connConfig.recvBufferSize = *bufSize;
     bufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&cm->eventSource.params,
                                  UA_QUALIFIEDNAME(0, "send-bufsize"),
                                  &UA_TYPES[UA_TYPES_UINT32]);
-    if(bufSize && *bufSize < connConfig.sendBufferSize)
+    if(bufSize && *bufSize >= 8192 &&
+       (connConfig.sendBufferSize == 0 || *bufSize < connConfig.sendBufferSize))
         connConfig.sendBufferSize = *bufSize;
 
     /* Set upper bounds if not configured */

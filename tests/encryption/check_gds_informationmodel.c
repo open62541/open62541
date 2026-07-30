@@ -9,6 +9,7 @@
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/driver/gds_receiver.h>
 
 #include "ua_server_internal.h"
 
@@ -18,6 +19,7 @@
 #include "certificates.h"
 
 UA_Server *server;
+UA_GDSReceiver *receiver;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
 
@@ -77,11 +79,39 @@ static void setup(void) {
                                                           revocationList, revocationListSize);
     ck_assert(server != NULL);
 
+    receiver = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(receiver);
+    UA_StatusCode res = UA_Server_addDriver(server, &receiver->drv);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
             UA_STRING_ALLOC("urn:unconfigured:application");
+
+#ifdef UA_ENABLE_RBAC
+    /* When RBAC is enabled the GDS TrustList methods are restricted to the
+     * SecurityAdmin role (see initGDSRolePermissions). This functional test
+     * uses an anonymous session, so grant the SecurityAdmin role an Anonymous
+     * identity-mapping rule to exercise the GDS mechanics under RBAC. */
+    UA_NodeId secAdminId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    UA_Role secAdmin;
+    UA_StatusCode roleRes = UA_Server_getRoleById(server, secAdminId, &secAdmin);
+    ck_assert_uint_eq(roleRes, UA_STATUSCODE_GOOD);
+    UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType *)
+        UA_realloc(secAdmin.identityMappingRules,
+                   (secAdmin.identityMappingRulesSize + 1) *
+                   sizeof(UA_IdentityMappingRuleType));
+    ck_assert_ptr_nonnull(rules);
+    secAdmin.identityMappingRules = rules;
+    UA_IdentityMappingRuleType_init(&rules[secAdmin.identityMappingRulesSize]);
+    rules[secAdmin.identityMappingRulesSize].criteriaType = UA_IDENTITYCRITERIATYPE_ANONYMOUS;
+    secAdmin.identityMappingRulesSize++;
+    roleRes = UA_Server_updateRole(server, &secAdmin);
+    UA_Role_clear(&secAdmin);
+    ck_assert_uint_eq(roleRes, UA_STATUSCODE_GOOD);
+#endif
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);

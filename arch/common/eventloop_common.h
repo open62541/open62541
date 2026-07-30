@@ -32,6 +32,16 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger,
                                 size_t restrictionsSize,
                                 const UA_KeyValueMap *map);
 
+/* (Re)allocate a static network buffer sized by the UInt32 parameter `name`.
+ * If the parameter is not set, use defaultSize and write it back into the
+ * params so that readers of the params (e.g. the SecureChannel constraint
+ * logic in ua_server_binary.c) see the size that was actually allocated. */
+UA_StatusCode
+UA_EventLoopCommon_allocStaticBuffer(UA_KeyValueMap *params,
+                                     UA_QualifiedName name,
+                                     UA_UInt32 defaultSize,
+                                     UA_ByteString *buf);
+
 _UA_END_DECLS
 
 #endif /* UA_EVENTLOOP_COMMON_H_ */

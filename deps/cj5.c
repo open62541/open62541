@@ -627,17 +627,24 @@ cj5_error_code
 cj5_get_str(const cj5_result *r, unsigned int tok_index,
             char *buf, unsigned int *buflen) {
     const cj5_token *token = &r->tokens[tok_index];
-    if(token->type != CJ5_TOKEN_STRING)
+    if(token->type != CJ5_TOKEN_STRING) {
+        buf[0] = 0;
+        if(buflen)
+            *buflen = 0;
         return CJ5_ERROR_INVALID;
+    }
 
     const char *pos = &r->json5[token->start];
     const char *end = &r->json5[token->end + 1];
     unsigned int outpos = 0;
+    cj5_error_code error = CJ5_ERROR_NONE;
     for(; pos < end; pos++) {
         uint8_t c = (uint8_t)*pos;
         // Unprintable ascii characters must be escaped
-        if(c < ' ' || c == 127)
-            return CJ5_ERROR_INVALID;
+        if(c < ' ' || c == 127) {
+            error = CJ5_ERROR_INVALID;
+            goto done;
+        }
 
         // Unescaped Ascii character or utf8 byte
         if(c != '\\') {
@@ -646,8 +653,10 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
         }
 
         // End of input before the escaped character
-        if(pos + 1 >= end)
-            return CJ5_ERROR_INCOMPLETE;
+        if(pos + 1 >= end) {
+            error = CJ5_ERROR_INCOMPLETE;
+            goto done;
+        }
 
         // Process escaped character
         pos++;
@@ -661,26 +670,32 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
         default:  buf[outpos++] = (char)c; break;
         case 'u': {
             // Parse a unicode code point
-            if(pos + 4 >= end)
-                return CJ5_ERROR_INCOMPLETE;
+            if(pos + 4 >= end) {
+                error = CJ5_ERROR_INCOMPLETE;
+                goto done;
+            }
             pos++;
             uint32_t utf;
-            cj5_error_code err = parse_codepoint(pos, &utf);
-            if(err != CJ5_ERROR_NONE)
-                return err;
+            error = parse_codepoint(pos, &utf);
+            if(error != CJ5_ERROR_NONE)
+                goto done;
             pos += 3;
 
             // Parse a surrogate pair
             if(0xd800 <= utf && utf <= 0xdfff) {
-                if(pos + 6 >= end)
-                    return CJ5_ERROR_INVALID;
-                if(pos[1] != '\\' && pos[2] != 'u')
-                    return CJ5_ERROR_INVALID;
+                if(pos + 6 >= end) {
+                    error = CJ5_ERROR_INVALID;
+                    goto done;
+                }
+                if(pos[1] != '\\' && pos[2] != 'u') {
+                    error = CJ5_ERROR_INVALID;
+                    goto done;
+                }
                 pos += 3;
                 uint32_t utf2;
-                err = parse_codepoint(pos, &utf2);
-                if(err != CJ5_ERROR_NONE)
-                    return err;
+                error = parse_codepoint(pos, &utf2);
+                if(error != CJ5_ERROR_NONE)
+                    goto done;
                 pos += 3;
                 // High or low surrogate pair
                 utf = (utf <= 0xdbff) ?
@@ -690,21 +705,25 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
 
             // Write the utf8 bytes of the code point
             unsigned len = utf8_from_codepoint((unsigned char*)buf + outpos, utf);
-            if(len == 0)
-                return CJ5_ERROR_INVALID; // Not a utf8 string
+            if(len == 0) {
+                error = CJ5_ERROR_INVALID; // Not a utf8 string
+                goto done;
+            }
             outpos += len;
             break;
         }
         }
     }
 
-    // Terminate with \0
+ done:
+    // Always leave buf as a valid, NUL-terminated string, even when decoding
+    // fails midway. Callers still must check the returned error code.
     buf[outpos] = 0;
 
     // Set the output length
     if(buflen)
         *buflen = outpos;
-    return CJ5_ERROR_NONE;
+    return error;
 }
 
 void

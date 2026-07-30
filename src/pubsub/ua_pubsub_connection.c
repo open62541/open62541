@@ -102,7 +102,9 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Could not create the PubSubConnection. "
                      "The connection parameters did not validate.");
-        UA_PubSubConnection_delete(psm, c);
+        /* The lifecycle callback has not run yet; free without invoking it. */
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, c, UA_PUBSUBCOMPONENT_CONNECTION);
         return ret;
     }
 
@@ -119,7 +121,10 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
             componentLifecycleCallback(server, c->head.identifier,
                                        UA_PUBSUBCOMPONENT_CONNECTION, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_PubSubConnection_delete(psm, c);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the node). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, c, UA_PUBSUBCOMPONENT_CONNECTION);
             return res;
         }
     }
@@ -514,7 +519,7 @@ UA_PubSubConnection_attachRecvConnection(UA_PubSubManager *psm,
 }
 
 static void
-UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {   
+UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {
     if(!c->cm)
         return;
     if(c->sendChannel != 0)

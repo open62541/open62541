@@ -280,16 +280,22 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         } else if(strcmp(sanType, "URI") == 0) {
             cur_tmp->node.type = MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
         } else if(strcmp(sanType, "IP") == 0) {
-            uint8_t ip[4] = {0};
+            uint8_t *ip = (uint8_t *)mbedtls_calloc(1, 4);
+            if(!ip) {
+                mbedtls_free(cur_tmp);
+                UA_free(subAlt);
+                continue;
+            }
             if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
                 UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
+                mbedtls_free(ip);
                 mbedtls_free(cur_tmp);
                 UA_free(subAlt);
                 continue;
             }
             cur_tmp->node.type = MBEDTLS_X509_SAN_IP_ADDRESS;
             cur_tmp->node.host = (char *)ip;
-            cur_tmp->node.hostlen = sizeof(ip);
+            cur_tmp->node.hostlen = 4;
         } else if(strcmp(sanType, "RFC822") == 0) {
             cur_tmp->node.type = MBEDTLS_X509_SAN_RFC822_NAME;
         } else {
@@ -316,6 +322,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         while(head != NULL) {
             cur_tmp = head->next;
+            if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
+                mbedtls_free(head->node.host);
             mbedtls_free(head);
             head = cur_tmp;
         }
@@ -324,6 +332,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     while(head != NULL) {
         cur_tmp = head->next;
+        if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
+            mbedtls_free(head->node.host);
         mbedtls_free(head);
         head = cur_tmp;
     }

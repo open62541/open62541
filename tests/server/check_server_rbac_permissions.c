@@ -526,6 +526,165 @@ START_TEST(Server_getUserRolePermissions_NullParams) {
 }
 END_TEST
 
+/* A second recursive setNodeRolePermissions call on a subtree must not
+ * change the permissions of nodes outside of it. */
+START_TEST(Server_setNodeRolePermissions_subtreeKeepsOthersIntact) {
+    UA_NodeId anonymous = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_NodeId secAdmin = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+
+    /* Call 1: default permissions on the whole address space */
+    UA_RolePermission def[2];
+    def[0].roleId = anonymous;
+    def[0].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+        UA_PERMISSIONTYPE_RECEIVEEVENTS | UA_PERMISSIONTYPE_CALL;
+    def[1].roleId = secAdmin;
+    def[1].permissions = UA_PERMISSIONTYPE_READROLEPERMISSIONS;
+    UA_StatusCode res = UA_Server_setNodeRolePermissions(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), 2, def, true, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Call 2: different permissions on the Server subtree */
+    UA_RolePermission sub[2];
+    sub[0].roleId = anonymous;
+    sub[0].permissions = 0;
+    sub[1].roleId = secAdmin;
+    sub[1].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+        UA_PERMISSIONTYPE_READROLEPERMISSIONS | UA_PERMISSIONTYPE_CALL;
+    res = UA_Server_setNodeRolePermissions(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), 2, sub, true, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The TypesFolder is not below the Server object: it must still carry
+     * the permissions from call 1 */
+    size_t sz = 0;
+    UA_RolePermission *rp = NULL;
+    res = UA_Server_getNodeRolePermissions(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER), &sz, &rp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sz, 2);
+    ck_assert(UA_NodeId_equal(&rp[0].roleId, &anonymous));
+    ck_assert_uint_eq(rp[0].permissions, def[0].permissions);
+    ck_assert_uint_eq(rp[1].permissions, def[1].permissions);
+    for(size_t i = 0; i < sz; i++)
+        UA_NodeId_clear(&rp[i].roleId);
+    UA_free(rp);
+}
+END_TEST
+
+/* Object instantiation copies the type children including their
+ * permissionIndex without adjusting the shared entry's refCount. A
+ * permission entry whose refCount dropped to zero must not be rewritten
+ * for a new permission set while such copies exist. */
+START_TEST(Server_setNodeRolePermissions_staleEntryNotRewritten) {
+    UA_NodeId anonymous = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+
+    /* Create an ObjectType with a mandatory variable child */
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 61001);
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "PermTestType");
+    UA_StatusCode res = UA_Server_addObjectTypeNode(
+        server, typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "PermTestType"),
+        otAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId typeChildId = UA_NODEID_NUMERIC(1, 61002);
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "Child");
+    res = UA_Server_addVariableNode(
+        server, typeChildId, typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "Child"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_addReference(
+        server, typeChildId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Permission set P1 on the type subtree (covers the type child) */
+    UA_RolePermission p1[1];
+    p1[0].roleId = anonymous;
+    p1[0].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    res = UA_Server_setNodeRolePermissions(server, typeId, 1, p1, true, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Instantiate: the mandatory child is copied from the type child */
+    UA_NodeId instanceId = UA_NODEID_NUMERIC(1, 61003);
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "PermTestInstance");
+    res = UA_Server_addObjectNode(
+        server, instanceId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "PermTestInstance"), typeId,
+        oAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Find the instance child */
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = instanceId;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    rpe.includeSubtypes = true;
+    rpe.targetName = UA_QUALIFIEDNAME(1, "Child");
+    bp.relativePath.elements = &rpe;
+    bp.relativePath.elementsSize = 1;
+    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ge(bpr.targetsSize, 1);
+    UA_NodeId instanceChildId;
+    ck_assert_uint_eq(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId,
+                                     &instanceChildId), UA_STATUSCODE_GOOD);
+    UA_BrowsePathResult_clear(&bpr);
+
+    /* The instance child must NOT inherit the explicit permissions of the
+     * type child (it falls back to the namespace defaults) */
+    size_t sz = 0;
+    UA_RolePermission *rp = NULL;
+    res = UA_Server_getNodeRolePermissions(server, instanceChildId, &sz, &rp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sz, 0);
+
+    /* Reassign the type subtree to P2 so that the refCount of the entry
+     * holding P1 drops to zero */
+    UA_RolePermission p2[1];
+    p2[0].roleId = anonymous;
+    p2[0].permissions = UA_PERMISSIONTYPE_BROWSE;
+    res = UA_Server_setNodeRolePermissions(server, typeId, 1, p2, true, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* A new distinct permission set must NOT recycle the P1 entry */
+    UA_RolePermission p3[1];
+    p3[0].roleId = anonymous;
+    p3[0].permissions = UA_PERMISSIONTYPE_CALL;
+    res = UA_Server_setNodeRolePermissions(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), 1, p3, false, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The type child still carries P2, the ObjectsFolder P3 */
+    res = UA_Server_getNodeRolePermissions(server, typeChildId, &sz, &rp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sz, 1);
+    ck_assert_uint_eq(rp[0].permissions, UA_PERMISSIONTYPE_BROWSE);
+    UA_NodeId_clear(&rp[0].roleId);
+    UA_free(rp);
+
+    res = UA_Server_getNodeRolePermissions(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), &sz, &rp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sz, 1);
+    ck_assert_uint_eq(rp[0].permissions, UA_PERMISSIONTYPE_CALL);
+    UA_NodeId_clear(&rp[0].roleId);
+    UA_free(rp);
+
+    UA_NodeId_clear(&instanceChildId);
+}
+END_TEST
+
 static Suite *testSuite_Server_RBAC_EffectivePerms(void) {
     Suite *s = suite_create("Server RBAC Effective Permissions");
     TCase *tc_effperms = tcase_create("Effective Permissions API");
@@ -543,6 +702,12 @@ static Suite *testSuite_Server_RBAC_EffectivePerms(void) {
     tcase_add_test(tc_effperms, Server_getUserRolePermissions_RoleNotOnNode);
     tcase_add_test(tc_effperms, Server_getUserRolePermissions_NoPermissionsOnNode);
     tcase_add_test(tc_effperms, Server_getUserRolePermissions_NullParams);
+
+    TCase *tc_slots = tcase_create("Permission Entry Slots");
+    tcase_add_checked_fixture(tc_slots, setup, teardown);
+    tcase_add_test(tc_slots, Server_setNodeRolePermissions_subtreeKeepsOthersIntact);
+    tcase_add_test(tc_slots, Server_setNodeRolePermissions_staleEntryNotRewritten);
+    suite_add_tcase(s, tc_slots);
 
     suite_add_tcase(s, tc_effperms);
     return s;

@@ -40,6 +40,12 @@ _UA_BEGIN_DECLS
  * (can be overridden via the "timeoutHint" in the request header) is
  * UA_STATUSCODE_BADTIMEOUT.
  *
+ * The number of outstanding application-level async calls can be limited with
+ * ``config->maxAsyncServiceCalls``. Depending on
+ * ``config->asyncServiceCallRule``, a call at the limit either returns
+ * UA_STATUSCODE_BADTOOMANYOPERATIONS or waits for capacity. Waiting runs the
+ * EventLoop and can execute user callbacks before the async call returns.
+ *
  * The userdata and requestId arguments can be NULL. The (optional) requestId
  * output can be used to cancel the service while it is still pending. The
  * requestId is unique for each service request. Alternatively the requestHandle

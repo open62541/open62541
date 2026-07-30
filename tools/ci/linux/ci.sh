@@ -97,7 +97,7 @@ function build_amalgamation {
 }
 
 function build_amalgamation_mingw_cross {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ARCHITECTURE=win32 \
@@ -143,7 +143,7 @@ function build_amalgamation_mt {
 }
 
 function build_amalgamation_none_arch {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ARCHITECTURE=none \
@@ -223,6 +223,7 @@ function unit_tests {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_MULTITHREADING=${MULTITHREADING} \
           ..
@@ -232,6 +233,43 @@ function unit_tests {
     if [ "$COVERAGE" = "ON" ]; then
         make gcov
     fi
+}
+
+function unit_tests_libwebsockets {
+    set -euo pipefail
+
+    # Start HTTP server
+    python3 tools/lws/httpServer.py  &
+    SERVER_PID=$!
+    echo "HTTP server PID: $SERVER_PID"
+
+    # Ensure we stop the server on any exit from this shell
+    trap 'echo "Stopping server $SERVER_PID"; kill $SERVER_PID 2>/dev/null || true' EXIT
+
+    # Wait until reachable (max 30s)
+    for i in {1..30}; do
+        if curl -fsS http://127.0.0.1:8000/ >/dev/null 2>&1; then
+            echo "Server is up."
+            break
+        fi
+        sleep 1
+    done
+    # Fail fast if still not up
+    curl -fsS http://127.0.0.1:8000/ >/dev/null
+
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+    set_capabilities
+    make test ARGS="-V"
 }
 
 function unit_tests_lwip {
@@ -356,7 +394,7 @@ function unit_tests_alarms {
 }
 
 function unit_tests_alarms_memcheck {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DA=ON \
@@ -377,7 +415,7 @@ function unit_tests_encryption {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
-          -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
+          -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
@@ -559,7 +597,7 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
+          -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \

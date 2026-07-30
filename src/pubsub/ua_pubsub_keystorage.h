@@ -324,8 +324,8 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
  * @param keyStorage the pointer to the keystorage
  */
 void
-UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm,
-                                        UA_PubSubKeyStorage *keyStorage);
+UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */,
+                                        void *context /* UA_PubSubKeyStorage */);
 
 /* KeyStorage must be referenced by atleast one PubSubGroup. This method reduces
  * the reference count by one. If no PubSubGroup uses the key storage, then it

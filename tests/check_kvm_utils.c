@@ -81,6 +81,25 @@ START_TEST(CheckKVMCopy) {
 }
 END_TEST
 
+START_TEST(CheckKVMIsEmpty) {
+        UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+        ck_assert(UA_KeyValueMap_isEmpty(kvm));
+
+        UA_UInt16 value = 1;
+        UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key01"), &value,
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+        ck_assert(!UA_KeyValueMap_isEmpty(kvm));
+
+        UA_KeyValueMap_remove(kvm, UA_QUALIFIEDNAME(0, "key01"));
+        ck_assert(UA_KeyValueMap_isEmpty(kvm));
+
+        ck_assert(UA_KeyValueMap_isEmpty(NULL));
+        ck_assert(UA_KeyValueMap_isEmpty(&UA_KEYVALUEMAP_NULL));
+
+        UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
 START_TEST(CheckKVMRemove) {
         UA_KeyValueMap *kvm = keyValueMap_setup(10, 0, 0);
         
@@ -174,16 +193,98 @@ START_TEST(CheckKVMCountMergedComplementary) {
     }
 END_TEST
 
+START_TEST(CheckKVMGetMissing) {
+    /* get on a never-added key returns NULL */
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    const UA_Variant *v =
+        UA_KeyValueMap_get(kvm, UA_QUALIFIEDNAME(1, "does-not-exist"));
+    ck_assert_ptr_eq(v, NULL);
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
+START_TEST(CheckKVMGetScalarMissing) {
+    /* getScalar on a never-added key returns NULL */
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    const void *p = UA_KeyValueMap_getScalar(
+        kvm, UA_QUALIFIEDNAME(1, "does-not-exist"), &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_ptr_eq(p, NULL);
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
+START_TEST(CheckKVMRemoveMissing) {
+    /* Removing a non-existent key must not error. */
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_StatusCode r = UA_KeyValueMap_remove(
+        kvm, UA_QUALIFIEDNAME(1, "never-added"));
+    /* Behavior is implementation-defined; must not crash and must
+     * return either GOOD or BADNOTFOUND. */
+    ck_assert(r == UA_STATUSCODE_GOOD || r == UA_STATUSCODE_BADNOTFOUND);
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
+START_TEST(CheckKVMSetArray) {
+    /* set + get an array of UA_UInt32. */
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt32 arr[3] = {10, 20, 30};
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_Variant_setArrayCopy(&v, arr, 3, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_StatusCode r = UA_KeyValueMap_set(kvm, UA_QUALIFIEDNAME(1, "arr"), &v);
+    ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&v);
+
+    const UA_Variant *out = UA_KeyValueMap_get(kvm, UA_QUALIFIEDNAME(1, "arr"));
+    ck_assert_ptr_ne(out, NULL);
+    ck_assert(out->type == &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(out->arrayLength, 3);
+    ck_assert_uint_eq(((UA_UInt32 *)out->data)[0], 10);
+    ck_assert_uint_eq(((UA_UInt32 *)out->data)[2], 30);
+
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
+START_TEST(CheckKVMSetReplace) {
+    /* Setting the same key twice must replace the value, not duplicate. */
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt32 v1 = 1, v2 = 2;
+    UA_Variant va, vb;
+    UA_Variant_init(&va);
+    UA_Variant_init(&vb);
+    UA_Variant_setScalar(&va, &v1, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&vb, &v2, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_KeyValueMap_set(kvm, UA_QUALIFIEDNAME(0, "k"), &va),
+                     UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_KeyValueMap_set(kvm, UA_QUALIFIEDNAME(0, "k"), &vb),
+                     UA_STATUSCODE_GOOD);
+
+    const UA_Variant *out = UA_KeyValueMap_get(kvm, UA_QUALIFIEDNAME(0, "k"));
+    ck_assert(out->type == &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(*(UA_UInt32 *)out->data, 2);
+
+    UA_KeyValueMap_delete(kvm);
+}
+END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test KeyValueMap Utilities");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, CheckNullArgs);
     tcase_add_test(tc, CheckKVMContains);
     tcase_add_test(tc, CheckKVMCopy);
+    tcase_add_test(tc, CheckKVMIsEmpty);
     tcase_add_test(tc, CheckKVMRemove);
     tcase_add_test(tc, CheckKVMCountMergedIntersecting);
     tcase_add_test(tc, CheckKVMCountMergedComplementary);
     tcase_add_test(tc, CheckKVMCountMergedCommon);
+    tcase_add_test(tc, CheckKVMGetMissing);
+    tcase_add_test(tc, CheckKVMGetScalarMissing);
+    tcase_add_test(tc, CheckKVMRemoveMissing);
+    tcase_add_test(tc, CheckKVMSetArray);
+    tcase_add_test(tc, CheckKVMSetReplace);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

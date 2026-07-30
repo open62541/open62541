@@ -164,6 +164,8 @@ class NodeSet:
             node = DataTypeNode(xmlelement)
         if ndtype == 'referencetype':
             node = ReferenceTypeNode(xmlelement)
+        if ndtype == 'view':
+            node = ViewNode(xmlelement)
 
         if node is None:
             return None

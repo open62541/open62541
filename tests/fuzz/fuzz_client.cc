@@ -9,12 +9,13 @@
 #include <open62541/types.h>
 
 #include "ua_client_internal.h"
+#include "test_helpers.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if(size < 10)
         return 0;
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     if(!client)
         return 0;
     

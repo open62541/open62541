@@ -66,13 +66,66 @@ START_TEST(Server_repeatedCallbackRemoveItself) {
 }
 END_TEST
 
+UA_Boolean *timedExecuted;
+static void
+timedCallback(UA_Server *serverPtr, void *data) {
+    (void)serverPtr; (void)data;
+}
+
+START_TEST(Server_addTimedCallback_smoke) {
+    /* A smoke test that simply confirms addTimedCallback returns GOOD
+     * and stores a callback id; the existing repeated-callback tests
+     * already cover the scheduling path. */
+    timedExecuted = UA_Boolean_new();
+    UA_UInt64 id = 0;
+    UA_StatusCode rv = UA_Server_addTimedCallback(server, timedCallback,
+                                                  NULL, UA_DateTime_now() + 1000,
+                                                  &id);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(id, 0);
+    UA_Server_removeCallback(server, id);
+    UA_Boolean_delete(timedExecuted);
+}
+END_TEST
+
+START_TEST(Server_changeRepeatedCallbackInterval) {
+    UA_UInt64 id;
+    UA_Server_addRepeatedCallback(server, dummyCallback, NULL, 1000, &id);
+
+    /* Reschedule to a much shorter interval. */
+    UA_StatusCode rv = UA_Server_changeRepeatedCallbackInterval(server, id, 10);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+
+    /* Reschedule with a non-existent id must return BADNOTFOUND. */
+    rv = UA_Server_changeRepeatedCallbackInterval(server, 999999, 10);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Server_removeRepeatedCallback(server, id);
+}
+END_TEST
+
+START_TEST(Server_removeCallback_unknown) {
+    /* Removing a never-added callback must not crash. The public
+     * UA_Server_removeCallback returns void; the duplicate id
+     * simply falls through harmlessly. */
+    UA_Server_removeCallback(server, 999999);
+    UA_Server_removeCallback(server, 999999);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Callbacks");
     TCase *tc_server = tcase_create("Server Repeated Callbacks");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_addRemoveRepeatedCallback);
     tcase_add_test(tc_server, Server_repeatedCallbackRemoveItself);
+    tcase_add_test(tc_server, Server_changeRepeatedCallbackInterval);
+    tcase_add_test(tc_server, Server_removeCallback_unknown);
     suite_add_tcase(s, tc_server);
+    TCase *tc_timed = tcase_create("Server Timed Callbacks");
+    tcase_add_checked_fixture(tc_timed, setup, teardown);
+    tcase_add_test(tc_timed, Server_addTimedCallback_smoke);
+    suite_add_tcase(s, tc_timed);
     return s;
 }
 

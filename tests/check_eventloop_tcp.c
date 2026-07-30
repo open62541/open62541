@@ -246,6 +246,30 @@ START_TEST(staticSendBuffer) {
     /* Run once so the ConnectionManager eventSource starts its static buffers */
     el->run(el, 1);
 
+    /* The resolved rx default was written back into the CM params (so the
+     * SecureChannel logic can cap to the static-buffer size); the explicitly
+     * configured send-bufsize is untouched. The rx default is
+     * architecture-dependent and must match the default passed to
+     * UA_EventLoopCommon_allocStaticBuffer in each eventloop porting
+     * (64 KiB on POSIX/Win32, 8 KiB on lwip and Zephyr). */
+#if defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_ZEPHYR)
+    UA_UInt32 expectedRxBufSize = 1u << 13;
+#else
+    UA_UInt32 expectedRxBufSize = 1u << 16;
+#endif
+    const UA_UInt32 *rxParam = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_ptr_ne(rxParam, NULL);
+    ck_assert_uint_eq(*rxParam, expectedRxBufSize);
+    const UA_UInt32 *txParam = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_ptr_ne(txParam, NULL);
+    ck_assert_uint_eq(*txParam, sendBufSize);
+
     /* A message that fits is served from the static send buffer */
     UA_ByteString a = UA_BYTESTRING_NULL;
     UA_StatusCode retval = cm->allocNetworkBuffer(cm, 0, &a, sendBufSize);

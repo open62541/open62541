@@ -911,6 +911,110 @@ START_TEST(method_with_args) {
     UA_CallMethodResult_clear(&result);
 } END_TEST
 
+/* === Attribute edge case tests === */
+
+START_TEST(read_userAccessLevel_via_read_api) {
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Int32 val = 7;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    vattr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    vattr.userAccessLevel = UA_ACCESSLEVELMASK_READ;
+    vattr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vattr.valueRank = UA_VALUERANK_SCALAR;
+    vattr.displayName = UA_LOCALIZEDTEXT("en", "UALevelVar");
+
+    UA_NodeId varId = UA_NODEID_NUMERIC(1, 80200);
+    UA_Server_addVariableNode(server, varId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "UALevelVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = varId;
+    rvi.attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    ck_assert(dv.hasValue);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+START_TEST(read_dataTypeDefinition) {
+    /* Reading the DataTypeDefinition attribute of a structured DataType
+     * node must either succeed (when type definitions are enabled in the
+     * nodeset) or return BadAttributeIdInvalid; in both cases it must not
+     * crash and the status code must be one of the expected values. */
+    UA_NodeId dtId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = dtId;
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(dv.status == UA_STATUSCODE_GOOD ||
+              dv.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    if(dv.status == UA_STATUSCODE_GOOD)
+        ck_assert(dv.hasValue);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+START_TEST(read_executable_userExecutable_method) {
+    UA_MethodAttributes mattr = UA_MethodAttributes_default;
+    mattr.displayName = UA_LOCALIZEDTEXT("en", "TestMeth");
+    mattr.executable = true;
+    mattr.userExecutable = true;
+
+    UA_NodeId methodId = UA_NODEID_NUMERIC(1, 80300);
+    UA_StatusCode res = UA_Server_addMethodNode(server, methodId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "TestMeth"),
+        mattr, NULL, 0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Boolean exec;
+    res = UA_Server_readExecutable(server, methodId, &exec);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(exec);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = methodId;
+    rvi.attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+START_TEST(read_variable_edge_attributes) {
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Int32 val = 0;
+    UA_Variant_setScalar(&vattr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    vattr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vattr.minimumSamplingInterval = 250.0;
+    vattr.historizing = false;
+    vattr.displayName = UA_LOCALIZEDTEXT("en", "EdgeVar");
+
+    UA_NodeId varId = UA_NODEID_NUMERIC(1, 80400);
+    UA_Server_addVariableNode(server, varId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EdgeVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL);
+
+    UA_Double minInterval;
+    UA_StatusCode res = UA_Server_readMinimumSamplingInterval(server, varId, &minInterval);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(minInterval == 250.0);
+
+    UA_Boolean historizing;
+    res = UA_Server_readHistorizing(server, varId, &historizing);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(!historizing);
+} END_TEST
+
 /* === Suite definition === */
 static Suite *testSuite_servicesAttrExt(void) {
     TCase *tc_read = tcase_create("ReadAttrs");
@@ -923,6 +1027,10 @@ static Suite *testSuite_servicesAttrExt(void) {
     tcase_add_test(tc_read, read_view_attributes);
     tcase_add_test(tc_read, read_wrong_attribute);
     tcase_add_test(tc_read, read_nonexistent_node);
+    tcase_add_test(tc_read, read_userAccessLevel_via_read_api);
+    tcase_add_test(tc_read, read_dataTypeDefinition);
+    tcase_add_test(tc_read, read_executable_userExecutable_method);
+    tcase_add_test(tc_read, read_variable_edge_attributes);
 
     TCase *tc_write = tcase_create("WriteAttrs");
     tcase_add_checked_fixture(tc_write, setup_server, teardown_server);

@@ -1637,6 +1637,64 @@ UA_Server_createEventEx(UA_Server *server,
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
+/**
+ * .. _model-semantic-changes:
+ *
+ * Model and Semantic Changes
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * With ``UA_ENABLE_SUBSCRIPTIONS_EVENTS``, the server automatically emits the
+ * standard ``GeneralModelChangeEventType`` and ``SemanticChangeEventType`` for
+ * changes made through OPC UA Services and the corresponding local
+ * ``UA_Server_*`` APIs. Changes made while the server's namespace is initially
+ * populated are suppressed. Both EventTypes are emitted by the Server object.
+ *
+ * A structural change is reported only if the affected Node has a
+ * scalar ``NodeVersion`` Property with the String DataType. The server updates
+ * that Property with the decimal representation of a server-wide, increasing
+ * Int64. Nodes without a suitable ``NodeVersion`` Property are not
+ * included in a ModelChangeEvent. The following successful operations are
+ * reported:
+ *
+ * .. list-table::
+ *    :header-rows: 1
+ *
+ *    * - Operation
+ *      - ModelChange verb
+ *    * - Add a Node
+ *      - ``NodeAdded``
+ *    * - Delete a Node
+ *      - ``NodeDeleted``
+ *    * - Add a Reference
+ *      - ``ReferenceAdded``
+ *    * - Delete a Reference
+ *      - ``ReferenceDeleted``
+ *    * - Change the DataType Attribute
+ *      - ``DataTypeChanged``
+ *
+ * Changes to ValueRank and ArrayDimensions are not structural ModelChanges.
+ *
+ * A SemanticChange is reported when a successful Value write changes a
+ * Variable whose AccessLevel contains ``UA_ACCESSLEVELMASK_SEMANTICCHANGE``.
+ * The Variable must be a Property connected to its owner by ``HasProperty`` or
+ * a subtype. The owner is reported as the affected Node. Same-value writes are
+ * suppressed when the previous value is directly available. For callback-based
+ * value sources the previous value may not be available for comparison, so a
+ * successful write is treated as a SemanticChange.
+ *
+ * A SemanticChange also marks Value MonitoredItems on the affected Variable.
+ * Their next DataChange notification contains the ``SemanticsChanged``
+ * StatusCode bit. MonitoredItems with a zero SamplingInterval are sampled
+ * immediately. For cyclic sampling the bit remains pending until the next
+ * notification.
+ *
+ * Changes are accumulated until the outermost local operation or decoded
+ * Service request completes. Entries for the same affected Node are coalesced
+ * by combining their ModelChange verbs. Model and Semantic changes collected
+ * together are emitted as separate standard Events. Failed operations are not
+ * reported.
+ *
+ * See ``examples/events/server_modelchange.c`` for a complete local example. */
+
 #ifdef UA_ENABLE_DISCOVERY
 
 /**
@@ -1753,7 +1811,8 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * implementation. */
 
 typedef enum {
-    UA_DRIVERTYPE_GENERIC = 0
+    UA_DRIVERTYPE_GENERIC = 0,
+    UA_DRIVERTYPE_GDS_RECEIVER
 } UA_DriverType;
 
 struct UA_Driver;
@@ -1960,7 +2019,7 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * Role-Based Access Control (RBAC)
  * --------------------------------
  *
- * Role-Based Access Control implementation per OPC UA Part 18.
+ * Role-Based Access Control implementation per OPC UA Part 18 v1.05.
  *
  * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
  * The RBAC implementation is under active development and the API may change.
@@ -2005,7 +2064,7 @@ UA_RolePermissionSet_copy(const UA_RolePermissionSet *src,
 
 /* UA_Role
  * Represents an OPC UA role with identity mapping rules and optional
- * application/endpoint restrictions per OPC UA Part 18. */
+ * application/endpoint restrictions per OPC UA Part 18 v1.05 §4.4. */
 typedef struct {
     UA_NodeId roleId;
     UA_QualifiedName roleName;              /* BrowseName of the role */
@@ -2446,32 +2505,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_ServerConfig_clear(config);
 }
 
-/**
- * Update the Server Certificate at Runtime
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * If certificateGroupId is null the DefaultApplicationGroup is used.
- */
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_updateCertificate(UA_Server *server,
-                            const UA_NodeId certificateGroupId,
-                            const UA_NodeId certificateTypeId,
-                            const UA_ByteString certificate,
-                            const UA_ByteString *privateKey);
-
-/* Creates a PKCS #10 DER encoded certificate request signed with the server's
- * private key.
- * If certificateGroupId is null the DefaultApplicationGroup is used.
- */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_createSigningRequest(UA_Server *server,
-                               const UA_NodeId certificateGroupId,
-                               const UA_NodeId certificateTypeId,
-                               const UA_String *subjectName,
-                               const UA_Boolean *regenerateKey,
-                               const UA_ByteString *nonce,
-                               UA_ByteString *csr);
-
 /* Adds certificates and Certificate Revocation Lists (CRLs) to a specific
  * certificate group on the server.
  *
@@ -2598,7 +2631,8 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 /* Add a role to the server's role registry.
  *
  * The role's BrowseName (roleName) is the primary unique identifier,
- * per OPC UA Part 18 Section 4.2. A role with the same roleName or
+ * per OPC UA Part 18 v1.05 §4.2.2 (AddRole: "The BrowseName shall be
+ * unique within the RoleSet Object"). A role with the same roleName or
  * roleId must not already exist.
  *
  * If role->roleId is null, the server auto-assigns a random numeric
