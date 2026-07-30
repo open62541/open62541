@@ -425,6 +425,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     }
 
     UA_Response asyncResponse;
+    UA_init(&asyncResponse, ac->responseType);
     UA_Response *response = (ac->syncResponse) ? ac->syncResponse : &asyncResponse;
     const UA_DataType *responseType = ac->responseType;
 
