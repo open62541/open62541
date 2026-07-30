@@ -899,8 +899,10 @@ UA_ConnectionManager_new_LWS_WebSocket(const UA_String eventSourceName);
  * 0:private-key-password [string]
  *    Password for an encrypted private key.
  *
- * If the ConnectionManager has a ``certificateGroup``, it validates the broker
- * certificate. Otherwise libwebsockets uses the system trust store.
+ * 0:ca-certificate [bytestring]
+ *    DER or PEM encoded CA certificate used to validate the broker
+ *    certificate. If omitted, the system trust store is used. The broker
+ *    certificate and hostname are always validated for TLS connections.
  *
  * 0:keep-alive [uint16]
  *   Number of seconds for the keep-alive (ping) (default: 400).
