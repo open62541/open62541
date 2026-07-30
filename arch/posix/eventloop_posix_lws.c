@@ -13,6 +13,8 @@
 
 #include <open62541/plugin/log_stdout.h>
 
+#include <limits.h>
+
 #if defined(LWS_WITH_TLS) && !defined(LWS_WITH_MBEDTLS) && \
     !defined(USE_WOLFSSL) && !defined(LWS_WITH_BORINGSSL) && \
     !defined(LWS_WITH_AWSLC)
@@ -25,6 +27,9 @@
 static pthread_once_t lwsLifecycleMutexOnce = PTHREAD_ONCE_INIT;
 static UA_Lock lwsLifecycleMutex;
 static size_t lwsContextCount;
+UA_STATIC_THREAD_LOCAL const UA_Logger *activeLwsLogger;
+
+#define UA_LWS_LOG_LEVELS (LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_USER)
 
 #ifdef UA_LWS_USE_OPENSSL
 /* OpenSSL cannot be initialized again after OPENSSL_cleanup(). Keep one client
@@ -41,6 +46,7 @@ static void
 lockLwsLifecycle(void) {
     int res = pthread_once(&lwsLifecycleMutexOnce, initializeLwsLifecycleMutex);
     UA_assert(res == 0);
+    (void)res;
     UA_LOCK(&lwsLifecycleMutex);
 }
 
@@ -80,14 +86,53 @@ initializeLwsClientSslContext(void) {
 
 typedef struct {
     UA_RegisteredFD rfd;
-    void *context;
+    struct pt_eventlibs_custom *priv;
+    struct lws *wsi;
 }LWS_FD;
 
 static void
 io_custom(struct lws *wsi, unsigned int flags);
 
+/* Forced service
+ * ~~~~~~~~~~~~~~
+ * A single forced-service pass may leave additional work pending. Return to
+ * the EventLoop before trying again: logical streams can depend on the current
+ * LWS callback unwinding before their state transition is complete. */
+static void
+scheduleForcedService(struct pt_eventlibs_custom *priv);
+
+static void
+processForcedService(void *application, void *context) {
+    (void)context;
+    struct pt_eventlibs_custom *priv =
+        (struct pt_eventlibs_custom*)application;
+    priv->forcedServicePending = false;
+
+    if(!priv->context ||
+       lws_service_adjust_timeout(priv->context, 1, 0) != 0)
+        return;
+
+    lws_service_tsi(priv->context, -1, 0);
+    scheduleForcedService(priv);
+}
+
+static void
+scheduleForcedService(struct pt_eventlibs_custom *priv) {
+    if(priv->forcedServicePending || !priv->context ||
+       lws_service_adjust_timeout(priv->context, 1, 0) != 0)
+        return;
+
+    priv->forcedServicePending = true;
+    priv->forcedServiceCallback.callback = processForcedService;
+    priv->forcedServiceCallback.application = priv;
+    priv->forcedServiceCallback.context = NULL;
+    UA_EventLoopPOSIX_addDelayedCallback((UA_EventLoop*)priv->io_loop,
+                                         &priv->forcedServiceCallback);
+}
+
 static void
 connectionCallback(UA_ConnectionManager *cm, LWS_FD *conn, short event) {
+    struct lws_context *context = conn->priv->context;
     struct lws_pollfd eventfd;
     eventfd.fd = conn->rfd.fd;
     eventfd.events = 0;
@@ -100,23 +145,23 @@ connectionCallback(UA_ConnectionManager *cm, LWS_FD *conn, short event) {
     if(event == UA_FDEVENT_OUT) {
         eventfd.events = LWS_POLLOUT;
         eventfd.revents =  LWS_POLLOUT;
-        lws_service_fd((struct lws_context*)conn->context, &eventfd);
+        lws_service_fd(context, &eventfd);
     }
     if(event == UA_FDEVENT_IN) {
         eventfd.events = LWS_POLLIN;
         eventfd.revents =  LWS_POLLIN;
-        lws_service_fd((struct lws_context*)conn->context, &eventfd);
+        lws_service_fd(context, &eventfd);
     }
-    /* Check if the connection requires forced service */
-    while(!lws_service_adjust_timeout((struct lws_context*)conn->context, 1, 0)) {
+
+    /* Perform at most one forced-service pass per socket callback. The LWS
+     * event-library backends follow the same pattern and reschedule remaining
+     * work for a later event-loop iteration. */
+    if(!lws_service_adjust_timeout(context, 1, 0)) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_EVENTLOOP,
                      "Process connection with pending work.");
-        /* A timeout of -1 services only logical connections that LWS has
-         * marked for forced service. This includes multiplexed MQTT streams,
-         * which do not own a socket and therefore cannot be serviced by
-         * synthesizing an event for the network fd. */
-        lws_service_tsi((struct lws_context*)conn->context, -1, 0);
+        lws_service_tsi(context, -1, 0);
     }
+    scheduleForcedService(conn->priv);
 }
 
 void
@@ -181,7 +226,8 @@ sock_accept_custom(struct lws *wsi) {
     newConn->rfd.listenEvents = UA_FDEVENT_IN;
     newConn->rfd.es = NULL;
     newConn->rfd.eventSourceCB = (UA_FDCallback)connectionCallback;
-    newConn->context = (void*)priv->context;
+    newConn->priv = priv;
+    newConn->wsi = wsi;
 
     UA_StatusCode retval = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(retval == UA_STATUSCODE_GOOD) {
@@ -202,8 +248,17 @@ io_custom(struct lws *wsi, unsigned int flags) {
     UA_EventLoopPOSIX *el = priv->io_loop;
     UA_LOCK(&el->elMutex);
 
-    lws_sockfd_type fd =  lws_get_socket_fd(wsi);
+    lws_sockfd_type fd = lws_get_socket_fd(wsi);
     LWS_FD *conn = (LWS_FD*)ZIP_FIND(UA_FDTree, &priv->cm.fds, &fd);
+    if(!conn) {
+        /* Logical streams have no fd of their own. Apply their event changes
+         * to the underlying network socket. */
+        struct lws *networkWsi = lws_get_network_wsi(wsi);
+        if(networkWsi && networkWsi != wsi) {
+            fd = lws_get_socket_fd(networkWsi);
+            conn = (LWS_FD*)ZIP_FIND(UA_FDTree, &priv->cm.fds, &fd);
+        }
+    }
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
         return;
@@ -250,14 +305,28 @@ deregisterLWSFD(struct pt_eventlibs_custom *priv, LWS_FD *conn) {
     UA_EventLoopPOSIX_addDelayedCallback((UA_EventLoop*)el, dc);
 }
 
+static void *
+findLWSFDByWsi(void *context, UA_RegisteredFD *rfd) {
+    return ((LWS_FD*)rfd)->wsi == (struct lws*)context ? rfd : NULL;
+}
+
 static int
 wsi_logical_close_custom(struct lws *wsi) {
     struct pt_eventlibs_custom *priv = (struct pt_eventlibs_custom *)
         lws_evlib_wsi_to_evlib_pt(wsi);
     UA_EventLoopPOSIX *el = priv->io_loop;
     UA_LOCK(&el->elMutex);
-    lws_sockfd_type fd =  lws_get_socket_fd(wsi);
-    LWS_FD *conn = (LWS_FD*)ZIP_FIND(UA_FDTree, &priv->cm.fds, &fd);
+    /* A logical HTTP/2 stream has no registered socket of its own. Also, lws
+     * can invalidate the socket descriptor before this callback. Match the
+     * network WSI that was registered in sock_accept_custom instead of relying
+     * solely on the current descriptor value. */
+    struct lws *networkWsi = lws_get_network_wsi(wsi);
+    if(networkWsi && networkWsi != wsi) {
+        UA_UNLOCK(&el->elMutex);
+        return 0;
+    }
+    LWS_FD *conn = (LWS_FD*)ZIP_ITER(UA_FDTree, &priv->cm.fds,
+                                     findLWSFDByWsi, wsi);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
         return 0;
@@ -283,6 +352,13 @@ destroy_pt_custom(struct lws_context *context, int tsi) {
     struct pt_eventlibs_custom *priv = (struct pt_eventlibs_custom *)
         lws_evlib_tsi_to_evlib_pt(context, tsi);
     UA_EventLoopPOSIX *el = priv->io_loop;
+
+    if(priv->forcedServicePending) {
+        UA_EventLoopPOSIX_removeDelayedCallback((UA_EventLoop*)el,
+                                                &priv->forcedServiceCallback);
+        priv->forcedServicePending = false;
+    }
+
     UA_LOCK(&el->elMutex);
 
     /* The internal event pipe does not receive a wsi_logical_close callback. */
@@ -306,10 +382,13 @@ static const struct lws_event_loop_ops event_loop_ops_custom = {
 
 const lws_plugin_evlib_t evlib_open62541 = {
     .hdr = {
-        "custom event loop",
-        "lws_evlib_plugin",
-        LWS_BUILD_HASH,
-        LWS_PLUGIN_API_MAGIC
+        .name = "custom event loop",
+        ._class = "lws_evlib_plugin",
+        .lws_build_hash = LWS_BUILD_HASH,
+        .api_magic = LWS_PLUGIN_API_MAGIC,
+#if LWS_PLUGIN_API_MAGIC >= 192
+        .priority = 0
+#endif
     },
     .ops = &event_loop_ops_custom
 };
@@ -340,30 +419,55 @@ UA_LWS_disableProtocolPlugins(struct lws_context_creation_info *info) {
 
 #endif
 
-/* To integrate libwebsockets logging with open62541 logging. */
+static void
+logLwsLine(const UA_Logger *logger, int level, const char *line, size_t len) {
+    while(len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+        --len;
+    int lineLength = len > INT_MAX ? INT_MAX : (int)len;
+
+    if(level == LLL_NOTICE)
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK, "%.*s", lineLength, line);
+    else if(level == LLL_USER)
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_USERLAND, "%.*s", lineLength, line);
+    else if(level == LLL_WARN)
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "%.*s", lineLength, line);
+    else if(level == LLL_ERR)
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK, "%.*s", lineLength, line);
+    else
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK, "%.*s", lineLength, line);
+}
+
+/* Integrate context-aware libwebsockets logging with the logger configured for
+ * the EventLoop. */
 static void
 open62541_log_emit_cx(struct lws_log_cx *cx, int level, const char *line,
                      size_t len) {
-
-    const UA_Logger *logger = UA_Log_Stdout;
-
-    if(level == LLL_NOTICE)
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK, "%s", line);
-    else if(level == LLL_USER)
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_USERLAND, "%s", line);
-    else if(level == LLL_WARN)
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "%s", line);
-    else if(level == LLL_ERR)
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK, "%s", line);
-    else
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK, "%s", line);
+    UA_EventLoop *eventLoop = (UA_EventLoop*)cx->opaque;
+    const UA_Logger *logger = eventLoop ? eventLoop->logger : NULL;
+    logLwsLine(logger ? logger : UA_Log_Stdout, level, line, len);
 }
 
-lws_log_cx_t open62541_log_cx = {
-    .lll_flags = LLLF_LOG_CONTEXT_AWARE | LLL_ERR |
-                 LLL_WARN | LLL_NOTICE | LLL_USER,
-    .u.emit_cx = open62541_log_emit_cx,
-};
+/* Some libwebsockets code paths still use its process-global legacy logger,
+ * notably while a vhost is being created. Keep those messages inside the
+ * open62541 logging system as well. */
+static void
+open62541_log_emit(int level, const char *line) {
+    const UA_Logger *logger = activeLwsLogger;
+    logLwsLine(logger ? logger : UA_Log_Stdout, level, line, strlen(line));
+}
+
+void
+UA_LWS_useContextLogger(struct lws_context_creation_info *info,
+                        struct lws_context *context) {
+    info->log_cx = lwsl_context_get_cx(context);
+    UA_EventLoop *eventLoop = (UA_EventLoop*)info->log_cx->opaque;
+    activeLwsLogger = eventLoop ? eventLoop->logger : NULL;
+}
+
+void
+UA_LWS_clearActiveLogger(void) {
+    activeLwsLogger = NULL;
+}
 
 struct lws_context *
 UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
@@ -371,11 +475,25 @@ UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
 
     lockLwsLifecycle();
     if(!el->lwsContext) {
+        lws_log_cx_t *logContext =
+            (lws_log_cx_t*)UA_calloc(1, sizeof(lws_log_cx_t));
+        if(!logContext) {
+            unlockLwsLifecycle();
+            return NULL;
+        }
+        logContext->lll_flags = LLLF_LOG_CONTEXT_AWARE | UA_LWS_LOG_LEVELS;
+        logContext->u.emit_cx = open62541_log_emit_cx;
+        logContext->opaque = eventLoop;
+
+        if(lwsContextCount == 0)
+            lws_set_log_level(UA_LWS_LOG_LEVELS, open62541_log_emit);
+
         struct lws_context_creation_info info;
         memset(&info, 0, sizeof(info));
         info.options = LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
 #ifdef UA_LWS_USE_OPENSSL
         if(!initializeLwsClientSslContext()) {
+            UA_free(logContext);
             unlockLwsLifecycle();
             return NULL;
         }
@@ -384,15 +502,21 @@ UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
         info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
 #endif
         info.port = CONTEXT_PORT_NO_LISTEN;
-        info.log_cx = &open62541_log_cx;
+        info.log_cx = logContext;
         info.event_lib_custom = &evlib_open62541;
         el->lwsForeignLoop = &el->eventLoop;
         info.foreign_loops = (void**)&el->lwsForeignLoop;
         UA_LWS_disableProtocolPlugins(&info);
 
+        activeLwsLogger = eventLoop->logger;
         el->lwsContext = lws_create_context(&info);
-        if(el->lwsContext)
+        activeLwsLogger = NULL;
+        if(el->lwsContext) {
+            el->lwsLogContext = logContext;
             ++lwsContextCount;
+        } else {
+            UA_free(logContext);
+        }
     }
 
     if(el->lwsContext)
@@ -409,10 +533,23 @@ UA_LWS_releaseContext(UA_EventLoop *eventLoop) {
     lockLwsLifecycle();
     UA_assert(el->lwsContextUsers > 0);
     --el->lwsContextUsers;
-    if(el->lwsContextUsers == 0) {
+    unlockLwsLifecycle();
+}
+
+void
+UA_LWS_destroyContext(UA_EventLoop *eventLoop) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)eventLoop;
+
+    lockLwsLifecycle();
+    UA_assert(el->lwsContextUsers == 0);
+    if(el->lwsContext) {
         struct lws_context *context = (struct lws_context*)el->lwsContext;
         el->lwsContext = NULL;
+        activeLwsLogger = eventLoop->logger;
         lws_context_destroy(context);
+        activeLwsLogger = NULL;
+        UA_free(el->lwsLogContext);
+        el->lwsLogContext = NULL;
         UA_assert(lwsContextCount > 0);
         --lwsContextCount;
     }

@@ -51,7 +51,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static void
 runUntil(UA_EventLoop *el, UA_Boolean (*predicate)(void *), void *context) {
-    for(size_t i = 0; i < 200 && !predicate(context); ++i)
+    UA_DateTime deadline =
+        UA_DateTime_nowMonotonic() + 10 * UA_DATETIME_SEC;
+    while(!predicate(context) && UA_DateTime_nowMonotonic() < deadline)
         el->run(el, 50);
     ck_assert(predicate(context));
 }
@@ -160,7 +162,8 @@ runTlsConnection(const char *portEnvironment, const char *addressString,
     el->free(el);
 }
 
-START_TEST(connectSubscribePublish) {
+static void
+runConnectSubscribePublish(void) {
     const char *portString = getenv("OPEN62541_TEST_MQTT_PORT");
     ck_assert_ptr_nonnull(portString);
     UA_UInt16 port = (UA_UInt16)strtoul(portString, NULL, 10);
@@ -215,6 +218,15 @@ START_TEST(connectSubscribePublish) {
     el->stop(el);
     runUntil(el, eventLoopStopped, el);
     el->free(el);
+}
+
+START_TEST(connectSubscribePublish) {
+    runConnectSubscribePublish();
+
+    /* Recreate the entire LWS context after servicing multiplexed MQTT
+     * streams. Forced service left pending by the first context must not spin
+     * or prevent the replacement context from making progress. */
+    runConnectSubscribePublish();
 }
 END_TEST
 

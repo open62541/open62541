@@ -501,12 +501,14 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 #endif
+    UA_LWS_useContextLogger(&vi, manager->lwsContext);
     connection->vhost = lws_create_vhost(manager->lwsContext, &vi);
     if(connection->vhost && connection->useSSL &&
        lws_init_vhost_client_ssl(&vi, connection->vhost)) {
         lws_vhost_destroy(connection->vhost);
         connection->vhost = NULL;
     }
+    UA_LWS_clearActiveLogger();
     UA_free(keyPasswordCString);
     if(!connection->vhost) {
         clearConnection(connection);

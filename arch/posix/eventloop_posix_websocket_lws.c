@@ -371,7 +371,8 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
 
 static UA_StatusCode start(UA_ConnectionManager *cm) {
     WSManager *m = (WSManager*)cm;
-    m->lwsContext = UA_LWS_acquireContext(cm->eventSource.eventLoop);
+    if(!m->lwsContext)
+        m->lwsContext = UA_LWS_acquireContext(cm->eventSource.eventLoop);
     if(!m->lwsContext)
         return UA_STATUSCODE_BADINTERNALERROR;
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
@@ -537,12 +538,14 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         goto fail;
     }
 #endif
+    UA_LWS_useContextLogger(&vi, m->lwsContext);
     c->vhost = lws_create_vhost(m->lwsContext, &vi);
     if(c->vhost && c->useSSL && !c->listener &&
        lws_init_vhost_client_ssl(&vi, c->vhost)) {
         lws_vhost_destroy(c->vhost);
         c->vhost = NULL;
     }
+    UA_LWS_clearActiveLogger();
     UA_free(password);
     if(!c->vhost) {
         UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
