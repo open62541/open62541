@@ -4,6 +4,9 @@
 
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <check.h>
@@ -12,9 +15,6 @@
 #ifdef UA_ENABLE_DISCOVERY
 #include "server/ua_server_internal.h"
 #endif
-
-static UA_Boolean certificateVerified;
-static UA_Boolean certificateGroupCleared;
 
 static UA_ByteString loadFile(const char *path) {
     UA_ByteString out = UA_BYTESTRING_NULL;
@@ -29,24 +29,13 @@ static UA_ByteString loadFile(const char *path) {
     return out;
 }
 
-static UA_StatusCode verifyCertificate(UA_CertificateGroup *cg,
-                                       const UA_ByteString *certificate) {
-    (void)cg;
-    certificateVerified = certificate && certificate->length > 0;
-    return certificateVerified ? UA_STATUSCODE_GOOD :
-        UA_STATUSCODE_BADCERTIFICATEINVALID;
-}
-
-static void clearCertificateGroup(UA_CertificateGroup *cg) {
-    (void)cg;
-    certificateGroupCleared = true;
-}
-
 typedef struct {
     uintptr_t listenerId, acceptedId, clientId;
     UA_UInt16 port;
     UA_Boolean clientEstablished;
     UA_Boolean clientClosed;
+    UA_Boolean openingConnection;
+    UA_Boolean closingWasReentrant;
     size_t serverMessages, clientMessages;
 } TestContext;
 
@@ -67,8 +56,10 @@ static void callback(UA_ConnectionManager *cm, uintptr_t id, void *application,
         ctx->acceptedId = id;
     if(state == UA_CONNECTIONSTATE_ESTABLISHED && id == ctx->clientId)
         ctx->clientEstablished = true;
-    if(state == UA_CONNECTIONSTATE_CLOSING && id == ctx->clientId)
+    if(state == UA_CONNECTIONSTATE_CLOSING && id == ctx->clientId) {
         ctx->clientClosed = true;
+        ctx->closingWasReentrant = ctx->openingConnection;
+    }
     if(msg.length) {
         if(id == ctx->clientId)
             ctx->clientMessages++;
@@ -96,6 +87,56 @@ findWebSocketConnectionManager(UA_EventLoop *el) {
     return NULL;
 }
 
+START_TEST(clientDefaultHasWebSocketManager) {
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(config));
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(&config),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(findWebSocketConnectionManager(config.eventLoop));
+    UA_ClientConfig_clear(&config);
+}
+END_TEST
+
+START_TEST(clientConnectionFailureIsNotReentrant) {
+    TestContext ctx = {0};
+    UA_ConnectionManager *ws =
+        UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("ws-failure"));
+    UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
+    ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+
+    UA_String address = UA_STRING("does-not-exist.invalid");
+    UA_UInt16 port = 4843;
+    UA_KeyValuePair cp[2];
+    cp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    cp[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&cp[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap cpm = {2, cp};
+
+    ctx.clientId = 1;
+    ctx.openingConnection = true;
+    ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+    ctx.openingConnection = false;
+    ck_assert(!ctx.clientClosed);
+
+    run(el, &ctx.clientClosed);
+    ck_assert(!ctx.closingWasReentrant);
+
+    el->stop(el);
+    UA_Boolean stopped = false;
+    for(size_t i = 0; i < 200 && !stopped; i++) {
+        el->run(el, 50);
+        stopped = el->state == UA_EVENTLOOPSTATE_STOPPED;
+    }
+    ck_assert(stopped);
+    el->free(el);
+}
+END_TEST
+
 START_TEST(clientServerBinary) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
@@ -110,7 +151,8 @@ START_TEST(clientServerBinary) {
     UA_String path = UA_STRING("/opcua");
     UA_String subprotocol = UA_STRING("opcua+uacp");
     UA_Boolean binaryOnly = true;
-    UA_KeyValuePair lp[5];
+    UA_UInt32 recvMaxMessageSize = 4;
+    UA_KeyValuePair lp[6];
     lp[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&lp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     lp[1].key = UA_QUALIFIEDNAME(0, "listen");
@@ -121,12 +163,16 @@ START_TEST(clientServerBinary) {
     UA_Variant_setScalar(&lp[3].value, &subprotocol, &UA_TYPES[UA_TYPES_STRING]);
     lp[4].key = UA_QUALIFIEDNAME(0, "binary-only");
     UA_Variant_setScalar(&lp[4].value, &binaryOnly, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_KeyValueMap lpm = {5, lp};
+    lp[5].key = UA_QUALIFIEDNAME(0, "recv-max-message-size");
+    UA_Variant_setScalar(&lp[5].value, &recvMaxMessageSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap lpm = {6, lp};
     ck_assert_uint_eq(ws->openConnection(ws, &lpm, &ctx, &ctx, callback), UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(ctx.port, 0);
 
     UA_String address = UA_STRING("127.0.0.1");
-    UA_KeyValuePair cp[4];
+    UA_UInt32 sendMaxQueueSize = 5;
+    UA_KeyValuePair cp[5];
     cp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     cp[1].key = UA_QUALIFIEDNAME(0, "port");
@@ -135,7 +181,10 @@ START_TEST(clientServerBinary) {
     UA_Variant_setScalar(&cp[2].value, &path, &UA_TYPES[UA_TYPES_STRING]);
     cp[3].key = UA_QUALIFIEDNAME(0, "subprotocol");
     UA_Variant_setScalar(&cp[3].value, &subprotocol, &UA_TYPES[UA_TYPES_STRING]);
-    UA_KeyValueMap cpm = {4, cp};
+    cp[4].key = UA_QUALIFIEDNAME(0, "send-max-queue-size");
+    UA_Variant_setScalar(&cp[4].value, &sendMaxQueueSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap cpm = {5, cp};
     ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback), UA_STATUSCODE_GOOD);
     ctx.clientId = ctx.listenerId + 1;
     UA_Boolean connected = false;
@@ -149,6 +198,12 @@ START_TEST(clientServerBinary) {
     ck_assert_uint_eq(ws->allocNetworkBuffer(ws, ctx.clientId, &msg, 4), UA_STATUSCODE_GOOD);
     memcpy(msg.data, "ping", 4);
     ck_assert_uint_eq(ws->sendWithConnection(ws, ctx.clientId, &UA_KEYVALUEMAP_NULL, &msg), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ws->allocNetworkBuffer(ws, ctx.clientId, &msg, 2),
+                      UA_STATUSCODE_GOOD);
+    memcpy(msg.data, "xx", 2);
+    ck_assert_uint_eq(
+        ws->sendWithConnection(ws, ctx.clientId, &UA_KEYVALUEMAP_NULL, &msg),
+        UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_Boolean gotServer = false;
     for(size_t i = 0; i < 200 && !gotServer; i++) { el->run(el, 50); gotServer = ctx.serverMessages == 1; }
     ck_assert(gotServer);
@@ -160,6 +215,14 @@ START_TEST(clientServerBinary) {
     for(size_t i = 0; i < 200 && !gotClient; i++) { el->run(el, 50); gotClient = ctx.clientMessages == 1; }
     ck_assert(gotClient);
 
+    ck_assert_uint_eq(ws->allocNetworkBuffer(ws, ctx.clientId, &msg, 5),
+                      UA_STATUSCODE_GOOD);
+    memcpy(msg.data, "large", 5);
+    ck_assert_uint_eq(
+        ws->sendWithConnection(ws, ctx.clientId, &UA_KEYVALUEMAP_NULL, &msg),
+        UA_STATUSCODE_GOOD);
+    run(el, &ctx.clientClosed);
+
     el->stop(el);
     UA_Boolean stopped = false;
     for(size_t i = 0; i < 200 && !stopped; i++) { el->run(el, 50); stopped = el->state == UA_EVENTLOOPSTATE_STOPPED; }
@@ -168,7 +231,9 @@ START_TEST(clientServerBinary) {
 }
 END_TEST
 
-START_TEST(serverWebSocketListener) {
+static UA_Server *
+startWebSocketServer(UA_UInt16 *portOut, UA_ConnectionManager **wsOut,
+                     UA_Boolean addSecureEndpoint) {
     UA_Server *server = UA_Server_new();
     ck_assert_ptr_nonnull(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -182,6 +247,23 @@ START_TEST(serverWebSocketListener) {
     UA_ByteString privateKey = loadFile("server_key.der");
     ck_assert_ptr_nonnull(certificate.data);
     ck_assert_ptr_nonnull(privateKey.data);
+#ifdef UA_ENABLE_ENCRYPTION
+    if(addSecureEndpoint) {
+        ck_assert_uint_eq(
+            UA_ServerConfig_addSecurityPolicyBasic256Sha256(
+                config, &certificate, &privateKey),
+            UA_STATUSCODE_GOOD);
+        const UA_String policyUri = UA_STRING_STATIC(
+            "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        ck_assert_uint_eq(
+            UA_ServerConfig_addEndpoint(
+                config, policyUri,
+                UA_MESSAGESECURITYMODE_SIGNANDENCRYPT),
+            UA_STATUSCODE_GOOD);
+    }
+#else
+    (void)addSecureEndpoint;
+#endif
     config->webSocketEnabled = true;
     config->webSocketCertificate = certificate;
     config->webSocketPrivateKey = privateKey;
@@ -200,15 +282,24 @@ START_TEST(serverWebSocketListener) {
     ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, 1);
     UA_String hostname = UA_STRING_NULL;
     UA_String path = UA_STRING_NULL;
-    UA_UInt16 port = 0;
+    *portOut = 0;
     ck_assert_uint_eq(
         UA_parseEndpointUrl(&config->applicationDescription.discoveryUrls[0],
-                            &hostname, &port, &path),
+                            &hostname, portOut, &path),
         UA_STATUSCODE_GOOD);
     ck_assert_uint_ne(hostname.length, 0);
-    ck_assert_uint_ne(port, 0);
+    ck_assert_uint_ne(*portOut, 0);
     const UA_String expectedPath = UA_STRING_STATIC("opcua");
     ck_assert(UA_String_equal(&path, &expectedPath));
+    *wsOut = ws;
+    return server;
+}
+
+START_TEST(serverWebSocketListener) {
+    UA_UInt16 port = 0;
+    UA_ConnectionManager *ws = NULL;
+    UA_Server *server = startWebSocketServer(&port, &ws, false);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
 #ifdef UA_ENABLE_DISCOVERY
     UA_EndpointDescription *endpoints = NULL;
@@ -232,6 +323,206 @@ START_TEST(serverWebSocketListener) {
     UA_Server_delete(server);
 }
 END_TEST
+
+START_TEST(clientServerWebSocketRoundtrip) {
+    UA_UInt16 port = 0;
+    UA_ConnectionManager *ws = NULL;
+    UA_Server *server = startWebSocketServer(&port, &ws, false);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Connect a full OPC UA client over opcua+uacp WebSockets and execute a
+     * service request. Share the EventLoop so synchronous client calls also
+     * drive the server in this single-threaded test. */
+    UA_ClientConfig clientConfig;
+    memset(&clientConfig, 0, sizeof(clientConfig));
+    clientConfig.eventLoop = config->eventLoop;
+    clientConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(
+        UA_ByteString_copy(&config->webSocketCertificate,
+                           &clientConfig.webSocketCaCertificate),
+        UA_STATUSCODE_GOOD);
+    UA_Client *client = UA_Client_newWithConfig(&clientConfig);
+    ck_assert_ptr_nonnull(client);
+
+    char clientUrl[128];
+    snprintf(clientUrl, sizeof(clientUrl),
+             "opc.wss://127.0.0.1:%u/opcua", (unsigned)port);
+
+    UA_EndpointDescription *endpoints = NULL;
+    size_t endpointsSize = 0;
+    ck_assert_uint_eq(UA_Client_getEndpoints(client, clientUrl,
+                                             &endpointsSize, &endpoints),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(endpointsSize, 0);
+    const UA_String expectedEndpointUrl = UA_STRING(clientUrl);
+    const UA_String expectedProfile = UA_STRING_STATIC(
+        "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
+    for(size_t i = 0; i < endpointsSize; i++) {
+        ck_assert(UA_String_equal(&endpoints[i].endpointUrl,
+                                  &expectedEndpointUrl));
+        ck_assert(UA_String_equal(&endpoints[i].transportProfileUri,
+                                  &expectedProfile));
+    }
+    UA_Array_delete(endpoints, endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    ck_assert_uint_eq(UA_Client_connect(client, clientUrl), UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(
+        UA_Client_readValueAttribute(
+            client,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
+            &value),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                      &UA_TYPES[UA_TYPES_DATETIME]));
+    UA_Variant_clear(&value);
+
+    /* Re-open the SecureChannel and reactivate the existing Session. */
+    ck_assert_uint_eq(UA_Client_disconnectSecureChannel(client),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connect(client, clientUrl), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(
+        UA_Client_readValueAttribute(
+            client,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
+            &value),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                      &UA_TYPES[UA_TYPES_DATETIME]));
+    UA_Variant_clear(&value);
+
+    ck_assert_uint_eq(UA_Client_disconnect(client), UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(serverRejectsIncompleteWebSocketConfiguration) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->webSocketEnabled = true;
+    ck_assert_uint_eq(UA_Server_run_startup(server),
+                      UA_STATUSCODE_BADCONFIGURATIONERROR);
+    UA_Server_delete(server);
+
+    server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    config = UA_Server_getConfig(server);
+    config->webSocketEnabled = true;
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = NULL;
+    config->serverUrlsSize = 0;
+    UA_ByteString certificate = loadFile("server_cert.der");
+    UA_ByteString privateKey = loadFile("server_key.der");
+    config->webSocketCertificate = certificate;
+    config->webSocketPrivateKey = privateKey;
+    const UA_String tcpUrl = UA_STRING_STATIC("opc.tcp://localhost:4840");
+    ck_assert_uint_eq(UA_Array_appendCopy((void**)&config->serverUrls,
+                                         &config->serverUrlsSize, &tcpUrl,
+                                         &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(server),
+                      UA_STATUSCODE_BADCONFIGURATIONERROR);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(clientRejectsUntrustedWebSocketServer) {
+    UA_UInt16 port = 0;
+    UA_ConnectionManager *ws = NULL;
+    UA_Server *server = startWebSocketServer(&port, &ws, false);
+    UA_ServerConfig *serverConfig = UA_Server_getConfig(server);
+
+    UA_ClientConfig clientConfig;
+    memset(&clientConfig, 0, sizeof(clientConfig));
+    clientConfig.eventLoop = serverConfig->eventLoop;
+    clientConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
+                      UA_STATUSCODE_GOOD);
+    clientConfig.timeout = 1000;
+    clientConfig.noReconnect = true;
+    UA_Client *client = UA_Client_newWithConfig(&clientConfig);
+    ck_assert_ptr_nonnull(client);
+    char clientUrl[128];
+    snprintf(clientUrl, sizeof(clientUrl),
+             "opc.wss://127.0.0.1:%u/opcua", (unsigned)port);
+
+    ck_assert_uint_ne(UA_Client_connect(client, clientUrl), UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+}
+END_TEST
+
+#ifdef UA_ENABLE_ENCRYPTION
+START_TEST(clientServerEncryptedWebSocketRoundtrip) {
+    UA_UInt16 port = 0;
+    UA_ConnectionManager *ws = NULL;
+    UA_Server *server = startWebSocketServer(&port, &ws, true);
+    UA_ServerConfig *serverConfig = UA_Server_getConfig(server);
+
+    UA_ByteString certificate = loadFile("server_cert.der");
+    UA_ByteString privateKey = loadFile("server_key.der");
+    ck_assert_ptr_nonnull(certificate.data);
+    ck_assert_ptr_nonnull(privateKey.data);
+
+    UA_ClientConfig clientConfig;
+    memset(&clientConfig, 0, sizeof(clientConfig));
+    clientConfig.eventLoop = serverConfig->eventLoop;
+    clientConfig.externalEventLoop = true;
+    ck_assert_uint_eq(
+        UA_ClientConfig_setDefaultEncryption(
+            &clientConfig, certificate, privateKey, &certificate, 1,
+            NULL, 0),
+        UA_STATUSCODE_GOOD);
+    clientConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    clientConfig.securityPolicyUri = UA_STRING_ALLOC(
+        "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    ck_assert_ptr_nonnull(clientConfig.securityPolicyUri.data);
+    ck_assert_uint_eq(UA_ByteString_copy(
+                          &certificate,
+                          &clientConfig.webSocketCaCertificate),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newWithConfig(&clientConfig);
+    ck_assert_ptr_nonnull(client);
+    char clientUrl[128];
+    snprintf(clientUrl, sizeof(clientUrl),
+             "opc.wss://127.0.0.1:%u/opcua", (unsigned)port);
+    ck_assert_uint_eq(UA_Client_connect(client, clientUrl), UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(
+        UA_Client_readValueAttribute(
+            client,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
+            &value),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                      &UA_TYPES[UA_TYPES_DATETIME]));
+    UA_Variant_clear(&value);
+
+    ck_assert_uint_eq(UA_Client_disconnect(client), UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+}
+END_TEST
+#endif
 
 START_TEST(clientServerRejectsPolicyMismatch) {
     TestContext ctx = {0};
@@ -290,6 +581,21 @@ START_TEST(clientServerRejectsPolicyMismatch) {
     ck_assert(!ctx.clientEstablished);
     ck_assert_uint_eq(ctx.acceptedId, 0);
 
+    ctx.clientClosed = false;
+    UA_String offeredProtocols = UA_STRING("unsupported, opcua+uacp");
+    UA_Variant_setScalar(&cp[2].value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&cp[3].value, &offeredProtocols,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
+                      UA_STATUSCODE_GOOD);
+    ctx.clientId++;
+    UA_Boolean connected = false;
+    for(size_t i = 0; i < 200 && !connected; i++) {
+        el->run(el, 50);
+        connected = ctx.acceptedId != 0 && ctx.clientEstablished;
+    }
+    ck_assert(connected);
+
     el->stop(el);
     UA_Boolean stopped = false;
     for(size_t i = 0; i < 200 && !stopped; i++) {
@@ -301,19 +607,12 @@ START_TEST(clientServerRejectsPolicyMismatch) {
 }
 END_TEST
 
-START_TEST(clientServerTlsCertificateGroup) {
-    certificateVerified = false;
-    certificateGroupCleared = false;
+START_TEST(clientServerTlsCaCertificate) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
         UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("wss"));
     UA_EventLoop *el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     ck_assert_ptr_nonnull(ws); ck_assert_ptr_nonnull(el);
-    ws->certificateGroup = (UA_CertificateGroup*)UA_calloc(1, sizeof(UA_CertificateGroup));
-    ck_assert_ptr_nonnull(ws->certificateGroup);
-    ws->certificateGroup->verifyCertificate = verifyCertificate;
-    ws->certificateGroup->clear = clearCertificateGroup;
-    ws->certificateGroupOwned = true;
     ck_assert_uint_eq(el->registerEventSource(el, &ws->eventSource), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
 
@@ -338,18 +637,20 @@ START_TEST(clientServerTlsCertificateGroup) {
     UA_KeyValueMap lpm = {5, lp};
     ck_assert_uint_eq(ws->openConnection(ws, &lpm, &ctx, &ctx, callback),
                       UA_STATUSCODE_GOOD);
-    UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
 
     UA_String address = UA_STRING("127.0.0.1");
-    UA_KeyValuePair cp[3] = {0};
+    UA_KeyValuePair cp[4] = {0};
     cp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&cp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     cp[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&cp[1].value, &ctx.port, &UA_TYPES[UA_TYPES_UINT16]);
     cp[2].key = UA_QUALIFIEDNAME(0, "useSSL");
     UA_Variant_setScalar(&cp[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_KeyValueMap cpm = {3, cp};
+    cp[3].key = UA_QUALIFIEDNAME(0, "ca-certificate");
+    UA_Variant_setScalar(&cp[3].value, &certificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_KeyValueMap cpm = {4, cp};
     ck_assert_uint_eq(ws->openConnection(ws, &cpm, &ctx, &ctx, callback),
                       UA_STATUSCODE_GOOD);
     ctx.clientId = ctx.listenerId + 1;
@@ -359,7 +660,7 @@ START_TEST(clientServerTlsCertificateGroup) {
         connected = ctx.acceptedId != 0 && ctx.clientEstablished;
     }
     ck_assert(connected);
-    ck_assert(certificateVerified);
+    UA_ByteString_clear(&certificate);
 
     el->stop(el);
     UA_Boolean stopped = false;
@@ -369,17 +670,24 @@ START_TEST(clientServerTlsCertificateGroup) {
     }
     ck_assert(stopped);
     el->free(el);
-    ck_assert(certificateGroupCleared);
 }
 END_TEST
 
 int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
+    tcase_add_test(tc, clientDefaultHasWebSocketManager);
+    tcase_add_test(tc, clientConnectionFailureIsNotReentrant);
     tcase_add_test(tc, clientServerBinary);
     tcase_add_test(tc, serverWebSocketListener);
+    tcase_add_test(tc, serverRejectsIncompleteWebSocketConfiguration);
+    tcase_add_test(tc, clientServerWebSocketRoundtrip);
+    tcase_add_test(tc, clientRejectsUntrustedWebSocketServer);
+#ifdef UA_ENABLE_ENCRYPTION
+    tcase_add_test(tc, clientServerEncryptedWebSocketRoundtrip);
+#endif
     tcase_add_test(tc, clientServerRejectsPolicyMismatch);
-    tcase_add_test(tc, clientServerTlsCertificateGroup);
+    tcase_add_test(tc, clientServerTlsCaCertificate);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s); srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL); int failed = srunner_ntests_failed(sr);

@@ -47,7 +47,7 @@ struct WSConnection {
     size_t sendMaxQueueSize;
     size_t sendQueueSize;
     TAILQ_HEAD(, WSMessage) outgoing;
-    UA_DelayedCallback freeCallback;
+    UA_DelayedCallback removeCallback;
     void *application;
     void *context;
     UA_ConnectionManager_connectionCallback callback;
@@ -132,9 +132,11 @@ static void destroyConnection(WSConnection *c) {
     UA_free(c);
 }
 
-static void freeConnection(void *application, void *context) {
+static void removeConnectionDelayed(void *application, void *context) {
     (void)application;
-    destroyConnection((WSConnection*)context);
+    WSConnection *c = (WSConnection*)context;
+    notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
+    destroyConnection(c);
 }
 
 static void removeConnection(WSConnection *c) {
@@ -142,13 +144,12 @@ static void removeConnection(WSConnection *c) {
         return;
     WSManager *m = c->manager;
     LIST_REMOVE(c, next);
-    notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
     c->state = WS_STATE_REMOVED;
     c->wsi = NULL;
-    c->freeCallback.callback = freeConnection;
-    c->freeCallback.context = c;
+    c->removeCallback.callback = removeConnectionDelayed;
+    c->removeCallback.context = c;
     m->cm.eventSource.eventLoop->addDelayedCallback(m->cm.eventSource.eventLoop,
-                                                     &c->freeCallback);
+                                                     &c->removeCallback);
     if(m->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING &&
        LIST_EMPTY(&m->connections))
         m->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;

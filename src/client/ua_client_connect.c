@@ -1123,8 +1123,46 @@ activateSessionAsync(UA_Client *client) {
     return retval;
 }
 
-static const UA_String binaryTransport =
-    UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+typedef struct {
+    UA_String urlSchemePrefix;
+    UA_String connectionManagerProtocol;
+    UA_String profileUri;
+    UA_UInt16 defaultPort;
+    UA_Boolean webSocket;
+} UA_ClientTransport;
+
+static const UA_ClientTransport clientTransports[] = {
+    {UA_STRING_STATIC("opc.tcp:"), UA_STRING_STATIC("tcp"),
+     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary"),
+     4840, false},
+#ifdef UA_ENABLE_LWS
+    {UA_STRING_STATIC("opc.wss:"), UA_STRING_STATIC("websocket"),
+     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary"),
+     443, true},
+#endif
+};
+
+static const UA_ClientTransport *
+getClientTransport(const UA_String *endpointUrl) {
+    for(size_t i = 0;
+        i < sizeof(clientTransports) / sizeof(clientTransports[0]); i++) {
+        const UA_String *prefix = &clientTransports[i].urlSchemePrefix;
+        if(endpointUrl->length >= prefix->length &&
+           memcmp(endpointUrl->data, prefix->data, prefix->length) == 0)
+            return &clientTransports[i];
+    }
+    return NULL;
+}
+
+static UA_Boolean
+isSupportedClientTransportProfile(const UA_String *profileUri) {
+    for(size_t i = 0;
+        i < sizeof(clientTransports) / sizeof(clientTransports[0]); i++) {
+        if(UA_String_equal(profileUri, &clientTransports[i].profileUri))
+            return true;
+    }
+    return false;
+}
 
 /* Find a matching endpoint -- the UserTokenPolicy is matched later */
 static UA_Boolean
@@ -1140,10 +1178,10 @@ matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigne
         return false;
     }
 
-    /* Look out for binary transport endpoints.
+    /* Look out for supported binary transport endpoints.
      * Note: Siemens returns empty ProfileUrl, we will accept it as binary. */
     if(endpoint->transportProfileUri.length != 0 &&
-       !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport)) {
+       !isSupportedClientTransportProfile(&endpoint->transportProfileUri)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "Endpoint %u: Rejected, the TransportProfileUri %S "
                     "is not supported", i, endpoint->transportProfileUri);
@@ -1578,8 +1616,8 @@ responseFindServers(UA_Client *client, void *userdata,
         }
     }
 
-    /* The current EndpointURL is not usable. Pick the first "opc.tcp" DiscoveryUrl of a
-     * returned server. */
+    /* The current EndpointURL is not usable. Pick the first DiscoveryUrl with
+     * a transport supported by this client. */
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
         if(server->applicationType != UA_APPLICATIONTYPE_SERVER &&
@@ -1599,7 +1637,8 @@ responseFindServers(UA_Client *client, void *userdata,
             UA_UInt16 port;
             UA_StatusCode res =
                 UA_parseEndpointUrl(&server->discoveryUrls[j], &hostname, &port, &path);
-            if(res != UA_STATUSCODE_GOOD)
+            if(res != UA_STATUSCODE_GOOD ||
+               !getClientTransport(&server->discoveryUrls[j]))
                 continue;
 
             /* Use this DiscoveryUrl in the client */
@@ -2251,7 +2290,8 @@ delayedNetworkCallback(void *application, void *context) {
                                  &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 }
 
-/* Initialize a TCP connection. Writes the result to client->connectStatus. */
+/* Initialize a binary transport connection. Writes the result to
+ * client->connectStatus. */
 static void
 initConnect(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -2261,7 +2301,7 @@ initConnect(UA_Client *client) {
         return;
     }
 
-    UA_StatusCode res;
+    UA_StatusCode res = UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* An exact endpoint was configured. Use it. */
     if(!endpointUnconfigured(&client->config.endpoint)) {
@@ -2293,10 +2333,21 @@ initConnect(UA_Client *client) {
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
-    /* Extract hostname and port from the URL */
+    /* Select the binary transport from the URL scheme. */
+    const UA_ClientTransport *transport =
+        getClientTransport(&client->config.endpointUrl);
+    if(!transport) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
+                       "Endpoint URL transport is not supported: %S",
+                       client->config.endpointUrl);
+        setConnectStatus(client, UA_STATUSCODE_BADNOTSUPPORTED);
+        return;
+    }
+
+    /* Extract hostname, port and path from the URL. */
     UA_String hostname = UA_STRING_NULL;
     UA_String path = UA_STRING_NULL;
-    UA_UInt16 port = 4840;
+    UA_UInt16 port = transport->defaultPort;
 
     res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
     if(res != UA_STATUSCODE_GOOD) {
@@ -2306,47 +2357,119 @@ initConnect(UA_Client *client) {
         return;
     }
 
-    /* Initialize the TCP connection */
-    UA_String tcpString = UA_STRING("tcp");
+    /* Initialize the selected transport connection. */
+    UA_Boolean haveConnectionManager = false;
     for(UA_EventSource *es = client->config.eventLoop->eventSources;
         es != NULL; es = es->next) {
         /* Is this a usable connection manager? */
         if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
             continue;
         UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
+        if(!UA_String_equal(&transport->connectionManagerProtocol,
+                            &cm->protocol))
             continue;
+        haveConnectionManager = true;
 
-        /* Set up the parameters */
-        UA_KeyValuePair params[3];
-        params[0].key = UA_QUALIFIEDNAME(0, "port");
-        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-        params[1].key = UA_QUALIFIEDNAME(0, "address");
-        UA_Variant_setScalar(&params[1].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
-        params[2].key = UA_QUALIFIEDNAME(0, "reuse");
-        UA_Variant_setScalar(&params[2].value, &client->config.tcpReuseAddr,
-                             &UA_TYPES[UA_TYPES_BOOLEAN]);
+        UA_KeyValuePair params[10];
+        size_t paramsSize = 0;
+        params[paramsSize].key = UA_QUALIFIEDNAME(0, "port");
+        UA_Variant_setScalar(&params[paramsSize++].value, &port,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+        params[paramsSize].key = UA_QUALIFIEDNAME(0, "address");
+        UA_Variant_setScalar(&params[paramsSize++].value, &hostname,
+                             &UA_TYPES[UA_TYPES_STRING]);
 
-        UA_KeyValueMap paramMap;
-        paramMap.map = params;
-        paramMap.mapSize = 3;
+        UA_String websocketPath = UA_STRING_STATIC("/");
+        UA_Boolean useSSL = true;
+        UA_String subprotocol = UA_STRING_STATIC("opcua+uacp");
+        UA_Boolean binaryOnly = true;
+        if(transport->webSocket) {
+            if(path.length > 0) {
+                /* UA_parseEndpointUrl returns the path without its leading
+                 * slash. Refer back into the EndpointUrl without allocating. */
+                websocketPath.data = path.data - 1;
+                websocketPath.length = path.length + 1;
+            }
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "path");
+            UA_Variant_setScalar(&params[paramsSize++].value, &websocketPath,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "subprotocol");
+            UA_Variant_setScalar(&params[paramsSize++].value, &subprotocol,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "binary-only");
+            UA_Variant_setScalar(&params[paramsSize++].value, &binaryOnly,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "useSSL");
+            UA_Variant_setScalar(&params[paramsSize++].value, &useSSL,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+#ifdef UA_ENABLE_LWS
+            if(client->config.webSocketCaCertificate.length > 0) {
+                params[paramsSize].key =
+                    UA_QUALIFIEDNAME(0, "ca-certificate");
+                UA_Variant_setScalar(
+                    &params[paramsSize++].value,
+                    &client->config.webSocketCaCertificate,
+                    &UA_TYPES[UA_TYPES_BYTESTRING]);
+            }
+#endif
+            params[paramsSize].key =
+                UA_QUALIFIEDNAME(0, "recv-max-message-size");
+            UA_Variant_setScalar(
+                &params[paramsSize++].value,
+                &client->config.localConnectionConfig.recvBufferSize,
+                &UA_TYPES[UA_TYPES_UINT32]);
+            params[paramsSize].key =
+                UA_QUALIFIEDNAME(0, "send-max-message-size");
+            UA_Variant_setScalar(
+                &params[paramsSize++].value,
+                &client->config.localConnectionConfig.sendBufferSize,
+                &UA_TYPES[UA_TYPES_UINT32]);
+#ifdef UA_ENABLE_LWS
+            params[paramsSize].key =
+                UA_QUALIFIEDNAME(0, "send-max-queue-size");
+            UA_Variant_setScalar(
+                &params[paramsSize++].value,
+                &client->config.webSocketMaxQueueSize,
+                &UA_TYPES[UA_TYPES_UINT32]);
+#endif
 
-        /* Open the client TCP connection */
-        res = cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
+            UA_KeyValueMap paramMap = {paramsSize, params};
+            res = cm->openConnection(cm, &paramMap, client, NULL,
+                                     __Client_networkCallback);
+            if(res == UA_STATUSCODE_GOOD)
+                break;
+            continue;
+        } else {
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "reuse");
+            UA_Variant_setScalar(&params[paramsSize++].value,
+                                 &client->config.tcpReuseAddr,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+        }
+
+        UA_KeyValueMap paramMap = {paramsSize, params};
+        res = cm->openConnection(cm, &paramMap, client, NULL,
+                                 __Client_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             break;
     }
 
-    /* The channel has not opened */
-    if(client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
-        res = UA_STATUSCODE_BADINTERNALERROR;
+    /* No ConnectionManager supports the selected transport. */
+    if(!haveConnectionManager)
+        res = UA_STATUSCODE_BADNOTSUPPORTED;
 
-    /* Opening the TCP connection failed */
+    /* Preserve the established public status for transport-open failures. */
+    if(haveConnectionManager &&
+       (res != UA_STATUSCODE_GOOD ||
+        client->channel.state == UA_SECURECHANNELSTATE_CLOSED))
+        res = UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    /* Opening the transport connection failed */
     if(res != UA_STATUSCODE_GOOD || client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Could not open a TCP connection to %S",
+                       "Could not open a binary transport connection to %S",
                        client->config.endpointUrl);
-        setConnectStatus(client, UA_STATUSCODE_BADCONNECTIONCLOSED);
+        if(client->connectStatus == UA_STATUSCODE_GOOD)
+            setConnectStatus(client, res);
     }
 }
 
@@ -2859,13 +2982,14 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
 
-    /* Close the SecureChannel */
-    closeSecureChannel(client);
-
     /* Manually set the status to closed to prevent an automatic reconnection.
-     * Notify the client at the end. */
+     * Do this before closing because some ConnectionManagers report the close
+     * synchronously. Notify the client at the end. */
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    /* Close the SecureChannel */
+    closeSecureChannel(client);
 
     /* In the synchronous case, loop until the client has actually closed. */
     UA_EventLoop *el = client->config.eventLoop;

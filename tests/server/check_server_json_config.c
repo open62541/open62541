@@ -31,6 +31,7 @@ START_TEST(UA_new_server_from_json) {
     ck_assert_uint_eq(config->webSocketBufSize, 32000);
     ck_assert_uint_eq(config->webSocketMaxMsgSize, 1000000);
     ck_assert_uint_eq(config->webSocketMaxChunks, 100);
+    ck_assert_uint_eq(config->webSocketMaxQueueSize, 2000000);
 #endif
     UA_ByteString_clear(&json_config);
     UA_Server_delete(server);

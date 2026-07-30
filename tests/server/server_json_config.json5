@@ -61,6 +61,7 @@
     webSocketBufSize: 32000,
     webSocketMaxMsgSize: 1000000,
     webSocketMaxChunks: 100,
+    webSocketMaxQueueSize: 2000000,
   },
 
   // Limits for SecureChannels

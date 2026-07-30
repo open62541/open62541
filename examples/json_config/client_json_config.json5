@@ -75,6 +75,14 @@
   // Enable SO_REUSEADDR for OPC UA TCP transport.
   tcpReuseAddr: true,
 
+  // Optional CA certificate for opc.wss TLS. This trust anchor is separate
+  // from the OPC UA SecurityPolicy trust list. If omitted, libwebsockets uses
+  // the system trust store. PEM bundles and DER certificates are supported.
+  // webSocketCaCertificate: "./certs/websocket_ca.pem",
+
+  // Maximum bytes queued while a WebSocket peer is not writable.
+  webSocketMaxQueueSize: 1048576,
+
   // Optional explicit EndpointDescription. Use this when endpoint settings are
   // already known and should be pinned.
   //endpoint: {

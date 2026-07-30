@@ -616,8 +616,9 @@ struct UA_ClientConfig {
      * under these restrictions, then the connection will abort with an error
      * message. */
 
-    UA_String endpointUrl; /* The URI for the client to connect to
-                            * ("opc.tcp://host:port") */
+    UA_String endpointUrl; /* The URI for the client to connect to, e.g.
+                            * "opc.tcp://host:port" or
+                            * "opc.wss://host:port/path" */
 
     /* Session config */
     UA_ExtensionObject userIdentityToken; /* UserIdentityToken containing e.g.
@@ -643,6 +644,13 @@ struct UA_ClientConfig {
     UA_UInt32 connectivityCheckInterval; /* Connectivity check interval in ms.
                                           * 0 -> background task disabled */
     UA_Boolean tcpReuseAddr; /* Specific to OPC UA with TCP transport. */
+#ifdef UA_ENABLE_LWS
+    UA_ByteString webSocketCaCertificate; /* DER or PEM encoded CA certificate
+                                           * for WebSocket TLS. The system trust
+                                           * store is used when empty. */
+    UA_UInt32 webSocketMaxQueueSize; /* Max bytes queued for a slow WebSocket
+                                      * peer (default: 16 * sendBufferSize) */
+#endif
 
     /* Endpoint Selection
      * ~~~~~~~~~~~~~~~~~~

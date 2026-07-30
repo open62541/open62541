@@ -833,6 +833,8 @@ PARSE_JSON(WebSocketConfigurationField) {
             retval = UInt32Field_parseJson(ctx, &config->webSocketMaxMsgSize, NULL);
         } else if(strcmp(field, "webSocketMaxChunks") == 0) {
             retval = UInt32Field_parseJson(ctx, &config->webSocketMaxChunks, NULL);
+        } else if(strcmp(field, "webSocketMaxQueueSize") == 0) {
+            retval = UInt32Field_parseJson(ctx, &config->webSocketMaxQueueSize, NULL);
         } else if(strcmp(field, "certificate") == 0) {
             UA_ByteString_clear(&config->webSocketCertificate);
             retval = CertificateFileField_parseJson(
@@ -1637,6 +1639,16 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->asyncServiceCallRule, NULL);
                 else if(strcmp(field, "tcpReuseAddr") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
+#ifdef UA_ENABLE_LWS
+                else if(strcmp(field, "webSocketMaxQueueSize") == 0)
+                    retval = UInt32Field_parseJson(
+                        &ctx, &config->webSocketMaxQueueSize, NULL);
+                else if(strcmp(field, "webSocketCaCertificate") == 0) {
+                    UA_ByteString_clear(&config->webSocketCaCertificate);
+                    retval = CertificateFileField_parseJson(
+                        &ctx, &config->webSocketCaCertificate, NULL);
+                }
+#endif
                 else if(strcmp(field, "endpoint") == 0)
                     retval = EndpointDescription_parseJson(&ctx, &config->endpoint, NULL);
                 else if(strcmp(field, "userTokenPolicy") == 0)
