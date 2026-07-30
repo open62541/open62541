@@ -23,6 +23,7 @@ static const UA_KeyValueRestriction mqttLwsConnectionParams[] = {
     {{0, UA_STRING_STATIC("certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
     {{0, UA_STRING_STATIC("private-key")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
     {{0, UA_STRING_STATIC("private-key-password")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("ca-certificate")}, &UA_TYPES[UA_TYPES_BYTESTRING], false, true, false},
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("subscribe")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("topic")}, &UA_TYPES[UA_TYPES_STRING], true, true, false}
@@ -228,10 +229,6 @@ callbackMqtt(struct lws *wsi, enum lws_callback_reasons reason,
          * All subsequent MQTT operations must use that child so per-stream
          * acknowledgement and subscription state is updated correctly. */
         connection->wsi = wsi;
-        if(connection->useSSL &&
-           UA_LWS_verifyPeerCertificate(&connection->manager->cm, wsi) !=
-               UA_STATUSCODE_GOOD)
-            return -1;
         if(connection->subscribe) {
             connection->subscribePending = true;
             UA_LWS_requestWritable(wsi);
@@ -347,7 +344,6 @@ eventSourceDelete(UA_ConnectionManager *cm) {
     MQTTLwsConnectionManager *manager = (MQTTLwsConnectionManager*)cm;
     if(manager->lwsContext)
         UA_LWS_releaseContext(cm->eventSource.eventLoop);
-    UA_LWS_clearCertificateGroup(cm);
     UA_String_clear(&cm->eventSource.name);
     UA_free(manager);
     return UA_STATUSCODE_GOOD;
@@ -439,13 +435,6 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "useSSL"),
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     connection->useSSL = useSSL && *useSSL;
-#ifdef LWS_WITH_MBEDTLS
-    if(connection->useSSL && cm->certificateGroup) {
-        clearConnection(connection);
-        UA_free(connection);
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-#endif
     const UA_UInt16 *keepAlive = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "keep-alive"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
@@ -466,10 +455,15 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     const UA_String *keyPassword = (const UA_String*)
         UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "private-key-password"),
                                  &UA_TYPES[UA_TYPES_STRING]);
+    const UA_ByteString *caCertificate = (const UA_ByteString*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "ca-certificate"),
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
     if((certificate && !privateKey) || (!certificate && privateKey) ||
        (certificate && (certificate->length > UINT_MAX ||
                         privateKey->length > UINT_MAX)) ||
-       (certificate && !connection->useSSL)) {
+       (caCertificate && caCertificate->length > UINT_MAX) ||
+       (certificate && !connection->useSSL) ||
+       (caCertificate && !connection->useSSL)) {
         clearConnection(connection);
         UA_free(connection);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -495,9 +489,13 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         vi.client_ssl_key_mem_len = (unsigned int)privateKey->length;
         vi.client_ssl_private_key_password = keyPasswordCString;
     }
+    if(caCertificate) {
+        vi.client_ssl_ca_mem = caCertificate->data;
+        vi.client_ssl_ca_mem_len = (unsigned int)caCertificate->length;
+    }
 #else
     char *keyPasswordCString = NULL;
-    if(connection->useSSL || certificate) {
+    if(connection->useSSL || certificate || caCertificate) {
         clearConnection(connection);
         UA_free(connection);
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -529,13 +527,8 @@ openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     info.mqtt_cp = &connection->connectParams;
     info.userdata = connection;
     info.opaque_user_data = connection;
-    if(connection->useSSL) {
+    if(connection->useSSL)
         info.ssl_connection |= LCCSCF_USE_SSL;
-        if(cm->certificateGroup)
-            info.ssl_connection |= LCCSCF_ALLOW_INSECURE |
-                                   LCCSCF_ALLOW_SELFSIGNED |
-                                   LCCSCF_ALLOW_EXPIRED;
-    }
 
     LIST_INSERT_HEAD(&manager->connections, connection, next);
     struct lws *wsi = lws_client_connect_via_info(&info);
