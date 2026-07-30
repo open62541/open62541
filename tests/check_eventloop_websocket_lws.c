@@ -4,8 +4,14 @@
 
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 #include <check.h>
 #include <stdio.h>
+
+#ifdef UA_ENABLE_DISCOVERY
+#include "server/ua_server_internal.h"
+#endif
 
 static UA_Boolean certificateVerified;
 static UA_Boolean certificateGroupCleared;
@@ -77,6 +83,19 @@ static void run(UA_EventLoop *el, UA_Boolean *done) {
     ck_assert(*done);
 }
 
+static UA_ConnectionManager *
+findWebSocketConnectionManager(UA_EventLoop *el) {
+    const UA_String websocket = UA_STRING_STATIC("websocket");
+    for(UA_EventSource *es = el->eventSources; es != NULL; es = es->next) {
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(UA_String_equal(&cm->protocol, &websocket))
+            return cm;
+    }
+    return NULL;
+}
+
 START_TEST(clientServerBinary) {
     TestContext ctx = {0};
     UA_ConnectionManager *ws =
@@ -146,6 +165,71 @@ START_TEST(clientServerBinary) {
     for(size_t i = 0; i < 200 && !stopped; i++) { el->run(el, 50); stopped = el->state == UA_EVENTLOOPSTATE_STOPPED; }
     ck_assert(stopped);
     el->free(el);
+}
+END_TEST
+
+START_TEST(serverWebSocketListener) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert(config->tcpEnabled);
+    ck_assert(!config->webSocketEnabled);
+    UA_ConnectionManager *ws =
+        findWebSocketConnectionManager(config->eventLoop);
+    ck_assert_ptr_nonnull(ws);
+
+    UA_ByteString certificate = loadFile("server_cert.der");
+    UA_ByteString privateKey = loadFile("server_key.der");
+    ck_assert_ptr_nonnull(certificate.data);
+    ck_assert_ptr_nonnull(privateKey.data);
+    config->webSocketEnabled = true;
+    config->webSocketCertificate = certificate;
+    config->webSocketPrivateKey = privateKey;
+
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = NULL;
+    config->serverUrlsSize = 0;
+    const UA_String url = UA_STRING_STATIC("opc.wss://:0/opcua");
+    ck_assert_uint_eq(UA_Array_appendCopy((void**)&config->serverUrls,
+                                         &config->serverUrlsSize, &url,
+                                         &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, 1);
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    ck_assert_uint_eq(
+        UA_parseEndpointUrl(&config->applicationDescription.discoveryUrls[0],
+                            &hostname, &port, &path),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(hostname.length, 0);
+    ck_assert_uint_ne(port, 0);
+    const UA_String expectedPath = UA_STRING_STATIC("opcua");
+    ck_assert(UA_String_equal(&path, &expectedPath));
+
+#ifdef UA_ENABLE_DISCOVERY
+    UA_EndpointDescription *endpoints = NULL;
+    size_t endpointsSize = 0;
+    ck_assert_uint_eq(
+        setCurrentEndpointsArray(
+            server, config->applicationDescription.discoveryUrls[0], NULL, 0,
+            &endpoints, &endpointsSize),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(endpointsSize, 0);
+    const UA_String wssTransport = UA_STRING_STATIC(
+        "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
+    for(size_t i = 0; i < endpointsSize; i++)
+        ck_assert(UA_String_equal(&endpoints[i].transportProfileUri,
+                                  &wssTransport));
+    UA_Array_delete(endpoints, endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+#endif
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
 }
 END_TEST
 
@@ -293,6 +377,7 @@ int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
     tcase_add_test(tc, clientServerBinary);
+    tcase_add_test(tc, serverWebSocketListener);
     tcase_add_test(tc, clientServerRejectsPolicyMismatch);
     tcase_add_test(tc, clientServerTlsCertificateGroup);
     suite_add_tcase(s, tc);

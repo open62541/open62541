@@ -508,6 +508,13 @@ UA_Server_init(UA_Server *server) {
     res = addDriver(server, server->binaryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
 
+#ifdef UA_ENABLE_LWS
+    /* Initialize OPC UA Binary over WebSockets */
+    server->webSocketDriver = UA_WebSocketProtocolManager_new();
+    res = addDriver(server, server->webSocketDriver);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
     /* Initialize the reverse connect binary protocol support */
     server->reverseBinaryDriver = UA_ReverseBinaryProtocolManager_new();
     res = addDriver(server, server->reverseBinaryDriver);
@@ -956,6 +963,34 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     UA_ServerConfig *config = &server->config;
+
+#ifdef UA_ENABLE_LWS
+    if(config->webSocketEnabled) {
+        const UA_String prefix = UA_STRING_STATIC("opc.wss://");
+        UA_Boolean haveWebSocketUrl = false;
+        for(size_t i = 0; i < config->serverUrlsSize; i++) {
+            const UA_String *url = &config->serverUrls[i];
+            if(url->length >= prefix.length &&
+               memcmp(url->data, prefix.data, prefix.length) == 0) {
+                haveWebSocketUrl = true;
+                break;
+            }
+        }
+        if(!haveWebSocketUrl) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "WebSocket transport is enabled but no opc.wss "
+                         "ServerUrl is configured");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+        if(config->webSocketCertificate.length == 0 ||
+           config->webSocketPrivateKey.length == 0) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "WebSocket transport is enabled but its TLS "
+                         "certificate or private key is empty");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+#endif
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Prominently warn user that fuzzing build is enabled. This will tamper

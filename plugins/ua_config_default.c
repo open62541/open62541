@@ -314,6 +314,17 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(tcpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
 
+#ifdef UA_ENABLE_LWS
+        /* Add the WebSocket connection manager. A server opens a WebSocket
+         * listener when an opc.wss ServerUrl and TLS credentials are configured. */
+        UA_ConnectionManager *wsCM =
+            UA_ConnectionManager_new_LWS_WebSocket(
+                UA_STRING("websocket connection manager"));
+        if(wsCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop,
+                                                 (UA_EventSource*)wsCM);
+#endif
+
         /* Add the UDP connection manager */
 #if defined(UA_ARCHITECTURE_LWIP)
         UA_ConnectionManager *udpCM =
@@ -366,6 +377,10 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
      * Having port reuse enabled is important for development.
      * Otherwise a long TCP TIME_WAIT is required before the port can be used again. */
     conf->tcpReuseAddr = true;
+    conf->tcpEnabled = true;
+#ifdef UA_ENABLE_LWS
+    conf->webSocketEnabled = false;
+#endif
 
     /* --> Start setting the default static config <-- */
 
@@ -667,6 +682,9 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
      * intentionally ignored (see the doxygen note on the declaration). */
     (void)sendBufferSize;
     config->tcpBufSize = recvBufferSize;
+#ifdef UA_ENABLE_LWS
+    config->webSocketBufSize = recvBufferSize;
+#endif
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);

@@ -2234,10 +2234,10 @@ struct UA_ServerConfig {
 
     /* Networking
      * ~~~~~~~~~~
-     * The `severUrls` array contains the server URLs like
+     * The `serverUrls` array contains the server URLs like
      * `opc.tcp://my-server:4840` or `opc.wss://localhost:443`. The URLs are
      * used both for discovery and to set up the server sockets based on the
-     * defined hostnames (and ports).
+     * defined hostnames, ports and WebSocket paths.
      *
      * - If the list is empty: Listen on all network interfaces with TCP port 4840.
      * - If the hostname of a URL is empty: Use the define protocol and port and
@@ -2246,7 +2246,7 @@ struct UA_ServerConfig {
     size_t serverUrlsSize;
 
     /* The following settings are specific to OPC UA with TCP transport. */
-    UA_Boolean tcpEnabled;
+    UA_Boolean tcpEnabled;    /* Enable the TCP listener (default: true) */
     UA_UInt32 tcpBufSize;    /* Max length of sent and received chunks (packets)
                               * (default: 64kB) */
     UA_UInt32 tcpMaxMsgSize; /* Max length of messages
@@ -2254,6 +2254,26 @@ struct UA_ServerConfig {
     UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
                               * (default: 0 -> unbounded) */
     UA_Boolean tcpReuseAddr;
+
+#ifdef UA_ENABLE_LWS
+    /* The following settings are specific to OPC UA Binary over WebSockets.
+     * The transport is opt-in and requires an opc.wss ServerUrl together with
+     * a TLS certificate/private-key pair. The TLS credentials protect the
+     * WebSocket transport and are independent of OPC UA SecurityPolicies. */
+    UA_Boolean webSocketEnabled; /* Enable the WebSocket listener
+                                   * (default: false) */
+    UA_UInt32 webSocketBufSize;    /* Max length of sent and received chunks
+                                    * (default: 64kB) */
+    UA_UInt32 webSocketMaxMsgSize; /* Max length of messages
+                                    * (default: 0 -> unbounded) */
+    UA_UInt32 webSocketMaxChunks;  /* Max number of chunks per message
+                                    * (default: 0 -> unbounded) */
+    UA_UInt32 webSocketMaxQueueSize; /* Max bytes queued for a slow WebSocket
+                                      * peer (default: 16 * webSocketBufSize) */
+    UA_ByteString webSocketCertificate; /* TLS certificate, DER or PEM */
+    UA_ByteString webSocketPrivateKey;  /* TLS private key, DER or PEM */
+    UA_String webSocketPrivateKeyPassword;
+#endif
 
     /* Security and Encryption
      * ~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -2889,7 +2909,9 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
  * ``examples/server_json_config.c`` document the intended workflow and the
  * currently supported keys. They cover the common runtime limits as well as
  * optional blocks for discovery, subscriptions, historizing, PubSub and
- * security policy configuration.
+ * security policy configuration. TCP is enabled by default. WebSockets are
+ * disabled by default and can be configured with ``webSocketEnabled`` and the
+ * ``webSocket`` block when ``UA_ENABLE_LWS`` is compiled in.
  *
  * The following functions require JSON encoding support
  * (``UA_ENABLE_JSON_ENCODING``). */

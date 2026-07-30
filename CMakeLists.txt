@@ -957,6 +957,10 @@ if(UA_ENABLE_RBAC)
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.h)
 endif()
 
+if(UA_ENABLE_LWS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ws.c)
+endif()
+
 # Dependencies
 set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c

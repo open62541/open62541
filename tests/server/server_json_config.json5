@@ -56,6 +56,12 @@
     tcpMaxMsgSize: 0,
     tcpMaxChunks: 0,
   },
+  webSocketEnabled: false,
+  webSocket: {
+    webSocketBufSize: 32000,
+    webSocketMaxMsgSize: 1000000,
+    webSocketMaxChunks: 100,
+  },
 
   // Limits for SecureChannels
   maxSecureChannels: 10,

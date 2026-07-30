@@ -139,6 +139,9 @@ struct UA_Server {
      * have direct pointers for fast access below. */
     UA_Driver *drivers; /* linked-list of all SC */
     UA_Driver *binaryDriver;
+#ifdef UA_ENABLE_LWS
+    UA_Driver *webSocketDriver;
+#endif
     UA_Driver *reverseBinaryDriver;
     UA_Driver *discoveryDriver;
     UA_Driver *pubSubDriver;
@@ -763,6 +766,7 @@ struct UA_BinaryProtocolManager {
     const UA_Logger *logging; /* shortcut */
     UA_String protocolName;   /* Transport name used for logging */
     UA_UInt64 houseKeepingCallbackId;
+    UA_ConnectionConfig connectionConfig;
 
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
@@ -782,7 +786,16 @@ UA_BinaryProtocolManager_init(UA_BinaryProtocolManager *bpm,
                               UA_BinaryProtocolManagerStartTransport startTransport,
                               UA_BinaryProtocolManagerAddDiscoveryUrl addDiscoveryUrl);
 
+void
+UA_BinaryConnectionConfig_set(UA_ConnectionConfig *connectionConfig,
+                              UA_UInt32 bufSize, UA_UInt32 maxMsgSize,
+                              UA_UInt32 maxChunks);
+
 UA_Driver * UA_BinaryProtocolManager_new(void);
+
+#ifdef UA_ENABLE_LWS
+UA_Driver * UA_WebSocketProtocolManager_new(void);
+#endif
 
 UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
 
@@ -792,7 +805,9 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_ByteString *message);
 
 UA_StatusCode
-createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
+createServerSecureChannel(UA_Server *server,
+                          const UA_ConnectionConfig *connectionConfig,
+                          UA_ConnectionManager *cm,
                           uintptr_t connectionId, const UA_KeyValueMap *params,
                           UA_SecureChannel **outChannel);
 

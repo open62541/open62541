@@ -41,7 +41,18 @@ static void teardown(void) {
 
 START_TEST(checkGetConfig) {
     ck_assert_ptr_eq(UA_Server_getConfig(NULL), NULL);
-    ck_assert_ptr_ne(UA_Server_getConfig(server), NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert_ptr_ne(config, NULL);
+    ck_assert(config->tcpEnabled);
+} END_TEST
+
+START_TEST(checkTcpDisabled) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, 0);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(checkGetNamespaceByName) {
@@ -670,6 +681,7 @@ int main(void) {
     TCase *tc_call = tcase_create("server - basics");
     tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, checkGetConfig);
+    tcase_add_test(tc_call, checkTcpDisabled);
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);

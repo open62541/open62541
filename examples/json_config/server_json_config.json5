@@ -52,6 +52,18 @@
     tcpMaxChunks: 0,
   },
 
+  // OPC UA Binary over WebSockets is opt-in. Add an opc.wss URL above and
+  // provide the TLS files before enabling it.
+  webSocketEnabled: false,
+  webSocket: {
+    webSocketBufSize: 65535,
+    webSocketMaxMsgSize: 0,
+    webSocketMaxChunks: 0,
+    // certificate: "./certs/server_cert.der",
+    // privateKey: "./certs/server_key.pem",
+    // privateKeyPassword: "secret",
+  },
+
   // Endpoint definitions exposed to clients. Match the client configuration.
   // endpoints: [
   //   {
