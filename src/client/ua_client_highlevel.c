@@ -1345,11 +1345,58 @@ cleanup:
 /* Async Functions */
 /*******************/
 
+static void
+callAsyncCallback(UA_Client *client, void *userdata,
+                  UA_UInt32 requestId, void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.call)
+        ctx->callback.call(client, ctx->userdata, requestId,
+                           (UA_CallResponse*)response);
+}
+
+static void
+addNodesAsyncCallback(UA_Client *client, void *userdata,
+                      UA_UInt32 requestId, void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.addNodes)
+        ctx->callback.addNodes(client, ctx->userdata, requestId,
+                               (UA_AddNodesResponse*)response);
+}
+
+static void
+writeAsyncCallback(UA_Client *client, void *userdata,
+                   UA_UInt32 requestId, void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.write)
+        ctx->callback.write(client, ctx->userdata, requestId,
+                            (UA_WriteResponse*)response);
+}
+
+static UA_StatusCode
+highlevelAsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback adapter,
+                      UA_AsyncCallback callback,
+                      const UA_DataType *responseType, void *userdata,
+                      UA_UInt32 *requestId) {
+    UA_AsyncCallbackContext ctx;
+    ctx.callback = callback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    UA_StatusCode res =
+        __Client_AsyncServiceWithContext(client, request, requestType,
+                                         adapter, responseType,
+                                         NULL, &ctx, requestId);
+    unlockClient(client);
+    return res;
+}
+
 static UA_StatusCode
 __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                  UA_AttributeId attributeId, const void *in,
                                  const UA_DataType *inDataType,
-                                 UA_ClientAsyncServiceCallback callback,
+                                 UA_ClientAsyncWriteCallback callback,
                                  void *userdata, UA_UInt32 *reqId) {
     if(!in)
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1370,9 +1417,11 @@ __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
     wReq.nodesToWrite = &wValue;
     wReq.nodesToWriteSize = 1;
 
-    return __UA_Client_AsyncService(client, &wReq,
-                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+    UA_AsyncCallback cb;
+    cb.write = callback;
+    return highlevelAsyncService(client, &wReq, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                                 writeAsyncCallback, cb,
+                                 &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
 }
 
 UA_StatusCode
@@ -1391,26 +1440,87 @@ UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
     item.inputArgumentsSize = inputSize;
     request.methodsToCall = &item;
     request.methodsToCallSize = 1;
-    return __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_CALLREQUEST], (UA_ClientAsyncServiceCallback)callback,
-            &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
+    UA_AsyncCallback cb;
+    cb.call = callback;
+    return highlevelAsyncService(client, &request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                                 callAsyncCallback, cb,
+                                 &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
 }
 
 /*************************/
 /* Read Single Attribute */
 /*************************/
 
-typedef struct {
-    UA_ClientAsyncOperationCallback userCallback;
-    void *userContext;
-    const UA_DataType *resultType; /* DataValue -> Value attribute,
-                                    * Variant -> ArrayDimensions attribute */
-} UA_AttributeReadContext;
+static void
+invokeAttributeReadCallback(UA_Client *client, UA_AsyncCallbackContext *ctx,
+                            UA_UInt32 requestId, UA_StatusCode status,
+                            void *result) {
+    switch(ctx->resultType->typeKind) {
+    case UA_DATATYPEKIND_DATAVALUE:
+        if(ctx->callback.dataValue)
+            ctx->callback.dataValue(client, ctx->userdata, requestId, status,
+                                    (UA_DataValue*)result);
+        break;
+    case UA_DATATYPEKIND_NODEID:
+        if(ctx->callback.nodeId)
+            ctx->callback.nodeId(client, ctx->userdata, requestId, status,
+                                 (UA_NodeId*)result);
+        break;
+    case UA_DATATYPEKIND_VARIANT:
+        if(ctx->callback.variant)
+            ctx->callback.variant(client, ctx->userdata, requestId, status,
+                                  (UA_Variant*)result);
+        break;
+    case UA_DATATYPEKIND_ENUM:
+        if(ctx->callback.nodeClass)
+            ctx->callback.nodeClass(client, ctx->userdata, requestId, status,
+                                    (UA_NodeClass*)result);
+        break;
+    case UA_DATATYPEKIND_QUALIFIEDNAME:
+        if(ctx->callback.qualifiedName)
+            ctx->callback.qualifiedName(client, ctx->userdata, requestId, status,
+                                        (UA_QualifiedName*)result);
+        break;
+    case UA_DATATYPEKIND_LOCALIZEDTEXT:
+        if(ctx->callback.localizedText)
+            ctx->callback.localizedText(client, ctx->userdata, requestId, status,
+                                        (UA_LocalizedText*)result);
+        break;
+    case UA_DATATYPEKIND_UINT32:
+        if(ctx->callback.uint32)
+            ctx->callback.uint32(client, ctx->userdata, requestId, status,
+                                 (UA_UInt32*)result);
+        break;
+    case UA_DATATYPEKIND_BOOLEAN:
+        if(ctx->callback.boolean)
+            ctx->callback.boolean(client, ctx->userdata, requestId, status,
+                                  (UA_Boolean*)result);
+        break;
+    case UA_DATATYPEKIND_BYTE:
+        if(ctx->callback.byte)
+            ctx->callback.byte(client, ctx->userdata, requestId, status,
+                               (UA_Byte*)result);
+        break;
+    case UA_DATATYPEKIND_INT32:
+        if(ctx->callback.int32)
+            ctx->callback.int32(client, ctx->userdata, requestId, status,
+                                (UA_Int32*)result);
+        break;
+    case UA_DATATYPEKIND_DOUBLE:
+        if(ctx->callback.doubleValue)
+            ctx->callback.doubleValue(client, ctx->userdata, requestId, status,
+                                      (UA_Double*)result);
+        break;
+    default:
+        UA_assert(false);
+    }
+}
 
 static void
 AttributeReadCallback(UA_Client *client, void *userdata,
-                      UA_UInt32 requestId, UA_ReadResponse *rr) {
-    UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)userdata;
+                      UA_UInt32 requestId, void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    UA_ReadResponse *rr = (UA_ReadResponse*)response;
     UA_LOG_DEBUG(UA_Client_getConfig(client)->logging, UA_LOGCATEGORY_CLIENT,
                 "Async read response for request %" PRIu32, requestId);
 
@@ -1430,8 +1540,8 @@ AttributeReadCallback(UA_Client *client, void *userdata,
     /* A Value attribute */
     dv = &rr->results[0];
     if(ctx->resultType == &UA_TYPES[UA_TYPES_DATAVALUE]) {
-        ctx->userCallback(client, ctx->userContext, requestId,
-                          UA_STATUSCODE_GOOD, dv);
+        invokeAttributeReadCallback(client, ctx, requestId,
+                                    UA_STATUSCODE_GOOD, dv);
         goto finish;
     }
 
@@ -1439,8 +1549,8 @@ AttributeReadCallback(UA_Client *client, void *userdata,
     if(ctx->resultType == &UA_TYPES[UA_TYPES_VARIANT]) {
         if(dv->hasValue &&
            UA_Variant_hasArrayType(&dv->value, &UA_TYPES[UA_TYPES_UINT32])) {
-            ctx->userCallback(client, ctx->userContext, requestId,
-                              UA_STATUSCODE_GOOD, &dv->value);
+            invokeAttributeReadCallback(client, ctx, requestId,
+                                        UA_STATUSCODE_GOOD, &dv->value);
         } else {
             res = UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -1468,29 +1578,24 @@ AttributeReadCallback(UA_Client *client, void *userdata,
     }
 
     /* Callback into userland */
-    ctx->userCallback(client, ctx->userContext, requestId,
-                      UA_STATUSCODE_GOOD, dv->value.data);
+    invokeAttributeReadCallback(client, ctx, requestId,
+                                UA_STATUSCODE_GOOD, dv->value.data);
 
  finish:
     if(res != UA_STATUSCODE_GOOD)
-        ctx->userCallback(client, ctx->userContext, requestId, res, NULL);
-    UA_free(ctx);
+        invokeAttributeReadCallback(client, ctx, requestId, res, NULL);
 }
 
 static UA_StatusCode
 readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
                     UA_TimestampsToReturn timestampsToReturn,
                     const UA_DataType *resultType, /* For the specialized reads */
-                    UA_ClientAsyncOperationCallback callback,
+                    UA_AsyncCallback callback,
                     void *userdata, UA_UInt32 *requestId) {
-    UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)
-        UA_malloc(sizeof(UA_AttributeReadContext));
-    if(!ctx)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    ctx->userCallback = callback;
-    ctx->userContext = userdata;
-    ctx->resultType = resultType;
+    UA_AsyncCallbackContext ctx;
+    ctx.callback = callback;
+    ctx.userdata = userdata;
+    ctx.resultType = resultType;
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -1498,12 +1603,14 @@ readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
     request.nodesToReadSize = 1;
     request.timestampsToReturn = timestampsToReturn;
 
+    lockClient(client);
     UA_StatusCode res =
-        __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                                 (UA_ClientAsyncServiceCallback)AttributeReadCallback,
-                                 &UA_TYPES[UA_TYPES_READRESPONSE], ctx, requestId);
-    if(res != UA_STATUSCODE_GOOD)
-        UA_free(ctx);
+        __Client_AsyncServiceWithContext(client, &request,
+                                         &UA_TYPES[UA_TYPES_READREQUEST],
+                                         AttributeReadCallback,
+                                         &UA_TYPES[UA_TYPES_READRESPONSE],
+                                         NULL, &ctx, requestId);
+    unlockClient(client);
     return res;
 }
 
@@ -1512,9 +1619,11 @@ UA_Client_readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
                               UA_TimestampsToReturn timestampsToReturn,
                               UA_ClientAsyncReadAttributeCallback callback,
                               void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.dataValue = callback;
     return readAttribute_async(client, rvi, timestampsToReturn,
                                &UA_TYPES[UA_TYPES_DATAVALUE], /* special handling */
-                               (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                userdata, requestId);
 }
 
@@ -1522,7 +1631,7 @@ UA_Client_readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
 static UA_StatusCode
 readAttribute_simpleAsync(UA_Client *client, const UA_NodeId *nodeId,
                           UA_AttributeId attributeId, const UA_DataType *resultType,
-                          UA_ClientAsyncOperationCallback callback,
+                          UA_AsyncCallback callback,
                           void *userdata, UA_UInt32 *requestId) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -1536,9 +1645,11 @@ UA_StatusCode
 UA_Client_readValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                    UA_ClientAsyncReadValueAttributeCallback callback,
                                    void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.dataValue = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_VALUE,
                                      &UA_TYPES[UA_TYPES_DATAVALUE], /* special hndling */
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1546,9 +1657,11 @@ UA_StatusCode
 UA_Client_readDataTypeAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                       UA_ClientAsyncReadDataTypeAttributeCallback callback,
                                       void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.nodeId = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
                                      &UA_TYPES[UA_TYPES_NODEID],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1556,9 +1669,11 @@ UA_StatusCode
 UA_Client_readArrayDimensionsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientReadArrayDimensionsAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.variant = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
                                      &UA_TYPES[UA_TYPES_VARIANT], /* special handling */
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1566,9 +1681,11 @@ UA_StatusCode
 UA_Client_readNodeClassAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadNodeClassAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.nodeClass = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_NODECLASS,
                                      &UA_TYPES[UA_TYPES_NODECLASS],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1576,9 +1693,11 @@ UA_StatusCode
 UA_Client_readBrowseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadBrowseNameAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.qualifiedName = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
                                      &UA_TYPES[UA_TYPES_QUALIFIEDNAME],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1586,9 +1705,11 @@ UA_StatusCode
 UA_Client_readDisplayNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadDisplayNameAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.localizedText = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1596,9 +1717,11 @@ UA_StatusCode
 UA_Client_readDescriptionAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadDescriptionAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.localizedText = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1606,9 +1729,11 @@ UA_StatusCode
 UA_Client_readWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadWriteMaskAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.uint32 = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
                                      &UA_TYPES[UA_TYPES_UINT32],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1616,9 +1741,11 @@ UA_StatusCode UA_EXPORT
 UA_Client_readUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                            UA_ClientAsyncReadUserWriteMaskAttributeCallback callback,
                                            void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.uint32 = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USERWRITEMASK,
                                      &UA_TYPES[UA_TYPES_UINT32],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1626,9 +1753,11 @@ UA_StatusCode
 UA_Client_readIsAbstractAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadIsAbstractAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.boolean = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
                                      &UA_TYPES[UA_TYPES_BOOLEAN],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1636,9 +1765,11 @@ UA_StatusCode
 UA_Client_readSymmetricAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadSymmetricAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.boolean = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
                                      &UA_TYPES[UA_TYPES_BOOLEAN],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1646,9 +1777,11 @@ UA_StatusCode
 UA_Client_readInverseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadInverseNameAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.localizedText = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1656,9 +1789,11 @@ UA_StatusCode
 UA_Client_readContainsNoLoopsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientAsyncReadContainsNoLoopsAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.boolean = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS,
                                      &UA_TYPES[UA_TYPES_BOOLEAN],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1666,9 +1801,11 @@ UA_StatusCode
 UA_Client_readEventNotifierAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                            UA_ClientAsyncReadEventNotifierAttributeCallback callback,
                                            void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.byte = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
                                      &UA_TYPES[UA_TYPES_BYTE],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1676,9 +1813,11 @@ UA_StatusCode
 UA_Client_readValueRankAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadValueRankAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.int32 = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_VALUERANK,
                                      &UA_TYPES[UA_TYPES_INT32],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1686,9 +1825,11 @@ UA_StatusCode
 UA_Client_readAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadAccessLevelAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.byte = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                                      &UA_TYPES[UA_TYPES_BYTE],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1696,9 +1837,11 @@ UA_StatusCode
 UA_Client_readAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                            UA_ClientAsyncReadAccessLevelExAttributeCallback callback,
                                            void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.uint32 = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
                                      &UA_TYPES[UA_TYPES_UINT32],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1706,9 +1849,11 @@ UA_StatusCode
 UA_Client_readUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientAsyncReadUserAccessLevelAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.byte = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL,
                                      &UA_TYPES[UA_TYPES_BYTE],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1716,9 +1861,11 @@ UA_StatusCode
 UA_Client_readMinimumSamplingIntervalAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                                      UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback callback,
                                                      void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.doubleValue = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                                      &UA_TYPES[UA_TYPES_DOUBLE],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1726,9 +1873,11 @@ UA_StatusCode
 UA_Client_readHistorizingAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadHistorizingAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.boolean = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
                                      &UA_TYPES[UA_TYPES_BOOLEAN],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1736,9 +1885,11 @@ UA_StatusCode
 UA_Client_readExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadExecutableAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.boolean = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                                      &UA_TYPES[UA_TYPES_BOOLEAN],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1746,9 +1897,11 @@ UA_StatusCode
 UA_Client_readUserExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             UA_ClientAsyncReadUserExecutableAttributeCallback callback,
                                             void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.boolean = callback;
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USEREXECUTABLE,
                                      &UA_TYPES[UA_TYPES_BOOLEAN],
-                                     (UA_ClientAsyncOperationCallback)callback,
+                                     cb,
                                      userdata, requestId);
 }
 
@@ -1758,7 +1911,7 @@ __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
                           const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                           const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
                           const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
-                          UA_ClientAsyncServiceCallback callback, void *userdata,
+                          UA_ClientAsyncAddNodesCallback callback, void *userdata,
                           UA_UInt32 *reqId) {
     UA_AddNodesRequest request;
     UA_AddNodesRequest_init(&request);
@@ -1776,9 +1929,12 @@ __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
     request.nodesToAdd = &item;
     request.nodesToAddSize = 1;
 
-    return __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_ADDNODESREQUEST], callback,
-            &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
+    UA_AsyncCallback cb;
+    cb.addNodes = callback;
+    return highlevelAsyncService(client, &request,
+                                 &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
+                                 addNodesAsyncCallback, cb,
+                                 &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
 
 }
 
@@ -1792,7 +1948,7 @@ UA_Client_addVariableNode_async(UA_Client *client, const UA_NodeId requestedNewN
     return __UA_Client_addNode_async(client, UA_NODECLASS_VARIABLE, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1804,7 +1960,7 @@ UA_Client_addVariableTypeNode_async(UA_Client *client, const UA_NodeId requested
     return __UA_Client_addNode_async(client, UA_NODECLASS_VARIABLETYPE, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1817,7 +1973,7 @@ UA_Client_addObjectNode_async(UA_Client *client, const UA_NodeId requestedNewNod
     return __UA_Client_addNode_async(client, UA_NODECLASS_OBJECT, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1829,7 +1985,7 @@ UA_Client_addObjectTypeNode_async(UA_Client *client, const UA_NodeId requestedNe
     return __UA_Client_addNode_async(client, UA_NODECLASS_OBJECTTYPE, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1841,7 +1997,7 @@ UA_Client_addViewNode_async(UA_Client *client, const UA_NodeId requestedNewNodeI
     return __UA_Client_addNode_async(client, UA_NODECLASS_VIEW, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_VIEWATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1854,7 +2010,7 @@ UA_Client_addReferenceTypeNode_async(UA_Client *client, const UA_NodeId requeste
                                      referenceTypeId, browseName, UA_NODEID_NULL,
                                      (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1866,7 +2022,7 @@ UA_Client_addDataTypeNode_async(UA_Client *client, const UA_NodeId requestedNewN
     return __UA_Client_addNode_async(client, UA_NODECLASS_DATATYPE, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 UA_StatusCode
@@ -1878,7 +2034,7 @@ UA_Client_addMethodNode_async(UA_Client *client, const UA_NodeId requestedNewNod
     return __UA_Client_addNode_async(client, UA_NODECLASS_METHOD, requestedNewNodeId, parentNodeId,
                                      referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
                                      &UA_TYPES[UA_TYPES_METHODATTRIBUTES], outNewNodeId,
-                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+                                     callback, userdata, reqId);
 }
 
 #define UA_CLIENT_ASYNCWRITE_IMPL(NAME, ATTR_ID, ATTR_TYPE, ATTR_TYPEDESC)                               \
@@ -1887,7 +2043,7 @@ UA_Client_addMethodNode_async(UA_Client *client, const UA_NodeId requestedNewNod
                        void *userdata, UA_UInt32 *reqId) {                                               \
         return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_##ATTR_ID, attr,           \
                                                 &UA_TYPES[UA_TYPES_##ATTR_TYPEDESC], \
-                                                (UA_ClientAsyncServiceCallback)callback, userdata, reqId); \
+                                                callback, userdata, reqId);                              \
 }
 
 UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeNodeIdAttribute_async, NODEID, UA_NodeId, NODEID)

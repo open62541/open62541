@@ -1078,7 +1078,7 @@ skipObject(ParseCtx *ctx) {
 }
 
 static status
-Array_decodeJson(ParseCtx *ctx, void **dst, const UA_DataType *type);
+Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type);
 
 static status
 Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p,
@@ -2336,7 +2336,9 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 }
 
 static status
-Array_decodeJson(ParseCtx *ctx, void **dst, const UA_DataType *type) {
+Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type) {
+    void **dst = (void**)dst_;
+
     /* Save the length of the array */
     size_t *size_ptr = (size_t*) dst - 1;
 
@@ -2409,7 +2411,7 @@ decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type) {
             ptr += m->padding;
             ptr += sizeof(size_t);
             entries[i].fieldPointer = (void*)ptr;
-            entries[i].function = (decodeJsonSignature)Array_decodeJson;
+            entries[i].function = Array_decodeJson;
             ptr += sizeof(void*);
         }
     }

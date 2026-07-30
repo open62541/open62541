@@ -173,6 +173,9 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+    /* Current depth while recursively instantiating node children */
+    size_t nodeInstantiationDepth;
+
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The admin session is initialized with a special subscription. This
@@ -878,8 +881,10 @@ struct BrowseOpts {
 };
 
 void
-Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
-                 const UA_BrowseDescription *descr, UA_BrowseResult *result);
+Operation_Browse(UA_Server *server, UA_Session *session,
+                 const void *context /* UA_UInt32 */,
+                 const void *request /* UA_BrowseDescription */,
+                 void *response /* UA_BrowseResult */);
 
 /* External data either from a datasource callback or with a _beforeRead
  * callback where fresh values get switched in on demand. Variables with an

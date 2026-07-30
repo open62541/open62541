@@ -54,12 +54,11 @@ typedef UA_Order
 extern const UA_orderSignature orderJumpTable[UA_DATATYPEKINDS];
 
 static UA_Order
-nodeIdOrder(const UA_NodeId *p1, const UA_NodeId *p2, const UA_DataType *_);
+nodeIdOrder(const void *p1_, const void *p2_, const UA_DataType *_);
 static UA_Order
-expandedNodeIdOrder(const UA_ExpandedNodeId *p1, const UA_ExpandedNodeId *p2,
-                    const UA_DataType *_);
+expandedNodeIdOrder(const void *p1_, const void *p2_, const UA_DataType *_);
 static UA_Order
-guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *_);
+guidOrder(const void *p1_, const void *p2_, const UA_DataType *_);
 
 const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
@@ -2210,12 +2209,14 @@ UA_delete(void *p, const UA_DataType *type) {
 /* Value Ordering */
 /******************/
 
-#define UA_NUMERICORDER(NAME, TYPE)                                 \
-    static UA_Order                                                 \
-    NAME(const TYPE *p1, const TYPE *p2, const UA_DataType *type) { \
-        if(*p1 != *p2)                                              \
-            return (*p1 < *p2) ? UA_ORDER_LESS : UA_ORDER_MORE;     \
-        return UA_ORDER_EQ;                                         \
+#define UA_NUMERICORDER(NAME, TYPE)                                      \
+    static UA_Order                                                      \
+    NAME(const void *p1_, const void *p2_, const UA_DataType *type) {     \
+        const TYPE *p1 = (const TYPE*)p1_;                                \
+        const TYPE *p2 = (const TYPE*)p2_;                                \
+        if(*p1 != *p2)                                                    \
+            return (*p1 < *p2) ? UA_ORDER_LESS : UA_ORDER_MORE;           \
+        return UA_ORDER_EQ;                                               \
     }
 
 UA_NUMERICORDER(booleanOrder, UA_Boolean)
@@ -2228,10 +2229,12 @@ UA_NUMERICORDER(uInt32Order, UA_UInt32)
 UA_NUMERICORDER(int64Order, UA_Int64)
 UA_NUMERICORDER(uInt64Order, UA_UInt64)
 
-#define UA_FLOATORDER(NAME, TYPE)                                   \
-    static UA_Order                                                 \
-    NAME(const TYPE *p1, const TYPE *p2, const UA_DataType *type) { \
-        if(*p1 != *p2) {                                            \
+#define UA_FLOATORDER(NAME, TYPE)                                        \
+    static UA_Order                                                      \
+    NAME(const void *p1_, const void *p2_, const UA_DataType *type) {     \
+        const TYPE *p1 = (const TYPE*)p1_;                                \
+        const TYPE *p2 = (const TYPE*)p2_;                                \
+        if(*p1 != *p2) {                                                  \
             /* p1 is NaN */                                         \
             if(*p1 != *p1) {                                        \
                 if(*p2 != *p2)                                      \
@@ -2250,7 +2253,9 @@ UA_FLOATORDER(floatOrder, UA_Float)
 UA_FLOATORDER(doubleOrder, UA_Double)
 
 static UA_Order
-guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type) {
+guidOrder(const void *p1_, const void *p2_, const UA_DataType *type) {
+    const UA_Guid *p1 = (const UA_Guid*)p1_;
+    const UA_Guid *p2 = (const UA_Guid*)p2_;
     if(p1->data1 != p2->data1)
         return (p1->data1 < p2->data1) ? UA_ORDER_LESS : UA_ORDER_MORE;
     if(p1->data2 != p2->data2)
@@ -2264,7 +2269,9 @@ guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type) {
 }
 
 static UA_Order
-stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type) {
+stringOrder(const void *p1_, const void *p2_, const UA_DataType *type) {
+    const UA_String *p1 = (const UA_String*)p1_;
+    const UA_String *p2 = (const UA_String*)p2_;
     if(p1->length != p2->length)
         return (p1->length < p2->length) ? UA_ORDER_LESS : UA_ORDER_MORE;
     /* For zero-length arrays, every pointer not NULL is considered a
@@ -2279,7 +2286,9 @@ stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type) {
 }
 
 static UA_Order
-nodeIdOrder(const UA_NodeId *p1, const UA_NodeId *p2, const UA_DataType *_) {
+nodeIdOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_NodeId *p1 = (const UA_NodeId*)p1_;
+    const UA_NodeId *p2 = (const UA_NodeId*)p2_;
     /* Compare namespaceIndex */
     if(p1->namespaceIndex != p2->namespaceIndex)
         return (p1->namespaceIndex < p2->namespaceIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
@@ -2305,8 +2314,9 @@ nodeIdOrder(const UA_NodeId *p1, const UA_NodeId *p2, const UA_DataType *_) {
 }
 
 static UA_Order
-expandedNodeIdOrder(const UA_ExpandedNodeId *p1, const UA_ExpandedNodeId *p2,
-                    const UA_DataType *_) {
+expandedNodeIdOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_ExpandedNodeId *p1 = (const UA_ExpandedNodeId*)p1_;
+    const UA_ExpandedNodeId *p2 = (const UA_ExpandedNodeId*)p2_;
     if(p1->serverIndex != p2->serverIndex)
         return (p1->serverIndex < p2->serverIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
     UA_Order o = stringOrder(&p1->namespaceUri, &p2->namespaceUri, NULL);
@@ -2316,16 +2326,18 @@ expandedNodeIdOrder(const UA_ExpandedNodeId *p1, const UA_ExpandedNodeId *p2,
 }
 
 static UA_Order
-qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
-                   const UA_DataType *_) {
+qualifiedNameOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_QualifiedName *p1 = (const UA_QualifiedName*)p1_;
+    const UA_QualifiedName *p2 = (const UA_QualifiedName*)p2_;
     if(p1->namespaceIndex != p2->namespaceIndex)
         return (p1->namespaceIndex < p2->namespaceIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
     return stringOrder(&p1->name, &p2->name, NULL);
 }
 
 static UA_Order
-localizedTextOrder(const UA_LocalizedText *p1, const UA_LocalizedText *p2,
-                   const UA_DataType *_) {
+localizedTextOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_LocalizedText *p1 = (const UA_LocalizedText*)p1_;
+    const UA_LocalizedText *p2 = (const UA_LocalizedText*)p2_;
     UA_Order o = stringOrder(&p1->locale, &p2->locale, NULL);
     if(o != UA_ORDER_EQ)
         return o;
@@ -2333,8 +2345,9 @@ localizedTextOrder(const UA_LocalizedText *p1, const UA_LocalizedText *p2,
 }
 
 static UA_Order
-extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
-                     const UA_DataType *_) {
+extensionObjectOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_ExtensionObject *p1 = (const UA_ExtensionObject*)p1_;
+    const UA_ExtensionObject *p2 = (const UA_ExtensionObject*)p2_;
     UA_ExtensionObjectEncoding enc1 = p1->encoding;
     UA_ExtensionObjectEncoding enc2 = p2->encoding;
     if(enc1 > UA_EXTENSIONOBJECT_DECODED)
@@ -2397,7 +2410,9 @@ arrayOrder(const void *p1, size_t p1Length,
 }
 
 static UA_Order
-variantOrder(const UA_Variant *p1, const UA_Variant *p2, const UA_DataType *_) {
+variantOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_Variant *p1 = (const UA_Variant*)p1_;
+    const UA_Variant *p2 = (const UA_Variant*)p2_;
     if(p1->type != p2->type)
         return ((uintptr_t)p1->type < (uintptr_t)p2->type) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
@@ -2432,7 +2447,9 @@ variantOrder(const UA_Variant *p1, const UA_Variant *p2, const UA_DataType *_) {
 }
 
 static UA_Order
-dataValueOrder(const UA_DataValue *p1, const UA_DataValue *p2, const UA_DataType *_) {
+dataValueOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_DataValue *p1 = (const UA_DataValue*)p1_;
+    const UA_DataValue *p2 = (const UA_DataValue*)p2_;
     /* Value */
     if(p1->hasValue != p2->hasValue)
         return (!p1->hasValue) ? UA_ORDER_LESS : UA_ORDER_MORE;
@@ -2478,8 +2495,9 @@ dataValueOrder(const UA_DataValue *p1, const UA_DataValue *p2, const UA_DataType
 }
 
 static UA_Order
-diagnosticInfoOrder(const UA_DiagnosticInfo *p1, const UA_DiagnosticInfo *p2,
-                    const UA_DataType *_) {
+diagnosticInfoOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
+    const UA_DiagnosticInfo *p1 = (const UA_DiagnosticInfo*)p1_;
+    const UA_DiagnosticInfo *p2 = (const UA_DiagnosticInfo*)p2_;
     /* SymbolicId */
     if(p1->hasSymbolicId != p2->hasSymbolicId)
         return (!p1->hasSymbolicId) ? UA_ORDER_LESS : UA_ORDER_MORE;
@@ -2616,36 +2634,36 @@ notImplementedOrder(const void *p1, const void *p2, const UA_DataType *type) {
 
 const
 UA_orderSignature orderJumpTable[UA_DATATYPEKINDS] = {
-    (UA_orderSignature)booleanOrder,
-    (UA_orderSignature)sByteOrder,
-    (UA_orderSignature)byteOrder,
-    (UA_orderSignature)int16Order,
-    (UA_orderSignature)uInt16Order,
-    (UA_orderSignature)int32Order,
-    (UA_orderSignature)uInt32Order,
-    (UA_orderSignature)int64Order,
-    (UA_orderSignature)uInt64Order,
-    (UA_orderSignature)floatOrder,
-    (UA_orderSignature)doubleOrder,
-    (UA_orderSignature)stringOrder,
-    (UA_orderSignature)int64Order,  /* DateTime */
-    (UA_orderSignature)guidOrder,
-    (UA_orderSignature)stringOrder, /* ByteString */
-    (UA_orderSignature)stringOrder, /* XmlElement */
-    (UA_orderSignature)nodeIdOrder,
-    (UA_orderSignature)expandedNodeIdOrder,
-    (UA_orderSignature)uInt32Order, /* StatusCode */
-    (UA_orderSignature)qualifiedNameOrder,
-    (UA_orderSignature)localizedTextOrder,
-    (UA_orderSignature)extensionObjectOrder,
-    (UA_orderSignature)dataValueOrder,
-    (UA_orderSignature)variantOrder,
-    (UA_orderSignature)diagnosticInfoOrder,
+    booleanOrder,
+    sByteOrder,
+    byteOrder,
+    int16Order,
+    uInt16Order,
+    int32Order,
+    uInt32Order,
+    int64Order,
+    uInt64Order,
+    floatOrder,
+    doubleOrder,
+    stringOrder,
+    int64Order,  /* DateTime */
+    guidOrder,
+    stringOrder, /* ByteString */
+    stringOrder, /* XmlElement */
+    nodeIdOrder,
+    expandedNodeIdOrder,
+    uInt32Order, /* StatusCode */
+    qualifiedNameOrder,
+    localizedTextOrder,
+    extensionObjectOrder,
+    dataValueOrder,
+    variantOrder,
+    diagnosticInfoOrder,
     notImplementedOrder, /* Decimal, not implemented */
-    (UA_orderSignature)uInt32Order, /* Enumeration */
-    (UA_orderSignature)structureOrder,
-    (UA_orderSignature)structureOrder, /* Struct with Optional Fields*/
-    (UA_orderSignature)unionOrder, /* Union*/
+    uInt32Order, /* Enumeration */
+    structureOrder,
+    structureOrder, /* Struct with Optional Fields*/
+    unionOrder, /* Union*/
     notImplementedOrder /* BitfieldCluster, not implemented */
 };
 

@@ -208,8 +208,9 @@ process_FindServers(UA_Server *server, UA_Session *session, UA_String endpointUr
 
 UA_Boolean
 Service_FindServers(UA_Server *server, UA_Session *session,
-                    const UA_FindServersRequest *request,
-                    UA_FindServersResponse *response) {
+                    const void *request_, void *response_) {
+    const UA_FindServersRequest *request = (const UA_FindServersRequest*)request_;
+    UA_FindServersResponse *response = (UA_FindServersResponse*)response_;
     response->responseHeader.serviceResult =
         process_FindServers(server, session, request->endpointUrl,
                             request->localeIdsSize, request->localeIds,
@@ -409,8 +410,9 @@ process_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
-                             const UA_FindServersOnNetworkRequest *request,
-                             UA_FindServersOnNetworkResponse *response) {
+                             const void *request_, void *response_) {
+    const UA_FindServersOnNetworkRequest *request = (const UA_FindServersOnNetworkRequest*)request_;
+    UA_FindServersOnNetworkResponse *response = (UA_FindServersOnNetworkResponse*)response_;
     UA_LOCK_ASSERT(&server->serviceMutex);
     response->responseHeader.serviceResult =
         process_FindServersOnNetwork(server, session,
@@ -832,8 +834,9 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
 
 UA_Boolean
 Service_GetEndpoints(UA_Server *server, UA_Session *session,
-                     const UA_GetEndpointsRequest *request,
-                     UA_GetEndpointsResponse *response) {
+                     const void *request_, void *response_) {
+    const UA_GetEndpointsRequest *request = (const UA_GetEndpointsRequest*)request_;
+    UA_GetEndpointsResponse *response = (UA_GetEndpointsResponse*)response_;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
@@ -1066,8 +1069,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_RegisterServer(UA_Server *server, UA_Session *session,
-                       const UA_RegisterServerRequest *request,
-                       UA_RegisterServerResponse *response) {
+                       const void *request_, void *response_) {
+    const UA_RegisterServerRequest *request = (const UA_RegisterServerRequest*)request_;
+    UA_RegisterServerResponse *response = (UA_RegisterServerResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServerRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1079,8 +1083,9 @@ Service_RegisterServer(UA_Server *server, UA_Session *session,
 
 UA_Boolean
 Service_RegisterServer2(UA_Server *server, UA_Session *session,
-                        const UA_RegisterServer2Request *request,
-                        UA_RegisterServer2Response *response) {
+                        const void *request_, void *response_) {
+    const UA_RegisterServer2Request *request = (const UA_RegisterServer2Request*)request_;
+    UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServer2Request");
     UA_LOCK_ASSERT(&server->serviceMutex);

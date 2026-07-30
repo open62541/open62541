@@ -26,7 +26,7 @@
 #include "../ua_types_encoding_binary.h"
 
 static void
-clientHouseKeeping(UA_Client *client, void *_);
+clientHouseKeeping(void *client, void *_);
 
 /********************/
 /* Client Lifecycle */
@@ -69,6 +69,8 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->eventLoop = src->eventLoop;
     dst->externalEventLoop = src->externalEventLoop;
     dst->inactivityCallback = src->inactivityCallback;
+    dst->maxAsyncServiceCalls = src->maxAsyncServiceCalls;
+    dst->asyncServiceCallRule = src->asyncServiceCallRule;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logging = src->logging;
     if(src->certificateVerification.logging == NULL)
@@ -440,6 +442,15 @@ sendRequest(UA_Client *client, const void *request,
 static const UA_NodeId
 serviceFaultId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVICEFAULT_ENCODING_DEFAULTBINARY}};
 
+static void
+removeAsyncServiceCall(UA_Client *client, AsyncServiceCall *ac) {
+    LIST_REMOVE(ac, pointers);
+    if(ac->applicationCall) {
+        UA_assert(client->outstandingAsyncServiceCalls > 0);
+        client->outstandingAsyncServiceCalls--;
+    }
+}
+
 /* Look for the async callback in the linked list, execute and delete it */
 static UA_StatusCode
 processMSGResponse(UA_Client *client, UA_UInt32 requestId,
@@ -475,7 +486,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     const UA_DataType *responseType = ac->responseType;
 
     /* Dequeue ac. We might disconnect the client (remove all ac) in the callback. */
-    LIST_REMOVE(ac, pointers);
+    removeAsyncServiceCall(client, ac);
 
     /* Decode the response type */
     size_t offset = 0;
@@ -714,6 +725,7 @@ __Client_Service(UA_Client *client, const void *request,
     ac.requestId = requestId;
     ac.start = el->dateTime_nowMonotonic(el); /* Start timeout after sending */
     ac.timeout = rh->timeoutHint;
+    ac.applicationCall = false;
     ac.requestHandle = rh->requestHandle;
     if(ac.timeout == 0)
         ac.timeout = UA_UINT32_MAX; /* 0 -> unlimited */
@@ -806,6 +818,7 @@ __Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
      * that. */
     UA_AsyncServiceList asyncServiceCalls = client->asyncServiceCalls;
     LIST_INIT(&client->asyncServiceCalls);
+    client->outstandingAsyncServiceCalls = 0;
     if(asyncServiceCalls.lh_first)
         asyncServiceCalls.lh_first->pointers.le_prev = &asyncServiceCalls.lh_first;
 
@@ -818,11 +831,59 @@ __Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
 }
 
 UA_StatusCode
-__Client_AsyncService(UA_Client *client, const void *request,
-                      const UA_DataType *requestType,
-                      UA_ClientAsyncServiceCallback callback,
-                      const UA_DataType *responseType,
-                      void *userdata, UA_UInt32 *requestId) {
+__Client_AsyncServiceAdmission(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+    if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
+    UA_ClientConfig *cc = &client->config;
+    if(cc->maxAsyncServiceCalls == 0 ||
+       client->outstandingAsyncServiceCalls < cc->maxAsyncServiceCalls)
+        return UA_STATUSCODE_GOOD;
+
+    if(cc->asyncServiceCallRule <= UA_RULEHANDLING_ABORT)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+
+    if(cc->asyncServiceCallRule == UA_RULEHANDLING_WARN) {
+        UA_LOG_WARNING(cc->logging, UA_LOGCATEGORY_CLIENT,
+                       "Maximum number of outstanding asynchronous service calls "
+                       "reached (%u); waiting for capacity",
+                       (unsigned)cc->maxAsyncServiceCalls);
+    }
+
+    UA_EventLoop *el = cc->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    UA_DateTime deadline = now + (UA_DateTime)cc->timeout * UA_DATETIME_MSEC;
+    while(cc->maxAsyncServiceCalls > 0 &&
+          client->outstandingAsyncServiceCalls >= cc->maxAsyncServiceCalls) {
+        UA_UInt32 timeout = cc->timeout;
+        if(cc->timeout > 0) {
+            now = el->dateTime_nowMonotonic(el);
+            if(now >= deadline)
+                return UA_STATUSCODE_BADTIMEOUT;
+            timeout = (UA_UInt32)((deadline - now) / UA_DATETIME_MSEC);
+            if(timeout == 0)
+                timeout = 1;
+        }
+
+        UA_StatusCode res = el->run(el, timeout);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        if(client->connectStatus != UA_STATUSCODE_GOOD)
+            return client->connectStatus;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+asyncServiceWithContext(UA_Client *client, const void *request,
+                        const UA_DataType *requestType,
+                        UA_ClientAsyncServiceCallback callback,
+                        const UA_DataType *responseType,
+                        void *userdata,
+                        const UA_AsyncCallbackContext *context,
+                        UA_UInt32 *requestId, UA_Boolean applicationCall,
+                        UA_Boolean admitted) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
     /* Is the SecureChannel connected? */
@@ -830,6 +891,12 @@ __Client_AsyncService(UA_Client *client, const void *request,
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "SecureChannel must be connected to send request");
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+    }
+
+    if(applicationCall && !admitted) {
+        UA_StatusCode res = __Client_AsyncServiceAdmission(client);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Prepare the entry for the linked list */
@@ -854,15 +921,23 @@ __Client_AsyncService(UA_Client *client, const void *request,
     const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
     ac->callback = callback;
     ac->responseType = responseType;
-    ac->userdata = userdata;
+    if(context) {
+        ac->context = *context;
+        ac->userdata = &ac->context;
+    } else {
+        ac->userdata = userdata;
+    }
     ac->syncResponse = NULL;
     ac->start = el->dateTime_nowMonotonic(el);
     ac->timeout = rh->timeoutHint;
+    ac->applicationCall = applicationCall;
     ac->requestHandle = rh->requestHandle;
     if(ac->timeout == 0)
         ac->timeout = UA_UINT32_MAX; /* 0 -> unlimited */
 
     LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
+    if(applicationCall)
+        client->outstandingAsyncServiceCalls++;
 
     /* Return the generated request id */
     if(requestId)
@@ -872,6 +947,63 @@ __Client_AsyncService(UA_Client *client, const void *request,
     notifyClientState(client);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+__Client_AsyncServiceWithContext(UA_Client *client, const void *request,
+                                 const UA_DataType *requestType,
+                                 UA_ClientAsyncServiceCallback callback,
+                                 const UA_DataType *responseType,
+                                 void *userdata,
+                                 const UA_AsyncCallbackContext *context,
+                                 UA_UInt32 *requestId) {
+    return asyncServiceWithContext(client, request, requestType, callback,
+                                   responseType, userdata, context, requestId,
+                                   true, false);
+}
+
+UA_StatusCode
+__Client_AsyncServiceWithContextAdmitted(
+    UA_Client *client, const void *request, const UA_DataType *requestType,
+    UA_ClientAsyncServiceCallback callback, const UA_DataType *responseType,
+    void *userdata, const UA_AsyncCallbackContext *context,
+    UA_UInt32 *requestId) {
+    return asyncServiceWithContext(client, request, requestType, callback,
+                                   responseType, userdata, context, requestId,
+                                   true, true);
+}
+
+UA_StatusCode
+__Client_AsyncServiceAdmitted(UA_Client *client, const void *request,
+                              const UA_DataType *requestType,
+                              UA_ClientAsyncServiceCallback callback,
+                              const UA_DataType *responseType,
+                              void *userdata, UA_UInt32 *requestId) {
+    return __Client_AsyncServiceWithContextAdmitted(
+        client, request, requestType, callback, responseType, userdata, NULL,
+        requestId);
+}
+
+UA_StatusCode
+__Client_AsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback callback,
+                      const UA_DataType *responseType,
+                      void *userdata, UA_UInt32 *requestId) {
+    return __Client_AsyncServiceWithContext(client, request, requestType,
+                                            callback, responseType, userdata, NULL,
+                                            requestId);
+}
+
+UA_StatusCode
+__Client_AsyncServiceInternal(UA_Client *client, const void *request,
+                              const UA_DataType *requestType,
+                              UA_ClientAsyncServiceCallback callback,
+                              const UA_DataType *responseType,
+                              void *userdata, UA_UInt32 *requestId) {
+    return asyncServiceWithContext(client, request, requestType, callback,
+                                   responseType, userdata, NULL, requestId,
+                                   false, true);
 }
 
 static UA_StatusCode
@@ -985,7 +1117,7 @@ asyncServiceTimeoutCheck(UA_Client *client) {
         if(!ac->timeout)
            continue;
         if(ac->start + (UA_DateTime)(ac->timeout * UA_DATETIME_MSEC) <= now) {
-            LIST_REMOVE(ac, pointers);
+            removeAsyncServiceCall(client, ac);
             LIST_INSERT_HEAD(&asyncServiceCalls, ac, pointers);
         }
     }
@@ -1002,7 +1134,8 @@ asyncServiceTimeoutCheck(UA_Client *client) {
 
 static void
 backgroundConnectivityCallback(UA_Client *client, void *userdata,
-                               UA_UInt32 requestId, const UA_ReadResponse *response) {
+                               UA_UInt32 requestId, void *response_) {
+    const UA_ReadResponse *response = (const UA_ReadResponse*)response_;
     lockClient(client);
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         if(client->config.inactivityCallback)
@@ -1039,16 +1172,18 @@ __Client_backgroundConnectivity(UA_Client *client) {
     request.nodesToRead = &rvid;
     request.nodesToReadSize = 1;
     UA_StatusCode retval =
-        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                              (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
-                              &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
+        __Client_AsyncServiceInternal(client, &request,
+                                      &UA_TYPES[UA_TYPES_READREQUEST],
+                                      backgroundConnectivityCallback,
+                                      &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
     if(retval == UA_STATUSCODE_GOOD)
         client->pendingConnectivityCheck = true;
 }
 
 /* Regular housekeeping activities in the client -- called via a cyclic callback */
 static void
-clientHouseKeeping(UA_Client *client, void *_) {
+clientHouseKeeping(void *client_, void *_) {
+    UA_Client *client = (UA_Client*)client_;
     lockClient(client);
 
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1094,7 +1229,7 @@ __UA_Client_startup(UA_Client *client) {
      * mutex again */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     if(!client->houseKeepingCallbackId) {
-        rv = el->addTimer(el, (UA_Callback)clientHouseKeeping,
+        rv = el->addTimer(el, clientHouseKeeping,
                           client, NULL, 1000.0, NULL,
                           UA_TIMERPOLICY_CURRENTTIME,
                           &client->houseKeepingCallbackId);
@@ -1509,6 +1644,42 @@ UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request
 /* Async Shorthands */
 /********************/
 
+static void
+asyncReadCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                  void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.read)
+        ctx->callback.read(client, ctx->userdata, requestId,
+                           (UA_ReadResponse*)response);
+}
+
+static void
+asyncWriteCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                   void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.write)
+        ctx->callback.write(client, ctx->userdata, requestId,
+                            (UA_WriteResponse*)response);
+}
+
+static void
+asyncBrowseCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                    void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.browse)
+        ctx->callback.browse(client, ctx->userdata, requestId,
+                             (UA_BrowseResponse*)response);
+}
+
+static void
+asyncBrowseNextCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                        void *response) {
+    UA_AsyncCallbackContext *ctx = (UA_AsyncCallbackContext*)userdata;
+    if(ctx->callback.browseNext)
+        ctx->callback.browseNext(client, ctx->userdata, requestId,
+                                 (UA_BrowseNextResponse*)response);
+}
+
 UA_StatusCode
 __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
@@ -1527,27 +1698,51 @@ UA_StatusCode
 UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
                                UA_ClientAsyncReadCallback readCallback,
                                void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_READREQUEST],
-                                    (UA_ClientAsyncServiceCallback)readCallback,
-                                    &UA_TYPES[UA_TYPES_READRESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.read = readCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_READREQUEST], asyncReadCallback,
+        &UA_TYPES[UA_TYPES_READRESPONSE], NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }
 
 UA_StatusCode
 UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
                                 UA_ClientAsyncWriteCallback writeCallback,
                                 void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
-                                    (UA_ClientAsyncServiceCallback)writeCallback,
-                                    &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.write = writeCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST], asyncWriteCallback,
+        &UA_TYPES[UA_TYPES_WRITERESPONSE], NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }
 
 UA_StatusCode
 UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
                                  UA_ClientAsyncBrowseCallback browseCallback,
                                  void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
-                                    (UA_ClientAsyncServiceCallback)browseCallback,
-                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.browse = browseCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], asyncBrowseCallback,
+        &UA_TYPES[UA_TYPES_BROWSERESPONSE], NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }
 
 UA_StatusCode
@@ -1555,7 +1750,16 @@ UA_Client_sendAsyncBrowseNextRequest(UA_Client *client,
                                      UA_BrowseNextRequest *request,
                                      UA_ClientAsyncBrowseNextCallback browseNextCallback,
                                      void *userdata, UA_UInt32 *reqId) {
-    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
-                                    (UA_ClientAsyncServiceCallback)browseNextCallback,
-                                    &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], userdata, reqId);
+    UA_AsyncCallbackContext ctx;
+    UA_StatusCode res;
+    ctx.callback.browseNext = browseNextCallback;
+    ctx.userdata = userdata;
+    ctx.resultType = NULL;
+    lockClient(client);
+    res = __Client_AsyncServiceWithContext(
+        client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+        asyncBrowseNextCallback, &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE],
+        NULL, &ctx, reqId);
+    unlockClient(client);
+    return res;
 }

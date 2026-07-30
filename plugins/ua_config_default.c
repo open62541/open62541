@@ -2055,6 +2055,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->timeout = 5 * 1000; /* 5 seconds */
     if(config->secureChannelLifeTime == 0)
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
+    if(config->maxAsyncServiceCalls == 0)
+        config->maxAsyncServiceCalls = 32;
 
     if(config->logging == NULL)
         config->logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);

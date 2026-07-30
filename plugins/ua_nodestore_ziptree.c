@@ -146,20 +146,41 @@ zipNsDeleteNode(UA_Nodestore *_, UA_Node *node) {
     deleteEntry(container_of(node, NodeEntry, nodeId));
 }
 
+static NodeEntry *
+getNodeEntry(UA_Nodestore *ns, const UA_NodeId *nodeId) {
+    NodeEntry dummy;
+    ZipNodestore *zns;
+    NodeEntry *entry;
+    dummy.nodeIdHash = UA_NodeId_hash(nodeId);
+    dummy.nodeId = *nodeId;
+    zns = (ZipNodestore*)ns;
+    entry = ZIP_FIND(NodeTree, &zns->root, &dummy);
+    if(!entry)
+        return NULL;
+    ++entry->refCount;
+    return entry;
+}
+
 static const UA_Node *
 zipNsGetNode(UA_Nodestore *ns, const UA_NodeId *nodeId,
              UA_UInt32 attributeMask,
              UA_ReferenceTypeSet references,
              UA_BrowseDirection referenceDirections) {
-    NodeEntry dummy;
-    dummy.nodeIdHash = UA_NodeId_hash(nodeId);
-    dummy.nodeId = *nodeId;
-    ZipNodestore *zns = (ZipNodestore*)ns;
-    NodeEntry *entry = ZIP_FIND(NodeTree, &zns->root, &dummy);
+    NodeEntry *entry = getNodeEntry(ns, nodeId);
     if(!entry)
         return NULL;
-    ++entry->refCount;
     return (const UA_Node*)&entry->nodeId;
+}
+
+static UA_Node *
+zipNsGetEditNode(UA_Nodestore *ns, const UA_NodeId *nodeId,
+                 UA_UInt32 attributeMask,
+                 UA_ReferenceTypeSet references,
+                 UA_BrowseDirection referenceDirections) {
+    NodeEntry *entry = getNodeEntry(ns, nodeId);
+    if(!entry)
+        return NULL;
+    return (UA_Node*)&entry->nodeId;
 }
 
 static const UA_Node *
@@ -167,11 +188,25 @@ zipNsGetNodeFromPtr(UA_Nodestore *ns, UA_NodePointer ptr,
                     UA_UInt32 attributeMask,
                     UA_ReferenceTypeSet references,
                     UA_BrowseDirection referenceDirections) {
+    UA_NodeId id;
     if(!UA_NodePointer_isLocal(ptr))
         return NULL;
-    UA_NodeId id = UA_NodePointer_toNodeId(ptr);
+    id = UA_NodePointer_toNodeId(ptr);
     return zipNsGetNode(ns, &id, attributeMask,
                         references, referenceDirections);
+}
+
+static UA_Node *
+zipNsGetEditNodeFromPtr(UA_Nodestore *ns, UA_NodePointer ptr,
+                        UA_UInt32 attributeMask,
+                        UA_ReferenceTypeSet references,
+                        UA_BrowseDirection referenceDirections) {
+    UA_NodeId id;
+    if(!UA_NodePointer_isLocal(ptr))
+        return NULL;
+    id = UA_NodePointer_toNodeId(ptr);
+    return zipNsGetEditNode(ns, &id, attributeMask,
+                            references, referenceDirections);
 }
 
 static void
@@ -436,18 +471,8 @@ UA_Nodestore_ZipTree(void) {
     zns->ns.getReferenceTypeId = zipNsGetReferenceTypeId;
     zns->ns.iterate = zipNsIterate;
 
-    /* All nodes are stored in RAM. Changes are made in-situ. GetEditNode is
-     * identical to GetNode -- but the Node pointer is non-const. */
-    zns->ns.getEditNode =
-        (UA_Node * (*)(UA_Nodestore *ns, const UA_NodeId *nodeId,
-                       UA_UInt32 attributeMask,
-                       UA_ReferenceTypeSet references,
-                       UA_BrowseDirection referenceDirections))zipNsGetNode;
-    zns->ns.getEditNodeFromPtr =
-        (UA_Node * (*)(UA_Nodestore *ns, UA_NodePointer ptr,
-                       UA_UInt32 attributeMask,
-                       UA_ReferenceTypeSet references,
-                       UA_BrowseDirection referenceDirections))zipNsGetNodeFromPtr;
+    zns->ns.getEditNode = zipNsGetEditNode;
+    zns->ns.getEditNodeFromPtr = zipNsGetEditNodeFromPtr;
 
     return &zns->ns;
 }

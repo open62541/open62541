@@ -207,7 +207,7 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     /* Move to setSecurityKeysAction */
     return UA_PubSubKeyStorage_addKeyRolloverCallback(
-        psm, ks, (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
+        psm, ks, UA_PubSubKeyStorage_keyRolloverCallback,
         callbackTime, &ks->callBackId);
 }
 

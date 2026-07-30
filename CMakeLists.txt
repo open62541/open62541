@@ -1613,6 +1613,7 @@ else()
     add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
     add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
 endif()
+
 add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
 add_dependencies(open62541-object open62541-code-generation)

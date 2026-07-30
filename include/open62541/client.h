@@ -789,6 +789,17 @@ struct UA_ClientConfig {
     /* Advanced Settings
      * ~~~~~~~~~~~~~~~~~ */
 
+    /* Maximum number of application-level asynchronous service calls that may
+     * be outstanding. A value of 0 disables the limit. The default is 32.
+     * Internal requests for connection maintenance and Publish are not counted.
+     *
+     * When the limit is reached, UA_RULEHANDLING_ABORT (and DEFAULT) rejects a
+     * new call with BadTooManyOperations. UA_RULEHANDLING_WARN logs a warning
+     * and waits for capacity. UA_RULEHANDLING_ACCEPT waits silently. Waiting
+     * runs the EventLoop and can therefore execute user callbacks. */
+    UA_UInt32 maxAsyncServiceCalls;
+    UA_RuleHandling asyncServiceCallRule;
+
     /* Number of PublishResponse queued up in the server */
     UA_UInt16 outStandingPublishRequests;
 

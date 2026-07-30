@@ -61,7 +61,10 @@ notifySession(UA_Server *server, UA_Session *session,
 
 /* Delayed callback to free the session memory */
 static void
-removeSessionCallback(UA_Server *server, session_list_entry *entry) {
+removeSessionCallback(void *application /* UA_Server */,
+                      void *context /* session_list_entry */) {
+    UA_Server *server = (UA_Server*)application;
+    session_list_entry *entry = (session_list_entry*)context;
     lockServer(server);
     UA_Session_clear(&entry->session, server);
     unlockServer(server);
@@ -148,7 +151,7 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
 
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
-    sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
+    sentry->cleanupCallback.callback = removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
@@ -722,8 +725,9 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                      const UA_CreateSessionRequest *request,
-                      UA_CreateSessionResponse *response) {
+                      const void *request_, void *response_) {
+    const UA_CreateSessionRequest *request = (const UA_CreateSessionRequest*)request_;
+    UA_CreateSessionResponse *response = (UA_CreateSessionResponse*)response_;
     /* Call the inner implementation */
     UA_Session *session = NULL;
     Service_CreateSession_inner(server, channel, request, response, &session);
@@ -1376,8 +1380,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_ActivateSessionRequest *request,
-                        UA_ActivateSessionResponse *response) {
+                        const void *request_, void *response_) {
+    const UA_ActivateSessionRequest *request = (const UA_ActivateSessionRequest*)request_;
+    UA_ActivateSessionResponse *response = (UA_ActivateSessionResponse*)response_;
     /* Call the inner implementation */
     UA_Session *session = NULL;
     Service_ActivateSession_inner(server, channel, request, response, &session);
@@ -1390,8 +1395,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
-                     const UA_CloseSessionRequest *request,
-                     UA_CloseSessionResponse *response) {
+                     const void *request_, void *response_) {
+    const UA_CloseSessionRequest *request = (const UA_CloseSessionRequest*)request_;
+    UA_CloseSessionResponse *response = (UA_CloseSessionResponse*)response_;
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &response->responseHeader;
 
@@ -1434,7 +1440,9 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 
 UA_Boolean
 Service_Cancel(UA_Server *server, UA_Session *session,
-               const UA_CancelRequest *request, UA_CancelResponse *response) {
+               const void *request_, void *response_) {
+    const UA_CancelRequest *request = (const UA_CancelRequest*)request_;
+    UA_CancelResponse *response = (UA_CancelResponse*)response_;
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */
