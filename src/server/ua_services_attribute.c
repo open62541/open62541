@@ -890,7 +890,9 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
     }
 
     if(attributeId == UA_ATTRIBUTEID_VALUE ||
-       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS) {
+       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS ||
+       attributeId == UA_ATTRIBUTEID_ROLEPERMISSIONS ||
+       attributeId == UA_ATTRIBUTEID_USERROLEPERMISSIONS) {
         /* Return the entire variant */
         memcpy(v, &dv.value, sizeof(UA_Variant));
     } else {
@@ -1020,6 +1022,24 @@ UA_Server_readHistorizing(UA_Server *server, const UA_NodeId nodeId, UA_Boolean 
 UA_StatusCode
 UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
     return __Server_read(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE, out);
+}
+
+UA_StatusCode
+UA_Server_readRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                              UA_Variant *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS, out);
+}
+
+UA_StatusCode
+UA_Server_readUserRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                  UA_Variant *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_USERROLEPERMISSIONS, out);
+}
+
+UA_StatusCode
+UA_Server_readAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_AccessRestrictionType *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSRESTRICTIONS, out);
 }
 
 UA_StatusCode
@@ -2378,6 +2398,21 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
                           const UA_Boolean executable) {
     return __Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                           &UA_TYPES[UA_TYPES_BOOLEAN], &executable);
+}
+
+UA_StatusCode
+UA_Server_writeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_Variant rolePermissions) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS,
+                          &UA_TYPES[UA_TYPES_VARIANT], &rolePermissions);
+}
+
+UA_StatusCode
+UA_Server_writeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                  const UA_AccessRestrictionType accessRestrictions) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSRESTRICTIONS,
+                          &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE],
+                          &accessRestrictions);
 }
 
 #ifdef UA_ENABLE_HISTORIZING
