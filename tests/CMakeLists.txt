@@ -330,6 +330,8 @@ if(UA_ENABLE_LWS)
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
     ua_add_test(check_eventloop_websocket_lws.c)
+    target_include_directories(check_eventloop_websocket_lws PRIVATE
+                               ${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 # Test Server
@@ -648,7 +650,9 @@ endif()
 # Cross-SDK interoperability test binaries (standalone, no check framework)
 if(UA_BUILD_INTEROP_TESTS)
     if(NOT TARGET interop_server)
-        add_executable(interop_server interop/interop_server.c
+        add_executable(interop_server
+            interop/interop_server.c
+            interop/common/interop_server_common.c
             $<TARGET_OBJECTS:open62541-object>
             $<TARGET_OBJECTS:open62541-plugins>)
         target_link_libraries(interop_server ${LIBS})
@@ -657,11 +661,35 @@ if(UA_BUILD_INTEROP_TESTS)
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
     endif()
     if(NOT TARGET check_interop_client)
-        add_executable(check_interop_client interop/check_interop_client.c
+        add_executable(check_interop_client
+            interop/check_interop_client.c
+            interop/common/interop_client_common.c
             $<TARGET_OBJECTS:open62541-object>
             $<TARGET_OBJECTS:open62541-plugins>)
         target_link_libraries(check_interop_client ${LIBS})
         set_target_properties(check_interop_client PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+    if(UA_ENABLE_LWS AND NOT TARGET interop_server_wss)
+        add_executable(interop_server_wss
+            interop/websocket/interop_server_wss.c
+            interop/common/interop_server_common.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(interop_server_wss ${LIBS})
+        set_target_properties(interop_server_wss PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+    if(UA_ENABLE_LWS AND NOT TARGET check_interop_client_wss)
+        add_executable(check_interop_client_wss
+            interop/websocket/check_interop_client_wss.c
+            interop/common/interop_client_common.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_interop_client_wss ${LIBS})
+        set_target_properties(check_interop_client_wss PROPERTIES
             FOLDER "tests"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
     endif()

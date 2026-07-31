@@ -7,7 +7,8 @@
     "start": "node server.mjs"
   },
   "dependencies": {
-    "node-opcua": "^2.169.0"
+    "node-opcua": "2.175.6",
+    "ws": "8.21.1"
   },
   "overrides": {
     "hexy": "0.3.5"

@@ -15,6 +15,10 @@
 #   - Certificates generated (via generate_interop_certs.sh)
 #
 # Usage: ./interop_test.sh <c_build_dir> <dotnet_sdk_dir> <cert_dir>
+#
+# Set INTEROP_ENABLE_WSS=1 to repeat the existing C and .NET client suites
+# over opc.wss. This remains opt-in until a released .NET SDK supports WSS.
+# Set INTEROP_ENABLE_NODE_WSS=1 to run the node-opcua client suite over WSS.
 
 set -euo pipefail
 
@@ -27,12 +31,18 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 CI_SERVER="$C_BUILD_DIR/bin/tests/interop_server"
 INTEROP_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client"
+CI_WSS_SERVER="$C_BUILD_DIR/bin/tests/interop_server_wss"
+INTEROP_WSS_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client_wss"
 DOTNET_INTEROP_PROJECT="$REPO_ROOT/tests/interop/dotnet/Opc.Ua.Interop.Tests.csproj"
 DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
 NODEOPCUA_CLIENT_DIR="$REPO_ROOT/tests/interop/node-opcua"
+NODEOPCUA_WSS_CLIENT="$NODEOPCUA_CLIENT_DIR/websocket/client_wss.mjs"
+INTEROP_ENABLE_WSS="${INTEROP_ENABLE_WSS:-0}"
+INTEROP_ENABLE_NODE_WSS="${INTEROP_ENABLE_NODE_WSS:-0}"
 
 RESULT=0
 C_SERVER_PID=""
+C_WSS_SERVER_PID=""
 DOTNET_SERVER_PID=""
 NODEOPCUA_SERVER_PID=""
 
@@ -67,6 +77,7 @@ cleanup() {
     echo ""
     echo "=== Cleaning up ==="
     stop_server "$C_SERVER_PID" "C server"
+    stop_server "$C_WSS_SERVER_PID" "C WSS server"
     stop_server "$DOTNET_SERVER_PID" ".NET server"
     stop_server "$NODEOPCUA_SERVER_PID" "node-opcua server"
 }
@@ -126,6 +137,20 @@ for f in "$CI_SERVER" "$INTEROP_CLIENT"; do
         exit 1
     fi
 done
+if [[ "$INTEROP_ENABLE_WSS" != "0" || "$INTEROP_ENABLE_NODE_WSS" != "0" ]]; then
+    if [[ ! -x "$CI_WSS_SERVER" ]]; then
+        echo "ERROR: Missing WSS executable: $CI_WSS_SERVER"
+        exit 1
+    fi
+fi
+if [[ "$INTEROP_ENABLE_WSS" != "0" && ! -x "$INTEROP_WSS_CLIENT" ]]; then
+    echo "ERROR: Missing WSS executable: $INTEROP_WSS_CLIENT"
+    exit 1
+fi
+if [[ "$INTEROP_ENABLE_NODE_WSS" != "0" && ! -f "$NODEOPCUA_WSS_CLIENT" ]]; then
+    echo "ERROR: Missing node-opcua WSS client: $NODEOPCUA_WSS_CLIENT"
+    exit 1
+fi
 
 REQUIRED_CERTS=(
     server_c.cert.der server_c.key.der
@@ -161,6 +186,8 @@ echo "=========================================="
 echo ""
 
 C_PORT=4840
+C_WSS_PORT=4843
+C_WSS_URL="opc.wss://localhost:$C_WSS_PORT/interop"
 C_LOG="$(mktemp)"
 echo "Starting C server on port $C_PORT..."
 "$CI_SERVER" "$C_PORT" \
@@ -207,6 +234,71 @@ else
     unset OPCUA_INTEROP_SERVER_URL
     unset OPCUA_INTEROP_CERT_DIR
     unset INTEROP_REQUIRE_ECC 2>/dev/null || true
+
+    if [[ "$INTEROP_ENABLE_WSS" != "0" || "$INTEROP_ENABLE_NODE_WSS" != "0" ]]; then
+        echo ""
+        C_WSS_LOG="$(mktemp)"
+        echo "Starting C WSS server on port $C_WSS_PORT..."
+        "$CI_WSS_SERVER" "$C_WSS_PORT" \
+            "$CERT_DIR/server_c.cert.der" \
+            "$CERT_DIR/server_c.key.der" \
+            "$CERT_DIR/client_c.cert.der" \
+            "$CERT_DIR/client_dotnet.cert.der" \
+            "$CERT_DIR/client_nodeopcua.cert.der" > >(tee "$C_WSS_LOG") 2>&1 &
+        C_WSS_SERVER_PID=$!
+
+        if ! wait_for_server "localhost:$C_WSS_PORT"; then
+            echo "FAIL: C WSS server did not start"
+            RESULT=1
+        else
+            if [[ "$INTEROP_ENABLE_WSS" != "0" ]]; then
+                echo "Running WSS C interop client tests..."
+                if "$INTEROP_WSS_CLIENT" \
+                    "$C_WSS_URL" \
+                    "$CERT_DIR/client_c.cert.der" \
+                    "$CERT_DIR/client_c.key.der" \
+                    "$CERT_DIR/server_c.cert.der" 2>&1; then
+                    echo "PASS: Scenario A - C client WSS tests passed"
+                else
+                    echo "FAIL: Scenario A - C client WSS tests failed"
+                    RESULT=1
+                fi
+
+                echo ""
+                echo "Running experimental .NET interop client tests over WSS..."
+                export OPCUA_INTEROP_WSS_SERVER_URL="$C_WSS_URL"
+                export OPCUA_INTEROP_CERT_DIR="$CERT_DIR"
+                if dotnet test "$DOTNET_INTEROP_PROJECT" --no-build --verbosity normal \
+                     --configuration "${DOTNET_CONFIG:-Debug}" \
+                     --filter "FullyQualifiedName~ExperimentalWssInteropClientTest" \
+                     2>&1; then
+                    echo "PASS: Scenario A - .NET client WSS tests passed"
+                else
+                    echo "FAIL: Scenario A - .NET client WSS tests failed"
+                    RESULT=1
+                fi
+                unset OPCUA_INTEROP_WSS_SERVER_URL
+                unset OPCUA_INTEROP_CERT_DIR
+            fi
+
+            if [[ "$INTEROP_ENABLE_NODE_WSS" != "0" ]]; then
+                echo ""
+                echo "Running node-opcua interop client tests over WSS..."
+                if node "$NODEOPCUA_WSS_CLIENT" \
+                    "$C_WSS_URL" \
+                    "$CERT_DIR/client_nodeopcua.cert.pem" \
+                    "$CERT_DIR/client_nodeopcua.key.pem" \
+                    "$CERT_DIR/server_c.cert.pem" 2>&1; then
+                    echo "PASS: Scenario A - node-opcua client WSS tests passed"
+                else
+                    echo "FAIL: Scenario A - node-opcua client WSS tests failed"
+                    RESULT=1
+                fi
+            fi
+        fi
+        stop_server "$C_WSS_SERVER_PID" "C WSS server"
+        C_WSS_SERVER_PID=""
+    fi
 
     echo ""
     echo "Running node-opcua interop client against C server..."
@@ -268,6 +360,25 @@ else
     else
         echo "FAIL: Scenario B - C client tests failed"
         RESULT=1
+    fi
+
+    if [[ "$INTEROP_ENABLE_WSS" != "0" ]]; then
+        echo ""
+        echo "Running existing C interop client tests against .NET over WSS..."
+        DOTNET_WSS_URL="opc.wss://localhost:62543/Quickstarts/ReferenceServer"
+        if ! wait_for_server "localhost:62543"; then
+            echo "FAIL: .NET WSS server did not start"
+            RESULT=1
+        elif "$INTEROP_WSS_CLIENT" \
+            "$DOTNET_WSS_URL" \
+            "$CERT_DIR/client_c.cert.der" \
+            "$CERT_DIR/client_c.key.der" \
+            "$CERT_DIR/server_dotnet.cert.der" 2>&1; then
+            echo "PASS: Scenario B - C client WSS tests passed"
+        else
+            echo "FAIL: Scenario B - C client WSS tests failed"
+            RESULT=1
+        fi
     fi
 fi
 

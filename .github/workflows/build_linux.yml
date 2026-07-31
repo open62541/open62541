@@ -109,7 +109,15 @@ jobs:
             build:
               name: "Debug Build & Unit Tests with libwebsockets (gcc)"
               cmd_deps: |
-                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev libwebsockets-dev
+                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev libssl-dev
+                git clone --branch v4.3.3 --depth 1 https://github.com/warmcat/libwebsockets.git /tmp/libwebsockets
+                cmake -S /tmp/libwebsockets -B /tmp/libwebsockets-build \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DLWS_WITH_MQTT=ON \
+                  -DLWS_WITHOUT_TESTAPPS=ON
+                cmake --build /tmp/libwebsockets-build --parallel
+                sudo cmake --install /tmp/libwebsockets-build
+                sudo ldconfig
               cmd_action: unit_tests_libwebsockets
 
           # LWIP Build for specific Ubuntu version

@@ -1736,20 +1736,41 @@ if(UA_BUILD_UNIT_TESTS)
 endif()
 
 # Build the interop targets standalone (no Check framework, no full examples)
-# when only interop tests are needed.  interop_server and check_interop_client
-# are the only two binaries required by tools/ci/cross-sdk/interop_test.sh.
+# when only interop tests are needed.
 if(UA_BUILD_INTEROP_TESTS AND NOT UA_BUILD_UNIT_TESTS)
-    add_executable(interop_server tests/interop/interop_server.c)
+    add_executable(interop_server
+        tests/interop/interop_server.c
+        tests/interop/common/interop_server_common.c)
     target_link_libraries(interop_server open62541::open62541)
     set_target_properties(interop_server PROPERTIES
         FOLDER "tests"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
 
-    add_executable(check_interop_client tests/interop/check_interop_client.c)
+    add_executable(check_interop_client
+        tests/interop/check_interop_client.c
+        tests/interop/common/interop_client_common.c)
     target_link_libraries(check_interop_client open62541::open62541)
     set_target_properties(check_interop_client PROPERTIES
         FOLDER "tests"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+
+    if(UA_ENABLE_LWS)
+        add_executable(interop_server_wss
+            tests/interop/websocket/interop_server_wss.c
+            tests/interop/common/interop_server_common.c)
+        target_link_libraries(interop_server_wss open62541::open62541)
+        set_target_properties(interop_server_wss PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+
+        add_executable(check_interop_client_wss
+            tests/interop/websocket/check_interop_client_wss.c
+            tests/interop/common/interop_client_common.c)
+        target_link_libraries(check_interop_client_wss open62541::open62541)
+        set_target_properties(check_interop_client_wss PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)

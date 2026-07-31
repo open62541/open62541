@@ -16,7 +16,7 @@ The server under test **must** provide:
 
 | Item | Details |
 |------|---------|
-| Endpoint | `opc.tcp://<host>:<port>` |
+| Endpoint | `opc.tcp://<host>:<port>`; optionally `opc.wss://<host>:<port>/<path>` |
 | SecurityPolicies | `None`, `Basic256Sha256`, `Aes128_Sha256_RsaOaep`, `Aes256_Sha256_RsaPss` |
 | SecurityModes | `None` (only with policy None), `Sign`, `SignAndEncrypt` |
 | Anonymous access | Enabled |
@@ -135,12 +135,35 @@ The orchestration script `tools/ci/cross-sdk/interop_test.sh` runs:
 The CI workflow (`.github/workflows/interop_tests.yml`) runs all scenarios
 with OpenSSL and mbedTLS encryption backends.
 
+The same C and .NET client tests can be repeated over secure WebSockets by
+setting `INTEROP_ENABLE_WSS=1`. This path remains experimental and is not
+enabled by the CI workflow until WSS support is available in a released
+OPC Foundation .NET Standard SDK package. The C SDK must be built with
+`UA_ENABLE_LWS=ON`. The WebSocket run uses the separate
+`interop_server_wss` and `check_interop_client_wss` binaries. Their test and
+address-space implementations are shared with the TCP binaries through the
+sources under `tests/interop/common`.
+
+The WebSocket TLS certificate protects the outer `opc.wss` transport. It is
+configured and trusted separately from certificates used by OPC UA message
+SecurityPolicies. Clients use the system trust store unless an explicit
+WebSocket CA certificate is configured.
+
+The node-opcua client can be tested independently against the C WSS server by
+setting `INTEROP_ENABLE_NODE_WSS=1`. This local, opt-in path runs the same
+T-1 through T-17 client suite through the separate
+`node-opcua/websocket/client_wss.mjs` entry point. It is not enabled by the CI
+workflow. The node-opcua server direction remains TCP-only.
+
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPCUA_INTEROP_SERVER_URL` | Target server endpoint | `opc.tcp://localhost:4840` |
+| `OPCUA_INTEROP_WSS_SERVER_URL` | Target endpoint for the experimental .NET WSS fixture | — |
 | `OPCUA_INTEROP_CERT_DIR` | Directory with generated certificates | — |
+| `INTEROP_ENABLE_WSS` | Repeat the existing interop suites over WSS | `0` |
+| `INTEROP_ENABLE_NODE_WSS` | Run the node-opcua client suite against the C WSS server | `0` |
 | `DOTNET_CONFIG` | .NET build configuration | `Debug` |
 
 ## Adding a New SDK
