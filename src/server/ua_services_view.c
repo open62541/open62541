@@ -1253,13 +1253,11 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
          * still use it as a waypoint in TranslateBrowsePathsToNodeIds,
          * disclosing hidden intermediate nodes and their children. */
         if(session != &server->adminSession) {
-            UA_UNLOCK(&server->serviceMutex);
             UA_Boolean canBrowse =
                 server->config.accessControl.allowBrowseNode(
                     server, &server->config.accessControl,
                     &session->sessionId, session->context,
                     &current->targets[i].nodeId, node->head.context);
-            UA_LOCK(&server->serviceMutex);
             if(!canBrowse) {
                 UA_NODESTORE_RELEASE(server, node);
                 continue;
@@ -1431,13 +1429,11 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
          * can still have its NodeId disclosed as the result of path
          * translation. */
         if(session != &server->adminSession) {
-            UA_UNLOCK(&server->serviceMutex);
             UA_Boolean canBrowse =
                 server->config.accessControl.allowBrowseNode(
                     server, &server->config.accessControl,
                     &session->sessionId, session->context,
                     &next->targets[k].nodeId, node->head.context);
-            UA_LOCK(&server->serviceMutex);
             if(!canBrowse) {
                 UA_NODESTORE_RELEASE(server, node);
                 continue;
