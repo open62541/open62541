@@ -1893,6 +1893,7 @@ UA_Client_MonitoredItems_setMonitoringMode_async(UA_Client *client,
     ctx.callback.setMonitoringMode = callback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     res = __Client_AsyncServiceWithContext(
         client, &request, &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
@@ -1931,6 +1932,7 @@ UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
     ctx.callback.setTriggering = callback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     res = __Client_AsyncServiceWithContext(
         client, &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],

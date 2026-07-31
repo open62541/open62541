@@ -399,6 +399,44 @@ UA_Client_readUserAccessLevelAttribute_async(
     UA_ClientAsyncReadUserAccessLevelAttributeCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
+/* Read a single RolePermissions attribute. If the status is good, the variant
+ * carries a UA_RolePermissionType array. */
+typedef void
+(*UA_ClientAsyncReadRolePermissionsAttributeCallback)(
+    UA_Client *client, void *userdata, UA_UInt32 requestId,
+    UA_StatusCode status, UA_Variant *rolePermissions);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_readRolePermissionsAttribute_async(
+    UA_Client *client, const UA_NodeId nodeId,
+    UA_ClientAsyncReadRolePermissionsAttributeCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
+/* Read a single UserRolePermissions attribute. If the status is good, the
+ * variant carries a UA_RolePermissionType array. */
+typedef void
+(*UA_ClientAsyncReadUserRolePermissionsAttributeCallback)(
+    UA_Client *client, void *userdata, UA_UInt32 requestId,
+    UA_StatusCode status, UA_Variant *userRolePermissions);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_readUserRolePermissionsAttribute_async(
+    UA_Client *client, const UA_NodeId nodeId,
+    UA_ClientAsyncReadUserRolePermissionsAttributeCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
+/* Read a single AccessRestrictions attribute */
+typedef void
+(*UA_ClientAsyncReadAccessRestrictionsAttributeCallback)(
+    UA_Client *client, void *userdata, UA_UInt32 requestId,
+    UA_StatusCode status, UA_AccessRestrictionType *accessRestrictions);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_readAccessRestrictionsAttribute_async(
+    UA_Client *client, const UA_NodeId nodeId,
+    UA_ClientAsyncReadAccessRestrictionsAttributeCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
 /* Read a single MinimumSamplingInterval attribute */
 typedef void
 (*UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback)(
@@ -478,6 +516,9 @@ UA_CLIENT_ASYNCWRITE(UA_Client_writeMinimumSamplingIntervalAttribute_async, UA_D
 UA_CLIENT_ASYNCWRITE(UA_Client_writeHistorizingAttribute_async, UA_Boolean)
 UA_CLIENT_ASYNCWRITE(UA_Client_writeExecutableAttribute_async, UA_Boolean)
 UA_CLIENT_ASYNCWRITE(UA_Client_writeAccessLevelExAttribute_async, UA_UInt32)
+UA_CLIENT_ASYNCWRITE(UA_Client_writeRolePermissionsAttribute_async, UA_Variant)
+UA_CLIENT_ASYNCWRITE(UA_Client_writeAccessRestrictionsAttribute_async,
+                     UA_AccessRestrictionType)
 
 /**
  * Method Calling

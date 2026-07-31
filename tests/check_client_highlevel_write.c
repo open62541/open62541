@@ -108,6 +108,26 @@ START_TEST(hl_writeAccessLevel) {
     disconnectClient(client);
 } END_TEST
 
+START_TEST(hl_writeRbacAttributes) {
+    UA_Client *client = connectClient();
+    UA_Variant permissions;
+    UA_RolePermissionType permission;
+    UA_RolePermissionType_init(&permission);
+    permission.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    permission.permissions = UA_PERMISSIONTYPE_BROWSE;
+    UA_Variant_setArray(&permissions, &permission, 1,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    UA_StatusCode res = UA_Client_writeRolePermissionsAttribute(client,
+        UA_NODEID_NUMERIC(1, 62001), &permissions);
+    ck_assert(UA_StatusCode_isBad(res));
+
+    UA_AccessRestrictionType restrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
+    res = UA_Client_writeAccessRestrictionsAttribute(client,
+        UA_NODEID_NUMERIC(1, 62001), &restrictions);
+    ck_assert(UA_StatusCode_isBad(res));
+    disconnectClient(client);
+} END_TEST
+
 START_TEST(hl_writeMinSampling) {
     UA_Client *client = connectClient();
     UA_Double val = 100.0;
@@ -637,6 +657,7 @@ static Suite *testSuite_clientHL2(void) {
     tcase_add_checked_fixture(tc_write, setup, teardown);
     tcase_add_test(tc_write, hl_writeWriteMask);
     tcase_add_test(tc_write, hl_writeAccessLevel);
+    tcase_add_test(tc_write, hl_writeRbacAttributes);
     tcase_add_test(tc_write, hl_writeMinSampling);
     tcase_add_test(tc_write, hl_writeHistorizing);
     tcase_add_test(tc_write, hl_writeValueRank);

@@ -172,6 +172,31 @@ START_TEST(hl_readAccessLevel) {
     disconnectClient(client);
 } END_TEST
 
+START_TEST(hl_readRbacAttributes) {
+    UA_Client *client = connectClient();
+    UA_Variant permissions;
+    UA_Variant_init(&permissions);
+    UA_StatusCode res = UA_Client_readUserRolePermissionsAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &permissions);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&permissions);
+
+    res = UA_Client_readRolePermissionsAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &permissions);
+#ifdef UA_ENABLE_RBAC
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&permissions);
+#else
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+#endif
+
+    UA_AccessRestrictionType restrictions;
+    res = UA_Client_readAccessRestrictionsAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &restrictions);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    disconnectClient(client);
+} END_TEST
+
 START_TEST(hl_readMinimumSamplingInterval) {
     UA_Client *client = connectClient();
     UA_Double val;
@@ -440,6 +465,7 @@ static Suite *testSuite_clientHighLevel(void) {
     tcase_add_test(tc_read, hl_readValueRank);
     tcase_add_test(tc_read, hl_readIsAbstract);
     tcase_add_test(tc_read, hl_readAccessLevel);
+    tcase_add_test(tc_read, hl_readRbacAttributes);
     tcase_add_test(tc_read, hl_readMinimumSamplingInterval);
     tcase_add_test(tc_read, hl_readHistorizing);
     tcase_add_test(tc_read, hl_readEventNotifier);

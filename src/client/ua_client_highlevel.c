@@ -711,6 +711,22 @@ UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeI
 }
 
 UA_StatusCode
+UA_Client_writeRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                        const UA_Variant *newRolePermissions) {
+    return __Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS,
+                                   newRolePermissions, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+UA_StatusCode
+UA_Client_writeAccessRestrictionsAttribute(
+    UA_Client *client, const UA_NodeId nodeId,
+    const UA_AccessRestrictionType *newAccessRestrictions) {
+    return __Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSRESTRICTIONS,
+                                   newAccessRestrictions,
+                                   &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+}
+
+UA_StatusCode
 UA_Client_writeMinimumSamplingIntervalAttribute(UA_Client *client,
                                                 const UA_NodeId nodeId,
                                                 const UA_Double *newMinInterval) {
@@ -843,7 +859,9 @@ __Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     }
 
     /* Copy value into out */
-    if(attributeId == UA_ATTRIBUTEID_VALUE) {
+    if(attributeId == UA_ATTRIBUTEID_VALUE ||
+       attributeId == UA_ATTRIBUTEID_ROLEPERMISSIONS ||
+       attributeId == UA_ATTRIBUTEID_USERROLEPERMISSIONS) {
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
     } else if(attributeId == UA_ATTRIBUTEID_NODECLASS) {
@@ -985,6 +1003,27 @@ UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId
                                        UA_Byte *out) {
     return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL,
                                   out, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+UA_StatusCode
+UA_Client_readRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_Variant *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS,
+                                  out, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+UA_StatusCode
+UA_Client_readUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_Variant *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_USERROLEPERMISSIONS,
+                                  out, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+UA_StatusCode
+UA_Client_readAccessRestrictionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                          UA_AccessRestrictionType *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSRESTRICTIONS,
+                                  out, &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
 }
 
 UA_StatusCode
@@ -1383,6 +1422,7 @@ highlevelAsyncService(UA_Client *client, const void *request,
     ctx.callback = callback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     UA_StatusCode res =
         __Client_AsyncServiceWithContext(client, request, requestType,
@@ -1491,6 +1531,11 @@ invokeAttributeReadCallback(UA_Client *client, UA_AsyncCallbackContext *ctx,
             ctx->callback.uint32(client, ctx->userdata, requestId, status,
                                  (UA_UInt32*)result);
         break;
+    case UA_DATATYPEKIND_UINT16:
+        if(ctx->callback.uint16)
+            ctx->callback.uint16(client, ctx->userdata, requestId, status,
+                                 (UA_UInt16*)result);
+        break;
     case UA_DATATYPEKIND_BOOLEAN:
         if(ctx->callback.boolean)
             ctx->callback.boolean(client, ctx->userdata, requestId, status,
@@ -1545,10 +1590,18 @@ AttributeReadCallback(UA_Client *client, void *userdata,
         goto finish;
     }
 
-    /* An ArrayDimensions attribute. Has to be an array of UInt32. */
+    if(dv->hasStatus && UA_StatusCode_isBad(dv->status)) {
+        res = dv->status;
+        goto finish;
+    }
+
+    /* An array attribute returned as a variant. */
     if(ctx->resultType == &UA_TYPES[UA_TYPES_VARIANT]) {
-        if(dv->hasValue &&
-           UA_Variant_hasArrayType(&dv->value, &UA_TYPES[UA_TYPES_UINT32])) {
+        UA_Boolean valid = dv->hasValue;
+        if(ctx->attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
+            valid = valid && UA_Variant_hasArrayType(&dv->value,
+                                                      &UA_TYPES[UA_TYPES_UINT32]);
+        if(valid) {
             invokeAttributeReadCallback(client, ctx, requestId,
                                         UA_STATUSCODE_GOOD, &dv->value);
         } else {
@@ -1596,6 +1649,7 @@ readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
     ctx.callback = callback;
     ctx.userdata = userdata;
     ctx.resultType = resultType;
+    ctx.attributeId = rvi->attributeId;
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -1858,6 +1912,42 @@ UA_Client_readUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId 
 }
 
 UA_StatusCode
+UA_Client_readRolePermissionsAttribute_async(
+    UA_Client *client, const UA_NodeId nodeId,
+    UA_ClientAsyncReadRolePermissionsAttributeCallback callback,
+    void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.variant = callback;
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS,
+                                     &UA_TYPES[UA_TYPES_VARIANT], cb,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readUserRolePermissionsAttribute_async(
+    UA_Client *client, const UA_NodeId nodeId,
+    UA_ClientAsyncReadUserRolePermissionsAttributeCallback callback,
+    void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.variant = callback;
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USERROLEPERMISSIONS,
+                                     &UA_TYPES[UA_TYPES_VARIANT], cb,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readAccessRestrictionsAttribute_async(
+    UA_Client *client, const UA_NodeId nodeId,
+    UA_ClientAsyncReadAccessRestrictionsAttributeCallback callback,
+    void *userdata, UA_UInt32 *requestId) {
+    UA_AsyncCallback cb;
+    cb.uint16 = callback;
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSRESTRICTIONS,
+                                     &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE], cb,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
 UA_Client_readMinimumSamplingIntervalAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                                      UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback callback,
                                                      void *userdata, UA_UInt32 *requestId) {
@@ -2065,3 +2155,6 @@ UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeMinimumSamplingIntervalAttribute_async,
 UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeHistorizingAttribute_async, HISTORIZING, UA_Boolean, BOOLEAN)
 UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeExecutableAttribute_async, EXECUTABLE, UA_Boolean, BOOLEAN)
 UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeAccessLevelExAttribute_async, ACCESSLEVELEX, UA_UInt32, UINT32)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeRolePermissionsAttribute_async, ROLEPERMISSIONS, UA_Variant, VARIANT)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeAccessRestrictionsAttribute_async, ACCESSRESTRICTIONS,
+                          UA_AccessRestrictionType, ACCESSRESTRICTIONTYPE)
