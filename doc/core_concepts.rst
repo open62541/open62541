@@ -120,6 +120,14 @@ them.
    +-------------------------+-----------------------------+----------+---------------+--------+-------------+----------------+-----------+--------+-------+
    | DataTypeDefinition      | DataTypeDefinition          |          |               |        |             |                |   ``O``   |        |       |
    +-------------------------+-----------------------------+----------+---------------+--------+-------------+----------------+-----------+--------+-------+
+   | RolePermissions         | [RolePermissionType]        |   ``O``  |     ``O``     |  ``O`` |    ``O``    |     ``O``      |   ``O``   |  ``O`` | ``O`` |
+   +-------------------------+-----------------------------+----------+---------------+--------+-------------+----------------+-----------+--------+-------+
+   | UserRolePermissions     | [RolePermissionType]        |   ``O``  |     ``O``     |  ``O`` |    ``O``    |     ``O``      |   ``O``   |  ``O`` | ``O`` |
+   +-------------------------+-----------------------------+----------+---------------+--------+-------------+----------------+-----------+--------+-------+
+   | AccessRestrictions      | AccessRestrictionType       |   ``O``  |     ``O``     |  ``O`` |    ``O``    |     ``O``      |   ``O``   |  ``O`` | ``O`` |
+   +-------------------------+-----------------------------+----------+---------------+--------+-------------+----------------+-----------+--------+-------+
+   | AccessLevelEx           | UInt32                      |   ``O``  |               |        |             |                |           |        |       |
+   +-------------------------+-----------------------------+----------+---------------+--------+-------------+----------------+-----------+--------+-------+
 
 Each attribute is referenced by a numerical :ref:`attribute-id`. For example,
 the :ref:`Read Service<attribute-services>` takes the NodeId and AttributeId as
@@ -129,8 +137,7 @@ Some numerical attributes are used as bitfields or come with special semantics.
 In particular, see the sections on :ref:`access-level-mask`, :ref:`write-mask`,
 :ref:`valuerank-defines` and :ref:`eventnotifier`.
 
-New attributes in the standard that are still unsupported in open62541 are
-RolePermissions, UserRolePermissions, AccessRestrictions and AccessLevelEx.
+The AccessRestrictions Attribute is not yet supported by the open62541 server.
 
 VariableNode
 ~~~~~~~~~~~~
