@@ -120,6 +120,20 @@ UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        UA_Byte *out);
 
+/* Returns a variant with a UA_RolePermissionType array */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_readRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_Variant *out);
+
+/* Returns a variant with a UA_RolePermissionType array */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_readUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_Variant *out);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_readAccessRestrictionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                          UA_AccessRestrictionType *out);
+
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_readMinimumSamplingIntervalAttribute(UA_Client *client,
                                                const UA_NodeId nodeId,
@@ -291,6 +305,15 @@ UA_Client_writeAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_Byte *newUserAccessLevel);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_writeRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                        const UA_Variant *newRolePermissions);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_writeAccessRestrictionsAttribute(
+    UA_Client *client, const UA_NodeId nodeId,
+    const UA_AccessRestrictionType *newAccessRestrictions);
 
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeMinimumSamplingIntervalAttribute(UA_Client *client,

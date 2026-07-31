@@ -25,6 +25,7 @@ static UA_Server *server;
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static volatile UA_Boolean asyncCallbackDone;
+static volatile UA_Boolean asyncDataValueReceived;
 static volatile UA_StatusCode asyncServiceStatus;
 static volatile UA_StatusCode asyncOperationStatus;
 
@@ -162,7 +163,10 @@ static void cbAsyncAddNodes(UA_Client *c, void *ud, UA_UInt32 rId,
 /* Typed callbacks for each async read function */
 static void cbReadValue(UA_Client *c, void *ud, UA_UInt32 rId,
                         UA_StatusCode s, UA_DataValue *v) {
-    (void)c; (void)ud; (void)rId; (void)v; (void)s;
+    (void)c; (void)ud; (void)rId;
+    asyncServiceStatus = s;
+    asyncDataValueReceived = (v != NULL);
+    asyncOperationStatus = (v && v->hasStatus) ? v->status : UA_STATUSCODE_GOOD;
     asyncCallbackDone = true;
 }
 static void cbReadDataType(UA_Client *c, void *ud, UA_UInt32 rId,
@@ -250,6 +254,19 @@ static void cbReadUserAccessLevel(UA_Client *c, void *ud, UA_UInt32 rId,
     (void)c; (void)ud; (void)rId; (void)ual; (void)s;
     asyncCallbackDone = true;
 }
+static void cbReadRolePermissions(UA_Client *c, void *ud, UA_UInt32 rId,
+                                  UA_StatusCode s, UA_Variant *permissions) {
+    (void)c; (void)ud; (void)rId; (void)permissions;
+    asyncOperationStatus = s;
+    asyncCallbackDone = true;
+}
+static void cbReadAccessRestrictions(UA_Client *c, void *ud, UA_UInt32 rId,
+                                     UA_StatusCode s,
+                                     UA_AccessRestrictionType *restrictions) {
+    (void)c; (void)ud; (void)rId; (void)restrictions;
+    asyncOperationStatus = s;
+    asyncCallbackDone = true;
+}
 static void cbReadMinSampling(UA_Client *c, void *ud, UA_UInt32 rId,
                               UA_StatusCode s, UA_Double *msi) {
     (void)c; (void)ud; (void)rId; (void)msi; (void)s;
@@ -278,6 +295,16 @@ static void cbReadAttr(UA_Client *c, void *ud, UA_UInt32 rId,
 static void cbAsyncWrite(UA_Client *c, void *ud, UA_UInt32 rId,
                          UA_WriteResponse *wr) {
     (void)c; (void)ud; (void)rId; (void)wr;
+    asyncCallbackDone = true;
+}
+
+static void cbAsyncWriteStatus(UA_Client *c, void *ud, UA_UInt32 rId,
+                               UA_WriteResponse *wr) {
+    (void)c; (void)ud; (void)rId;
+    asyncOperationStatus = wr->responseHeader.serviceResult;
+    if(asyncOperationStatus == UA_STATUSCODE_GOOD)
+        asyncOperationStatus = (wr->resultsSize == 1) ?
+            wr->results[0] : UA_STATUSCODE_BADUNEXPECTEDERROR;
     asyncCallbackDone = true;
 }
 
@@ -332,12 +359,29 @@ END_TEST
 START_TEST(async_readValue) {
     UA_Client *client = connectClient();
     asyncCallbackDone = false;
+    asyncDataValueReceived = false;
     UA_UInt32 reqId = 0;
     UA_StatusCode res = UA_Client_readValueAttribute_async(client,
         UA_NODEID_NUMERIC(1, 71001), cbReadValue, NULL, &reqId);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     iterateClient(client);
     ck_assert(asyncCallbackDone);
+    ck_assert(asyncDataValueReceived);
+    ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_GOOD);
+
+    /* A bad per-node status is part of the DataValue and must not turn the
+     * callback argument into NULL. */
+    asyncCallbackDone = false;
+    asyncDataValueReceived = false;
+    res = UA_Client_readValueAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71999), cbReadValue, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert(asyncDataValueReceived);
+    ck_assert_uint_eq(asyncServiceStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_BADNODEIDUNKNOWN);
     disconnectClient(client);
 } END_TEST
 
@@ -350,6 +394,70 @@ START_TEST(async_readDataType) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     iterateClient(client);
     ck_assert(asyncCallbackDone);
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(async_readRbacAttributes) {
+    UA_Client *client = connectClient();
+    UA_UInt32 reqId = 0;
+    asyncCallbackDone = false;
+    UA_StatusCode res = UA_Client_readRolePermissionsAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), cbReadRolePermissions, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+#ifdef UA_ENABLE_RBAC
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_GOOD);
+#else
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+#endif
+
+    asyncCallbackDone = false;
+    res = UA_Client_readUserRolePermissionsAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), cbReadRolePermissions, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_GOOD);
+
+    asyncCallbackDone = false;
+    res = UA_Client_readAccessRestrictionsAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), cbReadAccessRestrictions, NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    disconnectClient(client);
+} END_TEST
+
+START_TEST(async_writeRbacAttributes) {
+    UA_Client *client = connectClient();
+    UA_UInt32 reqId = 0;
+    UA_Variant permissions;
+    UA_RolePermissionType permission;
+    UA_RolePermissionType_init(&permission);
+    permission.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    permission.permissions = UA_PERMISSIONTYPE_BROWSE;
+    UA_Variant_setArray(&permissions, &permission, 1,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    asyncCallbackDone = false;
+    UA_StatusCode res = UA_Client_writeRolePermissionsAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), &permissions, cbAsyncWriteStatus,
+        NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert(UA_StatusCode_isBad(asyncOperationStatus));
+
+    UA_AccessRestrictionType restrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
+    asyncCallbackDone = false;
+    res = UA_Client_writeAccessRestrictionsAttribute_async(client,
+        UA_NODEID_NUMERIC(1, 71001), &restrictions, cbAsyncWriteStatus,
+        NULL, &reqId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    iterateClient(client);
+    ck_assert(asyncCallbackDone);
+    ck_assert(UA_StatusCode_isBad(asyncOperationStatus));
     disconnectClient(client);
 } END_TEST
 
@@ -1018,6 +1126,7 @@ static Suite *testSuite_clientAsync(void) {
     tcase_add_checked_fixture(tc_asyncRead, setup, teardown);
     tcase_add_test(tc_asyncRead, async_readValue);
     tcase_add_test(tc_asyncRead, async_readDataType);
+    tcase_add_test(tc_asyncRead, async_readRbacAttributes);
     tcase_add_test(tc_asyncRead, async_readArrayDims);
     tcase_add_test(tc_asyncRead, async_readNodeClass);
     tcase_add_test(tc_asyncRead, async_readBrowseName);
@@ -1050,6 +1159,7 @@ static Suite *testSuite_clientAsync(void) {
     tcase_add_test(tc_asyncWrite, async_writeBrowseName);
     tcase_add_test(tc_asyncWrite, async_writeAccessLevel);
     tcase_add_test(tc_asyncWrite, async_writeIsAbstract);
+    tcase_add_test(tc_asyncWrite, async_writeRbacAttributes);
 
     TCase *tc_ops = tcase_create("ClientOps");
     tcase_add_checked_fixture(tc_ops, setup, teardown);

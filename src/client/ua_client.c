@@ -1703,6 +1703,7 @@ UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
     ctx.callback.read = readCallback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     res = __Client_AsyncServiceWithContext(
         client, request, &UA_TYPES[UA_TYPES_READREQUEST], asyncReadCallback,
@@ -1720,6 +1721,7 @@ UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
     ctx.callback.write = writeCallback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     res = __Client_AsyncServiceWithContext(
         client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST], asyncWriteCallback,
@@ -1737,6 +1739,7 @@ UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
     ctx.callback.browse = browseCallback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     res = __Client_AsyncServiceWithContext(
         client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], asyncBrowseCallback,
@@ -1755,6 +1758,7 @@ UA_Client_sendAsyncBrowseNextRequest(UA_Client *client,
     ctx.callback.browseNext = browseNextCallback;
     ctx.userdata = userdata;
     ctx.resultType = NULL;
+    ctx.attributeId = UA_ATTRIBUTEID_INVALID;
     lockClient(client);
     res = __Client_AsyncServiceWithContext(
         client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],

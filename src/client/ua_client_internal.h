@@ -104,6 +104,7 @@ typedef union {
     UA_ClientAsyncReadBrowseNameAttributeCallback qualifiedName;
     UA_ClientAsyncReadDisplayNameAttributeCallback localizedText;
     UA_ClientAsyncReadWriteMaskAttributeCallback uint32;
+    UA_ClientAsyncReadAccessRestrictionsAttributeCallback uint16;
     UA_ClientAsyncReadIsAbstractAttributeCallback boolean;
     UA_ClientAsyncReadEventNotifierAttributeCallback byte;
     UA_ClientAsyncReadValueRankAttributeCallback int32;
@@ -114,6 +115,7 @@ typedef struct {
     UA_AsyncCallback callback;
     void *userdata;
     const UA_DataType *resultType;
+    UA_UInt32 attributeId;
 } UA_AsyncCallbackContext;
 
 typedef struct AsyncServiceCall {
