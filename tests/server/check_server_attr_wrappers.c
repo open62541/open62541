@@ -124,6 +124,37 @@ START_TEST(read_executable) {
     ck_assert(e == true);
 } END_TEST
 
+START_TEST(read_rolePermissions) {
+    UA_Variant permissions;
+    UA_Variant_init(&permissions);
+    UA_StatusCode res = UA_Server_readRolePermissions(server,
+        UA_NODEID_NUMERIC(1, 70001), &permissions);
+#ifdef UA_ENABLE_RBAC
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(permissions.type, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    UA_Variant_clear(&permissions);
+#else
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+#endif
+} END_TEST
+
+START_TEST(read_userRolePermissions) {
+    UA_Variant permissions;
+    UA_Variant_init(&permissions);
+    UA_StatusCode res = UA_Server_readUserRolePermissions(server,
+        UA_NODEID_NUMERIC(1, 70001), &permissions);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(permissions.type, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    UA_Variant_clear(&permissions);
+} END_TEST
+
+START_TEST(read_accessRestrictions) {
+    UA_AccessRestrictionType restrictions;
+    UA_StatusCode res = UA_Server_readAccessRestrictions(server,
+        UA_NODEID_NUMERIC(1, 70001), &restrictions);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+} END_TEST
+
 START_TEST(read_userExecutable) {
     /* UA_Server_readUserExecutable doesn't exist in this version,
        but readExecutable covers the method node read path */
@@ -278,6 +309,20 @@ START_TEST(write_executable) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(write_rolePermissions) {
+    UA_Variant permissions;
+    UA_Variant_init(&permissions);
+    UA_StatusCode res = UA_Server_writeRolePermissions(server,
+        UA_NODEID_NUMERIC(1, 70001), permissions);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTWRITABLE);
+} END_TEST
+
+START_TEST(write_accessRestrictions) {
+    UA_StatusCode res = UA_Server_writeAccessRestrictions(server,
+        UA_NODEID_NUMERIC(1, 70001), UA_ACCESSRESTRICTIONTYPE_NONE);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+} END_TEST
+
 START_TEST(write_objectProperty) {
     UA_Variant val;
     UA_Int32 newVal = 200;
@@ -340,6 +385,9 @@ static Suite *testSuite_serverAttributes(void) {
     tcase_add_test(tc_read, read_arrayDimensions);
     tcase_add_test(tc_read, read_accessLevelEx);
     tcase_add_test(tc_read, read_executable);
+    tcase_add_test(tc_read, read_rolePermissions);
+    tcase_add_test(tc_read, read_userRolePermissions);
+    tcase_add_test(tc_read, read_accessRestrictions);
     tcase_add_test(tc_read, read_userExecutable);
     tcase_add_test(tc_read, read_minimumSamplingInterval);
     tcase_add_test(tc_read, read_historizing);
@@ -360,6 +408,8 @@ static Suite *testSuite_serverAttributes(void) {
     tcase_add_test(tc_write, write_accessLevelEx);
     tcase_add_test(tc_write, write_historizing);
     tcase_add_test(tc_write, write_executable);
+    tcase_add_test(tc_write, write_rolePermissions);
+    tcase_add_test(tc_write, write_accessRestrictions);
     tcase_add_test(tc_write, write_objectProperty);
     tcase_add_test(tc_write, write_objectProperty_scalar);
 

@@ -416,6 +416,20 @@ UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
                          UA_Boolean *out);
 
+/* Returns a variant with a UA_RolePermissionType array */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_readRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                              UA_Variant *out);
+
+/* Returns a variant with a UA_RolePermissionType array */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_readUserRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                  UA_Variant *out);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_readAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_AccessRestrictionType *out);
+
 /**
  * The following node attributes cannot be written once a node has been created:
  *
@@ -505,6 +519,14 @@ UA_Server_writeHistorizing(UA_Server *server, const UA_NodeId nodeId,
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
                           const UA_Boolean executable);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_writeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_Variant rolePermissions);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_writeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
+                                  const UA_AccessRestrictionType accessRestrictions);
 
 /**
  * .. _server-method-call:
