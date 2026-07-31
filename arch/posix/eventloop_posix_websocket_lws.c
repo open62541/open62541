@@ -592,8 +592,8 @@ static UA_StatusCode openConnection(UA_ConnectionManager *cm,
         if(c->state == WS_STATE_REMOVED)
             return UA_STATUSCODE_GOOD;
         UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                        "WebSocket %lu\t| Could not start the connection to %s:%u%s",
-                        (unsigned long)c->id, c->address, (unsigned)c->port, c->path);
+                       "WebSocket %lu\t| Could not start the connection to %s:%u%s",
+                       (unsigned long)c->id, c->address, (unsigned)c->port, c->path);
         goto failVhost;
     }
     notify(c, UA_CONNECTIONSTATE_OPENING, UA_BYTESTRING_NULL, true);
