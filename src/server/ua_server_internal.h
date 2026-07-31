@@ -740,6 +740,48 @@ UA_Driver * UA_DiscoveryManager_new(void);
 void cleanupRegisteredServers(UA_Server *server);
 #endif
 
+/* Binary protocol handling shared by stream-based server transports */
+#define UA_MAXSERVERCONNECTIONS 16
+
+typedef struct {
+    UA_ConnectionState state;
+    uintptr_t connectionId;
+    UA_ConnectionManager *connectionManager;
+} UA_ServerConnection;
+
+typedef struct UA_BinaryProtocolManager UA_BinaryProtocolManager;
+
+typedef UA_StatusCode
+(*UA_BinaryProtocolManagerStartTransport)(UA_BinaryProtocolManager *bpm);
+
+typedef void
+(*UA_BinaryProtocolManagerAddDiscoveryUrl)(UA_BinaryProtocolManager *bpm,
+                                           const UA_KeyValueMap *params);
+
+struct UA_BinaryProtocolManager {
+    UA_Driver drv;
+    const UA_Logger *logging; /* shortcut */
+    UA_String protocolName;   /* Transport name used for logging */
+    UA_UInt64 houseKeepingCallbackId;
+
+    UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
+    size_t serverConnectionsSize;
+
+    /* SecureChannels */
+    TAILQ_HEAD(, UA_SecureChannel) channels;
+
+    /* Transport-specific setup and discovery handling */
+    UA_BinaryProtocolManagerStartTransport startTransport;
+    UA_BinaryProtocolManagerAddDiscoveryUrl addDiscoveryUrl;
+};
+
+void
+UA_BinaryProtocolManager_init(UA_BinaryProtocolManager *bpm,
+                              const UA_String name,
+                              const UA_String protocolName,
+                              UA_BinaryProtocolManagerStartTransport startTransport,
+                              UA_BinaryProtocolManagerAddDiscoveryUrl addDiscoveryUrl);
+
 UA_Driver * UA_BinaryProtocolManager_new(void);
 
 UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
