@@ -2420,11 +2420,24 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
      * node if it lives on a different server. */
     UA_Node *targetNode = NULL;
     if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        /* Local self-references are not allowed. Validate that the node exists
+         * first so clients receive Source/TargetNodeIdInvalid for missing nodes
+         * instead of a silent Good with no change to the address space. Avoid
+         * dual GET_EDIT of the same node. */
         if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
-            *retval = UA_STATUSCODE_GOOD;
+            const UA_Node *node = UA_NODESTORE_GET(server, &item->sourceNodeId);
+            if(!node) {
+                UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                                     "Cannot add reference - source/target %N does not exist",
+                                     item->sourceNodeId);
+                *retval = UA_STATUSCODE_BADSOURCENODEIDINVALID;
+                return;
+            }
+            UA_NODESTORE_RELEASE(server, node);
             UA_LOG_INFO_SESSION(server->config.logging, session,
                                 "Cannot add reference - source and target %N are identical",
                                 item->targetNodeId.nodeId);
+            *retval = UA_STATUSCODE_BADINVALIDSELFREFERENCE;
             return;
         }
         targetNode =
