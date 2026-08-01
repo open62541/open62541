@@ -951,6 +951,44 @@ UA_ConnectionManager_new_LWS_MQTT(const UA_String eventSourceName);
 UA_EXPORT UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName);
 
+#ifdef UA_ENABLE_EVENTLOOP_GLIB
+
+/**
+ * GLib Signal Interrupt Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Same contract as UA_InterruptManager_new_POSIX (interruptHandle is a
+ * <signal.h> signal number), but each interrupt is registered as a native
+ * GLib GSource (g_unix_signal_source_new) attached to the GMainContext of
+ * the owning EventLoop (see UA_EventLoop_new_GLib), instead of installing a
+ * sigaction handler writing to a self-pipe. GLib handles the OS-level signal
+ * reception itself.
+ *
+ * Two behavioral differences from UA_InterruptManager_new_POSIX, both
+ * inherent to GLib:
+ *
+ * - Delivery is asynchronous: GLib forwards a received signal to the
+ *   EventLoop via an internal worker thread. A signal may therefore not yet
+ *   be visible to a single non-blocking EventLoop iteration performed
+ *   immediately after it was raised; callers polling for a specific
+ *   interrupt should use one or more blocking iterations (a nonzero `run`
+ *   timeout), not assume synchronous delivery.
+ * - If the same signal number is registered on two independent GLib-backed
+ *   InterruptManagers (or GSources) in the same process, GLib delivers each
+ *   occurrence to only one of them, not both -- unlike
+ *   UA_InterruptManager_new_POSIX, which fans a signal out to every one of
+ *   its own registered listeners. Use different signal numbers if multiple
+ *   independent GLib InterruptManagers need to run side by side.
+ *
+ * Do not register the same signal on both a UA_InterruptManager_new_POSIX
+ * and a UA_InterruptManager_new_GLib instance in the same process -- they
+ * install the OS-level handler through different, mutually-unaware
+ * mechanisms and will race over it. Only available on Unix (Linux/Darwin),
+ * not Win32. */
+UA_EXPORT UA_InterruptManager *
+UA_InterruptManager_new_GLib(const UA_String eventSourceName);
+
+#endif /* UA_ENABLE_EVENTLOOP_GLIB */
+
 #elif defined(UA_ARCHITECTURE_ZEPHYR)
 
 UA_EXPORT UA_EventLoop *
