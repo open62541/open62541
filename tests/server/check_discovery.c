@@ -121,6 +121,9 @@ UA_Boolean *running_register;
 THREAD_HANDLE server_thread_register;
 UA_UInt64 periodicRegisterCallbackId;
 
+static const UA_String registeredDiscoveryUrl =
+    UA_STRING_STATIC("opc.tcp://third-party.example:16664");
+
 THREAD_CALLBACK(serverloop_register) {
     while(*running_register)
         UA_Server_run_iterate(server_register, true);
@@ -160,6 +163,11 @@ setup_register(void) {
     UA_LocalizedText_clear(&config_register->applicationDescription.applicationName);
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
+    UA_StatusCode res = UA_Array_appendCopy(
+        (void**)&config_register->applicationDescription.discoveryUrls,
+        &config_register->applicationDescription.discoveryUrlsSize,
+        &registeredDiscoveryUrl, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_Server_run_startup(server_register);
     THREAD_CREATE(server_thread_register, serverloop_register);
 }
@@ -352,7 +360,9 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
 
 static UA_Boolean
 FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
-                          size_t expectedSize) {
+                          const char *filterUri,
+                          UA_Boolean expectSelf,
+                          UA_Boolean expectRegistered) {
     UA_Client *client = UA_Client_newForUnitTest();
 
     UA_StatusCode retval = UA_Client_connect(client, requestedEndpointUrl);
@@ -364,6 +374,12 @@ FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
     request.endpointUrl = UA_STRING((char*)(uintptr_t)requestedEndpointUrl);
+    UA_String filter = UA_STRING_NULL;
+    if(filterUri) {
+        filter = UA_STRING((char*)(uintptr_t)filterUri);
+        request.serverUrisSize = 1;
+        request.serverUris = &filter;
+    }
 
     UA_ApplicationDescription *applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
@@ -378,21 +394,47 @@ FindAndCheckDiscoveryUrls(const char *requestedEndpointUrl,
 
     UA_Boolean ok = true;
     UA_String requested = UA_STRING((char*)(uintptr_t)requestedEndpointUrl);
-
+    UA_String selfUri =
+        UA_STRING("urn:open62541.test.local_discovery_server");
+    UA_String registeredUri =
+        UA_STRING("urn:open62541.test.server_register");
+    UA_Boolean foundSelf = false;
+    UA_Boolean foundRegistered = false;
+    size_t expectedSize = (size_t)expectSelf + (size_t)expectRegistered;
     if(applicationDescriptionArraySize != expectedSize)
         ok = false;
 
     for(size_t i = 0; ok && i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *ad = &applicationDescriptionArray[i];
-        if(ad->discoveryUrlsSize != 1) {
-            ok = false;
-            break;
+        if(UA_String_equal(&ad->applicationUri, &selfUri)) {
+            foundSelf = true;
+            if(ad->discoveryUrlsSize != 1 ||
+               !UA_String_equal(&ad->discoveryUrls[0], &requested))
+                ok = false;
+            continue;
         }
-        if(!UA_String_equal(&ad->discoveryUrls[0], &requested)) {
-            ok = false;
-            break;
+
+        if(UA_String_equal(&ad->applicationUri, &registeredUri)) {
+            foundRegistered = true;
+            UA_Boolean foundUrl = false;
+            for(size_t j = 0; j < ad->discoveryUrlsSize; j++) {
+                if(UA_String_equal(&ad->discoveryUrls[j],
+                                   &registeredDiscoveryUrl)) {
+                    foundUrl = true;
+                    break;
+                }
+            }
+            if(!foundUrl)
+                ok = false;
+            continue;
         }
+
+        /* No other server was registered in this test. */
+        ok = false;
     }
+
+    if(foundSelf != expectSelf || foundRegistered != expectRegistered)
+        ok = false;
 
     UA_FindServersResponse_clear(&response);
     UA_Client_disconnect(client);
@@ -586,19 +628,23 @@ START_TEST(Server_registerTimeout) {
 }
 END_TEST
 
-START_TEST(Server_findServers_mirrors_endpointUrl) {
+START_TEST(Server_findServers_preserves_registered_discoveryUrls) {
     while(!Client_find_discovery()) {}
 
     registerServer();
 
     while(!Client_find_registered()) {}
 
-    /* Wait until FindServers returns exactly the two servers, each mirroring the
-     * requested discovery URL. Busy-wait (like the checks above) instead of a
-     * one-shot assert: under slow execution (valgrind) the registered entry can
-     * briefly age out between periodic re-registrations, so retry until the
-     * expected state is observed. */
-    while(!FindAndCheckDiscoveryUrls("opc.tcp://localhost:4840", 2)) {}
+    /* The local server mirrors the requested DiscoveryUrl. The registered
+     * server retains its own URLs. */
+    while(!FindAndCheckDiscoveryUrls("opc.tcp://localhost:4840", NULL,
+                                     true, true)) {}
+
+    /* Filtering out the local server must not cause the first registered
+     * server entry to be overwritten with the LDS URL. */
+    while(!FindAndCheckDiscoveryUrls(
+        "opc.tcp://localhost:4840", "urn:open62541.test.server_register",
+        false, true)) {}
 
     unregisterServer();
 
@@ -639,7 +685,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
     tcase_add_test(tc_register, Server_registerUnregister);
-    tcase_add_test(tc_register, Server_findServers_mirrors_endpointUrl);
+    tcase_add_test(tc_register,
+                   Server_findServers_preserves_registered_discoveryUrls);
     suite_add_tcase(s,tc_register);
 
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");
