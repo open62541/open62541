@@ -112,7 +112,6 @@ process_FindServers(UA_Server *server, UA_Session *session, UA_String endpointUr
     }
 
     /* Direct access to the out-variables */
-    size_t serversSize;
     UA_ApplicationDescription *servers;
 
 #ifndef UA_ENABLE_DISCOVERY
@@ -124,7 +123,6 @@ process_FindServers(UA_Server *server, UA_Session *session, UA_String endpointUr
         return res;
     *outServersSize = 1;
 
-    serversSize = 1;
     servers = *outServers;
 #else
     /* Allocate enough memory, including memory for the "self" response */
@@ -184,26 +182,23 @@ process_FindServers(UA_Server *server, UA_Session *session, UA_String endpointUr
     }
 
     *outServersSize = pos;
-    serversSize = pos;
 #endif /* UA_ENABLE_DISCOVERY */
 
-    /* Mirror back the expected EndpointUrl */
-    if(endpointUrl.length > 0) {
-        for(size_t i = 0; i < serversSize; i++) {
-            UA_ApplicationDescription *ad = &servers[i];
-            UA_Array_delete(ad->discoveryUrls, ad->discoveryUrlsSize,
+    /* Mirror back the expected EndpointUrl for the local server only.
+     * Registered servers retain the DiscoveryUrls they registered with. */
+    if(endpointUrl.length > 0 && foundSelf) {
+        UA_ApplicationDescription *ad = &servers[0];
+        UA_Array_delete(ad->discoveryUrls, ad->discoveryUrlsSize,
+                        &UA_TYPES[UA_TYPES_STRING]);
+        ad->discoveryUrls = NULL;
+        ad->discoveryUrlsSize = 0;
+        res = UA_Array_copy(&endpointUrl, 1, (void**)&ad->discoveryUrls,
                             &UA_TYPES[UA_TYPES_STRING]);
-            ad->discoveryUrls = NULL;
-            ad->discoveryUrlsSize = 0;
-            res = UA_Array_copy(&endpointUrl, 1, (void**)&ad->discoveryUrls,
-                                &UA_TYPES[UA_TYPES_STRING]);
-            if(res != UA_STATUSCODE_GOOD)
-                break;
+        if(res == UA_STATUSCODE_GOOD)
             ad->discoveryUrlsSize = 1;
-        }
     }
 
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 UA_Boolean
