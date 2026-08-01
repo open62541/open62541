@@ -314,6 +314,9 @@ if((${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR
      ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin") AND
    NOT UA_ARCHITECTURE_LWIP)
     ua_add_test(check_eventloop_interrupt.c)
+    if(UA_ENABLE_EVENTLOOP_GLIB)
+        ua_add_test(check_eventloop_interrupt_glib.c)
+    endif()
 endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)

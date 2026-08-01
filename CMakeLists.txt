@@ -1276,7 +1276,8 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
     if(UA_ENABLE_EVENTLOOP_GLIB)
         list(APPEND plugin_sources
              ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.h
-             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.c)
+             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.c
+             ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib_interrupt.c)
     endif()
 endif()
 
