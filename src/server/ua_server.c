@@ -232,21 +232,21 @@ addDriver(UA_Server *server, UA_Driver *drv) {
 
 UA_StatusCode
 UA_Server_addDriver(UA_Server *server, UA_Driver *drv) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = addDriver(server, drv);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_removeDriver(UA_Server *server, UA_Driver *drv) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot remove the driver \"%S\". "
                      "It is not fully stopped.", drv->name);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -261,7 +261,7 @@ UA_Server_removeDriver(UA_Server *server, UA_Driver *drv) {
         }
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
