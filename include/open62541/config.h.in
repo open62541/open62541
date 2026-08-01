@@ -255,12 +255,12 @@
  * both cases with and without thread-local storage. */
 
 #if UA_MULTITHREADING >= 100
-# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+# if defined(_MSC_VER)
+#  define UA_STATIC_THREAD_LOCAL static __declspec(thread)
+# elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #  define UA_STATIC_THREAD_LOCAL static _Thread_local /* C11 or newer */
 # elif defined(__GNUC__) || defined(__clang__)
 #  define UA_STATIC_THREAD_LOCAL static __thread
-# elif defined(_MSC_VER)
-#  define UA_STATIC_THREAD_LOCAL static __declspec(thread)
 # endif
 #endif
 #ifndef UA_STATIC_THREAD_LOCAL
