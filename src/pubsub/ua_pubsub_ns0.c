@@ -1362,7 +1362,7 @@ addDataSetFolderAction(UA_Server *server,
     objectAttributes.displayName = name;
     retVal |= UA_Server_addObjectNode(server, UA_NODEID_NULL, *objectId,
                                       UA_NS0ID(ORGANIZES),
-                                      UA_QUALIFIEDNAME(0, "DataSetFolder"),
+                                      UA_QUALIFIEDNAME(0, (const char *)newFolderName.data),
                                       UA_NS0ID(DATASETFOLDERTYPE),
                                       objectAttributes, NULL, &generatedId);
     UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -1895,10 +1895,26 @@ removeGroupAction(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
-    if(UA_WriterGroup_find(psm, nodeToRemove)) {
+
+    /* Scope the removal to the invoking connection. Spec 9.1.5.5: the group
+     * must be a child of the connection the method was called on. The
+     * previous code searched globally, allowing removal of groups from
+     * other connections. */
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, nodeToRemove);
+    if(wg) {
+        if(!wg->linkedConnection ||
+           !UA_NodeId_equal(&wg->linkedConnection->head.identifier, objectId))
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
         return UA_Server_removeWriterGroup(server, nodeToRemove);
     } else {
-        return UA_Server_removeReaderGroup(server, nodeToRemove);
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, nodeToRemove);
+        if(rg) {
+            if(!rg->linkedConnection ||
+               !UA_NodeId_equal(&rg->linkedConnection->head.identifier, objectId))
+                return UA_STATUSCODE_BADNODEIDUNKNOWN;
+            return UA_Server_removeReaderGroup(server, nodeToRemove);
+        }
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 }
 
@@ -2542,7 +2558,9 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsI
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
                      dataSetMetaDataOnSdsId, true);
-    retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
+    /* Use HasComponent (not HasProperty) to reference the SDS Object.
+     * HasProperty targets Variables, not Objects. */
+    retVal |= addRef(server, dsrId, UA_NS0ID(HASCOMPONENT),
                      subscribedDataSetOnSdsId, true);
     return retVal;
 }
