@@ -9,6 +9,7 @@
 #include "open62541/util.h"
 
 #include "testing_clock.h"
+#include "testing_networklayers.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -34,6 +35,20 @@ static void setup(void) {
 }
 
 static void teardown(void) {}
+
+static void
+noopConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                       void *application, void **connectionContext,
+                       UA_ConnectionState status,
+                       const UA_KeyValueMap *params, UA_ByteString msg) {
+    (void)cm;
+    (void)connectionId;
+    (void)application;
+    (void)connectionContext;
+    (void)status;
+    (void)params;
+    (void)msg;
+}
 
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -126,12 +141,70 @@ START_TEST(connectSubscribePublish) {
     el = NULL;
 } END_TEST
 
+START_TEST(distinctBrokersUseDistinctTcpConnections) {
+    UA_ConnectionManager *tcp = TestConnectionManager_new("tcp", NULL);
+    ck_assert_ptr_nonnull(tcp);
+    UA_ConnectionManager *mqtt =
+        UA_ConnectionManager_new_MQTT(UA_STRING("mqttCM"));
+    ck_assert_ptr_nonnull(mqtt);
+    UA_EventLoop *loop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(loop);
+    ck_assert_uint_eq(loop->registerEventSource(loop, &tcp->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(loop->registerEventSource(loop, &mqtt->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(loop->start(loop), UA_STATUSCODE_GOOD);
+
+    UA_String address = UA_STRING("broker-a.example");
+    UA_String topic = UA_STRING("topic-a");
+    UA_UInt16 port = 1883;
+    UA_Boolean subscribe = false;
+    UA_KeyValuePair params[4];
+    params[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[0].value, &address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[1].value, &port,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    params[2].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&params[2].value, &topic,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[3].key = UA_QUALIFIEDNAME(0, "subscribe");
+    UA_Variant_setScalar(&params[3].value, &subscribe,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap kvm = {4, params};
+
+    ck_assert_uint_eq(mqtt->openConnection(mqtt, &kvm, NULL, NULL,
+                                           noopConnectionCallback),
+                      UA_STATUSCODE_GOOD);
+    address = UA_STRING("broker-b.example");
+    topic = UA_STRING("topic-b");
+    ck_assert_uint_eq(mqtt->openConnection(mqtt, &kvm, NULL, NULL,
+                                           noopConnectionCallback),
+                      UA_STATUSCODE_GOOD);
+
+    /* TestConnectionManager assigns consecutive ids starting at 100. If the
+     * MQTT layer incorrectly reuses broker-a for broker-b, id 101 is absent. */
+    ck_assert_uint_eq(TestConnectionManager_getCounters(tcp, 100, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_getCounters(tcp, 101, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+
+    loop->stop(loop);
+    while(loop->state != UA_EVENTLOOPSTATE_STOPPED)
+        loop->run(loop, 1);
+    ck_assert_uint_eq(loop->free(loop), UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test MQTT TCP EventLoop");
-    TCase *tc = tcase_create("test cases");
-    tcase_add_checked_fixture(tc, setup, teardown);
-    tcase_add_test(tc, connectSubscribePublish);
-    suite_add_tcase(s, tc);
+    TCase *tcBroker = tcase_create("broker integration");
+    tcase_add_checked_fixture(tcBroker, setup, teardown);
+    tcase_add_test(tcBroker, connectSubscribePublish);
+    suite_add_tcase(s, tcBroker);
+    TCase *tcOffline = tcase_create("offline broker reuse");
+    tcase_add_test(tcOffline, distinctBrokersUseDistinctTcpConnections);
+    suite_add_tcase(s, tcOffline);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
