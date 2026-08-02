@@ -430,6 +430,7 @@ createDataSetWriter(UA_PubSubManager *psm,
     config.keyFrameCount = dataSetWriterParameters->keyFrameCount;
     config.dataSetFieldContentMask = dataSetWriterParameters->dataSetFieldContentMask;
     config.messageSettings = dataSetWriterParameters->messageSettings;
+    config.transportSettings = dataSetWriterParameters->transportSettings;
     config.dataSetName = dataSetWriterParameters->dataSetName;
     config.dataSetWriterProperties.mapSize = dataSetWriterParameters->dataSetWriterPropertiesSize;
     config.dataSetWriterProperties.map = dataSetWriterParameters->dataSetWriterProperties;
@@ -460,6 +461,9 @@ createReaderGroup(UA_PubSubManager *psm,
 
     config.name = readerGroupParameters->name;
     config.securityMode = readerGroupParameters->securityMode;
+    config.transportSettings = readerGroupParameters->transportSettings;
+    config.groupProperties.mapSize = readerGroupParameters->groupPropertiesSize;
+    config.groupProperties.map = readerGroupParameters->groupProperties;
     config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
     UA_NodeId readerGroupIdent;
@@ -533,6 +537,7 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     config.dataSetFieldContentMask = dsrParams->dataSetFieldContentMask;
     config.messageReceiveTimeout =  dsrParams->messageReceiveTimeout;
     config.messageSettings = dsrParams->messageSettings;
+    config.transportSettings = dsrParams->transportSettings;
     config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
     UA_StatusCode res = UA_PublisherId_fromVariant(&config.publisherId,
                                                    &dsrParams->publisherId);
@@ -848,6 +853,7 @@ generateDataSetWriterDataType(const UA_DataSetWriter *src,
     dst->keyFrameCount = src->config.keyFrameCount;
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
+    res |= UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
     res |= UA_String_copy(&src->config.dataSetName, &dst->dataSetName);
     /* Preserve the enabled flag so a save→load round-trip keeps components
      * enabled instead of silently disabling everything. */
@@ -936,6 +942,7 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
     res |= UA_DataSetMetaDataType_copy(&src->config.dataSetMetaData,
                                        &dst->dataSetMetaData);
     res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
+    res |= UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
 
     UA_Variant var;
     UA_PublisherId_toVariant(&src->config.publisherId, &var);
@@ -975,6 +982,15 @@ generateReaderGroupDataType(const UA_ReaderGroup *src,
     dst->securityMode = src->config.securityMode;
     /* Preserve the securityGroupId for round-trip consistency. */
     UA_String_copy(&src->config.securityGroupId, &dst->securityGroupId);
+    /* Preserve transportSettings and groupProperties. */
+    UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
+    UA_StatusCode gpRes =
+        UA_Array_copy(src->config.groupProperties.map,
+                      src->config.groupProperties.mapSize,
+                      (void**)&dst->groupProperties,
+                      &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(gpRes == UA_STATUSCODE_GOOD)
+        dst->groupPropertiesSize = src->config.groupProperties.mapSize;
     dst->dataSetReaders = (UA_DataSetReaderDataType*)
         UA_calloc(src->readersCount, sizeof(UA_DataSetReaderDataType));
     if(dst->dataSetReaders == NULL)
