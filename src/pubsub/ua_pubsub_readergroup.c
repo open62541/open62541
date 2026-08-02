@@ -444,10 +444,6 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
        rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
-    /* Set to operational if required */
-    rg->hasReceived = true;
-    UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
-
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
     UA_Boolean processed = false;
@@ -462,7 +458,11 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
-        /* Update the ReaderGroup state if this is the first received message */
+        /* Update the ReaderGroup state if this is the first received message.
+         * Only set hasReceived after a reader claims the message — the previous
+         * code set it unconditionally at the top, before the matching loop, so
+         * the ReaderGroup transitioned to Operational even on messages no
+         * reader claimed. */
         if(!rg->hasReceived) {
             rg->hasReceived = true;
             UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
@@ -473,10 +473,12 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
         UA_LOG_TRACE_PUBSUB(psm->logging, rg, "Processing a NetworkMessage");
 
-        /* No payload header. The message ontains a single DataSetMessage that
-         * is processed by every Reader. */
+        /* No payload header. The message contains a single DataSetMessage that
+         * is processed by every Reader. However, if messageCount > 1, all DSMs
+         * must be processed, not just index 0. */
         if(!nm->payloadHeaderEnabled) {
-            UA_DataSetReader_process(psm, reader, nm->payload.dataSetMessages);
+            for(size_t i = 0; i < nm->messageCount; i++)
+                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
             continue;
         }
 
