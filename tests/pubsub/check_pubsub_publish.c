@@ -658,6 +658,66 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         UA_NodeId_clear(&node2);
     } END_TEST
 
+START_TEST(DataSetWriterResizesSamplesAfterFieldAddition) {
+    setupPublishedDataSetTestEnvironment();
+    UA_Server_getConfig(server)->pubSubConfig.enableDeltaFrames = true;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 values[2] = {10, 20};
+    UA_NodeId nodes[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&attr.value, &values[i],
+                             &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_addVariableNode(
+            server, UA_NODEID_NULL,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+            UA_QUALIFIEDNAME(1, "ResizableSampleSource"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL,
+            &nodes[i]), UA_STATUSCODE_GOOD);
+    }
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("first");
+    field.field.variable.publishParameters.publishedVariable = nodes[0];
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+    setupDataSetFieldTestEnvironment();
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    ck_assert_ptr_nonnull(dsw);
+    dsw->config.keyFrameCount = 10;
+
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    lockServer(server);
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dsw->lastSamplesCount, 1);
+    UA_DataSetMessage_clear(&message);
+
+    field.field.variable.fieldNameAlias = UA_STRING("second");
+    field.field.variable.publishParameters.publishedVariable = nodes[1];
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+    memset(&message, 0, sizeof(message));
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dsw->lastSamplesCount, 2);
+    ck_assert_uint_eq(message.fieldCount, 2);
+    UA_DataSetMessage_clear(&message);
+} END_TEST
 
 /* Test DataSetOrdering reconfiguration (OPC UA Part 14, section 6.3.1.1.3) 
  * 
@@ -1190,6 +1250,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
     tcase_add_test(tc_pubsub_publish, DeltaFrameFieldCountMatchesChangedFields);
+    tcase_add_test(tc_pubsub_publish,
+                   DataSetWriterResizesSamplesAfterFieldAddition);
 
     TCase *tc_pubsub_datasetordering = tcase_create("PubSub DataSetOrdering (OPC UA Part 14)");
     tcase_add_checked_fixture(tc_pubsub_datasetordering, setup, teardown);
