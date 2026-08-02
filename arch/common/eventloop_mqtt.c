@@ -307,7 +307,7 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     kvp[0].key = UA_QUALIFIEDNAME(0, "topic");
     UA_Variant_setScalar(&kvp[0].value, &tc->topic, &UA_TYPES[UA_TYPES_STRING]);
     kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
-    UA_Variant_setScalar(&kvp[0].value, &tc->subscribe, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&kvp[1].value, &tc->subscribe, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap kvm = {2, kvp};
 
     /* Notify the application */
@@ -504,16 +504,25 @@ MQTTNetworkCallback(UA_ConnectionManager *tcpCM, uintptr_t connectionId,
     /* The connection has fully opened for the first time. Connect the MQTT client. */
     if(state == UA_CONNECTIONSTATE_ESTABLISHED &&
        oldState != UA_CONNECTIONSTATE_ESTABLISHED) {
-        /* Initialize the MQTT client. We have to call mqtt_connect right afterward.
-         * Otherwise the client lock is not released. */
-        mqtt_init(&bc->client, bc,
-                  (uint8_t*)UA_calloc(1,1024), 1024,
-                  (uint8_t*)UA_calloc(1,1024), 1024,
-                  MQTTPublishResponseCallback);
+        /* Initialize the MQTT client. Check calloc returns to avoid
+         * passing NULL buffers to mqtt-c which would crash. */
+        uint8_t *send_buf = (uint8_t*)UA_calloc(1, 1024);
+        uint8_t *recv_buf = (uint8_t*)UA_calloc(1, 1024);
+        if(!send_buf || !recv_buf) {
+            UA_free(send_buf);
+            UA_free(recv_buf);
+            bc->tcpConnectionState = UA_CONNECTIONSTATE_OPENING;
+            shutdownBrokerConnection(bc);
+            return;
+        }
+        mqtt_init(&bc->client, bc, send_buf, 1024,
+                  recv_buf, 1024, MQTTPublishResponseCallback);
 
-        /* Queue the connect message */
+        /* Queue the connect message. Use the configured keep-alive value
+         * instead of the hardcoded 400. */
         enum MQTTErrors err = mqtt_connect(&bc->client, NULL, NULL, NULL, 0,
-                                           NULL, NULL, MQTT_CONNECT_CLEAN_SESSION, 400);
+                                           NULL, NULL, MQTT_CONNECT_CLEAN_SESSION,
+                                           (uint16_t)bc->keepalive);
         if(err != MQTT_OK) {
             bc->tcpConnectionState = UA_CONNECTIONSTATE_OPENING; /* avoid sending DISCONNECT */
             shutdownBrokerConnection(bc);

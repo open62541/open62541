@@ -188,8 +188,10 @@ setETHHeader(unsigned char *buf,
     memcpy(&buf[pos], sourceAddr, ETHER_ADDR_LEN);
     pos += ETHER_ADDR_LEN;
 
-    /* Set the 802.1Q VLAN header */
-    if(vid > 0 && vid != ETH_P_ALL) {
+    /* Set the 802.1Q VLAN header. The previous guard `vid != ETH_P_ALL` was
+     * wrong — ETH_P_ALL is 0x0003, so a legitimate VLAN ID 3 caused the tag
+     * to be skipped (frame sent untagged). VID range is 1-4094. */
+    if(vid > 0 && vid <= 4094) {
         *(UA_UInt16*)&buf[pos] = htons(0x8100);
         pos += 2;
         UA_UInt16 tci = (UA_UInt16)(((UA_UInt16)pcp  << 13) | ((UA_UInt16)dei  << 12) | ((UA_UInt16)vid));
@@ -217,7 +219,12 @@ ETH_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(!erfd)
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
 
-    /* Allocate the buffer with the hidden Ethernet header in front */
+    /* Allocate the buffer with the hidden Ethernet header in front.
+     * Spec 7.3.3: "MaxNetworkMessageSize shall be limited to an Ethernet
+     * frame size of 1522 Byte." Reject oversized frames. */
+    if(bufSize + erfd->headerSize > 1522) {
+        return UA_STATUSCODE_BADENCODINGERROR;
+    }
     UA_StatusCode res =
         UA_EventLoopPOSIX_allocNetworkBuffer(cm, connectionId, buf,
                                              bufSize + erfd->headerSize);
@@ -398,7 +405,7 @@ ETH_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
 
     if(etherType > 0) {
         params[2].key = UA_QUALIFIEDNAME(0, "ethertype");
-        UA_Variant_setScalar(&params[1].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
+        UA_Variant_setScalar(&params[2].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
         paramsSize++;
     }
 
