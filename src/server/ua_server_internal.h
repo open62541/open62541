@@ -680,6 +680,36 @@ readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
                 UA_TimestampsToReturn timestampsToReturn);
 
+/* Execute attribute operations for a node that is already borrowed from the
+ * nodestore. These are the pointer-based cores of Operation_Read and
+ * Operation_Write. The caller must hold the service mutex and keep the node
+ * alive for the duration of the call. */
+UA_Boolean
+Operation_ReadWithNode(UA_Server *server, UA_Session *session,
+                       const UA_Node *node, UA_TimestampsToReturn ttr,
+                       const UA_ReadValueId *rvi, UA_DataValue *dv);
+
+UA_Boolean
+Operation_WriteWithNode(UA_Server *server, UA_Session *session,
+                        UA_Node *node, const UA_WriteValue *wv,
+                        UA_StatusCode *result);
+
+/* Direct asynchronous wrappers for callers that already own a stable node
+ * pointer. They retain the same async-operation storage and callbacks as the
+ * NodeId-based UA_Server_*_async entry points. */
+UA_StatusCode
+readWithNode_async(UA_Server *server, UA_Session *session,
+                   const UA_Node *node, const UA_ReadValueId *operation,
+                   UA_TimestampsToReturn ttr,
+                   UA_ServerAsyncReadResultCallback callback,
+                   void *context, UA_UInt32 timeout);
+
+UA_StatusCode
+writeWithNode_async(UA_Server *server, UA_Session *session,
+                    UA_Node *node, const UA_WriteValue *operation,
+                    UA_ServerAsyncWriteResultCallback callback,
+                    void *context, UA_UInt32 timeout);
+
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId, void *v);
