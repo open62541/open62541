@@ -480,6 +480,20 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     /* Prepare DataSetMessageContent */
     dsm->header.dataSetMessageValid = true;
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    /* Spec 7.2.4.5.11: "RawField encoding shall only be applied to Data Key
+     * Frame DataSetMessages." Force non-RawData encoding for delta frames
+     * even if the RawData content mask is set. */
+    if(dsw->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
+        if(dsw->config.dataSetFieldContentMask &
+           ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP |
+            (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP |
+            (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
+            (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS |
+            (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE))
+            dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
+        else
+            dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+    }
     if(pds->fieldSize == 0)
         return UA_STATUSCODE_GOOD;
 
@@ -509,9 +523,14 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
         counter++;
     }
 
-    /* Allocate DeltaFrameFields */
+    /* Allocate DeltaFrameFields.
+     * Spec Table 164: FieldCount for a delta frame = the count of delta
+     * fields (changed fields). The previous code overwrote dsm->fieldCount
+     * (correctly accumulated per changed field at line 466) with `counter`
+     * (the total field count) here, so the subscriber decoded too many
+     * delta entries. */
     UA_DataSetMessage_DeltaFrameField *deltaFields = (UA_DataSetMessage_DeltaFrameField *)
-        UA_calloc(counter, sizeof(UA_DataSetMessage_DeltaFrameField));
+        UA_calloc(dsm->fieldCount, sizeof(UA_DataSetMessage_DeltaFrameField));
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -588,12 +607,16 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         dsm = &defaultUadpConfiguration; /* type is UADP */
     }
 
-    /* The field encoding depends on the flags inside the writer config. */
+    /* The field encoding depends on the flags inside the writer config.
+     * Spec Table 32: "If one of the bits 0 to 4 is set, the fields are
+     * represented as DataValue." Bit 2 (SERVERTIMESTAMP) was previously
+     * missing from this mask check. */
     if(dsw->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
     } else if((u64)dsw->config.dataSetFieldContentMask &
               ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP |
+               (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP |
                (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
                (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS |
                (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE)) {
@@ -733,9 +756,13 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
 
         /* The standard defines: if a PDS contains only one fields no delta messages
          * should be generated because they need more memory than a keyframe with 1
-         * field. */
+         * field.
+         * Spec 6.2.4.3: "If the KeyFrameCount is set to 1, every message contains
+         * a key frame." The previous `<=` comparison generated a delta frame
+         * when deltaFrameCounter == keyFrameCount (e.g., keyFrameCount=1
+         * produced delta frames). Changed to `<`. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
-           dsw->deltaFrameCounter <= dsw->config.keyFrameCount) {
+           dsw->deltaFrameCounter < dsw->config.keyFrameCount) {
             UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm, dataSetMessage, dsw);
             dsw->deltaFrameCounter++;
             return UA_STATUSCODE_GOOD;
