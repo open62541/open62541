@@ -2354,6 +2354,11 @@ struct UA_ServerConfig {
      * ModellingRule of their InstanceDeclaration */
     UA_Boolean modellingRulesOnInstances;
 
+    /* Copy Method instance declarations into each Object instance instead of
+     * adding a reference to the Method on the ObjectType. The default is false
+     * for backwards compatibility. */
+    UA_Boolean copyMethodsOnInstances;
+
     /* Limits
      * ~~~~~~ */
     /* Limits for SecureChannels */

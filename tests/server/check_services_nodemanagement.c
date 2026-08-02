@@ -957,6 +957,70 @@ START_TEST(EarlyConstructorCanPrecreateMandatoryChild) {
 #endif
 } END_TEST
 
+START_TEST(CopyMethodsOnInstancesIsConfigurable) {
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 80801);
+    UA_ObjectTypeAttributes typeAttr = UA_ObjectTypeAttributes_default;
+    typeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MethodOwnerType");
+    UA_StatusCode retval =
+        UA_Server_addObjectTypeNode(server, typeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, "MethodOwnerType"),
+                                    typeAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeId methodId = UA_NODEID_NUMERIC(1, 80802);
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Run");
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+    retval = UA_Server_addMethodNode(
+        server, methodId, typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "Run"), methodAttr, NULL,
+        0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_addReference(
+        server, methodId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ObjectAttributes objectAttr = UA_ObjectAttributes_default;
+    objectAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Owner");
+    UA_QualifiedName path = UA_QUALIFIEDNAME(1, "Run");
+
+    UA_NodeId sharedOwner = UA_NODEID_NUMERIC(1, 80803);
+    retval = UA_Server_addObjectNode(
+        server, sharedOwner, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "SharedOwner"), typeId,
+        objectAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_BrowsePathResult result =
+        UA_Server_browseSimplifiedBrowsePath(server, sharedOwner, 1, &path);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.targetsSize, 1);
+    ck_assert(UA_NodeId_equal(&result.targets[0].targetId.nodeId, &methodId));
+    UA_BrowsePathResult_clear(&result);
+
+    UA_Server_getConfig(server)->copyMethodsOnInstances = true;
+    UA_NodeId copiedOwner = UA_NODEID_NUMERIC(1, 80804);
+    retval = UA_Server_addObjectNode(
+        server, copiedOwner, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "CopiedOwner"), typeId,
+        objectAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    result = UA_Server_browseSimplifiedBrowsePath(server, copiedOwner, 1, &path);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.targetsSize, 1);
+    ck_assert(!UA_NodeId_equal(&result.targets[0].targetId.nodeId, &methodId));
+    UA_BrowsePathResult_clear(&result);
+#endif
+} END_TEST
+
 START_TEST(RecursiveMandatoryChildDepthIsLimited) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_NodeId typeId = UA_NODEID_NUMERIC(1, 80901);
@@ -1833,6 +1897,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, EarlyConstructorRunsForInstantiatedChildren);
     tcase_add_test(tc_addnodes, EarlyConstructorRunsForVariableType);
     tcase_add_test(tc_addnodes, EarlyConstructorCanPrecreateMandatoryChild);
+    tcase_add_test(tc_addnodes, CopyMethodsOnInstancesIsConfigurable);
     tcase_add_test(tc_addnodes, RecursiveMandatoryChildDepthIsLimited);
     tcase_add_test(tc_addnodes, ObjectWithDynamicVariableChild);
     tcase_add_test(tc_addnodes, Service_AddNodes_maxNodesPerNodeManagement_exceeded);

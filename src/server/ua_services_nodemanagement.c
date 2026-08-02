@@ -761,9 +761,9 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-copyObjectVariableChild(UA_Server *server, UA_Session *session,
-                        const UA_NodeId *destinationNodeId,
-                        const UA_ReferenceDescription *rd) {
+copyChildNode(UA_Server *server, UA_Session *session,
+              const UA_NodeId *destinationNodeId,
+              const UA_ReferenceDescription *rd) {
     /* Make a copy of the node */
     UA_Node *node;
     UA_StatusCode res = UA_NODESTORE_GETCOPY(server, &rd->nodeId.nodeId, &node);
@@ -827,6 +827,13 @@ copyObjectVariableChild(UA_Server *server, UA_Session *session,
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_AGGREGATES);
     UA_ReferenceTypeSet reftypes_skipped =
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
+    if(node->head.nodeClass == UA_NODECLASS_METHOD) {
+        /* InputArguments and OutputArguments describe the copied Method's
+         * signature. Keep those HasProperty references; the immutable
+         * argument metadata can remain shared with the declaration. */
+        UA_ReferenceTypeSet_add(&reftypes_skipped,
+                                UA_REFERENCETYPEINDEX_HASPROPERTY);
+    }
     if(server->config.modellingRulesOnInstances ||
        isNodeInTree(server, destinationNodeId,
                     &nodeId_typesFolder, &reftypes_aggregates)) {
@@ -931,8 +938,11 @@ copyChild(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_GOOD;
     }
 
-    /* Child is a method -> create a reference */
-    if(rd->nodeClass == UA_NODECLASS_METHOD) {
+    /* By default a Method instance is a reference to the ObjectType
+     * declaration. Servers that need per-instance Method state can request a
+     * native copy instead. */
+    if(rd->nodeClass == UA_NODECLASS_METHOD &&
+       !server->config.copyMethodsOnInstances) {
         UA_AddReferencesItem newItem;
         UA_AddReferencesItem_init(&newItem);
         newItem.sourceNodeId = *destinationNodeId;
@@ -944,14 +954,15 @@ copyChild(UA_Server *server, UA_Session *session,
         return retval;
     }
 
-    /* Child is a variable or object */
+    /* Copy the child node into the instance. */
     if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
-       rd->nodeClass == UA_NODECLASS_OBJECT) {
+       rd->nodeClass == UA_NODECLASS_OBJECT ||
+       rd->nodeClass == UA_NODECLASS_METHOD) {
         retval = beginChildInstantiation(server, session, destinationNodeId,
                                          &rd->nodeId.nodeId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        retval = copyObjectVariableChild(server, session, destinationNodeId, rd);
+        retval = copyChildNode(server, session, destinationNodeId, rd);
         endChildInstantiation(server);
     }
 
