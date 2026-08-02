@@ -161,17 +161,33 @@ UA_NetworkMessage_encodeJsonInternal(PubSubEncodeJsonCtx *ctx,
     rv |= writeJsonObjElm(&ctx->ctx, UA_DECODEKEY_MESSAGETYPE,
                           &s, &UA_TYPES[UA_TYPES_STRING]);
 
-    /* PublisherId, always encode as a JSON string */
+    /* PublisherId, encode as a JSON string.
+     * The spec says PublisherId is always encoded as a JSON string. The
+     * previous code JSON-encoded the variant value into a ByteString, then
+     * re-encoded that ByteString as a JSON string — this was correct for
+     * numeric types (producing "65535") but double-encoded string types
+     * (producing "\"abc\"" → "\\\"abc\\\""). Fix: for numeric types, encode
+     * the value into a string and write it as a JSON string. For string
+     * types, write the original string directly as a JSON string. */
     if(src->publisherIdEnabled) {
-        UA_Byte buf[512];
-        UA_ByteString bs = {512, buf};
-        UA_Variant v;
-        UA_PublisherId_toVariant(&src->publisherId, &v);
-        rv |= UA_encodeJson(v.data, v.type, &bs, NULL);
-        if(rv != UA_STATUSCODE_GOOD)
-            return rv;
         rv |= writeJsonKey(&ctx->ctx, UA_DECODEKEY_PUBLISHERID);
-        rv |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](&ctx->ctx, &bs, NULL);
+        if(src->publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
+            rv |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING]
+                (&ctx->ctx, &src->publisherId.id.string, NULL);
+        } else {
+            /* Encode numeric types as a JSON string */
+            UA_Byte buf[64];
+            UA_ByteString bs = {sizeof(buf), buf};
+            UA_Variant v;
+            UA_PublisherId_toVariant(&src->publisherId, &v);
+            rv |= UA_encodeJson(v.data, v.type, &bs, NULL);
+            if(rv == UA_STATUSCODE_GOOD) {
+                UA_String s;
+                s.data = bs.data;
+                s.length = bs.length;
+                rv |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](&ctx->ctx, &s, NULL);
+            }
+        }
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
@@ -338,7 +354,8 @@ DataSetPayload_decodeJsonInternal(ParseCtx *ctx_, void *data, const UA_DataType 
         return UA_STATUSCODE_BADOUTOFMEMORY;
     dsm->fieldCount = (UA_UInt16)length;
 
-    dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
+    /* Keep field encoding consistent with the header decoder (VARIANT). */
+    dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
 
     const UA_DataSetMessage_EncodingMetaData *emd =
             findEncodingMetaData(&ctx->eo, nm->dataSetWriterIds[pd->dsmIndex]);
@@ -376,12 +393,18 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
     pd.nm = nm;
     pd.dsmIndex = dsmIndex;
 
+    /* Spec Table 185 defines SequenceNumber as UInt32 and Status as StatusCode
+     * (UInt32) for JSON encoding. The struct fields are UInt16 (for UADP binary
+     * compatibility), so decode into temporaries and truncate. Values > 65535
+     * are truncated (the top 16 bits are lost) rather than rejected. */
+    UA_UInt32 seqNr32 = 0;
+    UA_UInt32 status32 = 0;
     DecodeEntry entries[7] = {
         {UA_DECODEKEY_DATASETWRITERID, &nm->dataSetWriterIds[dsmIndex], NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
-        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_DECODEKEY_SEQUENCENUMBER, &seqNr32, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
         {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
         {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
-        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_DECODEKEY_DSM_STATUS, &status32, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
         {UA_DECODEKEY_MESSAGETYPE, NULL, NULL, false, NULL},
         {UA_DECODEKEY_PAYLOAD, &pd, DataSetPayload_decodeJsonInternal, false, NULL}
     };
@@ -390,6 +413,10 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
     /* Error or no DatasetWriterId found or no payload found */
     if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[6].found)
         return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Truncate UInt32 → UInt16 for the struct fields */
+    dsm->header.dataSetMessageSequenceNr = (UA_UInt16)seqNr32;
+    dsm->header.status = (UA_UInt16)status32;
 
     /* TODO: Check FieldEncoding1 and FieldEncoding2 to determine the field encoding */
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
@@ -404,6 +431,10 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dsm->header.picoSecondsIncluded = false;
     dsm->header.dataSetMessageValid = true;
+    /* JSON fields are decoded as DataValue objects, but the field encoding
+     * flag is kept as VARIANT for compatibility with the existing encode path
+     * (which uses the VARIANT branch for JSON keyframes). This is consistent
+     * with the keyFrame decoder which also sets VARIANT. */
     dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
     return UA_STATUSCODE_GOOD;
 }
