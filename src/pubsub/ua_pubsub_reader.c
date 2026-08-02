@@ -17,9 +17,19 @@
 
 #include "ua_pubsub_networkmessage.h"
 
+/* Forward declaration — used in setPubSubState to start the timeout timer on
+ * Operational transition, before the function is defined below. */
+static void
+UA_DataSetReader_handleMessageReceiveTimeout(void *application, void *context);
+
 static UA_Boolean
 publisherIdIsMatching(UA_NetworkMessage *msg, UA_PublisherId *idB) {
     if(!msg->publisherIdEnabled)
+        return true;
+    /* Spec 6.2.9.1: "If the value is null, the parameter shall be ignored and
+     * all received NetworkMessages pass the PublisherId filter." A reader
+     * with a null (zero-initialized) PublisherId matches any message. */
+    if(idB->idType == UA_PUBLISHERIDTYPE_BYTE && idB->id.byte == 0)
         return true;
     UA_PublisherId *idA = &msg->publisherId;
     if(idA->idType != idB->idType)
@@ -90,6 +100,11 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     if(msg->payloadHeaderEnabled) {
+        /* Spec 6.2.9.3: "If the value is 0 (null), the parameter shall be
+         * ignored and all received DataSetMessages pass the DataSetWriterId
+         * filter." A reader with dataSetWriterId == 0 matches any message. */
+        if(dsr->config.dataSetWriterId == 0)
+            return UA_STATUSCODE_GOOD;
         for(size_t i = 0; i < msg->messageCount; i++) {
             if(dsr->config.dataSetWriterId == msg->dataSetWriterIds[i])
                 return UA_STATUSCODE_GOOD;
@@ -520,6 +535,20 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         dsr->msgRcvTimeoutTimerId = 0;
     }
 
+    /* Spec 6.2.9.6: "The time starts when the state of the DataSetReader
+     * changes to Operational." Start the receive timeout timer on the
+     * Operational transition — not only when the first message arrives
+     * (which was the previous behavior). If no message ever arrives, the
+     * reader correctly goes to Error after the timeout. */
+    if(dsr->head.state == UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->config.messageReceiveTimeout > 0.0 &&
+       dsr->msgRcvTimeoutTimerId == 0) {
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
+        el->addTimer(el, UA_DataSetReader_handleMessageReceiveTimeout,
+                     psm, dsr, dsr->config.messageReceiveTimeout, NULL,
+                     UA_TIMERPOLICY_CURRENTTIME, &dsr->msgRcvTimeoutTimerId);
+    }
+
  finalize_state_machine:
 
     /* No state change has happened */
@@ -622,13 +651,11 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
      *     }
      * } */
 
-    if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "DataSetMessage is discarded: Only keyframes are supported");
-        return;
-    }
-
-    /* Configure / Update the timeout callback */
+    /* Reset the message receive timeout before discarding non-keyframe
+     * messages. Spec 6.2.9.6: "The DataSetMessages that reset the period
+     * include keep-alive and heartbeat messages." The previous code placed
+     * this reset AFTER the keyframe check, so keep-alive/delta/event
+     * messages did not reset the timer. */
     if(dsr->config.messageReceiveTimeout > 0.0) {
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
@@ -641,6 +668,12 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                             dsr->config.messageReceiveTimeout, NULL,
                             UA_TIMERPOLICY_CURRENTTIME);
         }
+    }
+
+    if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                              "DataSetMessage is discarded: Only keyframes are supported");
+        return;
     }
 
     /* Received a heartbeat with no fields */
@@ -664,11 +697,16 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         if(!field->hasValue)
             continue;
 
-        /* Write via the Write-Service */
+        /* Write via the Write-Service.
+         * Spec Table 69: ReceiverIndexRange extracts a sub-range from the
+         * received data; WriteIndexRange controls writing to the target node.
+         * The previous code used receiverIndexRange for the write, which is
+         * the wrong field — it writes to the wrong array elements or fails
+         * with Bad_IndexRangeInvalid. */
         UA_WriteValue writeVal;
         UA_WriteValue_init(&writeVal);
         writeVal.attributeId = tv->attributeId;
-        writeVal.indexRange = tv->receiverIndexRange;
+        writeVal.indexRange = tv->writeIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = *field;
         Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
