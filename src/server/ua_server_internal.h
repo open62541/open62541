@@ -722,6 +722,14 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
+/* Translate from a node that is already borrowed from the nodestore. The
+ * caller must hold the service mutex and keep the node alive for the duration
+ * of the operation. */
+UA_BrowsePathResult
+translateBrowsePathToNodeIdsWithNode(UA_Server *server,
+                                     const UA_Node *startingNode,
+                                     const UA_BrowsePath *browsePath);
+
 /* Returns the "best" configured SecurityPolicy with encryption. The _NONE type
  * is the wildcard for any SecurityPolicy. */
 UA_SecurityPolicy *
@@ -915,6 +923,15 @@ Operation_Browse(UA_Server *server, UA_Session *session,
                  const void *context /* UA_UInt32 */,
                  const void *request /* UA_BrowseDescription */,
                  void *response /* UA_BrowseResult */);
+
+/* Browse a node already borrowed from the nodestore. The caller must hold the
+ * service mutex and keep the node alive for the duration of the operation. */
+void
+Operation_BrowseWithNode(UA_Server *server, UA_Session *session,
+                         const UA_Node *node,
+                         const void *context /* UA_UInt32 */,
+                         const void *request /* UA_BrowseDescription */,
+                         void *response /* UA_BrowseResult */);
 
 /* External data either from a datasource callback or with a _beforeRead
  * callback where fresh values get switched in on demand. Variables with an

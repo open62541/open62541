@@ -821,7 +821,7 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
  * Including the BrowseDescription. Returns whether there are remaining
  * references. */
 static void
-browse(struct BrowseContext *bc) {
+browseResolvedNode(struct BrowseContext *bc, const UA_Node *node) {
     /* Is the browsedirection valid? */
     struct ContinuationPoint *cp = bc->cp;
     const UA_BrowseDescription *descr = &cp->browseDescription;
@@ -832,15 +832,7 @@ browse(struct BrowseContext *bc) {
         return;
     }
 
-    /* Get node with only the selected references and attributes */
-    const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(bc->server, &descr->nodeId,
-                                   resultMask2AttributesMask(descr->resultMask),
-                                   bc->resultRefs, descr->browseDirection);
-    if(!node) {
-        bc->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return;
-    }
+    UA_assert(UA_NodeId_equal(&node->head.nodeId, &descr->nodeId));
 
     /* Check AccessControl rights */
     if(bc->session != &bc->server->adminSession) {
@@ -849,7 +841,6 @@ browse(struct BrowseContext *bc) {
            allowBrowseNode(bc->server, &bc->server->config.accessControl,
                            &bc->session->sessionId, bc->session->context,
                            &descr->nodeId, node->head.context)) {
-            UA_NODESTORE_RELEASE(bc->server, node);
             bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
         }
@@ -857,7 +848,6 @@ browse(struct BrowseContext *bc) {
 
     /* Browse the node */
     browseWithNode(bc, &node->head);
-    UA_NODESTORE_RELEASE(bc->server, node);
 
     /* Is the reference type valid? This is very infrequent. So we only test
      * this if browsing came up empty. If the node has references of that type,
@@ -883,6 +873,22 @@ browse(struct BrowseContext *bc) {
     }
 }
 
+static void
+browse(struct BrowseContext *bc) {
+    const UA_BrowseDescription *descr = &bc->cp->browseDescription;
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(bc->server, &descr->nodeId,
+                                   resultMask2AttributesMask(descr->resultMask),
+                                   bc->resultRefs, descr->browseDirection);
+    if(!node) {
+        bc->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
+
+    browseResolvedNode(bc, node);
+    UA_NODESTORE_RELEASE(bc->server, node);
+}
+
 typedef struct {
     UA_UInt32 maxReferences;
     ContinuationPoint *lastPriorContinuationPoint;
@@ -890,10 +896,11 @@ typedef struct {
 
 /* Start to browse with no previous cp */
 static void
-Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
-                            const void *context_ /* BrowseOperationContext */,
-                            const void *request /* UA_BrowseDescription */,
-                            void *response /* UA_BrowseResult */) {
+Operation_BrowseWithContextAndNode(UA_Server *server, UA_Session *session,
+                                   const UA_Node *node,
+                                   const void *context_ /* BrowseOperationContext */,
+                                   const void *request /* UA_BrowseDescription */,
+                                   void *response /* UA_BrowseResult */) {
     BrowseOperationContext *context =
         (BrowseOperationContext*)(uintptr_t)context_;
     const UA_BrowseDescription *descr = (const UA_BrowseDescription*)request;
@@ -939,7 +946,10 @@ Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
         return;
 
     /* Perform the browse */
-    browse(&bc);
+    if(node)
+        browseResolvedNode(&bc, node);
+    else
+        browse(&bc);
 
     if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
         /* No relevant references, return array of length zero */
@@ -1030,6 +1040,15 @@ Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
     result->statusCode = retval;
 }
 
+static void
+Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
+                            const void *context /* BrowseOperationContext */,
+                            const void *request /* UA_BrowseDescription */,
+                            void *response /* UA_BrowseResult */) {
+    Operation_BrowseWithContextAndNode(server, session, NULL, context,
+                                       request, response);
+}
+
 void
 Operation_Browse(UA_Server *server, UA_Session *session,
                  const void *context /* UA_UInt32 */,
@@ -1039,6 +1058,20 @@ Operation_Browse(UA_Server *server, UA_Session *session,
     BrowseOperationContext browseContext = {
         *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
     Operation_BrowseWithContext(server, session, &browseContext, request, response);
+}
+
+void
+Operation_BrowseWithNode(UA_Server *server, UA_Session *session,
+                         const UA_Node *node,
+                         const void *context /* UA_UInt32 */,
+                         const void *request /* UA_BrowseDescription */,
+                         void *response /* UA_BrowseResult */) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    const UA_UInt32 *maxrefs = (const UA_UInt32*)context;
+    BrowseOperationContext browseContext = {
+        *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    Operation_BrowseWithContextAndNode(server, session, node, &browseContext,
+                                       request, response);
 }
 
 UA_Boolean
@@ -1212,7 +1245,8 @@ static UA_StatusCode
 walkBrowsePathElement(UA_Server *server, UA_Session *session,
                       const UA_RelativePath *path, const size_t pathIndex,
                       UA_UInt32 nodeClassMask, const UA_QualifiedName *lastBrowseName,
-                      UA_BrowsePathResult *result, RefTree *current, RefTree *next) {
+                      UA_BrowsePathResult *result, RefTree *current, RefTree *next,
+                      const UA_Node *resolvedNode) {
     /* For the next level. Note the difference from lastBrowseName */
     const UA_RelativePathElement *elem = &path->elements[pathIndex];
     UA_UInt32 browseNameHash = UA_QualifiedName_hash(&elem->targetName);
@@ -1251,13 +1285,22 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         /* Local Node. Add to the tree of results at the next depth. Get only
          * the NodeClass + BrowseName attribute and the selected ReferenceTypes
          * if the nodestore supports that. */
-        const UA_Node *node =
-            UA_NODESTORE_GET_SELECTIVE(server, &current->targets[i].nodeId,
-                                       UA_NODEATTRIBUTESMASK_NODECLASS |
-                                       UA_NODEATTRIBUTESMASK_BROWSENAME,
-                                       refTypes,
-                                       elem->isInverse ? UA_BROWSEDIRECTION_INVERSE :
-                                                         UA_BROWSEDIRECTION_FORWARD);
+        UA_Boolean releaseNode = true;
+        const UA_Node *node = NULL;
+        if(resolvedNode &&
+           UA_NodeId_equal(&resolvedNode->head.nodeId,
+                           &current->targets[i].nodeId)) {
+            node = resolvedNode;
+            releaseNode = false;
+        } else {
+            node = UA_NODESTORE_GET_SELECTIVE(
+                server, &current->targets[i].nodeId,
+                UA_NODEATTRIBUTESMASK_NODECLASS |
+                UA_NODEATTRIBUTESMASK_BROWSENAME,
+                refTypes,
+                elem->isInverse ? UA_BROWSEDIRECTION_INVERSE :
+                                  UA_BROWSEDIRECTION_FORWARD);
+        }
         if(!node)
             continue;
 
@@ -1273,7 +1316,8 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                     &session->sessionId, session->context,
                     &current->targets[i].nodeId, node->head.context);
             if(!canBrowse) {
-                UA_NODESTORE_RELEASE(server, node);
+                if(releaseNode)
+                    UA_NODESTORE_RELEASE(server, node);
                 continue;
             }
         }
@@ -1287,7 +1331,8 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                  !UA_QualifiedName_equal(lastBrowseName, &node->head.browseName));
 
         if(skip) {
-            UA_NODESTORE_RELEASE(server, node);
+            if(releaseNode)
+                UA_NODESTORE_RELEASE(server, node);
             continue;
         }
 
@@ -1333,16 +1378,18 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             }
         }
 
-        UA_NODESTORE_RELEASE(server, node);
+        if(releaseNode)
+            UA_NODESTORE_RELEASE(server, node);
     }
     return res;
 }
 
 static void
-Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
-                                       const void *context /* UA_UInt32 */,
-                                       const void *request /* UA_BrowsePath */,
-                                       void *response /* UA_BrowsePathResult */) {
+Operation_TranslateBrowsePathToNodeIdsWithNode(
+    UA_Server *server, UA_Session *session, const UA_Node *startingNode,
+    const void *context /* UA_UInt32 */,
+    const void *request /* UA_BrowsePath */,
+    void *response /* UA_BrowsePathResult */) {
     const UA_UInt32 *nodeClassMask = (const UA_UInt32*)context;
     const UA_BrowsePath *path = (const UA_BrowsePath*)request;
     UA_BrowsePathResult *result = (UA_BrowsePathResult*)response;
@@ -1361,17 +1408,22 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Check if the starting node exists */
-    const UA_Node *startingNode =
-        UA_NODESTORE_GET_SELECTIVE(server, &path->startingNode,
-                                   UA_NODEATTRIBUTESMASK_NONE,
-                                   UA_REFERENCETYPESET_NONE,
-                                   UA_BROWSEDIRECTION_INVALID);
-    if(!startingNode) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return;
+    /* Check if the starting node exists unless it is already resolved. */
+    if(startingNode) {
+        UA_assert(UA_NodeId_equal(&startingNode->head.nodeId,
+                                  &path->startingNode));
+    } else {
+        const UA_Node *node =
+            UA_NODESTORE_GET_SELECTIVE(server, &path->startingNode,
+                                       UA_NODEATTRIBUTESMASK_NONE,
+                                       UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
+        if(!node) {
+            result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            return;
+        }
+        UA_NODESTORE_RELEASE(server, node);
     }
-    UA_NODESTORE_RELEASE(server, startingNode);
 
     /* Create two RefTrees that are alternated between path elements */
     RefTree rt1;
@@ -1413,7 +1465,8 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
          * Puts new results in the "next" tree. */
         result->statusCode =
             walkBrowsePathElement(server, session, &path->relativePath, i,
-                                  *nodeClassMask, browseNameFilter, result, current, next);
+                                  *nodeClassMask, browseNameFilter, result,
+                                  current, next, i == 0 ? startingNode : NULL);
         if(result->statusCode != UA_STATUSCODE_GOOD)
             goto cleanup;
 
@@ -1487,6 +1540,15 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     }
 }
 
+static void
+Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
+                                       const void *context /* UA_UInt32 */,
+                                       const void *request /* UA_BrowsePath */,
+                                       void *response /* UA_BrowsePathResult */) {
+    Operation_TranslateBrowsePathToNodeIdsWithNode(
+        server, session, NULL, context, request, response);
+}
+
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server,
                              const UA_BrowsePath *browsePath) {
@@ -1496,6 +1558,20 @@ translateBrowsePathToNodeIds(UA_Server *server,
     UA_UInt32 nodeClassMask = 0; /* All node classes */
     Operation_TranslateBrowsePathToNodeIds(server, &server->adminSession, &nodeClassMask,
                                            browsePath, &result);
+    return result;
+}
+
+UA_BrowsePathResult
+translateBrowsePathToNodeIdsWithNode(UA_Server *server,
+                                     const UA_Node *startingNode,
+                                     const UA_BrowsePath *browsePath) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_BrowsePathResult result;
+    UA_BrowsePathResult_init(&result);
+    UA_UInt32 nodeClassMask = 0;
+    Operation_TranslateBrowsePathToNodeIdsWithNode(
+        server, &server->adminSession, startingNode, &nodeClassMask,
+        browsePath, &result);
     return result;
 }
 
