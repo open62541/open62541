@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2019 ifak e.V. Magdeburg (Holger Zipper)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_keystorage.h"
@@ -55,14 +56,39 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
         UA_free(item);
     }
     ks->keyListSize = 0;
+    /* Clear currentItem so the next rollover callback or
+     * splitCurrentKeyMaterial does not dereference freed memory. */
+    ks->currentItem = NULL;
+    ks->currentTokenId = 0;
 }
 
 void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    /* Remove callback */
-    if(!ks->callBackId) {
+    /* If an SKS pull request is in flight (sksConfig.reqId != 0), defer the
+     * deletion. The storeFetchedKeys callback still holds a raw pointer to this
+     * key storage via the sksClientContext. Freeing now would cause a
+     * use-after-free when the response arrives. Mark for pending deletion;
+     * storeFetchedKeys performs the final cleanup. */
+    if(ks->sksConfig.reqId != 0) {
+        ks->pendingDelete = true;
+        return;
+    }
+
+    UA_PubSubKeyStorage_deleteNow(psm, ks);
+}
+
+void
+UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+
+    /* Remove the key-rollover callback timer if it is armed.
+     * The previous guard was inverted (`!ks->callBackId`), which removed the
+     * timer only when callBackId was 0 (no timer) and skipped removal when a
+     * timer was actually armed. The freed key storage was then dereferenced by
+     * the EventLoop on the next rollover tick -> use-after-free. */
+    if(ks->callBackId != 0) {
         removeCallback(psm->drv.server, ks->callBackId);
         ks->callBackId = 0;
     }
@@ -184,17 +210,23 @@ splitCurrentKeyMaterial(UA_PubSubKeyStorage *ks, UA_ByteString *signingKey,
         return UA_STATUSCODE_BADNOTFOUND;
     if(!ks->policy)
         return UA_STATUSCODE_BADINTERNALERROR;
+    /* Guard against a NULL currentItem (can happen after clearKeyList). */
+    if(!ks->currentItem)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_PubSubSecurityPolicy *policy = ks->policy;
     UA_ByteString key = ks->currentItem->key;
 
-    /* Check the main key length is the same according to policy */
-    if(key.length != policy->nonceLength)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     /* Get key length according to policy */
     size_t signingkeyLength = policy->getSignatureKeyLength(policy, NULL);
     size_t encryptkeyLength = policy->getEncryptionKeyLength(policy, NULL);
+
+    /* The full key material must be large enough to hold signing + encrypting
+     * + nonce parts. Without this check, keyNonceLength below underflows
+     * (size_t) when key.length is smaller than signingkeyLength + encryptkeyLength,
+     * and keyNonce->data points past the buffer -> OOB read. */
+    if(key.length < signingkeyLength + encryptkeyLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Rest of the part is the keyNonce */
     size_t keyNonceLength = key.length - signingkeyLength - encryptkeyLength;
@@ -448,6 +480,20 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
     lockServer(psm->drv.server);
+
+    /* If the key storage was marked for deferred deletion while the SKS pull
+     * was in flight, perform the final cleanup now and return. This prevents
+     * a use-after-free where UA_PubSubKeyStorage_delete deferred freeing ks
+     * until the in-flight response arrived. */
+    if(ks->pendingDelete) {
+        ks->sksConfig.reqId = 0;
+        UA_Client_disconnectAsync(client);
+        addDelayedSksClientCleanupCb(client, ctx);
+        UA_PubSubKeyStorage_deleteNow(psm, ks);
+        unlockServer(psm->drv.server);
+        return;
+    }
+
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
@@ -458,11 +504,44 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
         goto cleanup;
     }
 
+    /* Validate the GetSecurityKeys response structure before use.
+     * The method returns 5 output arguments: SecurityPolicyUri, FirstTokenId,
+     * Keys, TimeToNextKey, KeyLifetime. Without these checks, a malformed
+     * response causes OOB reads (outputArguments[i] out of range), NULL
+     * pointer dereferences (data == NULL), or unsigned underflow
+     * (arrayLength - currentKeyCount when arrayLength < 1). */
+    if(response->resultsSize == 0 ||
+       response->results[0].outputArgumentsSize < 5) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
+                     "SKS Client: GetSecurityKeys response has too few output arguments");
+        goto cleanup;
+    }
+
+    /* Each output argument must have non-NULL data of the expected type */
+    for(size_t i = 0; i < 5; i++) {
+        if(!response->results[0].outputArguments[i].data) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
+                         "SKS Client: GetSecurityKeys output argument %u is NULL",
+                         (unsigned)i);
+            goto cleanup;
+        }
+    }
+
+    /* The Keys array must contain at least the current key */
+    if(response->results[0].outputArguments[2].arrayLength < 1) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
+                     "SKS Client: GetSecurityKeys returned an empty keys array");
+        goto cleanup;
+    }
+
     UA_String *securityPolicyUri = (UA_String *)response->results->outputArguments[0].data;
     UA_UInt32 firstTokenId = *(UA_UInt32 *)response->results->outputArguments[1].data;
     UA_ByteString *keys = (UA_ByteString *)response->results->outputArguments[2].data;
-    UA_ByteString *currentKey = &keys[0];
     UA_UInt32 currentKeyCount = 1;
+    UA_ByteString *currentKey = &keys[0];
     UA_ByteString *futureKeys = &keys[currentKeyCount];
     size_t futureKeySize = response->results->outputArguments[2].arrayLength - currentKeyCount;
     UA_Duration msKeyLifeTime = *(UA_Duration *)response->results->outputArguments[4].data;

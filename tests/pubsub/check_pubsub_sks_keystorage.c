@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/plugin/securitypolicy.h>
@@ -410,6 +411,43 @@ START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     unlockServer(server);
 } END_TEST
 
+/* Regression test for the inverted callback guard in UA_PubSubKeyStorage_delete.
+ * A key storage with an armed key-rollover timer must deregister that timer on
+ * deletion. The previous guard `if(!ks->callBackId)` removed the timer only when
+ * callBackId was 0 (no timer) and skipped removal when a timer was armed, leaving
+ * a dangling EventLoop callback pointing at freed memory -> use-after-free. */
+START_TEST(TestRemoveKeyStorageWithArmedRolloverTimer){
+    UA_UInt32 currentTokenId = 1;
+    futureKeySize = 2;
+    UA_Duration msTimeToNextKey = 2000;
+    UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
+
+    /* createKeyStoragewithkeys arms the rollover callback (sets callBackId). */
+    UA_PubSubKeyStorage *tKeyStorage =
+        createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey, 0, testSecurityGroupId);
+    ck_assert_ptr_ne(tKeyStorage, NULL);
+    ck_assert_msg(tKeyStorage->callBackId != 0,
+                 "Expected the rollover timer to be armed");
+
+    /* Remove both groups so the key storage's reference count drops to 0 and
+     * UA_PubSubKeyStorage_delete is invoked while the timer is still armed. */
+    UA_Server_removeWriterGroup(server, writerGroup);
+    UA_Server_removeReaderGroup(server, readerGroup);
+
+    /* The key storage must have been deleted. */
+    UA_PubSubManager *psm = getPSM(server);
+    lockServer(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
+    ck_assert_ptr_eq(ks, NULL);
+    unlockServer(server);
+
+    /* Advance the fake clock past the rollover time and run the event loop. With
+     * the bug present, the EventLoop would fire the dangling callback here and
+     * dereference freed memory. We assert the server survives the iteration. */
+    UA_fakeSleep(msTimeToNextKey + 1);
+    UA_Server_run_iterate(server, false);
+} END_TEST
+
 int
 main(void) {
     int number_failed = 0;
@@ -423,6 +461,7 @@ main(void) {
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithReaderGroup);
     tcase_add_test(tc_pubsub_keystorage, TestAddingNewGroupToExistingKeyStorage);
     tcase_add_test(tc_pubsub_keystorage, TestRemoveAPubSubGroupWithKeyStorage);
+    tcase_add_test(tc_pubsub_keystorage, TestRemoveKeyStorageWithArmedRolloverTimer);
 
     Suite *s =
         suite_create("PubSub Keystorage and handling keys for Publisher and Subscriber");
