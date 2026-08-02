@@ -10,6 +10,7 @@
 
 #include "test_helpers.h"
 #include "pubsub_test_helpers.h"
+#include "testing_networklayers.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_internal.h"
 
@@ -558,6 +559,126 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         UA_WriterGroup_publishCallback(psm, wg);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
+
+static void
+noopConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                       void *application, void **connectionContext,
+                       UA_ConnectionState state, const UA_KeyValueMap *params,
+                       UA_ByteString msg) {
+    (void)cm;
+    (void)connectionId;
+    (void)application;
+    (void)connectionContext;
+    (void)state;
+    (void)params;
+    (void)msg;
+}
+
+START_TEST(PromotedFieldsAreCollectedFromPublishedValues) {
+    UA_Int32 publishedValue = 62541;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Variant_setScalar(&attr.value, &publishedValue,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId sourceId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "PromotedFieldSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL,
+        &sourceId), UA_STATUSCODE_GOOD);
+
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name = UA_STRING("PromotedFieldPDS");
+    UA_NodeId pdsId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdsConfig,
+                                                    &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig fieldConfig;
+    memset(&fieldConfig, 0, sizeof(fieldConfig));
+    fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("promoted");
+    fieldConfig.field.variable.promotedField = true;
+    fieldConfig.field.variable.publishParameters.publishedVariable = sourceId;
+    fieldConfig.field.variable.publishParameters.attributeId =
+        UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &fieldConfig,
+                                                NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_UadpWriterGroupMessageDataType messageSettings;
+    UA_UadpWriterGroupMessageDataType_init(&messageSettings);
+    messageSettings.networkMessageContentMask =
+        UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER |
+        UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS;
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name = UA_STRING("PromotedFieldWG");
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_ExtensionObject_setValue(
+        &writerGroupConfig.messageSettings, &messageSettings,
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    UA_NodeId wgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1,
+                                               &writerGroupConfig, &wgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig writerConfig;
+    memset(&writerConfig, 0, sizeof(writerConfig));
+    writerConfig.name = UA_STRING("PromotedFieldDSW");
+    writerConfig.dataSetWriterId = 17;
+    UA_NodeId dswId;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId,
+                                                 &writerConfig, &dswId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ConnectionManager *testCm = TestConnectionManager_new("udp", NULL);
+    ck_assert_ptr_nonnull(testCm);
+    uintptr_t sendChannel = 0;
+    ck_assert_uint_eq(TestConnectionManager_createConnection(
+        testCm, NULL, NULL, noopConnectionCallback, &sendChannel),
+        UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(psm, connection1);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    ck_assert_ptr_nonnull(connection);
+    ck_assert_ptr_nonnull(wg);
+    ck_assert_ptr_nonnull(dsw);
+    UA_ConnectionManager *originalCm = connection->cm;
+    uintptr_t originalSendChannel = connection->sendChannel;
+    connection->cm = testCm;
+    connection->sendChannel = sendChannel;
+    wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    dsw->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    ck_assert_uint_eq(UA_Server_triggerWriterGroupPublish(server, wgId),
+                      UA_STATUSCODE_GOOD);
+    const UA_ByteString *sent = TestConnectionManager_getLastSent(testCm);
+    ck_assert_ptr_nonnull(sent);
+    ck_assert_uint_gt(sent->length, 0);
+
+    UA_NetworkMessage decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(sent, &decoded, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(decoded.promotedFieldsEnabled);
+    ck_assert_uint_eq(decoded.promotedFieldsSize, 1);
+    ck_assert_ptr_eq(decoded.promotedFields[0].type,
+                     &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(*(UA_Int32*)decoded.promotedFields[0].data,
+                     publishedValue);
+    UA_NetworkMessage_clear(&decoded);
+
+    connection->cm = originalCm;
+    connection->sendChannel = originalSendChannel;
+    testCm->eventSource.free(&testCm->eventSource);
+} END_TEST
 
 START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         setupPublishedDataSetTestEnvironment();
@@ -1249,6 +1370,8 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
+    tcase_add_test(tc_pubsub_publish,
+                   PromotedFieldsAreCollectedFromPublishedValues);
     tcase_add_test(tc_pubsub_publish, DeltaFrameFieldCountMatchesChangedFields);
     tcase_add_test(tc_pubsub_publish,
                    DataSetWriterResizesSamplesAfterFieldAddition);
