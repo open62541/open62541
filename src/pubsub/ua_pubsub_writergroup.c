@@ -779,6 +779,10 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         const UA_Byte *end = &nm->securityHeader.messageNonce[8];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
         nm->securityHeader.messageNonceSize = 8;
+        /* Spec 7.2.3: For a given security key a unique nonce shall be
+         * generated for every NetworkMessage. The 4-byte sequence part
+         * must be incremented per message (the 4 random bytes also change). */
+        wg->nonceSequenceNumber++;
     }
 
     nm->version = 1;
@@ -848,10 +852,13 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Add the overhead for the security signature.
-     * There is no padding and the encryption incurs no size overhead. */
+     * There is no padding and the encryption incurs no size overhead.
+     * Use the same context (wg->securityPolicyContext) that the actual
+     * sign call in signEncrypt uses at line 582. Using sp->policyContext
+     * here could report a different signature size and mis-size the buffer. */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
-        msgSize += sp->getSignatureSize(sp, sp->policyContext);
+        msgSize += sp->getSignatureSize(sp, wg->securityPolicyContext);
     }
 
     UA_ConnectionManager *cm = connection->cm;
@@ -1478,8 +1485,13 @@ UA_Server_triggerWriterGroupPublish(UA_Server *server,
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    unlockServer(server);
+    /* Keep the lock held while calling the callback. The server mutex is
+     * recursive (PTHREAD_MUTEX_RECURSIVE / EnterCriticalSection), so the
+     * callback's own lockServer call is safe. This prevents a use-after-free
+     * where another thread could remove/free wg between unlock and the
+     * callback's re-lock. */
     UA_WriterGroup_publishCallback(psm, wg);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
