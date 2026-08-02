@@ -16,7 +16,10 @@ endif()
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD") AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "FreeBSD"))
-    list(APPEND LIBS subunit)
+    find_library(SUBUNIT_LIB subunit)
+    if(SUBUNIT_LIB)
+        list(APPEND LIBS subunit)
+    endif()
 endif()
 include_directories(${CHECK_INCLUDE_DIRS})
 link_directories(${CHECK_LIBRARY_DIRS})
@@ -88,9 +91,12 @@ set(test_plugin_sources
 # Network replay tests currently require a Linux environment.
 # Also only do it for 64bit builds, as there is a bug in the Debian multi-arch installation.
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
-    list(APPEND test_plugin_sources
-                ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
-    list(APPEND LIBS pcap)
+    find_path(PCAP_INCLUDE_DIR pcap.h)
+    if(PCAP_INCLUDE_DIR)
+        list(APPEND test_plugin_sources
+                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
+        list(APPEND LIBS pcap)
+    endif()
 endif()
 
 if(UA_ENABLE_PUBSUB)

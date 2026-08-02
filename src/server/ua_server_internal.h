@@ -139,9 +139,7 @@ struct UA_Server {
      * have direct pointers for fast access below. */
     UA_Driver *drivers; /* linked-list of all SC */
     UA_Driver *binaryDriver;
-#ifdef UA_ENABLE_LWS
     UA_Driver *webSocketDriver;
-#endif
     UA_Driver *reverseBinaryDriver;
     UA_Driver *discoveryDriver;
     UA_Driver *pubSubDriver;
@@ -831,9 +829,7 @@ UA_BinaryConnectionConfig_set(UA_ConnectionConfig *connectionConfig,
 
 UA_Driver * UA_BinaryProtocolManager_new(void);
 
-#ifdef UA_ENABLE_LWS
 UA_Driver * UA_WebSocketProtocolManager_new(void);
-#endif
 
 UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
 

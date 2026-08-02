@@ -338,6 +338,12 @@ be visible in the cmake GUIs.
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
    Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
 
+**UA_ENABLE_LWS**
+   Includes the ``libwebsockets`` library to enable OPC UA over WebSockets transport protocols (``opc.ws://`` for unencrypted WebSockets and ``opc.wss://`` for WebSockets over TLS/SSL).
+
+**UA_ENABLE_LWS_MQTT**
+   Enable the ``libwebsockets`` MQTT ConnectionManager implementation for PubSub MQTT transport protocols (``opc.mqtt://`` and ``opc.mqtts://``). Requires ``UA_ENABLE_LWS`` and ``libwebsockets`` compiled with MQTT support (``LWS_ROLE_MQTT=ON``).
+
 PubSub Build Options
 ^^^^^^^^^^^^^^^^^^^^
 

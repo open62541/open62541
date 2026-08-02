@@ -684,11 +684,11 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
      * intentionally ignored (see the doxygen note on the declaration). */
     (void)sendBufferSize;
     config->tcpBufSize = recvBufferSize;
-#ifdef UA_ENABLE_LWS
     config->webSocketBufSize = recvBufferSize;
+    config->webSocketAllowUnencrypted = false;
+    config->webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_OPTIONAL;
     config->webSocketMaxQueueSize =
         recvBufferSize > UINT32_MAX / 16 ? UINT32_MAX : recvBufferSize * 16;
-#endif
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);

@@ -955,6 +955,68 @@ START_TEST(clientServerTlsCaCertificate) {
 }
 END_TEST
 
+START_TEST(serverStartupWithoutWebSocketProvider) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+
+    /* By default webSocketEnabled is false, so startup succeeds */
+    UA_StatusCode res = UA_Server_run_startup(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+
+    /* If webSocketEnabled is true and no websocket provider in EventLoop, startup fails */
+    server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+    UA_EventLoop *el = UA_EventLoop_new_POSIX(server->config.logging);
+    server->config.eventLoop = el;
+    server->config.webSocketEnabled = true;
+    server->config.webSocketAllowUnencrypted = true;
+    UA_String wsUrl = UA_STRING("opc.ws://localhost:4840");
+    UA_Array_copy(&wsUrl, 1, (void**)&server->config.serverUrls, &UA_TYPES[UA_TYPES_STRING]);
+    server->config.serverUrlsSize = 1;
+
+    res = UA_Server_run_startup(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(serverWebSocketEncryptionMode) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+    UA_EventLoop *el = UA_EventLoop_new_POSIX(server->config.logging);
+    server->config.eventLoop = el;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_LWS_WebSocket(UA_STRING("websocket"));
+    el->registerEventSource(el, &cm->eventSource);
+    server->config.webSocketEnabled = true;
+
+    /* opc.ws:// fails if webSocketAllowUnencrypted is false (default) */
+    server->config.webSocketAllowUnencrypted = false;
+    UA_String wsUrl = UA_STRING("opc.ws://localhost:4840");
+    UA_Array_copy(&wsUrl, 1, (void**)&server->config.serverUrls, &UA_TYPES[UA_TYPES_STRING]);
+    server->config.serverUrlsSize = 1;
+    UA_StatusCode res = UA_Server_run_startup(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    /* REQUIRED mode rejects opc.ws:// even when allowUnencrypted is true */
+    server->config.webSocketAllowUnencrypted = true;
+    server->config.webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_REQUIRED;
+    res = UA_Server_run_startup(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    /* DISABLED mode rejects opc.wss:// */
+    server->config.webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_DISABLED;
+    UA_String wssUrl = UA_STRING("opc.wss://localhost:443");
+    UA_Array_copy(&wssUrl, 1, (void**)&server->config.serverUrls, &UA_TYPES[UA_TYPES_STRING]);
+    server->config.serverUrlsSize = 1;
+    res = UA_Server_run_startup(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
@@ -973,6 +1035,8 @@ int main(void) {
 #endif
     tcase_add_test(tc, clientServerRejectsPolicyMismatch);
     tcase_add_test(tc, clientServerTlsCaCertificate);
+    tcase_add_test(tc, serverStartupWithoutWebSocketProvider);
+    tcase_add_test(tc, serverWebSocketEncryptionMode);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s); srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL); int failed = srunner_ntests_failed(sr);

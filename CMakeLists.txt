@@ -172,6 +172,7 @@ mark_as_advanced(UA_ENABLE_LWS)
 option(UA_ENABLE_LWS_MQTT "Enable the libwebsockets MQTT ConnectionManager" OFF)
 mark_as_advanced(UA_ENABLE_LWS_MQTT)
 
+
 if(UA_ENABLE_LWS_MQTT AND NOT UA_ENABLE_LWS)
     message(FATAL_ERROR "UA_ENABLE_LWS_MQTT requires UA_ENABLE_LWS")
 endif()
@@ -974,9 +975,7 @@ if(UA_ENABLE_RBAC)
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.h)
 endif()
 
-if(UA_ENABLE_LWS)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ws.c)
-endif()
+list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ws.c)
 
 # Dependencies
 set(lib_sources ${lib_sources}

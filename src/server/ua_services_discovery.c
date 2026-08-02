@@ -700,17 +700,24 @@ updateEndpointUserIdentityToken(UA_Server *server,
 
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
-#ifdef UA_ENABLE_LWS
+static const UA_String wsBinaryTransportProfile = UA_STRING_STATIC(
+    "http://opcfoundation.org/UA-Profile/Transport/ws-uasc-uabinary");
 static const UA_String wssBinaryTransportProfile = UA_STRING_STATIC(
     "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
 
 static UA_Boolean
-isWebSocketEndpointUrl(const UA_String *url) {
+isSecureWebSocketEndpointUrl(const UA_String *url) {
     const UA_String prefix = UA_STRING_STATIC("opc.wss://");
     return url->length >= prefix.length &&
         memcmp(url->data, prefix.data, prefix.length) == 0;
 }
-#endif
+
+static UA_Boolean
+isInsecureWebSocketEndpointUrl(const UA_String *url) {
+    const UA_String prefix = UA_STRING_STATIC("opc.ws://");
+    return url->length >= prefix.length &&
+        memcmp(url->data, prefix.data, prefix.length) == 0;
+}
 
 UA_StatusCode
 setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
@@ -752,10 +759,10 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                 currentEndpointUrl = &sc->applicationDescription.discoveryUrls[i];
 
             const UA_String *transportProfileUri = &ep->transportProfileUri;
-#ifdef UA_ENABLE_LWS
-            if(isWebSocketEndpointUrl(currentEndpointUrl))
+            if(isSecureWebSocketEndpointUrl(currentEndpointUrl))
                 transportProfileUri = &wssBinaryTransportProfile;
-#endif
+            else if(isInsecureWebSocketEndpointUrl(currentEndpointUrl))
+                transportProfileUri = &wsBinaryTransportProfile;
 
             /* Test if the effective transport profile shall be returned */
             UA_Boolean usable = (profileUrisSize == 0);
