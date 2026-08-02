@@ -498,6 +498,7 @@ static UA_StatusCode
 UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
                          UA_VariableTypeNode *dst) {
     dst->isAbstract = src->isAbstract;
+    dst->lifecycle = src->lifecycle;
     return UA_CommonVariableNode_copy((const UA_VariableNode*)src, (UA_VariableNode*)dst);
 }
 

@@ -87,6 +87,66 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
     return retval;
 }
 
+/* Run the first lifecycle phase once the raw node and its defining references
+ * are available, but before automatic child instantiation. */
+UA_StatusCode
+callEarlyConstructors(UA_Server *server, UA_Session *session,
+                      const UA_NodeId *nodeId) {
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    void *context = node->head.context;
+    UA_NodeClass nodeClass = node->head.nodeClass;
+    UA_NODESTORE_RELEASE(server, node);
+
+    UA_Boolean called = false;
+    UA_GlobalNodeLifecycle *global = server->config.nodeLifecycle;
+    if(global && global->earlyConstructor) {
+        called = true;
+        UA_StatusCode retval =
+            global->earlyConstructor(server, &session->sessionId,
+                                     session->context, nodeId, &context);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Resolve the type after the global callback. It may have changed the
+     * defining references. A missing type is allowed here: addNode_begin also
+     * supports nodes whose references are completed manually before _finish. */
+    if(nodeClass == UA_NODECLASS_OBJECT ||
+       nodeClass == UA_NODECLASS_VARIABLE) {
+        node = UA_NODESTORE_GET(server, nodeId);
+        if(!node)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        const UA_Node *type =
+            getNodeType(server, &node->head, ~(UA_UInt32)0,
+                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+        UA_NODESTORE_RELEASE(server, node);
+
+        if(type) {
+            const UA_NodeTypeLifecycle *lifecycle =
+                (nodeClass == UA_NODECLASS_OBJECT) ?
+                &type->objectTypeNode.lifecycle :
+                &type->variableTypeNode.lifecycle;
+            if(lifecycle->earlyConstructor) {
+                called = true;
+                UA_StatusCode retval = lifecycle->earlyConstructor(
+                    server, &session->sessionId, session->context,
+                    &type->head.nodeId, type->head.context, nodeId, &context);
+                UA_NODESTORE_RELEASE(server, type);
+                if(retval != UA_STATUSCODE_GOOD)
+                    return retval;
+            } else {
+                UA_NODESTORE_RELEASE(server, type);
+            }
+        }
+    }
+
+    if(!called)
+        return UA_STATUSCODE_GOOD;
+    return setNodeContext(server, *nodeId, context);
+}
+
 static UA_StatusCode
 checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
                           const UA_NodeId *nodeId);
@@ -790,6 +850,10 @@ copyObjectVariableChild(UA_Server *server, UA_Session *session,
     if(res != UA_STATUSCODE_GOOD)
         goto errout;
 
+    res = callEarlyConstructors(server, session, &newNodeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
     if(rd->nodeClass == UA_NODECLASS_VARIABLE) {
         res = checkSetIsDynamicVariable(server, session, &newNodeId);
         if(res != UA_STATUSCODE_GOOD)
@@ -1340,11 +1404,8 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Typecheck and add references to parent and type definition */
-    retval = addNode_addRefs(server, session, outNewNodeId, parentNodeId,
+    retval = addNode_prepare(server, session, outNewNodeId, parentNodeId,
                              referenceTypeId, &item->typeDefinition.nodeId);
-    if(retval != UA_STATUSCODE_GOOD)
-        deleteNode(server, *outNewNodeId, true);
 
     if(outNewNodeId == &newId)
         UA_NodeId_clear(&newId);
@@ -1352,6 +1413,20 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
  cleanup:
     if(noBrowseName)
         UA_QualifiedName_clear((UA_QualifiedName*)(uintptr_t)&item->browseName);
+    return retval;
+}
+
+UA_StatusCode
+addNode_prepare(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                const UA_NodeId *typeDefinitionId) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_StatusCode retval = addNode_addRefs(server, session, nodeId, parentNodeId,
+                                           referenceTypeId, typeDefinitionId);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = callEarlyConstructors(server, session, nodeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        deleteNode(server, *nodeId, true);
     return retval;
 }
 
@@ -2959,6 +3034,12 @@ UA_Server_addCallbackValueSourceVariableNode(UA_Server *server,
                              &referenceTypeId, &typeDefinition);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
+
+    retval = callEarlyConstructors(server, &server->adminSession, outNewNodeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        deleteNode(server, *outNewNodeId, true);
+        goto cleanup;
+    }
 
     /* Call the constructors */
     retval = addNode_finish(server, &server->adminSession, outNewNodeId);

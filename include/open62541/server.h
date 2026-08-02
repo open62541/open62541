@@ -1236,16 +1236,18 @@ UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
  * When a node is destroyed, the node-type destructor is called before the
  * global destructor. So the overall node lifecycle is as follows:
  *
- * 1. Global Constructor (set in the server config)
- * 2. Node-Type Constructor (for VariableType or ObjectTypes)
- * 3. (Usage-period of the Node)
- * 4. Node-Type Destructor
- * 5. Global Destructor
+ * 1. Global Early Constructor (set in the server config)
+ * 2. Node-Type Early Constructor (for Variables or Objects)
+ * 3. Recursive instantiation of the node's children
+ * 4. Global Constructor (set in the server config)
+ * 5. Node-Type Constructor (for Variables or Objects)
+ * 6. (Usage-period of the Node)
+ * 7. Node-Type Destructor
+ * 8. Global Destructor
  *
  * The constructor and destructor callbacks can be set to ``NULL`` and are not
- * used in that case. If the node-type constructor fails, the global destructor
- * will be called before removing the node. The destructors are assumed to never
- * fail.
+ * used in that case. If a constructor fails, the global destructor will be
+ * called before removing the node. The destructors are assumed to never fail.
  *
  * Every node carries a user-context and a constructor-context pointer. The
  * user-context is used to attach custom data to a node. But the (user-defined)
@@ -1262,7 +1264,7 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId, void *nodeContext);
 
 /**
- * Global constructor and destructor callbacks used for every node type.
+ * Global constructor and destructor callbacks used for every node.
  * It gets set in the server config. */
 
 typedef struct {
@@ -1320,6 +1322,17 @@ typedef struct {
                                          const UA_NodeId *targetParentNodeId,
                                          const UA_NodeId *referenceTypeId,
                                          UA_NodeId *targetNodeId);
+
+    /* Can be NULL. Called after the node has been inserted into the Nodestore
+     * and its parent and TypeDefinition references have been added, but before
+     * automatic child instantiation. This allows the callback to add children
+     * that shall take the place of children declared by the TypeDefinition.
+     * May replace the nodeContext. */
+    UA_StatusCode (*earlyConstructor)(UA_Server *server,
+                                      const UA_NodeId *sessionId,
+                                      void *sessionContext,
+                                      const UA_NodeId *nodeId,
+                                      void **nodeContext);
 } UA_GlobalNodeLifecycle;
 
 /**
@@ -1338,6 +1351,16 @@ typedef struct {
                        const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *typeNodeId, void *typeNodeContext,
                        const UA_NodeId *nodeId, void **nodeContext);
+
+    /* Can be NULL. Called after the global earlyConstructor and before
+     * automatic child instantiation. May replace the nodeContext. */
+    UA_StatusCode (*earlyConstructor)(UA_Server *server,
+                                      const UA_NodeId *sessionId,
+                                      void *sessionContext,
+                                      const UA_NodeId *typeNodeId,
+                                      void *typeNodeContext,
+                                      const UA_NodeId *nodeId,
+                                      void **nodeContext);
 } UA_NodeTypeLifecycle;
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -1358,7 +1381,8 @@ UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
  *  - prepares the node and adds it to the nodestore
  *  - copies some unassigned attributes from the TypeDefinition node internally
  *  - adds the references to the parent (and the TypeDefinition if applicable)
- *  - performs type-checking of variables.
+ *  - performs type-checking of variables
+ *  - calls the global and node-type earlyConstructors, if configured.
  *
  * You can add an object node without a parent if you set the parentNodeId and
  * referenceTypeId to UA_NODE_ID_NULL. Then you need to add the parent reference

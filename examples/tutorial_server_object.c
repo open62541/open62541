@@ -288,7 +288,7 @@ pumpTypeConstructor(UA_Server *server,
 
 static void
 addPumpTypeConstructor(UA_Server *server) {
-    UA_NodeTypeLifecycle lifecycle;
+    UA_NodeTypeLifecycle lifecycle = {0};
     lifecycle.constructor = pumpTypeConstructor;
     lifecycle.destructor = NULL;
     UA_Server_setNodeTypeLifecycle(server, pumpTypeId, lifecycle);

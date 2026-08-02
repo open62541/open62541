@@ -474,6 +474,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* conf->nodeLifecycle.destructor = NULL; */
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
+    /* conf->nodeLifecycle.earlyConstructor = NULL; */
     conf->modellingRulesOnInstances = true;
 
     /* Limits for SecureChannels */
