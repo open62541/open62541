@@ -134,27 +134,26 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
-#define UA_SCHEMAS_SIZE 5
+#define UA_SCHEMAS_SIZE 6
 #define UA_ETH_SCHEMA_INDEX 2
 
 static const char* schemas[UA_SCHEMAS_SIZE] = {
-    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://", "opc.wss://"
+    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://", "opc.wss://", "opc.ws://"
 };
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     UA_UInt16 *outPort, UA_String *outPath) {
-    /* Url must begin with a supported OPC UA URL scheme */
-    if(endpointUrl->length < 11) {
+    if(!endpointUrl || !endpointUrl->data)
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    }
 
     /* Which type of schema is this? */
     unsigned schemaType = 0;
+    size_t schemaLen = 0;
     for(; schemaType < UA_SCHEMAS_SIZE; schemaType++) {
-        if(strncmp((char*)endpointUrl->data,
-                   schemas[schemaType],
-                   strlen(schemas[schemaType])) == 0)
+        schemaLen = strlen(schemas[schemaType]);
+        if(endpointUrl->length >= schemaLen &&
+           strncmp((char*)endpointUrl->data, schemas[schemaType], schemaLen) == 0)
             break;
     }
     if(schemaType == UA_SCHEMAS_SIZE)
@@ -197,8 +196,11 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         outHostname->data = NULL;
 
     /* Already at the end */
-    if(curr == endpointUrl->length)
+    if(curr == endpointUrl->length) {
+        if(outHostname->length == 0)
+            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         return UA_STATUSCODE_GOOD;
+    }
 
     /* Set the port - and for ETH set the VID.PCP postfix in the outpath string.
      * We have to parse that externally. */

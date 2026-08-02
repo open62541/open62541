@@ -86,6 +86,20 @@ START_TEST(EndpointUrl_split) {
     ck_assert_uint_eq(port, 1234);
     ck_assert(UA_String_equal(&path, &expectedPath));
 
+    // short WebSocket URLs (e.g. opc.ws://a)
+    endPointUrl = UA_STRING("opc.ws://a");
+    port = 4840;
+    path = UA_STRING_NULL;
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    expected = UA_STRING("a");
+    ck_assert(UA_String_equal(&hostname, &expected));
+
+    endPointUrl = UA_STRING("opc.wss://a");
+    port = 443;
+    path = UA_STRING_NULL;
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&hostname, &expected));
+
     // invalid IPv6: missing ]
     endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334");
     ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_BADTCPENDPOINTURLINVALID);

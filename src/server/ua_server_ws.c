@@ -5,13 +5,21 @@
 #include "ua_server_internal.h"
 #include "mp_printf.h"
 
-#ifdef UA_ENABLE_LWS
-
 static UA_Boolean
 isWebSocketUrl(const UA_String *url) {
-    const UA_String prefix = UA_STRING_STATIC("opc.wss://");
-    return url->length >= prefix.length &&
-        memcmp(url->data, prefix.data, prefix.length) == 0;
+    const UA_String wss = UA_STRING_STATIC("opc.wss://");
+    const UA_String ws  = UA_STRING_STATIC("opc.ws://");
+    return (url->length >= wss.length &&
+            memcmp(url->data, wss.data, wss.length) == 0) ||
+           (url->length >= ws.length &&
+            memcmp(url->data, ws.data, ws.length) == 0);
+}
+
+static UA_Boolean
+isSecureWebSocketUrl(const UA_String *url) {
+    const UA_String wss = UA_STRING_STATIC("opc.wss://");
+    return url->length >= wss.length &&
+           memcmp(url->data, wss.data, wss.length) == 0;
 }
 
 static void
@@ -54,24 +62,26 @@ addWebSocketDiscoveryUrls(UA_BinaryProtocolManager *bpm,
         if(!isWebSocketUrl(serverUrl))
             continue;
 
+        const UA_Boolean secure = isSecureWebSocketUrl(serverUrl);
         UA_String hostname = UA_STRING_NULL;
         UA_String path = UA_STRING_NULL;
-        UA_UInt16 port = 443;
+        UA_UInt16 port = secure ? 443 : 4840;
         UA_StatusCode res =
             UA_parseEndpointUrl(serverUrl, &hostname, &port, &path);
         if(res != UA_STATUSCODE_GOOD ||
            (port != 0 && port != *listenPort))
             continue;
 
+        const char *scheme = secure ? "opc.wss" : "opc.ws";
         const UA_String advertisedHost =
             hostname.length > 0 ? hostname : *listenAddress;
         char urlstr[1024];
         if(path.length > 0) {
-            mp_snprintf(urlstr, sizeof(urlstr), "opc.wss://%S:%u/%S",
-                        advertisedHost, (unsigned)*listenPort, path);
+            mp_snprintf(urlstr, sizeof(urlstr), "%s://%S:%u/%S",
+                        scheme, advertisedHost, (unsigned)*listenPort, path);
         } else {
-            mp_snprintf(urlstr, sizeof(urlstr), "opc.wss://%S:%u",
-                        advertisedHost, (unsigned)*listenPort);
+            mp_snprintf(urlstr, sizeof(urlstr), "%s://%S:%u",
+                        scheme, advertisedHost, (unsigned)*listenPort);
         }
         appendDiscoveryUrl(server, UA_STRING(urlstr));
     }
@@ -85,9 +95,10 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
 
     UA_LOCK_ASSERT(&bpm->drv.server->serviceMutex);
 
+    UA_Boolean secure = isSecureWebSocketUrl(serverUrl);
     UA_String hostname = UA_STRING_NULL;
     UA_String path = UA_STRING_NULL;
-    UA_UInt16 port = 443;
+    UA_UInt16 port = secure ? 443 : 4840;
     UA_StatusCode res =
         UA_parseEndpointUrl(serverUrl, &hostname, &port, &path);
     if(res != UA_STATUSCODE_GOOD)
@@ -128,9 +139,8 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
         UA_Variant_setScalar(&params[paramsSize++].value, &listen,
                              &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-        UA_Boolean useSSL = true;
         params[paramsSize].key = UA_QUALIFIEDNAME(0, "useSSL");
-        UA_Variant_setScalar(&params[paramsSize++].value, &useSSL,
+        UA_Variant_setScalar(&params[paramsSize++].value, &secure,
                              &UA_TYPES[UA_TYPES_BOOLEAN]);
 
         params[paramsSize].key = UA_QUALIFIEDNAME(0, "path");
@@ -166,32 +176,35 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
                                  &UA_TYPES[UA_TYPES_STRING]);
         }
 
-        /* TLS credentials are configured on the WebSocket ConnectionManager.
-         * They are separate from the keys used by the UACP SecurityPolicies.
-         * Do not forward empty values. The TLS listener requires a non-empty
-         * certificate/private-key pair. */
-        UA_ByteString *certificate = &config->webSocketCertificate;
-        UA_ByteString *privateKey = &config->webSocketPrivateKey;
-        if(certificate->length == 0 || privateKey->length == 0) {
-            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                         "The WebSocket server requires a non-empty TLS "
-                         "certificate and private key");
-            openResult = UA_STATUSCODE_BADINVALIDARGUMENT;
-            continue;
-        }
-        params[paramsSize].key = UA_QUALIFIEDNAME(0, "certificate");
-        UA_Variant_setScalar(&params[paramsSize++].value, certificate,
-                             &UA_TYPES[UA_TYPES_BYTESTRING]);
-        params[paramsSize].key = UA_QUALIFIEDNAME(0, "private-key");
-        UA_Variant_setScalar(&params[paramsSize++].value, privateKey,
-                             &UA_TYPES[UA_TYPES_BYTESTRING]);
+        /* TLS credentials — only required for opc.wss:// */
+        if(secure) {
+            /* TLS credentials are configured on the WebSocket ConnectionManager.
+             * They are separate from the keys used by the UACP SecurityPolicies.
+             * Do not forward empty values. The TLS listener requires a non-empty
+             * certificate/private-key pair. */
+            UA_ByteString *certificate = &config->webSocketCertificate;
+            UA_ByteString *privateKey = &config->webSocketPrivateKey;
+            if(certificate->length == 0 || privateKey->length == 0) {
+                UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                             "The WebSocket server (opc.wss://) requires a "
+                             "non-empty TLS certificate and private key");
+                openResult = UA_STATUSCODE_BADINVALIDARGUMENT;
+                continue;
+            }
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "certificate");
+            UA_Variant_setScalar(&params[paramsSize++].value, certificate,
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+            params[paramsSize].key = UA_QUALIFIEDNAME(0, "private-key");
+            UA_Variant_setScalar(&params[paramsSize++].value, privateKey,
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
 
-        if(config->webSocketPrivateKeyPassword.length > 0) {
-            params[paramsSize].key =
-                UA_QUALIFIEDNAME(0, "private-key-password");
-            UA_Variant_setScalar(&params[paramsSize++].value,
-                                 &config->webSocketPrivateKeyPassword,
-                                 &UA_TYPES[UA_TYPES_STRING]);
+            if(config->webSocketPrivateKeyPassword.length > 0) {
+                params[paramsSize].key =
+                    UA_QUALIFIEDNAME(0, "private-key-password");
+                UA_Variant_setScalar(&params[paramsSize++].value,
+                                     &config->webSocketPrivateKeyPassword,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+            }
         }
 
         UA_KeyValueMap paramsMap = {paramsSize, params};
@@ -220,12 +233,18 @@ startWebSocketTransport(UA_BinaryProtocolManager *bpm) {
     if(!config->webSocketEnabled)
         return UA_STATUSCODE_GOOD;
 
-    if(config->webSocketCertificate.length == 0 ||
-       config->webSocketPrivateKey.length == 0) {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                     "WebSocket transport is enabled but its TLS certificate "
-                     "or private key is empty");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    /* Fail early if any opc.wss:// URL is configured without TLS credentials */
+    for(size_t i = 0; i < config->serverUrlsSize; i++) {
+        if(!isSecureWebSocketUrl(&config->serverUrls[i]))
+            continue;
+        if(config->webSocketCertificate.length == 0 ||
+           config->webSocketPrivateKey.length == 0) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "WebSocket transport is enabled but its TLS certificate "
+                         "or private key is empty");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+        break;
     }
 
     UA_BinaryConnectionConfig_set(&bpm->connectionConfig,
@@ -255,8 +274,8 @@ startWebSocketTransport(UA_BinaryProtocolManager *bpm) {
 
     if(!haveWebSocketUrl) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                     "WebSocket transport is enabled but no opc.wss ServerUrl "
-                     "is configured");
+                     "WebSocket transport is enabled but no opc.ws:// or "
+                     "opc.wss:// ServerUrl is configured");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
     if(haveServerSocket)
@@ -280,5 +299,3 @@ UA_WebSocketProtocolManager_new(void) {
                                   addWebSocketDiscoveryUrls);
     return &bpm->drv;
 }
-
-#endif /* UA_ENABLE_LWS */

@@ -2166,6 +2166,13 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
+/* Encryption mode requirement for OPC UA Binary over WebSockets */
+typedef enum {
+    UA_WEBSOCKET_ENCRYPTION_OPTIONAL = 0, /* Allow both opc.ws:// (unencrypted) and opc.wss:// (TLS) */
+    UA_WEBSOCKET_ENCRYPTION_REQUIRED = 1, /* Allow only opc.wss:// (TLS); reject opc.ws:// */
+    UA_WEBSOCKET_ENCRYPTION_DISABLED = 2  /* Allow only opc.ws:// (unencrypted); reject opc.wss:// */
+} UA_WebSocketEncryptionMode;
+
 struct UA_ServerConfig {
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
@@ -2279,13 +2286,13 @@ struct UA_ServerConfig {
                               * (default: 0 -> unbounded) */
     UA_Boolean tcpReuseAddr;
 
-#ifdef UA_ENABLE_LWS
+
     /* The following settings are specific to OPC UA Binary over WebSockets.
-     * The transport is opt-in and requires an opc.wss ServerUrl together with
-     * a TLS certificate/private-key pair. The TLS credentials protect the
-     * WebSocket transport and are independent of OPC UA SecurityPolicies. */
-    UA_Boolean webSocketEnabled; /* Enable the WebSocket listener
-                                   * (default: false) */
+     * The transport is opt-in and controlled via webSocketEnabled (default: false).
+     * TLS credentials protect opc.wss:// endpoints independently of OPC UA SecurityPolicies. */
+    UA_Boolean webSocketEnabled; /* Enable the WebSocket listener (default: false) */
+    UA_Boolean webSocketAllowUnencrypted; /* Allow non-standard unencrypted opc.ws:// endpoints (default: false) */
+    UA_WebSocketEncryptionMode webSocketEncryptionMode; /* Encryption requirement (default: UA_WEBSOCKET_ENCRYPTION_OPTIONAL) */
     UA_UInt32 webSocketBufSize;    /* Max length of sent and received chunks
                                     * (default: 64kB) */
     UA_UInt32 webSocketMaxMsgSize; /* Max length of messages
@@ -2297,7 +2304,6 @@ struct UA_ServerConfig {
     UA_ByteString webSocketCertificate; /* TLS certificate, DER or PEM */
     UA_ByteString webSocketPrivateKey;  /* TLS private key, DER or PEM */
     UA_String webSocketPrivateKeyPassword;
-#endif
 
     /* Security and Encryption
      * ~~~~~~~~~~~~~~~~~~~~~~~ */

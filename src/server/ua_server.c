@@ -508,12 +508,10 @@ UA_Server_init(UA_Server *server) {
     res = addDriver(server, server->binaryDriver);
     UA_CHECK_STATUS(res, goto cleanup);
 
-#ifdef UA_ENABLE_LWS
     /* Initialize OPC UA Binary over WebSockets */
     server->webSocketDriver = UA_WebSocketProtocolManager_new();
     res = addDriver(server, server->webSocketDriver);
     UA_CHECK_STATUS(res, goto cleanup);
-#endif
 
     /* Initialize the reverse connect binary protocol support */
     server->reverseBinaryDriver = UA_ReverseBinaryProtocolManager_new();
@@ -964,33 +962,85 @@ UA_Server_run_startup(UA_Server *server) {
     }
     UA_ServerConfig *config = &server->config;
 
-#ifdef UA_ENABLE_LWS
     if(config->webSocketEnabled) {
-        const UA_String prefix = UA_STRING_STATIC("opc.wss://");
+        const UA_String wss = UA_STRING_STATIC("opc.wss://");
+        const UA_String ws  = UA_STRING_STATIC("opc.ws://");
         UA_Boolean haveWebSocketUrl = false;
+        UA_Boolean haveSecureUrl = false;
+        UA_Boolean haveInsecureUrl = false;
         for(size_t i = 0; i < config->serverUrlsSize; i++) {
             const UA_String *url = &config->serverUrls[i];
-            if(url->length >= prefix.length &&
-               memcmp(url->data, prefix.data, prefix.length) == 0) {
+            if(url->length >= wss.length &&
+               memcmp(url->data, wss.data, wss.length) == 0) {
                 haveWebSocketUrl = true;
-                break;
+                haveSecureUrl = true;
+            } else if(url->length >= ws.length &&
+                      memcmp(url->data, ws.data, ws.length) == 0) {
+                haveWebSocketUrl = true;
+                haveInsecureUrl = true;
             }
         }
         if(!haveWebSocketUrl) {
             UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                         "WebSocket transport is enabled but no opc.wss "
-                         "ServerUrl is configured");
+                         "WebSocket transport is enabled but no opc.ws:// or "
+                         "opc.wss:// ServerUrl is configured");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
-        if(config->webSocketCertificate.length == 0 ||
-           config->webSocketPrivateKey.length == 0) {
+
+        /* Check that a "websocket" protocol-provider (ConnectionManager) is registered in the EventLoop */
+        UA_Boolean foundWebSocketManager = false;
+        if(config->eventLoop) {
+            UA_String websocketStr = UA_STRING_STATIC("websocket");
+            for(UA_EventSource *es = config->eventLoop->eventSources;
+                es != NULL; es = es->next) {
+                if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+                    continue;
+                UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+                if(UA_String_equal(&cm->protocol, &websocketStr)) {
+                    foundWebSocketManager = true;
+                    break;
+                }
+            }
+        }
+        if(!foundWebSocketManager) {
             UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                         "WebSocket transport is enabled but its TLS "
+                         "WebSocket transport is enabled (webSocketEnabled=true), "
+                         "but no 'websocket' protocol-provider (ConnectionManager) was found in the EventLoop");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+
+        /* Encryption mode checks */
+        if(haveInsecureUrl) {
+            if(!config->webSocketAllowUnencrypted) {
+                UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                             "opc.ws:// (unencrypted WebSocket) is configured, but webSocketAllowUnencrypted is false. "
+                             "Unencrypted WebSocket transport is non-standard and must be explicitly allowed.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                           "opc.ws:// (unencrypted WebSocket) is enabled. "
+                           "Unencrypted WebSocket transport is non-standard and should only be used for testing/debugging!");
+        }
+
+        if(config->webSocketEncryptionMode == UA_WEBSOCKET_ENCRYPTION_REQUIRED && haveInsecureUrl) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "opc.ws:// URL configured but webSocketEncryptionMode is set to REQUIRED");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+        if(config->webSocketEncryptionMode == UA_WEBSOCKET_ENCRYPTION_DISABLED && haveSecureUrl) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "opc.wss:// URL configured but webSocketEncryptionMode is set to DISABLED");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+
+        if(haveSecureUrl && (config->webSocketCertificate.length == 0 ||
+                             config->webSocketPrivateKey.length == 0)) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "WebSocket transport is enabled for opc.wss:// but its TLS "
                          "certificate or private key is empty");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
     }
-#endif
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Prominently warn user that fuzzing build is enabled. This will tamper
