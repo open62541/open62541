@@ -625,9 +625,9 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
 
-    /* Extract hostname and port */
+    /* UDP endpoints require an explicit non-zero port. */
     UA_String address;
-    UA_UInt16 port;
+    UA_UInt16 port = 0;
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the UDP network URL");
