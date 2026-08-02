@@ -2421,7 +2421,7 @@ initPubSubNS0(UA_Server *server) {
     }
 
     /* Set the object-type destructors */
-    UA_NodeTypeLifecycle lifeCycle;
+    UA_NodeTypeLifecycle lifeCycle = {0};
     lifeCycle.constructor = NULL;
 
     lifeCycle.destructor = connectionTypeDestructor;

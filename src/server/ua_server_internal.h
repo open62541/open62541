@@ -984,9 +984,23 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                 const UA_NodeId *typeDefinitionId);
 
+/* Complete the begin phase for a node already inserted by addNode_raw. Adds
+ * defining references and runs the early constructors. Deletes the raw node
+ * on failure. */
+UA_StatusCode
+addNode_prepare(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                const UA_NodeId *typeDefinitionId);
+
 /* Type-check type-definition; Run the constructors */
 UA_StatusCode
 addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
+
+/* Call the global early constructor after the defining references have been
+ * added and before automatic child instantiation. */
+UA_StatusCode
+callEarlyConstructors(UA_Server *server, UA_Session *session,
+                      const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */

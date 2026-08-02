@@ -45,6 +45,9 @@ ns0_addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     UA_StatusCode retval = addRef(server, sourceId, refTypeId, targetId, false);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    retval = callEarlyConstructors(server, &server->adminSession, &sourceId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     return addNode_finish(server, &server->adminSession, &sourceId);
 }
 
