@@ -993,8 +993,8 @@ UA_Server_addCallbackValueSourceVariableNode(UA_Server *server,
                                                  outNewNodeId)
 
 /* Set an internal value source. Both the value argument and the notifications
- * argument can be NULL. If value is NULL, the Read service is used to get the
- * latest value before switching from a callback to an internal value source. If
+ * argument can be NULL. If value is NULL, an existing internal value is kept;
+ * switching from another value source creates an empty internal value. If
  * notifications is NULL, then all onRead/onWrite notifications are disabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_internalValueSource(UA_Server *server,

@@ -2800,7 +2800,7 @@ setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
     return editNode(server, &server->adminSession, &nodeId,
                     UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
                     UA_BROWSEDIRECTION_INVALID,
-                    setInternalValueSourceCB, &ctx);
+                    (UA_EditNodeCallback)setInternalValueSourceCB, &ctx);
 }
 
 UA_StatusCode

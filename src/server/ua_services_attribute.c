@@ -512,10 +512,13 @@ buildEnumDefinitionFromProperties(UA_Server *server, const UA_NodeId *dataTypeId
 
 /* Returns whether the operation is done or an async operation has been
  * triggered. */
-static UA_Boolean
-ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *session,
+UA_Boolean
+Operation_ReadWithNode(UA_Server *server, UA_Session *session,
+                       const UA_Node *node,
                        UA_TimestampsToReturn timestampsToReturn,
                        const UA_ReadValueId *id, UA_DataValue *v) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_assert(node != NULL);
     UA_LOG_TRACE_SESSION(server->config.logging, session,
                          "Read attribute %"PRIi32 " of Node %N",
                          id->attributeId, node->head.nodeId);
@@ -802,6 +805,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
      * error has occurred. */
     if(retval == UA_STATUSCODE_GOOD &&
        v->hasValue && UA_Variant_isEmpty(&v->value) &&
+       (!v->hasStatus || !UA_StatusCode_isBad(v->status)) &&
        (node->head.nodeClass == UA_NODECLASS_VARIABLE ||
         node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) &&
        !isNullableDataType(server, &node->variableNode.dataType)) {
@@ -832,7 +836,7 @@ Operation_Read(UA_Server *server, UA_Session *session,
     }
 
     /* Perform the read operation */
-    UA_Boolean done = ReadWithNodeMaybeAsync(node, server, session, ttr, rvi, dv);
+    UA_Boolean done = Operation_ReadWithNode(server, session, node, ttr, rvi, dv);
     UA_NODESTORE_RELEASE(server, node);
     return done;
 }
@@ -1889,7 +1893,8 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         UA_DataValue value;
         UA_DataValue_init(&value);
         UA_Boolean done =
-            ReadWithNodeMaybeAsync(node, server, session, mon->timestampsToReturn,
+            Operation_ReadWithNode(server, session, node,
+                                   mon->timestampsToReturn,
                                    &mon->itemToMonitor, &value);
         if(!done) {
             if(server->config.asyncOperationCancelCallback)
@@ -2146,30 +2151,30 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 }
 
 UA_Boolean
-Operation_Write(UA_Server *server, UA_Session *session,
-                const UA_WriteValue *wv, UA_StatusCode *result) {
+Operation_WriteWithNode(UA_Server *server, UA_Session *session,
+                        UA_Node *node, const UA_WriteValue *wv,
+                        UA_StatusCode *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(session != NULL);
+    UA_assert(node != NULL);
+    UA_assert(UA_NodeId_equal(&node->head.nodeId, &wv->nodeId));
     beginModelChange(server);
 
     /* DataType is an inline attribute. Remember its previous value so a
      * same-value write does not produce a spurious DataTypeChanged event. */
     UA_Boolean dataTypeChanged = false;
-    if(wv->attributeId == UA_ATTRIBUTEID_DATATYPE) {
-        const UA_Node *oldNode = UA_NODESTORE_GET(server, &wv->nodeId);
-        if(oldNode && (oldNode->head.nodeClass == UA_NODECLASS_VARIABLE ||
-                       oldNode->head.nodeClass == UA_NODECLASS_VARIABLETYPE)) {
-            const UA_NodeId *oldDataType =
-                (oldNode->head.nodeClass == UA_NODECLASS_VARIABLE) ?
-                &oldNode->variableNode.dataType : &oldNode->variableTypeNode.dataType;
-            if(wv->value.value.data &&
-               UA_NodeId_equal(oldDataType,
-                               (const UA_NodeId*)wv->value.value.data))
-                dataTypeChanged = false;
-            else
-                dataTypeChanged = true;
-        }
-        if(oldNode)
-            UA_NODESTORE_RELEASE(server, oldNode);
+    if(wv->attributeId == UA_ATTRIBUTEID_DATATYPE &&
+       (node->head.nodeClass == UA_NODECLASS_VARIABLE ||
+        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE)) {
+        const UA_NodeId *oldDataType =
+            (node->head.nodeClass == UA_NODECLASS_VARIABLE) ?
+            &node->variableNode.dataType : &node->variableTypeNode.dataType;
+        if(wv->value.value.data &&
+           UA_NodeId_equal(oldDataType,
+                           (const UA_NodeId*)wv->value.value.data))
+            dataTypeChanged = false;
+        else
+            dataTypeChanged = true;
     }
 
     /* Get the old value for the audit event */
@@ -2183,17 +2188,24 @@ Operation_Write(UA_Server *server, UA_Session *session,
         rvi.nodeId = wv->nodeId;
         rvi.attributeId = wv->attributeId;
         rvi.indexRange = wv->indexRange;
-        oldValue = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        UA_DataValue_init(&oldValue);
+        UA_Boolean readDone = Operation_ReadWithNode(
+            server, session, node, UA_TIMESTAMPSTORETURN_NEITHER,
+            &rvi, &oldValue);
+        if(!readDone) {
+            if(server->config.asyncOperationCancelCallback)
+                server->config.asyncOperationCancelCallback(server, &oldValue);
+            oldValue.hasStatus = true;
+            oldValue.status = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+        }
         server->preventAuditEventRecursion = false;
     } else {
         UA_DataValue_init(&oldValue);
     }
 #endif
 
-    *result = editNode(server, session, &wv->nodeId, wv->attributeId,
-                       UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                       copyAttributeIntoNode,
-                       (void*)(uintptr_t)wv);
+    *result = copyAttributeIntoNode(server, session, node,
+                                    (void*)(uintptr_t)wv);
     UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 
     /* Only DataType changes are structural model changes. ValueRank and
@@ -2218,6 +2230,23 @@ Operation_Write(UA_Server *server, UA_Session *session,
 #endif
 
     endModelChange(server);
+    return done;
+}
+
+UA_Boolean
+Operation_Write(UA_Server *server, UA_Session *session,
+                const UA_WriteValue *wv, UA_StatusCode *result) {
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &wv->nodeId, wv->attributeId,
+                                        UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID);
+    if(!node) {
+        *result = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return true;
+    }
+
+    UA_Boolean done = Operation_WriteWithNode(server, session, node, wv, result);
+    UA_NODESTORE_RELEASE(server, node);
     return done;
 }
 

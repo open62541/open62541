@@ -32,6 +32,7 @@
 #endif
 
 static UA_Server *server = NULL;
+static size_t callbackReadCount;
 
 static UA_StatusCode
 readCPUTemperature(UA_Server *server_,
@@ -45,6 +46,16 @@ readCPUTemperature(UA_Server *server_,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+readCounted(UA_Server *server_,
+            const UA_NodeId *sessionId, void *sessionContext,
+            const UA_NodeId *nodeId, void *nodeContext,
+            UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
+            UA_DataValue *dataValue) {
+    callbackReadCount++;
+    return UA_STATUSCODE_GOOD;
+}
+
 static void teardown(void) {
     UA_Server_delete(server);
 }
@@ -52,6 +63,7 @@ static void teardown(void) {
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
+    callbackReadCount = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */
@@ -1254,6 +1266,19 @@ START_TEST(WriteSingleDataSourceAttributeValue) {
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 } END_TEST
 
+START_TEST(SwitchDataSourceToInternalDoesNotRead) {
+    const UA_NodeId nodeId = UA_NODEID_STRING(1, "cpu.temperature");
+    UA_CallbackValueSource source = {readCounted, NULL};
+    UA_StatusCode res = UA_Server_setVariableNode_callbackValueSource(
+        server, nodeId, source);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    res = UA_Server_setVariableNode_internalValueSource(
+        server, nodeId, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callbackReadCount, 0);
+} END_TEST
+
 START_TEST(CheckDisplayNameLocalization) {
     /* Add a german localization for the DisplayName attribute */
     UA_WriteValue wValue;
@@ -1887,6 +1912,8 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
+    tcase_add_test(tc_writeSingleAttributes,
+                   SwitchDataSourceToInternalDoesNotRead);
 
     suite_add_tcase(s, tc_writeSingleAttributes);
 
