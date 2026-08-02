@@ -707,6 +707,70 @@ START_TEST(View_BrowseRecursive_zeroMaxReferences) {
 }
 END_TEST
 
+START_TEST(View_BrowseWithNode_usesBorrowedNode) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    UA_UInt32 maxReferences = 0;
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &bd.nodeId);
+    ck_assert_ptr_nonnull(node);
+    Operation_BrowseWithNode(server, &server->adminSession, node,
+                             &maxReferences, &bd, &result);
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(result.referencesSize > 0);
+    UA_BrowseResult_clear(&result);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(View_TranslateBrowsePathWithNode_usesBorrowedNode) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(server);
+
+    UA_RelativePathElement element;
+    UA_RelativePathElement_init(&element);
+    element.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    element.targetName = UA_QUALIFIEDNAME(0, "Server");
+
+    UA_BrowsePath path;
+    UA_BrowsePath_init(&path);
+    path.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    path.relativePath.elements = &element;
+    path.relativePath.elementsSize = 1;
+
+    lockServer(server);
+    const UA_Node *node = UA_NODESTORE_GET(server, &path.startingNode);
+    ck_assert_ptr_nonnull(node);
+    UA_BrowsePathResult result =
+        translateBrowsePathToNodeIdsWithNode(server, node, &path);
+    UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.targetsSize, 1);
+    const UA_NodeId expected = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    ck_assert(UA_NodeId_equal(&result.targets[0].targetId.nodeId,
+                              &expected));
+    UA_BrowsePathResult_clear(&result);
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(View_TranslateBrowsePath_unknownStartNode) {
     /* translateBrowsePathToNodeIds with a non-existent start node returns
      * BADNODEIDUNKNOWN. */
@@ -1090,6 +1154,9 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_view_edge, View_BrowseRecursive_emptyStartNode);
     tcase_add_test(tc_view_edge, View_BrowseRecursive_invalidNode);
     tcase_add_test(tc_view_edge, View_BrowseRecursive_zeroMaxReferences);
+    tcase_add_test(tc_view_edge, View_BrowseWithNode_usesBorrowedNode);
+    tcase_add_test(tc_view_edge,
+                   View_TranslateBrowsePathWithNode_usesBorrowedNode);
     tcase_add_test(tc_view_edge, View_TranslateBrowsePath_unknownStartNode);
     tcase_add_test(tc_view_edge, View_TranslateBrowsePath_emptyPath);
     tcase_add_test(tc_view_edge, View_BrowseBothDirections_includesInverse);
