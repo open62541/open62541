@@ -231,11 +231,11 @@ shutdownBrokerConnection(MQTTBrokerConnection *bc) {
         __mqtt_send(&bc->client);
     }
 
-    /* Close the TCP connection -> callback in the next el iteration */
+    /* Mark the state before closing. ConnectionManagers are allowed to invoke
+     * the closing callback synchronously; that callback removes and frees bc. */
     UA_ConnectionManager *tcpCM = bc->mcm->tcpCM;
-    tcpCM->closeConnection(tcpCM, bc->tcpConnectionId);
-
     bc->tcpConnectionState = UA_CONNECTIONSTATE_CLOSING;
+    tcpCM->closeConnection(tcpCM, bc->tcpConnectionId);
 }
 
 static void
@@ -367,7 +367,8 @@ findIdenticalBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *
         UA_Boolean found = true;
         for(size_t i = 0; i < MQTT_BROKERPARAMETERSSIZE; i++) {
             const UA_Variant *v1 = UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
-            const UA_Variant *v2 = UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
+            /* Broker reuse requires matching stored connection parameters. */
+            const UA_Variant *v2 = UA_KeyValueMap_get(&bc->params, MQTTConnectionParameters[i].name);
             if(v1 == v2)
                 continue;
             if(!v2)
