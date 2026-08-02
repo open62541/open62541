@@ -188,8 +188,8 @@ setETHHeader(unsigned char *buf,
     memcpy(&buf[pos], sourceAddr, ETHER_ADDR_LEN);
     pos += ETHER_ADDR_LEN;
 
-    /* Set the 802.1Q VLAN header */
-    if(vid > 0 && vid != ETH_P_ALL) {
+    /* Set the 802.1Q VLAN header for VIDs in the valid range 1-4094. */
+    if(vid > 0 && vid <= 4094) {
         *(UA_UInt16*)&buf[pos] = htons(0x8100);
         pos += 2;
         UA_UInt16 tci = (UA_UInt16)(((UA_UInt16)pcp  << 13) | ((UA_UInt16)dei  << 12) | ((UA_UInt16)vid));
@@ -217,7 +217,12 @@ ETH_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(!erfd)
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
 
-    /* Allocate the buffer with the hidden Ethernet header in front */
+    /* Allocate the buffer with the hidden Ethernet header in front.
+     * Spec 7.3.3: "MaxNetworkMessageSize shall be limited to an Ethernet
+     * frame size of 1522 Byte." Reject oversized frames. */
+    if(bufSize > (size_t)1522 - erfd->headerSize) {
+        return UA_STATUSCODE_BADENCODINGERROR;
+    }
     UA_StatusCode res =
         UA_EventLoopPOSIX_allocNetworkBuffer(cm, connectionId, buf,
                                              bufSize + erfd->headerSize);
@@ -402,7 +407,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     if(etherType > 0) {
         params[2].key = UA_QUALIFIEDNAME(0, "ethertype");
-        UA_Variant_setScalar(&params[1].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
+        UA_Variant_setScalar(&params[2].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
         paramsSize++;
     }
 
@@ -1116,4 +1121,3 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName) {
 }
 
 #endif /* defined(UA_ARCHITECTURE_POSIX) && defined(__linux__) */
-

@@ -50,6 +50,64 @@ noopConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     (void)msg;
 }
 
+static UA_StatusCode
+openPendingConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
+                      void *application, void *context,
+                      UA_ConnectionManager_connectionCallback callback) {
+    (void)params;
+    uintptr_t connectionId;
+    return TestConnectionManager_createConnection(cm, application, context,
+                                                  callback, &connectionId);
+}
+
+static UA_StatusCode
+rejectSend(UA_ConnectionManager *cm, uintptr_t connectionId,
+           const UA_KeyValueMap *params, UA_ByteString *buf) {
+    (void)cm;
+    (void)connectionId;
+    (void)params;
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_BADCONNECTIONCLOSED;
+}
+
+typedef struct {
+    UA_ConnectionManager *tcp;
+    UA_ConnectionManager *mqtt;
+    UA_EventLoop *loop;
+} OfflineMQTT;
+
+static OfflineMQTT
+setupOfflineMQTT(const TestConnectionManager_CallbackOverloads *overloads,
+                 UA_Boolean fakeClock) {
+    OfflineMQTT test;
+    test.tcp = TestConnectionManager_new("tcp", overloads);
+    ck_assert_ptr_ne(test.tcp, NULL);
+    test.mqtt = UA_ConnectionManager_new_MQTT(UA_STRING("mqttCM"));
+    ck_assert_ptr_ne(test.mqtt, NULL);
+    test.loop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_ne(test.loop, NULL);
+    if(fakeClock) {
+        test.loop->dateTime_now = UA_DateTime_now_fake;
+        test.loop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    }
+    ck_assert_uint_eq(test.loop->registerEventSource(test.loop,
+                                                     &test.tcp->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test.loop->registerEventSource(test.loop,
+                                                     &test.mqtt->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(test.loop->start(test.loop), UA_STATUSCODE_GOOD);
+    return test;
+}
+
+static void
+teardownOfflineMQTT(OfflineMQTT *test) {
+    test->loop->stop(test->loop);
+    while(test->loop->state != UA_EVENTLOOPSTATE_STOPPED)
+        test->loop->run(test->loop, 1);
+    ck_assert_uint_eq(test->loop->free(test->loop), UA_STATUSCODE_GOOD);
+}
+
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void *application, void **connectionContext,
@@ -142,18 +200,7 @@ START_TEST(connectSubscribePublish) {
 } END_TEST
 
 START_TEST(distinctBrokersUseDistinctTcpConnections) {
-    UA_ConnectionManager *tcp = TestConnectionManager_new("tcp", NULL);
-    ck_assert_ptr_ne(tcp, NULL);
-    UA_ConnectionManager *mqtt =
-        UA_ConnectionManager_new_MQTT(UA_STRING("mqttCM"));
-    ck_assert_ptr_ne(mqtt, NULL);
-    UA_EventLoop *loop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    ck_assert_ptr_ne(loop, NULL);
-    ck_assert_uint_eq(loop->registerEventSource(loop, &tcp->eventSource),
-                      UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(loop->registerEventSource(loop, &mqtt->eventSource),
-                      UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(loop->start(loop), UA_STATUSCODE_GOOD);
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
 
     UA_String address = UA_STRING("broker-a.example");
     UA_String topic = UA_STRING("topic-a");
@@ -174,25 +221,147 @@ START_TEST(distinctBrokersUseDistinctTcpConnections) {
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap kvm = {4, params};
 
-    ck_assert_uint_eq(mqtt->openConnection(mqtt, &kvm, NULL, NULL,
-                                           noopConnectionCallback),
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &kvm, NULL, NULL,
+                                                noopConnectionCallback),
                       UA_STATUSCODE_GOOD);
     address = UA_STRING("broker-b.example");
     topic = UA_STRING("topic-b");
-    ck_assert_uint_eq(mqtt->openConnection(mqtt, &kvm, NULL, NULL,
-                                           noopConnectionCallback),
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &kvm, NULL, NULL,
+                                                noopConnectionCallback),
                       UA_STATUSCODE_GOOD);
 
     /* Each broker address gets a distinct TCP connection id. */
-    ck_assert_uint_eq(TestConnectionManager_getCounters(tcp, 100, NULL, NULL),
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100,
+                                                        NULL, NULL),
                       UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(TestConnectionManager_getCounters(tcp, 101, NULL, NULL),
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 101,
+                                                        NULL, NULL),
                       UA_STATUSCODE_GOOD);
 
-    loop->stop(loop);
-    while(loop->state != UA_EVENTLOOPSTATE_STOPPED)
-        loop->run(loop, 1);
-    ck_assert_uint_eq(loop->free(loop), UA_STATUSCODE_GOOD);
+    teardownOfflineMQTT(&test);
+} END_TEST
+
+START_TEST(distinctBrokerOptionsUseDistinctTcpConnections) {
+    OfflineMQTT test = setupOfflineMQTT(NULL, false);
+
+    UA_String address = UA_STRING("broker.example");
+    UA_String topic = UA_STRING("topic");
+    UA_UInt16 keepAlive = 60;
+    UA_KeyValuePair params[4];
+    params[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[0].value, &address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&params[1].value, &topic,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap kvm = {2, params};
+
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &kvm, NULL, NULL,
+                                                noopConnectionCallback),
+                      UA_STATUSCODE_GOOD);
+
+    params[2].key = UA_QUALIFIEDNAME(0, "keep-alive");
+    UA_Variant_setScalar(&params[2].value, &keepAlive,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    kvm.mapSize = 3;
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &kvm, NULL, NULL,
+                                                noopConnectionCallback),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100,
+                                                        NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 101,
+                                                        NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+
+    teardownOfflineMQTT(&test);
+} END_TEST
+
+START_TEST(subscriptionSendFailureClosesConnection) {
+    TestConnectionManager_CallbackOverloads overloads = {
+        openPendingConnection, rejectSend, NULL
+    };
+    OfflineMQTT test = setupOfflineMQTT(&overloads, false);
+
+    UA_String address = UA_STRING("broker.example");
+    UA_String topic = UA_STRING("topic");
+    UA_Boolean subscribe = true;
+    UA_KeyValuePair params[3];
+    params[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[0].value, &address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&params[1].value, &topic,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[2].key = UA_QUALIFIEDNAME(0, "subscribe");
+    UA_Variant_setScalar(&params[2].value, &subscribe,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap kvm = {3, params};
+
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &kvm, NULL, NULL,
+                                                noopConnectionCallback),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_inject(
+                          test.tcp, 100, UA_CONNECTIONSTATE_ESTABLISHED,
+                          NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100,
+                                                        NULL, NULL),
+                      UA_STATUSCODE_BADNOTFOUND);
+
+    teardownOfflineMQTT(&test);
+} END_TEST
+
+START_TEST(keepAliveTimerUsesMilliseconds) {
+    TestConnectionManager_CallbackOverloads overloads = {
+        openPendingConnection, NULL, NULL
+    };
+    OfflineMQTT test = setupOfflineMQTT(&overloads, true);
+
+    UA_String address = UA_STRING("broker.example");
+    UA_String topic = UA_STRING("topic");
+    UA_UInt16 keepAlive = 1;
+    UA_Boolean subscribe = false;
+    UA_KeyValuePair params[4];
+    params[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[0].value, &address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&params[1].value, &topic,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    params[2].key = UA_QUALIFIEDNAME(0, "keep-alive");
+    UA_Variant_setScalar(&params[2].value, &keepAlive,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    params[3].key = UA_QUALIFIEDNAME(0, "subscribe");
+    UA_Variant_setScalar(&params[3].value, &subscribe,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap kvm = {4, params};
+
+    ck_assert_uint_eq(test.mqtt->openConnection(test.mqtt, &kvm, NULL, NULL,
+                                                noopConnectionCallback),
+                      UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep(751);
+    test.loop->run(test.loop, 1);
+    size_t txCount = 0;
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100, NULL,
+                                                        &txCount),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(txCount, 0);
+
+    ck_assert_uint_eq(TestConnectionManager_inject(
+                          test.tcp, 100, UA_CONNECTIONSTATE_ESTABLISHED,
+                          NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_fakeSleep(751);
+    test.loop->run(test.loop, 1);
+    ck_assert_uint_eq(TestConnectionManager_getCounters(test.tcp, 100, NULL,
+                                                        &txCount),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(txCount > 0);
+
+    teardownOfflineMQTT(&test);
 } END_TEST
 
 int main(void) {
@@ -203,6 +372,9 @@ int main(void) {
     suite_add_tcase(s, tcBroker);
     TCase *tcOffline = tcase_create("offline broker reuse");
     tcase_add_test(tcOffline, distinctBrokersUseDistinctTcpConnections);
+    tcase_add_test(tcOffline, distinctBrokerOptionsUseDistinctTcpConnections);
+    tcase_add_test(tcOffline, subscriptionSendFailureClosesConnection);
+    tcase_add_test(tcOffline, keepAliveTimerUsesMilliseconds);
     suite_add_tcase(s, tcOffline);
 
     SRunner *sr = srunner_create(s);
