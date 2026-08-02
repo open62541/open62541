@@ -123,7 +123,21 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
 
 UA_StatusCode
 UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
-                                    UA_ByteString *keys, UA_UInt32 currentKeyId) {
+                                     UA_ByteString *keys, UA_UInt32 currentKeyId) {
+    /* Validate key length against the policy's expected key material size.
+     * Spec Table 155: key material = signingKeyLen + encryptingKeyLen +
+     * keyNonceLen. A key with the wrong length cannot be activated later. */
+    if(ks->policy) {
+        size_t expectedLen = ks->policy->getSignatureKeyLength(ks->policy, NULL) +
+                             ks->policy->getEncryptionKeyLength(ks->policy, NULL) +
+                             ks->policy->nonceLength;
+        for(size_t i = 0; i < keysSize; ++i) {
+            if(keys[i].length != expectedLen && keys[i].length != 0) {
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
+    }
+
     for(size_t i = 0; i < keysSize; ++i) {
         currentKeyId++; /* Increase the keyId */
         if(currentKeyId == 0)
