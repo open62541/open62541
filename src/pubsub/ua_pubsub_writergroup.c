@@ -704,6 +704,50 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
 }
 #endif
 
+/* Collect promoted field values from all connected PDSs and populate them
+ * into the NetworkMessage promoted fields section. */
+static void
+UA_WriterGroup_collectPromotedFields(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                                      UA_NetworkMessage *nm) {
+    /* Count total promoted fields across all writers' connected PDSs */
+    UA_UInt16 promotedCount = 0;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        if(dsw->connectedDataSet)
+            promotedCount += dsw->connectedDataSet->promotedFieldsCount;
+    }
+    if(promotedCount == 0)
+        return;
+
+    /* Allocate the promoted fields array */
+    nm->promotedFields = (UA_Variant*)
+        UA_calloc(promotedCount, sizeof(UA_Variant));
+    if(!nm->promotedFields)
+        return;
+    nm->promotedFieldsSize = 0;
+
+    /* Sample promoted field values from each PDS */
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
+        if(!pds || pds->promotedFieldsCount == 0)
+            continue;
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            if(!dsf->config.field.variable.promotedField)
+                continue;
+            UA_DataValue value;
+            UA_DataValue_init(&value);
+            UA_PubSubDataSetField_sampleValue(psm, dsf, &value);
+            /* Copy only the value (Variant), not the full DataValue */
+            UA_StatusCode rv = UA_Variant_copy(&value.value,
+                                               &nm->promotedFields[nm->promotedFieldsSize]);
+            if(rv == UA_STATUSCODE_GOOD)
+                nm->promotedFieldsSize++;
+            UA_DataValue_clear(&value);
+        }
+    }
+}
+
 static UA_StatusCode
 generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
@@ -823,6 +867,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                                &wg->config.messageSettings,
                                &wg->config.transportSettings, &nm);
     UA_CHECK_STATUS(rv, return rv);
+
+    /* Populate promoted field values if the flag was set by
+     * generateNetworkMessage. Spec: promoted field values must be copied
+     * into the header. The previous code set the flag but never populated
+     * the values, so subscribers saw an empty promoted-fields block. */
+    if(nm.promotedFieldsEnabled) {
+        UA_WriterGroup_collectPromotedFields(psm, wg, &nm);
+    }
 
     PubSubEncodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeCtx));
