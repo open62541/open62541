@@ -1099,6 +1099,64 @@ START_TEST(GetDataSetWriterStateAndConfigInvalid) {
     ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* Regression test for stack overflow in UA_Server_computeWriterGroupOffsetTable
+ * when a WriterGroup has more writers than UA_NETWORKMESSAGE_MAXMESSAGECOUNT (32).
+ * The offset-table path called generateNetworkMessage directly, bypassing the
+ * dsmCount guard present in sendNetworkMessage, writing past the fixed-size
+ * dataSetWriterIds[32] array on the stack. */
+START_TEST(ComputeOffsetTableMoreThanMaxWriters) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Create a PublishedDataSet with one field */
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name = UA_STRING("PDS-MaxWriters");
+    UA_NodeId pdsId;
+    retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsId).addResult;
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig fieldConfig;
+    memset(&fieldConfig, 0, sizeof(fieldConfig));
+    fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("Field");
+    fieldConfig.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    retVal = UA_Server_addDataSetField(server, pdsId, &fieldConfig, NULL).result;
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Create a WriterGroup */
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("WG-MaxWriters");
+    wgc.publishingInterval = 100;
+    UA_NodeId wgId;
+    retVal = UA_Server_addWriterGroup(server, connection1, &wgc, &wgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Add 33 DataSetWriters (one more than UA_NETWORKMESSAGE_MAXMESSAGECOUNT) */
+    UA_DataSetWriterConfig dswConfig;
+    memset(&dswConfig, 0, sizeof(dswConfig));
+    dswConfig.name = UA_STRING("DSW");
+    for(size_t i = 0; i < 33; i++) {
+        UA_NodeId dswId;
+        retVal = UA_Server_addDataSetWriter(server, wgId, pdsId,
+                                             &dswConfig, &dswId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    }
+
+    /* Compute the offset table. Without the guard this would write past
+     * the on-stack dataSetWriterIds array and corrupt the stack. With the
+     * guard, computeWriterGroupOffsetTable returns an error status. */
+    UA_PubSubOffsetTable ot;
+    retVal = UA_Server_computeWriterGroupOffsetTable(server, wgId, &ot);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    UA_PubSubOffsetTable_clear(&ot);
+
+    UA_Server_removeWriterGroup(server, wgId);
+    UA_Server_removePublishedDataSet(server, pdsId);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_writergroup, setup, teardown);
@@ -1151,6 +1209,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_lifecycle, TriggerWriterGroupPublishOnDisabledGroup);
     tcase_add_test(tc_pubsub_lifecycle, GetWriterGroupLastPublishTimestampInvalid);
     tcase_add_test(tc_pubsub_lifecycle, GetDataSetWriterStateAndConfigInvalid);
+    tcase_add_test(tc_pubsub_lifecycle, ComputeOffsetTableMoreThanMaxWriters);
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);
