@@ -52,6 +52,11 @@
       "description": "Add modelling rules on instances",
       "default": false
     },
+    "copyMethodsOnInstances": {
+      "type": "boolean",
+      "description": "Copy Method declarations into Object instances",
+      "default": false
+    },
     "maxSecureChannels": {
       "type": "integer",
       "description": "Maximum number of secure channels",

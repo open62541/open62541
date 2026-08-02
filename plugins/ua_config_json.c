@@ -1026,6 +1026,8 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->securityPolicyNoneDiscoveryOnly, NULL);
                 else if(strcmp(field, "modellingRulesOnInstances") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->modellingRulesOnInstances, NULL);
+                else if(strcmp(field, "copyMethodsOnInstances") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->copyMethodsOnInstances, NULL);
                 else if(strcmp(field, "maxSecureChannels") == 0)
                     retval = UInt16Field_parseJson(&ctx, &config->maxSecureChannels, NULL);
                 else if(strcmp(field, "maxSecurityTokenLifetime") == 0)
