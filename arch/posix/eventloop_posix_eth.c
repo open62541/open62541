@@ -904,7 +904,13 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     ETH_FD *conn = (ETH_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
-        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+        /* Use the ETH-specific free that knows how to unhide the Ethernet
+         * header. The generic UA_EventLoopPOSIX_freeNetworkBuffer would free
+         * buf->data directly, but buf->data was advanced past the header by
+         * ETH_allocNetworkBuffer -> freeing the interior pointer corrupts
+         * the heap. ETH_freeNetworkBuffer looks up the conn to get
+         * headerSize; if the conn is gone it returns without freeing (safe). */
+        ETH_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
