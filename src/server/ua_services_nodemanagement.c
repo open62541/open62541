@@ -402,7 +402,13 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &value.value, NULL, &reason)) {
-            retval = writeAttribute(server, session, &node->head.nodeId,
+            /* This completes the AddNodes operation after its access check.
+             * The write path first adjusts equivalent wire types such as
+             * Int32 to an enum and then performs the final type check. Do not
+             * apply the new node's own write permissions while it is still
+             * being initialized. */
+            retval = writeAttribute(server, &server->adminSession,
+                                    &node->head.nodeId,
                                     UA_ATTRIBUTEID_VALUE, &value.value,
                                     &UA_TYPES[UA_TYPES_VARIANT]);
         }
@@ -490,7 +496,10 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
         if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
-            retval = writeAttribute(server, session, &node->head.nodeId,
+            /* Let the write path adjust equivalent wire types before it
+             * performs the final compatibility check. */
+            retval = writeAttribute(server, &server->adminSession,
+                                    &node->head.nodeId,
                                     UA_ATTRIBUTEID_VALUE, &v.value,
                                     &UA_TYPES[UA_TYPES_VARIANT]);
         }
@@ -510,7 +519,8 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "No datatype given; Copy the datatype attribute "
                    "from the TypeDefinition");
-        retval = writeAttribute(server, session, &node->head.nodeId,
+        retval = writeAttribute(server, &server->adminSession,
+                                &node->head.nodeId,
                                 UA_ATTRIBUTEID_DATATYPE, &vt->dataType,
                                 &UA_TYPES[UA_TYPES_NODEID]);
         if(retval != UA_STATUSCODE_GOOD)
@@ -523,7 +533,8 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_Variant_init(&v);
         UA_Variant_setArray(&v, vt->arrayDimensions, vt->arrayDimensionsSize,
                             &UA_TYPES[UA_TYPES_UINT32]);
-        retval = writeAttribute(server, session, &node->head.nodeId,
+        retval = writeAttribute(server, &server->adminSession,
+                                &node->head.nodeId,
                                 UA_ATTRIBUTEID_ARRAYDIMENSIONS, &v,
                                 &UA_TYPES[UA_TYPES_VARIANT]);
     }
