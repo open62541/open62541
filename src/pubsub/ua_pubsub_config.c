@@ -795,11 +795,26 @@ generatePublishedDataSetDataType(UA_PubSubManager *psm,
     if(src->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(dst, 0, sizeof(UA_PublishedDataSetDataType));
 
     UA_PublishedDataItemsDataType *tmp = UA_PublishedDataItemsDataType_new();
-    UA_String_copy(&src->config.name, &dst->name);
-    dst->dataSetMetaData.fieldsSize = src->fieldSize;
+    res |= UA_String_copy(&src->config.name, &dst->name);
+
+    /* Copy the full DataSetMetaData from the runtime PDS metadata rather than
+     * reconstructing it field-by-field. The previous save path only wrote
+     * fields[].name, fieldFlags, and configurationVersion, dropping the
+     * DataSetMetaData name, description, dataSetClassId, namespaces, and
+     * per-field builtInType, dataType, valueRank, arrayDimensions,
+     * maxStringLength, dataSetFieldId, and properties. A tool reloading a
+     * saved PDS could not reconstruct the dataset schema. */
+    res |= UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "generatePublishedDataSetDataType: DataSetMetaData copy failed");
+        UA_PublishedDataSetDataType_clear(dst);
+        return res;
+    }
 
     size_t index = 0;
     tmp->publishedDataSize = src->fieldSize;
@@ -810,24 +825,10 @@ generatePublishedDataSetDataType(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    dst->dataSetMetaData.fields = (UA_FieldMetaData*)
-        UA_Array_new(dst->dataSetMetaData.fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-    if(dst->dataSetMetaData.fields == NULL) {
-        UA_free(tmp->publishedData);
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB, "Allocation memory failed");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
     UA_DataSetField *dsf, *dsf_tmp = NULL;
     TAILQ_FOREACH_SAFE(dsf ,&src->fields, listEntry, dsf_tmp) {
-        UA_String_copy(&dsf->config.field.variable.fieldNameAlias,
-                       &dst->dataSetMetaData.fields[index].name);
         UA_PublishedVariableDataType_copy(&dsf->config.field.variable.publishParameters,
                                           &tmp->publishedData[index]);
-        UA_ConfigurationVersionDataType_copy(&dsf->config.field.variable.configurationVersion,
-                                             &dst->dataSetMetaData.configurationVersion);
-        dst->dataSetMetaData.fields[index].fieldFlags =
-            dsf->config.field.variable.promotedField;
         index++;
     }
     UA_ExtensionObject_setValue(&dst->dataSetSource, tmp,
@@ -838,7 +839,7 @@ generatePublishedDataSetDataType(UA_PubSubManager *psm,
 
 static UA_StatusCode
 generateDataSetWriterDataType(const UA_DataSetWriter *src,
-                              UA_DataSetWriterDataType *dst) {
+                               UA_DataSetWriterDataType *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(dst, 0, sizeof(UA_DataSetWriterDataType));
     res |= UA_String_copy(&src->config.name, &dst->name);
@@ -847,6 +848,9 @@ generateDataSetWriterDataType(const UA_DataSetWriter *src,
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
     res |= UA_String_copy(&src->config.dataSetName, &dst->dataSetName);
+    /* Preserve the enabled flag so a save→load round-trip keeps components
+     * enabled instead of silently disabling everything. */
+    dst->enabled = src->config.enabled;
     if(res != UA_STATUSCODE_GOOD) {
         UA_DataSetWriterDataType_clear(dst);
         return res;
@@ -866,21 +870,27 @@ generateDataSetWriterDataType(const UA_DataSetWriter *src,
 
 static UA_StatusCode
 generateWriterGroupDataType(const UA_WriterGroup *src,
-                            UA_WriterGroupDataType *dst) {
+                             UA_WriterGroupDataType *dst) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(dst, 0, sizeof(UA_WriterGroupDataType));
 
-    UA_String_copy(&src->config.name, &dst->name);
+    res |= UA_String_copy(&src->config.name, &dst->name);
     dst->writerGroupId = src->config.writerGroupId;
     dst->publishingInterval = src->config.publishingInterval;
     dst->keepAliveTime = src->config.keepAliveTime;
     dst->priority = src->config.priority;
     dst->securityMode = src->config.securityMode;
+    /* Preserve the enabled flag for round-trip consistency. */
+    dst->enabled = src->config.enabled;
+    /* Preserve the securityGroupId for round-trip consistency. The load path
+     * skips this field, but the save path should write it so the security
+     * group link is not lost. */
+    res |= UA_String_copy(&src->config.securityGroupId, &dst->securityGroupId);
 
     UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
     UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
 
-    UA_StatusCode res =
-        UA_Array_copy(src->config.groupProperties.map,
+    res = UA_Array_copy(src->config.groupProperties.map,
                       src->config.groupProperties.mapSize,
                       (void**)&dst->groupProperties,
                       &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
@@ -919,6 +929,8 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
     dst->dataSetWriterId = src->config.dataSetWriterId;
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     dst->messageReceiveTimeout = src->config.messageReceiveTimeout;
+    /* Preserve the enabled flag for round-trip consistency. */
+    dst->enabled = src->config.enabled;
     res |= UA_String_copy(&src->config.name, &dst->name);
     res |= UA_DataSetMetaDataType_copy(&src->config.dataSetMetaData,
                                        &dst->dataSetMetaData);
@@ -951,10 +963,17 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
 
 static UA_StatusCode
 generateReaderGroupDataType(const UA_ReaderGroup *src,
-                            UA_ReaderGroupDataType *dst) {
+                             UA_ReaderGroupDataType *dst) {
     memset(dst, 0, sizeof(UA_ReaderGroupDataType));
 
     UA_String_copy(&src->config.name, &dst->name);
+    /* Preserve the enabled flag and securityMode for round-trip consistency.
+     * The load path reads securityMode (createReaderGroup line 461) but the
+     * save path previously never wrote it back. */
+    dst->enabled = src->config.enabled;
+    dst->securityMode = src->config.securityMode;
+    /* Preserve the securityGroupId for round-trip consistency. */
+    UA_String_copy(&src->config.securityGroupId, &dst->securityGroupId);
     dst->dataSetReaders = (UA_DataSetReaderDataType*)
         UA_calloc(src->readersCount, sizeof(UA_DataSetReaderDataType));
     if(dst->dataSetReaders == NULL)
@@ -984,6 +1003,8 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
 
     UA_String_copy(&src->config.name, &dst->name);
     UA_String_copy(&src->config.transportProfileUri, &dst->transportProfileUri);
+    /* Preserve the enabled flag for round-trip consistency. */
+    dst->enabled = src->config.enabled;
 
     UA_StatusCode res =
         UA_Array_copy(src->config.connectionProperties.map,
@@ -1095,6 +1116,11 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PubSubConfigurationDataType_init(configDT);
+    /* Preserve the global enabled flag (PubSubManager started/stopped state)
+     * so a save→load round-trip auto-starts the PubSubManager if it was
+     * running. Previously this flag was read on load but never written on
+     * save, so every round-trip disabled everything. */
+    configDT->enabled = (psm->drv.state == UA_LIFECYCLESTATE_STARTED);
     configDT->publishedDataSetsSize = psm->publishedDataSetsSize;
     if(configDT->publishedDataSetsSize > 0) {
         configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
