@@ -1023,6 +1023,8 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_DataSetMetaDataType *pMetaData = &pubSubConnection.readerGroups->dataSetReaders->dataSetMetaData;
         UA_DataSetMetaDataType_init (pMetaData);
         pMetaData->name = UA_STRING ("DataSet 1");
+        pMetaData->configurationVersion.majorVersion = 7;
+        pMetaData->configurationVersion.minorVersion = 11;
 
         /* Static definition of number of fields size to 4 to create four different
         * targetVariables of distinct datatype
@@ -1038,6 +1040,10 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].name =  UA_STRING ("DateTime");
         pMetaData->fields[0].valueRank = -1; /* scalar */
+        UA_UInt32 arrayDimensions[1] = {3};
+        pMetaData->fields[0].arrayDimensionsSize = 1;
+        pMetaData->fields[0].arrayDimensions = arrayDimensions;
+        pMetaData->fields[0].maxStringLength = 64;
 
         /* Int32 DataType */
         UA_FieldMetaData_init (&pMetaData->fields[1]);
@@ -1075,7 +1081,25 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
             extensionObjectTargetVars.content.decoded.type = &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE];
         }
         extensionObjectTargetVars.content.decoded.data = &targetVars;
-        pubSubConnection.readerGroups->dataSetReaders->subscribedDataSet = extensionObjectTargetVars;
+        UA_DataSetReaderDataType *dataSetReader =
+            pubSubConnection.readerGroups->dataSetReaders;
+        dataSetReader->subscribedDataSet = extensionObjectTargetVars;
+        dataSetReader->dataSetFieldContentMask =
+            UA_DATASETFIELDCONTENTMASK_RAWDATA;
+        dataSetReader->messageReceiveTimeout = 1234.0;
+        UA_UadpDataSetReaderMessageDataType messageSettings;
+        UA_UadpDataSetReaderMessageDataType_init(&messageSettings);
+        messageSettings.networkMessageContentMask =
+            UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+            UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+            UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+        messageSettings.dataSetMessageContentMask =
+            UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
+        dataSetReader->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+        dataSetReader->messageSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
+        dataSetReader->messageSettings.content.decoded.data = &messageSettings;
         UA_Variant inputArguments;
         UA_Variant_init(&inputArguments);
         UA_Variant_setScalar(&inputArguments, &pubSubConnection, &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]);
@@ -1097,6 +1121,49 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
         ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
+
+        UA_NodeId connectionId =
+            *(UA_NodeId *)response.results->outputArguments->data;
+        UA_NodeId readerGroupId = findSingleChildNode(
+            UA_QUALIFIEDNAME(0, "TestReaderGroup"), UA_NS0ID(HASCOMPONENT),
+            connectionId);
+        ck_assert(!UA_NodeId_isNull(&readerGroupId));
+        UA_NodeId dataSetReaderId = findSingleChildNode(
+            UA_QUALIFIEDNAME(0, "DataReader"), UA_NS0ID(HASDATASETREADER),
+            readerGroupId);
+        ck_assert(!UA_NodeId_isNull(&dataSetReaderId));
+
+        UA_DataSetReaderConfig readerConfig;
+        memset(&readerConfig, 0, sizeof(readerConfig));
+        retVal = UA_Server_getDataSetReaderConfig(server, dataSetReaderId,
+                                                  &readerConfig);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(readerConfig.dataSetFieldContentMask,
+                          UA_DATASETFIELDCONTENTMASK_RAWDATA);
+        ck_assert_double_eq(readerConfig.messageReceiveTimeout, 1234.0);
+        ck_assert_uint_eq(readerConfig.dataSetMetaData.configurationVersion.majorVersion,
+                          7);
+        ck_assert_uint_eq(readerConfig.dataSetMetaData.configurationVersion.minorVersion,
+                          11);
+        ck_assert_uint_eq(readerConfig.dataSetMetaData.fields[0].arrayDimensionsSize,
+                          1);
+        ck_assert_uint_eq(readerConfig.dataSetMetaData.fields[0].arrayDimensions[0],
+                          3);
+        ck_assert_uint_eq(readerConfig.dataSetMetaData.fields[0].maxStringLength,
+                          64);
+        ck_assert(readerConfig.messageSettings.encoding ==
+                  UA_EXTENSIONOBJECT_DECODED);
+        ck_assert(readerConfig.messageSettings.content.decoded.type ==
+                  &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]);
+        UA_UadpDataSetReaderMessageDataType *storedMessageSettings =
+            (UA_UadpDataSetReaderMessageDataType *)
+                readerConfig.messageSettings.content.decoded.data;
+        ck_assert_uint_eq(storedMessageSettings->dataSetMessageContentMask,
+                          UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER);
+        UA_DataSetReaderConfig_clear(&readerConfig);
+        UA_NodeId_clear(&readerGroupId);
+        UA_NodeId_clear(&dataSetReaderId);
+
         UA_ExtensionObject_clear(&eo);
         UA_free(targetVars.targetVariables);
         UA_free(pubSubConnection.readerGroups->dataSetReaders);
