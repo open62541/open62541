@@ -522,6 +522,11 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
         counter++;
     }
 
+    /* Spec 6.2.4.3: "If no changes exist, the delta frame DataSetMessage shall
+     * not be sent." Skip the delta frame entirely if no values changed. */
+    if(dsm->fieldCount == 0)
+        return UA_STATUSCODE_GOOD;
+
     /* Allocate DeltaFrameFields.
      * Spec Table 164: FieldCount for a delta frame = the count of delta
      * fields (changed fields). The previous code overwrote dsm->fieldCount

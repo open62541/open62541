@@ -811,20 +811,27 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
             nm->securityHeader.networkMessageEncrypted = true;
         nm->securityHeader.securityTokenId = wg->securityTokenId;
 
-        /* Generate the MessageNonce. Four random bytes followed by a four-byte
-         * sequence number */
+        /* Generate the MessageNonce. The first part is random bytes, the
+         * second part is a sequence number. Query the policy for the nonce
+         * length instead of hardcoding 8 (4+4). */
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
-        UA_ByteString nonce = {4, nm->securityHeader.messageNonce};
+        size_t nonceLen = sp->nonceLength;
+        if(nonceLen > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
+            nonceLen = UA_NETWORKMESSAGE_MAX_NONCE_LENGTH;
+        if(nonceLen < 4) nonceLen = 8; /* fallback for policies with small nonce */
+        size_t randomLen = nonceLen / 2;
+        size_t seqLen = nonceLen - randomLen;
+        UA_ByteString nonce = {randomLen, nm->securityHeader.messageNonce};
         UA_StatusCode rv = sp->generateNonce(sp, wg->securityPolicyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        UA_Byte *pos = &nm->securityHeader.messageNonce[4];
-        const UA_Byte *end = &nm->securityHeader.messageNonce[8];
+        UA_Byte *pos = &nm->securityHeader.messageNonce[randomLen];
+        const UA_Byte *end = &nm->securityHeader.messageNonce[nonceLen];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
-        nm->securityHeader.messageNonceSize = 8;
+        nm->securityHeader.messageNonceSize = (UA_Byte)nonceLen;
         /* Spec 7.2.3: For a given security key a unique nonce shall be
-         * generated for every NetworkMessage. The 4-byte sequence part
-         * must be incremented per message (the 4 random bytes also change). */
+         * generated for every NetworkMessage. The sequence part
+         * must be incremented per message (the random bytes also change). */
         wg->nonceSequenceNumber++;
     }
 
@@ -1773,10 +1780,17 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
             res |= UA_NodeId_copy(&dsw->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
-            UA_assert(dsw && dsw->connectedDataSet);
+            /* Guard against heartbeat writers with no connectedDataSet.
+             * Spec 7.2.4.5.5: heartbeat messages contain only header info,
+             * so DATASETFIELD offsets are not applicable. */
+            if(!dsw || !dsw->connectedDataSet) {
+                res |= UA_STATUSCODE_BADINTERNALERROR;
+                break;
+            }
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            res |= UA_NodeId_copy(&field->identifier, &o->component);
+            if(field)
+                res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
             UA_assert(dsw && dsw->connectedDataSet);
