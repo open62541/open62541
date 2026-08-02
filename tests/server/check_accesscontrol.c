@@ -15,6 +15,8 @@
 #include "server/ua_services.h"
 #endif
 
+#include "server/ua_server_internal.h"
+
 #include <stdlib.h>
 #include <check.h>
 
@@ -102,6 +104,7 @@ static UA_Boolean
 allowBrowseNode(UA_Server *s, UA_AccessControl *ac,
                 const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeId, void *nodeContext) {
+    UA_LOCK_ASSERT(&s->serviceMutex);
     UA_Variant attribute;
     UA_Variant_init(&attribute);
     UA_Server_getSessionAttribute(s, sessionId,
@@ -147,6 +150,40 @@ START_TEST(Server_sessionParameter) {
     UA_assert(br.results[0].referencesSize > 0);
     UA_assert(br.results[0].statusCode == UA_STATUSCODE_GOOD);
     UA_BrowseResponse_clear(&br);
+
+    /* TranslateBrowsePaths invokes allowBrowseNode for both intermediate and
+     * terminal targets. The callback must run with the same server locking as
+     * the Browse service above. */
+    UA_RelativePathElement elem;
+    UA_RelativePathElement_init(&elem);
+    elem.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    elem.targetName = UA_QUALIFIEDNAME(0, "Server");
+
+    UA_BrowsePath path;
+    UA_BrowsePath_init(&path);
+    path.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    path.relativePath.elements = &elem;
+    path.relativePath.elementsSize = 1;
+
+    UA_TranslateBrowsePathsToNodeIdsRequest translateRequest;
+    UA_TranslateBrowsePathsToNodeIdsRequest_init(&translateRequest);
+    translateRequest.browsePaths = &path;
+    translateRequest.browsePathsSize = 1;
+
+    UA_TranslateBrowsePathsToNodeIdsResponse translateResponse =
+        UA_Client_Service_translateBrowsePathsToNodeIds(client, translateRequest);
+    ck_assert_uint_eq(translateResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(translateResponse.resultsSize, 1);
+    ck_assert_uint_eq(translateResponse.results[0].statusCode,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(translateResponse.results[0].targetsSize, 1);
+    UA_NodeId *targetId =
+        &translateResponse.results[0].targets[0].targetId.nodeId;
+    ck_assert_uint_eq(targetId->namespaceIndex, 0);
+    ck_assert_uint_eq(targetId->identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_uint_eq(targetId->identifier.numeric, UA_NS0ID_SERVER);
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&translateResponse);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
