@@ -696,6 +696,48 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                        "PubSub receive. securityPolicyContext must be initialized "
                        "when security mode is enabled to sign and/or encrypt");
 
+    /* Key rollover support (spec 7.2.4.4.3): if the incoming message uses a
+     * different SecurityTokenId than the one currently set on the reader
+     * group, look up the matching key from the key storage and activate it.
+     * This allows receiving messages secured with the previous or next key
+     * during the rollover window. */
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(nm->securityEnabled && nm->securityHeader.securityTokenId != rg->securityTokenId) {
+        if(rg->keyStorage) {
+            UA_PubSubKeyListItem *keyItem =
+                UA_PubSubKeyStorage_getKeyByKeyId(rg->keyStorage,
+                                                  nm->securityHeader.securityTokenId);
+            if(keyItem) {
+                UA_ByteString signingKey, encryptingKey, keyNonce;
+                /* Split the key material from the found key item */
+                UA_ByteString key = keyItem->key;
+                size_t signLen = sp->getSignatureKeyLength(sp, NULL);
+                size_t encLen = sp->getEncryptionKeyLength(sp, NULL);
+                if(key.length >= signLen + encLen) {
+                    signingKey.data = key.data;
+                    signingKey.length = signLen;
+                    encryptingKey.data = key.data + signLen;
+                    encryptingKey.length = encLen;
+                    keyNonce.data = key.data + signLen + encLen;
+                    keyNonce.length = key.length - signLen - encLen;
+                    UA_StatusCode kr = sp->setSecurityKeys(sp, cc,
+                        &signingKey, &encryptingKey, &keyNonce);
+                    if(kr == UA_STATUSCODE_GOOD)
+                        rg->securityTokenId = nm->securityHeader.securityTokenId;
+                    else
+                        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                                       "PubSub receive. Failed to activate key for "
+                                       "SecurityTokenId %u", (unsigned)nm->securityHeader.securityTokenId);
+                }
+            } else {
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                               "PubSub receive. No key found for SecurityTokenId %u",
+                               (unsigned)nm->securityHeader.securityTokenId);
+            }
+        }
+    }
+#endif
+
     /* Validate the signature */
     if(doValidate) {
         size_t sigSize = sp->getSignatureSize(sp, cc);
