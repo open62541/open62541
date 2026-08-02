@@ -268,11 +268,17 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return UA_STATUSCODE_BADUSERACCESSDENIED;
 
     /* If the caller requests a number larger than the Security Key Service
-     * permits, then the SKS shall return the maximum it allows.*/
-    if(requestedKeyCount > sg->config.maxFutureKeyCount)
-        requestedKeyCount =(UA_UInt32) sg->keyStorage->keyListSize;
-    else
+     * permits, then the SKS shall return the maximum it allows.
+     * The maximum includes: the current key + up to maxFutureKeyCount future
+     * keys + up to maxPastKeyCount past keys. The previous code set the cap to
+     * the entire keyListSize, leaking past keys beyond MaxPastKeyCount. */
+    UA_UInt32 maxReturnable = 1 + sg->config.maxFutureKeyCount + sg->config.maxPastKeyCount;
+    if(requestedKeyCount > sg->config.maxFutureKeyCount) {
+        requestedKeyCount = UA_MIN(requestedKeyCount, maxReturnable);
+        requestedKeyCount += currentKeyCount; /* Add Current keyCount */
+    } else {
         requestedKeyCount = requestedKeyCount + currentKeyCount; /* Add Current keyCount */
+    }
 
     /* The current token is requested by passing 0. */
     UA_PubSubKeyListItem *startingItem = NULL;

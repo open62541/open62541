@@ -5,6 +5,7 @@
  * Copyright (c) 2019 ifak e.V. Magdeburg (Holger Zipper)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server_pubsub.h>
@@ -114,7 +115,15 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
 
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_ByteString newKey;
-    size_t keyLength = keyStorage->policy->nonceLength;
+    /* The key material length per spec Table 155 is the sum of the signing
+     * key length, the encrypting key length, and the nonce length. The
+     * previous code used policy->nonceLength alone, which is the nonce part
+     * only — too short to hold all three components. splitCurrentKeyMaterial
+     * would reject such keys, making SKS self-generated keys unusable. */
+    UA_PubSubSecurityPolicy *sp = keyStorage->policy;
+    size_t keyLength = sp->getSignatureKeyLength(sp, NULL) +
+                       sp->getEncryptionKeyLength(sp, NULL) +
+                       sp->nonceLength;
 
     retval = UA_ByteString_allocBuffer(&newKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -124,7 +133,14 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
         return;
     }
 
-    generateKeyData(keyStorage->policy, &newKey);
+    retval = generateKeyData(keyStorage->policy, &newKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                       "UpdateSKSKeyStorage callback failed to generate key: %s",
+                       UA_StatusCode_name(retval));
+        UA_ByteString_clear(&newKey);
+        return;
+    }
     UA_UInt32 newKeyID = TAILQ_LAST(&keyStorage->keyList, keyListItems)->keyID;
 
     if(newKeyID >= UA_UINT32_MAX)
@@ -139,7 +155,12 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
         UA_ByteString_clear(&oldestKey->key);
         oldestKey->keyID = newKeyID;
-        UA_ByteString_copy(&newKey, &oldestKey->key);
+        retval = UA_ByteString_copy(&newKey, &oldestKey->key);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                           "UpdateSKSKeyStorage: failed to copy new key: %s",
+                           UA_StatusCode_name(retval));
+        }
     } else {
         UA_PubSubKeyListItem *newItem =
             UA_PubSubKeyStorage_push(keyStorage, &newKey, newKeyID);
@@ -156,6 +177,14 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
     UA_PubSubKeyListItem *nextCurrentItem = TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
     if(nextCurrentItem)
         keyStorage->currentItem = nextCurrentItem;
+
+    /* Activate the new current key to all channel contexts that use this
+     * security group. Without this, the SKS server advances currentItem
+     * (visible to GetSecurityKeys callers) but the local publisher/subscriber
+     * channel keeps using the old key → messages signed with a stale key
+     * while the token id reports the new one. */
+    UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
+                                                    sg->securityGroupId);
 
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
     el->modifyTimer(el, sg->callbackId, sg->config.keyLifeTime,
