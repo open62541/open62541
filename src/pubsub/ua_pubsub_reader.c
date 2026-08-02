@@ -697,6 +697,29 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         if(!field->hasValue)
             continue;
 
+        /* Apply OverrideValueHandling per spec Table 80.
+         * - Disabled (0): write the value as-is, including bad status.
+         * - LastUsableValue (1): if the field has a Bad status, skip the write
+         *   (the previous good value remains on the target node). Full
+         *   LastUsableValue tracking would require per-field storage.
+         * - OverrideValue (2): if the field has a Bad status, substitute the
+         *   configured overrideValue. */
+        UA_DataValue writeValue = *field;
+        if(field->hasStatus && field->status != UA_STATUSCODE_GOOD) {
+            if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_OVERRIDEVALUE) {
+                writeValue.value = tv->overrideValue;
+                writeValue.hasValue = (tv->overrideValue.type != NULL);
+                writeValue.status = UA_STATUSCODE_GOOD;
+                writeValue.hasStatus = true;
+            } else if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) {
+                /* Skip writing — the target keeps its last good value.
+                 * Full LastUsableValue would cache the last good value and
+                 * write it, but that requires per-field storage on the reader. */
+                continue;
+            }
+            /* Disabled: fall through, write the bad value as-is */
+        }
+
         /* Write via the Write-Service.
          * Spec Table 69: ReceiverIndexRange extracts a sub-range from the
          * received data; WriteIndexRange controls writing to the target node.
@@ -708,12 +731,13 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.attributeId = tv->attributeId;
         writeVal.indexRange = tv->writeIndexRange;
         writeVal.nodeId = tv->targetNodeId;
-        writeVal.value = *field;
+        writeVal.value = writeValue;
         Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &writeVal, &res);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)i, UA_StatusCode_name(res));
+        }
     }
 }
 
