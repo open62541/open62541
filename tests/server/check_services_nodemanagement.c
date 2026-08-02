@@ -464,6 +464,73 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
+START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
+    UA_Double parentDefault = 42.0;
+    UA_VariableTypeAttributes parentAttr = UA_VariableTypeAttributes_default;
+    parentAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Number Parent");
+    parentAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_NUMBER);
+    parentAttr.valueRank = UA_VALUERANK_ANY;
+    UA_Variant_setScalar(&parentAttr.value, &parentDefault,
+                         &UA_TYPES[UA_TYPES_DOUBLE]);
+
+    UA_NodeId parentId;
+    UA_StatusCode res =
+        UA_Server_addVariableTypeNode(server, UA_NODEID_NULL,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                      UA_QUALIFIEDNAME(1, "Number Parent"), UA_NODEID_NULL,
+                                      parentAttr, NULL, &parentId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_VariableTypeAttributes childAttr = UA_VariableTypeAttributes_default;
+    childAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Float Child");
+    childAttr.dataType = UA_TYPES[UA_TYPES_FLOAT].typeId;
+    childAttr.valueRank = UA_VALUERANK_ANY;
+
+    UA_NodeId childId;
+    res = UA_Server_addVariableTypeNode(server, UA_NODEID_NULL, parentId,
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                        UA_QUALIFIEDNAME(1, "Float Child"), UA_NODEID_NULL,
+                                        childAttr, NULL, &childId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readValue(server, childId, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_FLOAT]));
+    ck_assert_float_eq(*(UA_Float*)value.data, 0.0f);
+    UA_Variant_clear(&value);
+} END_TEST
+
+START_TEST(AddVariableNodeAdjustsEnumWireType) {
+    UA_Int32 rawValue = UA_APPLICATIONTYPE_SERVER;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Application Type");
+    attr.dataType = UA_TYPES[UA_TYPES_APPLICATIONTYPE].typeId;
+    UA_Variant_setScalar(&attr.value, &rawValue, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_NodeId nodeId;
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "Application Type"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, &nodeId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readValue(server, nodeId, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value,
+                                      &UA_TYPES[UA_TYPES_APPLICATIONTYPE]));
+    ck_assert_int_eq(*(UA_ApplicationType*)value.data,
+                     UA_APPLICATIONTYPE_SERVER);
+    UA_Variant_clear(&value);
+} END_TEST
+
 START_TEST(AddComplexTypeWithInheritance) {
     /* add a variable node to the address space */
 
@@ -1889,6 +1956,8 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeWrongDims);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
+    tcase_add_test(tc_addnodes, VariableTypeRestrictionGetsMatchingDefaultValue);
+    tcase_add_test(tc_addnodes, AddVariableNodeAdjustsEnumWireType);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
