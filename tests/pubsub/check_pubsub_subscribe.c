@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server_config_default.h>
@@ -2823,6 +2824,46 @@ START_TEST(DataSetReaderIdentifierMismatchPaths) {
     UA_Server_removeReaderGroup(server, rgId);
 } END_TEST
 
+START_TEST(JsonDataSetReaderMatchesAnyDataSetMessageWriterId) {
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-JSON-Identifier");
+    rgc.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    UA_NodeId rgId;
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connectionId, &rgc,
+                                               &rgId), UA_STATUSCODE_GOOD);
+
+    UA_DataSetReaderConfig rc;
+    memset(&rc, 0, sizeof(rc));
+    rc.name = UA_STRING("DSR-JSON-Identifier");
+    rc.dataSetWriterId = DATASET_WRITER_ID;
+    UA_NodeId dsrId;
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, rgId, &rc, &dsrId),
+                      UA_STATUSCODE_GOOD);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(getPSM(server), dsrId);
+    ck_assert_ptr_nonnull(dsr);
+
+    UA_NetworkMessage msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.messageCount = 2;
+    msg.dataSetWriterIds[0] = DATASET_WRITER_ID + 1;
+    msg.dataSetWriterIds[1] = DATASET_WRITER_ID;
+    ck_assert_uint_eq(UA_DataSetReader_checkIdentifier(getPSM(server), dsr,
+                                                       &msg),
+                      UA_STATUSCODE_GOOD);
+
+    msg.dataSetWriterIds[1] = DATASET_WRITER_ID + 2;
+    ck_assert_uint_eq(UA_DataSetReader_checkIdentifier(getPSM(server), dsr,
+                                                       &msg),
+                      UA_STATUSCODE_BADNOTFOUND);
+
+    dsr->config.dataSetWriterId = 0;
+    ck_assert_uint_eq(UA_DataSetReader_checkIdentifier(getPSM(server), dsr,
+                                                       &msg),
+                      UA_STATUSCODE_GOOD);
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
 START_TEST(GetDataSetReaderStateInvalid) {
     UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
     UA_StatusCode r = UA_Server_getDataSetReaderState(server,
@@ -2893,6 +2934,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_reader_lifecycle, GetReaderGroupStateAndConfigInvalid);
     tcase_add_test(tc_pubsub_reader_lifecycle, UpdateReaderGroupConfigInvalid);
     tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderIdentifierMismatchPaths);
+    tcase_add_test(tc_pubsub_reader_lifecycle,
+                   JsonDataSetReaderMatchesAnyDataSetMessageWriterId);
     tcase_add_test(tc_pubsub_reader_lifecycle, GetDataSetReaderStateInvalid);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");

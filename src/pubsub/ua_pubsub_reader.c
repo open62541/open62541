@@ -8,6 +8,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_internal.h"
@@ -65,15 +66,17 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        // TODO
-        /* if(dsr->config.dataSetWriterId == */
-        /*    *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) { */
-        /*     return UA_STATUSCODE_GOOD; */
-        /* } */
-
-        /* UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. " */
-        /*                     "Expected %u, received %u", dsr->config.dataSetWriterId, */
-        /*                     *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds); */
+        /* For JSON-encoded messages, match by DataSetWriterId. The JSON
+         * decoder populates nm->dataSetWriterIds[dsmIndex] from the
+         * "DataSetWriterId" key in each DataSetMessage. The previous code
+         * always returned BadNotFound, making the JSON subscriber path
+         * non-functional. */
+        for(size_t i = 0; i < msg->messageCount; i++) {
+            if(dsr->config.dataSetWriterId == msg->dataSetWriterIds[i])
+                return UA_STATUSCODE_GOOD;
+        }
+        UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. "
+                            "Expected %u", dsr->config.dataSetWriterId);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
