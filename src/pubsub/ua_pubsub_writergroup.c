@@ -9,6 +9,7 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_internal.h"
@@ -709,6 +710,11 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *nm) {
+    /* Defense-in-depth: the dataSetWriterIds array in UA_NetworkMessage is
+     * fixed at UA_NETWORKMESSAGE_MAXMESSAGECOUNT (32) entries. Reject callers
+     * that would overflow it. */
+    if(dsmCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_UadpWriterGroupMessageDataType tmpWgm;
     UA_UadpWriterGroupMessageDataType *wgm;
     if(UA_ExtensionObject_hasDecodedType(messageSettings,
@@ -1650,6 +1656,18 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     }
 
     /* Generate the NetworkMessage */
+    /* Guard against exceeding the fixed-size dataSetWriterIds array (32 entries).
+     * The sendNetworkMessage path already checks this (line 886), but the offset-
+     * table computation calls generateNetworkMessage directly. Without this guard,
+     * a WriterGroup with more than 32 writers writes past the on-stack
+     * networkMessage.dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT] array. */
+    if(dsmCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "More DataSetMessages than allowed in "
+                            "UA_NETWORKMESSAGE_MAXMESSAGECOUNT");
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
     res = generateNetworkMessage(wg->linkedConnection, wg, dsmStore, dsWriterIds,
                                  (UA_Byte) dsmCount, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);
