@@ -176,6 +176,12 @@ struct UA_PubSubKeyStorage {
      * keys */
     UA_PubSubSKSConfig sksConfig;
 
+    /* Set to true when UA_PubSubKeyStorage_delete is called while an SKS pull
+     * request is in flight (sksConfig.reqId != 0). In that case the struct is
+     * not freed immediately; storeFetchedKeys performs the final cleanup once
+     * the response arrives, preventing a use-after-free. */
+    UA_Boolean pendingDelete;
+
     /* Pointer to the key storage list */
     LIST_ENTRY(UA_PubSubKeyStorage) keyStorageList;
 
@@ -214,6 +220,13 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm,
 void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm,
                            UA_PubSubKeyStorage *keyStorage);
+
+/* Unconditionally frees the key storage. Called by UA_PubSubKeyStorage_delete
+ * when no SKS pull is in flight, and by storeFetchedKeys when a deferred
+ * deletion completes. */
+void
+UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm,
+                              UA_PubSubKeyStorage *keyStorage);
 
 /**
  * @brief Initializes an empty Keystorage for the SecurityGroupId and add it to the Server
