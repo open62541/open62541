@@ -1687,10 +1687,19 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
     }
 
     /* If the message could not be decoded (e.g. no metadata for the raw
-     * encoding), but technically the message is not fauly, jump to the next
-     * dsm. */
+     * encoding), but technically the message is not faulty, jump to the next
+     * dsm. Validate the declared size against the remaining buffer so an
+     * attacker-controlled dsmSize cannot jump pos past the end (which would
+     * corrupt the security footer/signature decode) or before the current
+     * position (which would re-read header bytes as the next dsm). */
     if(!dsm->header.dataSetMessageValid) {
         if(dsmSize == 0) /* Only possible if the size is known */
+            return UA_STATUSCODE_BADDECODINGERROR;
+        /* Validate lengths without constructing an out-of-bounds pointer. The
+         * declared size must cover all bytes already consumed. */
+        size_t remaining = (size_t)(ctx->ctx.end - begin);
+        size_t consumed = (size_t)(ctx->ctx.pos - begin);
+        if(dsmSize > remaining || dsmSize < consumed)
             return UA_STATUSCODE_BADDECODINGERROR;
         ctx->ctx.pos = begin + dsmSize;
     }

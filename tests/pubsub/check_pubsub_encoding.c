@@ -1473,6 +1473,35 @@ START_TEST(UA_PubSub_Decode_MultiDsmZeroSizeReturnsBadDecodingError) {
     UA_NetworkMessage_clear(&m);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer) {
+    /* An invalid DSM may be skipped when its declared size is known. The
+     * declared size is attacker-controlled and must neither advance past the
+     * receive buffer nor rewind into the already-decoded header. */
+    UA_Byte raw[] = {0x00}; /* invalid Variant KeyFrame */
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = raw;
+    ctx.ctx.end = raw + sizeof(raw);
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    UA_StatusCode res =
+        UA_DataSetMessage_decodeBinary(&ctx, NULL, &dsm, 10);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert((uintptr_t)ctx.ctx.pos <= (uintptr_t)ctx.ctx.end);
+    UA_DataSetMessage_clear(&dsm);
+
+    UA_Byte rawWithPayload[] = {0x00, 0x00, 0x00};
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = rawWithPayload;
+    ctx.ctx.end = rawWithPayload + sizeof(rawWithPayload);
+    memset(&dsm, 0, sizeof(dsm));
+    res = UA_DataSetMessage_decodeBinary(&ctx, NULL, &dsm, 1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert((uintptr_t)ctx.ctx.pos >= (uintptr_t)rawWithPayload);
+    UA_DataSetMessage_clear(&dsm);
+} END_TEST
+
 START_TEST(UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError) {
     /* Header with publisherIdEnabled + extended flags 1.
      * ExtendedFlags1 low bits carry idType. Use invalid idType=5. */
@@ -1882,6 +1911,8 @@ int main(void) {
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_PayloadHeaderCountZeroReturnsBadDecodingError);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_PayloadHeaderCountTooLargeReturnsBadDecodingError);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_MultiDsmZeroSizeReturnsBadDecodingError);
+    tcase_add_test(tc_decode_err,
+                   UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError);
 
     TCase *tc_nm_optional = tcase_create("NetworkMessage optional headers");
