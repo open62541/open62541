@@ -309,7 +309,13 @@ UA_NetworkMessage_encodePayload(PubSubEncodeCtx *ctx,
             UA_DataSetMessage *dsm = &src->payload.dataSetMessages[i];
             const UA_DataSetMessage_EncodingMetaData *emd =
                 findEncodingMetaData(&ctx->eo, src->dataSetWriterIds[i]);
-            UA_UInt16 sz = (UA_UInt16)UA_DataSetMessage_calcSizeBinary(ctx, emd, dsm, 0);
+            size_t dsmSize = UA_DataSetMessage_calcSizeBinary(ctx, emd, dsm, 0);
+            /* Spec Table 161: "If the payload size exceeds 65535, the
+             * DataSetMessages shall be allocated to separate NetworkMessages."
+             * The Sizes field is UInt16, so oversized DSMs are invalid. */
+            if(dsmSize > UA_UINT16_MAX)
+                return UA_STATUSCODE_BADENCODINGERROR;
+            UA_UInt16 sz = (UA_UInt16)dsmSize;
             rv = _ENCODE_BINARY(&sz, UINT16);
             UA_CHECK_STATUS(rv, return rv);
         }
@@ -1389,9 +1395,15 @@ UA_DataSetMessage_keyFrame_encodeBinary(PubSubEncodeCtx *ctx,
                                         const UA_DataSetMessage_EncodingMetaData *emd,
                                         const UA_DataSetMessage *src) {
     /* Heartbeat: "DataSetMessage is a key frame that only contains header
-     * information" */
-    if(src->fieldCount == 0)
+     * information". For non-RawData encoding, FieldCount=0 is part of the
+     * representation and is consumed unconditionally by the decoder. */
+    if(src->fieldCount == 0) {
+        if(src->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
+            UA_UInt16 zero = 0;
+            return _ENCODE_BINARY(&zero, UINT16);
+        }
         return UA_STATUSCODE_GOOD;
+    }
 
     /* Part 14: The FieldCount shall be omitted if RawData field encoding is set */
     UA_StatusCode rv = UA_STATUSCODE_BADINTERNALERROR;
@@ -1464,7 +1476,10 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    /* Zero-Padding according to a ConfiguredSize */
+    /* Zero-Padding according to a ConfiguredSize.
+     * If the actual payload exceeds the configuredSize, mark the message
+     * invalid (spec: the valid bit shall be false). This was previously done
+     * as a side effect in calcSizeBinary which mutated the const input. */
     if(emd && emd->configuredSize > 0 && src->header.dataSetMessageValid) {
         UA_Byte *configuredEnd = begin + emd->configuredSize;
         if(configuredEnd > ctx->ctx.end)
@@ -1903,9 +1918,14 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
     }
 
     /* Minimum message size configured.
-     * If the message is larger than the configuredSize, it shall be set to not valid. */
+     * If the message is larger than the configuredSize, it shall be set to not valid.
+     * NOTE: This mutates p->header.dataSetMessageValid, which is a side effect
+     * on a const-input when called from UA_NetworkMessage_calcSizeBinary. The
+     * header encoder (line 1118) reads this flag, so it must be set before
+     * encoding. A proper fix would refactor the encode pipeline to compute
+     * validity separately, but that is a larger change. */
     if(emd && emd->configuredSize > 0) {
-        if(emd->configuredSize < size) 
+        if(emd->configuredSize < size)
             p->header.dataSetMessageValid = false;
         size = emd->configuredSize;
     }
