@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_internal.h"
@@ -382,12 +383,39 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
 /*********************************************************/
 
 static UA_StatusCode
+syncLastSamples(UA_DataSetWriter *dsw, size_t fieldCount) {
+    if(dsw->lastSamplesCount == fieldCount)
+        return UA_STATUSCODE_GOOD;
+
+    UA_DataSetWriterSample *newSamples = NULL;
+    if(fieldCount > 0) {
+        newSamples = (UA_DataSetWriterSample *)
+            UA_calloc(fieldCount, sizeof(UA_DataSetWriterSample));
+        if(!newSamples)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < dsw->lastSamplesCount; i++)
+        UA_DataValue_clear(&dsw->lastSamples[i].value);
+    UA_free(dsw->lastSamples);
+    dsw->lastSamples = newSamples;
+    dsw->lastSamplesCount = fieldCount;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
                                                UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    if(psm->drv.server->config.pubSubConfig.enableDeltaFrames) {
+        UA_StatusCode res = syncLastSamples(dsw, pds->fieldSize);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
@@ -444,6 +472,10 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_StatusCode res = syncLastSamples(dsw, pds->fieldSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Prepare DataSetMessageContent */
     dsm->header.dataSetMessageValid = true;
@@ -683,24 +715,14 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
     if(dsm && psm->drv.server->config.pubSubConfig.enableDeltaFrames) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
-        if(dsw->connectedDataSetVersion.majorVersion !=
+        if(dsw->lastSamplesCount != pds->fieldSize ||
+           dsw->connectedDataSetVersion.majorVersion !=
            pds->dataSetMetaData.configurationVersion.majorVersion ||
            dsw->connectedDataSetVersion.minorVersion !=
            pds->dataSetMetaData.configurationVersion.minorVersion) {
-            /* Remove old samples */
-            for(size_t i = 0; i < dsw->lastSamplesCount; i++)
-                UA_DataValue_clear(&dsw->lastSamples[i].value);
-
-            /* Realloc PDS dependent memory */
-            dsw->lastSamplesCount = pds->fieldSize;
-            UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
-                UA_realloc(dsw->lastSamples,
-                           sizeof(UA_DataSetWriterSample) * dsw->lastSamplesCount);
-            if(!newSamplesArray)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            dsw->lastSamples = newSamplesArray;
-            memset(dsw->lastSamples, 0,
-                   sizeof(UA_DataSetWriterSample) * dsw->lastSamplesCount);
+            UA_StatusCode res = syncLastSamples(dsw, pds->fieldSize);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
 
             dsw->connectedDataSetVersion =
                 pds->dataSetMetaData.configurationVersion;
