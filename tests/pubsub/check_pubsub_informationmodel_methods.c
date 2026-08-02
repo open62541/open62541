@@ -1087,7 +1087,9 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         pMetaData->fields[3].builtInType = UA_NS0ID_BOOLEAN;
         pMetaData->fields[3].name =  UA_STRING ("BoolToggle");
         pMetaData->fields[3].valueRank = -1; /* scalar */
-        targetVars.targetVariablesSize = 4;
+        /* Start with one target more than the metadata describes. This used to
+         * read past the fields array while constructing the target nodes. */
+        targetVars.targetVariablesSize = 5;
         targetVars.targetVariables = (UA_FieldTargetDataType *)
             UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
         UA_ExtensionObject extensionObjectTargetVars;
@@ -1137,6 +1139,15 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         item.inputArgumentsSize = 1;
 
         UA_CallResponse response;
+        response = UA_Client_Service_call(client, callMethodRequestFromClient);
+        ck_assert_int_eq(response.results->statusCode,
+                         UA_STATUSCODE_BADINVALIDARGUMENT);
+        UA_CallResponse_clear(&response);
+
+        /* Retrying the same configuration with matching sizes must succeed.
+         * This also verifies that the rejected method call left no partial
+         * connection, group, reader, or target nodes behind. */
+        targetVars.targetVariablesSize = pMetaData->fieldsSize;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
         ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);

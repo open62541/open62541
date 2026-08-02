@@ -853,7 +853,18 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
      * Subscriber AddressSpace. The values subscribed from the Publisher are
      * updated in the value field of these variables */
 
-    /* Add variable for the fields */
+    /* Add variable for the fields.
+     * The number of target variables must not exceed the number of fields in
+     * the DataSetMetaData, otherwise pMetaData->fields[i] would read past the
+     * allocated array (heap over-read). */
+    if(targetVars->targetVariablesSize > pMetaData->fieldsSize) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "AddSubscribedVariables: targetVariablesSize (%u) exceeds "
+                     "DataSetMetaData fieldsSize (%u)",
+                     (unsigned)targetVars->targetVariablesSize,
+                     (unsigned)pMetaData->fieldsSize);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     for(size_t i = 0; i < targetVars->targetVariablesSize; i++) {
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = pMetaData->fields[i].description;
