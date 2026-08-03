@@ -1012,6 +1012,25 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
             (UA_ReaderGroupDataType *)UA_calloc(pubSubConnection.readerGroupsSize, sizeof(UA_ReaderGroupDataType));
         UA_TargetVariablesDataType targetVars;
         pubSubConnection.readerGroups->name = UA_STRING("TestReaderGroup");
+        pubSubConnection.readerGroups->securityGroupId = UA_STRING("SecurityGroup");
+        pubSubConnection.readerGroups->securityMode = UA_MESSAGESECURITYMODE_SIGN;
+        UA_UInt32 groupPropertyValue = 42;
+        UA_KeyValuePair groupProperty;
+        memset(&groupProperty, 0, sizeof(groupProperty));
+        groupProperty.key = UA_QUALIFIEDNAME(0, "group-property");
+        UA_Variant_setScalar(&groupProperty.value, &groupPropertyValue,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        pubSubConnection.readerGroups->groupPropertiesSize = 1;
+        pubSubConnection.readerGroups->groupProperties = &groupProperty;
+        UA_BrokerDataSetReaderTransportDataType readerTransport;
+        UA_BrokerDataSetReaderTransportDataType_init(&readerTransport);
+        readerTransport.queueName = UA_STRING("reader-topic");
+        pubSubConnection.readerGroups->transportSettings.encoding =
+            UA_EXTENSIONOBJECT_DECODED;
+        pubSubConnection.readerGroups->transportSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE];
+        pubSubConnection.readerGroups->transportSettings.content.decoded.data =
+            &readerTransport;
         pubSubConnection.readerGroups->dataSetReadersSize = 1;
         pubSubConnection.readerGroups->dataSetReaders = \
                 (UA_DataSetReaderDataType*)UA_calloc(pubSubConnection.readerGroups->dataSetReadersSize, sizeof(UA_DataSetReaderDataType));
@@ -1132,6 +1151,27 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
             UA_QUALIFIEDNAME(0, "DataReader"), UA_NS0ID(HASDATASETREADER),
             readerGroupId);
         ck_assert(!UA_NodeId_isNull(&dataSetReaderId));
+
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_getReaderGroupConfig(server, readerGroupId,
+                                                &readerGroupConfig);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(UA_String_equal(&readerGroupConfig.securityGroupId,
+                                  &pubSubConnection.readerGroups->securityGroupId));
+        ck_assert_int_eq(readerGroupConfig.securityMode,
+                         UA_MESSAGESECURITYMODE_SIGN);
+        ck_assert_uint_eq(readerGroupConfig.groupProperties.mapSize, 1);
+        ck_assert(readerGroupConfig.transportSettings.encoding ==
+                  UA_EXTENSIONOBJECT_DECODED);
+        ck_assert(readerGroupConfig.transportSettings.content.decoded.type ==
+                  &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]);
+        UA_BrokerDataSetReaderTransportDataType *storedReaderTransport =
+            (UA_BrokerDataSetReaderTransportDataType *)
+                readerGroupConfig.transportSettings.content.decoded.data;
+        ck_assert(UA_String_equal(&storedReaderTransport->queueName,
+                                  &readerTransport.queueName));
+        UA_ReaderGroupConfig_clear(&readerGroupConfig);
 
         UA_DataSetReaderConfig readerConfig;
         memset(&readerConfig, 0, sizeof(readerConfig));
