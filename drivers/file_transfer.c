@@ -121,9 +121,11 @@ static UA_Boolean validEntryName(const UA_String name);
 
 /* Only well-formed relative paths reach the storage: no leading, trailing or
  * double slashes, no "." or ".." segments, no backslashes or NUL bytes. This
- * guarantees that the resulting path cannot escape the root directory. Each
- * '/'-separated segment is validated with validEntryName so the traversal
- * safety policy lives in a single place. */
+ * blocks path traversal (naming a target outside rootPath via "..") but does
+ * not sandbox against symlinks: a symlink inside rootPath may resolve to a
+ * target outside it, and the OS follows it. Each '/'-separated segment is
+ * validated with validEntryName so the traversal-safety policy lives in a
+ * single place. */
 static UA_StatusCode
 checkRelativePath(const UA_String path) {
     if(path.length == 0)
@@ -442,6 +444,10 @@ localFsRemove(UA_FileTransferBackend *b, const UA_String path) {
     if(UA_stat(localPath, &st) != 0)
         return errnoToStatusCode(errno);
 
+    /* Reset errno right before the mutating call; the stat above may have
+     * set it and the remove/rmdir result must be diagnosed from its own
+     * errno. */
+    errno = 0;
     int ret = FT_ISDIR(st.st_mode) ? ft_rmdir(localPath) : UA_remove(localPath);
     if(ret != 0)
         return errnoToStatusCode(errno);
@@ -455,7 +461,9 @@ localFsRename(UA_FileTransferBackend *b, const UA_String fromPath,
     char localTo[UA_PATH_MAX];
     LocalFileSystemContext *ctx = (LocalFileSystemContext*)b->context;
     UA_StatusCode res = buildLocalPath(ctx, fromPath, localFrom);
-    res |= buildLocalPath(ctx, toPath, localTo);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = buildLocalPath(ctx, toPath, localTo);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -767,9 +775,10 @@ setupFileNode(UA_Server *server, FileTransferDriver *ftd, FTNode *node,
     UA_CallbackValueSource sizeSource;
     memset(&sizeSource, 0, sizeof(UA_CallbackValueSource));
     sizeSource.read = readSizeCallback;
-    res |= UA_Server_setNodeContext(server, sizeId, node);
-    res |= UA_Server_setVariableNode_callbackValueSource(server, sizeId,
-                                                         sizeSource);
+    res = UA_Server_setNodeContext(server, sizeId, node);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setVariableNode_callbackValueSource(server, sizeId,
+                                                             sizeSource);
     UA_NodeId_clear(&sizeId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -795,9 +804,10 @@ setupFileNode(UA_Server *server, FileTransferDriver *ftd, FTNode *node,
     UA_CallbackValueSource userWritableSource;
     memset(&userWritableSource, 0, sizeof(UA_CallbackValueSource));
     userWritableSource.read = readUserWritableCallback;
-    res |= UA_Server_setNodeContext(server, userWritableId, node);
-    res |= UA_Server_setVariableNode_callbackValueSource(server, userWritableId,
-                                                         userWritableSource);
+    res = UA_Server_setNodeContext(server, userWritableId, node);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setVariableNode_callbackValueSource(server, userWritableId,
+                                                             userWritableSource);
     UA_NodeId_clear(&userWritableId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -1506,6 +1516,9 @@ copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
     void *dst = NULL;
     res = dstB->openFile(dstB, toPath, UA_OPENFILEMODE_WRITE, &dst);
     if(res != UA_STATUSCODE_GOOD) {
+        /* Remove the empty file just created so a failed open does not leave
+         * a stale entry behind in the destination backend. */
+        dstB->remove(dstB, toPath);
         srcB->closeFile(srcB, src);
         return res;
     }
@@ -1523,6 +1536,11 @@ copyBackendFile(UA_FileTransferBackend *srcB, const UA_String fromPath,
 
     srcB->closeFile(srcB, src);
     dstB->closeFile(dstB, dst);
+    /* Remove a partially written destination so a failed copy does not leave
+     * a truncated file behind. An EOF read leaves res Good, so the complete
+     * destination is kept. */
+    if(res != UA_STATUSCODE_GOOD)
+        dstB->remove(dstB, toPath);
     return res;
 }
 
@@ -1768,8 +1786,9 @@ createFileMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     res = UA_Variant_setScalarCopy(&output[0], &newNode->nodeId,
                                    &UA_TYPES[UA_TYPES_NODEID]);
-    res |= UA_Variant_setScalarCopy(&output[1], &handle,
-                                    &UA_TYPES[UA_TYPES_UINT32]);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Variant_setScalarCopy(&output[1], &handle,
+                                       &UA_TYPES[UA_TYPES_UINT32]);
     return res;
 }
 
@@ -1987,8 +2006,10 @@ registerFileTransferMethodCallbacks(UA_Server *server) {
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
-        res |= UA_Server_setMethodNodeCallback(
+        res = UA_Server_setMethodNodeCallback(
             server, UA_NODEID_NUMERIC(0, methods[i].methodId), methods[i].callback);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
     return res;
 }
