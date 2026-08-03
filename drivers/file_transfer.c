@@ -1445,13 +1445,19 @@ removeSubtree(UA_Server *server, FileTransferDriver *ftd, FTNode *subtreeRoot) {
     /* Deleting the root node removes the mirrored children recursively */
     UA_Server_deleteNode(server, subtreeRoot->nodeId, true);
 
+    /* Copy the root path: removeFTNode frees node->path, and the subtree root
+     * is one of the nodes removed below, so borrowing its path across the loop
+     * would be a use-after-free. */
     FTMount *mount = subtreeRoot->mount;
-    UA_String rootPath = subtreeRoot->path;
+    UA_String rootPath;
+    if(UA_String_copy(&subtreeRoot->path, &rootPath) != UA_STATUSCODE_GOOD)
+        rootPath = UA_STRING_NULL;
     FTNode *node, *tmp;
     LIST_FOREACH_SAFE(node, &ftd->nodes, listEntry, tmp) {
         if(node->mount == mount && pathWithinSubtree(node->path, rootPath))
             removeFTNode(ftd, node);
     }
+    UA_String_clear(&rootPath);
 }
 
 /* A subtree with open handles cannot be removed right away when its backend
