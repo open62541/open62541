@@ -1595,13 +1595,23 @@ syncTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* Snapshot the fields read inside the loop. removeSubtree(child) frees
+     * child->path/mount; although it never frees dirNode, the analyzer cannot
+     * prove that, so read dirNode only once before iterating. */
+    FTMount *dirMount = dirNode->mount;
+    UA_String dirPath;
+    if(UA_String_copy(&dirNode->path, &dirPath) != UA_STATUSCODE_GOOD) {
+        freeScanEntries(entries);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
     /* Match the registry children against the backend listing. Vanished
      * entries are removed, or marked as zombies while open handles refer to
      * them. */
     FTNode *child, *childTmp;
     LIST_FOREACH_SAFE(child, &ftd->nodes, listEntry, childTmp) {
-        if(child->mount != dirNode->mount ||
-           !isDirectChildPath(dirNode->path, child->path))
+        if(child->mount != dirMount ||
+           !isDirectChildPath(dirPath, child->path))
             continue;
         UA_String name = pathLastSegment(child->path);
         ScanEntry *match = NULL;
@@ -1637,7 +1647,7 @@ syncTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
             }
         } else {
             UA_String childPath = UA_STRING_NULL;
-            res = joinPath(dirNode->path, e->name, &childPath);
+            res = joinPath(dirPath, e->name, &childPath);
             if(res != UA_STATUSCODE_GOOD)
                 break;
             UA_FileTransferFileInfo info;
@@ -1651,18 +1661,21 @@ syncTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
         }
     }
     freeScanEntries(entries);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&dirPath);
         return res;
+    }
 
     /* Recurse into the (kept) subdirectories */
     LIST_FOREACH_SAFE(child, &ftd->nodes, listEntry, childTmp) {
-        if(child->mount != dirNode->mount || !child->isDirectory ||
-           child->zombie || !isDirectChildPath(dirNode->path, child->path))
+        if(child->mount != dirMount || !child->isDirectory ||
+           child->zombie || !isDirectChildPath(dirPath, child->path))
             continue;
         res = syncTree(server, ftd, child, depth + 1, nodeBudget);
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
+    UA_String_clear(&dirPath);
     return res;
 }
 
