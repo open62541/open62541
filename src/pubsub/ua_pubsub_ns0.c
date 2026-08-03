@@ -776,9 +776,29 @@ addReaderGroupConfig(UA_Server *server, UA_NodeId connectionId,
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
-    readerGroupConfig.name = readerGroup->name;
-    return UA_ReaderGroup_create(psm, connectionId,
-                                 &readerGroupConfig, readerGroupId);
+    UA_StatusCode retVal = UA_String_copy(&readerGroup->name,
+                                          &readerGroupConfig.name);
+    retVal |= UA_String_copy(&readerGroup->securityGroupId,
+                             &readerGroupConfig.securityGroupId);
+    retVal |= UA_ExtensionObject_copy(&readerGroup->transportSettings,
+                                      &readerGroupConfig.transportSettings);
+    readerGroupConfig.securityMode = readerGroup->securityMode;
+    readerGroupConfig.groupProperties.map = readerGroup->groupProperties;
+    readerGroupConfig.groupProperties.mapSize = readerGroup->groupPropertiesSize;
+    if(readerGroup->dataSetReadersSize > 0) {
+        UA_ExtensionObject *settings =
+            &readerGroup->dataSetReaders[0].messageSettings;
+        if(settings->encoding == UA_EXTENSIONOBJECT_DECODED &&
+           settings->content.decoded.type ==
+               &UA_TYPES[UA_TYPES_JSONDATASETREADERMESSAGEDATATYPE])
+            readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    }
+    if(retVal == UA_STATUSCODE_GOOD)
+        retVal = UA_ReaderGroup_create(psm, connectionId,
+                                       &readerGroupConfig, readerGroupId);
+    readerGroupConfig.groupProperties = UA_KEYVALUEMAP_NULL;
+    UA_ReaderGroupConfig_clear(&readerGroupConfig);
+    return retVal;
 }
 
 /**
