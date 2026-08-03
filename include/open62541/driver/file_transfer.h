@@ -157,8 +157,10 @@ struct UA_FileTransferBackend {
 };
 
 /* Built-in backend that serves rootPath of the local filesystem. The backend
- * enforces that no path can escape rootPath (path segments like ".." are
- * rejected). Symbolic links inside rootPath are followed.
+ * rejects relative path segments like ".." so a path cannot name a target
+ * outside rootPath through path traversal. Symbolic links inside rootPath are
+ * followed and may resolve outside rootPath; if that is not acceptable, do not
+ * place symlinks inside the served directory or expose the mount read-only.
  *
  * @param rootPath The served directory. Must exist.
  * @param out The backend to initialize
