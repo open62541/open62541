@@ -638,6 +638,11 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     add_executable(check_cert_generation encryption/check_cert_generation.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_cert_generation ${LIBS})
     add_test_valgrind(check_cert_generation ${TESTS_BINARY_DIR}/check_cert_generation)
+
+    add_executable(check_hmac_verify_constanttime encryption/check_hmac_verify_constanttime.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_include_directories(check_hmac_verify_constanttime PRIVATE ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
+    target_link_libraries(check_hmac_verify_constanttime ${LIBS})
+    add_test_valgrind(check_hmac_verify_constanttime ${TESTS_BINARY_DIR}/check_hmac_verify_constanttime)
 endif()
 
 # Tests for Nodeset Compiler
