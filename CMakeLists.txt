@@ -1230,8 +1230,11 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Add clock implementation based on the base architecture
-if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
+if(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
+endif()
+if(UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/win32/clock_win32.c)
 endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)
@@ -1264,7 +1267,19 @@ elseif(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
-elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
+elseif(UA_ARCHITECTURE_WIN32)
+    # Win32 eventloop fork (select-based until the IOCP conversion)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+         ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp.h
+         ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp.c
+         ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp_tcp.c
+         ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp_udp.c
+         ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp_interrupt.c)
+elseif(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
     # POSIX eventloop (default for amalgamation)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h

@@ -478,6 +478,11 @@ struct UA_InterruptManager {
 UA_EXPORT UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger);
 
+#ifdef UA_ARCHITECTURE_WIN32
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_WIN32(const UA_Logger *logger);
+#endif
+
 #ifdef UA_ENABLE_EVENTLOOP_GLIB
 
 /**
@@ -582,6 +587,11 @@ UA_EventLoop_new_GLib(const UA_Logger *logger, void *glibMainContext);
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
 
+#ifdef UA_ARCHITECTURE_WIN32
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_WIN32_TCP(const UA_String eventSourceName);
+#endif
+
 /**
  * UDP Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~
@@ -656,6 +666,11 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * No additional parameters for sending over an UDP connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
+
+#ifdef UA_ARCHITECTURE_WIN32
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_WIN32_UDP(const UA_String eventSourceName);
+#endif
 
 #if defined(__linux__) /* Linux only so far */
 
@@ -974,6 +989,11 @@ UA_ConnectionManager_new_LWS_MQTT(const UA_String eventSourceName);
  * for the interruptHandle. */
 UA_EXPORT UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName);
+
+#ifdef UA_ARCHITECTURE_WIN32
+UA_EXPORT UA_InterruptManager *
+UA_InterruptManager_new_WIN32(const UA_String eventSourceName);
+#endif
 
 #ifdef UA_ENABLE_EVENTLOOP_GLIB
 
