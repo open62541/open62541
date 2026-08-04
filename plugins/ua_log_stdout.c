@@ -10,35 +10,114 @@
 
 #include <stdio.h>
 
+#ifdef _WIN32
+# include <windows.h>
+# include <VersionHelpers.h>
+#endif
+
 #include "mp_printf.h"
+
+/* Run functions before the user calls main()
+ * https://stackoverflow.com/questions/1113409/attribute-constructor-equivalent-in-vc */
+
+#ifdef __cplusplus
+# define UA_RUN_BEFORE_MAIN(f) \
+    namespace { \
+        struct f##_t { f##_t() { f(); } }; \
+        static f##_t f##_inst; \
+    }
+#elif defined(_MSC_VER)
+# pragma section(".CRT$XCU", read)
+# define UA_RUN_BEFORE_MAIN_2_(f,prefix) \
+    __declspec(allocate(".CRT$XCU")) void (*f##_ptr)(void) = f; \
+    __pragma(comment(linker, "/include:" prefix #f "_ptr"))
+# ifdef _WIN64
+#  define UA_RUN_BEFORE_MAIN(f) UA_RUN_BEFORE_MAIN_2_(f, "")
+# else
+#  define UA_RUN_BEFORE_MAIN(f) UA_RUN_BEFORE_MAIN_2_(f, "_")
+# endif
+#else
+# define UA_RUN_BEFORE_MAIN(f) \
+    static void f##_wrapper(void) __attribute__((constructor)); \
+    static void f##_wrapper(void) { f(); }
+#endif
 
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
 
-#ifdef UA_ARCHITECTURE_POSIX
-# define ANSI_COLOR_RED     "\x1b[31m"
-# define ANSI_COLOR_GREEN   "\x1b[32m"
-# define ANSI_COLOR_YELLOW  "\x1b[33m"
-/* # define ANSI_COLOR_BLUE    "\x1b[34m" */
-# define ANSI_COLOR_MAGENTA "\x1b[35m"
-/* # define ANSI_COLOR_CYAN    "\x1b[36m" */
-# define ANSI_COLOR_RESET   "\x1b[0m"
-#else
-# define ANSI_COLOR_RED     ""
-# define ANSI_COLOR_GREEN   ""
-# define ANSI_COLOR_YELLOW  ""
-/* # define ANSI_COLOR_BLUE    "" */
-# define ANSI_COLOR_MAGENTA ""
-/* # define ANSI_COLOR_CYAN    "" */
-# define ANSI_COLOR_RESET   ""
+static const char *ansiColorRed     = "";
+static const char *ansiColorGreen   = "";
+static const char *ansiColorYellow  = "";
+static const char *ansiColorMagenta = "";
+static const char *ansiColorReset   = "";
+
+static void
+enableAnsiColorSequences(void) {
+    ansiColorRed     = "\x1b[31m";
+    ansiColorGreen   = "\x1b[32m";
+    ansiColorYellow  = "\x1b[33m";
+    ansiColorMagenta = "\x1b[35m";
+    ansiColorReset   = "\x1b[0m";
+}
+
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_FORCE_ANSI_COLORS)
+static void
+initializeTerminalColors(void) {
+    enableAnsiColorSequences();
+}
+UA_RUN_BEFORE_MAIN(initializeTerminalColors)
+#elif defined(_WIN32)
+static bool
+tryEnableVirtualTerminalProcessing(HANDLE consoleHandle) {
+    DWORD mode = 0;
+    if(consoleHandle == INVALID_HANDLE_VALUE || consoleHandle == NULL)
+        return false;
+    if(!GetConsoleMode(consoleHandle, &mode))
+        return false;
+    if(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        return true;
+    if(!SetConsoleMode(consoleHandle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+        return false;
+    return true;
+}
+
+static void
+initializeTerminalColors(void) {
+    if(!IsWindows10OrGreater())
+        return;
+
+    if(tryEnableVirtualTerminalProcessing(GetStdHandle(STD_OUTPUT_HANDLE)) ||
+       tryEnableVirtualTerminalProcessing(GetStdHandle(STD_ERROR_HANDLE))) {
+        enableAnsiColorSequences();
+    }
+}
+UA_RUN_BEFORE_MAIN(initializeTerminalColors)
 #endif
 
-static
-const char *logLevelNames[6] = {"trace", "debug",
-                                ANSI_COLOR_GREEN "info",
-                                ANSI_COLOR_YELLOW "warn",
-                                ANSI_COLOR_RED "error",
-                                ANSI_COLOR_MAGENTA "fatal"};
+static const char *
+getLogLevelColor(int slot) {
+    switch(slot) {
+    case 0: return "";
+    case 1: return "";
+    case 2: return ansiColorGreen;
+    case 3: return ansiColorYellow;
+    case 4: return ansiColorRed;
+    default: return ansiColorMagenta;
+    }
+}
+
+static const char *
+getLogLevelName(int slot) {
+    switch(slot) {
+    case 0: return "trace";
+    case 1: return "debug";
+    case 2: return "info";
+    case 3: return "warn";
+    case 4: return "error";
+    default: return "fatal";
+    }
+}
+
 static const char *
 logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
@@ -87,10 +166,13 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     char logbuf[STDOUT_LOGBUFSIZE];
 
     /* Log */
-    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
+    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s%s/%s%s\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
-           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
-           logCategoryNames[category]);
+           (int)(tOffset / UA_DATETIME_SEC / 36),
+           getLogLevelColor(logLevelSlot),
+           getLogLevelName(logLevelSlot),
+           logCategoryNames[category],
+           ansiColorReset);
     mp_vsnprintf(logbuf, STDOUT_LOGBUFSIZE, msg, args);
     printf("%s\n", logbuf);
     fflush(stdout);
