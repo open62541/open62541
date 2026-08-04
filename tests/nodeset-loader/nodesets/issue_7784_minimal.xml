@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+           xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+           xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <NamespaceUris>
+        <Uri>http://open62541.org/test/issue7784/</Uri>
+    </NamespaceUris>
+    <Aliases>
+        <Alias Alias="Int32">i=6</Alias>
+        <Alias Alias="HasSubtype">i=45</Alias>
+        <Alias Alias="HasEncoding">i=38</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+    </Aliases>
+
+    <!-- TypeA depends on TypeB as a member, but is defined first. -->
+    <UADataType NodeId="ns=1;i=3001" BrowseName="1:TypeA">
+        <DisplayName>TypeA</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+            <Reference ReferenceType="HasEncoding">ns=1;i=5001</Reference>
+        </References>
+        <Definition Name="1:TypeA">
+            <Field DataType="ns=1;i=3002" Name="bMember"/>
+        </Definition>
+    </UADataType>
+    <UAObject NodeId="ns=1;i=5001" BrowseName="Default Binary">
+        <DisplayName>Default Binary</DisplayName>
+        <References>
+            <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+        </References>
+    </UAObject>
+
+    <!-- TypeB is a simple struct with one builtin field.
+         It is intentionally placed AFTER TypeA to reproduce the bug. -->
+    <UADataType NodeId="ns=1;i=3002" BrowseName="1:TypeB">
+        <DisplayName>TypeB</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+            <Reference ReferenceType="HasEncoding">ns=1;i=5002</Reference>
+        </References>
+        <Definition Name="1:TypeB">
+            <Field DataType="Int32" Name="value"/>
+        </Definition>
+    </UADataType>
+    <UAObject NodeId="ns=1;i=5002" BrowseName="Default Binary">
+        <DisplayName>Default Binary</DisplayName>
+        <References>
+            <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+        </References>
+    </UAObject>
+
+</UANodeSet>
+

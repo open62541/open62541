@@ -1,6 +1,8 @@
 add_compile_definitions(OPEN62541_NODESET_DIR="${UA_NODESET_DIR}/")
+add_compile_definitions(OPEN62541_NODESET_LOADER_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodesets/")
 ua_add_test(check_nodeset_loader_di.c)
 ua_add_test(check_nodeset_loader_autoid.c)
+ua_add_test(check_nodeset_loader_issue_7784.c)
 ua_add_test(check_nodeset_loader_plc.c)
 ua_add_test(check_nodeset_loader_input.c)
 
