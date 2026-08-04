@@ -454,6 +454,12 @@ if(UA_ENABLE_ENCRYPTION)
         MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
     endif()
 
+    if(UA_ENABLE_ENCRYPTION_OPENSSL)
+        ua_add_test(encryption/check_hmac_verify_constanttime.c)
+        target_include_directories(check_hmac_verify_constanttime PRIVATE
+            ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
+    endif()
+
     if(UA_ENABLE_DISCOVERY)
         ua_add_test(server/check_discovery.c)
     endif()
