@@ -392,6 +392,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
                              "The server reused the last nonce");
         client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        UA_OpenSecureChannelResponse_clear(&response);
         closeSecureChannel(client);
         return;
     }
