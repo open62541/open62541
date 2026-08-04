@@ -364,15 +364,6 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)mqttCM);
 #endif
     }
-    if(conf->eventLoop != NULL) {
-        if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
-            UA_StatusCode statusCode = conf->eventLoop->start(conf->eventLoop);
-            if(statusCode != UA_STATUSCODE_GOOD) {
-                return statusCode;
-            }
-        }
-    }
-
     /* If a second server is started later it can "steal" the port.
      * Having port reuse enabled is important for development.
      * Otherwise a long TCP TIME_WAIT is required before the port can be used again. */
