@@ -343,13 +343,8 @@ ETH_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
 
     /* Receive */
     UA_RESET_ERRNO;
-#ifndef UA_ARCHITECTURE_WIN32
     ssize_t ret = UA_recv(rfd->fd, (char*)response.data,
                           response.length, MSG_DONTWAIT);
-#else
-    int ret = UA_recv(rfd->fd, (char*)response.data,
-                      response.length, MSG_DONTWAIT);
-#endif
 
     /* Receive has failed */
     if(ret <= 0) {

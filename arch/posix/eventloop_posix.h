@@ -22,153 +22,12 @@
 # include "../deps/open62541_queue.h"
 #endif
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 
 _UA_BEGIN_DECLS
 
 #include <errno.h>
 
-#if defined(UA_ARCHITECTURE_WIN32)
-
-/*********************/
-/* Win32 Definitions */
-/*********************/
-
-/* Disable some security warnings on MSVC */
-#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
-# define _CRT_SECURE_NO_WARNINGS
-#endif
-
-/*---------------------*/
-/* Network Definitions */
-/*---------------------*/
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <winsock2.h>
-#include <windows.h>
-#include <ws2tcpip.h>
-#include <basetsd.h>
-
-#ifndef _SSIZE_T_DEFINED
-typedef SSIZE_T ssize_t;
-#endif
-
-#define UA_IPV6 1
-#define UA_SOCKET SOCKET
-#define UA_INVALID_SOCKET INVALID_SOCKET
-#define UA_RESET_ERRNO do { } while(0)
-#define UA_ERRNO WSAGetLastError()
-#define UA_INTERRUPTED WSAEINTR
-#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
-#define UA_INPROGRESS WSAEINPROGRESS
-#define UA_WOULDBLOCK WSAEWOULDBLOCK
-#define UA_CONNRESET WSAECONNRESET
-#define UA_NOBUFS WSAENOBUFS
-#define UA_MFILE WSAEMFILE
-#define UA_POLLIN POLLRDNORM
-#define UA_POLLOUT POLLWRNORM
-#define UA_SHUT_RDWR SD_BOTH
-
-#define UA_IS_TEMPORARY_ACCEPT_ERROR(err) \
-    ((err) == UA_INTERRUPTED || (err) == UA_CONNRESET || (err) == UA_NOBUFS || (err) == UA_MFILE)
-
-#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
-    getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
-#define UA_poll(fds,nfds,timeout) WSAPoll((LPWSAPOLLFD)fds, nfds, timeout)
-#define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
-#define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
-#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) \
-    sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
-#define UA_close closesocket
-#define UA_select(nfds, readfds, writefds, exceptfds, timeout) \
-    select((int)(nfds), readfds, writefds, exceptfds, timeout)
-#define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
-#define UA_getsockopt(sockfd, level, optname, optval, optlen) \
-    getsockopt(sockfd, level, optname, (char*) (optval), optlen)
-#define UA_setsockopt(sockfd, level, optname, optval, optlen) \
-    setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
-#define UA_inet_pton InetPton
-#define UA_socket socket
-#define UA_bind bind
-#define UA_recvfrom recvfrom
-#define UA_accept accept
-#define UA_listen listen
-#define UA_shutdown shutdown
-#define UA_getaddrinfo getaddrinfo
-#define UA_freeaddrinfo freeaddrinfo
-#define UA_inet_ntop inet_ntop
-#define UA_getsockname getsockname
-#define UA_gethostname gethostname
-
-#if UA_IPV6
-# define UA_if_nametoindex if_nametoindex
-
-# include <iphlpapi.h>
-
-#endif
-
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) do { \
-    char *errno_str = NULL; \
-    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
-    NULL, WSAGetLastError(), \
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), \
-    (LPSTR)&errno_str, 0, NULL); \
-    LOG; \
-    LocalFree(errno_str); \
-} while (0)
-#define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
-
-/* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
-#if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)
-# undef SLIST_ENTRY
-#endif
-
-/*---------------------------*/
-/* File Handling Definitions */
-/*---------------------------*/
-
-#include <direct.h>
-#include <minwindef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/stat.h>
-#include "tr_dirent.h"
-
-_UA_BEGIN_DECLS
-char *
-_UA_dirname_minimal(char *path);
-_UA_END_DECLS
-
-#define UA_STAT stat
-#define UA_DIR DIR
-#define UA_DIRENT dirent
-#define UA_FILE FILE
-#define UA_MODE uint16_t
-
-#define UA_stat stat
-#define UA_opendir opendir
-#define UA_readdir readdir
-#define UA_rewinddir rewinddir
-#define UA_closedir closedir
-#define UA_mkdir(path, mode) _mkdir(path)
-#define UA_fopen fopen
-#define UA_fread fread
-#define UA_fwrite fwrite
-#define UA_fseek fseek
-#define UA_ftell ftell
-#define UA_fclose fclose
-#define UA_remove remove
-#define UA_dirname _UA_dirname_minimal
-
-#define UA_SEEK_END SEEK_END
-#define UA_SEEK_SET SEEK_SET
-#define UA_DT_REG DT_REG
-#define UA_DT_DIR DT_DIR
-#define UA_PATH_MAX MAX_PATH
-#define UA_FILENAME_MAX FILENAME_MAX
-
-#elif defined(UA_ARCHITECTURE_POSIX)
 
 /*********************/
 /* POSIX Definitions */
@@ -303,7 +162,6 @@ typedef int SOCKET;
 #define UA_PATH_MAX PATH_MAX
 #define UA_FILENAME_MAX FILENAME_MAX
 
-#endif
 
 /***********************/
 /* General Definitions */
@@ -576,14 +434,8 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd);
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
-/* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
- * https://stackoverflow.com/a/3333565
- * On POSIX, use a socketpair (AF_UNIX) for uniform socket semantics. */
-#ifdef UA_ARCHITECTURE_WIN32
-int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
-#else
+/* Use a socketpair (AF_UNIX) for uniform socket semantics. */
 int UA_EventLoopPOSIX_pipe(UA_FD fds[2]);
-#endif
 
 /* Cancel the current _run by sending to the self-pipe */
 void
@@ -595,6 +447,6 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
 
 _UA_END_DECLS
 
-#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
+#endif /* defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) */
 
 #endif /* UA_EVENTLOOP_POSIX_H_ */
