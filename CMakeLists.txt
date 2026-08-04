@@ -1318,7 +1318,11 @@ endif()
 # The file transfer driver uses the OS-specific file handling definitions.
 # It is appended after the eventloop sources so that the amalgamation
 # integrates the architecture header before the driver code.
-list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer.c)
+list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/drivers/file_transfer_internal.h)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_driver.c)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_filetype.c)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_directory.c)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_backend_localfs.c)
 
 # For file based server and client configuration
 if(UA_ENABLE_JSON_ENCODING)
