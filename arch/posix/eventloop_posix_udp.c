@@ -8,7 +8,7 @@
 
 #include "eventloop_posix.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0
@@ -58,11 +58,7 @@ typedef struct {
     void *context;
 
     struct sockaddr_storage sendAddr;
-#ifdef UA_ARCHITECTURE_WIN32
-    size_t sendAddrLength;
-#else
     socklen_t sendAddrLength;
-#endif
 } UDP_FD;
 
 typedef enum {
@@ -104,74 +100,6 @@ multiCastType(struct addrinfo *info) {
     return MULTICASTTYPE_NONE;
 }
 
-#ifdef UA_ARCHITECTURE_WIN32
-
-#define ADDR_BUFFER_SIZE 15000 /* recommended size in the MSVC docs */
-
-static UA_StatusCode
-setMulticastInterface(const char *netif, struct addrinfo *info,
-                      MulticastRequest *req, const UA_Logger *logger) {
-    ULONG outBufLen = ADDR_BUFFER_SIZE;
-    UA_STACKARRAY(char, addrBuf, ADDR_BUFFER_SIZE);
-
-    /* Get the network interface descriptions */
-    ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
-        GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
-    PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
-    DWORD ret = GetAdaptersAddresses(info->ai_family, flags, NULL, ifaddr, &outBufLen);
-    if(ret != NO_ERROR) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                     "UDP\t| Interface configuration preparation failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Iterate through linked list of network interfaces */
-    char sourceAddr[64];
-    unsigned int idx = 0;
-    for(PIP_ADAPTER_ADDRESSES ifa = ifaddr; ifa != NULL; ifa = ifa->Next) {
-        idx = (info->ai_family == AF_INET) ? ifa->IfIndex : ifa->Ipv6IfIndex;
-
-        /* Check if network interface name matches */
-        if(strcmp(ifa->AdapterName, netif) == 0)
-            goto done;
-
-        /* Check if ip address matches */
-        for(PIP_ADAPTER_UNICAST_ADDRESS u = ifa->FirstUnicastAddress; u; u = u->Next) {
-            LPSOCKADDR addr = u->Address.lpSockaddr;
-            if(addr->sa_family == AF_INET) {
-                inet_ntop(AF_INET, &((struct sockaddr_in*)addr)->sin_addr,
-                          sourceAddr, sizeof(sourceAddr));
-            } else if(addr->sa_family == AF_INET6) {
-                inet_ntop(AF_INET6, &((struct sockaddr_in6*)addr)->sin6_addr,
-                          sourceAddr, sizeof(sourceAddr));
-            } else {
-                continue;
-            }
-            if(strcmp(sourceAddr, netif) == 0)
-                goto done;
-        }
-    }
-
-    /* Not matching interface found */
-    UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                 "UDP\t| Interface configuration preparation failed "
-                 "(interface %s not found)", netif);
-    return UA_STATUSCODE_BADINTERNALERROR;
-
- done:
-    /* Write the interface index */
-    if(info->ai_family == AF_INET)
-        /* MSVC documentation of struct ip_mreq: To use an interface index of 1
-         * would be the same as an IP address of 0.0.0.1. */
-        req->ipv4.imr_interface.s_addr = htonl(idx);
-#if UA_IPV6
-    else /* if(info->ai_family == AF_INET6) */
-        req->ipv6.ipv6mr_interface = idx;
-#endif
-    return UA_STATUSCODE_GOOD;
-}
-
-#else
 
 static UA_StatusCode
 setMulticastInterface(const char *netif, struct addrinfo *info,
@@ -198,7 +126,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
         if(ifa->ifa_addr->sa_family != info->ai_family)
             continue;
 
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__linux__)
+#if defined(__linux__)
         idx = UA_if_nametoindex(ifa->ifa_name);
         if(idx == 0)
             continue;
@@ -250,7 +178,6 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif /* UA_ARCHITECTURE_WIN32 */
 
 static UA_StatusCode
 setupMulticastRequest(UA_FD socket, MulticastRequest *req, const UA_KeyValueMap *params,
@@ -350,16 +277,9 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
     hints.ai_socktype = SOCK_DGRAM;
     int error = UA_getaddrinfo(hostname, portStr, &hints, info);
     if(error != 0) {
-#ifdef UA_ARCHITECTURE_WIN32
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "UDP\t| Lookup of %s failed with error %d - %s",
-                           hostname, error, errno_str));
-#else
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "UDP\t| Lookup of %s failed with error %s",
                        hostname, gai_strerror(error));
-#endif
         return -1;
     }
     return 1;
@@ -563,11 +483,7 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
     UA_RESET_ERRNO;
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
-#ifdef UA_ARCHITECTURE_WIN32
-        result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
-                            (const char *)&req.ipv4.imr_interface,
-                            sizeof(struct in_addr));
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
         result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             &req.ipv4.imr_interface, sizeof(struct in_addr));
 #else
@@ -696,15 +612,9 @@ UDP_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
     /* Receive */
     UA_RESET_ERRNO;
     struct sockaddr_storage source;
-#ifndef UA_ARCHITECTURE_WIN32
     socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
     ssize_t ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, response.length,
                            MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
-#else
-    int sourceSize = (int)sizeof(struct sockaddr_storage);
-    int ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
-                       MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
-#endif
 
     /* Receive has failed */
     if(ret <= 0) {
@@ -813,34 +723,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
 
     /* Bind socket to the address */
     UA_RESET_ERRNO;
-#ifdef UA_ARCHITECTURE_WIN32
-    /* On windows we need to bind the socket to INADDR_ANY before registering
-     * for the multicast group */
-    int ret = -1;
-    if(mc != MULTICASTTYPE_NONE) {
-        if(info->ai_family == AF_INET) {
-            struct sockaddr_in *orig = (struct sockaddr_in *)info->ai_addr;
-            struct sockaddr_in sin;
-            memset(&sin, 0, sizeof(sin));
-            sin.sin_family = AF_INET;
-            sin.sin_addr.s_addr = htonl(INADDR_ANY);
-            sin.sin_port = orig->sin_port;
-            ret = bind(listenSocket, (struct sockaddr*)&sin, sizeof(sin));
-        } else if(info->ai_family == AF_INET6) {
-            struct sockaddr_in6 *orig = (struct sockaddr_in6 *)info->ai_addr;
-            struct sockaddr_in6 sin6;
-            memset(&sin6, 0, sizeof(sin6));
-            sin6.sin6_family = AF_INET6;
-            sin6.sin6_addr = in6addr_any;
-            sin6.sin6_port = orig->sin6_port;
-            ret = bind(listenSocket, (struct sockaddr*)&sin6, sizeof(sin6));
-        }
-    } else {
-        ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
-    }
-#else
     int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
-#endif
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {
@@ -970,17 +853,9 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     UA_RESET_ERRNO;
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-#ifdef UA_ARCHITECTURE_WIN32
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-           UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
-                          UA_LOGCATEGORY_NETWORK,
-                          "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
-                          hostname, port, errno_str));
-#else
         UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
                        hostname, port, gai_strerror(retcode));
-#endif
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 

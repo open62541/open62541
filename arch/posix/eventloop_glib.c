@@ -5,9 +5,7 @@
 
 #include "eventloop_glib.h"
 
-#if defined(UA_ENABLE_EVENTLOOP_GLIB) && \
-    ((defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || \
-     defined(UA_ARCHITECTURE_WIN32))
+#if defined(UA_ENABLE_EVENTLOOP_GLIB) && defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 
 /**
  * GLib EventLoop
@@ -529,14 +527,12 @@ UA_EventLoop_new_GLib(const UA_Logger *logger, void *glibMainContext) {
     el->eventLoop.logger = logger;
 
     /* Initialize the clock source to the default */
-#if defined(UA_ARCHITECTURE_POSIX)
     el->clockSource = CLOCK_REALTIME;
 # ifdef CLOCK_MONOTONIC_RAW
     el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
 # else
     el->clockSourceMonotonic = CLOCK_MONOTONIC;
 # endif
-#endif
 
     /* Reference the GMainContext this EventLoop attaches to. If none is
      * given, use the process-wide default context -- the same context that
@@ -580,4 +576,4 @@ UA_EventLoop_new_GLib(const UA_Logger *logger, void *glibMainContext) {
     return &el->eventLoop;
 }
 
-#endif /* UA_ENABLE_EVENTLOOP_GLIB && (POSIX || WIN32) */
+#endif /* UA_ENABLE_EVENTLOOP_GLIB && UA_ARCHITECTURE_POSIX && !UA_ARCHITECTURE_LWIP */

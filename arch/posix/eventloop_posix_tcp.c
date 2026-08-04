@@ -9,7 +9,7 @@
 #include "open62541/types.h"
 #include "eventloop_posix.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 
 /* Configuration parameters */
 #define TCP_MANAGERPARAMS 2
@@ -202,14 +202,8 @@ TCP_delayedClose(void *application, void *context) {
 static int
 getSockError(TCP_FD *conn) {
     int error = 0;
-#ifndef UA_ARCHITECTURE_WIN32
     socklen_t errlen = sizeof(int);
     int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
-#else
-    int errlen = (int)sizeof(int);
-    int err = UA_getsockopt((SOCKET)conn->rfd.fd, SOL_SOCKET, SO_ERROR,
-                         (char*)&error, &errlen);
-#endif
     return (err == 0) ? error : err;
 }
 
@@ -277,13 +271,8 @@ TCP_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
 
     /* Receive */
     UA_RESET_ERRNO;
-#ifndef UA_ARCHITECTURE_WIN32
     ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
                           response.length, MSG_DONTWAIT);
-#else
-    int ret = UA_recv(conn->rfd.fd, (char*)response.data,
-                      response.length, MSG_DONTWAIT);
-#endif
 
     /* Receive has failed */
     if(ret <= 0) {

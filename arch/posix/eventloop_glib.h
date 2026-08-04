@@ -8,9 +8,7 @@
 
 #include "eventloop_posix.h"
 
-#if defined(UA_ENABLE_EVENTLOOP_GLIB) && \
-    ((defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || \
-     defined(UA_ARCHITECTURE_WIN32))
+#if defined(UA_ENABLE_EVENTLOOP_GLIB) && defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 
 #include <glib.h>
 
@@ -21,6 +19,6 @@ _UA_BEGIN_DECLS
 
 _UA_END_DECLS
 
-#endif /* UA_ENABLE_EVENTLOOP_GLIB && (POSIX || WIN32) */
+#endif /* UA_ENABLE_EVENTLOOP_GLIB && UA_ARCHITECTURE_POSIX && !UA_ARCHITECTURE_LWIP */
 
 #endif /* UA_EVENTLOOP_GLIB_H_ */

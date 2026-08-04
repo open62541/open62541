@@ -9,7 +9,7 @@
 #include "eventloop_posix.h"
 #include <signal.h>
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 
 #define UA_MAX_INTERRUPT_MANAGERS 8
 #ifdef NSIG
@@ -46,11 +46,7 @@ static UA_atomic(uintptr_t) interruptWriteFDs[UA_INTERRUPT_SIGNAL_SLOTS][UA_MAX_
 static UA_atomic(uintptr_t) signalRefCounts[UA_INTERRUPT_SIGNAL_SLOTS];
 
 /* Keep the previous action to restore when we deregister a signal */
-#ifdef UA_ARCHITECTURE_WIN32
-static void (*previousActions[UA_INTERRUPT_SIGNAL_SLOTS])(int);
-#else
 static struct sigaction previousActions[UA_INTERRUPT_SIGNAL_SLOTS];
-#endif
 
 static UA_Boolean
 signalIsSupported(int signal) {
@@ -193,10 +189,6 @@ triggerPOSIXInterruptEvent(int sig) {
     if(!signalIsSupported(sig))
         return;
 
-#ifdef UA_ARCHITECTURE_WIN32
-    /* On Win32 the signal handler is one-shot and must be re-armed. */
-    signal(sig, triggerPOSIXInterruptEvent);
-#endif
 
     int savedErrno = errno;
     unsigned char signalMarker = (unsigned char)sig;
@@ -286,22 +278,6 @@ activateSignal(UA_RegisteredSignal *rs) {
                 "Interrupt\t| Registering the handler for signal %i", rs->signal);
 
     /* Install the interrupt handler */
-#ifdef UA_ARCHITECTURE_WIN32
-    UA_RESET_ERRNO;
-    void (*prev)(int) = signal(rs->signal, triggerPOSIXInterruptEvent);
-    if(prev != SIG_ERR) {
-        /* Store previous action with non-NULL value.
-         * Use 0x01 to indicate no previous action was stored. */
-        if(prev == NULL)
-            prev = (void (*)(int))0x01;
-        previousActions[rs->signal] = prev;
-    } else {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                        "Interrupt\t| Could not register the signal handler: %s",
-                        errno_str));
-    }
-#else
     struct sigaction previousAction;
     struct sigaction action;
     memset(&action, 0, sizeof(action));
@@ -321,7 +297,6 @@ activateSignal(UA_RegisteredSignal *rs) {
                         "Interrupt\t| Could not register the signal handler: %s",
                         errno_str));
     }
-#endif
 
     /* Subtract UINT16_MAX - 1 for the final refcount */
     for(;;) {
@@ -387,18 +362,11 @@ deactivateSignal(UA_RegisteredSignal *rs) {
                 "Interrupt\t| Deregistering the handler for signal %i", rs->signal);
 
     /* Deactivate the signal, reset to the previous action */
-#ifdef UA_ARCHITECTURE_WIN32
-    void (*prev)(int) = previousActions[rs->signal];
-    if((uintptr_t)prev == (uintptr_t)0x01)
-        prev = NULL;
-    signal(rs->signal, prev);
-#else
     struct sigaction prev = previousActions[rs->signal];
     uintptr_t *prevContent = (uintptr_t*)&prev;
     if(*prevContent == 0x01)
         *prevContent = 0x0;
     sigaction(rs->signal, &prev, NULL);
-#endif
 
     /* Zero out the previousAction. So an activateSignal that has already
      * started knows we are done. */
