@@ -5,12 +5,15 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_util_internal.h"
+#include <open62541/types.h>
 
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
 
 #ifdef UA_DEBUG_DUMP_PKGS
+void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
+
 void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
     printf("--------------- HEX Package Start ---------------\n");
     char ascii[17];
