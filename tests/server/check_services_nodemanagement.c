@@ -1586,12 +1586,9 @@ START_TEST(AddReference_TargetNodeUnknown_rejected) {
     ck_assert_uint_eq(st, UA_STATUSCODE_BADTARGETNODEIDINVALID);
 } END_TEST
 
-START_TEST(AddReference_SourceEqualsTarget_isNoop) {
-    /* src/server/ua_services_nodemanagement.c:2300-2306:
-     *   if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
-     *     *retval = UA_STATUSCODE_GOOD;
-     *     return;
-     * The function returns GOOD without doing anything. */
+START_TEST(AddReference_SourceEqualsTarget_rejected) {
+    /* Local self-references must not return Good without adding a reference.
+     * Existing node -> BadInvalidSelfReference after existence validation. */
     UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId sourceId = addObjInstance(objectsNodeId, "refSrcET");
     UA_NodeId refTypeId = registerRefType("HasEqTgt", "IsEqTgtOf");
@@ -1603,7 +1600,23 @@ START_TEST(AddReference_SourceEqualsTarget_isNoop) {
 
     UA_StatusCode st = UA_Server_addReference(
         server, sourceId, refTypeId, targetExpId, true);
-    ck_assert_uint_eq(st, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADINVALIDSELFREFERENCE);
+} END_TEST
+
+START_TEST(AddReference_SourceEqualsTarget_unknownNode_rejected) {
+    /* Self-reference on a non-existent NodeId must report the missing node,
+     * not Good (issue #8114). */
+    UA_NodeId missingId = UA_NODEID_NUMERIC(1, 77777);
+    UA_NodeId refTypeId = registerRefType("HasEqMiss", "IsEqMissOf");
+
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId = missingId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex = 0;
+
+    UA_StatusCode st = UA_Server_addReference(
+        server, missingId, refTypeId, targetExpId, true);
+    ck_assert_uint_eq(st, UA_STATUSCODE_BADSOURCENODEIDINVALID);
 } END_TEST
 
 START_TEST(DeleteReference_InvalidRefType_rejected) {
@@ -1989,7 +2002,8 @@ int main(void) {
     tcase_add_test(tc_addreferences, AddReference_NonRefTypeAsRefType_rejected);
     tcase_add_test(tc_addreferences, AddReference_SourceNodeUnknown_rejected);
     tcase_add_test(tc_addreferences, AddReference_TargetNodeUnknown_rejected);
-    tcase_add_test(tc_addreferences, AddReference_SourceEqualsTarget_isNoop);
+    tcase_add_test(tc_addreferences, AddReference_SourceEqualsTarget_rejected);
+    tcase_add_test(tc_addreferences, AddReference_SourceEqualsTarget_unknownNode_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_InvalidRefType_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_SourceNodeUnknown_rejected);
     tcase_add_test(tc_addreferences, DeleteReference_BidirectionalSecondDirection);
