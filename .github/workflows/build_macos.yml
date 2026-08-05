@@ -12,6 +12,11 @@ jobs:
           - name: "Build default options"
             cmake_options:
 
+          - name: "Build & Unit Tests"
+            cmd_deps: brew install check pkg-config
+            cmake_options: -DUA_BUILD_UNIT_TESTS=ON
+            run_tests: true
+
           - name: "Build shared library"
             cmake_options: -DBUILD_SHARED_LIBS=ON
 
@@ -44,3 +49,7 @@ jobs:
           rm -rf build
           cmake -B build ${{matrix.build.cmake_options}}
           cmake --build build -j $(sysctl -n hw.activecpu)
+      - name: Run unit tests
+        if: matrix.build.run_tests == true
+        run: |
+          ctest --test-dir build --output-on-failure

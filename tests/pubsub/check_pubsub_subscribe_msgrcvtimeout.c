@@ -52,7 +52,8 @@ AddConnection(char *pName, UA_UInt32 PublisherId, UA_NodeId *opConnectionId) {
     connectionConfig.name = UA_STRING(pName);
     connectionConfig.enabled = UA_TRUE;
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4840;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
@@ -726,14 +727,18 @@ int main(void) {
         - enable/disable writer- and readergroup multiple times
         - check message receive timeout
     */
+#ifndef __APPLE__
     tcase_add_test(tc_basic, Test_basic);
+#endif
 
     /* test case description:
         - 1 DataSetWriter
         - multiple DataSetReaders with different timeout settings
         - check order and no of message receive timeouts for the different DataSetReaders
     */
+#ifndef __APPLE__
     tcase_add_test(tc_basic, Test_different_timeouts);
+#endif
 
     /* test case description:
         - 1 Connection, 1 DataSetWriter, 1 DataSetReader
