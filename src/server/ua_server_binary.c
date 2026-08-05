@@ -24,7 +24,7 @@
 #include "ua_services.h"
 
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
+void UA_debug_dumpCompleteChunk(UA_Server *const server, uintptr_t connectionId,
                                 UA_ByteString *messageBuffer);
 #endif
 
@@ -733,10 +733,10 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Received a message on a normal connection */
 #ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(message->data, message->length);
+    UA_dump_hex_pkg(msg.data, msg.length);
 #endif
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
-    UA_debug_dumpCompleteChunk(server, channel->connection, message);
+    UA_debug_dumpCompleteChunk(bpm->drv.server, channel->connectionId, &msg);
 #endif
 
     UA_EventLoop *el = bpm->drv.server->config.eventLoop;

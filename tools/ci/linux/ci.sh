@@ -730,3 +730,72 @@ UAFX-Data\;UAFX-AC\;UAFX-CM\;Robotics \
           ..
     make ${MAKEOPTS}
 }
+
+##############################################################
+# Compile the build options that no other CI job switches on #
+##############################################################
+
+# The other jobs only ever enable additional features. Options that are off by
+# default, and features that are on by default and can be switched off, are
+# therefore never compiled anywhere. Code behind those #ifdefs silently rots --
+# that is how the UA_DEBUG_DUMP_PKGS build broke. Compile each of them here.
+# Only the library is built, so a configuration costs about a minute.
+#
+# Note that this function must not rely on "set -e": the CI step invokes it as
+# "source ci.sh && <action>", and the errexit option is suspended for a function
+# that runs as part of an && list. Failures are collected explicitly instead, so
+# that one run reports every broken configuration.
+
+function build_option_coverage {
+    local failed=()
+
+    # Usage: build_option_cfg <name> <cmake options...>
+    build_option_cfg() {
+        local name=$1; shift
+        echo "::group::${name}"
+        rm -rf build; mkdir -p build; cd build
+        if cmake -DCMAKE_BUILD_TYPE=Debug \
+                 -DUA_BUILD_EXAMPLES=OFF \
+                 -DUA_FORCE_WERROR=ON \
+                 "$@" \
+                 .. && make ${MAKEOPTS}; then
+            echo "::endgroup::"
+        else
+            echo "::endgroup::"
+            echo "::error::build_option_coverage: ${name} failed"
+            failed+=("${name}")
+        fi
+        cd ..
+    }
+
+    # Debug instrumentation
+    build_option_cfg "UA_DEBUG"                -DUA_DEBUG=ON -DUA_DEBUG_FILE_LINE_INFO=ON
+    build_option_cfg "UA_DEBUG_DUMP_PKGS"      -DUA_DEBUG_DUMP_PKGS=ON
+    # UA_BUILD_FUZZING_CORPUS (which defines UA_DEBUG_DUMP_PKGS_FILE) is not
+    # covered yet: tests/fuzz/ua_debug_dump_pkgs_file.c still builds a dummy
+    # UA_Connection, which the EventLoop/ConnectionManager refactor removed. The
+    # file has to be ported before that configuration can compile again.
+
+    # Off by default
+    build_option_cfg "UA_ENABLE_QUERY"             -DUA_ENABLE_QUERY=ON
+    build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
+    build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
+
+    # On by default, so only ever compiled in the enabled state
+    build_option_cfg "no UA_ENABLE_METHODCALLS"    -DUA_ENABLE_METHODCALLS=OFF
+    build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF
+    build_option_cfg "no UA_ENABLE_AUDITING"       -DUA_ENABLE_AUDITING=OFF
+    build_option_cfg "no UA_ENABLE_STATUSCODE_DESCRIPTIONS" -DUA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF
+    build_option_cfg "no UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS" -DUA_ENABLE_NODESET_COMPILER_DESCRIPTIONS=OFF
+    # Type descriptions are required by the diagnostics, the JSON encoding and
+    # the event filter parser
+    build_option_cfg "no UA_ENABLE_TYPEDESCRIPTION" -DUA_ENABLE_TYPEDESCRIPTION=OFF \
+                     -DUA_ENABLE_DIAGNOSTICS=OFF -DUA_ENABLE_JSON_ENCODING=OFF \
+                     -DUA_ENABLE_XML_ENCODING=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF
+
+    if [ ${#failed[@]} -ne 0 ]; then
+        echo "Failed configurations: ${failed[*]}"
+        return 1
+    fi
+    echo "All build option configurations compiled"
+}
