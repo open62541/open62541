@@ -1008,6 +1008,13 @@ if(UA_ENABLE_DRIVER_GDS_RECEIVER)
 endif()
 
 if(UA_ENABLE_RBAC)
+    # RBAC uses the well-known TrustedApplication role and the matching
+    # IdentityCriteriaType value. Both are missing from tools/schema, which is
+    # an older revision than the ua-nodeset submodule used for FULL.
+    # TODO: lift the restriction by aligning tools/schema with that revision.
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "RBAC requires UA_NAMESPACE_ZERO=FULL")
+    endif()
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.h)
@@ -1056,6 +1063,14 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
+endif()
+
+if(UA_ENABLE_DIAGNOSTICS)
+    # ua_server_ns0_diagnostics.c looks up struct members by name via
+    # UA_DataType_getStructMember, which only exists with type descriptions
+    if(NOT UA_ENABLE_TYPEDESCRIPTION)
+        message(FATAL_ERROR "Diagnostics require type descriptions to be enabled")
+    endif()
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
