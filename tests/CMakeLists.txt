@@ -75,8 +75,12 @@ endif()
 #############################
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
-if (MSVC)
-    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
+# Multi-config generators (Visual Studio, Xcode, Ninja Multi-Config) place the
+# binaries in a per-config subdirectory. Resolved at test time via $<CONFIG>,
+# so the tests work for every configuration in the build tree.
+get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(_isMultiConfig)
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/$<CONFIG>)
 else()
     set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
@@ -143,6 +147,8 @@ if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     endif()
 endif()
 macro(add_test_valgrind TEST_NAME)
+    # The NAME/COMMAND signature of add_test() is required so that the
+    # $<CONFIG> generator expression in TESTS_BINARY_DIR is resolved
     if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
         if(MSVC)
             set(TEST_COMMAND drmemory -batch -exit_code_if_errors 1
@@ -158,9 +164,9 @@ macro(add_test_valgrind TEST_NAME)
         set(TEST_COMMAND ${ARGN})
     endif()
     if(UA_TEST_WRAPPER)
-        add_test(${TEST_NAME} ${UA_TEST_WRAPPER} ${TEST_LAUNCHER} ${TEST_COMMAND})
+        add_test(NAME ${TEST_NAME} COMMAND ${UA_TEST_WRAPPER} ${TEST_LAUNCHER} ${TEST_COMMAND})
     else()
-        add_test(${TEST_NAME} ${TEST_LAUNCHER} ${TEST_COMMAND})
+        add_test(NAME ${TEST_NAME} COMMAND ${TEST_LAUNCHER} ${TEST_COMMAND})
     endif()
     unset(TEST_COMMAND)
     if(UA_BUILD_FUZZING_CORPUS)
@@ -172,7 +178,7 @@ endmacro()
 
 macro(add_test_no_valgrind TEST_NAME)
     if(NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
-        add_test(${TEST_NAME} ${ARGN})
+        add_test(NAME ${TEST_NAME} COMMAND ${ARGN})
     endif()
     if(UA_BUILD_FUZZING_CORPUS)
         target_sources(check_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
