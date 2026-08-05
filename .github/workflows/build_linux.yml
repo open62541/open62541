@@ -88,6 +88,9 @@ jobs:
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
+          - name: "Build Option Coverage"
+            cmd_action: build_option_coverage
+
         include:          
           # Clang builds for specific Ubuntu versions
           - os: ubuntu-22.04
