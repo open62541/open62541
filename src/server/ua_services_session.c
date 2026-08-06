@@ -1307,8 +1307,13 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     memset(&ctx, 0, sizeof(ctx));
     const UA_DataType *rbacTokenType = req->userIdentityToken.content.decoded.type;
     ctx.isAnonymous = (rbacTokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+    /* Per Part 18 §4.4.3 TrustedApplication: the session shall use at least a
+     * signed communication channel (Sign or SignAndEncrypt) and the client
+     * application instance certificate must have been validated. A Sign-only
+     * channel carries a validated remote certificate, so it qualifies. */
     ctx.trustedApplication = (channel->securityPolicy != NULL &&
-        channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+        (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+         channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) &&
         channel->remoteCertificate.length > 0);
     if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *ut = (const UA_UserNameIdentityToken*)
