@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <check.h>
 
+#ifdef UA_ARCHITECTURE_WIN32
+# define UA_TEST_EVENTLOOP_NEW UA_EventLoop_new_WIN32
+# define UA_TEST_TCP_MANAGER_NEW UA_ConnectionManager_new_WIN32_TCP
+#else
+# define UA_TEST_EVENTLOOP_NEW UA_EventLoop_new_POSIX
+# define UA_TEST_TCP_MANAGER_NEW UA_ConnectionManager_new_POSIX_TCP
+#endif
+
 static UA_EventLoop *el;
 static UA_ConnectionManager *cm;
 static unsigned connCount;
@@ -25,8 +33,8 @@ static void setupEL(void) {
     cm = UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcpCM"));
     el->registerEventSource(el, &cm->eventSource);
 #elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    el = UA_TEST_EVENTLOOP_NEW(UA_Log_Stdout);
+    cm = UA_TEST_TCP_MANAGER_NEW(UA_STRING("tcpCM"));
     /* Set up the TCP EventLoop parameters */
     UA_UInt32 maxSockets = 2; /* Max number of server sockets (default: 0 -> unbounded) */
     UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),

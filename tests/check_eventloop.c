@@ -10,6 +10,12 @@
 #include <stdlib.h>
 #include <check.h>
 
+#ifdef UA_ARCHITECTURE_WIN32
+# define UA_TEST_EVENTLOOP_NEW UA_EventLoop_new_WIN32
+#else
+# define UA_TEST_EVENTLOOP_NEW UA_EventLoop_new_POSIX
+#endif
+
 #define N_EVENTS 10000
 
 static UA_EventLoop *el;
@@ -36,7 +42,7 @@ START_TEST(benchmarkTimer) {
 #if defined(UA_ARCHITECTURE_LWIP)
     el = UA_EventLoop_new_LWIP(NULL, NULL);
 #elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
-    el = UA_EventLoop_new_POSIX(NULL);
+    el = UA_TEST_EVENTLOOP_NEW(NULL);
 #else
 #error Add other EventLoop implementations here
 #endif

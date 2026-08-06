@@ -8,6 +8,7 @@
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "server/ua_server_internal.h"
+#include "server/ua_discovery.h"
 #include "client/ua_client_internal.h"
 #include "../encryption/certificates.h"
 
@@ -181,8 +182,31 @@ teardown_register(void) {
     UA_Server_delete(server_register);
 }
 
+/* The LDS can expose a registration before the asynchronous registration
+ * client has received the response and shut down. Drain that request before
+ * advancing the fake clock by the registration timeout. */
 static void
-registerServer(void) {
+waitForRegisterRequestCompletion(void) {
+    *running_register = false;
+    THREAD_JOIN(server_thread_register);
+
+    UA_DiscoveryManager *dm =
+        (UA_DiscoveryManager*)server_register->discoveryDriver;
+    for(;;) {
+        UA_Boolean pending = false;
+        for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++)
+            pending |= (dm->registerRequests[i].client != NULL);
+        if(!pending)
+            break;
+        UA_Server_run_iterate(server_register, true);
+    }
+
+    *running_register = true;
+    THREAD_CREATE(server_thread_register, serverloop_register);
+}
+
+static UA_StatusCode
+beginRegisterServerStopped(void) {
     /* Load certificate and private key */
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
@@ -198,14 +222,20 @@ registerServer(void) {
     *running_register = false;
     THREAD_JOIN(server_thread_register);
 
-    UA_StatusCode res =
-        UA_Server_registerDiscovery(server_register, &cc,
-                                    UA_STRING("opc.tcp://localhost:4840"),
-                                    UA_STRING_NULL);
+    return UA_Server_registerDiscovery(
+        server_register, &cc, UA_STRING("opc.tcp://localhost:4840"),
+        UA_STRING_NULL);
+}
+
+static void
+registerServer(void) {
+    UA_StatusCode res = beginRegisterServerStopped();
+
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequestCompletion();
 }
 
 static void
@@ -233,6 +263,7 @@ unregisterServer(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequestCompletion();
 }
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -275,6 +306,7 @@ Server_register_semaphore(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    waitForRegisterRequestCompletion();
 }
 
 static void
@@ -577,6 +609,126 @@ Client_find_registered(void) {
     return FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 
+static asyncRegisterRequest *
+getPendingRegisterRequest(void) {
+    UA_DiscoveryManager *dm =
+        (UA_DiscoveryManager*)server_register->discoveryDriver;
+    for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
+        if(dm->registerRequests[i].client)
+            return &dm->registerRequests[i];
+    }
+    return NULL;
+}
+
+static UA_Boolean
+hasAsyncResponseType(asyncRegisterRequest *ar, const UA_DataType *responseType) {
+    if(!ar || !ar->client)
+        return false;
+    AsyncServiceCall *ac;
+    LIST_FOREACH(ac, &ar->client->asyncServiceCalls, pointers) {
+        if(ac->responseType == responseType)
+            return true;
+    }
+    return false;
+}
+
+/* Stop immediately after the LDS has handled RegisterServer2. Its response can
+ * already be queued in IOCP, but has not been dispatched by the registering
+ * server's event loop. */
+static asyncRegisterRequest *
+driveToPendingRegisterResponse(void) {
+    for(size_t i = 0; i < 1000; i++) {
+        UA_Server_run_iterate(server_register, true);
+        asyncRegisterRequest *ar = getPendingRegisterRequest();
+        if(!hasAsyncResponseType(
+               ar, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]))
+            continue;
+        if(Client_find_registered())
+            return ar;
+    }
+    return NULL;
+}
+
+static UA_Boolean
+drainRegisterRequestsStopped(void) {
+    for(size_t i = 0; i < 2000; i++) {
+        if(!getPendingRegisterRequest())
+            return true;
+        UA_Server_run_iterate(server_register, true);
+    }
+    return false;
+}
+
+START_TEST(Server_registerInFlightTimeoutCleanup) {
+    UA_StatusCode beginResult = beginRegisterServerStopped();
+    asyncRegisterRequest *ar = NULL;
+    if(beginResult == UA_STATUSCODE_GOOD)
+        ar = driveToPendingRegisterResponse();
+    UA_Boolean reachedPendingResponse = (ar != NULL);
+
+    /* Keep the already-queued RegisterServer2 response pending. The first
+     * clock jump expires RegisterServer2 and starts the RegisterServer
+     * fallback. With the LDS stopped, the second jump expires the fallback. */
+    *running_lds = false;
+    THREAD_JOIN(server_thread_lds);
+    UA_Boolean register2TimedOut = false;
+    if(reachedPendingResponse) {
+        UA_fakeSleep(10001);
+        UA_Server_run_iterate(server_register, false);
+        ar = getPendingRegisterRequest();
+        register2TimedOut = (ar && !ar->register2);
+        if(hasAsyncResponseType(
+               ar, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]))
+            UA_fakeSleep(10001);
+    }
+    UA_Boolean drained =
+        reachedPendingResponse && drainRegisterRequestsStopped();
+
+    *running_lds = true;
+    THREAD_CREATE(server_thread_lds, serverloop_lds);
+    *running_register = true;
+    THREAD_CREATE(server_thread_register, serverloop_register);
+
+    ck_assert_uint_eq(beginResult, UA_STATUSCODE_GOOD);
+    ck_assert(reachedPendingResponse);
+    ck_assert(register2TimedOut);
+    ck_assert(drained);
+
+    /* Cleanup must leave the request slots and IOCP connection reusable. */
+    registerServer();
+}
+END_TEST
+
+START_TEST(Server_registerInFlightCancelCleanup) {
+    UA_StatusCode beginResult = beginRegisterServerStopped();
+    asyncRegisterRequest *ar = NULL;
+    if(beginResult == UA_STATUSCODE_GOOD)
+        ar = driveToPendingRegisterResponse();
+    UA_Boolean reachedPendingResponse = (ar != NULL);
+    UA_StatusCode cancelResult = UA_STATUSCODE_BADINTERNALERROR;
+    if(reachedPendingResponse) {
+        /* This is the state used after the registration response callback has
+         * requested asynchronous SecureChannel shutdown. */
+        ar->shutdown = true;
+        cancelResult = UA_Client_disconnectSecureChannelAsync(ar->client);
+    }
+    UA_Boolean drained =
+        reachedPendingResponse && drainRegisterRequestsStopped();
+
+    *running_register = true;
+    THREAD_CREATE(server_thread_register, serverloop_register);
+
+    ck_assert_uint_eq(beginResult, UA_STATUSCODE_GOOD);
+    ck_assert(reachedPendingResponse);
+    ck_assert_uint_eq(cancelResult, UA_STATUSCODE_GOOD);
+    ck_assert(drained);
+
+    /* A response/cancellation crossing must clean up exactly once and leave
+     * the discovery manager usable. */
+    registerServer();
+}
+END_TEST
+
 START_TEST(Server_new_delete) {
     UA_Server *pServer = UA_Server_newForUnitTest();
     configure_lds_server(pServer);
@@ -694,6 +846,15 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register_find, setup_register, teardown_register);
     tcase_add_test(tc_register_find, Server_registerFindServers);
     suite_add_tcase(s,tc_register_find);
+
+    TCase *tc_register_races = tcase_create("RegisterServer async cleanup");
+    tcase_add_unchecked_fixture(tc_register_races, setup_lds, teardown_lds);
+    tcase_add_unchecked_fixture(tc_register_races,
+                                setup_register, teardown_register);
+    tcase_set_timeout(tc_register_races, 30);
+    tcase_add_test(tc_register_races, Server_registerInFlightTimeoutCleanup);
+    tcase_add_test(tc_register_races, Server_registerInFlightCancelCleanup);
+    suite_add_tcase(s, tc_register_races);
 
     // register server again, then wait for timeout and auto unregister
     TCase *tc_register_timeout = tcase_create("RegisterServer timeout");
