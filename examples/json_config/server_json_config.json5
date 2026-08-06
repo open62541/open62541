@@ -223,6 +223,48 @@
   //   }
   // ],
 
+  // Role-Based Access Control (UA_ENABLE_RBAC). Roles defined here are
+  // registered at startup and are protected: they cannot be removed through
+  // the RoleSet RemoveRole Method or UA_Server_removeRole.
+  // rbac: {
+  //   // Nodes without explicit RolePermissions are fully permissive when this
+  //   // is true. Set to false to actually enforce the configured permissions.
+  //   allPermissionsForAnonymous: false,
+  //   roles: [
+  //     {
+  //       // Optional; a NodeId is assigned automatically when omitted.
+  //       roleId: "ns=1;i=5000",
+  //       roleName: "Operator",
+  //       roleNameNamespaceIndex: 1,
+  //       // criteriaType: UserName | Thumbprint | Role | GroupId | Anonymous |
+  //       //               AuthenticatedUser | Application | X509Subject |
+  //       //               TrustedApplication
+  //       identityMappingRules: [
+  //         { criteriaType: "UserName", criteria: "alice" },
+  //         { criteriaType: "GroupId", criteria: "operators" }
+  //       ],
+  //       // An empty list combined with Exclude=true means "no restriction".
+  //       applicationsExclude: false,
+  //       applications: ["urn:open62541.client.application"],
+  //       endpointsExclude: true,
+  //       endpoints: [],
+  //       // Part 18 4.4.1: only a Role with CustomConfiguration=true may be
+  //       // granted while its Identities list is empty.
+  //       customConfiguration: false
+  //     }
+  //   ],
+  //   // Preset RolePermission sets referenced by nodes in the address space.
+  //   // "permissions" is the PermissionType bitmask from Part 3.
+  //   rolePermissionPresets: [
+  //     {
+  //       rolePermissions: [
+  //         { roleId: "ns=1;i=5000", permissions: 3 },
+  //         { roleId: "i=15644", permissions: 7 }
+  //       ]
+  //     }
+  //   ]
+  // },
+
   // PKI store folder used by the default certificate verification plugin.
   // pkiFolder: "./pki",
 }
