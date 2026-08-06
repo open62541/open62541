@@ -713,6 +713,45 @@ roleSetHasComponent(UA_NodeId targetId) {
     return found;
 }
 
+static UA_StatusCode
+findRoleChild(UA_NodeId parentId, const char *name, UA_NodeClass nodeClass,
+              UA_UInt32 referenceTypeId, UA_NodeId *childId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = nodeClass;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        UA_String want = UA_STRING((char*)(uintptr_t)name);
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_String_equal(&br.references[i].browseName.name, &want)) {
+                res = UA_NodeId_copy(&br.references[i].nodeId.nodeId, childId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+static UA_StatusCode
+findRoleProperty(UA_NodeId parentId, const char *name, UA_NodeId *childId) {
+    return findRoleChild(parentId, name, UA_NODECLASS_VARIABLE,
+                         UA_NS0ID_HASPROPERTY, childId);
+}
+
+static UA_StatusCode
+findRoleMethod(UA_NodeId parentId, const char *name, UA_NodeId *childId) {
+    return findRoleChild(parentId, name, UA_NODECLASS_METHOD,
+                         UA_NS0ID_HASCOMPONENT, childId);
+}
+
 /* A role added/removed through the C API is mirrored under the RoleSet, the
  * same way other subsystems reflect their config in NS0. */
 START_TEST(addRole_cApiPublishesRoleObject) {
@@ -2830,35 +2869,19 @@ END_TEST
 #endif /* UA_ENABLE_AUDITING */
 
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
-/* Tripwire for the known limitation documented in the ua_server_rbac.c banner:
- * the RoleType Methods (AddIdentity, RemoveIdentity, AddApplication, ...) are
- * bound to the RoleType NodeIds, and the RoleType declares them Optional, so a
- * Role instance has no Method children and the Call service cannot reach them.
- *
- * Consequence: the Bad_AlreadyExists duplicate check in addIdentityMethodCallback
- * (Part 18 §4.4.5) is implemented but not reachable over the wire. When the
- * Methods are instantiated per Role, this test must be replaced by one that
- * asserts Good for the first call and Bad_AlreadyExists for a repeated rule. */
-START_TEST(roleTypeInstanceMethods_notReachable) {
+/* The RoleType methods are reachable over the wire on concrete Role objects.
+ * A client may pass the RoleType method NodeId; the Call service resolves the
+ * same-BrowseName Method child on the Role instance before dispatch. */
+START_TEST(roleTypeInstanceMethods_addIdentity) {
     UA_NodeId roleId;
     ck_assert_uint_eq(addTestRole("DupIdentityRole", 1, 62200, &roleId),
                       UA_STATUSCODE_GOOD);
 
-    /* The Role instance has the three Properties but no Methods */
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = roleId;
-    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-    bd.includeSubtypes = true;
-    bd.nodeClassMask = UA_NODECLASS_METHOD;
-    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
-    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
-    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(br.referencesSize, 0);
-    UA_BrowseResult_clear(&br);
+    UA_NodeId instanceMethodId = UA_NODEID_NULL;
+    ck_assert_uint_eq(findRoleMethod(roleId, "AddIdentity", &instanceMethodId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&instanceMethodId);
 
-    /* Calling the type-level Method on the instance is rejected */
     UA_IdentityMappingRuleType rule;
     UA_IdentityMappingRuleType_init(&rule);
     rule.criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
@@ -2877,7 +2900,19 @@ START_TEST(roleTypeInstanceMethods_notReachable) {
     req.inputArgumentsSize = 1;
 
     UA_CallMethodResult res = UA_Server_call(server, &req);
-    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADMETHODINVALID);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(fetched.identityMappingRulesSize, 1);
+    ck_assert(UA_IdentityMappingRuleType_equal(&fetched.identityMappingRules[0],
+                                               &rule));
+    UA_Role_clear(&fetched);
+
+    res = UA_Server_call(server, &req);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADALREADYEXISTS);
     UA_CallMethodResult_clear(&res);
 
     /* rule.criteria is a static literal - do not UA_String_clear it */
@@ -3082,7 +3117,7 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityCriteria_groupId);
     tcase_add_test(tc, roleFilters_evaluated);
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
-    tcase_add_test(tc, roleTypeInstanceMethods_notReachable);
+    tcase_add_test(tc, roleTypeInstanceMethods_addIdentity);
 #endif
     suite_add_tcase(s, tc);
     return s;

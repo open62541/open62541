@@ -73,6 +73,38 @@ findPropertyChild(UA_Server *server, const UA_NodeId parentId,
 }
 
 static UA_StatusCode
+findMethodChild(UA_Server *server, const UA_NodeId parentId,
+                const char *name, UA_NodeId *childId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_METHOD;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        UA_String nameStr = UA_STRING((char*)(uintptr_t)name);
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_String_equal(&br.references[i].browseName.name, &nameStr)) {
+                res = UA_NodeId_copy(&br.references[i].nodeId.nodeId, childId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+static UA_StatusCode
+ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
+                      UA_Boolean applyPermissions);
+
+static UA_StatusCode
 readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId,
                    void *sessionContext,
                    const UA_NodeId *nodeId, void *nodeContext,
@@ -288,6 +320,11 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
                                               NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         UA_Server_deleteNode(server, role->roleId, true);
+    if(res == UA_STATUSCODE_GOOD) {
+        res = ensureRoleTypeMethods(server, &role->roleId, true);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_Server_deleteNode(server, role->roleId, true);
+    }
     return res;
 }
 
@@ -671,6 +708,111 @@ removeEndpointMethodCallback(UA_Server *server,
     return res;
 }
 
+static UA_StatusCode
+addRoleManagementPermissions(UA_Server *server, const UA_NodeId *nodeId) {
+    const UA_NodeId secAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    const UA_NodeId publicRoles[] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
+    };
+
+    UA_StatusCode retval =
+        UA_Server_addRolePermissions(server, *nodeId, secAdmin,
+                                     UA_PERMISSIONTYPE_BROWSE |
+                                     UA_PERMISSIONTYPE_CALL,
+                                     false, false);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return retval;
+
+    for(size_t i = 0; i < sizeof(publicRoles) / sizeof(publicRoles[0]); i++) {
+        retval = UA_Server_addRolePermissions(server, *nodeId, publicRoles[i],
+                                              UA_PERMISSIONTYPE_BROWSE,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+addOrBindRoleMethod(UA_Server *server, const UA_NodeId *roleId,
+                    const char *name, UA_MethodCallback callback,
+                    const char *inputName, size_t inputTypeIndex,
+                    UA_Boolean applyPermissions) {
+    UA_NodeId methodId = UA_NODEID_NULL;
+    UA_StatusCode res = findMethodChild(server, *roleId, name, &methodId);
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_Server_setMethodNode_callback(server, methodId, callback);
+    } else if(res == UA_STATUSCODE_BADNOTFOUND) {
+        UA_MethodAttributes attr = UA_MethodAttributes_default;
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", (char*)(uintptr_t)name);
+        attr.executable = true;
+        attr.userExecutable = true;
+
+        UA_Argument inputArgument;
+        UA_Argument_init(&inputArgument);
+        inputArgument.name = UA_STRING((char*)(uintptr_t)inputName);
+        inputArgument.dataType = UA_TYPES[inputTypeIndex].typeId;
+        inputArgument.valueRank = UA_VALUERANK_SCALAR;
+
+        res = UA_Server_addMethodNode(server, UA_NODEID_NULL, *roleId,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                      UA_QUALIFIEDNAME(0, (char*)(uintptr_t)name),
+                                      attr, callback, 1, &inputArgument,
+                                      0, NULL, NULL, &methodId);
+    }
+
+    if(res == UA_STATUSCODE_GOOD && applyPermissions)
+        res = addRoleManagementPermissions(server, &methodId);
+    UA_NodeId_clear(&methodId);
+    return res;
+}
+
+static UA_StatusCode
+ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
+                      UA_Boolean applyPermissions) {
+    if(applyPermissions) {
+        UA_StatusCode res = addRoleManagementPermissions(server, roleId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    struct RoleMethodDef {
+        const char *name;
+        UA_MethodCallback callback;
+        const char *inputName;
+        size_t inputTypeIndex;
+    } methods[] = {
+        {"AddIdentity", addIdentityMethodCallback, "Rule",
+         UA_TYPES_IDENTITYMAPPINGRULETYPE},
+        {"RemoveIdentity", removeIdentityMethodCallback, "Rule",
+         UA_TYPES_IDENTITYMAPPINGRULETYPE},
+        {"AddApplication", addApplicationMethodCallback, "ApplicationUri",
+         UA_TYPES_STRING},
+        {"RemoveApplication", removeApplicationMethodCallback, "ApplicationUri",
+         UA_TYPES_STRING},
+        {"AddEndpoint", addEndpointMethodCallback, "Endpoint",
+         UA_TYPES_ENDPOINTTYPE},
+        {"RemoveEndpoint", removeEndpointMethodCallback, "Endpoint",
+         UA_TYPES_ENDPOINTTYPE}
+    };
+
+    for(size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
+        UA_StatusCode res = addOrBindRoleMethod(server, roleId,
+                                                methods[i].name,
+                                                methods[i].callback,
+                                                methods[i].inputName,
+                                                methods[i].inputTypeIndex,
+                                                applyPermissions);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Restrict the RoleSet Object and the security-sensitive RoleSet/RoleType
  * Methods to the SecurityAdmin Role (OPC UA Part 18). The RoleSet stays
  * browsable for the Anonymous/AuthenticatedUser Roles. Skipped when the NS0
@@ -739,6 +881,30 @@ initRoleSetRolePermissions(UA_Server *server) {
                 return retval;
         }
     }
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = roleSetId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_NONE;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    retval = br.statusCode;
+    if(retval == UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            retval = ensureRoleTypeMethods(server,
+                                           &br.references[i].nodeId.nodeId,
+                                           true);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -837,6 +1003,8 @@ initNS0RBAC(UA_Server *server) {
                                                            customConfigDataSource);
             UA_NodeId_clear(&customConfigId);
         }
+
+        retval |= ensureRoleTypeMethods(server, &rId, false);
     }
 
     /* The method callbacks must be attached to the RoleSet *instance* methods.
