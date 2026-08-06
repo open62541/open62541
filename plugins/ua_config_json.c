@@ -1067,6 +1067,469 @@ skipUnknownItem(ParsingCtx* ctx) {
     skipValueSubtree(ctx);               /* Value's children, if any */
 }
 
+#ifdef UA_ENABLE_RBAC
+
+/* The RBAC configuration structures (UA_Role, UA_RolePermission,
+ * UA_RolePermissionSet) are hand-rolled and not generated OPC UA types, so they
+ * are parsed field by field like the other configuration objects in this file.
+ *
+ * Every array-valued field goes through parseElementArray, which owns the
+ * uniform handling of a repeated key, a non-array value and the cleanup of
+ * partially parsed elements. */
+
+typedef UA_StatusCode (*ParseElementFn)(ParsingCtx *ctx, void *element);
+typedef void (*ClearElementFn)(void *element);
+
+static void *
+arrayElement(void *array, size_t elemSize, size_t index) {
+    return (void*)((uintptr_t)array + (index * elemSize));
+}
+
+static void
+clearElementArray(void *array, size_t arraySize, size_t elemSize,
+                  ClearElementFn clearElement) {
+    if(!array)
+        return;
+    for(size_t i = 0; i < arraySize; i++)
+        clearElement(arrayElement(array, elemSize, i));
+    UA_free(array);
+}
+
+/* Parse an array-valued config field into a freshly allocated array. A value
+ * already parsed for the same key (repeated key) is discarded first, so the
+ * element count can never run ahead of the allocation. */
+static UA_StatusCode
+parseElementArray(ParsingCtx *ctx, const char *fieldName,
+                  void **array, size_t *arraySize, size_t elemSize,
+                  ParseElementFn parseElement, ClearElementFn clearElement) {
+    clearElementArray(*array, *arraySize, elemSize, clearElement);
+    *array = NULL;
+    *arraySize = 0;
+
+    cj5_token tok = nextToken(ctx);
+    if(tok.type != CJ5_TOKEN_ARRAY) {
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                     "The config field '%s' must be a JSON array.", fieldName);
+        skipValueSubtree(ctx);
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    if(tok.size == 0)
+        return UA_STATUSCODE_GOOD; /* Keep NULL for an empty array */
+
+    void *elements = UA_calloc((size_t)tok.size, elemSize);
+    if(!elements)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    size_t size = 0;
+    for(size_t i = 0; i < (size_t)tok.size; i++) {
+        UA_StatusCode res =
+            parseElement(ctx, arrayElement(elements, elemSize, i));
+        if(res != UA_STATUSCODE_GOOD) {
+            clearElementArray(elements, size, elemSize, clearElement);
+            return res;
+        }
+        size++;
+    }
+
+    *array = elements;
+    *arraySize = size;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Parse an IdentityCriteriaType enum from its JSON name (Part 18 §4.4.4).
+ * Falls back to a numeric UInt32 if the value is not a string. */
+static UA_StatusCode
+parseIdentityCriteriaType(ParsingCtx *ctx, UA_IdentityCriteriaType *out) {
+    cj5_token tok = nextToken(ctx);
+    if(tok.type != CJ5_TOKEN_STRING) {
+        /* Numeric fallback */
+        UA_ByteString rawToken = getJsonPart(tok, ctx->json);
+        UA_UInt32 enumValue;
+        UA_StatusCode retval = UA_decodeJson(&rawToken, &enumValue,
+                                             &UA_TYPES[UA_TYPES_UINT32], NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        *out = (UA_IdentityCriteriaType)enumValue;
+        return UA_STATUSCODE_GOOD;
+    }
+    char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    if(!fieldStr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    unsigned int strLen = 0;
+    cj5_error_code er = cj5_get_str(&ctx->result, (unsigned int)ctx->index,
+                                    fieldStr, &strLen);
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    if(er == CJ5_ERROR_NONE) {
+        if(strcmp("UserName", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_USERNAME;
+        else if(strcmp("Thumbprint", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_THUMBPRINT;
+        else if(strcmp("Role", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_ROLE;
+        else if(strcmp("GroupId", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_GROUPID;
+        else if(strcmp("Anonymous", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_ANONYMOUS;
+        else if(strcmp("AuthenticatedUser", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+        else if(strcmp("Application", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_APPLICATION;
+        else if(strcmp("X509Subject", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_X509SUBJECT;
+        else if(strcmp("TrustedApplication", fieldStr) == 0)
+            *out = UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION;
+        else {
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                         "Unknown IdentityCriteriaType '%s'", fieldStr);
+            UA_free(fieldStr);
+            return UA_STATUSCODE_BAD;
+        }
+        retval = UA_STATUSCODE_GOOD;
+    }
+    UA_free(fieldStr);
+    return retval;
+}
+
+/* Read the field name the token walk currently sits on. Returns NULL on
+ * allocation failure. */
+static char *
+getFieldName(ParsingCtx *ctx, cj5_token tok) {
+    char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    if(!fieldStr)
+        return NULL;
+    unsigned int strLen = 0;
+    if(cj5_get_str(&ctx->result, (unsigned int)ctx->index,
+                   fieldStr, &strLen) != CJ5_ERROR_NONE) {
+        UA_free(fieldStr);
+        return NULL;
+    }
+    return fieldStr;
+}
+
+/* Parse a UA_String field. A value already parsed for the same key is
+ * replaced. */
+static UA_StatusCode
+parseStringInto(ParsingCtx *ctx, UA_String *dst) {
+    UA_String out = UA_STRING_NULL;
+    UA_StatusCode retval = StringField_parseJson(ctx, &out, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&out);
+        return retval;
+    }
+    UA_String_clear(dst);
+    *dst = out;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Parse a single IdentityMappingRuleType (flat config object):
+ *   { "criteriaType": "...", "criteria": "..." } */
+static UA_StatusCode
+parseIdentityMappingRule(ParsingCtx *ctx, void *element) {
+    UA_IdentityMappingRuleType *rule = (UA_IdentityMappingRuleType*)element;
+    UA_IdentityMappingRuleType_init(rule);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING) {
+            skipUnknownItem(ctx);
+            continue;
+        }
+        char *fieldStr = getFieldName(ctx, tok);
+        if(!fieldStr) {
+            UA_IdentityMappingRuleType_clear(rule);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        if(strcmp(fieldStr, "criteriaType") == 0) {
+            retval = parseIdentityCriteriaType(ctx, &rule->criteriaType);
+        } else if(strcmp(fieldStr, "criteria") == 0) {
+            retval = parseStringInto(ctx, &rule->criteria);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, fieldStr);
+            skipUnknownItem(ctx);
+        }
+        UA_free(fieldStr);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_IdentityMappingRuleType_clear(rule);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+clearIdentityMappingRule(void *element) {
+    UA_IdentityMappingRuleType_clear((UA_IdentityMappingRuleType*)element);
+}
+
+/* Parse a single EndpointType (flat config object):
+ *   { "endpointUrl": "...", "securityMode": "...",
+ *     "securityPolicyUri": "...", "transportProfileUri": "..." } */
+static UA_StatusCode
+parseEndpointType(ParsingCtx *ctx, void *element) {
+    UA_EndpointType *ep = (UA_EndpointType*)element;
+    UA_EndpointType_init(ep);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING) {
+            skipUnknownItem(ctx);
+            continue;
+        }
+        char *fieldStr = getFieldName(ctx, tok);
+        if(!fieldStr) {
+            UA_EndpointType_clear(ep);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        if(strcmp(fieldStr, "endpointUrl") == 0) {
+            retval = parseStringInto(ctx, &ep->endpointUrl);
+        } else if(strcmp(fieldStr, "securityMode") == 0) {
+            retval = MessageSecurityMode_parseJson(ctx, &ep->securityMode, NULL);
+        } else if(strcmp(fieldStr, "securityPolicyUri") == 0) {
+            retval = parseStringInto(ctx, &ep->securityPolicyUri);
+        } else if(strcmp(fieldStr, "transportProfileUri") == 0) {
+            retval = parseStringInto(ctx, &ep->transportProfileUri);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, fieldStr);
+            skipUnknownItem(ctx);
+        }
+        UA_free(fieldStr);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_EndpointType_clear(ep);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+clearEndpointType(void *element) {
+    UA_EndpointType_clear((UA_EndpointType*)element);
+}
+
+/* Parse a single Role (flat config object). The fields mirror the UA_Role
+ * struct in include/open62541/server.h. */
+static UA_StatusCode
+parseRole(ParsingCtx *ctx, void *element) {
+    UA_Role *role = (UA_Role*)element;
+    UA_Role_init(role);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING) {
+            skipUnknownItem(ctx);
+            continue;
+        }
+        char *fieldStr = getFieldName(ctx, tok);
+        if(!fieldStr) {
+            UA_Role_clear(role);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        if(strcmp(fieldStr, "roleId") == 0) {
+            UA_String out = UA_STRING_NULL;
+            retval = StringField_parseJson(ctx, &out, NULL);
+            if(retval == UA_STATUSCODE_GOOD) {
+                UA_NodeId_clear(&role->roleId);
+                retval = UA_NodeId_parse(&role->roleId, out);
+            }
+            UA_String_clear(&out);
+        } else if(strcmp(fieldStr, "roleName") == 0) {
+            /* Only the name component. The namespace index is configured
+             * separately and must not be reset here - the two fields can
+             * appear in any order. */
+            retval = parseStringInto(ctx, &role->roleName.name);
+        } else if(strcmp(fieldStr, "roleNameNamespaceIndex") == 0) {
+            retval = UInt16Field_parseJson(ctx, &role->roleName.namespaceIndex, NULL);
+        } else if(strcmp(fieldStr, "identityMappingRules") == 0) {
+            retval = parseElementArray(ctx, fieldStr,
+                                       (void**)&role->identityMappingRules,
+                                       &role->identityMappingRulesSize,
+                                       sizeof(UA_IdentityMappingRuleType),
+                                       parseIdentityMappingRule,
+                                       clearIdentityMappingRule);
+        } else if(strcmp(fieldStr, "applicationsExclude") == 0) {
+            retval = BooleanField_parseJson(ctx, &role->applicationsExclude, NULL);
+        } else if(strcmp(fieldStr, "applications") == 0) {
+            UA_String *arr = NULL;
+            size_t arrSize = 0;
+            retval = StringArrayField_parseJson(ctx, &arr, &arrSize);
+            /* Discard a value already parsed for a repeated key. Note that
+             * UA_Array_copy hands out the empty-array sentinel for size 0,
+             * which must not end up in the UA_Role. */
+            UA_Array_delete(role->applications, role->applicationsSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
+            role->applications = NULL;
+            role->applicationsSize = 0;
+            if(retval == UA_STATUSCODE_GOOD && arrSize > 0) {
+                role->applications = arr;
+                role->applicationsSize = arrSize;
+            } else {
+                UA_Array_delete(arr, arrSize, &UA_TYPES[UA_TYPES_STRING]);
+            }
+        } else if(strcmp(fieldStr, "endpointsExclude") == 0) {
+            retval = BooleanField_parseJson(ctx, &role->endpointsExclude, NULL);
+        } else if(strcmp(fieldStr, "endpoints") == 0) {
+            retval = parseElementArray(ctx, fieldStr,
+                                       (void**)&role->endpoints,
+                                       &role->endpointsSize,
+                                       sizeof(UA_EndpointType),
+                                       parseEndpointType, clearEndpointType);
+        } else if(strcmp(fieldStr, "customConfiguration") == 0) {
+            retval = BooleanField_parseJson(ctx, &role->customConfiguration, NULL);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, fieldStr);
+            skipUnknownItem(ctx);
+        }
+        UA_free(fieldStr);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Role_clear(role);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+clearRole(void *element) {
+    UA_Role_clear((UA_Role*)element);
+}
+
+/* Parse a single RolePermission (flat config object):
+ *   { "roleId": "...", "permissions": <UInt32 bitmask> } */
+static UA_StatusCode
+parseRolePermission(ParsingCtx *ctx, void *element) {
+    UA_RolePermission *rp = (UA_RolePermission*)element;
+    UA_NodeId_init(&rp->roleId);
+    rp->permissions = 0;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING) {
+            skipUnknownItem(ctx);
+            continue;
+        }
+        char *fieldStr = getFieldName(ctx, tok);
+        if(!fieldStr) {
+            UA_NodeId_clear(&rp->roleId);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        if(strcmp(fieldStr, "roleId") == 0) {
+            UA_String out = UA_STRING_NULL;
+            retval = StringField_parseJson(ctx, &out, NULL);
+            if(retval == UA_STATUSCODE_GOOD) {
+                UA_NodeId_clear(&rp->roleId);
+                retval = UA_NodeId_parse(&rp->roleId, out);
+            }
+            UA_String_clear(&out);
+        } else if(strcmp(fieldStr, "permissions") == 0) {
+            retval = UInt32Field_parseJson(ctx, &rp->permissions, NULL);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, fieldStr);
+            skipUnknownItem(ctx);
+        }
+        UA_free(fieldStr);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_NodeId_clear(&rp->roleId);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+clearRolePermission(void *element) {
+    UA_NodeId_clear(&((UA_RolePermission*)element)->roleId);
+}
+
+/* Parse a single RolePermissionSet (flat config object):
+ *   { "rolePermissions": [ { roleId, permissions }, ... ] } */
+static UA_StatusCode
+parseRolePermissionSet(ParsingCtx *ctx, void *element) {
+    UA_RolePermissionSet *rps = (UA_RolePermissionSet*)element;
+    UA_RolePermissionSet_init(rps);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING) {
+            skipUnknownItem(ctx);
+            continue;
+        }
+        char *fieldStr = getFieldName(ctx, tok);
+        if(!fieldStr) {
+            UA_RolePermissionSet_clear(rps);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        if(strcmp(fieldStr, "rolePermissions") == 0) {
+            retval = parseElementArray(ctx, fieldStr,
+                                       (void**)&rps->rolePermissions,
+                                       &rps->rolePermissionsSize,
+                                       sizeof(UA_RolePermission),
+                                       parseRolePermission, clearRolePermission);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, fieldStr);
+            skipUnknownItem(ctx);
+        }
+        UA_free(fieldStr);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_RolePermissionSet_clear(rps);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+clearRolePermissionSet(void *element) {
+    UA_RolePermissionSet_clear((UA_RolePermissionSet*)element);
+}
+
+/* Top-level RBAC configuration object:
+ *   { "roles": [ ... ], "rolePermissionPresets": [ ... ],
+ *     "allPermissionsForAnonymous": <bool> } */
+PARSE_JSON(RbacConfigurationField) {
+    UA_ServerConfig *config = (UA_ServerConfig*)configField;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = nextToken(ctx);
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = nextToken(ctx);
+        if(tok.type != CJ5_TOKEN_STRING) {
+            skipUnknownItem(ctx);
+            continue;
+        }
+        char *fieldStr = getFieldName(ctx, tok);
+        if(!fieldStr)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if(strcmp(fieldStr, "roles") == 0) {
+            retval = parseElementArray(ctx, fieldStr, (void**)&config->roles,
+                                       &config->rolesSize, sizeof(UA_Role),
+                                       parseRole, clearRole);
+        } else if(strcmp(fieldStr, "rolePermissionPresets") == 0) {
+            retval = parseElementArray(ctx, fieldStr,
+                                       (void**)&config->rolePermissionPresets,
+                                       &config->rolePermissionPresetsSize,
+                                       sizeof(UA_RolePermissionSet),
+                                       parseRolePermissionSet,
+                                       clearRolePermissionSet);
+        } else if(strcmp(fieldStr, "allPermissionsForAnonymous") == 0) {
+            retval = BooleanField_parseJson(ctx, &config->allPermissionsForAnonymous, NULL);
+        } else {
+            LOG_UNKNOWN_FIELD(ctx, fieldStr);
+            skipUnknownItem(ctx);
+        }
+        UA_free(fieldStr);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+#endif /* UA_ENABLE_RBAC */
+
 static UA_StatusCode
 parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     // Parsing json config
@@ -1212,6 +1675,10 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->pubsubEnabled, NULL);
                 else if(strcmp(field, "pubsub") == 0)
                     retval = PubsubConfigurationField_parseJson(&ctx, &config->pubSubConfig, NULL);
+#endif
+#ifdef UA_ENABLE_RBAC
+                else if(strcmp(field, "rbac") == 0)
+                    retval = RbacConfigurationField_parseJson(&ctx, config, NULL);
 #endif
 #ifdef UA_ENABLE_ENCRYPTION
                 else if(strcmp(field, "securityPolicies") == 0)
