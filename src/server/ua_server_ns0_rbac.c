@@ -183,6 +183,116 @@ readRoleEndpoints(UA_Server *server, const UA_NodeId *sessionId,
 }
 
 static UA_StatusCode
+readRoleApplicationsExclude(UA_Server *server, const UA_NodeId *sessionId,
+                            void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            UA_Boolean includeSourceTimeStamp,
+                            const UA_NumericRange *range,
+                            UA_DataValue *value) {
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Role role;
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Variant_setScalarCopy(&value->value, &role.applicationsExclude,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
+    value->hasValue = true;
+    UA_Role_clear(&role);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeRoleApplicationsExclude(UA_Server *server, const UA_NodeId *sessionId,
+                             void *sessionContext,
+                             const UA_NodeId *nodeId, void *nodeContext,
+                             const UA_NumericRange *range,
+                             const UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    if(!value || !value->hasValue ||
+       value->value.type != &UA_TYPES[UA_TYPES_BOOLEAN] ||
+       !UA_Variant_isScalar(&value->value))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Role role;
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    role.applicationsExclude = *(UA_Boolean*)value->value.data;
+    res = UA_Server_updateRole(server, &role);
+    UA_Role_clear(&role);
+    return res;
+}
+
+static UA_StatusCode
+readRoleEndpointsExclude(UA_Server *server, const UA_NodeId *sessionId,
+                         void *sessionContext,
+                         const UA_NodeId *nodeId, void *nodeContext,
+                         UA_Boolean includeSourceTimeStamp,
+                         const UA_NumericRange *range,
+                         UA_DataValue *value) {
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Role role;
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Variant_setScalarCopy(&value->value, &role.endpointsExclude,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
+    value->hasValue = true;
+    UA_Role_clear(&role);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeRoleEndpointsExclude(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext,
+                          const UA_NodeId *nodeId, void *nodeContext,
+                          const UA_NumericRange *range,
+                          const UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    if(!value || !value->hasValue ||
+       value->value.type != &UA_TYPES[UA_TYPES_BOOLEAN] ||
+       !UA_Variant_isScalar(&value->value))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Role role;
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    role.endpointsExclude = *(UA_Boolean*)value->value.data;
+    res = UA_Server_updateRole(server, &role);
+    UA_Role_clear(&role);
+    return res;
+}
+
+static UA_StatusCode
 readRoleCustomConfiguration(UA_Server *server, const UA_NodeId *sessionId,
                             void *sessionContext,
                             const UA_NodeId *nodeId, void *nodeContext,
@@ -278,10 +388,34 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
         return res;
     }
 
+    /* Add optional ApplicationsExclude property with DataSource */
+    vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ApplicationsExclude");
+    vAttr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    UA_DataSource applicationsExcludeDataSource;
+    applicationsExcludeDataSource.read = readRoleApplicationsExclude;
+    applicationsExcludeDataSource.write = writeRoleApplicationsExclude;
+
+    res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
+                                              role->roleId,
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                              UA_QUALIFIEDNAME(0, "ApplicationsExclude"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                              vAttr, applicationsExcludeDataSource,
+                                              NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Server_deleteNode(server, role->roleId, true);
+        return res;
+    }
+
     /* Add optional Endpoints property with DataSource */
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Endpoints");
     vAttr.dataType = UA_TYPES[UA_TYPES_ENDPOINTTYPE].typeId;
     vAttr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
 
     UA_DataSource endpointsDataSource;
     endpointsDataSource.read = readRoleEndpoints;
@@ -293,6 +427,29 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
                                               UA_QUALIFIEDNAME(0, "Endpoints"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                               vAttr, endpointsDataSource,
+                                              NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Server_deleteNode(server, role->roleId, true);
+        return res;
+    }
+
+    /* Add optional EndpointsExclude property with DataSource */
+    vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "EndpointsExclude");
+    vAttr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    UA_DataSource endpointsExcludeDataSource;
+    endpointsExcludeDataSource.read = readRoleEndpointsExclude;
+    endpointsExcludeDataSource.write = writeRoleEndpointsExclude;
+
+    res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
+                                              role->roleId,
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                              UA_QUALIFIEDNAME(0, "EndpointsExclude"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                              vAttr, endpointsExcludeDataSource,
                                               NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_Server_deleteNode(server, role->roleId, true);
@@ -991,6 +1148,29 @@ initNS0RBAC(UA_Server *server) {
                                                            identitiesDataSource);
             UA_NodeId_clear(&identitiesId);
         }
+
+        UA_NodeId applicationsExcludeId;
+        if(findPropertyChild(server, rId, "ApplicationsExclude",
+                             &applicationsExcludeId) == UA_STATUSCODE_GOOD) {
+            UA_DataSource applicationsExcludeDataSource;
+            applicationsExcludeDataSource.read = readRoleApplicationsExclude;
+            applicationsExcludeDataSource.write = writeRoleApplicationsExclude;
+            retval |= UA_Server_setVariableNode_dataSource(server, applicationsExcludeId,
+                                                           applicationsExcludeDataSource);
+            UA_NodeId_clear(&applicationsExcludeId);
+        }
+
+        UA_NodeId endpointsExcludeId;
+        if(findPropertyChild(server, rId, "EndpointsExclude",
+                             &endpointsExcludeId) == UA_STATUSCODE_GOOD) {
+            UA_DataSource endpointsExcludeDataSource;
+            endpointsExcludeDataSource.read = readRoleEndpointsExclude;
+            endpointsExcludeDataSource.write = writeRoleEndpointsExclude;
+            retval |= UA_Server_setVariableNode_dataSource(server, endpointsExcludeId,
+                                                           endpointsExcludeDataSource);
+            UA_NodeId_clear(&endpointsExcludeId);
+        }
+
         /* Back the CustomConfiguration property with the role registry so
          * reads return the configured value (Part 18 §4.4.1). */
         UA_NodeId customConfigId;

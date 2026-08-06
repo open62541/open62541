@@ -46,7 +46,9 @@
  *
  * - The RoleType instance Methods (AddIdentity/RemoveIdentity/AddApplication/
  *   RemoveApplication/AddEndpoint/RemoveEndpoint) are materialized on Role
- *   Objects in NS0 and route through UA_Server_updateRole.
+ *   Objects in NS0 and route through UA_Server_updateRole. The
+ *   ApplicationsExclude and EndpointsExclude Properties are backed by the role
+ *   registry and writable through the Write service, per Part 18 §4.4.1.
  *
  * - The AccessRestrictions attribute is read-only through the attribute
  *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).

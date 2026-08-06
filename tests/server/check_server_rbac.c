@@ -3050,6 +3050,60 @@ START_TEST(customConfiguration_propertyReadable) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* ApplicationsExclude and EndpointsExclude are the two RoleType Properties
+ * configured through the Write service (Part 18 §4.4.1). */
+START_TEST(excludeProperties_readWriteRegistry) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62410);
+    role.roleName = UA_QUALIFIEDNAME(1, "ExcludePropRole");
+    role.applicationsExclude = true;
+    role.endpointsExclude = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    UA_NodeId appExcludeId = UA_NODEID_NULL;
+    UA_NodeId epExcludeId = UA_NODEID_NULL;
+    ck_assert_uint_eq(findRoleProperty(role.roleId, "ApplicationsExclude",
+                                       &appExcludeId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(findRoleProperty(role.roleId, "EndpointsExclude",
+                                       &epExcludeId), UA_STATUSCODE_GOOD);
+
+    UA_Boolean falseValue = false;
+    UA_Variant writeValue;
+    UA_Variant_setScalar(&writeValue, &falseValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, appExcludeId, writeValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_writeValue(server, epExcludeId, writeValue),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!fetched.applicationsExclude);
+    ck_assert(!fetched.endpointsExclude);
+    UA_Role_clear(&fetched);
+
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, appExcludeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(!*(UA_Boolean*)readValue.data);
+    UA_Variant_clear(&readValue);
+
+    ck_assert_uint_eq(UA_Server_readValue(server, epExcludeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(!*(UA_Boolean*)readValue.data);
+    UA_Variant_clear(&readValue);
+
+    UA_NodeId_clear(&appExcludeId);
+    UA_NodeId_clear(&epExcludeId);
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -3176,6 +3230,7 @@ static Suite *testSuite_InformationModel(void) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, addRole_cApiPublishesRoleObject);
     tcase_add_test(tc, customConfiguration_propertyReadable);
+    tcase_add_test(tc, excludeProperties_readWriteRegistry);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
     tcase_add_test(tc, addRemoveRoleMethod_updatesAddressSpace);
