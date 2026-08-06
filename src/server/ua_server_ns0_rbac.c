@@ -412,6 +412,16 @@ addIdentityMethodCallback(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* Reject equivalent existing rules per Part 18 §4.4.5 (Bad_AlreadyExists).
+     * Equality is on the full struct, not just the criteriaType, so rules that
+     * differ only in criteria remain distinct. */
+    for(size_t i = 0; i < role.identityMappingRulesSize; i++) {
+        if(UA_IdentityMappingRuleType_equal(&role.identityMappingRules[i], rule)) {
+            UA_Role_clear(&role);
+            return UA_STATUSCODE_BADALREADYEXISTS;
+        }
+    }
+
     UA_IdentityMappingRuleType *newRules = (UA_IdentityMappingRuleType*)
         UA_realloc(role.identityMappingRules,
                    (role.identityMappingRulesSize + 1) *

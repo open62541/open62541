@@ -46,9 +46,14 @@
  *
  * - The RoleType instance Methods (AddIdentity/RemoveIdentity/AddApplication/
  *   RemoveApplication/AddEndpoint/RemoveEndpoint) are not currently dispatched
- *   to their callbacks when called on a role instance (the callbacks are bound
- *   to the RoleType Methods, not the per-instance Method nodes). Change role
- *   mapping rules through the C API in the meantime.
+ *   to their callbacks when called on a role instance: the callbacks are bound
+ *   to the RoleType Methods, and the RoleType declares them Optional, so a Role
+ *   instance has no Method children at all and the Call service answers
+ *   Bad_MethodInvalid. Change role mapping rules through the C API in the
+ *   meantime. Consequently the Bad_AlreadyExists duplicate check in
+ *   addIdentityMethodCallback (Part 18 §4.4.5) is implemented but not yet
+ *   reachable over the wire (guarded by the test
+ *   roleTypeInstanceMethods_notReachable).
  *
  * - The AccessRestrictions attribute is read-only through the attribute
  *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
