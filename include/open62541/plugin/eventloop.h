@@ -457,11 +457,10 @@ struct UA_InterruptManager {
 #if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
 
 /**
- * POSIX EventLoop Implementation
- * -----------------------------
- * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
- * is provided. The configuration paramaters must be set before starting the
- * EventLoop.
+ * Native EventLoop Implementations
+ * --------------------------------
+ * POSIX uses readiness polling. Win32 uses I/O completion ports. Configuration
+ * parameters must be set before starting the EventLoop.
  *
  * **Clock configuration (Linux and BSDs only)**
  *
@@ -475,8 +474,10 @@ struct UA_InterruptManager {
  *   a clock source id for a character-device such as /dev/ptp0. (default:
  *   CLOCK_MONOTONIC_RAW) */
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 UA_EXPORT UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger);
+#endif
 
 #ifdef UA_ARCHITECTURE_WIN32
 UA_EXPORT UA_EventLoop *
@@ -584,8 +585,10 @@ UA_EventLoop_new_GLib(const UA_Logger *logger, void *glibMainContext);
  *
  * No additional parameters for sending over an established TCP socket
  * defined. */
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
+#endif
 
 #ifdef UA_ARCHITECTURE_WIN32
 UA_EXPORT UA_ConnectionManager *
@@ -664,8 +667,10 @@ UA_ConnectionManager_new_WIN32_TCP(const UA_String eventSourceName);
  * **Send Parameters:**
  *
  * No additional parameters for sending over an UDP connection defined. */
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
+#endif
 
 #ifdef UA_ARCHITECTURE_WIN32
 UA_EXPORT UA_ConnectionManager *
@@ -987,8 +992,10 @@ UA_ConnectionManager_new_LWS_MQTT(const UA_String eventSourceName);
  * Create an instance of the interrupt manager that handles POSX signals. This
  * interrupt manager takes the numerical interrupt identifiers from <signal.h>
  * for the interruptHandle. */
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 UA_EXPORT UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName);
+#endif
 
 #ifdef UA_ARCHITECTURE_WIN32
 UA_EXPORT UA_InterruptManager *

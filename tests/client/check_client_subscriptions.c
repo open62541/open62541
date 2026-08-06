@@ -1659,6 +1659,9 @@ START_TEST(Client_subscription_writeBurst) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client *client = UA_Client_newForUnitTest();
+    /* This test intentionally generates an unconstrained asynchronous burst. */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->maxAsyncServiceCalls = 0;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

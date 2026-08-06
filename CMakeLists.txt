@@ -1268,7 +1268,7 @@ elseif(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 elseif(UA_ARCHITECTURE_WIN32)
-    # Win32 eventloop fork (select-based until the IOCP conversion)
+    # Win32 IOCP event loop
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
@@ -1292,6 +1292,14 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+    if(UA_ENABLE_AMALGAMATION)
+        list(APPEND plugin_sources
+             ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp.h
+             ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp.c
+             ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp_tcp.c
+             ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp_udp.c
+             ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp_interrupt.c)
+    endif()
     if(UA_ENABLE_EVENTLOOP_GLIB)
         list(APPEND plugin_sources
              ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_glib.h
