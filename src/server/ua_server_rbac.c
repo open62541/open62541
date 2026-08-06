@@ -172,23 +172,14 @@ UA_Role_clear(UA_Role *role) {
     UA_NodeId_clear(&role->roleId);
     UA_QualifiedName_clear(&role->roleName);
 
-    if(role->identityMappingRules) {
-        for(size_t i = 0; i < role->identityMappingRulesSize; i++)
-            UA_IdentityMappingRuleType_clear(&role->identityMappingRules[i]);
-        UA_free(role->identityMappingRules);
-    }
-
-    if(role->applications) {
-        for(size_t i = 0; i < role->applicationsSize; i++)
-            UA_String_clear(&role->applications[i]);
-        UA_free(role->applications);
-    }
-
-    if(role->endpoints) {
-        for(size_t i = 0; i < role->endpointsSize; i++)
-            UA_EndpointType_clear(&role->endpoints[i]);
-        UA_free(role->endpoints);
-    }
+    /* UA_Array_delete instead of a plain free: the arrays may have been filled
+     * with UA_Array_copy, which returns the empty-array sentinel for size 0 */
+    UA_Array_delete(role->identityMappingRules, role->identityMappingRulesSize,
+                    &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+    UA_Array_delete(role->applications, role->applicationsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(role->endpoints, role->endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTTYPE]);
     UA_Role_init(role);
 }
 
