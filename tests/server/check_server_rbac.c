@@ -415,7 +415,8 @@ START_TEST(configRoles_cannotBeRemoved) {
     UA_QualifiedName configRoleName = UA_QUALIFIEDNAME(0, "ConfigOperator");
     UA_StatusCode res = UA_Server_removeRole(serverWithConfigRoles,
                                              configRoleName);
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    /* Protected (config) roles yield Bad_RequestNotAllowed per Part 18 §4.2.3 */
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 
     /* Still accessible */
     UA_Role out;
@@ -617,9 +618,11 @@ START_TEST(protectMandatoryRoles) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
     UA_Role_clear(&role);
 
-    /* Cannot remove Anonymous role */
+    /* Cannot remove Anonymous role - Part 18 §4.2.3 returns Bad_RequestNotAllowed
+     * for a Role that cannot be removed (the missing-Permissions case
+     * Bad_UserAccessDenied is handled by checkRBACMethodAccess on the Method). */
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "Anonymous"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 
     /* Cannot update AuthenticatedUser */
     UA_NodeId authUserRoleId =
@@ -631,7 +634,7 @@ START_TEST(protectMandatoryRoles) {
     UA_Role_clear(&role);
 
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "AuthenticatedUser"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 }
 END_TEST
 
@@ -905,9 +908,11 @@ START_TEST(trustedApplication_roleRegistered) {
     ck_assert(hasTA);
     UA_Role_clear(&role);
 
-    /* Per spec the role must not be removable */
+    /* Per spec the role must not be removable - Bad_RequestNotAllowed per
+     * Part 18 §4.2.3 Table 3 (the missing-Permissions case is handled by
+     * checkRBACMethodAccess on the Method entry point). */
     res = UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "TrustedApplication"));
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADREQUESTNOTALLOWED);
 }
 END_TEST
 
