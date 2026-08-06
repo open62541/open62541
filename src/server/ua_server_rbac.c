@@ -82,6 +82,11 @@
  *   a Role to every Session that passes its Application/Endpoint filters, so an
  *   empty custom Role with default filters is granted to *all* Sessions.
  *
+ * - The role registry, the RolePermission presets and allPermissionsForAnonymous
+ *   can be set from a JSON server configuration under the "rbac" key (see
+ *   tools/server_config_schema.json). Roles from the configuration are
+ *   protected and cannot be removed at runtime.
+ *
  * - removeRole returns Bad_RequestNotAllowed for protected (well-known or
  *   config) roles per Part 18 §4.2.3 Table 3; the missing-Permissions case
  *   (Bad_UserAccessDenied) is handled by checkRBACMethodAccess on the Method
