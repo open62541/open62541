@@ -1068,8 +1068,10 @@ initRoleSetRolePermissions(UA_Server *server) {
 
 UA_StatusCode
 initNS0RBAC(UA_Server *server) {
-    /* RBAC NS0 wiring requires UA_NAMESPACE_ZERO=FULL.
-     * Without it the C API still works, but we skip the NS0 objects. */
+    /* RBAC NS0 wiring requires UA_NAMESPACE_ZERO=FULL, which CMake enforces for
+     * UA_ENABLE_RBAC. This stays as a runtime guard for a nodestore that does
+     * not provide the RoleSetType, in which case the C API still works and only
+     * the NS0 objects are skipped. */
     UA_NodeId roleSetTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE);
     UA_QualifiedName typebn;
     UA_Boolean hasFullRbacNS0 =

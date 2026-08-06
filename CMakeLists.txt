@@ -313,6 +313,30 @@ endif()
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
 
+# Checked before the generic namespace-zero requirements below, so that
+# enabling RBAC reports the RBAC requirement rather than a consequence of it
+if(UA_ENABLE_RBAC)
+    # The RoleSet/RoleType Methods (AddRole, AddIdentity, ...) are bound
+    # unconditionally by the RBAC information model
+    if(NOT UA_ENABLE_METHODCALLS)
+        message(FATAL_ERROR "UA_ENABLE_RBAC requires UA_ENABLE_METHODCALLS "
+                            "for the RoleSet and RoleType Methods")
+    endif()
+    # The well-known Roles and the IdentityCriteriaType values (in particular
+    # TrustedApplication) only exist in the full namespace zero
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "UA_ENABLE_RBAC needs the full Namespace Zero")
+    endif()
+endif()
+
+# The Alarms & Conditions driver binds the ConditionType Methods (Disable,
+# Enable, AddComment, ConditionRefresh, Acknowledge, Confirm) unconditionally.
+# It is only built into the library for a generated namespace zero.
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT UA_ENABLE_METHODCALLS)
+    message(FATAL_ERROR "UA_NAMESPACE_ZERO=FULL requires UA_ENABLE_METHODCALLS "
+                        "for the ConditionType Methods of the Alarms & Conditions driver")
+endif()
+
 if(UA_ENABLE_DRIVER_MDNS_AVAHI AND NOT UA_ENABLE_DISCOVERY)
     message(FATAL_ERROR "UA_ENABLE_DRIVER_MDNS_AVAHI requires UA_ENABLE_DISCOVERY")
 endif()
