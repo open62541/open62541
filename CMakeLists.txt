@@ -1268,7 +1268,7 @@ elseif(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 elseif(UA_ARCHITECTURE_WIN32)
-    # Win32 eventloop fork (select-based until the IOCP conversion)
+    # Win32 IOCP event loop
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c

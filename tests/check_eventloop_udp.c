@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <check.h>
 
+#ifdef UA_ARCHITECTURE_WIN32
+# define UA_TEST_EVENTLOOP_NEW UA_EventLoop_new_WIN32
+# define UA_TEST_UDP_MANAGER_NEW UA_ConnectionManager_new_WIN32_UDP
+#else
+# define UA_TEST_EVENTLOOP_NEW UA_EventLoop_new_POSIX
+# define UA_TEST_UDP_MANAGER_NEW UA_ConnectionManager_new_POSIX_UDP
+#endif
+
 static UA_EventLoop *el;
 static UA_ConnectionManager *cm;
 static UA_EventLoop *elListener;
@@ -32,8 +40,8 @@ static void setupEL(void) {
     cm = UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udpCM"));
     el->registerEventSource(el, &cm->eventSource);
 #elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    el = UA_TEST_EVENTLOOP_NEW(UA_Log_Stdout);
+    cm = UA_TEST_UDP_MANAGER_NEW(UA_STRING("udpCM"));
     el->registerEventSource(el, &cm->eventSource);
 #else
 #error Add other EventLoop implementations here
@@ -50,12 +58,12 @@ static void setupELTalkerAndListener(void) {
     cmTalker = UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udpCM"));
     elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
 #elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
-    elListener = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    cmListener = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    elListener = UA_TEST_EVENTLOOP_NEW(UA_Log_Stdout);
+    cmListener = UA_TEST_UDP_MANAGER_NEW(UA_STRING("udpCM"));
     elListener->registerEventSource(elListener, &cmListener->eventSource);
 
-    elTalker = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    cmTalker = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    elTalker = UA_TEST_EVENTLOOP_NEW(UA_Log_Stdout);
+    cmTalker = UA_TEST_UDP_MANAGER_NEW(UA_STRING("udpCM"));
     elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
 #else
 #error Add other EventLoop implementations here
