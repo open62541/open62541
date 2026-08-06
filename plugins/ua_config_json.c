@@ -1044,6 +1044,18 @@ PARSE_JSON(RuleHandlingField) {
     return retval;
 }
 
+/* The value token of a field has already been consumed (ctx->index points at
+ * it). Skip over its children (if any) so that the enclosing object walk
+ * continues at the next field name. */
+static void
+skipValueSubtree(ParsingCtx *ctx) {
+    if(!ctx->result.tokens || ctx->index >= ctx->result.num_tokens)
+        return;
+    unsigned int idx = ctx->index;
+    cj5_skip(&ctx->result, &idx); /* Lands after the value subtree */
+    ctx->index = idx - 1;         /* The next nextToken() steps onto it */
+}
+
 /* Skips unknown item (simple, object or array) in config file.
 * Unknown items may happen if we don't support some features.
 * E.g. if  UA_ENABLE_ENCRYPTION is not defined and config file
@@ -1051,7 +1063,8 @@ PARSE_JSON(RuleHandlingField) {
 */
 static void
 skipUnknownItem(ParsingCtx* ctx) {
-    cj5_skip(&ctx->result, &ctx->index);
+    cj5_skip(&ctx->result, &ctx->index); /* Field name -> value token */
+    skipValueSubtree(ctx);               /* Value's children, if any */
 }
 
 static UA_StatusCode
