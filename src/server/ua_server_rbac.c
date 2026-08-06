@@ -67,6 +67,11 @@
  *   (the choke point for identity/application/endpoint mapping changes, reached
  *   by the C API and the RoleType Methods) when a role's mapping rules change
  *   (requires UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
+ *
+ * - removeRole returns Bad_RequestNotAllowed for protected (well-known or
+ *   config) roles per Part 18 §4.2.3 Table 3; the missing-Permissions case
+ *   (Bad_UserAccessDenied) is handled by checkRBACMethodAccess on the Method
+ *   entry point.
  */
 
 /*********************************/
@@ -855,10 +860,13 @@ UA_Server_removeRole(UA_Server *server,
 
     size_t roleIndex = (size_t)(role - server->roles);
 
-    /* Protected roles (from config) cannot be removed */
+    /* Protected roles (well-known or from config) cannot be removed. Per Part 18
+     * §4.2.3 Table 3 this yields Bad_RequestNotAllowed ("the specified Role Object
+     * cannot be removed"); the missing-Permissions case (Bad_UserAccessDenied) is
+     * handled separately by checkRBACMethodAccess at the Method entry point. */
     if(server->rolesProtected[roleIndex]) {
         unlockServer(server);
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
+        return UA_STATUSCODE_BADREQUESTNOTALLOWED;
     }
 
     /* Remove the published Role Object from the AddressSpace before dropping the
