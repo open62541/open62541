@@ -150,6 +150,31 @@ readRoleEndpoints(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+readRoleCustomConfiguration(UA_Server *server, const UA_NodeId *sessionId,
+                            void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            UA_Boolean includeSourceTimeStamp,
+                            const UA_NumericRange *range,
+                            UA_DataValue *value) {
+    UA_NodeId roleId;
+    UA_StatusCode res = getRoleIdOfProperty(server, nodeId, &roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Role role;
+    res = UA_Server_getRoleById(server, roleId, &role);
+    UA_NodeId_clear(&roleId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_Variant_setScalarCopy(&value->value, &role.customConfiguration,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
+    value->hasValue = true;
+    UA_Role_clear(&role);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Add Role object to NS0. The role->roleId must already be set by the
  * caller. Identities is mandatory, Applications and Endpoints are added
  * as optional properties with DataSources. */
@@ -236,6 +261,30 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
                                               UA_QUALIFIEDNAME(0, "Endpoints"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                               vAttr, endpointsDataSource,
+                                              NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Server_deleteNode(server, role->roleId, true);
+        return res;
+    }
+
+    /* Add optional CustomConfiguration property with DataSource (Part 18 §4.4.1).
+     * Boolean scalar; read-only. */
+    vAttr = UA_VariableAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "CustomConfiguration");
+    vAttr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    vAttr.valueRank = UA_VALUERANK_SCALAR;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+
+    UA_DataSource customConfigDataSource;
+    customConfigDataSource.read = readRoleCustomConfiguration;
+    customConfigDataSource.write = NULL;
+
+    res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
+                                              role->roleId,
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                              UA_QUALIFIEDNAME(0, "CustomConfiguration"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                              vAttr, customConfigDataSource,
                                               NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         UA_Server_deleteNode(server, role->roleId, true);
@@ -765,6 +814,18 @@ initNS0RBAC(UA_Server *server) {
             retval |= UA_Server_setVariableNode_dataSource(server, identitiesId,
                                                            identitiesDataSource);
             UA_NodeId_clear(&identitiesId);
+        }
+        /* Back the CustomConfiguration property with the role registry so
+         * reads return the configured value (Part 18 §4.4.1). */
+        UA_NodeId customConfigId;
+        if(findPropertyChild(server, rId, "CustomConfiguration",
+                             &customConfigId) == UA_STATUSCODE_GOOD) {
+            UA_DataSource customConfigDataSource;
+            customConfigDataSource.read = readRoleCustomConfiguration;
+            customConfigDataSource.write = NULL;
+            retval |= UA_Server_setVariableNode_dataSource(server, customConfigId,
+                                                           customConfigDataSource);
+            UA_NodeId_clear(&customConfigId);
         }
     }
 
