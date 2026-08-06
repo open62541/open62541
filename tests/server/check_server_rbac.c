@@ -713,6 +713,45 @@ roleSetHasComponent(UA_NodeId targetId) {
     return found;
 }
 
+static UA_StatusCode
+findRoleChild(UA_NodeId parentId, const char *name, UA_NodeClass nodeClass,
+              UA_UInt32 referenceTypeId, UA_NodeId *childId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = nodeClass;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        UA_String want = UA_STRING((char*)(uintptr_t)name);
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_String_equal(&br.references[i].browseName.name, &want)) {
+                res = UA_NodeId_copy(&br.references[i].nodeId.nodeId, childId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+static UA_StatusCode
+findRoleProperty(UA_NodeId parentId, const char *name, UA_NodeId *childId) {
+    return findRoleChild(parentId, name, UA_NODECLASS_VARIABLE,
+                         UA_NS0ID_HASPROPERTY, childId);
+}
+
+static UA_StatusCode
+findRoleMethod(UA_NodeId parentId, const char *name, UA_NodeId *childId) {
+    return findRoleChild(parentId, name, UA_NODECLASS_METHOD,
+                         UA_NS0ID_HASCOMPONENT, childId);
+}
+
 /* A role added/removed through the C API is mirrored under the RoleSet, the
  * same way other subsystems reflect their config in NS0. */
 START_TEST(addRole_cApiPublishesRoleObject) {
@@ -2483,7 +2522,8 @@ START_TEST(addRole_quotaEnforced) {
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    /* Part 18 §4.2.2: the Server does not allow more Roles to be added */
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTSUPPORTED);
 
     size_t rolesSize = 0;
     UA_QualifiedName *names = NULL;
@@ -2829,11 +2869,253 @@ START_TEST(auditRoleMapping_removeRoleEmits) {
 END_TEST
 #endif /* UA_ENABLE_AUDITING */
 
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+/* The RoleType methods are reachable over the wire on concrete Role objects.
+ * A client may pass the RoleType method NodeId; the Call service resolves the
+ * same-BrowseName Method child on the Role instance before dispatch. */
+START_TEST(roleTypeInstanceMethods_addIdentity) {
+    UA_NodeId roleId;
+    ck_assert_uint_eq(addTestRole("DupIdentityRole", 1, 62200, &roleId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId instanceMethodId = UA_NODEID_NULL;
+    ck_assert_uint_eq(findRoleMethod(roleId, "AddIdentity", &instanceMethodId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&instanceMethodId);
+
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    rule.criteria = UA_STRING("alice");
+    UA_ExtensionObject ext;
+    UA_ExtensionObject_init(&ext);
+    UA_ExtensionObject_setValue(&ext, &rule, &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &ext, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = roleId;
+    req.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY);
+    req.inputArguments = &input;
+    req.inputArgumentsSize = 1;
+
+    UA_CallMethodResult res = UA_Server_call(server, &req);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(fetched.identityMappingRulesSize, 1);
+    ck_assert(UA_IdentityMappingRuleType_equal(&fetched.identityMappingRules[0],
+                                               &rule));
+    UA_Role_clear(&fetched);
+
+    res = UA_Server_call(server, &req);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADALREADYEXISTS);
+    UA_CallMethodResult_clear(&res);
+
+    /* rule.criteria is a static literal - do not UA_String_clear it */
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "DupIdentityRole"));
+    UA_NodeId_clear(&roleId);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
+
+/* CustomConfiguration is stored, copied and compared (Part 18 §4.4.1). */
+START_TEST(customConfiguration_storedAndCopied) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62300);
+    role.roleName = UA_QUALIFIEDNAME(1, "CustomRole");
+    role.customConfiguration = true;
+    UA_NodeId outId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, &outId), UA_STATUSCODE_GOOD);
+    /* role.roleName.name is a string literal - do not UA_Role_clear it */
+
+    /* Round-trip through the registry preserves the flag */
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, outId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(fetched.customConfiguration);
+    UA_Role_clear(&fetched);
+
+    /* UA_Role_copy preserves the flag */
+    UA_Role copy;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, outId, &copy), UA_STATUSCODE_GOOD);
+    UA_Role dup;
+    ck_assert_uint_eq(UA_Role_copy(&copy, &dup), UA_STATUSCODE_GOOD);
+    ck_assert(dup.customConfiguration);
+    UA_Role_clear(&copy);
+    UA_Role_clear(&dup);
+
+    /* UA_Role_equal distinguishes the flag. 'other' uses a static
+     * roleName literal, so it is compared but never UA_Role_clear'd. */
+    UA_Role other;
+    UA_Role_init(&other);
+    other.roleId = outId;
+    other.roleName = UA_QUALIFIEDNAME(1, "CustomRole");
+    other.customConfiguration = false;
+    UA_Role refTrue;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, outId, &refTrue), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_Role_equal(&refTrue, &other));
+    other.customConfiguration = true;
+    ck_assert(UA_Role_equal(&refTrue, &other));
+    UA_Role_clear(&refTrue);
+    /* other holds only static literals - no clear needed */
+
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "CustomRole"));
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+
+/* A non-custom Role with empty Identities cannot be granted to any Session
+ * (Part 18 §4.4.1). A custom Role with empty Identities can be granted. */
+START_TEST(customConfiguration_grantEnforcement) {
+    /* Non-custom role with no identity rules */
+    UA_Role nc;
+    UA_Role_init(&nc);
+    nc.roleName = UA_QUALIFIEDNAME(1, "EmptyNonCustom");
+    nc.customConfiguration = false;
+    UA_NodeId ncId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &nc, &ncId), UA_STATUSCODE_GOOD);
+
+    /* Custom role with no identity rules */
+    UA_Role cr;
+    UA_Role_init(&cr);
+    cr.roleName = UA_QUALIFIEDNAME(1, "EmptyCustom");
+    cr.customConfiguration = true;
+    UA_NodeId crId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &cr, &crId), UA_STATUSCODE_GOOD);
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.isAnonymous = true;
+
+    /* The non-custom empty role is NOT granted */
+    ck_assert(!roleGrantedForContext(&ctx, &ncId));
+    /* The custom empty role CAN be granted (custom roles bypass the
+     * empty-Identities restriction) */
+    ck_assert(roleGrantedForContext(&ctx, &crId));
+
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyNonCustom"));
+    UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyCustom"));
+    UA_NodeId_clear(&ncId);
+    UA_NodeId_clear(&crId);
+}
+END_TEST
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* The CustomConfiguration Property of a runtime-added role is readable from
+ * the AddressSpace and reflects the registry value (Part 18 §4.4.1). */
+START_TEST(customConfiguration_propertyReadable) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62400);
+    role.roleName = UA_QUALIFIEDNAME(1, "CustomPropRole");
+    role.customConfiguration = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* Browse the role's HasProperty children to find CustomConfiguration */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = role.roleId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_NodeId propId = UA_NODEID_NULL;
+    UA_String want = UA_STRING("CustomConfiguration");
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_String_equal(&br.references[i].browseName.name, &want)) {
+            UA_NodeId_copy(&br.references[i].nodeId.nodeId, &propId);
+            break;
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    ck_assert(!UA_NodeId_isNull(&propId));
+
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server, propId, &v),
+                     UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(*(UA_Boolean*)v.data);
+    UA_Variant_clear(&v);
+    UA_NodeId_clear(&propId);
+
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* ApplicationsExclude and EndpointsExclude are the two RoleType Properties
+ * configured through the Write service (Part 18 §4.4.1). */
+START_TEST(excludeProperties_readWriteRegistry) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62410);
+    role.roleName = UA_QUALIFIEDNAME(1, "ExcludePropRole");
+    role.applicationsExclude = true;
+    role.endpointsExclude = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    UA_NodeId appExcludeId = UA_NODEID_NULL;
+    UA_NodeId epExcludeId = UA_NODEID_NULL;
+    ck_assert_uint_eq(findRoleProperty(role.roleId, "ApplicationsExclude",
+                                       &appExcludeId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(findRoleProperty(role.roleId, "EndpointsExclude",
+                                       &epExcludeId), UA_STATUSCODE_GOOD);
+
+    UA_Boolean falseValue = false;
+    UA_Variant writeValue;
+    UA_Variant_setScalar(&writeValue, &falseValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, appExcludeId, writeValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_writeValue(server, epExcludeId, writeValue),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!fetched.applicationsExclude);
+    ck_assert(!fetched.endpointsExclude);
+    UA_Role_clear(&fetched);
+
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, appExcludeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(!*(UA_Boolean*)readValue.data);
+    UA_Variant_clear(&readValue);
+
+    ck_assert_uint_eq(UA_Server_readValue(server, epExcludeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert(!*(UA_Boolean*)readValue.data);
+    UA_Variant_clear(&readValue);
+
+    UA_NodeId_clear(&appExcludeId);
+    UA_NodeId_clear(&epExcludeId);
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
     tcase_add_test(tc, Role_initClearCopy);
     suite_add_tcase(s, tc);
+
+    TCase *tc_cc = tcase_create("CustomConfiguration");
+    tcase_add_checked_fixture(tc_cc, setup, teardown);
+    tcase_add_test(tc_cc, customConfiguration_storedAndCopied);
+    tcase_add_test(tc_cc, customConfiguration_grantEnforcement);
+    suite_add_tcase(s, tc_cc);
     return s;
 }
 
@@ -2889,6 +3171,9 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityCriteria_extended);
     tcase_add_test(tc, identityCriteria_groupId);
     tcase_add_test(tc, roleFilters_evaluated);
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+    tcase_add_test(tc, roleTypeInstanceMethods_addIdentity);
+#endif
     suite_add_tcase(s, tc);
     return s;
 }
@@ -2945,6 +3230,8 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc, addedRole_ns0NodeFields);
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, addRole_cApiPublishesRoleObject);
+    tcase_add_test(tc, customConfiguration_propertyReadable);
+    tcase_add_test(tc, excludeProperties_readWriteRegistry);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
     tcase_add_test(tc, addRemoveRoleMethod_updatesAddressSpace);

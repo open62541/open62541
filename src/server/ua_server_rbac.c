@@ -41,14 +41,17 @@
  * - GroupId criteria require an AccessControl getUserGroups hook; without it
  *   they never match (no native group source).
  *
+ * - The role registry is capped at UA_RBAC_MAX_ROLES entries. AddRole reports
+ *   Bad_NotSupported beyond that (Part 18 §4.2.2).
+ *
  * - RolePermissions and the role Identities cannot be written through the
  *   attribute service (Part 3 §5.2.9). Use the C API (UA_Server_updateRole).
  *
  * - The RoleType instance Methods (AddIdentity/RemoveIdentity/AddApplication/
- *   RemoveApplication/AddEndpoint/RemoveEndpoint) are not currently dispatched
- *   to their callbacks when called on a role instance (the callbacks are bound
- *   to the RoleType Methods, not the per-instance Method nodes). Change role
- *   mapping rules through the C API in the meantime.
+ *   RemoveApplication/AddEndpoint/RemoveEndpoint) are materialized on Role
+ *   Objects in NS0 and route through UA_Server_updateRole. The
+ *   ApplicationsExclude and EndpointsExclude Properties are backed by the role
+ *   registry and writable through the Write service, per Part 18 §4.4.1.
  *
  * - The AccessRestrictions attribute is read-only through the attribute
  *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
@@ -68,6 +71,14 @@
  *   identity/application/endpoint mapping changes, reached by the C API and the
  *   RoleSet/RoleType Methods) when a role's mapping rules change (requires
  *   UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
+ *
+ * - The CustomConfiguration Property (Part 18 §4.4.1) is stored on UA_Role,
+ *   exposed as a read-only NS0 Property backed by the role registry, and
+ *   enforced: a Role with an empty Identities array and CustomConfiguration ==
+ *   FALSE cannot be granted to any Session. For CustomConfiguration == TRUE the
+ *   spec leaves the assignment vendor-specific; this implementation grants such
+ *   a Role to every Session that passes its Application/Endpoint filters, so an
+ *   empty custom Role with default filters is granted to *all* Sessions.
  *
  * - removeRole returns Bad_RequestNotAllowed for protected (well-known or
  *   config) roles per Part 18 §4.2.3 Table 3; the missing-Permissions case
@@ -149,6 +160,7 @@ UA_Role_init(UA_Role *role) {
     role->endpointsExclude = true;
     role->endpointsSize = 0;
     role->endpoints = NULL;
+    role->customConfiguration = false;
 }
 
 void UA_EXPORT
@@ -158,23 +170,14 @@ UA_Role_clear(UA_Role *role) {
     UA_NodeId_clear(&role->roleId);
     UA_QualifiedName_clear(&role->roleName);
 
-    if(role->identityMappingRules) {
-        for(size_t i = 0; i < role->identityMappingRulesSize; i++)
-            UA_IdentityMappingRuleType_clear(&role->identityMappingRules[i]);
-        UA_free(role->identityMappingRules);
-    }
-
-    if(role->applications) {
-        for(size_t i = 0; i < role->applicationsSize; i++)
-            UA_String_clear(&role->applications[i]);
-        UA_free(role->applications);
-    }
-
-    if(role->endpoints) {
-        for(size_t i = 0; i < role->endpointsSize; i++)
-            UA_EndpointType_clear(&role->endpoints[i]);
-        UA_free(role->endpoints);
-    }
+    /* UA_Array_delete instead of a plain free: the arrays may have been filled
+     * with UA_Array_copy, which returns the empty-array sentinel for size 0 */
+    UA_Array_delete(role->identityMappingRules, role->identityMappingRulesSize,
+                    &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+    UA_Array_delete(role->applications, role->applicationsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(role->endpoints, role->endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTTYPE]);
     UA_Role_init(role);
 }
 
@@ -248,6 +251,8 @@ UA_Role_copy(const UA_Role *src, UA_Role *dst) {
         }
     }
 
+    dst->customConfiguration = src->customConfiguration;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -282,6 +287,8 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2) {
         if(!UA_EndpointType_equal(&r1->endpoints[i], &r2->endpoints[i]))
             return false;
     }
+    if(r1->customConfiguration != r2->customConfiguration)
+        return false;
     return true;
 }
 
@@ -429,6 +436,10 @@ incrementRefCount(UA_Server *server, UA_PermissionIndex index) {
 /* RBAC Init/Cleanup  */
 /**********************/
 
+static UA_StatusCode
+addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
+        UA_Boolean wellKnown);
+
 /* Initialize well-known roles per specification */
 static UA_StatusCode
 initializeStandardRoles(UA_Server *server) {
@@ -493,7 +504,7 @@ initializeStandardRoles(UA_Server *server) {
         }
 
         UA_NodeId outId;
-        UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
+        UA_StatusCode res = addRole(server, &role, &outId, true);
         /* Clean up allocated identity array since addRole copies */
         UA_free(role.identityMappingRules);
         if(res != UA_STATUSCODE_GOOD)
@@ -680,6 +691,16 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
  * the current configuration: GroupId criteria without a getUserGroups hook. */
 static void
 warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
+    /* Part 18 §4.4.1: a non-custom Role with empty Identities cannot be granted
+     * to any Session. Warn so misconfiguration is visible. */
+    if(role->identityMappingRulesSize == 0 && !role->customConfiguration) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has no identity mapping rules and "
+                       "CustomConfiguration is false - it cannot be granted to "
+                       "any Session (Part 18 §4.4.1)",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    }
+
     if(server->config.accessControl.getUserGroups != NULL)
         return; /* GroupId criteria are resolved via the hook */
     for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
@@ -697,9 +718,12 @@ warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
 /* Public API: Role Management      */
 /************************************/
 
-UA_StatusCode
-UA_Server_addRole(UA_Server *server, const UA_Role *role,
-                  UA_NodeId *outRoleNodeId) {
+/* wellKnown marks the Roles registered by initializeStandardRoles during server
+ * startup. Those are defined by the spec, so they neither warrant a
+ * configuration warning nor a RoleMappingRuleChanged audit event. */
+static UA_StatusCode
+addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
+        UA_Boolean wellKnown) {
     if(!server || !role)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -718,10 +742,12 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         return UA_STATUSCODE_BADALREADYEXISTS;
     }
 
-    /* Enforce the registry quota to bound memory use (DoS mitigation) */
+    /* Enforce the registry quota to bound memory use (DoS mitigation).
+     * Part 18 §4.2.2 AddRole: "Bad_NotSupported - The Server does not allow
+     * more Roles to be added." */
     if(server->rolesSize >= UA_RBAC_MAX_ROLES) {
         unlockServer(server);
-        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* Grow the arrays */
@@ -758,7 +784,8 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
 
-    warnUnsupportedRoleFeatures(server, role);
+    if(!wellKnown)
+        warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
      * browseable. Skipped when the NS0 RBAC information model is unavailable
@@ -804,7 +831,7 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
      * AddRole Method NodeId is used as the MethodId even when addRole is
      * invoked through the C API, mirroring how updateRole reports its
      * canonical Method (Part 18 §4.5). */
-    {
+    if(!wellKnown) {
         const UA_NodeId addRoleMethod =
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
         auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
@@ -815,6 +842,12 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId) {
+    return addRole(server, role, outRoleNodeId, false);
 }
 
 /* Remove every UA_RolePermission entry that references roleId from a
@@ -889,7 +922,11 @@ UA_Server_removeRole(UA_Server *server,
      * information model has no node; a missing node is ignored, any other
      * deletion failure aborts the removal. */
     UA_NodeId removedRoleId = UA_NODEID_NULL;
-    UA_NodeId_copy(&role->roleId, &removedRoleId);
+    UA_StatusCode copyRes = UA_NodeId_copy(&role->roleId, &removedRoleId);
+    if(copyRes != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return copyRes;
+    }
     UA_StatusCode repRes = removeRoleRepresentation(server, &removedRoleId);
     if(repRes != UA_STATUSCODE_GOOD && repRes != UA_STATUSCODE_BADNODEIDUNKNOWN) {
         UA_NodeId_clear(&removedRoleId);
@@ -1289,6 +1326,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     existing->endpointsExclude = copy.endpointsExclude;
     existing->endpointsSize = copy.endpointsSize;
     existing->endpoints = copy.endpoints;
+    existing->customConfiguration = copy.customConfiguration;
 
     /* Null out moved fields before clearing the rest */
     copy.identityMappingRulesSize = 0;
@@ -1565,10 +1603,24 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Match every role's identity mapping rules against the context, then apply
-     * the role's Application/Endpoint filters. */
+     * the role's Application/Endpoint filters.
+     *
+     * Part 18 §4.4.1: a Role with an empty Identities array and
+     * CustomConfiguration == FALSE cannot be granted to any Session. Skip
+     * such roles entirely; they can only be assigned via the session "roles"
+     * attribute override. A custom Role with empty Identities bypasses the
+     * rule-matching requirement (granting is vendor-specific) and is granted
+     * when its Application/Endpoint filters pass. */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
+        if(role->identityMappingRulesSize == 0) {
+            if(role->customConfiguration && roleFiltersMatch(role, ctx)) {
+                matchedRoles[i] = true;
+                matchCount++;
+            }
+            continue;
+        }
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
             if(identityRuleMatches(&role->identityMappingRules[j], ctx)) {
                 if(roleFiltersMatch(role, ctx)) {
@@ -1603,6 +1655,10 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
             if(matchedRoles[i])
                 continue;
             UA_Role *role = &server->roles[i];
+            /* A non-custom Role with empty Identities can never be granted
+             * (Part 18 §4.4.1), even transitively via the Role fixpoint. */
+            if(role->identityMappingRulesSize == 0 && !role->customConfiguration)
+                continue;
             for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
                 if(role->identityMappingRules[j].criteriaType !=
                    UA_IDENTITYCRITERIATYPE_ROLE)
