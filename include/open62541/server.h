@@ -2143,6 +2143,11 @@ typedef struct {
     UA_Boolean endpointsExclude;
     size_t endpointsSize;
     UA_EndpointType *endpoints;
+
+    /* CustomConfiguration (Part 18 §4.4.1): when TRUE the configuration and
+     * assignment of the Role is vendor-specific; when FALSE a Role with an
+     * empty Identities array cannot be granted to any Session. */
+    UA_Boolean customConfiguration;
 } UA_Role;
 
 /* UA_Role Type Management */
