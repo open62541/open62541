@@ -442,6 +442,10 @@ incrementRefCount(UA_Server *server, UA_PermissionIndex index) {
 /* RBAC Init/Cleanup  */
 /**********************/
 
+static UA_StatusCode
+addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
+        UA_Boolean wellKnown);
+
 /* Initialize well-known roles per specification */
 static UA_StatusCode
 initializeStandardRoles(UA_Server *server) {
@@ -506,7 +510,7 @@ initializeStandardRoles(UA_Server *server) {
         }
 
         UA_NodeId outId;
-        UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
+        UA_StatusCode res = addRole(server, &role, &outId, true);
         /* Clean up allocated identity array since addRole copies */
         UA_free(role.identityMappingRules);
         if(res != UA_STATUSCODE_GOOD)
@@ -720,9 +724,12 @@ warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
 /* Public API: Role Management      */
 /************************************/
 
-UA_StatusCode
-UA_Server_addRole(UA_Server *server, const UA_Role *role,
-                  UA_NodeId *outRoleNodeId) {
+/* wellKnown marks the Roles registered by initializeStandardRoles during server
+ * startup. Those are defined by the spec, so they neither warrant a
+ * configuration warning nor a RoleMappingRuleChanged audit event. */
+static UA_StatusCode
+addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
+        UA_Boolean wellKnown) {
     if(!server || !role)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -781,7 +788,8 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
 
-    warnUnsupportedRoleFeatures(server, role);
+    if(!wellKnown)
+        warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
      * browseable. Skipped when the NS0 RBAC information model is unavailable
@@ -827,7 +835,7 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
      * AddRole Method NodeId is used as the MethodId even when addRole is
      * invoked through the C API, mirroring how updateRole reports its
      * canonical Method (Part 18 §4.5). */
-    {
+    if(!wellKnown) {
         const UA_NodeId addRoleMethod =
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
         auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
@@ -838,6 +846,12 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId) {
+    return addRole(server, role, outRoleNodeId, false);
 }
 
 /* Remove every UA_RolePermission entry that references roleId from a
