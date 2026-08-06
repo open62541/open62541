@@ -63,10 +63,11 @@
  *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
  *   during NS0 setup are left untouched.
  *
- * - A RoleMappingRuleChangedAuditEventType is emitted from UA_Server_updateRole
- *   (the choke point for identity/application/endpoint mapping changes, reached
- *   by the C API and the RoleType Methods) when a role's mapping rules change
- *   (requires UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
+ * - A RoleMappingRuleChangedAuditEventType is emitted from UA_Server_addRole,
+ *   UA_Server_removeRole and UA_Server_updateRole (the choke points for
+ *   identity/application/endpoint mapping changes, reached by the C API and the
+ *   RoleSet/RoleType Methods) when a role's mapping rules change (requires
+ *   UA_ENABLE_AUDITING and UA_ENABLE_SUBSCRIPTIONS_EVENTS).
  *
  * - removeRole returns Bad_RequestNotAllowed for protected (well-known or
  *   config) roles per Part 18 §4.2.3 Table 3; the missing-Permissions case
@@ -798,6 +799,20 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
     /* A new role may match active sessions (Part 18 §4.4.1) */
     UA_Server_reevaluateSessionRoles(server);
 
+#ifdef UA_ENABLE_AUDITING
+    /* Emit a RoleMappingRuleChangedAuditEvent for the role addition. The
+     * AddRole Method NodeId is used as the MethodId even when addRole is
+     * invoked through the C API, mirroring how updateRole reports its
+     * canonical Method (Part 18 §4.5). */
+    {
+        const UA_NodeId addRoleMethod =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
+        auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                         &newRole->roleId, &addRoleMethod,
+                                         UA_STATUSCODE_GOOD, 0, NULL);
+    }
+#endif
+
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -884,7 +899,6 @@ UA_Server_removeRole(UA_Server *server,
 
     /* Drop any RolePermission entries that still reference the removed role */
     purgeRoleFromPermissions(server, &removedRoleId);
-    UA_NodeId_clear(&removedRoleId);
 
     UA_Role_clear(&server->roles[roleIndex]);
 
@@ -920,6 +934,21 @@ UA_Server_removeRole(UA_Server *server,
 
     /* Sessions that were granted the removed role must lose it */
     UA_Server_reevaluateSessionRoles(server);
+
+#ifdef UA_ENABLE_AUDITING
+    /* Emit a RoleMappingRuleChangedAuditEvent for the role removal. The
+     * RemoveRole Method NodeId is used as the MethodId even when removeRole
+     * is invoked through the C API, mirroring how updateRole reports its
+     * canonical Method (Part 18 §4.5). */
+    {
+        const UA_NodeId removeRoleMethod =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE);
+        auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                         &removedRoleId, &removeRoleMethod,
+                                         UA_STATUSCODE_GOOD, 0, NULL);
+    }
+#endif
+    UA_NodeId_clear(&removedRoleId);
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;

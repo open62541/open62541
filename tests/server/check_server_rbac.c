@@ -2787,6 +2787,46 @@ START_TEST(auditRoleMappingRuleChanged_emitted) {
     UA_Server_removeRole(server, role.roleName);
 }
 END_TEST
+
+/* Adding a role emits a RoleMappingRuleChangedAuditEvent (Part 18 §4.5). */
+START_TEST(auditRoleMapping_addRoleEmits) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62101);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditAddRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
+/* Removing a role emits a RoleMappingRuleChangedAuditEvent (Part 18 §4.5). */
+START_TEST(auditRoleMapping_removeRoleEmits) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62102);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditRemoveRole");
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    cfg->auditingEnabled = true;
+    cfg->auditNotificationCallback = rbacAuditNotificationCallback;
+    roleMappingAuditSeen = false;
+
+    ck_assert_uint_eq(UA_Server_removeRole(server, role.roleName),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(roleMappingAuditSeen);
+
+    cfg->auditNotificationCallback = NULL;
+}
+END_TEST
 #endif /* UA_ENABLE_AUDITING */
 
 static Suite *testSuite_RolTypeAPI(void) {
@@ -2865,6 +2905,8 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, accessRestrictions_setGetRead);
 #ifdef UA_ENABLE_AUDITING
     tcase_add_test(tc, auditRoleMappingRuleChanged_emitted);
+    tcase_add_test(tc, auditRoleMapping_addRoleEmits);
+    tcase_add_test(tc, auditRoleMapping_removeRoleEmits);
 #endif
     suite_add_tcase(s, tc);
     return s;
