@@ -286,6 +286,7 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
  * Then the ApplicationUri doesn't get checked against the certificate. */
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
+                    const UA_SecurityPolicy *securityPolicy,
                     UA_SecureChannel *channel, UA_Session *session,
                     const char *logPrefix,
                     const UA_ApplicationDescription *ad,

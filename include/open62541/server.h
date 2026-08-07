@@ -2227,6 +2227,13 @@ struct UA_ServerConfig {
 
     UA_RuleHandling allowAllCertificateUris;
 
+    /* Verify that client ApplicationInstanceCertificates and X509IdentityTokens
+     * permit clientAuth. For RSA application certificates the EKU extension is
+     * mandatory. For ECC application certificates and user certificates it is
+     * optional, but must permit clientAuth when present. ABORT rejects invalid
+     * usage, DEFAULT and WARN log and continue, and ACCEPT continues silently. */
+    UA_RuleHandling certificateEkuRule;
+
     /* Custom Data Types
      * ~~~~~~~~~~~~~~~~~
      * The following is a linked list of arrays with custom data types. All data
