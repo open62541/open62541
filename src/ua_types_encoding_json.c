@@ -1423,6 +1423,7 @@ DECODE_JSON(LocalizedText) {
 
 DECODE_JSON(QualifiedName) {
     UA_QualifiedName *dst = (UA_QualifiedName*)p;
+    CHECK_NULL_SKIP;
     UA_String str;
     UA_String_init(&str);
     status res = String_decodeJson(ctx, &str, NULL);
