@@ -7,10 +7,11 @@
 ###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
-
+###    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
 
 import logging
 from .datatypes import QualifiedName, LocalizedText, NodeId
+from .type_parser import get_definition_fields
 
 __all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
            'ObjectNode', 'VariableNode', 'VariableTypeNode',
@@ -152,6 +153,12 @@ class Node:
         if isinstance(self, VariableNode) or isinstance(self, VariableTypeNode):
             if str(self.dataType) in aliases:
                 self.dataType = NodeId(aliases[self.dataType])
+        if isinstance(self, DataTypeNode) and self.dataTypeDefinition:
+            for f in get_definition_fields(self.dataTypeDefinition):
+                if "DataType" in f.attributes:
+                    v = f.attributes["DataType"].value
+                    if str(v) in aliases:
+                        f.attributes["DataType"].value = str(NodeId(aliases[v]))
         new_refs = dict()
         for ref in self.references:
             if str(ref.source) in aliases:
@@ -168,6 +175,13 @@ class Node:
         self.browseName.ns = nsMapping[self.browseName.ns]
         if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
             self.dataType.ns = nsMapping[self.dataType.ns]
+        if isinstance(self, DataTypeNode) and self.dataTypeDefinition:
+            for field in get_definition_fields(self.dataTypeDefinition):
+                if "DataType" not in field.attributes:
+                    continue
+                dataType = NodeId(str(field.attributes["DataType"].value))
+                dataType.ns = nsMapping[dataType.ns]
+                field.attributes["DataType"].value = str(dataType)
         new_refs = dict()
         for ref in self.references:
             ref.source.ns = nsMapping[ref.source.ns]
@@ -323,6 +337,7 @@ class DataTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
         self.isAbstract = False
+        self.dataTypeDefinition = None
         if xmlelement:
             DataTypeNode.parseXML(self, xmlelement)
 
@@ -331,6 +346,15 @@ class DataTypeNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
+        for x in xmlelement.childNodes:
+            if x.nodeType != x.ELEMENT_NODE:
+                continue
+            if x.localName == "Definition":
+                self.dataTypeDefinition = x
+                for e in get_definition_fields(x):
+                    if "DataType" in e.attributes:
+                        e.attributes["DataType"].value = \
+                            str(RefOrAlias(e.attributes["DataType"].value))
 
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
