@@ -542,6 +542,7 @@ notifyApplication(UA_Server *server, UA_ApplicationNotificationType type,
 
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
+                    const UA_SecurityPolicy *securityPolicy,
                     UA_SecureChannel *channel, UA_Session *session,
                     const char *logPrefix,
                     const UA_ApplicationDescription *ad,
@@ -587,6 +588,30 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
 
             /* Ignore the bad result depending on the server configuration.
              * The res variable gets overwritten in all cases. */
+        }
+    }
+
+    /* The server receives client application and user certificates. RSA
+     * application certificates require clientAuth. For ECC application and user
+     * certificates the extension is optional, but restrictive values apply. */
+    if(securityPolicy && securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE) {
+        UA_Boolean applicationCertificate =
+            (cg == &server->config.secureChannelPKI);
+        UA_Boolean ekuRequired = applicationCertificate &&
+            securityPolicy->policyType == UA_SECURITYPOLICYTYPE_RSA;
+        res = UA_CertificateUtils_checkExtendedKeyUsage(
+            &certificate, UA_CERTIFICATEEKU_CLIENTAUTH, ekuRequired);
+        if(res == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
+            if(server->config.certificateEkuRule <= UA_RULEHANDLING_WARN) {
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                               "%s: The client certificate does not permit clientAuth",
+                               logPrefix);
+            }
+            if(server->config.certificateEkuRule == UA_RULEHANDLING_ABORT)
+                goto errout;
+            res = UA_STATUSCODE_GOOD;
+        } else if(res != UA_STATUSCODE_GOOD) {
+            goto errout;
         }
     }
 

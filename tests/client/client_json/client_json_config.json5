@@ -93,5 +93,6 @@
 
   maxAsyncServiceCalls: 17,
   asyncServiceCallRule: 3, // UA_RULEHANDLING_ACCEPT
+  certificateEkuRule: 2, // UA_RULEHANDLING_WARN
   outStandingPublishRequests: 0
 }

@@ -1065,6 +1065,8 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->verifyRequestTimestamp, NULL);
                 else if(strcmp(field, "allowEmptyVariables") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->allowEmptyVariables, NULL);
+                else if(strcmp(field, "certificateEkuRule") == 0)
+                    retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
                 else if(strcmp(field, "serverUrls") == 0)
                     retval = StringArrayField_parseJson(&ctx, &config->serverUrls, &config->serverUrlsSize);
                 else if(strcmp(field, "tcpEnabled") == 0)
@@ -1639,6 +1641,8 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = UInt32Field_parseJson(&ctx, &config->maxAsyncServiceCalls, NULL);
                 else if(strcmp(field, "asyncServiceCallRule") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->asyncServiceCallRule, NULL);
+                else if(strcmp(field, "certificateEkuRule") == 0)
+                    retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
                 else if(strcmp(field, "tcpReuseAddr") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
 #ifdef UA_ENABLE_LWS

@@ -338,6 +338,7 @@ START_TEST(loadClientConfig) {
     /* test outstanding publish requests */
     ck_assert_uint_eq(clientConfig.maxAsyncServiceCalls, 17);
     ck_assert_uint_eq(clientConfig.asyncServiceCallRule, UA_RULEHANDLING_ACCEPT);
+    ck_assert_uint_eq(clientConfig.certificateEkuRule, UA_RULEHANDLING_WARN);
     ck_assert_uint_eq(clientConfig.outStandingPublishRequests, 0);
 
     UA_ByteString_clear(&jsonConfig);
@@ -496,6 +497,7 @@ START_TEST(loadClientAndClientConfigAndCompare) {
     /* test outstanding publish requests */
     ck_assert_uint_eq(cc2->maxAsyncServiceCalls, clientConfig.maxAsyncServiceCalls);
     ck_assert_uint_eq(cc2->asyncServiceCallRule, clientConfig.asyncServiceCallRule);
+    ck_assert_uint_eq(cc2->certificateEkuRule, clientConfig.certificateEkuRule);
     ck_assert_uint_eq(cc2->outStandingPublishRequests, clientConfig.outStandingPublishRequests);
 
     UA_Client_delete(client);

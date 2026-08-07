@@ -90,6 +90,11 @@ START_TEST(CertificateUtils_StubsAreSafeWithoutEncryption) {
     rv = UA_CertificateUtils_getThumbprint(&cert, &thumb);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
 
+    UA_CertificateEku eku = UA_CERTIFICATEEKU_OTHER;
+    rv = UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_NONE);
+
     rv = UA_CertificateUtils_comparePublicKeys(&cert, &cert);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
 

@@ -20,6 +20,7 @@
 
 #include "test_helpers.h"
 #include "certificates.h"
+#include "certificate_eku.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -200,6 +201,173 @@ START_TEST(check_cert_common_name) {
     ck_assert(UA_String_equal(&commonName, &expected));
 
     UA_String_clear(&commonName);
+}
+END_TEST
+
+START_TEST(get_extended_key_usage) {
+    UA_CertificateEku eku = UA_CERTIFICATEEKU_NONE;
+
+    /* CERT_DER_DATA contains both serverAuth and clientAuth. */
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_StatusCode retval =
+        UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_SERVERAUTH |
+                      UA_CERTIFICATEEKU_CLIENTAUTH);
+
+    /* The same certificate in PEM encoding produces the same result. */
+    cert = (UA_ByteString){CERT_PEM_LENGTH, CERT_PEM_DATA};
+    eku = UA_CERTIFICATEEKU_NONE;
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_SERVERAUTH |
+                      UA_CERTIFICATEEKU_CLIENTAUTH);
+
+    /* APPLICATION_CERT_DER_DATA does not contain an EKU extension. */
+    cert = (UA_ByteString){APPLICATION_CERT_DER_LENGTH,
+                           APPLICATION_CERT_DER_DATA};
+    eku = UA_CERTIFICATEEKU_OTHER;
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_NONE);
+
+    UA_ByteString invalid = UA_BYTESTRING("not a certificate");
+    eku = UA_CERTIFICATEEKU_OTHER;
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&invalid, &eku);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_NONE);
+
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&cert, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+}
+END_TEST
+
+START_TEST(check_extended_key_usage_profile) {
+    UA_ByteString both = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_StatusCode retval = UA_CertificateUtils_checkExtendedKeyUsage(
+        &both, UA_CERTIFICATEEKU_SERVERAUTH, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_CertificateUtils_checkExtendedKeyUsage(
+        &both, UA_CERTIFICATEEKU_CLIENTAUTH, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString wrongClient = {RSA_CLIENT_WRONG_EKU_LENGTH,
+                                 RSA_CLIENT_WRONG_EKU_PEM};
+    retval = UA_CertificateUtils_checkExtendedKeyUsage(
+        &wrongClient, UA_CERTIFICATEEKU_CLIENTAUTH, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    UA_ByteString wrongServer = {RSA_SERVER_WRONG_EKU_LENGTH,
+                                 RSA_SERVER_WRONG_EKU_PEM};
+    retval = UA_CertificateUtils_checkExtendedKeyUsage(
+        &wrongServer, UA_CERTIFICATEEKU_SERVERAUTH, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    UA_ByteString missing = {APPLICATION_CERT_DER_LENGTH,
+                             APPLICATION_CERT_DER_DATA};
+    retval = UA_CertificateUtils_checkExtendedKeyUsage(
+        &missing, UA_CERTIFICATEEKU_SERVERAUTH, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    UA_ByteString eccMissing = {ECC_SERVER_MISSING_EKU_LENGTH,
+                                ECC_SERVER_MISSING_EKU_PEM};
+    retval = UA_CertificateUtils_checkExtendedKeyUsage(
+        &eccMissing, UA_CERTIFICATEEKU_SERVERAUTH, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(client_certificate_eku_rule) {
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(config));
+    config.logging = UA_Server_getConfig(server)->logging;
+
+    UA_SecurityPolicy policy;
+    memset(&policy, 0, sizeof(policy));
+    policy.policyType = UA_SECURITYPOLICYTYPE_RSA;
+
+    UA_ByteString wrong = {RSA_SERVER_WRONG_EKU_LENGTH,
+                           RSA_SERVER_WRONG_EKU_PEM};
+    UA_StatusCode retval = verifyServerCertificateEku(&config, &policy, &wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    config.certificateEkuRule = UA_RULEHANDLING_WARN;
+    retval = verifyServerCertificateEku(&config, &policy, &wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    config.certificateEkuRule = UA_RULEHANDLING_ACCEPT;
+    retval = verifyServerCertificateEku(&config, &policy, &wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString missing = {APPLICATION_CERT_DER_LENGTH,
+                             APPLICATION_CERT_DER_DATA};
+    config.certificateEkuRule = UA_RULEHANDLING_ABORT;
+    retval = verifyServerCertificateEku(&config, &policy, &missing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    policy.policyType = UA_SECURITYPOLICYTYPE_ECC;
+    UA_ByteString eccMissing = {ECC_SERVER_MISSING_EKU_LENGTH,
+                                ECC_SERVER_MISSING_EKU_PEM};
+    retval = verifyServerCertificateEku(&config, &policy, &eccMissing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+static UA_StatusCode
+acceptCertificate(UA_CertificateGroup *certGroup,
+                  const UA_ByteString *certificate) {
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(server_certificate_eku_rule) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_StatusCode (*applicationVerify)(UA_CertificateGroup*, const UA_ByteString*) =
+        config->secureChannelPKI.verifyCertificate;
+    UA_StatusCode (*userVerify)(UA_CertificateGroup*, const UA_ByteString*) =
+        config->sessionPKI.verifyCertificate;
+    config->secureChannelPKI.verifyCertificate = acceptCertificate;
+    config->sessionPKI.verifyCertificate = acceptCertificate;
+
+    UA_SecurityPolicy policy;
+    memset(&policy, 0, sizeof(policy));
+    policy.policyType = UA_SECURITYPOLICYTYPE_RSA;
+
+    UA_ByteString wrong = {RSA_CLIENT_WRONG_EKU_LENGTH,
+                           RSA_CLIENT_WRONG_EKU_PEM};
+    UA_StatusCode retval = validateCertificate(
+        server, &config->secureChannelPKI, &policy, NULL, NULL,
+        "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    config->certificateEkuRule = UA_RULEHANDLING_WARN;
+    retval = validateCertificate(server, &config->secureChannelPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    config->certificateEkuRule = UA_RULEHANDLING_ACCEPT;
+    retval = validateCertificate(server, &config->secureChannelPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString missing = {APPLICATION_CERT_DER_LENGTH,
+                             APPLICATION_CERT_DER_DATA};
+    config->certificateEkuRule = UA_RULEHANDLING_ABORT;
+    retval = validateCertificate(server, &config->secureChannelPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, missing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    /* User certificates may omit EKU, but a present incompatible EKU is
+     * restrictive. */
+    retval = validateCertificate(server, &config->sessionPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, missing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = validateCertificate(server, &config->sessionPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    config->secureChannelPKI.verifyCertificate = applicationVerify;
+    config->sessionPKI.verifyCertificate = userVerify;
+    config->certificateEkuRule = UA_RULEHANDLING_DEFAULT;
 }
 END_TEST
 
@@ -430,6 +598,10 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_memorystore, check_cert_common_name);
+    tcase_add_test(tc_encryption_memorystore, get_extended_key_usage);
+    tcase_add_test(tc_encryption_memorystore, check_extended_key_usage_profile);
+    tcase_add_test(tc_encryption_memorystore, client_certificate_eku_rule);
+    tcase_add_test(tc_encryption_memorystore, server_certificate_eku_rule);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
     tcase_add_test(tc_encryption_memorystore, get_rejectedlist);
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
@@ -445,6 +617,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_filestore, check_cert_common_name);
+    tcase_add_test(tc_encryption_filestore, get_extended_key_usage);
     tcase_add_test(tc_encryption_filestore, remove_from_trustlist);
     tcase_add_test(tc_encryption_filestore, get_rejectedlist);
     tcase_add_test(tc_encryption_filestore, verify_expired_certificate_status_depends_on_trust);
