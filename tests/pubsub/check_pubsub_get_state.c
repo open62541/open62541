@@ -15,6 +15,8 @@
 
 #ifdef UA_ARCHITECTURE_LWIP
 #include "../arch/lwip/eventloop_lwip.h"
+#elif defined(UA_ARCHITECTURE_WIN32)
+#include <winsock2.h>
 #else
 #include "../arch/posix/eventloop_posix.h"
 #endif
@@ -448,7 +450,11 @@ START_TEST(Test_error_case) {
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
        if(UA_NodeId_equal(&tmpConnection->head.identifier, &ConnId_1)) {
+#ifdef UA_ARCHITECTURE_WIN32
+            shutdown((SOCKET)tmpConnection->sendChannel, SD_BOTH);
+#else
             UA_shutdown((int)tmpConnection->sendChannel, UA_SHUT_RDWR);
+#endif
        }
     }
 
