@@ -1867,6 +1867,33 @@ createSessionAsync(UA_Client *client) {
     return res;
 }
 
+UA_StatusCode
+verifyServerCertificateEku(const UA_ClientConfig *config,
+                           const UA_SecurityPolicy *securityPolicy,
+                           const UA_ByteString *certificate) {
+    if(!securityPolicy || securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE)
+        return UA_STATUSCODE_GOOD;
+
+    UA_Boolean ekuRequired =
+        (securityPolicy->policyType == UA_SECURITYPOLICYTYPE_RSA);
+    UA_StatusCode res = UA_CertificateUtils_checkExtendedKeyUsage(
+        certificate, UA_CERTIFICATEEKU_SERVERAUTH, ekuRequired);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+
+    /* Parsing errors are certificate errors, not rule violations. */
+    if(res != UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED)
+        return res;
+
+    if(config->certificateEkuRule <= UA_RULEHANDLING_WARN) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The server certificate does not permit serverAuth");
+    }
+    if(config->certificateEkuRule == UA_RULEHANDLING_ABORT)
+        return res;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 initSecurityPolicy(UA_Client *client) {
     /* Find the SecurityPolicy. Use #None if the endpoint is not (yet)
@@ -1900,6 +1927,11 @@ initSecurityPolicy(UA_Client *client) {
                          "defined for the selected endpoint");
             return res;
         }
+
+        res = verifyServerCertificateEku(&client->config, sp,
+                                         &client->endpoint.serverCertificate);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* If the sender provides a chain of certificates then we shall extract the

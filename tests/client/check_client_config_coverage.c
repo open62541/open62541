@@ -114,6 +114,7 @@ START_TEST(ClientConfig_setDefault_populatesBasics) {
     /* Async service back-pressure defaults to a non-blocking limit. */
     ck_assert_uint_eq(cfg.maxAsyncServiceCalls, 32);
     ck_assert_uint_eq(cfg.asyncServiceCallRule, UA_RULEHANDLING_DEFAULT);
+    ck_assert_uint_eq(cfg.certificateEkuRule, UA_RULEHANDLING_DEFAULT);
     /* Logging is allocated. */
     ck_assert_ptr_ne(cfg.logging, NULL);
     /* EventLoop is allocated. */
@@ -133,6 +134,7 @@ START_TEST(ClientConfig_setDefault_preservesCustomValues) {
     cfg.secureChannelLifeTime = 77777;
     cfg.maxAsyncServiceCalls = 23;
     cfg.asyncServiceCallRule = UA_RULEHANDLING_ACCEPT;
+    cfg.certificateEkuRule = UA_RULEHANDLING_WARN;
 
     UA_StatusCode rv = UA_ClientConfig_setDefault(&cfg);
     ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
@@ -141,6 +143,7 @@ START_TEST(ClientConfig_setDefault_preservesCustomValues) {
     ck_assert_uint_eq(cfg.secureChannelLifeTime, 77777);
     ck_assert_uint_eq(cfg.maxAsyncServiceCalls, 23);
     ck_assert_uint_eq(cfg.asyncServiceCallRule, UA_RULEHANDLING_ACCEPT);
+    ck_assert_uint_eq(cfg.certificateEkuRule, UA_RULEHANDLING_WARN);
 
     UA_ClientConfig_clear(&cfg);
 } END_TEST

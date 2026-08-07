@@ -79,6 +79,7 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->inactivityCallback = src->inactivityCallback;
     dst->maxAsyncServiceCalls = src->maxAsyncServiceCalls;
     dst->asyncServiceCallRule = src->asyncServiceCallRule;
+    dst->certificateEkuRule = src->certificateEkuRule;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logging = src->logging;
     if(src->certificateVerification.logging == NULL)
