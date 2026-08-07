@@ -37,6 +37,7 @@
   //    WARN = 2   /* Print a message in the logs and continue */
   //    ACCEPT = 3 /* Continue and disregard the broken rule */
   verifyRequestTimestamp: 0,
+  certificateEkuRule: 2, // UA_RULEHANDLING_WARN
   // Variables (that don't have a DataType of BaseDataType) must not have an empty variant value.
   // The default behaviour is to auto-create a matching zeroed-out value for empty VariableNodes when they are added.
   //    DEFAULT = 0

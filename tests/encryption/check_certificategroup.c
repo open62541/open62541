@@ -313,6 +313,64 @@ START_TEST(client_certificate_eku_rule) {
 }
 END_TEST
 
+static UA_StatusCode
+acceptCertificate(UA_CertificateGroup *certGroup,
+                  const UA_ByteString *certificate) {
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(server_certificate_eku_rule) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_StatusCode (*applicationVerify)(UA_CertificateGroup*, const UA_ByteString*) =
+        config->secureChannelPKI.verifyCertificate;
+    UA_StatusCode (*userVerify)(UA_CertificateGroup*, const UA_ByteString*) =
+        config->sessionPKI.verifyCertificate;
+    config->secureChannelPKI.verifyCertificate = acceptCertificate;
+    config->sessionPKI.verifyCertificate = acceptCertificate;
+
+    UA_SecurityPolicy policy;
+    memset(&policy, 0, sizeof(policy));
+    policy.policyType = UA_SECURITYPOLICYTYPE_RSA;
+
+    UA_ByteString wrong = {RSA_CLIENT_WRONG_EKU_LENGTH,
+                           RSA_CLIENT_WRONG_EKU_PEM};
+    UA_StatusCode retval = validateCertificate(
+        server, &config->secureChannelPKI, &policy, NULL, NULL,
+        "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    config->certificateEkuRule = UA_RULEHANDLING_WARN;
+    retval = validateCertificate(server, &config->secureChannelPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    config->certificateEkuRule = UA_RULEHANDLING_ACCEPT;
+    retval = validateCertificate(server, &config->secureChannelPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString missing = {APPLICATION_CERT_DER_LENGTH,
+                             APPLICATION_CERT_DER_DATA};
+    config->certificateEkuRule = UA_RULEHANDLING_ABORT;
+    retval = validateCertificate(server, &config->secureChannelPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, missing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    /* User certificates may omit EKU, but a present incompatible EKU is
+     * restrictive. */
+    retval = validateCertificate(server, &config->sessionPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, missing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = validateCertificate(server, &config->sessionPKI, &policy,
+                                 NULL, NULL, "EkuTest", NULL, wrong);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
+
+    config->secureChannelPKI.verifyCertificate = applicationVerify;
+    config->sessionPKI.verifyCertificate = userVerify;
+    config->certificateEkuRule = UA_RULEHANDLING_DEFAULT;
+}
+END_TEST
+
 START_TEST(add_to_trustlist_with_email) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -543,6 +601,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, get_extended_key_usage);
     tcase_add_test(tc_encryption_memorystore, check_extended_key_usage_profile);
     tcase_add_test(tc_encryption_memorystore, client_certificate_eku_rule);
+    tcase_add_test(tc_encryption_memorystore, server_certificate_eku_rule);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
     tcase_add_test(tc_encryption_memorystore, get_rejectedlist);
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
