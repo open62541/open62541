@@ -22,7 +22,7 @@ TOOLS_DIR = os.path.join(HERE, "..", "..", "tools")
 GENERATOR = os.path.join(TOOLS_DIR, "generate_datatypes.py")
 sys.path.insert(0, TOOLS_DIR)
 
-from generate_datatypes import portable_basename
+from nodeset_compiler.backend_open62541_datatypes import portable_basename
 
 BASE_BSD = os.path.join(HERE, "cross_ns_base.bsd")
 SAME_BSD = os.path.join(HERE, "cross_ns_same.bsd")
