@@ -883,6 +883,36 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage) {
+    if(!certificate || !extendedKeyUsage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *extendedKeyUsage = UA_CERTIFICATEEKU_NONE;
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    for(mbedtls_x509_sequence *eku = &cert.ext_key_usage;
+        eku && eku->buf.p; eku = eku->next) {
+        UA_CertificateEku purpose = UA_CERTIFICATEEKU_OTHER;
+        if(MBEDTLS_OID_CMP(MBEDTLS_OID_SERVER_AUTH, &eku->buf) == 0)
+            purpose = UA_CERTIFICATEEKU_SERVERAUTH;
+        else if(MBEDTLS_OID_CMP(MBEDTLS_OID_CLIENT_AUTH, &eku->buf) == 0)
+            purpose = UA_CERTIFICATEEKU_CLIENTAUTH;
+        else if(MBEDTLS_OID_CMP(MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE,
+                                &eku->buf) == 0)
+            purpose = UA_CERTIFICATEEKU_ANY;
+        *extendedKeyUsage = (UA_CertificateEku)(*extendedKeyUsage | purpose);
+    }
+
+    mbedtls_x509_crt_free(&cert);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

@@ -62,6 +62,14 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage) {
+    if(extendedKeyUsage)
+        *extendedKeyUsage = UA_CERTIFICATEEKU_NONE;
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2) {
     return UA_STATUSCODE_BADNOTSUPPORTED;

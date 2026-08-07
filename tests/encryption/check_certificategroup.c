@@ -203,6 +203,44 @@ START_TEST(check_cert_common_name) {
 }
 END_TEST
 
+START_TEST(get_extended_key_usage) {
+    UA_CertificateEku eku = UA_CERTIFICATEEKU_NONE;
+
+    /* CERT_DER_DATA contains both serverAuth and clientAuth. */
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_StatusCode retval =
+        UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_SERVERAUTH |
+                      UA_CERTIFICATEEKU_CLIENTAUTH);
+
+    /* The same certificate in PEM encoding produces the same result. */
+    cert = (UA_ByteString){CERT_PEM_LENGTH, CERT_PEM_DATA};
+    eku = UA_CERTIFICATEEKU_NONE;
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_SERVERAUTH |
+                      UA_CERTIFICATEEKU_CLIENTAUTH);
+
+    /* APPLICATION_CERT_DER_DATA does not contain an EKU extension. */
+    cert = (UA_ByteString){APPLICATION_CERT_DER_LENGTH,
+                           APPLICATION_CERT_DER_DATA};
+    eku = UA_CERTIFICATEEKU_OTHER;
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&cert, &eku);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_NONE);
+
+    UA_ByteString invalid = UA_BYTESTRING("not a certificate");
+    eku = UA_CERTIFICATEEKU_OTHER;
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&invalid, &eku);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eku, UA_CERTIFICATEEKU_NONE);
+
+    retval = UA_CertificateUtils_getExtendedKeyUsage(&cert, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+}
+END_TEST
+
 START_TEST(add_to_trustlist_with_email) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -430,6 +468,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_memorystore, check_cert_common_name);
+    tcase_add_test(tc_encryption_memorystore, get_extended_key_usage);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
     tcase_add_test(tc_encryption_memorystore, get_rejectedlist);
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
@@ -445,6 +484,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_filestore, check_cert_common_name);
+    tcase_add_test(tc_encryption_filestore, get_extended_key_usage);
     tcase_add_test(tc_encryption_filestore, remove_from_trustlist);
     tcase_add_test(tc_encryption_filestore, get_rejectedlist);
     tcase_add_test(tc_encryption_filestore, verify_expired_certificate_status_depends_on_trust);
