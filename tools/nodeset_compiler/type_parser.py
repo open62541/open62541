@@ -1,4 +1,3 @@
-import abc
 import codecs
 import csv
 import json
@@ -64,10 +63,9 @@ def get_type_for_name(xml_type_name, types, xmlNamespaces):
 
 
 class Type:
-    def __init__(self, outname, xml, namespaceUri):
-        self.name = None
-        if xml is not None:
-            self.name = xml.get("Name")
+    def __init__(self, outname, namespaceUri, bsd=None):
+        if bsd is not None:
+            self.name = bsd.get("Name")
         self.outname = outname
         self.namespaceUri = namespaceUri
         self.pointerfree = False
@@ -76,8 +74,8 @@ class Type:
         self.nodeId = None
         self.binaryEncodingId = None
         self.xmlEncodingId = None
-        if xml is not None:
-            for child in xml:
+        if bsd is not None:
+            for child in bsd:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
                     self.description = child.text
                     break
@@ -85,23 +83,25 @@ class Type:
 
 class BuiltinType(Type):
     def __init__(self, name):
-        Type.__init__(self, "types", None, "http://opcfoundation.org/UA/")
+        Type.__init__(self, "types", "http://opcfoundation.org/UA/")
         self.name = name
         self.pointerfree = self.name in builtin_pointerfree
 
 
 class EnumerationType(Type):
-    def __init__(self, outname, xml, namespace):
-        Type.__init__(self, outname, xml, namespace)
+    def __init__(self, outname, namespace, bsd=None):
+        Type.__init__(self, outname, namespace, bsd=bsd)
         self.pointerfree = True
         self.elements = OrderedDict()
-        self.isOptionSet = bool(xml.get("IsOptionSet", "false") == "true")
+        self.isOptionSet = False
+        if bsd is not None:
+            self.isOptionSet = bsd.get("IsOptionSet", "false") == "true"
         self.lengthInBits = 0
         try:
-            self.lengthInBits = int(xml.get("LengthInBits", "32"))
+            self.lengthInBits = int(bsd.get("LengthInBits", "32"))
         except ValueError as ex:
             raise Exception("Error at EnumerationType '" + self.name + "': 'LengthInBits' XML attribute '" +
-                xml.get("LengthInBits") + "' is not convertible to integer. " +
+                bsd.get("LengthInBits") + "' is not convertible to integer. " +
                 f"Exception: {ex}")
 
         # default values for enumerations (encoded as int32):
@@ -131,14 +131,15 @@ class EnumerationType(Type):
                 raise Exception("Error at EnumerationType() CTOR '" + self.name + "': 'LengthInBits' value '" +
                     self.lengthInBits + "' is not supported")
 
-        for child in xml:
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
-                self.elements[child.get("Name")] = child.get("Value")
+        if bsd is not None:
+            for child in bsd:
+                if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
+                    self.elements[child.get("Name")] = child.get("Value")
 
 
 class OpaqueType(Type):
-    def __init__(self, outname, xml, namespace, base_type):
-        Type.__init__(self, outname, xml, namespace)
+    def __init__(self, outname, namespace, base_type, bsd=None):
+        Type.__init__(self, outname, namespace, bsd=bsd)
         self.base_type = base_type
 
 
@@ -151,30 +152,33 @@ class StructMember:
 
 
 class StructType(Type):
-    def __init__(self, outname, xml, namespace, types, xmlNamespaces):
-        Type.__init__(self, outname, xml, namespace)
+    def __init__(self, outname, namespace, types, xmlNamespaces, bsd=None):
+        Type.__init__(self, outname, namespace, bsd=bsd)
         length_fields = []
         optional_fields = []
         switch_fields = []
         self.is_recursive = False
 
-        typename = type_aliases.get(xml.get("Name"), xml.get("Name"))
+        if not bsd:
+            return
 
-        bt = xml.get("BaseType")
+        typename = type_aliases.get(bsd.get("Name"), bsd.get("Name"))
+
+        bt = bsd.get("BaseType")
         self.is_union = bool(bt and get_type_name(bt)[1] == "Union")
-        for child in xml:
+        for child in bsd:
             length_field = child.get("LengthField")
             if length_field:
                 length_fields.append(length_field)
-        for child in xml:
+        for child in bsd:
             switch_field = child.get("SwitchField")
             if switch_field:
                 switch_fields.append(switch_field)
-        for child in xml:
+        for child in bsd:
             child_type = child.get("TypeName")
             if child_type and get_type_name(child_type)[1] == "Bit":
                 optional_fields.append(child.get("Name"))
-        for child in xml:
+        for child in bsd:
             if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                 continue
             if child.get("Name") in length_fields:
@@ -207,20 +211,24 @@ class StructType(Type):
 
 
 class TypeParser():
-    __metaclass__ = abc.ABCMeta
-
-    def __init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap):
-        self.selected_types = []
-        self.fh = None
-        self.ff = None
-        self.fc = None
-        self.fe = None
+    def __init__(self, opaque_map, selected_types, outname, namespaceIndexMap):
         self.opaque_map = opaque_map
         self.selected_types = selected_types
-        self.no_builtin = no_builtin
         self.outname = outname
         self.types = OrderedDict()
         self.namespaceIndexMap = namespaceIndexMap
+
+        for builtin in builtin_types:
+            self.insert_type(BuiltinType(builtin))
+
+        for f in self.opaque_map:
+            user_opaque_type_mapping.update(json.load(f))
+
+        # Read the selected data types
+        arg_selected_types = self.selected_types
+        self.selected_types = []
+        for f in arg_selected_types:
+            self.selected_types += list(filter(len, [line.strip() for line in f]))
 
     @staticmethod
     def merge_dicts(*dict_args):
@@ -293,12 +301,8 @@ class TypeParser():
             return False
 
         snippets = OrderedDict()
-        xmlDoc = etree.iterparse(
-            xmlDescription, events=['start-ns']
-        )
-        xmlNamespaces = dict([
-            node for _, node in xmlDoc
-        ])
+        xmlDoc = etree.iterparse(xmlDescription, events=['start-ns'])
+        xmlNamespaces = dict([node for _, node in xmlDoc])
         targetNamespace = xmlDoc.root.get("TargetNamespace")
         for typeXml in xmlDoc.root:
             if not typeXml.get("Name"):
@@ -329,13 +333,14 @@ class TypeParser():
                 if name in builtin_types:
                     new_type = BuiltinType(name)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                    new_type = EnumerationType(outname, typeXml, targetNamespace)
+                    new_type = EnumerationType(outname, targetNamespace, bsd=typeXml)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                    new_type = OpaqueType(outname, typeXml, targetNamespace,
-                                          get_base_type_for_opaque(name)['name'])
+                    new_type = OpaqueType(outname, targetNamespace,
+                                          get_base_type_for_opaque(name)['name'],
+                                          bsd=typeXml)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
                     try:
-                        new_type = StructType(outname, typeXml, targetNamespace, self.types, xmlNamespaces)
+                        new_type = StructType(outname, targetNamespace, self.types, xmlNamespaces, bsd=typeXml)
                     except TypeNotDefinedException:
                         # Type is using other types which are not yet loaded, try later
                         continue
@@ -345,48 +350,30 @@ class TypeParser():
                 self.insert_type(new_type)
                 del snippets[name]
 
-    @abc.abstractmethod
-    def parse_types(self):
-        pass
+    def insert_type(self, t):
+        if t.namespaceUri not in self.types:
+            self.types[t.namespaceUri] = OrderedDict()
 
-    def insert_type(self, typeObject):
-        if typeObject.namespaceUri not in self.types:
-            self.types[typeObject.namespaceUri] = OrderedDict()
+        if t.name in rename_types:
+            t.name = rename_types[t.name]
 
-        if typeObject.name in rename_types:
-            typeObject.name = rename_types[typeObject.name]
-
-        if typeObject.name not in self.types[typeObject.namespaceUri]:
-            self.types[typeObject.namespaceUri][typeObject.name] = typeObject
-
-    def create_types(self):
-        for builtin in builtin_types:
-            self.insert_type(BuiltinType(builtin))
-
-        for f in self.opaque_map:
-            user_opaque_type_mapping.update(json.load(f))
-
-        self.parse_types()
-
-        # Read the selected data types
-        arg_selected_types = self.selected_types
-        self.selected_types = []
-        for f in arg_selected_types:
-            self.selected_types += list(filter(len, [line.strip() for line in f]))
+        if t.name not in self.types[t.namespaceUri]:
+            self.types[t.namespaceUri][t.name] = t
 
 
 class CSVBSDTypeParser(TypeParser):
-    def __init__(self, opaque_map, selected_types, no_builtin, outname,
+    def __init__(self, opaque_map, selected_types, outname,
                  existing_bsd, type_bsd, type_csv, type_xml, namespaceIndexMap):
-        TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
-        self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
+        TypeParser.__init__(self, opaque_map, selected_types, outname, namespaceIndexMap)
+        self.existing_bsd = existing_bsd # bsd files with existing types not printed again
         self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
         self.type_bsd = type_bsd # bsd files with new types
         self.type_csv = type_csv # csv files with nodeids, etc.
         self.type_xml = type_xml # xml files with symbolicNames etc.
         self.existing_types = [] # existing types that shall not be printed
+        self._parse_types()
 
-    def parse_types(self):
+    def _parse_types(self):
         # parse existing types
         for i in self.existing_bsd:
             (outname_import, file_import) = i.split("#")
