@@ -951,6 +951,22 @@ START_TEST(json_decode_statuscode) {
     }
 } END_TEST
 
+/* QualifiedName null */
+START_TEST(json_decode_qualifiedname_null) {
+    UA_QualifiedName val;
+    UA_QualifiedName_init(&val);
+
+    UA_ByteString encode;
+    UA_ByteString_init(&encode);
+    UA_encodeJson(&val, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &encode, NULL);
+
+    UA_QualifiedName decoded;
+    UA_QualifiedName_init(&decoded);
+    UA_StatusCode res = UA_decodeJson(&encode, &decoded, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
+
+    ck_assert_uint_eq(UA_STATUSCODE_GOOD, res);
+} END_TEST
+
 /* ============================================================
  * Suite setup
  * ============================================================ */
@@ -1059,6 +1075,7 @@ int main(void) {
     tcase_add_test(tc_extra, json_decode_diagnosticinfo);
     tcase_add_test(tc_extra, json_decode_diagnosticinfo_null);
     tcase_add_test(tc_extra, json_decode_statuscode);
+    tcase_add_test(tc_extra, json_decode_qualifiedname_null);
     suite_add_tcase(s, tc_extra);
 
     SRunner *sr = srunner_create(s);
