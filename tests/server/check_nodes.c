@@ -282,6 +282,132 @@ START_TEST(addReferenceTypeNode) {
     ck_assert_int_eq(nc, UA_NODECLASS_REFERENCETYPE);
 } END_TEST
 
+/* --- NS0 ReferenceTypes and their ReferenceTypeIndex --- */
+
+/* Fetch a bootstrapped ReferenceTypeNode from the nodestore. The caller has to
+ * release the node again. */
+static const UA_ReferenceTypeNode *
+getReferenceType(UA_UInt32 identifier) {
+    UA_NodeId id = UA_NODEID_NUMERIC(0, identifier);
+    const UA_Node *node = UA_NODESTORE_GET(server, &id);
+    ck_assert(node != NULL);
+    ck_assert_uint_eq(node->head.nodeClass, UA_NODECLASS_REFERENCETYPE);
+    return &node->referenceTypeNode;
+}
+
+static UA_Byte
+referenceTypeIndexOf(UA_UInt32 identifier) {
+    const UA_ReferenceTypeNode *rt = getReferenceType(identifier);
+    UA_Byte index = rt->referenceTypeIndex;
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)rt);
+    return index;
+}
+
+/* createNS0_base assigns the ReferenceTypeIndex in order of creation. The
+ * UA_REFERENCETYPEINDEX_* defines hardcode that order, so the two have to stay
+ * in sync. Note that the NodeIds are not in ascending order -- only the
+ * bootstrap sequence matters. */
+START_TEST(fixedReferenceTypeIndices) {
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_REFERENCES),
+                      UA_REFERENCETYPEINDEX_REFERENCES);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASSUBTYPE),
+                      UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_AGGREGATES),
+                      UA_REFERENCETYPEINDEX_AGGREGATES);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HIERARCHICALREFERENCES),
+                      UA_REFERENCETYPEINDEX_HIERARCHICALREFERENCES);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      UA_REFERENCETYPEINDEX_NONHIERARCHICALREFERENCES);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASCHILD),
+                      UA_REFERENCETYPEINDEX_HASCHILD);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_ORGANIZES),
+                      UA_REFERENCETYPEINDEX_ORGANIZES);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASEVENTSOURCE),
+                      UA_REFERENCETYPEINDEX_HASEVENTSOURCE);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASMODELLINGRULE),
+                      UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASENCODING),
+                      UA_REFERENCETYPEINDEX_HASENCODING);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASDESCRIPTION),
+                      UA_REFERENCETYPEINDEX_HASDESCRIPTION);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASTYPEDEFINITION),
+                      UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_GENERATESEVENT),
+                      UA_REFERENCETYPEINDEX_GENERATESEVENT);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASPROPERTY),
+                      UA_REFERENCETYPEINDEX_HASPROPERTY);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASCOMPONENT),
+                      UA_REFERENCETYPEINDEX_HASCOMPONENT);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASNOTIFIER),
+                      UA_REFERENCETYPEINDEX_HASNOTIFIER);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASORDEREDCOMPONENT),
+                      UA_REFERENCETYPEINDEX_HASORDEREDCOMPONENT);
+    ck_assert_uint_eq(referenceTypeIndexOf(UA_NS0ID_HASINTERFACE),
+                      UA_REFERENCETYPEINDEX_HASINTERFACE);
+} END_TEST
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+
+/* ReferenceTypes created after the bootstrap must not take an index that a
+ * UA_REFERENCETYPEINDEX_* define claims. */
+START_TEST(additionalReferenceTypeIndices) {
+    ck_assert_uint_gt(referenceTypeIndexOf(UA_NS0ID_HASARGUMENTDESCRIPTION),
+                      UA_REFERENCETYPEINDEX_HASINTERFACE);
+    ck_assert_uint_gt(referenceTypeIndexOf(UA_NS0ID_HASOPTIONALINPUTARGUMENTDESCRIPTION),
+                      UA_REFERENCETYPEINDEX_HASINTERFACE);
+    ck_assert_uint_ne(referenceTypeIndexOf(UA_NS0ID_HASARGUMENTDESCRIPTION),
+                      referenceTypeIndexOf(UA_NS0ID_HASOPTIONALINPUTARGUMENTDESCRIPTION));
+} END_TEST
+
+/* HasArgumentDescription (i=129) and its subtype HasOptionalInputArgumentDescription
+ * (i=131) are defined in OPC 10000-3, 5.7.2 - 5.7.3. They come from the generated
+ * nodeset, so they are not available for UA_NAMESPACE_ZERO=MINIMAL. */
+START_TEST(argumentDescriptionAttributes) {
+    UA_QualifiedName bn = UA_QUALIFIEDNAME(0, "HasArgumentDescription");
+    UA_String inverse = UA_STRING("ArgumentDescriptionOf");
+    const UA_ReferenceTypeNode *rt = getReferenceType(UA_NS0ID_HASARGUMENTDESCRIPTION);
+    ck_assert(UA_QualifiedName_equal(&rt->head.browseName, &bn));
+    ck_assert(UA_String_equal(&rt->inverseName.text, &inverse));
+    ck_assert_uint_eq(rt->isAbstract, false);
+    ck_assert_uint_eq(rt->symmetric, false);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)rt);
+
+    bn = UA_QUALIFIEDNAME(0, "HasOptionalInputArgumentDescription");
+    inverse = UA_STRING("OptionalInputArgumentDescriptionOf");
+    rt = getReferenceType(UA_NS0ID_HASOPTIONALINPUTARGUMENTDESCRIPTION);
+    ck_assert(UA_QualifiedName_equal(&rt->head.browseName, &bn));
+    ck_assert(UA_String_equal(&rt->inverseName.text, &inverse));
+    ck_assert_uint_eq(rt->isAbstract, false);
+    ck_assert_uint_eq(rt->symmetric, false);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)rt);
+} END_TEST
+
+/* The subtype hierarchy from OPC 10000-3: HasArgumentDescription is a subtype of
+ * HasComponent, HasOptionalInputArgumentDescription a subtype of
+ * HasArgumentDescription. The subtype sets are what the Browse service uses. */
+START_TEST(argumentDescriptionSubtypeHierarchy) {
+    UA_Byte argIdx = referenceTypeIndexOf(UA_NS0ID_HASARGUMENTDESCRIPTION);
+    UA_Byte optIdx = referenceTypeIndexOf(UA_NS0ID_HASOPTIONALINPUTARGUMENTDESCRIPTION);
+
+    const UA_ReferenceTypeNode *hasComponent = getReferenceType(UA_NS0ID_HASCOMPONENT);
+    ck_assert(UA_ReferenceTypeSet_contains(&hasComponent->subTypes, argIdx));
+    ck_assert(UA_ReferenceTypeSet_contains(&hasComponent->subTypes, optIdx));
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)hasComponent);
+
+    const UA_ReferenceTypeNode *hasArgument =
+        getReferenceType(UA_NS0ID_HASARGUMENTDESCRIPTION);
+    ck_assert(UA_ReferenceTypeSet_contains(&hasArgument->subTypes, optIdx));
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)hasArgument);
+
+    /* Unrelated branch of the hierarchy */
+    const UA_ReferenceTypeNode *hasInterface = getReferenceType(UA_NS0ID_HASINTERFACE);
+    ck_assert(!UA_ReferenceTypeSet_contains(&hasInterface->subTypes, argIdx));
+    ck_assert(!UA_ReferenceTypeSet_contains(&hasInterface->subTypes, optIdx));
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)hasInterface);
+} END_TEST
+
+#endif /* UA_GENERATED_NAMESPACE_ZERO */
+
 int main(void) {
     Suite *s = suite_create("nodes");
 
@@ -311,6 +437,16 @@ int main(void) {
     tcase_add_test(tc_add, addVariableTypeNode);
     tcase_add_test(tc_add, addReferenceTypeNode);
     suite_add_tcase(s, tc_add);
+
+    TCase *tc_reftypes = tcase_create("ReferenceTypes");
+    tcase_add_checked_fixture(tc_reftypes, setup, teardown);
+    tcase_add_test(tc_reftypes, fixedReferenceTypeIndices);
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    tcase_add_test(tc_reftypes, additionalReferenceTypeIndices);
+    tcase_add_test(tc_reftypes, argumentDescriptionAttributes);
+    tcase_add_test(tc_reftypes, argumentDescriptionSubtypeHierarchy);
+#endif
+    suite_add_tcase(s, tc_reftypes);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
