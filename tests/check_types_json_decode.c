@@ -965,6 +965,7 @@ START_TEST(json_decode_qualifiedname_null) {
     UA_StatusCode res = UA_decodeJson(&encode, &decoded, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
 
     ck_assert_uint_eq(UA_STATUSCODE_GOOD, res);
+    UA_ByteString_clear(&encode);
 } END_TEST
 
 /* ============================================================
