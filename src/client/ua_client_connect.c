@@ -2218,7 +2218,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Received a message. Process the message with the SecureChannel. */
     UA_StatusCode res = UA_SecureChannel_loadBuffer(&client->channel, msg);
     while(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
-        UA_MessageType messageType;
+        UA_MessageType messageType = UA_MESSAGETYPE_INVALID;
         UA_UInt32 requestId = 0;
         UA_ByteString payload = UA_BYTESTRING_NULL;
         UA_Boolean copied = false;
