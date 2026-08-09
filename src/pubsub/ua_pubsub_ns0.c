@@ -2137,6 +2137,17 @@ removeDataSetWriterAction(UA_Server *server,
 /**********************************************/
 
 static void
+freeNodeContext(UA_Server *server, const UA_NodeId *nodeId) {
+    if(UA_NodeId_isNull(nodeId))
+        return;
+
+    void *context = NULL;
+    UA_StatusCode res = getNodeContext(server, *nodeId, &context);
+    if(res == UA_STATUSCODE_GOOD)
+        UA_free(context);
+}
+
+static void
 connectionTypeDestructor(UA_Server *server,
                          const UA_NodeId *sessionId, void *sessionContext,
                          const UA_NodeId *typeId, void *typeContext,
@@ -2147,10 +2158,7 @@ connectionTypeDestructor(UA_Server *server,
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
-    UA_NodePropertyContext *ctx;
-    getNodeContext(server, publisherIdNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&publisherIdNode))
-        UA_free(ctx);
+    freeNodeContext(server, &publisherIdNode);
 }
 
 static void
@@ -2165,10 +2173,7 @@ writerGroupTypeDestructor(UA_Server *server,
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
 
-    UA_NodePropertyContext *ctx;
-    getNodeContext(server, intervalNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&intervalNode))
-        UA_free(ctx);
+    freeNodeContext(server, &intervalNode);
 }
 
 static void
@@ -2192,10 +2197,7 @@ dataSetWriterTypeDestructor(UA_Server *server,
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
 
-    UA_NodePropertyContext *ctx;
-    getNodeContext(server, dataSetWriterIdNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&dataSetWriterIdNode))
-        UA_free(ctx);
+    freeNodeContext(server, &dataSetWriterIdNode);
 }
 
 static void
@@ -2210,10 +2212,7 @@ dataSetReaderTypeDestructor(UA_Server *server,
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
 
-    UA_NodePropertyContext *ctx;
-    getNodeContext(server, publisherIdNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&publisherIdNode))
-        UA_free(ctx);
+    freeNodeContext(server, &publisherIdNode);
 }
 
 static void
@@ -2224,27 +2223,17 @@ publishedDataItemsTypeDestructor(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "PublishedDataItems destructor called!");
-    void *childContext;
     UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                                          UA_NS0ID(HASPROPERTY), *nodeId);
-    if(!UA_NodeId_isNull(&node)) {
-        getNodeContext(server, node, (void**)&childContext);
-        UA_free(childContext);
-    }
+    freeNodeContext(server, &node);
 
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
-    if(!UA_NodeId_isNull(&node)) {
-        getNodeContext(server, node, (void**)&childContext);
-        UA_free(childContext);
-    }
+    freeNodeContext(server, &node);
 
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
-    if(!UA_NodeId_isNull(&node)) {
-        getNodeContext(server, node, (void**)&childContext);
-        UA_free(childContext);
-    }
+    freeNodeContext(server, &node);
 }
 
 static void
@@ -2255,20 +2244,13 @@ subscribedDataSetTypeDestructor(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "Standalone SubscribedDataSet destructor called!");
-    void *childContext;
     UA_NodeId node =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
-    if(!UA_NodeId_isNull(&node)) {
-        getNodeContext(server, node, (void**)&childContext);
-        UA_free(childContext);
-    }
+    freeNodeContext(server, &node);
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
-    if(!UA_NodeId_isNull(&node)) {
-        getNodeContext(server, node, (void**)&childContext);
-        UA_free(childContext);
-    }
+    freeNodeContext(server, &node);
 }
 
 /*************************************/
