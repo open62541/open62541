@@ -778,6 +778,20 @@
       <Reference ReferenceType="HasTypeDefinition">i=75</Reference>
     </References>
   </UAObject>
+  <UAReferenceType NodeId="i=129" BrowseName="HasArgumentDescription">
+    <DisplayName>HasArgumentDescription</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>ArgumentDescriptionOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=131" BrowseName="HasOptionalInputArgumentDescription">
+    <DisplayName>HasOptionalInputArgumentDescription</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=129</Reference>
+    </References>
+    <InverseName>OptionalInputArgumentDescriptionOf</InverseName>
+  </UAReferenceType>
   <UAObjectType NodeId="i=2004" BrowseName="ServerType">
     <DisplayName>ServerType</DisplayName>
     <References>
