@@ -104,6 +104,8 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    if(path.length == SIZE_MAX)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_String websocketPath = UA_STRING_NULL;
     res = UA_ByteString_allocBuffer((UA_ByteString*)&websocketPath,
                                     path.length + 1);
