@@ -548,8 +548,9 @@ UA_KeyValueMap_clear(UA_KeyValueMap *map) {
         return;
     if(map->mapSize > 0) {
         UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-        map->mapSize = 0;
     }
+    map->map = NULL;
+    map->mapSize = 0;
 }
 
 void
