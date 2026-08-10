@@ -372,6 +372,7 @@ deleteContext_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
     mbedtls_x509_crt_free(&cc->remoteCertificate);
+    UA_mbedTLS_ChannelContext_clearPsa(cc);
     UA_free(cc);
 }
 
@@ -398,6 +399,7 @@ newContext_aes128sha256rsaoaep(const UA_SecurityPolicy *securityPolicy,
     UA_ByteString_init(&cc->remoteSymEncryptingKey);
     UA_ByteString_init(&cc->remoteSymIv);
     mbedtls_x509_crt_init(&cc->remoteCertificate);
+    UA_mbedTLS_ChannelContext_initPsa(cc);
 
     // TODO: this can be optimized so that we dont allocate memory before
     // parsing the certificate
@@ -430,6 +432,7 @@ clear_aes128sha256rsaoaep(UA_SecurityPolicy *securityPolicy) {
     mbedtls_pk_free(&pc->csrLocalPrivateKey);
     mbedtls_md_free(&pc->mdContext);
     UA_ByteString_clear(&pc->localCertThumbprint);
+    UA_mbedTLS_PolicyContext_clearPsa(pc);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for aes128sha256rsaoaep");
@@ -519,6 +522,7 @@ policyContext_newContext_aes128sha256rsaoaep(UA_SecurityPolicy *securityPolicy,
 
     /* Initialize the PolicyContext */
     memset(pc, 0, sizeof(mbedtls_PolicyContext));
+    UA_mbedTLS_PolicyContext_initPsa(pc);
     mbedtls_ctr_drbg_init(&pc->drbgContext);
     mbedtls_entropy_init(&pc->entropyContext);
     mbedtls_pk_init(&pc->localPrivateKey);
