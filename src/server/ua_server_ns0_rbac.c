@@ -871,8 +871,8 @@ removeEndpointMethodCallback(UA_Server *server,
     return res;
 }
 
-static UA_Boolean
-hasUserManagementProvider(const UA_AccessControl *ac) {
+UA_Boolean
+UA_Server_hasUserManagementProvider(const UA_AccessControl *ac) {
     return ac->getUsers && ac->getPasswordPolicy && ac->getUserConfiguration &&
            ac->addUser && ac->modifyUser && ac->removeUser && ac->changePassword;
 }
@@ -1101,8 +1101,21 @@ readPasswordPolicy(UA_Server *server, const UA_NodeId *sessionId,
 
 static UA_StatusCode
 initUserManagement(UA_Server *server) {
-    if(!hasUserManagementProvider(&server->config.accessControl))
+    if(!UA_Server_hasUserManagementProvider(&server->config.accessControl))
         return UA_STATUSCODE_GOOD;
+    /* The generated Namespace Zero may not carry the UserManagement Object.
+     * Skip the wiring instead of failing the Server startup, as elsewhere in
+     * the NS0 RBAC setup. */
+    UA_QualifiedName umName;
+    if(UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT),
+                                &umName) != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: A UserManagement provider is configured but the "
+                       "UserManagement Object is not part of the generated "
+                       "Namespace Zero - the provider stays unused");
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_QualifiedName_clear(&umName);
     UA_DataSource users = {readManagedUsers, NULL};
     UA_DataSource policy = {readPasswordPolicy, NULL};
     UA_StatusCode res = UA_Server_setVariableNode_dataSource(server,
@@ -1383,7 +1396,7 @@ initRoleSetRolePermissions(UA_Server *server) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(hasUserManagementProvider(&server->config.accessControl)) {
+    if(UA_Server_hasUserManagementProvider(&server->config.accessControl)) {
         const UA_NodeId anonymous =
             UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
         const UA_UInt32 adminNodes[] = {
