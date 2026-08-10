@@ -931,15 +931,11 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
     UA_Server_reevaluateSessionRoles(server);
 
 #ifdef UA_ENABLE_AUDITING
-    /* Emit a RoleMappingRuleChangedAuditEvent for the role addition. The
-     * AddRole Method NodeId is used as the MethodId even when addRole is
-     * invoked through the C API, mirroring how updateRole reports its
-     * canonical Method (Part 18 §4.5). */
     if(!wellKnown) {
-        const UA_NodeId addRoleMethod =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
+        const UA_NodeId method = UA_NODEID_NUMERIC(
+            0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
         auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
-                                         &newRole->roleId, &addRoleMethod,
+                                         &newRole->roleId, &method,
                                          UA_STATUSCODE_GOOD, 0, NULL);
     }
 #endif
@@ -1073,18 +1069,13 @@ UA_Server_removeRole(UA_Server *server,
     UA_Server_reevaluateSessionRoles(server);
 
 #ifdef UA_ENABLE_AUDITING
-    /* Emit a RoleMappingRuleChangedAuditEvent for the role removal. The
-     * RemoveRole Method NodeId is used as the MethodId even when removeRole
-     * is invoked through the C API, mirroring how updateRole reports its
-     * canonical Method (Part 18 §4.5). */
-    {
-        const UA_NodeId removeRoleMethod =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE);
-        auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
-                                         &removedRoleId, &removeRoleMethod,
-                                         UA_STATUSCODE_GOOD, 0, NULL);
-    }
+    const UA_NodeId method = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE);
+    auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                     &removedRoleId, &method,
+                                     UA_STATUSCODE_GOOD, 0, NULL);
 #endif
+
     UA_NodeId_clear(&removedRoleId);
 
     unlockServer(server);
@@ -1361,6 +1352,17 @@ UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
 /* Public API: Role Update          */
 /************************************/
 
+#ifdef UA_ENABLE_AUDITING
+typedef struct {
+    const UA_NodeId *sessionId;
+    const UA_NodeId *methodId;
+    size_t inputSize;
+    const UA_Variant *input;
+} RoleMethodAuditContext;
+
+UA_STATIC_THREAD_LOCAL RoleMethodAuditContext roleMethodAuditContext;
+#endif
+
 UA_StatusCode UA_EXPORT
 UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     if(!server || !role)
@@ -1447,16 +1449,50 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     UA_Server_reevaluateSessionRoles(server);
 
 #ifdef UA_ENABLE_AUDITING
-    /* Emit a RoleMappingRuleChangedAuditEvent (Part 18). updateRole is the
-     * choke point for identity/application/endpoint changes, reached both by
-     * the C API and the RoleType AddIdentity/RemoveIdentity/... Methods. */
-    auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
-                                     &existing->roleId, &existing->roleId,
-                                     UA_STATUSCODE_GOOD, 0, NULL);
+    UA_Session *auditSession = NULL;
+    UA_SecureChannel *auditChannel = NULL;
+    UA_NodeId localOperation = UA_NODEID_NULL;
+    const UA_NodeId *method = &localOperation;
+    size_t auditInputSize = 0;
+    UA_Variant *auditInput = NULL;
+    if(roleMethodAuditContext.methodId) {
+        method = roleMethodAuditContext.methodId;
+        auditInputSize = roleMethodAuditContext.inputSize;
+        auditInput = (UA_Variant*)(uintptr_t)roleMethodAuditContext.input;
+        if(roleMethodAuditContext.sessionId) {
+            auditSession = getSessionById(server,
+                                          roleMethodAuditContext.sessionId);
+            if(auditSession)
+                auditChannel = auditSession->channel;
+        }
+    }
+    auditRoleMappingRuleChangedEvent(server, auditChannel, auditSession, true,
+                                     &existing->roleId, method,
+                                     UA_STATUSCODE_GOOD, auditInputSize,
+                                     auditInput);
 #endif
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_updateRoleFromMethod(UA_Server *server, const UA_Role *role,
+                               const UA_NodeId *sessionId,
+                               const UA_NodeId *methodId,
+                               size_t inputSize, const UA_Variant *input) {
+#ifdef UA_ENABLE_AUDITING
+    RoleMethodAuditContext previous = roleMethodAuditContext;
+    roleMethodAuditContext.sessionId = sessionId;
+    roleMethodAuditContext.methodId = methodId;
+    roleMethodAuditContext.inputSize = inputSize;
+    roleMethodAuditContext.input = input;
+#endif
+    UA_StatusCode res = UA_Server_updateRole(server, role);
+#ifdef UA_ENABLE_AUDITING
+    roleMethodAuditContext = previous;
+#endif
+    return res;
 }
 
 /************************************/

@@ -48,6 +48,14 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
 void
 UA_Server_reevaluateSessionRoles(UA_Server *server);
 
+/* Update a Role from one of the six RoleType Methods and attach the concrete
+ * MethodId and request arguments to the audit event. */
+UA_StatusCode
+UA_Server_updateRoleFromMethod(UA_Server *server, const UA_Role *role,
+                               const UA_NodeId *sessionId,
+                               const UA_NodeId *methodId,
+                               size_t inputSize, const UA_Variant *input);
+
 /* Effective AccessRestrictions of a node (its own value or the namespace
  * default). Must be called with the server lock held. */
 UA_AccessRestrictionType
