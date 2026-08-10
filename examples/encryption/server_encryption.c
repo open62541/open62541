@@ -19,10 +19,6 @@
 #include <signal.h>
 #include <stdlib.h>
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
-#include <mbedtls/version.h>
-#endif
-
 #include "common.h"
 
 static UA_Boolean running = true;
@@ -162,8 +158,7 @@ int main(int argc, char* argv[]) {
      * brainpoolP384r1, curve25519, curve448. */
     (void)eccCertDir; /* may be unused when ECC policies are compiled out */
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
-    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && defined(MBEDTLS_VERSION_NUMBER) && \
-     MBEDTLS_VERSION_NUMBER >= 0x03000000)
+    defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
     if(eccCertDir) {
         struct {
             const char *curve;
