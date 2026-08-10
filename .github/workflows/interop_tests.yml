@@ -25,20 +25,39 @@ jobs:
         include:
           - crypto: OpenSSL
             cmake_crypto: OPENSSL
-            deps: ""
           - crypto: mbedTLS
             cmake_crypto: MBEDTLS
-            deps: "libmbedtls-dev"
 
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: true
 
+      - name: Checkout supported mbedTLS
+        if: matrix.cmake_crypto == 'MBEDTLS'
+        uses: actions/checkout@v7
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: mbedtls-3.6.4
+          path: mbedtls-source
+          submodules: recursive
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq build-essential cmake libssl-dev pkg-config netcat-openbsd ${{ matrix.deps }}
+          sudo apt-get install -y -qq build-essential cmake libssl-dev pkg-config netcat-openbsd
+
+      - name: Build supported mbedTLS
+        if: matrix.cmake_crypto == 'MBEDTLS'
+        run: |
+          cmake -S mbedtls-source -B mbedtls-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/mbedtls \
+            -DENABLE_PROGRAMS=OFF \
+            -DENABLE_TESTING=OFF
+          cmake --build mbedtls-build --parallel
+          cmake --install mbedtls-build
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -64,6 +83,9 @@ jobs:
           bash tools/ci/cross-sdk/generate_interop_certs.sh ${{ github.workspace }}/interop_certs
 
       - name: Build open62541 C SDK
+        env:
+          MBEDTLS_FOLDER_INCLUDE: ${{ runner.temp }}/mbedtls/include
+          MBEDTLS_FOLDER_LIBRARY: ${{ runner.temp }}/mbedtls/lib
         run: |
           mkdir -p build && cd build
           cmake -DCMAKE_BUILD_TYPE=Debug \

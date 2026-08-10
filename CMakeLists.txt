@@ -1792,6 +1792,9 @@ if(UA_BUILD_INTEROP_TESTS AND NOT UA_BUILD_UNIT_TESTS)
         tests/interop/interop_server.c
         tests/interop/common/interop_server_common.c)
     target_link_libraries(interop_server open62541::open62541)
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        target_include_directories(interop_server SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+    endif()
     set_target_properties(interop_server PROPERTIES
         FOLDER "tests"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
@@ -1809,6 +1812,9 @@ if(UA_BUILD_INTEROP_TESTS AND NOT UA_BUILD_UNIT_TESTS)
             tests/interop/websocket/interop_server_wss.c
             tests/interop/common/interop_server_common.c)
         target_link_libraries(interop_server_wss open62541::open62541)
+        if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+            target_include_directories(interop_server_wss SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+        endif()
         set_target_properties(interop_server_wss PROPERTIES
             FOLDER "tests"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
