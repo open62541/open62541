@@ -95,6 +95,9 @@ exercisePolicy(PolicyInit init) {
         size_t localEncryptionKeySize =
             policy.asymEncryptionAlgorithm.getLocalKeyLength(&policy, NULL);
         ck_assert_uint_eq(localEncryptionKeySize, localSigSize * 8);
+        size_t remoteEncryptionKeySize =
+            policy.asymEncryptionAlgorithm.getRemoteKeyLength(&policy, cc);
+        ck_assert_uint_eq(remoteEncryptionKeySize, remoteSigSize * 8);
     }
 
     UA_ByteString asigBuf;

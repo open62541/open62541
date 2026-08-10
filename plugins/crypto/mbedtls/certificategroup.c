@@ -15,11 +15,11 @@
 #include <mbedtls/x509.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
-#include <mbedtls/version.h>
 #include <mbedtls/psa_util.h>
 #include <mbedtls/platform_util.h>
 
 #include "securitypolicy_common.h"
+#include "securitypolicy_mbedtls_compat.h"
 
 /* Configuration parameters */
 
@@ -417,11 +417,6 @@ cleanupCandidate:
 #define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
 #define UA_MBEDTLS_MAX_DN_LENGTH 256
 
-/* Signature verification still needs fields without public accessors. */
-#ifndef MBEDTLS_PRIVATE
-#define MBEDTLS_PRIVATE(x) x
-#endif
-
 /* Is the certificate a CA? */
 static UA_Boolean
 mbedtlsCheckCA(mbedtls_x509_crt *cert) {
@@ -532,33 +527,6 @@ mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_
 }
 
 /* Verify that the public key of the issuer was used to sign the certificate */
-static UA_Boolean
-mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
-    size_t hash_len;
-    unsigned char hash[MBEDTLS_MD_MAX_SIZE];
-    mbedtls_md_type_t md = cert->MBEDTLS_PRIVATE(sig_md);
-#if !defined(MBEDTLS_USE_PSA_CRYPTO)
-    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
-    hash_len = mbedtls_md_get_size(md_info);
-    if(mbedtls_md(md_info, cert->tbs.p, cert->tbs.len, hash) != 0)
-        return false;
-#else
-    if(psa_hash_compute(mbedtls_md_psa_alg_from_type(md), cert->tbs.p,
-                        cert->tbs.len, hash, sizeof(hash), &hash_len) != PSA_SUCCESS)
-        return false;
-#endif
-    const mbedtls_x509_buf *sig = &cert->MBEDTLS_PRIVATE(sig);
-#if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    return (mbedtls_pk_verify_ext(cert->MBEDTLS_PRIVATE(sig_pk), &issuer->pk, md,
-                                  hash, hash_len, sig->p, sig->len) == 0);
-#else
-    void *sig_opts = cert->MBEDTLS_PRIVATE(sig_opts);
-    mbedtls_pk_type_t pktype = cert->MBEDTLS_PRIVATE(sig_pk);
-    return (mbedtls_pk_verify_ext(pktype, sig_opts, &issuer->pk, md,
-                                  hash, hash_len, sig->p, sig->len) == 0);
-#endif
-}
-
 static UA_StatusCode
 mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *stack,
                    mbedtls_x509_crt **old_issuers, mbedtls_x509_crt *cert, int depth) {
@@ -587,7 +555,7 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
         }
 
         /* Verification Step: Signature */
-        if(!mbedtlsCheckSignature(cert, issuer)) {
+        if(!UA_mbedTLS_compat_verifyCertificateSignature(cert, issuer)) {
             ret = UA_STATUSCODE_BADCERTIFICATEINVALID;  /* Wrong issuer, try again */
             continue;
         }
@@ -1125,17 +1093,9 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
     mbedtls_pk_context ctx;
     mbedtls_pk_init(&ctx);
     unsigned char buf[1 << 14] = {0};
-#if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
-                                   nullTerminatedKey.length,
-                                   password.data, password.length);
-#else
-    int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
-                                   nullTerminatedKey.length,
-                                   password.data, password.length,
-                                   mbedtls_psa_get_random,
-                                   MBEDTLS_PSA_RANDOM_STATE);
-#endif
+    int err = UA_mbedTLS_compat_parsePrivateKey(
+        &ctx, nullTerminatedKey.data, nullTerminatedKey.length,
+        password.data, password.length);
     UA_mbedTLS_clearSensitiveByteString(&nullTerminatedKey);
     if(err != 0) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
