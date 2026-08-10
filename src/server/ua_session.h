@@ -52,7 +52,8 @@ typedef struct {
     UA_Boolean trustedApplication;
     UA_String userName;              /* UserName identity criterion */
     UA_String userThumbprint;        /* hex thumbprint of the X509 user certificate */
-    UA_String userSubject;           /* subject name of the X509 user certificate */
+    UA_String userSubject;           /* canonical Part 18 certificate subject */
+    UA_String userIssuer;            /* canonical Part 18 certificate issuer */
     UA_String applicationUri;        /* connecting application's ApplicationUri */
     UA_String endpointUrl;           /* Endpoint the Session connected through */
     UA_MessageSecurityMode endpointSecurityMode;
@@ -60,6 +61,8 @@ typedef struct {
     UA_String transportProfileUri;
     size_t groupsSize;               /* GroupIds from AccessControl.getUserGroups */
     UA_String *groups;
+    size_t tokenRolesSize;           /* Validated IssuedIdentityToken Role claims */
+    UA_String *tokenRoles;
 } UA_SessionIdentityContext;
 
 void UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx);
