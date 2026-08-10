@@ -1162,28 +1162,74 @@ static UA_StatusCode
 addRoleManagementPermissions(UA_Server *server, const UA_NodeId *nodeId) {
     const UA_NodeId secAdmin =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
-    const UA_NodeId publicRoles[] = {
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
-    };
-
     UA_StatusCode retval =
         UA_Server_addRolePermissions(server, *nodeId, secAdmin,
                                      UA_PERMISSIONTYPE_BROWSE |
-                                     UA_PERMISSIONTYPE_CALL,
+                                     UA_PERMISSIONTYPE_READ |
+                                     UA_PERMISSIONTYPE_CALL |
+                                     UA_PERMISSIONTYPE_READROLEPERMISSIONS,
                                      false, false);
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
         return retval;
 
-    for(size_t i = 0; i < sizeof(publicRoles) / sizeof(publicRoles[0]); i++) {
-        retval = UA_Server_addRolePermissions(server, *nodeId, publicRoles[i],
-                                              UA_PERMISSIONTYPE_BROWSE,
-                                              false, false);
-        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
-            return retval;
+    /* Role configuration is sensitive and may only be browsed/read/called via
+     * an encrypted channel (Part 18 §4.4.1). */
+    retval = UA_Server_setNodeAccessRestrictions(
+        server, *nodeId,
+        UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+        UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+    if(retval == UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return UA_STATUSCODE_GOOD;
+    return retval;
+}
+
+/* Protect every HasProperty child of a Role Object or management Method.
+ * Exclude flags are the only Role Properties writable through Write. */
+static UA_StatusCode
+protectRolePropertyChildren(UA_Server *server, const UA_NodeId *parentId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD) {
+        UA_StatusCode res = br.statusCode;
+        UA_BrowseResult_clear(&br);
+        return res;
     }
 
-    return UA_STATUSCODE_GOOD;
+    const UA_NodeId secAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    const UA_String applicationsExclude = UA_STRING("ApplicationsExclude");
+    const UA_String endpointsExclude = UA_STRING("EndpointsExclude");
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        const UA_ReferenceDescription *ref = &br.references[i];
+        UA_PermissionType permissions =
+            UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+        if(UA_String_equal(&ref->browseName.name, &applicationsExclude) ||
+           UA_String_equal(&ref->browseName.name, &endpointsExclude))
+            permissions |= UA_PERMISSIONTYPE_WRITE;
+
+        retval = UA_Server_addRolePermissions(server, ref->nodeId.nodeId,
+                                              secAdmin, permissions,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        retval = UA_Server_setNodeAccessRestrictions(
+            server, ref->nodeId.nodeId,
+            UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+            UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+    UA_BrowseResult_clear(&br);
+    return retval;
 }
 
 static UA_StatusCode
@@ -1214,8 +1260,11 @@ addOrBindRoleMethod(UA_Server *server, const UA_NodeId *roleId,
                                       0, NULL, NULL, &methodId);
     }
 
-    if(res == UA_STATUSCODE_GOOD && applyPermissions)
+    if(res == UA_STATUSCODE_GOOD && applyPermissions) {
         res = addRoleManagementPermissions(server, &methodId);
+        if(res == UA_STATUSCODE_GOOD)
+            res = protectRolePropertyChildren(server, &methodId);
+    }
     UA_NodeId_clear(&methodId);
     return res;
 }
@@ -1225,6 +1274,9 @@ ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
                       UA_Boolean applyPermissions) {
     if(applyPermissions) {
         UA_StatusCode res = addRoleManagementPermissions(server, roleId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        res = protectRolePropertyChildren(server, roleId);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
@@ -1264,9 +1316,9 @@ ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
 }
 
 /* Restrict the RoleSet Object and the security-sensitive RoleSet/RoleType
- * Methods to the SecurityAdmin Role (OPC UA Part 18). The RoleSet stays
- * browsable for the Anonymous/AuthenticatedUser Roles. Skipped when the NS0
- * RBAC information model is unavailable. */
+ * Methods to the SecurityAdmin Role over an encrypted channel (OPC UA Part
+ * 18). initNS0RBAC has ensured the RoleSet exists by the time this runs; the
+ * probe below only keeps the function safe if it is ever called before that. */
 UA_StatusCode
 initRoleSetRolePermissions(UA_Server *server) {
     UA_NodeId roleSetId =
@@ -1278,15 +1330,9 @@ initRoleSetRolePermissions(UA_Server *server) {
 
     const UA_NodeId secAdmin =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
-    const UA_NodeId publicRoles[] = {
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
-    };
-
     /* Nodes whose CALL is restricted to SecurityAdmin. The RoleSet Object is
      * included because the Call service checks CALL on both the Object and the
-     * Method node. BROWSE is granted back to the public Roles so the nodes
-     * stay visible. */
+     * Method node. */
     const UA_UInt32 callNodes[] = {
         UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET,
         UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE,
@@ -1317,19 +1363,23 @@ initRoleSetRolePermissions(UA_Server *server) {
         /* SecurityAdmin: browse + call */
         retval = UA_Server_addRolePermissions(server, nodeId, secAdmin,
                                               UA_PERMISSIONTYPE_BROWSE |
-                                              UA_PERMISSIONTYPE_CALL,
+                                              UA_PERMISSIONTYPE_READ |
+                                              UA_PERMISSIONTYPE_CALL |
+                                              UA_PERMISSIONTYPE_READROLEPERMISSIONS,
                                               false, false);
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
             return retval;
 
-        /* Public Roles: browse only (visible but not callable) */
-        for(size_t j = 0; j < sizeof(publicRoles) / sizeof(publicRoles[0]); j++) {
-            retval = UA_Server_addRolePermissions(server, nodeId, publicRoles[j],
-                                                  UA_PERMISSIONTYPE_BROWSE,
-                                                  false, false);
-            if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
-                return retval;
-        }
+        retval = UA_Server_setNodeAccessRestrictions(
+            server, nodeId,
+            UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+            UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
+
+        retval = protectRolePropertyChildren(server, &nodeId);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
     }
 
     UA_BrowseDescription bd;
@@ -1420,25 +1470,11 @@ initRoleSetRolePermissions(UA_Server *server) {
 
 UA_StatusCode
 initNS0RBAC(UA_Server *server) {
-    /* RBAC NS0 wiring requires UA_NAMESPACE_ZERO=FULL, which CMake enforces for
-     * UA_ENABLE_RBAC. This stays as a runtime guard for a nodestore that does
-     * not provide the RoleSetType, in which case the C API still works and only
-     * the NS0 objects are skipped. */
-    UA_NodeId roleSetTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE);
-    UA_QualifiedName typebn;
-    UA_Boolean hasFullRbacNS0 =
-        (UA_Server_readBrowseName(server, roleSetTypeId, &typebn) == UA_STATUSCODE_GOOD);
-    if(hasFullRbacNS0)
-        UA_QualifiedName_clear(&typebn);
-
-    if(!hasFullRbacNS0) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: RoleSetType (NS0 i=%u) not present - NS0 RBAC "
-                       "information model skipped (requires UA_NAMESPACE_ZERO=FULL)",
-                       UA_NS0ID_ROLESETTYPE);
-        return UA_STATUSCODE_GOOD;
-    }
-
+    /* The RoleSetType and the well-known Role Nodes are part of the full
+     * Namespace Zero, which CMake requires for UA_ENABLE_RBAC (see the
+     * UA_ENABLE_RBAC checks in CMakeLists.txt). Everything below therefore
+     * treats a missing Node as an error rather than degrading silently; the
+     * Nodes the Server is allowed to create itself are created below. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Ensure the RoleSet instance node exists */
@@ -1447,13 +1483,13 @@ initNS0RBAC(UA_Server *server) {
     if(UA_Server_readBrowseName(server, roleSetId, &bn) != UA_STATUSCODE_GOOD) {
         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
         oAttr.displayName = UA_LOCALIZEDTEXT("", "RoleSet");
-        retval |= UA_Server_addObjectNode(
+        RBAC_INIT_TRY(UA_Server_addObjectNode(
             server, roleSetId,
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES),
             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
             UA_QUALIFIEDNAME(0, "RoleSet"),
             UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE),
-            oAttr, NULL, NULL);
+            oAttr, NULL, NULL));
     } else {
         UA_QualifiedName_clear(&bn);
     }
@@ -1480,12 +1516,12 @@ initNS0RBAC(UA_Server *server) {
         if(UA_Server_readBrowseName(server, rId, &bn) != UA_STATUSCODE_GOOD) {
             UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
             oAttr.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)roles[i].name);
-            retval |= UA_Server_addObjectNode(
+            RBAC_INIT_TRY(UA_Server_addObjectNode(
                 server, rId, roleSetId,
                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                 UA_QUALIFIEDNAME(0, (char*)(uintptr_t)roles[i].name),
                 UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE),
-                oAttr, NULL, NULL);
+                oAttr, NULL, NULL));
         } else {
             UA_QualifiedName_clear(&bn);
         }
@@ -1498,8 +1534,8 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource identitiesDataSource;
             identitiesDataSource.read = readRoleIdentities;
             identitiesDataSource.write = NULL;
-            retval |= UA_Server_setVariableNode_dataSource(server, identitiesId,
-                                                           identitiesDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, identitiesId, identitiesDataSource));
             UA_NodeId_clear(&identitiesId);
         }
 
@@ -1509,8 +1545,8 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource applicationsExcludeDataSource;
             applicationsExcludeDataSource.read = readRoleApplicationsExclude;
             applicationsExcludeDataSource.write = writeRoleApplicationsExclude;
-            retval |= UA_Server_setVariableNode_dataSource(server, applicationsExcludeId,
-                                                           applicationsExcludeDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, applicationsExcludeId, applicationsExcludeDataSource));
             UA_NodeId_clear(&applicationsExcludeId);
         }
 
@@ -1520,8 +1556,8 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource endpointsExcludeDataSource;
             endpointsExcludeDataSource.read = readRoleEndpointsExclude;
             endpointsExcludeDataSource.write = writeRoleEndpointsExclude;
-            retval |= UA_Server_setVariableNode_dataSource(server, endpointsExcludeId,
-                                                           endpointsExcludeDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, endpointsExcludeId, endpointsExcludeDataSource));
             UA_NodeId_clear(&endpointsExcludeId);
         }
 
@@ -1533,45 +1569,49 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource customConfigDataSource;
             customConfigDataSource.read = readRoleCustomConfiguration;
             customConfigDataSource.write = NULL;
-            retval |= UA_Server_setVariableNode_dataSource(server, customConfigId,
-                                                           customConfigDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, customConfigId, customConfigDataSource));
             UA_NodeId_clear(&customConfigId);
         }
 
-        retval |= ensureRoleTypeMethods(server, &rId, false);
+        RBAC_INIT_TRY(ensureRoleTypeMethods(server, &rId, false));
     }
 
     /* The method callbacks must be attached to the RoleSet *instance* methods.
      * A Call resolves the object's own HasComponent method (the instance node),
      * not the type method, so a callback on the type node would never fire. */
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE),
-        addRoleMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addRoleMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE),
-        removeRoleMethodCallback);
+        removeRoleMethodCallback));
 
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY),
-        addIdentityMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addIdentityMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEIDENTITY),
-        removeIdentityMethodCallback);
+        removeIdentityMethodCallback));
 
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDAPPLICATION),
-        addApplicationMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addApplicationMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEAPPLICATION),
-        removeApplicationMethodCallback);
+        removeApplicationMethodCallback));
 
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDENDPOINT),
-        addEndpointMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addEndpointMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEENDPOINT),
-        removeEndpointMethodCallback);
+        removeEndpointMethodCallback));
 
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = initUserManagement(server);
+
+#undef RBAC_INIT_TRY
     return retval;
 }
 

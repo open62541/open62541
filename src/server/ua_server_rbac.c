@@ -56,8 +56,10 @@
  * - The AccessRestrictions attribute is read-only through the attribute
  *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
  *
- * - Part 18 §5 User Management (UserManagementType, AddUser / ModifyUser /
- *   RemoveUser / ChangePassword) is not implemented.
+ * - Part 18 §5 User Management (UserManagementType: AddUser / ModifyUser /
+ *   RemoveUser / ChangePassword and the password-policy Properties) is wired up
+ *   by initUserManagement in ua_server_ns0_rbac.c when the AccessControl plugin
+ *   provides a UserManagement provider. Without one the Object is removed.
  *
  * - Roles added or removed at runtime - through the C API
  *   (UA_Server_addRole / UA_Server_removeRole) or the RoleSet AddRole /
@@ -655,8 +657,8 @@ UA_Server_initRBAC(UA_Server *server) {
     if(server->config.allPermissionsForAnonymous) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "RBAC: allPermissionsForAnonymous is enabled. "
-                       "All permissions are granted regardless of roles. "
-                       "Disable for production use.");
+                       "Nodes without RolePermissions grant all permissions "
+                       "regardless of roles. Disable for production use.");
     }
 
     /* Register the OPC UA well-known roles in the internal registry. Their
@@ -954,9 +956,10 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
-     * browseable. Skipped when the NS0 RBAC information model is unavailable
-     * or the Role Object already exists (well-known roles). On failure the
-     * appended registry entry is rolled back. */
+     * browseable. Skipped when the Role Object already exists, which is the
+     * case for the well-known roles. The RoleSet itself is created by
+     * initNS0RBAC before any role is registered. On failure the appended
+     * registry entry is rolled back. */
     UA_NodeId roleSetId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
     UA_QualifiedName probe;
@@ -2587,9 +2590,11 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
     UA_PermissionIndex permIdx = node->head.permissionIndex;
     const UA_RolePermission *entries = NULL;
     size_t entriesSize = 0;
+    UA_Boolean permissionsConfigured = false;
 
     /* If node has explicit permission configuration, use it */
     if(permIdx != UA_PERMISSION_INDEX_INVALID) {
+        permissionsConfigured = true;
         if(permIdx >= server->rolePermissionsSize)
             return 0;
         const UA_RolePermissionEntry *rp = &server->rolePermissions[permIdx];
@@ -2598,20 +2603,29 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
     } else {
         /* No explicit permissions, check namespace defaults */
         UA_UInt16 nsIdx = node->head.nodeId.namespaceIndex;
-        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata) {
-            entries = server->namespaceMetadata[nsIdx].entries;
-            entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
+        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata &&
+           server->namespaceMetadata[nsIdx].hasDefaultRolePermissions) {
+            const UA_NamespaceMetadata *metadata =
+                &server->namespaceMetadata[nsIdx];
+            permissionsConfigured = true;
+            entries = metadata->entries;
+            entriesSize = metadata->entriesSize;
         }
     }
 
     /* If no permissions configured, check allPermissionsForAnonymous.
      * When true (the default), un-configured nodes are fully permissive.
      * When false, only explicitly configured nodes grant access. */
-    if(!entries || entriesSize == 0) {
+    if(!permissionsConfigured) {
         if(server->config.allPermissionsForAnonymous)
             return UA_PERMISSIONTYPE_ALL; /* All permissions granted */
         return 0; /* Strict: deny unless explicitly configured */
     }
+
+    /* An explicitly configured empty array is an explicit deny-all. This is
+     * security-relevant when the last entry is removed together with a Role. */
+    if(entriesSize == 0)
+        return 0;
 
     /* Compute logical OR of permissions for all session roles */
     UA_PermissionType effectivePerms = 0;
@@ -2853,6 +2867,8 @@ UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
                                       &server->namespaceMetadata[namespaceIndex].entriesSize,
                                       &server->namespaceMetadata[namespaceIndex].entries);
     }
+    if(res == UA_STATUSCODE_GOOD)
+        server->namespaceMetadata[namespaceIndex].hasDefaultRolePermissions = true;
 
     unlockServer(server);
     return res;

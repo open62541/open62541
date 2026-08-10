@@ -2165,6 +2165,40 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * RBAC allows fine-grained access control by assigning roles to sessions and
  * defining permissions per role on individual nodes or entire namespaces.
  *
+ * Built-in Roles and Defaults
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * When RBAC is enabled, the Server registers the OPC UA well-known Roles in
+ * the RoleSet. Registration does not by itself assign a Role or grant its
+ * conventional permissions. The default session assignments are:
+ *
+ * - ``Anonymous`` is assigned to every Session, including authenticated ones.
+ * - ``AuthenticatedUser`` is additionally assigned when a non-anonymous
+ *   UserIdentityToken has been accepted.
+ * - ``TrustedApplication`` is additionally assigned when the client uses a
+ *   signed or signed-and-encrypted SecureChannel with an accepted client
+ *   ApplicationInstance Certificate.
+ * - ``Observer``, ``Operator``, ``Engineer``, ``Supervisor``,
+ *   ``ConfigureAdmin`` and ``SecurityAdmin`` have no default identity mapping
+ *   and therefore are not assigned to network Sessions until configured.
+ *   The same applies to the SecurityKeyServer Roles when they are present in
+ *   the generated Namespace Zero.
+ *
+ * In particular, there is no default network ``SecurityAdmin``. The local
+ * internal admin Session used by the Server C API is trusted separately and
+ * bypasses the network RBAC checks. JSON ``roles`` definitions add custom
+ * Roles; one that duplicates the BrowseName or NodeId of a well-known Role is
+ * rejected and aborts startup. Configure a well-known Role's mutable mappings
+ * through ``wellKnownRoleMappings`` or locally with ``UA_Server_updateRole``.
+ *
+ * A Role grants access only where matching RolePermissions are configured on
+ * a Node or in its NamespaceMetadata defaults. For backwards compatibility,
+ * ``UA_ServerConfig::allPermissionsForAnonymous`` defaults to ``true``: Nodes
+ * with neither explicit nor namespace-default RolePermissions are fully
+ * permissive, irrespective of the Session's Roles. Set it to ``false`` before
+ * creating the Server to make unconfigured Nodes deny by default. Explicitly
+ * configured RolePermissions are enforced with either setting.
+ *
  * Type Definitions
  * ~~~~~~~~~~~~~~~~
  */
@@ -2210,12 +2244,17 @@ typedef struct {
     size_t identityMappingRulesSize;
     UA_IdentityMappingRuleType *identityMappingRules;
 
-    /* Application restrictions  (empty list = ignore) */
+    /* Application filter (Part 18 §4.4.1). With applicationsExclude == false the
+     * list is an include list: only a Session whose trusted client
+     * ApplicationUri is listed matches, and an empty list matches no Session.
+     * With applicationsExclude == true it is an exclude list, so an empty list
+     * places no restriction. */
     UA_Boolean applicationsExclude;
     size_t applicationsSize;
     UA_String *applications;
 
-    /* Endpoint restrictions (empty list = ignore) */
+    /* Endpoint filter, with the same include/exclude semantics as the
+     * Application filter above (Part 18 §4.4.1). */
     UA_Boolean endpointsExclude;
     size_t endpointsSize;
     UA_EndpointType *endpoints;
@@ -2869,12 +2908,16 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
 
 /* Remove a role from the server's role registry.
  *
- * Config-provided (protected) roles cannot be removed.
+ * Config-provided and well-known (protected) roles cannot be removed.
+ * References to the removed Role are also removed from Node and namespace
+ * RolePermissions. A permission set that becomes empty remains explicitly
+ * configured and denies all access; it never falls back to the permissive
+ * behavior for unconfigured Nodes.
  *
  * @param server The server instance
  * @param roleName The BrowseName (QualifiedName) of the role to remove
  * @return UA_STATUSCODE_GOOD on success,
- *         UA_STATUSCODE_BADUSERACCESSDENIED if the role is protected,
+ *         UA_STATUSCODE_BADREQUESTNOTALLOWED if the role is protected,
  *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRole(UA_Server *server,
@@ -2923,8 +2966,8 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
  * from the provided role. The roleId and roleName of the stored role
  * are not changed.
  *
- * Anonymous and AuthenticatedUser are well-known roles defined by the
- * OPC UA specification and cannot be modified.
+ * Anonymous, AuthenticatedUser and TrustedApplication are mandatory
+ * well-known roles defined by the OPC UA specification and cannot be modified.
  *
  * @param server The server instance
  * @param role The role with updated fields
@@ -2933,7 +2976,7 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
  *         roleName is set,
  *         UA_STATUSCODE_BADNOTFOUND if no matching role exists,
  *         UA_STATUSCODE_BADUSERACCESSDENIED if the matched role is
- *         Anonymous or AuthenticatedUser */
+ *         Anonymous, AuthenticatedUser or TrustedApplication */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 
@@ -3042,7 +3085,9 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
  *  2. Namespace default RolePermissions (set via this API) */
 
 /* Set default role permissions for a namespace.
- * Overwrites any previously set defaults for the given namespace.
+ * Overwrites any previously set defaults for the given namespace. Calling this
+ * with entriesSize zero configures an explicit deny-all namespace default; it
+ * does not restore the unconfigured fallback.
  *
  * @param server The server instance
  * @param namespaceIndex The namespace index
@@ -3072,13 +3117,14 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
 
 /**
  * AccessRestrictions
- * ~~~~~~~~~~~~~~~~~~~
+ * ~~~~~~~~~~~~~~~~~~
  * AccessRestrictions (OPC UA Part 3 §5.2.11) constrain access to a Node based
  * on the SecureChannel: SigningRequired, EncryptionRequired and SessionRequired
- * (with ApplyRestrictionsToBrowse controlling whether Browse is restricted as
- * well). They are enforced on Read, Write and Call; the local admin session is
- * exempt. A Node without explicit restrictions falls back to the namespace
- * default. */
+ * (with ApplyRestrictionsToBrowse controlling whether Browse and
+ * TranslateBrowsePathsToNodeIds are restricted as well). They are enforced on
+ * Read, Write, HistoryRead, HistoryUpdate, Call, Browse and
+ * TranslateBrowsePathsToNodeIds; the local admin session is exempt. A Node
+ * without explicit restrictions falls back to the namespace default. */
 
 /* Set the AccessRestrictions of a node. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
