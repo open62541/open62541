@@ -123,6 +123,18 @@ struct UA_AccessControl {
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    UA_String **groupIds, size_t *groupIdsSize);
 
+    /* Return validated Role claims from an IssuedIdentityToken for the Role
+     * identity mapping criterion (OPC UA Part 18 section 4.4.2). Optional; the
+     * server calls this only after activateSession has accepted an issued
+     * token. For JWT, values use "<iss>/<role>" when an issuer exists and
+     * "<role>" otherwise. On success ownership of the allocated array and its
+     * strings is transferred to the caller. */
+    UA_StatusCode (*getUserTokenRoles)(UA_Server *server, UA_AccessControl *ac,
+                                       const UA_NodeId *sessionId,
+                                       void *sessionContext,
+                                       UA_String **roleClaims,
+                                       size_t *roleClaimsSize);
+
     /* Optional Part 18 UserManagement provider. The core exposes the
      * UserManagement Object only when all mutation callbacks are configured.
      * Provider implementations own password hashing, persistence and rate

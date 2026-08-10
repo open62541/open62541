@@ -749,6 +749,107 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
     return NULL;
 }
 
+static UA_Boolean
+isUpperHexString(const UA_String *value) {
+    if(value->length != 40)
+        return false;
+    for(size_t i = 0; i < value->length; i++) {
+        UA_Byte c = value->data[i];
+        if(!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+            return false;
+    }
+    return true;
+}
+
+static UA_Boolean
+isCanonicalX509Criteria(const UA_String *value) {
+    if(value->length < 5)
+        return false;
+    size_t pos = 0;
+    while(pos < value->length) {
+        size_t nameStart = pos;
+        while(pos < value->length && value->data[pos] != '=')
+            pos++;
+        if(pos == nameStart || pos + 2 >= value->length ||
+           value->data[pos + 1] != '"')
+            return false;
+        pos += 2;
+        size_t contentStart = pos;
+        while(pos < value->length && value->data[pos] != '"') {
+            if(value->data[pos] < 0x20 || value->data[pos] > 0x7e)
+                return false;
+            pos++;
+        }
+        if(pos == contentStart || pos >= value->length)
+            return false;
+        pos++;
+        if(pos == value->length)
+            return true;
+        if(value->data[pos++] != '/')
+            return false;
+    }
+    return false;
+}
+
+/* Validate the content of a Role. The roleName is not checked here: addRole
+ * requires one, but updateRole accepts a Role identified by roleId alone. */
+static UA_StatusCode
+validateRole(const UA_Role *role) {
+    for(size_t i = 0; i < role->identityMappingRulesSize; i++) {
+        const UA_IdentityMappingRuleType *rule = &role->identityMappingRules[i];
+        switch(rule->criteriaType) {
+        case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
+        case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
+        case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+            if(rule->criteria.length != 0)
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+        case UA_IDENTITYCRITERIATYPE_USERNAME:
+        case UA_IDENTITYCRITERIATYPE_ROLE:
+        case UA_IDENTITYCRITERIATYPE_GROUPID:
+        case UA_IDENTITYCRITERIATYPE_APPLICATION:
+            if(rule->criteria.length == 0)
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+        case UA_IDENTITYCRITERIATYPE_THUMBPRINT:
+            if(!isUpperHexString(&rule->criteria))
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+        case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
+            if(!isCanonicalX509Criteria(&rule->criteria))
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+        default:
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+    for(size_t i = 0; i < role->applicationsSize; i++) {
+        if(role->applications[i].length == 0)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        for(size_t j = 0; j < i; j++) {
+            if(UA_String_equal(&role->applications[i], &role->applications[j]))
+                return UA_STATUSCODE_BADALREADYEXISTS;
+        }
+    }
+    for(size_t i = 0; i < role->endpointsSize; i++) {
+        const UA_EndpointType *ep = &role->endpoints[i];
+        if(ep->securityMode < UA_MESSAGESECURITYMODE_INVALID ||
+           ep->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        for(size_t j = 0; j < i; j++) {
+            const UA_EndpointType *other = &role->endpoints[j];
+            if(UA_String_equal(&ep->endpointUrl, &other->endpointUrl) &&
+               ep->securityMode == other->securityMode &&
+               UA_String_equal(&ep->securityPolicyUri,
+                               &other->securityPolicyUri) &&
+               UA_String_equal(&ep->transportProfileUri,
+                               &other->transportProfileUri))
+                return UA_STATUSCODE_BADALREADYEXISTS;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Log warnings for role features that are configured but cannot be evaluated in
  * the current configuration: GroupId criteria without a getUserGroups hook. */
 static void
@@ -786,8 +887,11 @@ warnUnsupportedRoleFeatures(UA_Server *server, const UA_Role *role) {
 static UA_StatusCode
 addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         UA_Boolean wellKnown) {
-    if(!server || !role)
+    if(!server || !role || role->roleName.name.length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode validation = validateRole(role);
+    if(validation != UA_STATUSCODE_GOOD)
+        return validation;
 
     lockServer(server);
 
@@ -889,15 +993,11 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
     UA_Server_reevaluateSessionRoles(server);
 
 #ifdef UA_ENABLE_AUDITING
-    /* Emit a RoleMappingRuleChangedAuditEvent for the role addition. The
-     * AddRole Method NodeId is used as the MethodId even when addRole is
-     * invoked through the C API, mirroring how updateRole reports its
-     * canonical Method (Part 18 §4.5). */
     if(!wellKnown) {
-        const UA_NodeId addRoleMethod =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
+        const UA_NodeId method = UA_NODEID_NUMERIC(
+            0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE);
         auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
-                                         &newRole->roleId, &addRoleMethod,
+                                         &newRole->roleId, &method,
                                          UA_STATUSCODE_GOOD, 0, NULL);
     }
 #endif
@@ -1035,18 +1135,13 @@ UA_Server_removeRole(UA_Server *server,
     UA_Server_reevaluateSessionRoles(server);
 
 #ifdef UA_ENABLE_AUDITING
-    /* Emit a RoleMappingRuleChangedAuditEvent for the role removal. The
-     * RemoveRole Method NodeId is used as the MethodId even when removeRole
-     * is invoked through the C API, mirroring how updateRole reports its
-     * canonical Method (Part 18 §4.5). */
-    {
-        const UA_NodeId removeRoleMethod =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE);
-        auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
-                                         &removedRoleId, &removeRoleMethod,
-                                         UA_STATUSCODE_GOOD, 0, NULL);
-    }
+    const UA_NodeId method = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE);
+    auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
+                                     &removedRoleId, &method,
+                                     UA_STATUSCODE_GOOD, 0, NULL);
 #endif
+
     UA_NodeId_clear(&removedRoleId);
 
     unlockServer(server);
@@ -1323,10 +1418,24 @@ UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
 /* Public API: Role Update          */
 /************************************/
 
+#ifdef UA_ENABLE_AUDITING
+typedef struct {
+    const UA_NodeId *sessionId;
+    const UA_NodeId *methodId;
+    size_t inputSize;
+    const UA_Variant *input;
+} RoleMethodAuditContext;
+
+UA_STATIC_THREAD_LOCAL RoleMethodAuditContext roleMethodAuditContext;
+#endif
+
 UA_StatusCode UA_EXPORT
 UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     if(!server || !role)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode validation = validateRole(role);
+    if(validation != UA_STATUSCODE_GOOD)
+        return validation;
 
     UA_Boolean hasId = !UA_NodeId_isNull(&role->roleId);
     UA_Boolean hasName = (role->roleName.name.length > 0);
@@ -1406,16 +1515,50 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     UA_Server_reevaluateSessionRoles(server);
 
 #ifdef UA_ENABLE_AUDITING
-    /* Emit a RoleMappingRuleChangedAuditEvent (Part 18). updateRole is the
-     * choke point for identity/application/endpoint changes, reached both by
-     * the C API and the RoleType AddIdentity/RemoveIdentity/... Methods. */
-    auditRoleMappingRuleChangedEvent(server, NULL, NULL, true,
-                                     &existing->roleId, &existing->roleId,
-                                     UA_STATUSCODE_GOOD, 0, NULL);
+    UA_Session *auditSession = NULL;
+    UA_SecureChannel *auditChannel = NULL;
+    UA_NodeId localOperation = UA_NODEID_NULL;
+    const UA_NodeId *method = &localOperation;
+    size_t auditInputSize = 0;
+    UA_Variant *auditInput = NULL;
+    if(roleMethodAuditContext.methodId) {
+        method = roleMethodAuditContext.methodId;
+        auditInputSize = roleMethodAuditContext.inputSize;
+        auditInput = (UA_Variant*)(uintptr_t)roleMethodAuditContext.input;
+        if(roleMethodAuditContext.sessionId) {
+            auditSession = getSessionById(server,
+                                          roleMethodAuditContext.sessionId);
+            if(auditSession)
+                auditChannel = auditSession->channel;
+        }
+    }
+    auditRoleMappingRuleChangedEvent(server, auditChannel, auditSession, true,
+                                     &existing->roleId, method,
+                                     UA_STATUSCODE_GOOD, auditInputSize,
+                                     auditInput);
 #endif
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_updateRoleFromMethod(UA_Server *server, const UA_Role *role,
+                               const UA_NodeId *sessionId,
+                               const UA_NodeId *methodId,
+                               size_t inputSize, const UA_Variant *input) {
+#ifdef UA_ENABLE_AUDITING
+    RoleMethodAuditContext previous = roleMethodAuditContext;
+    roleMethodAuditContext.sessionId = sessionId;
+    roleMethodAuditContext.methodId = methodId;
+    roleMethodAuditContext.inputSize = inputSize;
+    roleMethodAuditContext.input = input;
+#endif
+    UA_StatusCode res = UA_Server_updateRole(server, role);
+#ifdef UA_ENABLE_AUDITING
+    roleMethodAuditContext = previous;
+#endif
+    return res;
 }
 
 /************************************/
@@ -1538,11 +1681,14 @@ UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx) {
     UA_String_clear(&ctx->userName);
     UA_String_clear(&ctx->userThumbprint);
     UA_String_clear(&ctx->userSubject);
+    UA_String_clear(&ctx->userIssuer);
     UA_String_clear(&ctx->applicationUri);
     UA_String_clear(&ctx->endpointUrl);
     UA_String_clear(&ctx->securityPolicyUri);
     UA_String_clear(&ctx->transportProfileUri);
     UA_Array_delete(ctx->groups, ctx->groupsSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(ctx->tokenRoles, ctx->tokenRolesSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
     memset(ctx, 0, sizeof(UA_SessionIdentityContext));
 }
 
@@ -1562,9 +1708,8 @@ stringEqualIgnoreCase(const UA_String *a, const UA_String *b) {
 }
 
 /* Match a single identity mapping rule against a session identity context.
- * The Role criterion is resolved separately (needs the set of already granted
- * roles) in the fixpoint loop of UA_Server_evaluateSessionRoles. GroupId has no
- * native identity source and is only matched through the getUserGroups hook. */
+ * GroupId and Role have no native identity source and are matched only against
+ * values returned by the corresponding AccessControl hooks. */
 static UA_Boolean
 identityRuleMatches(const UA_IdentityMappingRuleType *rule,
                     const UA_SessionIdentityContext *ctx) {
@@ -1582,14 +1727,22 @@ identityRuleMatches(const UA_IdentityMappingRuleType *rule,
         return (ctx->userThumbprint.length > 0 &&
                 stringEqualIgnoreCase(&ctx->userThumbprint, &rule->criteria));
     case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
-        return (ctx->userSubject.length > 0 &&
-                UA_String_equal(&ctx->userSubject, &rule->criteria));
+        return ((ctx->userSubject.length > 0 &&
+                 UA_String_equal(&ctx->userSubject, &rule->criteria)) ||
+                (ctx->userIssuer.length > 0 &&
+                 UA_String_equal(&ctx->userIssuer, &rule->criteria)));
     case UA_IDENTITYCRITERIATYPE_APPLICATION:
-        return (ctx->applicationUri.length > 0 &&
+        return (ctx->trustedApplication && ctx->applicationUri.length > 0 &&
                 UA_String_equal(&ctx->applicationUri, &rule->criteria));
     case UA_IDENTITYCRITERIATYPE_GROUPID:
         for(size_t g = 0; g < ctx->groupsSize; g++) {
             if(UA_String_equal(&ctx->groups[g], &rule->criteria))
+                return true;
+        }
+        return false;
+    case UA_IDENTITYCRITERIATYPE_ROLE:
+        for(size_t r = 0; r < ctx->tokenRolesSize; r++) {
+            if(UA_String_equal(&ctx->tokenRoles[r], &rule->criteria))
                 return true;
         }
         return false;
@@ -1625,6 +1778,12 @@ endpointFilterMatches(const UA_EndpointType *ep,
 static UA_Boolean
 roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
     if(role->applicationsSize > 0) {
+        /* Part 18 §4.4.1: a configured Applications list is evaluated against
+         * the ApplicationUri from a trusted Client ApplicationInstance
+         * Certificate and requires at least a signed SecureChannel. Never use
+         * the unauthenticated ApplicationDescription URI for authorization. */
+        if(!ctx->trustedApplication || ctx->applicationUri.length == 0)
+            return false;
         UA_Boolean inList = false;
         for(size_t i = 0; i < role->applicationsSize; i++) {
             if(UA_String_equal(&ctx->applicationUri, &role->applications[i])) {
@@ -1704,43 +1863,6 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
             matchedRoles[i] = true;
             matchCount++;
             break;
-        }
-    }
-
-    /* Fixpoint for the Role criterion (Part 18 §4.4.2): a Role whose rule
-     * references an already-granted Role (by BrowseName) is itself granted.
-     * Iterated until stable; bounded by the number of roles. */
-    UA_Boolean changed = true;
-    while(changed) {
-        changed = false;
-        for(size_t i = 0; i < server->rolesSize; i++) {
-            if(matchedRoles[i])
-                continue;
-            UA_Role *role = &server->roles[i];
-            /* A non-custom Role with empty Identities can never be granted
-             * (Part 18 §4.4.1), even transitively via the Role fixpoint. */
-            if(role->identityMappingRulesSize == 0 && !role->customConfiguration)
-                continue;
-            for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
-                if(role->identityMappingRules[j].criteriaType !=
-                   UA_IDENTITYCRITERIATYPE_ROLE)
-                    continue;
-                for(size_t k = 0; k < server->rolesSize; k++) {
-                    if(!matchedRoles[k])
-                        continue;
-                    if(UA_String_equal(&server->roles[k].roleName.name,
-                                       &role->identityMappingRules[j].criteria)) {
-                        if(roleFiltersMatch(role, ctx)) {
-                            matchedRoles[i] = true;
-                            matchCount++;
-                            changed = true;
-                        }
-                        break;
-                    }
-                }
-                if(matchedRoles[i])
-                    break;
-            }
         }
     }
 
