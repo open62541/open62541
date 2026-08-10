@@ -367,7 +367,9 @@ clear_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy) {
 #endif
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_free(&pc->csrLocalPrivateKey);
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_md_free(&pc->mdContext);
+#endif
     UA_ByteString_clear(&pc->localCertThumbprint);
     UA_mbedTLS_PolicyContext_clearPsa(pc);
 
@@ -460,20 +462,23 @@ policyContext_newContext_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy,
     /* Initialize the PolicyContext */
     memset(pc, 0, sizeof(mbedtls_PolicyContext));
     UA_mbedTLS_PolicyContext_initPsa(pc);
+    int mbedErr;
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_ctr_drbg_init(&pc->drbgContext);
     mbedtls_entropy_init(&pc->entropyContext);
 #endif
     mbedtls_pk_init(&pc->localPrivateKey);
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_md_init(&pc->mdContext);
 
     /* Initialized the message digest */
     const mbedtls_md_info_t *const mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    int mbedErr = mbedtls_md_setup(&pc->mdContext, mdInfo, MBEDTLS_MD_SHA256);
+    mbedErr = mbedtls_md_setup(&pc->mdContext, mdInfo, MBEDTLS_MD_SHA256);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto error;
     }
+#endif
 
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedErr = mbedtls_entropy_self_test(0);

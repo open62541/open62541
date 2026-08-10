@@ -18,15 +18,6 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/error.h>
-#include <mbedtls/md.h>
-#include <mbedtls/sha1.h>
-#include <mbedtls/version.h>
-#include <mbedtls/x509_crt.h>
-
 #define UA_SUBSCRIBER_PORT       4801    /* Port for Subscriber*/
 #define PUBLISH_INTERVAL         5       /* Publish interval*/
 #define PUBLISHER_ID             2234    /* Publisher Id*/

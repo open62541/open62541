@@ -68,8 +68,13 @@ UA_Policy_EccNistP384_New_Context(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* Verify the key is an EC key */
+    /* Verify the key is an EC signing key */
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    if(!PSA_KEY_TYPE_IS_ECC_KEY_PAIR(
+           mbedtls_pk_get_key_type(&context->localPrivateKey))) {
+#else
     if(!mbedtls_pk_can_do(&context->localPrivateKey, MBEDTLS_PK_ECKEY)) {
+#endif
         mbedtls_pk_free(&context->localPrivateKey);
         UA_free(context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -126,15 +131,19 @@ createSigningRequest_sp_eccnistp384(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!securityPolicy->policyContext)
         return UA_STATUSCODE_BADINTERNALERROR;
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     Policy_Context_EccNistP384 *pc =
         (Policy_Context_EccNistP384*)securityPolicy->policyContext;
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
     return mbedtls_createSigningRequest(&pc->localPrivateKey,
                                         &pc->csrLocalPrivateKey, NULL, NULL,
                                         securityPolicy, subjectName,
                                         nonce, csr, newPrivateKey);
 #else
-    return UA_STATUSCODE_BADNOTSUPPORTED;
+    Policy_Context_EccNistP384 *pc =
+        (Policy_Context_EccNistP384*)securityPolicy->policyContext;
+    return UA_mbedTLS_createSigningRequestV4(
+        &pc->localPrivateKey, &pc->csrLocalPrivateKey, securityPolicy,
+        subjectName, nonce, csr, newPrivateKey);
 #endif
 }
 
