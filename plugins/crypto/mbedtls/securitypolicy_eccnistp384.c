@@ -36,7 +36,6 @@ typedef struct {
 
 typedef struct Channel_Context_EccNistP384 {
     UA_mbedTLS_PsaKey localEphemeralKeyPair;
-    UA_Boolean ephemeralKeyInitialized;
     UA_mbedTLS_PsaKey localSymSigningKey;
     UA_mbedTLS_PsaKey localSymEncryptingKey;
     UA_ByteString localSymIv;
@@ -118,44 +117,8 @@ static UA_StatusCode
 updateCertificateAndPrivateKey_sp_EccNistP384(UA_SecurityPolicy *securityPolicy,
                                               const UA_ByteString newCertificate,
                                               const UA_ByteString newPrivateKey) {
-    if(!securityPolicy || !securityPolicy->policyContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    Policy_Context_EccNistP384 *pc =
-        (Policy_Context_EccNistP384 *)securityPolicy->policyContext;
-
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(
-        &newCertificate, &securityPolicy->localCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    mbedtls_pk_free(&pc->localPrivateKey);
-    mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey,
-                                            &pc->localPrivateKey);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    UA_ByteString_clear(&pc->localCertThumbprint);
-    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-    retval = UA_mbedTLS_thumbprintSha1(&securityPolicy->localCertificate,
-                                     &pc->localCertThumbprint);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext)
-        UA_Policy_EccNistP384_Clear_Context(securityPolicy);
-    return retval;
+    return UA_mbedTLS_UpdateCertificateAndPrivateKey(
+        securityPolicy, newCertificate, newPrivateKey);
 }
 
 static UA_StatusCode
@@ -191,7 +154,6 @@ EccNistP384_New_Context(const UA_SecurityPolicy *securityPolicy,
     UA_mbedTLS_PsaKey_init(&newContext->localSymEncryptingKey);
     UA_mbedTLS_PsaKey_init(&newContext->remoteSymSigningKey);
     UA_mbedTLS_PsaKey_init(&newContext->remoteSymEncryptingKey);
-    newContext->ephemeralKeyInitialized = UA_FALSE;
 
     *channelContext = newContext;
     return UA_STATUSCODE_GOOD;
@@ -268,19 +230,11 @@ UA_AsymEn_EccNistP384_getRemoteKeyLength(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_Sym_EccNistP384_generateNonce(const UA_SecurityPolicy *policy,
                                  void *channelContext, UA_ByteString *out) {
-    if(!policy->policyContext)
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccNistP384 *cctx = (Channel_Context_EccNistP384*)channelContext;
-        UA_StatusCode res = UA_mbedTLS_PsaEccGenerate(
-            PSA_ECC_FAMILY_SECP_R1, 384, &cctx->localEphemeralKeyPair, out);
-        if(res == UA_STATUSCODE_GOOD)
-            cctx->ephemeralKeyInitialized = UA_TRUE;
-        return res;
-    }
-
-    return UA_mbedTLS_PsaRandom(out);
+    Channel_Context_EccNistP384 *cctx =
+        (Channel_Context_EccNistP384*)channelContext;
+    return UA_mbedTLS_EccGenerateNonce(
+        policy, cctx ? &cctx->localEphemeralKeyPair : NULL,
+        PSA_ECC_FAMILY_SECP_R1, 384, out);
 }
 
 static size_t

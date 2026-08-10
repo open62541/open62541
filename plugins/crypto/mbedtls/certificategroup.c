@@ -17,6 +17,7 @@
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/version.h>
 #include <mbedtls/psa_util.h>
+#include <mbedtls/platform_util.h>
 
 #include "securitypolicy_common.h"
 
@@ -31,8 +32,8 @@ static const struct {
     const UA_DataType *type;
     UA_Boolean required;
 } MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMETERSSIZE] = {
-    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT16], false},
-    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_STRING], false}
+    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false},
+    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_UINT32], false}
 };
 
 typedef struct {
@@ -43,8 +44,6 @@ typedef struct {
     UA_UInt32 maxTrustListSize;
     UA_UInt32 maxRejectedListSize;
 
-    UA_Boolean reloadRequired;
-
     mbedtls_x509_crt trustedCertificates;
     mbedtls_x509_crt issuerCertificates;
     mbedtls_x509_crl trustedCrls;
@@ -53,24 +52,35 @@ typedef struct {
 
 static UA_Boolean mbedtlsCheckCA(mbedtls_x509_crt *cert);
 
+static UA_Boolean
+validByteString(const UA_ByteString *value) {
+    return value && (value->length == 0 || value->data);
+}
+
+typedef UA_StatusCode
+(*TrustListMutation)(const UA_TrustListDataType *src,
+                     UA_TrustListDataType *dst);
+
+static UA_StatusCode
+MemoryCertStore_updateTrustList(UA_CertificateGroup *certGroup,
+                                const UA_TrustListDataType *trustList,
+                                TrustListMutation mutation);
+
 static UA_StatusCode
 MemoryCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
     /* Check parameter */
-    if(certGroup == NULL || trustList == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !trustList)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    context->reloadRequired = true;
-    return UA_TrustListDataType_remove(trustList, &context->trustList);
+    return MemoryCertStore_updateTrustList(
+        certGroup, trustList, UA_TrustListDataType_remove);
 }
 
 static UA_StatusCode
 MemoryCertStore_getTrustList(UA_CertificateGroup *certGroup, UA_TrustListDataType *trustList) {
     /* Check parameter */
-    if(certGroup == NULL || trustList == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !trustList)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
     return UA_TrustListDataType_copy(&context->trustList, trustList);
@@ -79,47 +89,39 @@ MemoryCertStore_getTrustList(UA_CertificateGroup *certGroup, UA_TrustListDataTyp
 static UA_StatusCode
 MemoryCertStore_setTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
     /* Check parameter */
-    if(certGroup == NULL || trustList == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !trustList)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    if(context->maxTrustListSize != 0 && UA_TrustListDataType_getSize(trustList) > context->maxTrustListSize) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    context->reloadRequired = true;
-    /* Remove the section of the trust list that needs to be reset, while keeping the remaining parts intact */
-    return UA_TrustListDataType_set(trustList, &context->trustList);
+    return MemoryCertStore_updateTrustList(
+        certGroup, trustList, UA_TrustListDataType_set);
 }
 
 static UA_StatusCode
 MemoryCertStore_addToTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
     /* Check parameter */
-    if(certGroup == NULL || trustList == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !trustList)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    if(context->maxTrustListSize != 0 && UA_TrustListDataType_getSize(&context->trustList) + UA_TrustListDataType_getSize(trustList) > context->maxTrustListSize) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    context->reloadRequired = true;
-    return UA_TrustListDataType_add(trustList, &context->trustList);
+    return MemoryCertStore_updateTrustList(
+        certGroup, trustList, UA_TrustListDataType_add);
 }
 
 static UA_StatusCode
 MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **rejectedList, size_t *rejectedListSize) {
     /* Check parameter */
-    if(certGroup == NULL || rejectedList == NULL || rejectedListSize == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !rejectedList || !rejectedListSize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
     UA_StatusCode retval = UA_Array_copy(context->rejectedCertificates, context->rejectedCertificatesSize,
                                          (void**)rejectedList, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
-    if(retval == UA_STATUSCODE_GOOD)
+    if(retval == UA_STATUSCODE_GOOD) {
         *rejectedListSize = context->rejectedCertificatesSize;
+    } else {
+        *rejectedList = NULL;
+        *rejectedListSize = 0;
+    }
 
     return retval;
 }
@@ -169,6 +171,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                 "An error occurred while parsing the crl.");
+            mbedtls_x509_crl_free(&crl);
             mbedtls_x509_crt_free(&cert);
             return retval;
         }
@@ -201,9 +204,8 @@ MemoryCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_Byte
                                    const UA_Boolean isTrusted, UA_ByteString **crls,
                                    size_t *crlsSize) {
     /* Check parameter */
-    if(certGroup == NULL || certificate == NULL || crls == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !certificate || !crls || !crlsSize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
 
@@ -222,9 +224,8 @@ MemoryCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_Byte
 static UA_StatusCode
 MemoryCertStore_addToRejectedList(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
-    if(certGroup == NULL || certificate == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !certificate)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
 
@@ -239,9 +240,14 @@ MemoryCertStore_addToRejectedList(UA_CertificateGroup *certGroup, const UA_ByteS
         return UA_Array_appendCopy((void**)&context->rejectedCertificates, &context->rejectedCertificatesSize,
                                    certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
     }
-    UA_Array_delete(context->rejectedCertificates, context->rejectedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    context->rejectedCertificates = NULL;
-    context->rejectedCertificatesSize = 0;
+    /* Evict only the oldest entry instead of dropping the entire history. */
+    UA_ByteString_clear(&context->rejectedCertificates[0]);
+    if(context->rejectedCertificatesSize > 1) {
+        memmove(&context->rejectedCertificates[0],
+                &context->rejectedCertificates[1],
+                (context->rejectedCertificatesSize - 1) * sizeof(UA_ByteString));
+    }
+    context->rejectedCertificatesSize--;
     return UA_Array_appendCopy((void**)&context->rejectedCertificates, &context->rejectedCertificatesSize,
                                certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
 }
@@ -274,58 +280,138 @@ MemoryCertStore_clear(UA_CertificateGroup *certGroup) {
 }
 
 static UA_StatusCode
-reloadCertificates(UA_CertificateGroup *certGroup) {
-    /* Check parameter */
-    if(certGroup == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    UA_ByteString data;
-    UA_ByteString_init(&data);
-    int err = 0;
-
-    mbedtls_x509_crt_free(&context->trustedCertificates);
-    mbedtls_x509_crt_init(&context->trustedCertificates);
-    for(size_t i = 0; i < context->trustList.trustedCertificatesSize; ++i) {
-        data = UA_mbedTLS_CopyDataFormatAware(&context->trustList.trustedCertificates[i]);
-        err = mbedtls_x509_crt_parse(&context->trustedCertificates, data.data, data.length);
+parseCertificates(const UA_ByteString *certificates, size_t certificatesSize,
+                  mbedtls_x509_crt *target) {
+    if(certificatesSize > 0 && !certificates)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    for(size_t i = 0; i < certificatesSize; i++) {
+        UA_ByteString data = UA_BYTESTRING_NULL;
+        UA_StatusCode retval =
+            UA_mbedTLS_CopyDataFormatAware(&certificates[i], &data);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        int err = mbedtls_x509_crt_parse(target, data.data, data.length);
         UA_ByteString_clear(&data);
         if(err)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
-
-    mbedtls_x509_crt_free(&context->issuerCertificates);
-    mbedtls_x509_crt_init(&context->issuerCertificates);
-    for(size_t i = 0; i < context->trustList.issuerCertificatesSize; ++i) {
-        data = UA_mbedTLS_CopyDataFormatAware(&context->trustList.issuerCertificates[i]);
-        err = mbedtls_x509_crt_parse(&context->issuerCertificates, data.data, data.length);
-        UA_ByteString_clear(&data);
-        if(err)
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    mbedtls_x509_crl_free(&context->trustedCrls);
-    mbedtls_x509_crl_init(&context->trustedCrls);
-    for(size_t i = 0; i < context->trustList.trustedCrlsSize; i++) {
-        data = UA_mbedTLS_CopyDataFormatAware(&context->trustList.trustedCrls[i]);
-        err = mbedtls_x509_crl_parse(&context->trustedCrls, data.data, data.length);
-        UA_ByteString_clear(&data);
-        if(err)
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    mbedtls_x509_crl_free(&context->issuerCrls);
-    mbedtls_x509_crl_init(&context->issuerCrls);
-    for(size_t i = 0; i < context->trustList.issuerCrlsSize; i++) {
-        data = UA_mbedTLS_CopyDataFormatAware(&context->trustList.issuerCrls[i]);
-        err = mbedtls_x509_crl_parse(&context->issuerCrls, data.data, data.length);
-        UA_ByteString_clear(&data);
-        if(err)
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+parseCrls(const UA_ByteString *crls, size_t crlsSize,
+          mbedtls_x509_crl *target) {
+    if(crlsSize > 0 && !crls)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    for(size_t i = 0; i < crlsSize; i++) {
+        UA_ByteString data = UA_BYTESTRING_NULL;
+        UA_StatusCode retval = UA_mbedTLS_CopyDataFormatAware(&crls[i], &data);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        int err = mbedtls_x509_crl_parse(target, data.data, data.length);
+        UA_ByteString_clear(&data);
+        if(err)
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+typedef struct {
+    mbedtls_x509_crt trustedCertificates;
+    mbedtls_x509_crt issuerCertificates;
+    mbedtls_x509_crl trustedCrls;
+    mbedtls_x509_crl issuerCrls;
+} ParsedCertStore;
+
+static void
+ParsedCertStore_init(ParsedCertStore *store) {
+    mbedtls_x509_crt_init(&store->trustedCertificates);
+    mbedtls_x509_crt_init(&store->issuerCertificates);
+    mbedtls_x509_crl_init(&store->trustedCrls);
+    mbedtls_x509_crl_init(&store->issuerCrls);
+}
+
+static void
+ParsedCertStore_clear(ParsedCertStore *store) {
+    mbedtls_x509_crt_free(&store->trustedCertificates);
+    mbedtls_x509_crt_free(&store->issuerCertificates);
+    mbedtls_x509_crl_free(&store->trustedCrls);
+    mbedtls_x509_crl_free(&store->issuerCrls);
+}
+
+static UA_StatusCode
+ParsedCertStore_load(const UA_TrustListDataType *trustList,
+                     ParsedCertStore *store) {
+    if(!trustList || !store)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval =
+        parseCertificates(trustList->trustedCertificates,
+                          trustList->trustedCertificatesSize,
+                          &store->trustedCertificates);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = parseCertificates(trustList->issuerCertificates,
+                                   trustList->issuerCertificatesSize,
+                                   &store->issuerCertificates);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = parseCrls(trustList->trustedCrls,
+                           trustList->trustedCrlsSize, &store->trustedCrls);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = parseCrls(trustList->issuerCrls,
+                           trustList->issuerCrlsSize, &store->issuerCrls);
+    return retval;
+}
+
+static void
+ParsedCertStore_commit(MemoryCertStore *context, ParsedCertStore *store) {
+    mbedtls_x509_crt_free(&context->trustedCertificates);
+    mbedtls_x509_crt_free(&context->issuerCertificates);
+    mbedtls_x509_crl_free(&context->trustedCrls);
+    mbedtls_x509_crl_free(&context->issuerCrls);
+    context->trustedCertificates = store->trustedCertificates;
+    context->issuerCertificates = store->issuerCertificates;
+    context->trustedCrls = store->trustedCrls;
+    context->issuerCrls = store->issuerCrls;
+    ParsedCertStore_init(store);
+}
+
+static UA_StatusCode
+MemoryCertStore_updateTrustList(UA_CertificateGroup *certGroup,
+                                const UA_TrustListDataType *trustList,
+                                TrustListMutation mutation) {
+    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+    UA_TrustListDataType candidate;
+    UA_TrustListDataType_init(&candidate);
+    UA_StatusCode retval =
+        UA_TrustListDataType_copy(&context->trustList, &candidate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = mutation(trustList, &candidate);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanupCandidate;
+    if(context->maxTrustListSize != 0 &&
+       UA_TrustListDataType_getSize(&candidate) > context->maxTrustListSize) {
+        retval = UA_STATUSCODE_BADOUTOFRANGE;
+        goto cleanupCandidate;
+    }
+
+    ParsedCertStore parsed;
+    ParsedCertStore_init(&parsed);
+    retval = ParsedCertStore_load(&candidate, &parsed);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanupParsed;
+
+    UA_TrustListDataType_clear(&context->trustList);
+    context->trustList = candidate;
+    UA_TrustListDataType_init(&candidate);
+    ParsedCertStore_commit(context, &parsed);
+
+cleanupParsed:
+    ParsedCertStore_clear(&parsed);
+cleanupCandidate:
+    UA_TrustListDataType_clear(&candidate);
+    return retval;
 }
 
 #define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
@@ -569,18 +655,11 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 static UA_StatusCode
 verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
-    if (certGroup == NULL || certGroup->context == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certGroup->context || !certificate ||
+       (certificate->length > 0 && !certificate->data))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
-    if(context->reloadRequired) {
-        UA_StatusCode retval = reloadCertificates(certGroup);
-        if(retval != UA_STATUSCODE_GOOD) {
-            return retval;
-        }
-        context->reloadRequired = false;
-    }
 
     /* Verification Step: Certificate Structure
      * This parses the entire certificate chain contained in the bytestring. */
@@ -588,8 +667,10 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     mbedtls_x509_crt_init(&cert);
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data,
                                          certificate->length);
-    if(mbedErr)
+    if(mbedErr) {
+        mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
@@ -618,7 +699,7 @@ static UA_StatusCode
 MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
                                   const UA_ByteString *certificate) {
     /* Check parameter */
-    if(certGroup == NULL || certificate == NULL) {
+    if(!certGroup || !certGroup->context || !certificate) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -639,20 +720,17 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 const UA_Logger *logger,
                                 const UA_KeyValueMap *params) {
 
-    if(certGroup == NULL || certificateGroupId == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!certGroup || !certificateGroupId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_mbedTLS_PSA_Init();
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Clear if the plugin is already initialized */
     if(certGroup->clear)
         certGroup->clear(certGroup);
 
-    UA_NodeId_copy(certificateGroupId, &certGroup->certificateGroupId);
     certGroup->logging = logger;
 
     certGroup->getTrustList = MemoryCertStore_getTrustList;
@@ -664,6 +742,10 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->verifyCertificate = MemoryCertStore_verifyCertificate;
     certGroup->clear = MemoryCertStore_clear;
 
+    retval = UA_NodeId_copy(certificateGroupId, &certGroup->certificateGroupId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     /* Set PKI Store context data */
     MemoryCertStore *context = (MemoryCertStore *)UA_calloc(1, sizeof(MemoryCertStore));
     if(!context) {
@@ -671,6 +753,10 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
         goto cleanup;
     }
     certGroup->context = context;
+    mbedtls_x509_crt_init(&context->trustedCertificates);
+    mbedtls_x509_crt_init(&context->issuerCertificates);
+    mbedtls_x509_crl_init(&context->trustedCrls);
+    mbedtls_x509_crl_init(&context->issuerCrls);
     /* Default values */
     context->maxTrustListSize = 65535;
     context->maxRejectedListSize = 100;
@@ -678,11 +764,11 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     if(params) {
         const UA_UInt32 *maxTrustListSize = (const UA_UInt32*)
         UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
+                                 MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].type);
 
         const UA_UInt32 *maxRejectedListSize = (const UA_UInt32*)
         UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
+                                 MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].type);
 
         if(maxTrustListSize) {
             context->maxTrustListSize = *maxTrustListSize;
@@ -693,8 +779,12 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
         }
     }
 
-    UA_TrustListDataType_add(trustList, &context->trustList);
-    reloadCertificates(certGroup);
+    if(trustList) {
+        retval = MemoryCertStore_updateTrustList(
+            certGroup, trustList, UA_TrustListDataType_add);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
 
     return UA_STATUSCODE_GOOD;
 
@@ -706,6 +796,8 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
                                          const UA_String *applicationURI) {
+    if(!validByteString(certificate) || !validByteString(applicationURI))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
     mbedtls_x509_crt_init(&remoteCertificate);
@@ -745,6 +837,8 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
+    if(!validByteString(certificate) || !expiryDateTime)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
 
@@ -772,6 +866,9 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
+    if(!validByteString(certificate) || !subjectName)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_String_init(subjectName);
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
 
@@ -804,9 +901,9 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint){
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(certificate == NULL || thumbprint->length != (UA_SHA1_LENGTH * 2))
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!validByteString(certificate) || !thumbprint || !thumbprint->data ||
+       thumbprint->length != (UA_SHA1_LENGTH * 2))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     // prepare temporary to hold the binary thumbprint
     UA_Byte buf[UA_SHA1_LENGTH];
@@ -815,7 +912,9 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
         /*.data =*/ buf
     };
 
-    retval = UA_mbedTLS_thumbprintSha1(certificate, &thumbpr);
+    UA_StatusCode retval = UA_mbedTLS_thumbprintSha1(certificate, &thumbpr);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     // convert to hexadecimal string representation
     size_t t = 0u;
@@ -840,6 +939,9 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
                                size_t *keySize){
+    if(!validByteString(certificate) || !keySize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *keySize = 0;
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
 
@@ -849,23 +951,9 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
         return retval;
     }
 
-#if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    if(!PSA_KEY_TYPE_IS_RSA(mbedtls_pk_get_key_type(&publicKey.pk))) {
-        mbedtls_x509_crt_free(&publicKey);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
     *keySize = mbedtls_pk_get_bitlen(&publicKey.pk);
-#else
-    if(!mbedtls_pk_can_do(&publicKey.pk, MBEDTLS_PK_RSA)) {
-        mbedtls_x509_crt_free(&publicKey);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(publicKey.pk);
-    *keySize = mbedtls_rsa_get_len(rsa) * 8;
-#endif
     mbedtls_x509_crt_free(&publicKey);
-
-    return UA_STATUSCODE_GOOD;
+    return (*keySize > 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTSUPPORTED;
 }
 
 UA_StatusCode
@@ -901,37 +989,49 @@ UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!validByteString(certificate1) || !validByteString(certificate2))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval;
 
     mbedtls_x509_crt cert1;
     mbedtls_x509_crt cert2;
     mbedtls_x509_csr csr1;
     mbedtls_x509_csr csr2;
 
-    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate1);
-    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(certificate2);
+    UA_ByteString data1 = UA_BYTESTRING_NULL;
+    UA_ByteString data2 = UA_BYTESTRING_NULL;
 
     mbedtls_x509_crt_init(&cert1);
     mbedtls_x509_crt_init(&cert2);
     mbedtls_x509_csr_init(&csr1);
     mbedtls_x509_csr_init(&csr2);
 
+    retval = UA_mbedTLS_CopyDataFormatAware(certificate1, &data1);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    retval = UA_mbedTLS_CopyDataFormatAware(certificate2, &data2);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     int mbedErr = mbedtls_x509_crt_parse(&cert1, data1.data, data1.length);
     if(mbedErr) {
         /* Try to load as a csr */
         mbedErr = mbedtls_x509_csr_parse(&csr1, data1.data, data1.length);
         if(mbedErr) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
             goto cleanup;
         }
     }
+
+    retval = UA_STATUSCODE_GOOD;
 
     mbedErr = mbedtls_x509_crt_parse(&cert2, data2.data, data2.length);
     if(mbedErr) {
         /* Try to load as a csr */
         mbedErr = mbedtls_x509_csr_parse(&csr2, data2.data, data2.length);
         if(mbedErr) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
             goto cleanup;
         }
     }
@@ -965,6 +1065,8 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey) {
+    if(!validByteString(certificate) || !validByteString(privateKey))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_x509_crt cert;
     mbedtls_pk_context pk;
 
@@ -1004,6 +1106,8 @@ cleanup:
 
 UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
+    if(!validByteString(certificate))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
 
@@ -1024,14 +1128,15 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey) {
     if(!outDerKey)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if (privateKey.length == 0) {
-        *outDerKey = UA_BYTESTRING_NULL;
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+    UA_ByteString_init(outDerKey);
+    UA_StatusCode retval = UA_mbedTLS_PSA_Init();
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(privateKey.length == 0 || !privateKey.data ||
+       (password.length > 0 && !password.data))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Already in DER format -> return verbatim.
      * DER-encoded keys start with ASN.1 SEQUENCE tag (0x30). PEM-encoded keys
@@ -1041,13 +1146,15 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
         return UA_ByteString_copy(&privateKey, outDerKey);
 
     /* Create a null-terminated string */
-    UA_ByteString nullTerminatedKey = UA_mbedTLS_CopyDataFormatAware(&privateKey);
-    if(nullTerminatedKey.length != privateKey.length + 1)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_ByteString nullTerminatedKey = UA_BYTESTRING_NULL;
+    retval = UA_mbedTLS_CopyDataFormatAware(&privateKey, &nullTerminatedKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Create the private-key context */
     mbedtls_pk_context ctx;
     mbedtls_pk_init(&ctx);
+    unsigned char buf[1 << 14] = {0};
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
     int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
                                    nullTerminatedKey.length,
@@ -1059,38 +1166,43 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                    mbedtls_psa_get_random,
                                    MBEDTLS_PSA_RANDOM_STATE);
 #endif
-    UA_ByteString_clear(&nullTerminatedKey);
+    UA_mbedTLS_clearSensitiveByteString(&nullTerminatedKey);
     if(err != 0) {
-        mbedtls_pk_free(&ctx);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
     }
 
     /* Write the DER-encoded key into a local buffer */
-    unsigned char buf[1 << 14];
     int written = mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
     if(written <= 0) {
-        mbedtls_pk_free(&ctx);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
     }
     size_t pos = (size_t)written;
 
     /* Allocate memory */
-    UA_StatusCode res = UA_ByteString_allocBuffer(outDerKey, pos);
-    if(res != UA_STATUSCODE_GOOD) {
-        mbedtls_pk_free(&ctx);
-        return res;
-    }
+    retval = UA_ByteString_allocBuffer(outDerKey, pos);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Copy to the output */
     memcpy(outDerKey->data, &buf[sizeof(buf) - pos], pos);
+    retval = UA_STATUSCODE_GOOD;
+
+cleanup:
+    mbedtls_platform_zeroize(buf, sizeof(buf));
+    UA_mbedTLS_clearSensitiveByteString(&nullTerminatedKey);
     mbedtls_pk_free(&ctx);
-    return UA_STATUSCODE_GOOD;
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_mbedTLS_clearSensitiveByteString(outDerKey);
+    return retval;
 }
 
 UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
-    if(!certificate || !certificate->data || !commonName)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!validByteString(certificate) || certificate->length == 0 || !commonName)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_String_init(commonName);
 
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);

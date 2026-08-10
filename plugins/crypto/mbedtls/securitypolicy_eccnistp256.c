@@ -36,7 +36,6 @@ typedef struct {
 
 typedef struct Channel_Context_EccNistP256 {
     UA_mbedTLS_PsaKey localEphemeralKeyPair;
-    UA_Boolean ephemeralKeyInitialized;
     UA_mbedTLS_PsaKey localSymSigningKey;
     UA_mbedTLS_PsaKey localSymEncryptingKey;
     UA_ByteString localSymIv;
@@ -118,47 +117,8 @@ static UA_StatusCode
 updateCertificateAndPrivateKey_sp_EccNistP256(UA_SecurityPolicy *securityPolicy,
                                               const UA_ByteString newCertificate,
                                               const UA_ByteString newPrivateKey) {
-    if(!securityPolicy || !securityPolicy->policyContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    Policy_Context_EccNistP256 *pc =
-        (Policy_Context_EccNistP256 *)securityPolicy->policyContext;
-
-    /* Set the certificate */
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(
-        &newCertificate, &securityPolicy->localCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Set the new private key */
-    mbedtls_pk_free(&pc->localPrivateKey);
-    mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey,
-                                            &pc->localPrivateKey);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    /* Update the thumbprint */
-    UA_ByteString_clear(&pc->localCertThumbprint);
-    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-    retval = UA_mbedTLS_thumbprintSha1(&securityPolicy->localCertificate,
-                                     &pc->localCertThumbprint);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext)
-        UA_Policy_EccNistP256_Clear_Context(securityPolicy);
-    return retval;
+    return UA_mbedTLS_UpdateCertificateAndPrivateKey(
+        securityPolicy, newCertificate, newPrivateKey);
 }
 
 static UA_StatusCode
@@ -195,7 +155,6 @@ EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy,
     UA_mbedTLS_PsaKey_init(&newContext->localSymEncryptingKey);
     UA_mbedTLS_PsaKey_init(&newContext->remoteSymSigningKey);
     UA_mbedTLS_PsaKey_init(&newContext->remoteSymEncryptingKey);
-    newContext->ephemeralKeyInitialized = UA_FALSE;
 
     *channelContext = newContext;
     return UA_STATUSCODE_GOOD;
@@ -274,21 +233,11 @@ UA_AsymEn_EccNistP256_getRemoteKeyLength(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_Sym_EccNistP256_generateNonce(const UA_SecurityPolicy *policy,
                                  void *channelContext, UA_ByteString *out) {
-    if(!policy->policyContext)
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-
-    /* Detect if we want to create an ephemeral key or just cryptographic random
-     * data */
-    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
-        Channel_Context_EccNistP256 *cctx = (Channel_Context_EccNistP256*)channelContext;
-        UA_StatusCode res = UA_mbedTLS_PsaEccGenerate(
-            PSA_ECC_FAMILY_SECP_R1, 256, &cctx->localEphemeralKeyPair, out);
-        if(res == UA_STATUSCODE_GOOD)
-            cctx->ephemeralKeyInitialized = UA_TRUE;
-        return res;
-    }
-
-    return UA_mbedTLS_PsaRandom(out);
+    Channel_Context_EccNistP256 *cctx =
+        (Channel_Context_EccNistP256*)channelContext;
+    return UA_mbedTLS_EccGenerateNonce(
+        policy, cctx ? &cctx->localEphemeralKeyPair : NULL,
+        PSA_ECC_FAMILY_SECP_R1, 256, out);
 }
 
 static size_t

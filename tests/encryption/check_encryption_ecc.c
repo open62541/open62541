@@ -610,6 +610,27 @@ START_TEST(encryption_update_certificate) {
     ck_assert_ptr_ne(sp, NULL);
     ck_assert(sp->updateCertificate != NULL);
 
+    UA_StatusCode retval;
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    /* Short random nonces must not be interpreted as the "eph" marker. */
+    UA_Byte shortNonceData[2] = {0, 0};
+    UA_ByteString shortNonce = {1, shortNonceData};
+    retval = sp->generateNonce(sp, NULL, &shortNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    shortNonce.length = 2;
+    retval = sp->generateNonce(sp, NULL, &shortNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString invalidNonce = {1, NULL};
+    retval = sp->generateNonce(sp, NULL, &invalidNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+    retval = sp->generateNonce(sp, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_Byte ephMarker[3] = {'e', 'p', 'h'};
+    UA_ByteString ephemeralNonce = {3, ephMarker};
+    retval = sp->generateNonce(sp, NULL, &ephemeralNonce);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+#endif
+
     /* Update with the same cert and key (should succeed) */
     UA_ByteString certificate;
     certificate.length = c->certDerLen;
@@ -619,8 +640,34 @@ START_TEST(encryption_update_certificate) {
     privateKey.length = c->keyDerLen;
     privateKey.data = c->keyDer;
 
-    UA_StatusCode retval = sp->updateCertificate(sp, certificate, privateKey);
+    retval = sp->updateCertificate(sp, certificate, privateKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The mbedTLS update implementation is transactional and supports reusing
+     * the active private key. OpenSSL does not provide these guarantees. */
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    /* A failed update must leave the current policy operational. */
+    UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_copy(&sp->localCertificate, &originalCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString invalidCertificate = UA_BYTESTRING("not a certificate");
+    retval = sp->updateCertificate(sp, invalidCertificate, privateKey);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(sp->policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&sp->localCertificate,
+                                  &originalCertificate));
+    UA_ByteString invalidPrivateKey = UA_BYTESTRING("not a private key");
+    retval = sp->updateCertificate(sp, certificate, invalidPrivateKey);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(sp->policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&sp->localCertificate,
+                                  &originalCertificate));
+
+    /* ECC now follows the RSA behavior for reusing the active key. */
+    retval = sp->updateCertificate(sp, certificate, UA_BYTESTRING_NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&originalCertificate);
+#endif
 
     /* The policy should still be functional after update — connect and read */
     UA_Client *client = createEncryptedClient();

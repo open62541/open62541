@@ -588,6 +588,161 @@ START_TEST(verify_expired_certificate_status_depends_on_trust) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+START_TEST(memorystore_rejects_invalid_initial_trust_material) {
+    UA_Byte invalidData[] = {0x01, 0x02, 0x03};
+    UA_ByteString invalidCertificate = {sizeof(invalidData), invalidData};
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    trustList.trustedCertificates = &invalidCertificate;
+    trustList.trustedCertificatesSize = 1;
+
+    UA_CertificateGroup group;
+    memset(&group, 0, sizeof(group));
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, 1);
+    UA_StatusCode retval =
+        UA_CertificateGroup_Memorystore(&group, &groupId, &trustList, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_ptr_null(group.context);
+}
+END_TEST
+
+START_TEST(memorystore_evicts_only_oldest_rejected_certificate) {
+    UA_KeyValueMap *params = UA_KeyValueMap_new();
+    ck_assert_ptr_nonnull(params);
+    UA_UInt32 maxRejectedListSize = 2;
+    UA_StatusCode retval = UA_KeyValueMap_setScalar(
+        params, UA_QUALIFIEDNAME(0, "max-rejected-listsize"),
+        &maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CertificateGroup group;
+    memset(&group, 0, sizeof(group));
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, 1);
+    retval = UA_CertificateGroup_Memorystore(&group, &groupId, NULL, NULL, params);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte rejectedData[3] = {0x01, 0x02, 0x03};
+    UA_ByteString rejected[3] = {
+        {1, &rejectedData[0]}, {1, &rejectedData[1]}, {1, &rejectedData[2]}
+    };
+    for(size_t i = 0; i < 3; i++) {
+        retval = group.verifyCertificate(&group, &rejected[i]);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+    }
+
+    UA_ByteString *rejectedList = NULL;
+    size_t rejectedListSize = 0;
+    retval = group.getRejectedList(&group, &rejectedList, &rejectedListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rejectedListSize, 2);
+    ck_assert(UA_ByteString_equal(&rejectedList[0], &rejected[1]));
+    ck_assert(UA_ByteString_equal(&rejectedList[1], &rejected[2]));
+
+    UA_Array_delete(rejectedList, rejectedListSize,
+                    &UA_TYPES[UA_TYPES_BYTESTRING]);
+    group.clear(&group);
+    UA_KeyValueMap_delete(params);
+}
+END_TEST
+
+START_TEST(memorystore_trust_updates_are_transactional) {
+    UA_ByteString trustedCertificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_TrustListDataType initialTrustList;
+    UA_TrustListDataType_init(&initialTrustList);
+    initialTrustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    initialTrustList.trustedCertificates = &trustedCertificate;
+    initialTrustList.trustedCertificatesSize = 1;
+
+    UA_CertificateGroup group;
+    memset(&group, 0, sizeof(group));
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, 1);
+    UA_StatusCode retval = UA_CertificateGroup_Memorystore(
+        &group, &groupId, &initialTrustList, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte invalidData[] = {0x01, 0x02, 0x03};
+    UA_ByteString replacements[2] = {
+        trustedCertificate, {sizeof(invalidData), invalidData}
+    };
+    UA_TrustListDataType invalidReplacement;
+    UA_TrustListDataType_init(&invalidReplacement);
+    invalidReplacement.specifiedLists =
+        UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    invalidReplacement.trustedCertificates = replacements;
+    invalidReplacement.trustedCertificatesSize = 2;
+
+    retval = group.setTrustList(&group, &invalidReplacement);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+
+    UA_TrustListDataType retainedTrustList;
+    UA_TrustListDataType_init(&retainedTrustList);
+    retval = group.getTrustList(&group, &retainedTrustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retainedTrustList.trustedCertificatesSize, 1);
+    ck_assert(UA_ByteString_equal(
+        &retainedTrustList.trustedCertificates[0], &trustedCertificate));
+
+    /* The parsed store also remains usable after the rejected update. */
+    retval = group.verifyCertificate(&group, &trustedCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATETIMEINVALID);
+
+    UA_TrustListDataType_clear(&retainedTrustList);
+    group.clear(&group);
+}
+END_TEST
+
+START_TEST(memorystore_limits_final_trust_list) {
+    UA_ByteString trustedCertificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_TrustListDataType initialTrustList;
+    UA_TrustListDataType_init(&initialTrustList);
+    initialTrustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    initialTrustList.trustedCertificates = &trustedCertificate;
+    initialTrustList.trustedCertificatesSize = 1;
+
+    UA_KeyValueMap *params = UA_KeyValueMap_new();
+    ck_assert_ptr_nonnull(params);
+    UA_UInt32 maxTrustListSize = (UA_UInt32)CERT_DER_LENGTH + 1;
+    UA_StatusCode retval = UA_KeyValueMap_setScalar(
+        params, UA_QUALIFIEDNAME(0, "max-trust-listsize"),
+        &maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CertificateGroup group;
+    memset(&group, 0, sizeof(group));
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, 1);
+    retval = UA_CertificateGroup_Memorystore(
+        &group, &groupId, &initialTrustList, NULL, params);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Adding a duplicate does not consume additional capacity. */
+    retval = group.addToTrustList(&group, &initialTrustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Replacing another section is checked against the complete result. */
+    UA_TrustListDataType issuerUpdate;
+    UA_TrustListDataType_init(&issuerUpdate);
+    issuerUpdate.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+    issuerUpdate.issuerCertificates = &trustedCertificate;
+    issuerUpdate.issuerCertificatesSize = 1;
+    retval = group.setTrustList(&group, &issuerUpdate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADOUTOFRANGE);
+
+    UA_TrustListDataType retainedTrustList;
+    UA_TrustListDataType_init(&retainedTrustList);
+    retval = group.getTrustList(&group, &retainedTrustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retainedTrustList.trustedCertificatesSize, 1);
+    ck_assert_uint_eq(retainedTrustList.issuerCertificatesSize, 0);
+
+    UA_TrustListDataType_clear(&retainedTrustList);
+    group.clear(&group);
+    UA_KeyValueMap_delete(params);
+}
+END_TEST
+#endif
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("CertificateGroup");
     TCase *tc_encryption_memorystore = tcase_create("CertificateGroup Memorystore");
@@ -607,6 +762,20 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_memorystore);
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    TCase *tc_mbedtls_memorystore =
+        tcase_create("CertificateGroup mbedTLS Memorystore");
+    tcase_add_test(tc_mbedtls_memorystore,
+                   memorystore_rejects_invalid_initial_trust_material);
+    tcase_add_test(tc_mbedtls_memorystore,
+                   memorystore_evicts_only_oldest_rejected_certificate);
+    tcase_add_test(tc_mbedtls_memorystore,
+                   memorystore_trust_updates_are_transactional);
+    tcase_add_test(tc_mbedtls_memorystore,
+                   memorystore_limits_final_trust_list);
+    suite_add_tcase(s, tc_mbedtls_memorystore);
+#endif
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     TCase *tc_encryption_filestore = tcase_create("CertificateGroup Filestore");

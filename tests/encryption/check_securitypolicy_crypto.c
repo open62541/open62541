@@ -46,6 +46,24 @@ exercisePolicy(PolicyInit init) {
     UA_StatusCode rv = init(&policy, cert, key, UA_Log_Stdout);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    /* Failed updates must preserve the active certificate and key. */
+    UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
+    rv = UA_ByteString_copy(&policy.localCertificate, &originalCertificate);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    UA_ByteString invalidCertificate = UA_BYTESTRING("not a certificate");
+    rv = policy.updateCertificate(&policy, invalidCertificate, key);
+    ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(policy.policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&policy.localCertificate,
+                                  &originalCertificate));
+    UA_ByteString invalidKey = UA_BYTESTRING("not a private key");
+    rv = policy.updateCertificate(&policy, cert, invalidKey);
+    ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(policy.policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&policy.localCertificate,
+                                  &originalCertificate));
+    UA_ByteString_clear(&originalCertificate);
+
     /* New channel context: remote certificate == local certificate */
     void *cc = NULL;
     rv = policy.newChannelContext(&policy, &cert, &cc);
@@ -73,6 +91,11 @@ exercisePolicy(PolicyInit init) {
     ck_assert_uint_gt(localSigSize, 0);
     size_t remoteSigSize = asymSig->getRemoteSignatureSize(&policy, cc);
     ck_assert_uint_eq(localSigSize, remoteSigSize);
+    if(policy.asymEncryptionAlgorithm.getLocalKeyLength) {
+        size_t localEncryptionKeySize =
+            policy.asymEncryptionAlgorithm.getLocalKeyLength(&policy, NULL);
+        ck_assert_uint_eq(localEncryptionKeySize, localSigSize * 8);
+    }
 
     UA_ByteString asigBuf;
     rv = UA_ByteString_allocBuffer(&asigBuf, localSigSize);
