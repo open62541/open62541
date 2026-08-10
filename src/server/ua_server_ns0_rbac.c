@@ -865,6 +865,271 @@ removeEndpointMethodCallback(UA_Server *server,
     return res;
 }
 
+static UA_Boolean
+hasUserManagementProvider(const UA_AccessControl *ac) {
+    return ac->getUsers && ac->getPasswordPolicy && ac->getUserConfiguration &&
+           ac->addUser && ac->modifyUser && ac->removeUser && ac->changePassword;
+}
+
+static UA_Boolean
+userMethodInputs(size_t inputSize, const UA_Variant *input,
+                 size_t expectedSize, const UA_DataType **types) {
+    if(inputSize != expectedSize)
+        return false;
+    for(size_t i = 0; i < expectedSize; i++) {
+        if(input[i].type != types[i] || !UA_Variant_isScalar(&input[i]))
+            return false;
+    }
+    return true;
+}
+
+static UA_StatusCode
+validateUserConfiguration(UA_Server *server,
+                          UA_UserConfigurationMask configuration) {
+    if((configuration & UA_USERCONFIGURATIONMASK_NOCHANGEBYUSER) &&
+       (configuration & UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD))
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    UA_Range length;
+    UA_PasswordOptionsMask options = 0;
+    UA_LocalizedText restrictions;
+    UA_LocalizedText_init(&restrictions);
+    UA_StatusCode res = server->config.accessControl.getPasswordPolicy(
+        server, &server->config.accessControl, &length, &options,
+        &restrictions);
+    UA_LocalizedText_clear(&restrictions);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if((configuration & UA_USERCONFIGURATIONMASK_NODELETE) &&
+       !(options & UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEDELETEFORUSER))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    if((configuration & UA_USERCONFIGURATIONMASK_DISABLED) &&
+       !(options & UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEUSER))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    if((configuration & UA_USERCONFIGURATIONMASK_NOCHANGEBYUSER) &&
+       !(options & UA_PASSWORDOPTIONSMASK_SUPPORTNOCHANGEFORUSER))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    if((configuration & UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD) &&
+       !(options & UA_PASSWORDOPTIONSMASK_SUPPORTINITIALPASSWORDCHANGE))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+closeSessionsForUser(UA_Server *server, const UA_String *userName,
+                     const UA_NodeId *exceptSessionId) {
+    session_list_entry *entry, *next;
+    LIST_FOREACH_SAFE(entry, &server->sessions, pointers, next) {
+        UA_Session *session = &entry->session;
+        if(exceptSessionId && UA_NodeId_equal(&session->sessionId,
+                                              exceptSessionId))
+            continue;
+        if(session->hasIdentityContext &&
+           UA_String_equal(&session->identityContext.userName, userName))
+            UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
+    }
+}
+
+static UA_StatusCode
+addUserMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
+                      void *sessionContext, const UA_NodeId *methodId,
+                      void *methodContext, const UA_NodeId *objectId,
+                      void *objectContext, size_t inputSize,
+                      const UA_Variant *input, size_t outputSize,
+                      UA_Variant *output) {
+    UA_StatusCode res = checkRBACMethodAccess(server, sessionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    const UA_DataType *types[] = {&UA_TYPES[UA_TYPES_STRING],
+        &UA_TYPES[UA_TYPES_STRING], &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK],
+        &UA_TYPES[UA_TYPES_STRING]};
+    if(!userMethodInputs(inputSize, input, 4, types))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_UserConfigurationMask configuration =
+        *(UA_UserConfigurationMask*)input[2].data;
+    res = validateUserConfiguration(server, configuration);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return server->config.accessControl.addUser(
+        server, &server->config.accessControl, (UA_String*)input[0].data,
+        (UA_String*)input[1].data, configuration,
+        (UA_String*)input[3].data);
+}
+
+static UA_StatusCode
+modifyUserMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *methodId,
+                         void *methodContext, const UA_NodeId *objectId,
+                         void *objectContext, size_t inputSize,
+                         const UA_Variant *input, size_t outputSize,
+                         UA_Variant *output) {
+    UA_StatusCode res = checkRBACMethodAccess(server, sessionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    const UA_DataType *types[] = {&UA_TYPES[UA_TYPES_STRING],
+        &UA_TYPES[UA_TYPES_BOOLEAN], &UA_TYPES[UA_TYPES_STRING],
+        &UA_TYPES[UA_TYPES_BOOLEAN], &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK],
+        &UA_TYPES[UA_TYPES_BOOLEAN], &UA_TYPES[UA_TYPES_STRING]};
+    if(!userMethodInputs(inputSize, input, 7, types))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Boolean modifyConfiguration = *(UA_Boolean*)input[3].data;
+    UA_UserConfigurationMask configuration =
+        *(UA_UserConfigurationMask*)input[4].data;
+    if(modifyConfiguration) {
+        res = validateUserConfiguration(server, configuration);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && (configuration & UA_USERCONFIGURATIONMASK_DISABLED) &&
+           UA_String_equal(&session->identityContext.userName,
+                           (UA_String*)input[0].data))
+            return UA_STATUSCODE_BADINVALIDSELFREFERENCE;
+    }
+    res = server->config.accessControl.modifyUser(
+        server, &server->config.accessControl, (UA_String*)input[0].data,
+        *(UA_Boolean*)input[1].data, (UA_String*)input[2].data,
+        modifyConfiguration, configuration, *(UA_Boolean*)input[5].data,
+        (UA_String*)input[6].data);
+    if(res == UA_STATUSCODE_GOOD && modifyConfiguration &&
+       (configuration & UA_USERCONFIGURATIONMASK_DISABLED))
+        closeSessionsForUser(server, (UA_String*)input[0].data, sessionId);
+    return res;
+}
+
+static UA_StatusCode
+removeUserMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *methodId,
+                         void *methodContext, const UA_NodeId *objectId,
+                         void *objectContext, size_t inputSize,
+                         const UA_Variant *input, size_t outputSize,
+                         UA_Variant *output) {
+    UA_StatusCode res = checkRBACMethodAccess(server, sessionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    const UA_DataType *types[] = {&UA_TYPES[UA_TYPES_STRING]};
+    if(!userMethodInputs(inputSize, input, 1, types))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Session *session = getSessionById(server, sessionId);
+    if(session && UA_String_equal(&session->identityContext.userName,
+                                  (UA_String*)input[0].data))
+        return UA_STATUSCODE_BADINVALIDSELFREFERENCE;
+    res = server->config.accessControl.removeUser(
+        server, &server->config.accessControl, (UA_String*)input[0].data);
+    if(res == UA_STATUSCODE_GOOD)
+        closeSessionsForUser(server, (UA_String*)input[0].data, sessionId);
+    return res;
+}
+
+static UA_StatusCode
+changePasswordMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
+                             void *sessionContext, const UA_NodeId *methodId,
+                             void *methodContext, const UA_NodeId *objectId,
+                             void *objectContext, size_t inputSize,
+                             const UA_Variant *input, size_t outputSize,
+                             UA_Variant *output) {
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session || !session->channel ||
+       session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+    if(!session->hasIdentityContext ||
+       session->identityContext.userName.length == 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    const UA_DataType *types[] = {&UA_TYPES[UA_TYPES_STRING],
+                                  &UA_TYPES[UA_TYPES_STRING]};
+    if(!userMethodInputs(inputSize, input, 2, types))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return server->config.accessControl.changePassword(
+        server, &server->config.accessControl,
+        &session->identityContext.userName, (UA_String*)input[0].data,
+        (UA_String*)input[1].data);
+}
+
+static UA_StatusCode
+readManagedUsers(UA_Server *server, const UA_NodeId *sessionId,
+                 void *sessionContext, const UA_NodeId *nodeId,
+                 void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                 const UA_NumericRange *range, UA_DataValue *value) {
+    UA_UserManagementDataType *users = NULL;
+    size_t usersSize = 0;
+    UA_StatusCode res = server->config.accessControl.getUsers(
+        server, &server->config.accessControl, &users, &usersSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_Variant_setArray(&value->value, users, usersSize,
+                        &UA_TYPES[UA_TYPES_USERMANAGEMENTDATATYPE]);
+    value->value.storageType = UA_VARIANT_DATA;
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readPasswordPolicy(UA_Server *server, const UA_NodeId *sessionId,
+                   void *sessionContext, const UA_NodeId *nodeId,
+                   void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                   const UA_NumericRange *range, UA_DataValue *value) {
+    UA_Range length;
+    UA_PasswordOptionsMask options = 0;
+    UA_LocalizedText restrictions;
+    UA_LocalizedText_init(&restrictions);
+    UA_StatusCode res = server->config.accessControl.getPasswordPolicy(
+        server, &server->config.accessControl, &length, &options,
+        &restrictions);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    const UA_NodeId lengthId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDLENGTH);
+    const UA_NodeId optionsId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDOPTIONS);
+    if(UA_NodeId_equal(nodeId, &lengthId))
+        res = UA_Variant_setScalarCopy(&value->value, &length,
+                                       &UA_TYPES[UA_TYPES_RANGE]);
+    else if(UA_NodeId_equal(nodeId, &optionsId))
+        res = UA_Variant_setScalarCopy(&value->value, &options,
+                                       &UA_TYPES[UA_TYPES_PASSWORDOPTIONSMASK]);
+    else
+        res = UA_Variant_setScalarCopy(&value->value, &restrictions,
+                                       &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_LocalizedText_clear(&restrictions);
+    value->hasValue = (res == UA_STATUSCODE_GOOD);
+    return res;
+}
+
+static UA_StatusCode
+initUserManagement(UA_Server *server) {
+    if(!hasUserManagementProvider(&server->config.accessControl))
+        return UA_STATUSCODE_GOOD;
+    UA_DataSource users = {readManagedUsers, NULL};
+    UA_DataSource policy = {readPasswordPolicy, NULL};
+    UA_StatusCode res = UA_Server_setVariableNode_dataSource(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_USERS), users);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setVariableNode_dataSource(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDLENGTH), policy);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setVariableNode_dataSource(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDOPTIONS), policy);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setVariableNode_dataSource(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDRESTRICTIONS),
+            policy);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setMethodNode_callback(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_ADDUSER),
+        addUserMethodCallback);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setMethodNode_callback(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_MODIFYUSER),
+            modifyUserMethodCallback);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setMethodNode_callback(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_REMOVEUSER),
+            removeUserMethodCallback);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_setMethodNode_callback(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD),
+            changePasswordMethodCallback);
+    return res;
+}
+
 static UA_StatusCode
 addRoleManagementPermissions(UA_Server *server, const UA_NodeId *nodeId) {
     const UA_NodeId secAdmin =
@@ -1063,8 +1328,67 @@ initRoleSetRolePermissions(UA_Server *server) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    if(hasUserManagementProvider(&server->config.accessControl)) {
+        const UA_NodeId anonymous =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+        const UA_UInt32 adminNodes[] = {
+            UA_NS0ID_USERMANAGEMENT,
+            UA_NS0ID_USERMANAGEMENT_USERS,
+            UA_NS0ID_USERMANAGEMENT_ADDUSER,
+            UA_NS0ID_USERMANAGEMENT_MODIFYUSER,
+            UA_NS0ID_USERMANAGEMENT_REMOVEUSER
+        };
+        for(size_t i = 0; i < sizeof(adminNodes) / sizeof(adminNodes[0]); i++) {
+            UA_NodeId nodeId = UA_NODEID_NUMERIC(0, adminNodes[i]);
+            retval = UA_Server_addRolePermissions(
+                server, nodeId, secAdmin,
+                UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                UA_PERMISSIONTYPE_CALL | UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                false, false);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+            retval = UA_Server_setNodeAccessRestrictions(
+                server, nodeId,
+                UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+                UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        }
+
+        /* The Object and ChangePassword Method need CALL for the current
+         * username Session even while MustChangePassword limits it to the
+         * Anonymous Role. The callback still requires an encrypted channel
+         * and a USERNAME token. */
+        const UA_NodeId userManagement =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT);
+        const UA_NodeId changePassword =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD);
+        retval = UA_Server_addRolePermissions(server, userManagement, anonymous,
+                                              UA_PERMISSIONTYPE_CALL,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = UA_Server_addRolePermissions(server, changePassword, anonymous,
+                                              UA_PERMISSIONTYPE_CALL,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = UA_Server_setNodeAccessRestrictions(
+            server, changePassword,
+            UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+            UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
     return UA_STATUSCODE_GOOD;
 }
+
+#define RBAC_INIT_TRY(EXPRESSION)                  \
+    do {                                           \
+        if(retval == UA_STATUSCODE_GOOD)           \
+            retval = (EXPRESSION);                 \
+    } while(0)
 
 UA_StatusCode
 initNS0RBAC(UA_Server *server) {
