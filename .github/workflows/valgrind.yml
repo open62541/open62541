@@ -1,0 +1,112 @@
+name: Valgrind
+
+# Running the unit tests under Valgrind takes hours. The suite is therefore
+# split round-robin over several runners via CTEST_SHARDS/CTEST_SHARD, which
+# tools/ci/linux/ci.sh turns into "ctest -I <shard>,,<shards>". Every test is
+# still executed, just spread over parallel jobs.
+
+on:
+  push:
+    branches:
+      - 'master'
+      - '[0-9]+.[0-9]+'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: "Valgrind ${{ matrix.config.name }} (${{ matrix.shard }}/6)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/open62541/open62541-ci:ubuntu-24.04
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+        config:
+          - name: "Unit Tests with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: unit_tests_valgrind MBEDTLS
+
+          - name: "Unit Tests with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_action: unit_tests_valgrind OPENSSL
+
+          - name: "Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind
+            cmd_action: unit_tests_alarms_memcheck
+    env:
+      CTEST_SHARDS: 6
+      CTEST_SHARD: ${{ matrix.shard }}
+    steps:
+      - name: Work around disabled ipv6 on actions container networks
+        run: |
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "Current IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "1" ] || exit
+
+          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "New IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx check libxml2-dev libpcap-dev libreadline-dev
+          ${{ matrix.config.cmd_deps }}
+      - name: ${{ matrix.config.name }}
+        shell: bash
+        run: source tools/ci/linux/ci.sh && ${{ matrix.config.cmd_action }}
+        env:
+          ETHERNET_INTERFACE: eth0
+
+  examples:
+    name: "Valgrind ${{ matrix.config.name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/open62541/open62541-ci:ubuntu-24.04
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "Examples with MbedTLS and mDNSD (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+            cmd_action: examples_valgrind MBEDTLS MDNSD
+
+          - name: "Examples with OpenSSL and avahi-mdns (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+            cmd_action: examples_valgrind OPENSSL AVAHI
+    steps:
+      - name: Work around disabled ipv6 on actions container networks
+        run: |
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "Current IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "1" ] || exit
+
+          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "New IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx check libxml2-dev libpcap-dev libreadline-dev
+          ${{ matrix.config.cmd_deps }}
+      - name: ${{ matrix.config.name }}
+        shell: bash
+        run: source tools/ci/linux/ci.sh && ${{ matrix.config.cmd_action }}
+        env:
+          ETHERNET_INTERFACE: eth0
