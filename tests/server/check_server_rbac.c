@@ -178,19 +178,17 @@ START_TEST(addRole_nullRoleIdAllowed) {
 }
 END_TEST
 
-/* Verify that adding a role with unsupported identity criteria types
- * succeeds (the role is stored) but the criteria will not be evaluated.
- * This exercises the warning log path added for unsupported criteria. */
+/* Verify that a canonical Thumbprint criterion is accepted and retained. */
 START_TEST(addRole_unsupportedCriteriaStored) {
     UA_Role role;
     UA_Role_init(&role);
     role.roleName = UA_QUALIFIEDNAME(0, "ThumbprintRole");
 
-    /* Add a Thumbprint identity rule — currently not evaluated */
+    /* SHA-1 thumbprints are 40 uppercase hexadecimal characters. */
     UA_IdentityMappingRuleType rule;
     UA_IdentityMappingRuleType_init(&rule);
     rule.criteriaType = UA_IDENTITYCRITERIATYPE_THUMBPRINT;
-    rule.criteria = UA_STRING("AB:CD:EF");
+    rule.criteria = UA_STRING("00112233445566778899AABBCCDDEEFF00112233");
     role.identityMappingRules = &rule;
     role.identityMappingRulesSize = 1;
 
@@ -605,6 +603,56 @@ START_TEST(applicationManagement_basic) {
 }
 END_TEST
 
+/* UA_Server_updateRole identifies the Role by roleId, by roleName, or by both.
+ * Content validation must not reintroduce a roleName requirement, which would
+ * make the roleId-only form unreachable. */
+START_TEST(updateRole_identifiedByEitherKey) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleId = UA_NODEID_NUMERIC(1, 62500);
+    role.roleName = UA_QUALIFIEDNAME(1, "UpdateKeyRole");
+    role.applicationsExclude = true;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, NULL), UA_STATUSCODE_GOOD);
+
+    /* roleId only */
+    UA_Role byId;
+    UA_Role_init(&byId);
+    byId.roleId = role.roleId;
+    byId.applicationsExclude = false;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &byId), UA_STATUSCODE_GOOD);
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, role.roleId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(!fetched.applicationsExclude);
+    /* The stored roleName is untouched by an update that does not carry one */
+    ck_assert(UA_QualifiedName_equal(&fetched.roleName, &role.roleName));
+    UA_Role_clear(&fetched);
+
+    /* roleName only */
+    UA_Role byName;
+    UA_Role_init(&byName);
+    byName.roleName = role.roleName;
+    byName.applicationsExclude = true;
+    ck_assert_uint_eq(UA_Server_updateRole(server, &byName), UA_STATUSCODE_GOOD);
+
+    /* Neither key is still rejected */
+    UA_Role neither;
+    UA_Role_init(&neither);
+    ck_assert_uint_eq(UA_Server_updateRole(server, &neither),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* addRole still requires a roleName */
+    UA_Role unnamed;
+    UA_Role_init(&unnamed);
+    unnamed.roleId = UA_NODEID_NUMERIC(1, 62501);
+    ck_assert_uint_eq(UA_Server_addRole(server, &unnamed, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_Server_removeRole(server, role.roleName);
+}
+END_TEST
+
 START_TEST(protectMandatoryRoles) {
     UA_NodeId anonymousRoleId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
@@ -653,6 +701,7 @@ START_TEST(allowModifyingOptionalRoles) {
         UA_calloc(1, sizeof(UA_IdentityMappingRuleType));
     ck_assert_ptr_nonnull(role.identityMappingRules);
     role.identityMappingRules[0].criteriaType = UA_IDENTITYCRITERIATYPE_USERNAME;
+    role.identityMappingRules[0].criteria = UA_STRING_ALLOC("observer");
     role.identityMappingRulesSize = 1;
 
     res = UA_Server_updateRole(server, &role);
@@ -2564,41 +2613,61 @@ START_TEST(roleSetMethods_restrictedToAdmin) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
 
-/* The Thumbprint, X509Subject, Application and Role identity criteria are
+/* The Thumbprint, X509Subject, Application and access-token Role criteria are
  * evaluated during role resolution (Part 18 §4.4.2). */
 START_TEST(identityCriteria_extended) {
-    UA_NodeId thumb = addRoleWithRule("ThumbRole",
-                                      UA_IDENTITYCRITERIATYPE_THUMBPRINT, "AABBCC");
+    UA_NodeId thumb = addRoleWithRule(
+        "ThumbRole", UA_IDENTITYCRITERIATYPE_THUMBPRINT,
+        "00112233445566778899AABBCCDDEEFF00112233");
     UA_NodeId subj = addRoleWithRule("SubjRole",
-                                     UA_IDENTITYCRITERIATYPE_X509SUBJECT, "CN=alice");
+                                     UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+                                     "CN=\"alice\"");
     UA_NodeId app = addRoleWithRule("AppRole",
                                     UA_IDENTITYCRITERIATYPE_APPLICATION, "urn:app:x");
-    /* ChainRole is granted transitively because it references AppRole */
-    UA_NodeId chain = addRoleWithRule("ChainRole",
-                                      UA_IDENTITYCRITERIATYPE_ROLE, "AppRole");
+    UA_NodeId tokenRole = addRoleWithRule("TokenRole",
+                                          UA_IDENTITYCRITERIATYPE_ROLE,
+                                          "issuer.example/operator");
+    /* This must not match merely because AppRole is assigned. */
+    UA_NodeId notAChain = addRoleWithRule("NotAChain",
+                                          UA_IDENTITYCRITERIATYPE_ROLE,
+                                          "AppRole");
 
     UA_SessionIdentityContext ctx;
     memset(&ctx, 0, sizeof(ctx));
-    ctx.userThumbprint = UA_STRING("aabbcc"); /* lower-case: case-insensitive */
-    ctx.userSubject = UA_STRING("CN=alice");
+    ctx.userThumbprint =
+        UA_STRING("00112233445566778899aabbccddeeff00112233");
+    ctx.userSubject = UA_STRING("CN=\"alice\"");
     ctx.applicationUri = UA_STRING("urn:app:x");
+    ctx.trustedApplication = true;
+    UA_String claims[] = {UA_STRING("issuer.example/operator")};
+    ctx.tokenRoles = claims;
+    ctx.tokenRolesSize = 1;
 
     size_t size = 0;
     UA_NodeId *ids = NULL;
     ck_assert_uint_eq(UA_Server_evaluateSessionRoles(server, &ctx, &size, &ids),
                       UA_STATUSCODE_GOOD);
-    UA_Boolean fThumb = false, fSubj = false, fApp = false, fChain = false;
+    UA_Boolean fThumb = false, fSubj = false, fApp = false;
+    UA_Boolean fToken = false, fNotAChain = false;
     for(size_t i = 0; i < size; i++) {
         if(UA_NodeId_equal(&ids[i], &thumb)) fThumb = true;
         if(UA_NodeId_equal(&ids[i], &subj)) fSubj = true;
         if(UA_NodeId_equal(&ids[i], &app)) fApp = true;
-        if(UA_NodeId_equal(&ids[i], &chain)) fChain = true;
+        if(UA_NodeId_equal(&ids[i], &tokenRole)) fToken = true;
+        if(UA_NodeId_equal(&ids[i], &notAChain)) fNotAChain = true;
     }
     ck_assert(fThumb);
     ck_assert(fSubj);
     ck_assert(fApp);
-    ck_assert(fChain);
+    ck_assert(fToken);
+    ck_assert(!fNotAChain);
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* A client-declared ApplicationUri without an authenticated application
+     * certificate must not satisfy the Application criterion. */
+    ctx.trustedApplication = false;
+    ck_assert(!roleGrantedForContext(&ctx, &app));
+    ctx.trustedApplication = true;
 
     /* A context with none of the values matches none of the four roles */
     UA_SessionIdentityContext empty;
@@ -2611,14 +2680,16 @@ START_TEST(identityCriteria_extended) {
         ck_assert(!UA_NodeId_equal(&ids[i], &thumb));
         ck_assert(!UA_NodeId_equal(&ids[i], &subj));
         ck_assert(!UA_NodeId_equal(&ids[i], &app));
-        ck_assert(!UA_NodeId_equal(&ids[i], &chain));
+        ck_assert(!UA_NodeId_equal(&ids[i], &tokenRole));
+        ck_assert(!UA_NodeId_equal(&ids[i], &notAChain));
     }
     UA_Array_delete(ids, size, &UA_TYPES[UA_TYPES_NODEID]);
 
     UA_NodeId_clear(&thumb);
     UA_NodeId_clear(&subj);
     UA_NodeId_clear(&app);
-    UA_NodeId_clear(&chain);
+    UA_NodeId_clear(&tokenRole);
+    UA_NodeId_clear(&notAChain);
 }
 END_TEST
 
@@ -2675,6 +2746,7 @@ START_TEST(roleFilters_evaluated) {
     /* Include: matching application granted, others denied */
     memset(&ctx, 0, sizeof(ctx));
     ctx.applicationUri = UA_STRING("urn:allowed");
+    ctx.trustedApplication = true;
     ck_assert(roleGrantedForContext(&ctx, &inclId));
     ctx.applicationUri = UA_STRING("urn:other");
     ck_assert(!roleGrantedForContext(&ctx, &inclId));
@@ -2684,6 +2756,12 @@ START_TEST(roleFilters_evaluated) {
     ck_assert(!roleGrantedForContext(&ctx, &exclId));
     ctx.applicationUri = UA_STRING("urn:other");
     ck_assert(roleGrantedForContext(&ctx, &exclId));
+
+    /* A matching self-declared URI is insufficient without a trusted client
+     * certificate and signed SecureChannel. */
+    ctx.applicationUri = UA_STRING("urn:allowed");
+    ctx.trustedApplication = false;
+    ck_assert(!roleGrantedForContext(&ctx, &inclId));
 
     /* Endpoint include: matching endpoint granted, others denied */
     memset(&ctx, 0, sizeof(ctx));
@@ -3219,6 +3297,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_test(tc, standardRolesWithCorrectIds);
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
     tcase_add_test(tc, getAllRoles_includesWellKnown);
+    tcase_add_test(tc, updateRole_identifiedByEitherKey);
     tcase_add_test(tc, protectMandatoryRoles);
     tcase_add_test(tc, allowModifyingOptionalRoles);
     tcase_add_test(tc, identityMapping_wellKnownRoles);
