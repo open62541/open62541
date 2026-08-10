@@ -2578,9 +2578,11 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
     UA_PermissionIndex permIdx = node->head.permissionIndex;
     const UA_RolePermission *entries = NULL;
     size_t entriesSize = 0;
+    UA_Boolean permissionsConfigured = false;
 
     /* If node has explicit permission configuration, use it */
     if(permIdx != UA_PERMISSION_INDEX_INVALID) {
+        permissionsConfigured = true;
         if(permIdx >= server->rolePermissionsSize)
             return 0;
         const UA_RolePermissionEntry *rp = &server->rolePermissions[permIdx];
@@ -2589,20 +2591,29 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
     } else {
         /* No explicit permissions, check namespace defaults */
         UA_UInt16 nsIdx = node->head.nodeId.namespaceIndex;
-        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata) {
-            entries = server->namespaceMetadata[nsIdx].entries;
-            entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
+        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata &&
+           server->namespaceMetadata[nsIdx].hasDefaultRolePermissions) {
+            const UA_NamespaceMetadata *metadata =
+                &server->namespaceMetadata[nsIdx];
+            permissionsConfigured = true;
+            entries = metadata->entries;
+            entriesSize = metadata->entriesSize;
         }
     }
 
     /* If no permissions configured, check allPermissionsForAnonymous.
      * When true (the default), un-configured nodes are fully permissive.
      * When false, only explicitly configured nodes grant access. */
-    if(!entries || entriesSize == 0) {
+    if(!permissionsConfigured) {
         if(server->config.allPermissionsForAnonymous)
             return UA_PERMISSIONTYPE_ALL; /* All permissions granted */
         return 0; /* Strict: deny unless explicitly configured */
     }
+
+    /* An explicitly configured empty array is an explicit deny-all. This is
+     * security-relevant when the last entry is removed together with a Role. */
+    if(entriesSize == 0)
+        return 0;
 
     /* Compute logical OR of permissions for all session roles */
     UA_PermissionType effectivePerms = 0;
@@ -2844,6 +2855,8 @@ UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
                                       &server->namespaceMetadata[namespaceIndex].entriesSize,
                                       &server->namespaceMetadata[namespaceIndex].entries);
     }
+    if(res == UA_STATUSCODE_GOOD)
+        server->namespaceMetadata[namespaceIndex].hasDefaultRolePermissions = true;
 
     unlockServer(server);
     return res;
