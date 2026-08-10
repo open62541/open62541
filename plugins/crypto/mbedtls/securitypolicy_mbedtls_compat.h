@@ -49,5 +49,5 @@ int
 UA_mbedTLS_compat_writeCsrDer(mbedtls_x509write_csr *request,
                               unsigned char *buffer, size_t bufferSize);
 
-#endif
-#endif
+#endif /* UA_ENABLE_ENCRYPTION_MBEDTLS */
+#endif /* UA_SECURITYPOLICY_MBEDTLS_COMPAT_H_ */

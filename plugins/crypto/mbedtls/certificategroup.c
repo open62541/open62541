@@ -53,7 +53,7 @@ typedef struct {
 static UA_Boolean mbedtlsCheckCA(mbedtls_x509_crt *cert);
 
 static UA_Boolean
-validByteString(const UA_ByteString *value) {
+certificateGroupValidByteString(const UA_ByteString *value) {
     return value && (value->length == 0 || value->data);
 }
 
@@ -764,7 +764,7 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
                                          const UA_String *applicationURI) {
-    if(!validByteString(certificate) || !validByteString(applicationURI))
+    if(!certificateGroupValidByteString(certificate) || !certificateGroupValidByteString(applicationURI))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
@@ -805,7 +805,7 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
-    if(!validByteString(certificate) || !expiryDateTime)
+    if(!certificateGroupValidByteString(certificate) || !expiryDateTime)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
@@ -834,7 +834,7 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
-    if(!validByteString(certificate) || !subjectName)
+    if(!certificateGroupValidByteString(certificate) || !subjectName)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_String_init(subjectName);
     mbedtls_x509_crt publicKey;
@@ -869,7 +869,7 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint){
-    if(!validByteString(certificate) || !thumbprint || !thumbprint->data ||
+    if(!certificateGroupValidByteString(certificate) || !thumbprint || !thumbprint->data ||
        thumbprint->length != (UA_SHA1_LENGTH * 2))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -907,7 +907,7 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
                                size_t *keySize){
-    if(!validByteString(certificate) || !keySize)
+    if(!certificateGroupValidByteString(certificate) || !keySize)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     *keySize = 0;
     mbedtls_x509_crt publicKey;
@@ -927,7 +927,7 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2) {
-    if(!validByteString(certificate1) || !validByteString(certificate2))
+    if(!certificateGroupValidByteString(certificate1) || !certificateGroupValidByteString(certificate2))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval;
@@ -1003,7 +1003,7 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey) {
-    if(!validByteString(certificate) || !validByteString(privateKey))
+    if(!certificateGroupValidByteString(certificate) || !certificateGroupValidByteString(privateKey))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_x509_crt cert;
     mbedtls_pk_context pk;
@@ -1044,7 +1044,7 @@ cleanup:
 
 UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
-    if(!validByteString(certificate))
+    if(!certificateGroupValidByteString(certificate))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
@@ -1130,7 +1130,7 @@ cleanup:
 
 UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
-    if(!validByteString(certificate) || certificate->length == 0 || !commonName)
+    if(!certificateGroupValidByteString(certificate) || certificate->length == 0 || !commonName)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_String_init(commonName);
 

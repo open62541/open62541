@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/plugin/securitypolicy_default.h>
+#include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/types.h>
 
@@ -46,7 +47,8 @@ exercisePolicy(PolicyInit init) {
     UA_StatusCode rv = init(&policy, cert, key, UA_Log_Stdout);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    /* Failed updates must preserve the active certificate and key. */
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    /* Failed mbedTLS updates must preserve the active certificate and key. */
     UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
     rv = UA_ByteString_copy(&policy.localCertificate, &originalCertificate);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
@@ -63,6 +65,7 @@ exercisePolicy(PolicyInit init) {
     ck_assert(UA_ByteString_equal(&policy.localCertificate,
                                   &originalCertificate));
     UA_ByteString_clear(&originalCertificate);
+#endif
 
     /* New channel context: remote certificate == local certificate */
     void *cc = NULL;
@@ -93,7 +96,7 @@ exercisePolicy(PolicyInit init) {
     ck_assert_uint_eq(localSigSize, remoteSigSize);
     if(policy.asymEncryptionAlgorithm.getLocalKeyLength) {
         size_t localEncryptionKeySize =
-            policy.asymEncryptionAlgorithm.getLocalKeyLength(&policy, NULL);
+            policy.asymEncryptionAlgorithm.getLocalKeyLength(&policy, cc);
         ck_assert_uint_eq(localEncryptionKeySize, localSigSize * 8);
         size_t remoteEncryptionKeySize =
             policy.asymEncryptionAlgorithm.getRemoteKeyLength(&policy, cc);
@@ -275,6 +278,55 @@ START_TEST(securitypolicy_aes256sha256rsapss) {
     exercisePolicy(UA_SecurityPolicy_Aes256Sha256RsaPss);
 } END_TEST
 
+START_TEST(basic128rsa15_reports_distinct_local_and_remote_key_sizes) {
+    UA_SecurityPolicy policy;
+    UA_StatusCode rv = UA_SecurityPolicy_Basic128Rsa15(
+        &policy, makeCert(), makeKey(), UA_Log_Stdout);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+
+    UA_String subject[] = {
+        UA_STRING_STATIC("C=DE"),
+        UA_STRING_STATIC("O=open62541"),
+        UA_STRING_STATIC("CN=Remote3072")
+    };
+    UA_String subjectAltName[] = {
+        UA_STRING_STATIC("DNS:localhost"),
+        UA_STRING_STATIC("URI:urn:open62541.test.remote3072")
+    };
+    UA_KeyValueMap *params = UA_KeyValueMap_new();
+    ck_assert_ptr_ne(params, NULL);
+    UA_UInt16 keyBits = 3072;
+    rv = UA_KeyValueMap_setScalar(
+        params, UA_QUALIFIEDNAME(0, "key-size-bits"), &keyBits,
+        &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+
+    UA_ByteString remotePrivateKey = UA_BYTESTRING_NULL;
+    UA_ByteString remoteCertificate = UA_BYTESTRING_NULL;
+    rv = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 3, subjectAltName, 2,
+        UA_CERTIFICATEFORMAT_DER, params,
+        &remotePrivateKey, &remoteCertificate);
+    UA_KeyValueMap_delete(params);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+
+    void *channelContext = NULL;
+    rv = policy.newChannelContext(
+        &policy, &remoteCertificate, &channelContext);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    size_t localBits = policy.asymEncryptionAlgorithm.getLocalKeyLength(
+        &policy, channelContext);
+    size_t remoteBits = policy.asymEncryptionAlgorithm.getRemoteKeyLength(
+        &policy, channelContext);
+    ck_assert_uint_eq(localBits, 2048);
+    ck_assert_uint_eq(remoteBits, 3072);
+
+    policy.deleteChannelContext(&policy, channelContext);
+    policy.clear(&policy);
+    UA_ByteString_clear(&remoteCertificate);
+    UA_ByteString_clear(&remotePrivateKey);
+} END_TEST
+
 static Suite *
 testSuite_SecurityPolicyCrypto(void) {
     Suite *s = suite_create("SecurityPolicy Crypto");
@@ -284,6 +336,8 @@ testSuite_SecurityPolicyCrypto(void) {
     tcase_add_test(tc, securitypolicy_basic256sha256);
     tcase_add_test(tc, securitypolicy_aes128sha256rsaoaep);
     tcase_add_test(tc, securitypolicy_aes256sha256rsapss);
+    tcase_add_test(tc,
+                   basic128rsa15_reports_distinct_local_and_remote_key_sizes);
     suite_add_tcase(s, tc);
     return s;
 }
