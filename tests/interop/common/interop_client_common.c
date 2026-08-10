@@ -25,6 +25,7 @@
 
 #ifdef UA_ENABLE_ENCRYPTION
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/plugin/securitypolicy_default.h>
 #endif
 
 #include <stdlib.h>
@@ -121,6 +122,61 @@ static void interop_skip(const char *msg) {
 /* ------------------------------------------------------------------ */
 
 #ifdef UA_ENABLE_ENCRYPTION
+typedef UA_StatusCode
+(*EccPolicyConstructor)(UA_SecurityPolicy *, UA_ApplicationType,
+                        UA_ByteString, UA_ByteString, const UA_Logger *);
+
+/* Deprecated ECC policies are intentionally not part of the default policy
+ * set. Add the requested one explicitly, as the interop server does. */
+static UA_StatusCode
+addRequestedEccPolicy(UA_ClientConfig *cc, const char *policyUri,
+                      UA_ByteString certificate, UA_ByteString privateKey) {
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    UA_String requestedPolicy = UA_STRING((char *)(uintptr_t)policyUri);
+    for(size_t i = 0; i < cc->securityPoliciesSize; i++) {
+        if(UA_String_equal(&cc->securityPolicies[i].policyUri, &requestedPolicy))
+            return UA_STATUSCODE_GOOD;
+    }
+
+    EccPolicyConstructor constructor = NULL;
+    if(strcmp(policyUri,
+              "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256") == 0)
+        constructor = UA_SecurityPolicy_EccNistP256;
+    else if(strcmp(policyUri,
+                   "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384") == 0)
+        constructor = UA_SecurityPolicy_EccNistP384;
+    else if(strcmp(policyUri,
+                   "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1") == 0)
+        constructor = UA_SecurityPolicy_EccBrainpoolP256r1;
+    else if(strcmp(policyUri,
+                   "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1") == 0)
+        constructor = UA_SecurityPolicy_EccBrainpoolP384r1;
+    else
+        return UA_STATUSCODE_GOOD;
+
+    UA_SecurityPolicy *policies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) *
+                   (cc->securityPoliciesSize + 1));
+    if(!policies)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    cc->securityPolicies = policies;
+
+    UA_StatusCode retval =
+        constructor(&cc->securityPolicies[cc->securityPoliciesSize],
+                    UA_APPLICATIONTYPE_CLIENT, certificate, privateKey,
+                    cc->logging);
+    if(retval == UA_STATUSCODE_GOOD)
+        cc->securityPoliciesSize++;
+    return retval;
+#else
+    (void)cc;
+    (void)policyUri;
+    (void)certificate;
+    (void)privateKey;
+    return UA_STATUSCODE_GOOD;
+#endif
+}
+
 /* Configure encryption on a client. Returns UA_STATUSCODE_GOOD on success. */
 static UA_StatusCode
 configureEncryption(UA_ClientConfig *cc, const char *policyUri,
@@ -394,6 +450,8 @@ test_ecc_encrypted_anonymous(const char *url, const char *policyUri,
     UA_StatusCode retval =
         configureEncryption(cc, policyUri, certificate, privateKey,
                             trustList, trustListSize);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = addRequestedEccPolicy(cc, policyUri, *certificate, *privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         INTEROP_CHECK(UA_FALSE, "Configure encryption");
         UA_Client_delete(client);

@@ -75,7 +75,11 @@ function build_release_amalgamation {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           ..
     make open62541-amalgamation ${MAKEOPTS}
-    gcc -Wall -Werror -c open62541.c
+    local mbedtls_include_flags=()
+    if [ -n "${MBEDTLS_FOLDER_INCLUDE:-}" ]; then
+        mbedtls_include_flags=(-I"${MBEDTLS_FOLDER_INCLUDE}")
+    fi
+    gcc -Wall -Werror "${mbedtls_include_flags[@]}" -c open62541.c
 }
 
 ######################

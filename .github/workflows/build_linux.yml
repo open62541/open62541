@@ -19,14 +19,16 @@ jobs:
           repository: Mbed-TLS/mbedtls
           ref: mbedtls-${{ matrix.mbedtls-version }}
           path: mbedtls-source
+          submodules: recursive
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3
+          sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3 valgrind
       - name: Build mbedTLS
         run: |
           cmake -S mbedtls-source -B mbedtls-build \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/mbedtls \
             -DENABLE_PROGRAMS=OFF \
             -DENABLE_TESTING=OFF
@@ -41,12 +43,21 @@ jobs:
             -DUA_BUILD_UNIT_TESTS=ON \
             -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
             -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+            -DUA_ENABLE_JSON_ENCODING=ON \
             -DUA_ENABLE_PUBSUB=ON \
             -DUA_FORCE_WERROR=ON \
             -DUA_NAMESPACE_ZERO=FULL
           cmake --build build-mbedtls --parallel
           ctest --test-dir build-mbedtls --output-on-failure \
-            -R "(encryption|cert|crypto|ecc|pubsub)"
+            -R "(encrypt|decrypt|cert|crypto|ecc|auth|json_config)"
+      - name: Check mbedTLS 4 ownership with Valgrind
+        if: matrix.mbedtls-version == '4.2.0'
+        working-directory: build-mbedtls/tests
+        run: |
+          valgrind --error-exitcode=1 --leak-check=full \
+            ../bin/tests/check_client_authentication
+          valgrind --error-exitcode=1 --leak-check=full \
+            ../bin/tests/check_client_json_config
 
   build:
     strategy:
@@ -88,15 +99,16 @@ jobs:
             cmd_action: CC=tcc unit_tests
 
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            mbedtls: true
             cmd_action: unit_tests_encryption MBEDTLS
 
           - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            mbedtls: true
             cmd_action: unit_tests_encryption_mbedtls_pubsub
 
           - name: "PubSub SKS Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            mbedtls: true
+            cmd_deps: sudo apt-get install -y -qq valgrind
             cmd_action: unit_tests_pubsub_sks
 
           - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
@@ -114,7 +126,7 @@ jobs:
             cmd_action: unit_tests_encryption LIBRESSL
 
           - name: "Release Build"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            mbedtls: true
             cmd_action: build_release
 
           - name: "Amalgamation Build"
@@ -225,6 +237,7 @@ jobs:
           - os: ubuntu-22.04
             build:
               name: "TPM Tool Build ubuntu-22.04"
+              mbedtls: true
               cmd_deps: |
                 sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
                 cd ${HOME}
@@ -253,6 +266,7 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "TPM Tool Build ubuntu-24.04"
+              mbedtls: true
               cmd_deps: |
                 sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules python3-pkcs11
                 cd ${HOME}
@@ -280,6 +294,7 @@ jobs:
           - os: ubuntu-26.04
             build:
               name: "TPM Tool Build ubuntu-26.04"
+              mbedtls: true
               cmd_deps: |
                 sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libcrypt-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules python3-pkcs11
                 cd ${HOME}
@@ -309,14 +324,16 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces
+              mbedtls: true
+              cmd_deps: sudo apt-get install -y -qq python3-netifaces
               cmd_action: run_examples MBEDTLS MDNSD
 
           # Valgrind tests for specific Ubuntu versions
           - os: ubuntu-24.04
             build:
               name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+              mbedtls: true
+              cmd_deps: sudo apt-get install -y -qq valgrind
               cmd_action: unit_tests_valgrind MBEDTLS          
 
           - os: ubuntu-24.04
@@ -328,30 +345,34 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+              mbedtls: true
+              cmd_deps: sudo apt-get install -y -qq valgrind python3-netifaces
               cmd_action: examples_valgrind MBEDTLS MDNSD          
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl python3-netifaces libavahi-client-dev libavahi-common-dev
               cmd_action: examples_valgrind OPENSSL AVAHI          
 
           # Clang Static Analyzer Builds
           - os: ubuntu-22.04
             build:
               name: "Clang Static Analyzer (clang15)"
-              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev
+              mbedtls: true
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15
               cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15          
           - os: ubuntu-24.04
             build:
               name: "Clang Static Analyzer (clang18)"
-              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
+              mbedtls: true
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18
               cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
           - os: ubuntu-26.04
             build:
               name: "Clang Static Analyzer (clang21)"
-              cmd_deps: sudo apt-get install -y -qq clang-21 clang-tools-21 libmbedtls-dev
+              mbedtls: true
+              cmd_deps: sudo apt-get install -y -qq clang-21 clang-tools-21
               cmd_action: CC=clang-21 CXX=clang++-21 build_clang_analyzer 21
 
     name: ${{ matrix.os }}-${{ matrix.build.name }}
@@ -374,11 +395,32 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
+      - name: Checkout supported mbedTLS
+        if: matrix.build.mbedtls
+        uses: actions/checkout@v7
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: mbedtls-3.6.4
+          path: mbedtls-source
+          submodules: recursive
       - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx check libxml2-dev libpcap-dev libreadline-dev libcrypt-dev
           ${{ matrix.build.cmd_deps }}
+      - name: Build supported mbedTLS
+        if: matrix.build.mbedtls
+        run: |
+          cmake -S mbedtls-source -B mbedtls-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/mbedtls-install" \
+            -DENABLE_PROGRAMS=OFF \
+            -DENABLE_TESTING=OFF
+          cmake --build mbedtls-build --parallel
+          cmake --install mbedtls-build
+          echo "MBEDTLS_FOLDER_INCLUDE=$GITHUB_WORKSPACE/mbedtls-install/include" >> "$GITHUB_ENV"
+          echo "MBEDTLS_FOLDER_LIBRARY=$GITHUB_WORKSPACE/mbedtls-install/lib" >> "$GITHUB_ENV"
       - name: ${{ matrix.build.name }}
         shell: bash
         run: source tools/ci/linux/ci.sh && ${{ matrix.build.cmd_action }}

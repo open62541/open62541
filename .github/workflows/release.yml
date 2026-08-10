@@ -13,8 +13,27 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
-      - run: sudo apt-get install -y -qq libmbedtls-dev
+      - uses: actions/checkout@v7
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: mbedtls-3.6.4
+          path: mbedtls-source
+          submodules: recursive
+      - run: sudo apt-get install -y -qq build-essential cmake
+      - name: Build supported mbedTLS
+        run: |
+          cmake -S mbedtls-source -B mbedtls-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/mbedtls \
+            -DENABLE_PROGRAMS=OFF \
+            -DENABLE_TESTING=OFF
+          cmake --build mbedtls-build --parallel
+          cmake --install mbedtls-build
       - run: source tools/ci/linux/ci.sh && build_release_amalgamation
+        env:
+          MBEDTLS_FOLDER_INCLUDE: ${{ runner.temp }}/mbedtls/include
+          MBEDTLS_FOLDER_LIBRARY: ${{ runner.temp }}/mbedtls/lib
       - run: gh release upload ${{ github.ref_name }} build/open62541.{c,h}
         env:
           GH_TOKEN: ${{ github.token }}
