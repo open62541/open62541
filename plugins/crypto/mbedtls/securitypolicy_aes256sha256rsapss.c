@@ -13,13 +13,15 @@
 
 #include "securitypolicy_common.h"
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
-#include <mbedtls/error.h>
-#include <mbedtls/md.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>
+#endif
+#include <mbedtls/error.h>
+#include <mbedtls/md.h>
 #include <mbedtls/version.h>
 #include <mbedtls/x509_crt.h>
 
@@ -51,32 +53,9 @@ asym_verify_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
 
-    unsigned char hash[UA_SHA256_LENGTH];
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    // TODO check return status
-    mbedtls_sha256_ret(message->data, message->length, hash, 0);
-#else
-    mbedtls_sha256(message->data, message->length, hash, 0);
-#endif
-
-    /* Set the RSA settings */
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
-
-#if MBEDTLS_VERSION_NUMBER < 0x03000000
-    mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
-        policy->policyContext;
-    int mbedErr =
-        mbedtls_rsa_pkcs1_verify(rsaContext, mbedtls_ctr_drbg_random, &pc->drbgContext,
-                                 MBEDTLS_RSA_PUBLIC, MBEDTLS_MD_SHA256,
-                                 UA_SHA256_LENGTH, hash, signature->data);
-#else
-    int mbedErr = mbedtls_rsa_pkcs1_verify(rsaContext, MBEDTLS_MD_SHA256,
-                                           UA_SHA256_LENGTH, hash, signature->data);
-#endif
-    if(mbedErr)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaAsymmetricVerify(&cc->remoteCertificate.pk,
+        PSA_ALG_RSA_PSS(PSA_ALG_SHA_256), PSA_ALG_SHA_256,
+        message, signature);
 }
 
 /* AsymmetricSignatureAlgorithm_RSA-PSS-SHA2-256 */
@@ -87,32 +66,11 @@ asym_sign_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    unsigned char hash[UA_SHA256_LENGTH];
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    // TODO check return status
-    mbedtls_sha256_ret(message->data, message->length, hash, 0);
-#else
-    mbedtls_sha256(message->data, message->length, hash, 0);
-#endif
-
     mbedtls_PolicyContext *pc =
         (mbedtls_PolicyContext *)policy->policyContext;
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
-
-#if MBEDTLS_VERSION_NUMBER < 0x03000000
-    int mbedErr =
-        mbedtls_rsa_pkcs1_sign(rsaContext, mbedtls_ctr_drbg_random, &pc->drbgContext,
-                               MBEDTLS_RSA_PRIVATE, MBEDTLS_MD_SHA256,
-                               UA_SHA256_LENGTH, hash, signature->data);
-#else
-    int mbedErr = mbedtls_rsa_pkcs1_sign(rsaContext, mbedtls_ctr_drbg_random,
-                                         &pc->drbgContext, MBEDTLS_MD_SHA256,
-                                         UA_SHA256_LENGTH, hash, signature->data);
-#endif
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaAsymmetricSign(&pc->localPrivateKey,
+        PSA_ALG_RSA_PSS(PSA_ALG_SHA_256), PSA_ALG_SHA_256,
+        message, signature);
 }
 
 static size_t
@@ -122,13 +80,8 @@ asym_getRemotePlainTextBlockSize_aes256sha256rsapss(const UA_SecurityPolicy *pol
         return 0;
     const mbedtls_ChannelContext *cc =
         (const mbedtls_ChannelContext*)channelContext;
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len - UA_SECURITYPOLICY_AES256SHA256RSAPSS_RSAPADDING_LEN;
-#else
-    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk)) -
+    return (mbedtls_pk_get_bitlen(&cc->remoteCertificate.pk) + 7) / 8 -
         UA_SECURITYPOLICY_AES256SHA256RSAPSS_RSAPADDING_LEN;
-#endif
 }
 
 
@@ -138,16 +91,12 @@ asym_encrypt_aes256sha256rsapss(const UA_SecurityPolicy *policy,
                                 void *channelContext, UA_ByteString *data) {
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
-        policy->policyContext;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
     const size_t plainTextBlockSize =
         asym_getRemotePlainTextBlockSize_aes256sha256rsapss(policy, cc);
-    mbedtls_rsa_context *remoteRsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    mbedtls_rsa_set_padding(remoteRsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
-    return mbedtls_encrypt_rsaOaep(remoteRsaContext, &pc->drbgContext,
-                                   data, plainTextBlockSize);
+    return UA_mbedTLS_PsaAsymmetricEncrypt(&cc->remoteCertificate.pk,
+        PSA_ALG_RSA_OAEP(PSA_ALG_SHA_256), plainTextBlockSize, data);
 }
 
 /* AsymmetricEncryptionAlgorithm_RSA-OAEP-SHA2 */
@@ -158,8 +107,8 @@ asym_decrypt_aes256sha256rsapss(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     mbedtls_PolicyContext *pc =
         (mbedtls_PolicyContext *)policy->policyContext;
-    return mbedtls_decrypt_rsaOaep(&pc->localPrivateKey, &pc->drbgContext,
-                                   data, MBEDTLS_MD_SHA256);
+    return UA_mbedTLS_PsaAsymmetricDecrypt(&pc->localPrivateKey,
+        PSA_ALG_RSA_OAEP(PSA_ALG_SHA_256), data);
 }
 
 static size_t
@@ -167,7 +116,7 @@ asym_getLocalEncryptionKeyLength_aes256sha256rsapss(const UA_SecurityPolicy *pol
                                                     const void *channelContext) {
     const mbedtls_PolicyContext *pc =
         (const mbedtls_PolicyContext *)policy->policyContext;
-    return mbedtls_pk_get_len(&pc->localPrivateKey) * 8;
+    return mbedtls_pk_get_bitlen(&pc->localPrivateKey);
 }
 
 static size_t
@@ -175,7 +124,7 @@ asym_getRemoteEncryptionKeyLength_aes256sha256rsapss(const UA_SecurityPolicy *po
                                                      const void *channelContext) {
     const mbedtls_ChannelContext *cc =
         (const mbedtls_ChannelContext*)channelContext;
-    return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
+    return mbedtls_pk_get_bitlen(&cc->remoteCertificate.pk);
 }
 
 static UA_StatusCode
@@ -196,20 +145,13 @@ sym_verify_aes256sha256rsapss(const UA_SecurityPolicy *policy, void *channelCont
 
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
-    mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
-        policy->policyContext;
 
     /* Compute MAC */
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    unsigned char mac[UA_SHA256_LENGTH];
-    if(mbedtls_hmac(&pc->mdContext, &cc->remoteSymSigningKey, message, mac) != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
-    /* Compare with Signature */
-    if(!UA_constantTimeEqual(signature->data, mac, UA_SHA256_LENGTH))
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaMacVerify(cc->remoteSymSigningKeyPsa.id,
+                                  PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                                  message, signature);
 }
 
 static UA_StatusCode
@@ -218,12 +160,11 @@ sym_sign_aes256sha256rsapss(const UA_SecurityPolicy *policy,
                             UA_ByteString *signature) {
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
-        policy->policyContext;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
-    if(mbedtls_hmac(&pc->mdContext, &cc->localSymSigningKey,
-                    message, signature->data) != UA_STATUSCODE_GOOD)
+    if(UA_mbedTLS_PsaMacCompute(cc->localSymSigningKeyPsa.id,
+                               PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                               message, signature) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     return UA_STATUSCODE_GOOD;
 }
@@ -275,24 +216,9 @@ sym_encrypt_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Keylength in bits */
-    unsigned int keylength = (unsigned int)(cc->localSymEncryptingKey.length * 8);
-    mbedtls_aes_context aesContext;
-    int mbedErr = mbedtls_aes_setkey_enc(&aesContext, cc->localSymEncryptingKey.data, keylength);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString ivCopy;
-    UA_StatusCode retval = UA_ByteString_copy(&cc->localSymIv, &ivCopy);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    mbedErr = mbedtls_aes_crypt_cbc(&aesContext, MBEDTLS_AES_ENCRYPT, data->length,
-                                    ivCopy.data, data->data, data->data);
-    if(mbedErr)
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_clear(&ivCopy);
-    return retval;
+    return UA_mbedTLS_PsaCipher(cc->localSymEncryptingKeyPsa.id,
+                                PSA_ALG_CBC_NO_PADDING, true,
+                                &cc->localSymIv, data);
 }
 
 static UA_StatusCode
@@ -313,24 +239,9 @@ sym_decrypt_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     if(data->length % encryptionBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    unsigned int keylength = (unsigned int)(cc->remoteSymEncryptingKey.length * 8);
-    mbedtls_aes_context aesContext;
-    int mbedErr = mbedtls_aes_setkey_dec(&aesContext,
-                                         cc->remoteSymEncryptingKey.data, keylength);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString ivCopy;
-    UA_StatusCode retval = UA_ByteString_copy(&cc->remoteSymIv, &ivCopy);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    mbedErr = mbedtls_aes_crypt_cbc(&aesContext, MBEDTLS_AES_DECRYPT, data->length,
-                                    ivCopy.data, data->data, data->data);
-    if(mbedErr)
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_clear(&ivCopy);
-    return retval;
+    return UA_mbedTLS_PsaCipher(cc->remoteSymEncryptingKeyPsa.id,
+                                PSA_ALG_CBC_NO_PADDING, false,
+                                &cc->remoteSymIv, data);
 }
 
 static UA_StatusCode
@@ -341,34 +252,11 @@ asym_cert_verify_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    unsigned char hash[UA_SHA256_LENGTH];
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    // TODO check return status
-    mbedtls_sha256_ret(message->data, message->length, hash, 0);
-#else
-    mbedtls_sha256(message->data, message->length, hash, 0);
-#endif
-
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
-
-    /* Set the RSA settings */
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_SHA256);
-
-    /* For RSA keys, the default padding type is PKCS#1 v1.5 in mbedtls_pk_verify() */
-    /* Alternatively, use more specific function mbedtls_rsa_rsassa_pkcs1_v15_verify(), i.e. */
-    /* int mbedErr = mbedtls_rsa_rsassa_pkcs1_v15_verify(rsaContext, NULL, NULL,
-                                                         MBEDTLS_RSA_PUBLIC, MBEDTLS_MD_SHA256,
-                                                         UA_SHA256_LENGTH, hash,
-                                                         signature->data); */
-    int mbedErr = mbedtls_pk_verify(&cc->remoteCertificate.pk,
-                                    MBEDTLS_MD_SHA256, hash, UA_SHA256_LENGTH,
-                                    signature->data, signature->length);
-
-    if(mbedErr)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaAsymmetricVerify(&cc->remoteCertificate.pk,
+        PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_256), PSA_ALG_SHA_256,
+        message, signature);
 }
 
 /* AsymmetricSignatureAlgorithm_RSA-PKCS15-SHA2-256 */
@@ -379,35 +267,11 @@ asym_cert_sign_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    unsigned char hash[UA_SHA256_LENGTH];
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    // TODO check return status
-    mbedtls_sha256_ret(message->data, message->length, hash, 0);
-#else
-    mbedtls_sha256(message->data, message->length, hash, 0);
-#endif
-
     mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
         policy->policyContext;
-
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_SHA256);
-
-    size_t sigLen = 0;
-
-    /* For RSA keys, the default padding type is PKCS#1 v1.5 in mbedtls_pk_sign */
-    /* Alternatively use more specific function mbedtls_rsa_rsassa_pkcs1_v15_sign() */
-    int mbedErr = mbedtls_pk_sign(&pc->localPrivateKey,
-                                  MBEDTLS_MD_SHA256, hash,
-                                  UA_SHA256_LENGTH, signature->data,
-#if MBEDTLS_VERSION_NUMBER >= 0x03000000
-        signature->length,
-#endif
-                                  &sigLen, mbedtls_ctr_drbg_random,
-                                  &pc->drbgContext);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaAsymmetricSign(&pc->localPrivateKey,
+        PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_256), PSA_ALG_SHA_256,
+        message, signature);
 }
 
 /* Assumes that the certificate has been verified externally */
@@ -424,12 +288,7 @@ parseRemoteCertificate_aes256sha256rsapss(mbedtls_ChannelContext *cc,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Check the key length */
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    size_t keylen = rsaContext->len;
-#else
-    size_t keylen = mbedtls_rsa_get_len(rsaContext);
-#endif
+    size_t keylen = (mbedtls_pk_get_bitlen(&cc->remoteCertificate.pk) + 7) / 8;
     if(keylen < UA_SECURITYPOLICY_AES256SHA256RSAPSS_MINASYMKEYLENGTH ||
        keylen > UA_SECURITYPOLICY_AES256SHA256RSAPSS_MAXASYMKEYLENGTH)
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
@@ -502,8 +361,10 @@ clear_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy) {
     mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
         securityPolicy->policyContext;
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_ctr_drbg_free(&pc->drbgContext);
     mbedtls_entropy_free(&pc->entropyContext);
+#endif
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_free(&pc->csrLocalPrivateKey);
     mbedtls_md_free(&pc->mdContext);
@@ -547,7 +408,8 @@ updateCertificateAndPrivateKey_aes256sha256rsapss(UA_SecurityPolicy *securityPol
     if(newPrivateKey.length > 0) {
         mbedtls_pk_free(&pc->localPrivateKey);
         mbedtls_pk_init(&pc->localPrivateKey);
-        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext)) {
+        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey,
+                                     UA_MBEDTLS_LEGACY_ENTROPY(pc))) {
             retval = UA_STATUSCODE_BADNOTSUPPORTED;
             goto error;
         }
@@ -598,8 +460,10 @@ policyContext_newContext_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy,
     /* Initialize the PolicyContext */
     memset(pc, 0, sizeof(mbedtls_PolicyContext));
     UA_mbedTLS_PolicyContext_initPsa(pc);
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_ctr_drbg_init(&pc->drbgContext);
     mbedtls_entropy_init(&pc->entropyContext);
+#endif
     mbedtls_pk_init(&pc->localPrivateKey);
     mbedtls_md_init(&pc->mdContext);
 
@@ -611,6 +475,7 @@ policyContext_newContext_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy,
         goto error;
     }
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedErr = mbedtls_entropy_self_test(0);
 
     if(mbedErr) {
@@ -628,8 +493,11 @@ policyContext_newContext_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy,
         goto error;
     }
 
+#endif
+
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey,
+                                        UA_MBEDTLS_LEGACY_ENTROPY(pc));
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
