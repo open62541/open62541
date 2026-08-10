@@ -122,6 +122,41 @@ struct UA_AccessControl {
     UA_StatusCode (*getUserGroups)(UA_Server *server, UA_AccessControl *ac,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    UA_String **groupIds, size_t *groupIdsSize);
+
+    /* Optional Part 18 UserManagement provider. The core exposes the
+     * UserManagement Object only when all mutation callbacks are configured.
+     * Provider implementations own password hashing, persistence and rate
+     * limiting. Returned Users arrays transfer ownership to the core. */
+    UA_StatusCode (*getUsers)(UA_Server *server, UA_AccessControl *ac,
+                              UA_UserManagementDataType **users,
+                              size_t *usersSize);
+    UA_StatusCode (*getPasswordPolicy)(UA_Server *server, UA_AccessControl *ac,
+                                       UA_Range *passwordLength,
+                                       UA_PasswordOptionsMask *passwordOptions,
+                                       UA_LocalizedText *passwordRestrictions);
+    UA_StatusCode (*getUserConfiguration)(UA_Server *server,
+                                          UA_AccessControl *ac,
+                                          const UA_String *userName,
+                                          UA_UserConfigurationMask *configuration);
+    UA_StatusCode (*addUser)(UA_Server *server, UA_AccessControl *ac,
+                             const UA_String *userName,
+                             const UA_String *password,
+                             UA_UserConfigurationMask configuration,
+                             const UA_String *description);
+    UA_StatusCode (*modifyUser)(UA_Server *server, UA_AccessControl *ac,
+                                const UA_String *userName,
+                                UA_Boolean modifyPassword,
+                                const UA_String *password,
+                                UA_Boolean modifyConfiguration,
+                                UA_UserConfigurationMask configuration,
+                                UA_Boolean modifyDescription,
+                                const UA_String *description);
+    UA_StatusCode (*removeUser)(UA_Server *server, UA_AccessControl *ac,
+                                const UA_String *userName);
+    UA_StatusCode (*changePassword)(UA_Server *server, UA_AccessControl *ac,
+                                    const UA_String *userName,
+                                    const UA_String *oldPassword,
+                                    const UA_String *newPassword);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

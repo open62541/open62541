@@ -1151,6 +1151,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                               UA_Session **outSession) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &resp->responseHeader;
+#ifdef UA_ENABLE_RBAC
+    UA_Boolean passwordChangeRequired = false;
+#endif
 
     /* Get the session */
     UA_Session *session =
@@ -1349,13 +1352,45 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     session->identityContext = ctx;
     session->hasIdentityContext = true;
 
+    if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN] &&
+       server->config.accessControl.getUserConfiguration) {
+        UA_UserConfigurationMask userConfiguration = 0;
+        rh->serviceResult = server->config.accessControl.getUserConfiguration(
+            server, &server->config.accessControl,
+            &session->identityContext.userName, &userConfiguration);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD)
+            UA_SECURITY_REJECT;
+        if(userConfiguration & UA_USERCONFIGURATIONMASK_DISABLED) {
+            rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            UA_SECURITY_REJECT;
+        }
+        passwordChangeRequired =
+            (userConfiguration &
+             UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD) != 0;
+    }
+
     size_t rolesSize = 0;
     UA_NodeId *roleIds = NULL;
-    rh->serviceResult = UA_Server_evaluateSessionRoles(server,
-                                                       &session->identityContext,
-                                                       &rolesSize, &roleIds);
-    if(rh->serviceResult == UA_STATUSCODE_GOOD && rolesSize > 0) {
-        UA_Session_setRoles(server, session, roleIds, rolesSize);
+    if(passwordChangeRequired) {
+        rolesSize = 1;
+        roleIds = (UA_NodeId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_NODEID]);
+        if(!roleIds)
+            rh->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        else
+            roleIds[0] = UA_NODEID_NUMERIC(
+                0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    } else {
+        rh->serviceResult = UA_Server_evaluateSessionRoles(
+            server, &session->identityContext, &rolesSize, &roleIds);
+    }
+    if(rh->serviceResult != UA_STATUSCODE_GOOD)
+        UA_SECURITY_REJECT;
+    if(rolesSize > 0) {
+        rh->serviceResult = UA_Session_setRoles(server, session, roleIds, rolesSize);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+            UA_SECURITY_REJECT;
+        }
         for(size_t i = 0; i < rolesSize; i++) {
             for(size_t k = 0; k < server->rolesSize; k++) {
                 if(UA_NodeId_equal(&roleIds[i], &server->roles[k].roleId)) {
@@ -1496,6 +1531,10 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                         session->clientUserIdOfSession);
 
     /* Return the activated session */
+#ifdef UA_ENABLE_RBAC
+    if(passwordChangeRequired)
+        rh->serviceResult = UA_STATUSCODE_GOODPASSWORDCHANGEREQUIRED;
+#endif
     *outSession = session;
 }
 
