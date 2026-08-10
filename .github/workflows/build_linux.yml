@@ -99,7 +99,7 @@ jobs:
     name: ${{matrix.build_name}}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/marwinglaser/ci:ubuntu-20.04
+      image: ghcr.io/open62541/open62541-ci:ubuntu-20.04
       options: --privileged
     services:
       mosquitto:
