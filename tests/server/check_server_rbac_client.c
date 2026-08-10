@@ -29,11 +29,47 @@ static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 
 /* Users for authentication */
-static UA_UsernamePasswordLogin usernamePasswords[3] = {
+static UA_UsernamePasswordLogin usernamePasswords[5] = {
     {UA_STRING_STATIC("operator"), UA_STRING_STATIC("password")},
     {UA_STRING_STATIC("admin"), UA_STRING_STATIC("admin123")},
-    {UA_STRING_STATIC("guest"), UA_STRING_STATIC("guest123")}
+    {UA_STRING_STATIC("guest"), UA_STRING_STATIC("guest123")},
+    /* Same Role mapping as "operator", but flagged MustChangePassword */
+    {UA_STRING_STATIC("mustchange"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("disabled"), UA_STRING_STATIC("password")}
 };
+
+/* The UserConfiguration of a UserName token is consulted at ActivateSession.
+ * Keyed on the user name so the hook is a pure function and needs no state
+ * shared with the test thread. */
+static UA_Boolean tokenRolesQueried;
+
+static UA_StatusCode
+testGetUserConfiguration(UA_Server *s, UA_AccessControl *ac,
+                         const UA_String *userName,
+                         UA_UserConfigurationMask *configuration) {
+    UA_String mustChange = UA_STRING("mustchange");
+    UA_String disabled = UA_STRING("disabled");
+    if(UA_String_equal(userName, &mustChange))
+        *configuration = UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD;
+    else if(UA_String_equal(userName, &disabled))
+        *configuration = UA_USERCONFIGURATIONMASK_DISABLED;
+    else
+        *configuration = UA_USERCONFIGURATIONMASK_NONE;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Role criteria carry claims from an Access Token. The provider must never be
+ * consulted for an anonymous, user name or certificate identity token - doing
+ * so would let a Role criterion be satisfied by a non-token login. */
+static UA_StatusCode
+testGetUserTokenRoles(UA_Server *s, UA_AccessControl *ac,
+                      const UA_NodeId *sessionId, void *sessionContext,
+                      UA_String **roleClaims, size_t *roleClaimsSize) {
+    tokenRolesQueried = true;
+    *roleClaims = NULL;
+    *roleClaimsSize = 0;
+    return UA_STATUSCODE_GOOD;
+}
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -52,7 +88,15 @@ static void setup(void) {
 
     /* Configure AccessControl with usernames */
     UA_SecurityPolicy *sp = &sc->securityPolicies[sc->securityPoliciesSize-1];
-    UA_AccessControl_default(sc, true, &sp->policyUri, 3, usernamePasswords);
+    UA_AccessControl_default(sc, true, &sp->policyUri, 5, usernamePasswords);
+
+    /* The UserConfiguration and Access-Token Role hooks are installed before
+     * the Server thread starts and never change afterwards. Selecting the
+     * behaviour per user name keeps the tests free of any write to the running
+     * Server's configuration, which would be a data race against the Server
+     * thread that services ActivateSession. */
+    sc->accessControl.getUserConfiguration = testGetUserConfiguration;
+    sc->accessControl.getUserTokenRoles = testGetUserTokenRoles;
 
     /* Create a custom role "OperatorRole" with UserName identity mapping for "operator" */
     UA_Role operatorRole;
@@ -78,6 +122,20 @@ static void setup(void) {
         rules[updRole.identityMappingRulesSize].criteriaType =
             UA_IDENTITYCRITERIATYPE_USERNAME;
         rules[updRole.identityMappingRulesSize].criteria = UA_STRING_ALLOC("operator");
+        updRole.identityMappingRulesSize++;
+        /* "mustchange" maps to the same Role, so the MustChangePassword test
+         * differs from a normal login only in the UserConfiguration flag. */
+        rules = (UA_IdentityMappingRuleType*)
+            UA_realloc(updRole.identityMappingRules,
+                       (updRole.identityMappingRulesSize + 1) *
+                       sizeof(UA_IdentityMappingRuleType));
+        ck_assert_ptr_nonnull(rules);
+        updRole.identityMappingRules = rules;
+        UA_IdentityMappingRuleType_init(&rules[updRole.identityMappingRulesSize]);
+        rules[updRole.identityMappingRulesSize].criteriaType =
+            UA_IDENTITYCRITERIATYPE_USERNAME;
+        rules[updRole.identityMappingRulesSize].criteria =
+            UA_STRING_ALLOC("mustchange");
         updRole.identityMappingRulesSize++;
         retval = UA_Server_updateRole(server, &updRole);
         UA_Role_clear(&updRole);
@@ -107,7 +165,7 @@ static void setup(void) {
                                              UA_QUALIFIEDNAME(0, "OperatorRole"),
                                              &role);
     ck_assert_uint_eq(getRes, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(role.identityMappingRulesSize, 1);
+    ck_assert_uint_eq(role.identityMappingRulesSize, 2);
     ck_assert_uint_eq(role.identityMappingRules[0].criteriaType,
                       UA_IDENTITYCRITERIATYPE_USERNAME);
 
@@ -575,6 +633,75 @@ START_TEST(Client_roleSetMethod_denied) {
 END_TEST
 #endif /* UA_ENABLE_METHODCALLS */
 
+/* A user flagged MustChangePassword activates with the Anonymous Role only, so
+ * it can reach ChangePassword without gaining its usual permissions. */
+START_TEST(Client_mustChangePassword_activatesWithAnonymousOnly) {
+    UA_NodeId productName =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME);
+
+    /* "mustchange" carries the same OperatorRole mapping as "operator" */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectUsername(client,
+                                                     "opc.tcp://localhost:4840",
+                                                     "mustchange", "password");
+    /* Good_PasswordChangeRequired is a Good code, so the Session activates */
+    ck_assert(!UA_StatusCode_isBad(retval));
+
+    /* OperatorRole grants Read on BuildInfo, but the Session was reduced to
+     * Anonymous, so the read is refused. */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    retval = UA_Client_readValueAttribute(client, productName, &value);
+    printf("MustChangePassword read of a Role-protected Node: %s\n",
+           UA_StatusCode_name(retval));
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* The control: same Role mapping, no flag, so the read succeeds */
+    client = UA_Client_newForUnitTest();
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "operator", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_init(&value);
+    retval = UA_Client_readValueAttribute(client, productName, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* A Disabled account is refused at ActivateSession. */
+START_TEST(Client_disabledUser_cannotActivate) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectUsername(client,
+                                                     "opc.tcp://localhost:4840",
+                                                     "disabled", "password");
+    printf("Disabled user activation: %s\n", UA_StatusCode_name(retval));
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The Access Token Role provider is reserved for IssuedIdentityTokens. The
+ * hook is installed for the whole fixture, so reaching this point without it
+ * having fired covers every user name login the suite performed before it, in
+ * addition to the anonymous Session opened here. */
+START_TEST(Client_tokenRoles_notQueriedForNonIssuedTokens) {
+    ck_assert(!tokenRolesQueried);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    ck_assert(!tokenRolesQueried);
+}
+END_TEST
+
 static Suite *testSuite_Server_RBAC_Client(void) {
     Suite *s = suite_create("Server RBAC Client Integration");
     TCase *tc = tcase_create("Client Login and Role Assignment");
@@ -586,6 +713,9 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
     tcase_add_test(tc, Client_roles_reevaluated_on_roleAdd);
     tcase_add_test(tc, Client_accessRestrictions_enforced);
+    tcase_add_test(tc, Client_mustChangePassword_activatesWithAnonymousOnly);
+    tcase_add_test(tc, Client_disabledUser_cannotActivate);
+    tcase_add_test(tc, Client_tokenRoles_notQueriedForNonIssuedTokens);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);
 #endif
