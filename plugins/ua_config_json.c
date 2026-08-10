@@ -1489,7 +1489,8 @@ clearRolePermissionSet(void *element) {
 }
 
 /* Top-level RBAC configuration object:
- *   { "roles": [ ... ], "rolePermissionPresets": [ ... ],
+ *   { "roles": [ ... ], "wellKnownRoleMappings": [ ... ],
+ *     "rolePermissionPresets": [ ... ],
  *     "allPermissionsForAnonymous": <bool> } */
 PARSE_JSON(RbacConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
@@ -1508,6 +1509,11 @@ PARSE_JSON(RbacConfigurationField) {
             retval = parseElementArray(ctx, fieldStr, (void**)&config->roles,
                                        &config->rolesSize, sizeof(UA_Role),
                                        parseRole, clearRole);
+        } else if(strcmp(fieldStr, "wellKnownRoleMappings") == 0) {
+            retval = parseElementArray(ctx, fieldStr,
+                                       (void**)&config->wellKnownRoleMappings,
+                                       &config->wellKnownRoleMappingsSize,
+                                       sizeof(UA_Role), parseRole, clearRole);
         } else if(strcmp(fieldStr, "rolePermissionPresets") == 0) {
             retval = parseElementArray(ctx, fieldStr,
                                        (void**)&config->rolePermissionPresets,

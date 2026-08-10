@@ -441,6 +441,9 @@ incrementRefCount(UA_Server *server, UA_PermissionIndex index) {
 static UA_StatusCode
 addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         UA_Boolean wellKnown);
+static UA_Role *findRoleByName(UA_Server *server,
+                               const UA_QualifiedName *roleName);
+static UA_Role *findRoleById(UA_Server *server, const UA_NodeId *roleId);
 
 /* Initialize well-known roles per specification */
 static UA_StatusCode
@@ -522,7 +525,10 @@ initializeStandardRoles(UA_Server *server) {
 
 /* Apply config roles into server's internal role registry via UA_Server_addRole.
  * Config roles are marked as protected (cannot be removed at runtime).
- * Duplicate names or NodeIds are skipped with a warning. */
+ * A role that cannot be registered - a duplicate of a well-known or earlier
+ * config role, or one that fails validation - aborts startup rather than
+ * silently dropping a security configuration. Use wellKnownRoleMappings to
+ * configure a well-known Role instead of redefining it here. */
 static UA_StatusCode
 initializeRolesFromConfig(UA_Server *server) {
     UA_ServerConfig *config = &server->config;
@@ -532,22 +538,65 @@ initializeRolesFromConfig(UA_Server *server) {
     for(size_t i = 0; i < config->rolesSize; i++) {
         UA_NodeId outId;
         UA_StatusCode res = UA_Server_addRole(server, &config->roles[i], &outId);
-        if(res == UA_STATUSCODE_BADALREADYEXISTS) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "RBAC: Config role '%.*s' (ns=%u) skipped - "
-                           "a role with the same name or NodeId already exists",
-                           (int)config->roles[i].roleName.name.length,
-                           config->roles[i].roleName.name.data,
-                           config->roles[i].roleName.namespaceIndex);
-            continue;
-        }
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "RBAC: Config role '%.*s' (ns=%u) rejected with %s",
+                         (int)config->roles[i].roleName.name.length,
+                         config->roles[i].roleName.name.data,
+                         config->roles[i].roleName.namespaceIndex,
+                         UA_StatusCode_name(res));
             return res;
+        }
 
         /* Mark as protected (cannot be removed at runtime) */
         if(server->rolesSize > 0)
             server->rolesProtected[server->rolesSize - 1] = true;
         UA_NodeId_clear(&outId);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+initializeWellKnownRoleMappings(UA_Server *server) {
+    UA_ServerConfig *config = &server->config;
+    for(size_t i = 0; i < config->wellKnownRoleMappingsSize; i++) {
+        const UA_Role *mapping = &config->wellKnownRoleMappings[i];
+        UA_Role *target = NULL;
+        if(!UA_NodeId_isNull(&mapping->roleId))
+            target = findRoleById(server, &mapping->roleId);
+        if(mapping->roleName.name.length > 0) {
+            UA_Role *byName = findRoleByName(server, &mapping->roleName);
+            if(target && target != byName)
+                return UA_STATUSCODE_BADNOTFOUND;
+            target = byName;
+        }
+        if(!target)
+            return UA_STATUSCODE_BADNOTFOUND;
+
+        const UA_NodeId mandatory[] = {
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION)
+        };
+        for(size_t m = 0; m < sizeof(mandatory) / sizeof(mandatory[0]); m++) {
+            if(UA_NodeId_equal(&target->roleId, &mandatory[m]))
+                return UA_STATUSCODE_BADREQUESTNOTALLOWED;
+        }
+
+        UA_Role update;
+        UA_StatusCode res = UA_Role_copy(mapping, &update);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_NodeId_clear(&update.roleId);
+        UA_QualifiedName_clear(&update.roleName);
+        res = UA_NodeId_copy(&target->roleId, &update.roleId);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_QualifiedName_copy(&target->roleName, &update.roleName);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_Server_updateRole(server, &update);
+        UA_Role_clear(&update);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -607,20 +656,28 @@ UA_Server_initRBAC(UA_Server *server) {
                        "Disable for production use.");
     }
 
-    /* Register the OPC UA well-known roles in the internal registry */
+    /* Register the OPC UA well-known roles in the internal registry. Their
+     * number depends on whether the generated Namespace Zero declares the
+     * SecurityKeyServer Roles, so count what was actually registered. */
     UA_StatusCode stdRes = initializeStandardRoles(server);
     if(stdRes != UA_STATUSCODE_GOOD)
         return stdRes;
+    size_t standardRoles = server->rolesSize;
+
+    UA_StatusCode mappingRes = initializeWellKnownRoleMappings(server);
+    if(mappingRes != UA_STATUSCODE_GOOD)
+        return mappingRes;
 
     /* Copy config roles into the internal role registry */
     UA_StatusCode initRes = initializeRolesFromConfig(server);
     if(initRes != UA_STATUSCODE_GOOD)
         return initRes;
 
-    if(server->rolesSize > 0)
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "RBAC: %zu role(s) loaded from config (protected).",
-                    server->rolesSize);
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "RBAC: %zu standard role(s), %zu well-known mapping update(s), "
+                "%zu custom config role(s) loaded.",
+                standardRoles, config->wellKnownRoleMappingsSize,
+                config->rolesSize);
 
     /* Restrict the RoleSet Object and its Methods to SecurityAdmin. Requires
      * the well-known Roles registered above and the NS0 RBAC nodes. */
