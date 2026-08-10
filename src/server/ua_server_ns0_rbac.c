@@ -1308,7 +1308,8 @@ ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
 
 /* Restrict the RoleSet Object and the security-sensitive RoleSet/RoleType
  * Methods to the SecurityAdmin Role over an encrypted channel (OPC UA Part
- * 18). Skipped when the NS0 RBAC information model is unavailable. */
+ * 18). initNS0RBAC has ensured the RoleSet exists by the time this runs; the
+ * probe below only keeps the function safe if it is ever called before that. */
 UA_StatusCode
 initRoleSetRolePermissions(UA_Server *server) {
     UA_NodeId roleSetId =
@@ -1460,25 +1461,11 @@ initRoleSetRolePermissions(UA_Server *server) {
 
 UA_StatusCode
 initNS0RBAC(UA_Server *server) {
-    /* RBAC NS0 wiring requires UA_NAMESPACE_ZERO=FULL, which CMake enforces for
-     * UA_ENABLE_RBAC. This stays as a runtime guard for a nodestore that does
-     * not provide the RoleSetType, in which case the C API still works and only
-     * the NS0 objects are skipped. */
-    UA_NodeId roleSetTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE);
-    UA_QualifiedName typebn;
-    UA_Boolean hasFullRbacNS0 =
-        (UA_Server_readBrowseName(server, roleSetTypeId, &typebn) == UA_STATUSCODE_GOOD);
-    if(hasFullRbacNS0)
-        UA_QualifiedName_clear(&typebn);
-
-    if(!hasFullRbacNS0) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "RBAC: RoleSetType (NS0 i=%u) not present - NS0 RBAC "
-                       "information model skipped (requires UA_NAMESPACE_ZERO=FULL)",
-                       UA_NS0ID_ROLESETTYPE);
-        return UA_STATUSCODE_GOOD;
-    }
-
+    /* The RoleSetType and the well-known Role Nodes are part of the full
+     * Namespace Zero, which CMake requires for UA_ENABLE_RBAC (see the
+     * UA_ENABLE_RBAC checks in CMakeLists.txt). Everything below therefore
+     * treats a missing Node as an error rather than degrading silently; the
+     * Nodes the Server is allowed to create itself are created below. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Ensure the RoleSet instance node exists */
