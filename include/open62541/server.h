@@ -2857,7 +2857,7 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
  *         roleName is set,
  *         UA_STATUSCODE_BADNOTFOUND if no matching role exists,
  *         UA_STATUSCODE_BADUSERACCESSDENIED if the matched role is
- *         Anonymous or AuthenticatedUser */
+ *         Anonymous, AuthenticatedUser or TrustedApplication */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 

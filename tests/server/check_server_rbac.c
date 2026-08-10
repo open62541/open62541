@@ -2349,6 +2349,26 @@ START_TEST(namespaceDefault_invalidNamespaceIndex) {
 }
 END_TEST
 
+START_TEST(namespaceDefault_explicitEmptyDenies) {
+    ck_assert(UA_Server_getConfig(server)->allPermissionsForAnonymous);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 51099);
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "ExplicitEmptyNamespaceDefault"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 0, NULL), UA_STATUSCODE_GOOD);
+    UA_PermissionType effective = UA_PERMISSIONTYPE_ALL;
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(
+        server, NULL, &nodeId, &effective), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(effective, 0);
+    UA_Server_deleteNode(server, nodeId, true);
+}
+END_TEST
+
 START_TEST(allPermissionsForAnonymous_config) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->allPermissionsForAnonymous == true);
@@ -2536,6 +2556,27 @@ START_TEST(removeRole_purgesRolePermissions) {
     ck_assert_uint_eq(UA_Server_addRolePermissions(server, nodeId, observerId,
         UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
 
+    /* A second Node has only the Role that will be removed. Its resulting
+     * empty permission set must stay deny-all even with the permissive
+     * unconfigured-node compatibility option enabled. */
+    UA_NodeId denyNodeId = UA_NODEID_NUMERIC(1, 60002);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, denyNodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "PurgeDenyVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        vattr, NULL, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, denyNodeId, purgeRoleId,
+        UA_PERMISSIONTYPE_READ, false, false), UA_STATUSCODE_GOOD);
+
+    UA_NodeId sessionId = UA_NODEID_GUID(0,
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    UA_Variant rolesValue;
+    UA_Variant_setArray(&rolesValue, &purgeRoleId, 1,
+                        &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &sessionId,
+        UA_QUALIFIEDNAME(0, "roles"), &rolesValue), UA_STATUSCODE_GOOD);
+
     UA_PermissionIndex idx;
     ck_assert_uint_eq(UA_Server_getNodePermissionIndex(server, nodeId, &idx),
                       UA_STATUSCODE_GOOD);
@@ -2553,7 +2594,15 @@ START_TEST(removeRole_purgesRolePermissions) {
     ck_assert_uint_eq(set->rolePermissionsSize, 1);
     ck_assert(UA_NodeId_equal(&set->rolePermissions[0].roleId, &observerId));
 
+    UA_PermissionType effective = UA_PERMISSIONTYPE_ALL;
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(server, &sessionId,
+        &denyNodeId, &effective), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(effective, 0);
+
     UA_Server_deleteNode(server, nodeId, true);
+    UA_Server_deleteNode(server, denyNodeId, true);
+    (void)UA_Server_deleteSessionAttribute(server, &sessionId,
+                                           UA_QUALIFIEDNAME(0, "roles"));
     UA_NodeId_clear(&purgeRoleId);
 }
 END_TEST
@@ -3284,6 +3333,7 @@ static Suite *testSuite_NamespaceDefaults(void) {
     tcase_add_test(tc, namespaceDefault_noRoleMatchDenied);
     tcase_add_test(tc, namespaceDefault_perNamespaceIsolation);
     tcase_add_test(tc, namespaceDefault_invalidNamespaceIndex);
+    tcase_add_test(tc, namespaceDefault_explicitEmptyDenies);
     suite_add_tcase(s, tc);
     return s;
 }

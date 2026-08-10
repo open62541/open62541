@@ -76,6 +76,7 @@ typedef struct {
 typedef struct {
     size_t entriesSize;
     UA_RolePermission *entries;
+    UA_Boolean hasDefaultRolePermissions;
     UA_AccessRestrictionType defaultAccessRestrictions;
     UA_Boolean hasDefaultAccessRestrictions;
 } UA_NamespaceMetadata;
