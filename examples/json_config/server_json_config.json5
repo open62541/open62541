@@ -230,6 +230,17 @@
   //   // Nodes without explicit RolePermissions are fully permissive when this
   //   // is true. Set to false to actually enforce the configured permissions.
   //   allPermissionsForAnonymous: false,
+  //   // Configure mutable well-known Roles separately from custom Roles.
+  //   // This example grants SecurityAdmin to the authenticated user "admin".
+  //   wellKnownRoleMappings: [
+  //     {
+  //       roleId: "i=15704",
+  //       roleName: "SecurityAdmin",
+  //       identityMappingRules: [
+  //         { criteriaType: "UserName", criteria: "admin" }
+  //       ]
+  //     }
+  //   ],
   //   roles: [
   //     {
   //       // Optional; a NodeId is assigned automatically when omitted.
