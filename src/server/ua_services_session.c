@@ -297,7 +297,9 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
      * ignore the value. */
     if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
         retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
-    retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = UA_ByteString_allocBuffer(&signatureData->signature,
+                                           signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -450,9 +452,11 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     ephKey.publicKey.data[0] = 'e';
     ephKey.publicKey.data[1] = 'p';
     ephKey.publicKey.data[2] = 'h';
-    res |= sp->generateNonce(sp, spContext, &ephKey.publicKey);
-    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey.publicKey,
-                                           &ephKey.signature);
+    res = sp->generateNonce(sp, spContext, &ephKey.publicKey);
+    if(res == UA_STATUSCODE_GOOD)
+        res = sp->asymSignatureAlgorithm.sign(sp, spContext,
+                                              &ephKey.publicKey,
+                                              &ephKey.signature);
 
     /* Add the EphemeralKey to the map (deep copy) */
     if(res == UA_STATUSCODE_GOOD)
@@ -1449,8 +1453,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
     /* Generate a new session nonce for the next time ActivateSession is called */
     rh->serviceResult = UA_Session_generateNonce(session);
-    rh->serviceResult |= UA_ByteString_copy(&session->serverNonce,
-                                            &resp->serverNonce);
+    if(rh->serviceResult == UA_STATUSCODE_GOOD)
+        rh->serviceResult = UA_ByteString_copy(&session->serverNonce,
+                                               &resp->serverNonce);
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_ERROR_SESSION(server->config.logging, session,
@@ -1465,7 +1470,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
          * Session. If it is not specified the Server shall keep using the
          * current localeIds for the Session. */
         UA_String *tmpLocaleIds;
-        rh->serviceResult |=
+        rh->serviceResult =
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
