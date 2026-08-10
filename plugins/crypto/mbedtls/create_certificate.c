@@ -19,11 +19,8 @@
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/asn1write.h>
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-# include <mbedtls/entropy.h>
-# include <mbedtls/ctr_drbg.h>
-#endif
 #include <mbedtls/platform.h>
+#include <mbedtls/psa_util.h>
 #include <mbedtls/version.h>
 
 #define SET_OID(x, oid) \
@@ -44,16 +41,22 @@ static size_t mbedtls_get_san_list_deep(const mbedtls_write_san_list* sanlist);
 
 int mbedtls_x509write_crt_set_subject_alt_name(mbedtls_x509write_cert *ctx, const mbedtls_write_san_list* sanlist);
 
-#if MBEDTLS_VERSION_NUMBER < 0x03030000
-int mbedtls_x509write_crt_set_ext_key_usage(mbedtls_x509write_cert *ctx,
-                                            const mbedtls_asn1_sequence *exts);
-#endif
-
 static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat certFormat,
                              UA_ByteString *outCertificate, int (*f_rng)(void *, unsigned char *, size_t),
                              void *p_rng);
 
 static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFormat, UA_ByteString *outPrivateKey);
+
+static void
+clearSanList(mbedtls_write_san_list *head) {
+    while(head) {
+        mbedtls_write_san_list *next = head->next;
+        if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
+            mbedtls_free(head->node.host);
+        mbedtls_free(head);
+        head = next;
+    }
+}
 
 /* Case-insensitive comparison of a UA_String with a C string literal */
 static UA_Boolean
@@ -116,46 +119,24 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_ByteString_init(outCertificate);
 
     mbedtls_pk_context key;
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_entropy_context entropy;
-    const char *pers = "gen_key";
-#else
     UA_mbedTLS_PsaKey generatedKey;
-#endif
     mbedtls_x509write_cert crt;
 
     UA_StatusCode errRet = UA_STATUSCODE_GOOD;
 
     /* Set to sane values */
     mbedtls_pk_init(&key);
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
-#else
     UA_mbedTLS_PsaKey_init(&generatedKey);
-#endif
     mbedtls_x509write_crt_init(&crt);
 
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    /* Seed the random number generator */
-    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers)) != 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Failed to initialize the random number generator.");
-        errRet = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-#else
     if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Failed to initialize PSA Crypto.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-#endif
 
     /* Generate a key pair */
-#if MBEDTLS_VERSION_NUMBER >= 0x04000000
     psa_key_attributes_t keyAttributes = PSA_KEY_ATTRIBUTES_INIT;
     psa_algorithm_t hashAlgorithm = PSA_ALG_SHA_256;
     if(keyTypeEC &&
@@ -211,61 +192,6 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
     generatedKey.owned = true;
-#else
-    if(keyTypeEC) {
-#if MBEDTLS_VERSION_NUMBER >= 0x03000000
-        /* Map curve name to mbedTLS group ID */
-        mbedtls_ecp_group_id grp_id = MBEDTLS_ECP_DP_SECP256R1; /* default: P-256 */
-        if(uaStringEqualsCI_mbedtls(&eccCurve, "prime256v1") ||
-           uaStringEqualsCI_mbedtls(&eccCurve, "nistp256"))
-            grp_id = MBEDTLS_ECP_DP_SECP256R1;
-        else if(uaStringEqualsCI_mbedtls(&eccCurve, "secp384r1") ||
-                uaStringEqualsCI_mbedtls(&eccCurve, "nistp384"))
-            grp_id = MBEDTLS_ECP_DP_SECP384R1;
-        else if(uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp256r1"))
-            grp_id = MBEDTLS_ECP_DP_BP256R1;
-        else if(uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp384r1"))
-            grp_id = MBEDTLS_ECP_DP_BP384R1;
-        else if(uaStringEqualsCI_mbedtls(&eccCurve, "ed25519") ||
-                uaStringEqualsCI_mbedtls(&eccCurve, "ed448")) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "EdDSA (Curve25519/Curve448) certificate generation "
-                         "is not supported with mbedTLS. Use OpenSSL.");
-            errRet = UA_STATUSCODE_BADNOTIMPLEMENTED;
-            goto cleanup;
-        } else {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Create Certificate: Unsupported ECC curve for mbedTLS.");
-            errRet = UA_STATUSCODE_BADINVALIDARGUMENT;
-            goto cleanup;
-        }
-
-        if(mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)) != 0 ||
-           mbedtls_ecp_gen_key(grp_id, mbedtls_pk_ec(key),
-                               mbedtls_ctr_drbg_random, &ctr_drbg) != 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Failed to generate ECC key pair.");
-            errRet = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-#else
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "ECC certificate generation requires mbedTLS >= 3.0.");
-        errRet = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        goto cleanup;
-#endif
-    } else {
-        /* Generate an RSA key pair */
-        if(mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0 ||
-           mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedtls_ctr_drbg_random,
-                               &ctr_drbg, keySizeBits, 65537) != 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Failed to generate RSA key pair.");
-            errRet = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-    }
-#endif
 
     /* Setting certificate values */
     mbedtls_x509write_crt_set_version(&crt, MBEDTLS_X509_CRT_VERSION_3);
@@ -292,7 +218,6 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     size_t pos = 0;
     for(size_t i = 0; i < subjectSize; i++) {
-        subject_char_len += subject[i].length;
         memcpy(subject_char + pos, subject[i].data, subject[i].length);
         pos += subject[i].length;
         if(i < subjectSize - 1)
@@ -325,6 +250,11 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     for(size_t i = 0; i < subjectAltNameSize; i++) {
         /* Copy and null-terminate */
         char *subAlt = (char *)UA_malloc(subjectAltName[i].length + 1);
+        if(!subAlt) {
+            errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+            clearSanList(head);
+            goto cleanup;
+        }
         memcpy(subAlt, subjectAltName[i].data, subjectAltName[i].length);
         subAlt[subjectAltName[i].length] = 0;
 
@@ -348,6 +278,12 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         size_t sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
 
         cur_tmp = (mbedtls_write_san_list*)mbedtls_calloc(1, sizeof(mbedtls_write_san_list));
+        if(!cur_tmp) {
+            UA_free(subAlt);
+            errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+            clearSanList(head);
+            goto cleanup;
+        }
         cur_tmp->next = NULL;
         cur_tmp->node.host = sanValue;
         cur_tmp->node.hostlen = sanValueLength;
@@ -397,53 +333,55 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Setting subject alternative name failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
-        while(head != NULL) {
-            cur_tmp = head->next;
-            if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
-                mbedtls_free(head->node.host);
-            mbedtls_free(head);
-            head = cur_tmp;
-        }
+        clearSanList(head);
         goto cleanup;
     }
 
-    while(head != NULL) {
-        cur_tmp = head->next;
-        if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
-            mbedtls_free(head->node.host);
-        mbedtls_free(head);
-        head = cur_tmp;
-    }
+    clearSanList(head);
 
-#if MBEDTLS_VERSION_NUMBER >= 0x03040000
-    unsigned char *serial = (unsigned char *)"1";
-    size_t serial_len = 1;
-    mbedtls_x509write_crt_set_serial_raw(&crt, serial, serial_len);
-#else
-    mbedtls_mpi serial_mpi;
-    mbedtls_mpi_init(&serial_mpi);
-    mbedtls_mpi_lset(&serial_mpi, 1);
-    mbedtls_x509write_crt_set_serial(&crt, &serial_mpi);
-    mbedtls_mpi_free(&serial_mpi);
-#endif
+    /* RFC 5280 requires a positive serial number that is unique per issuer. */
+    unsigned char serial[16];
+    UA_ByteString serialBytes = {sizeof(serial), serial};
+    if(UA_mbedTLS_PsaRandom(&serialBytes) != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Generating the certificate serial number failed.");
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    serial[0] &= 0x7f; /* Keep the ASN.1 INTEGER positive. */
+    UA_Boolean serialIsZero = true;
+    for(size_t i = 0; i < sizeof(serial); i++)
+        serialIsZero &= (serial[i] == 0);
+    if(serialIsZero)
+        serial[sizeof(serial) - 1] = 1;
+    if(mbedtls_x509write_crt_set_serial_raw(&crt, serial, sizeof(serial)) != 0) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Setting the certificate serial number failed.");
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     /* Get the current time */
     time_t rawTime;
-    struct tm *timeInfo;
-    time(&rawTime);
-    timeInfo = gmtime(&rawTime);
-
-    /* Format the current timestamp */
-    char current_timestamp[15];  // YYYYMMDDhhmmss + '\0'
-    strftime(current_timestamp, sizeof(current_timestamp), "%Y%m%d%H%M%S", timeInfo);
-
-    /* Calculate the future timestamp */
-    timeInfo->tm_mday += expiresInDays;
-    time_t future_time = mktime(timeInfo);
-
-    /* Format the future timestamp */
-    char future_timestamp[15];  // YYYYMMDDhhmmss + '\0'
-    strftime(future_timestamp, sizeof(future_timestamp), "%Y%m%d%H%M%S", gmtime(&future_time));
+    if(time(&rawTime) == (time_t)-1) {
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    time_t futureTime = rawTime + (time_t)expiresInDays * 24 * 60 * 60;
+    struct tm *timeInfo = gmtime(&rawTime);
+    char current_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
+    if(!timeInfo || strftime(current_timestamp, sizeof(current_timestamp),
+                             "%Y%m%d%H%M%S", timeInfo) == 0) {
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    timeInfo = gmtime(&futureTime);
+    char future_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
+    if(!timeInfo || strftime(future_timestamp, sizeof(future_timestamp),
+                             "%Y%m%d%H%M%S", timeInfo) == 0) {
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     if(mbedtls_x509write_crt_set_validity(&crt, current_timestamp, future_timestamp) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -461,11 +399,10 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     /* ECC certificates need keyAgreement for ECDH instead of keyEncipherment */
     unsigned int keyUsageFlags = keyTypeEC
-        ? (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION
-           | MBEDTLS_X509_KU_KEY_AGREEMENT | MBEDTLS_X509_KU_KEY_CERT_SIGN)
-        : (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION
-           | MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT
-           | MBEDTLS_X509_KU_KEY_CERT_SIGN | MBEDTLS_X509_KU_CRL_SIGN);
+        ? (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
+           MBEDTLS_X509_KU_KEY_AGREEMENT)
+        : (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
+           MBEDTLS_X509_KU_KEY_ENCIPHERMENT | MBEDTLS_X509_KU_DATA_ENCIPHERMENT);
     if(mbedtls_x509write_crt_set_key_usage(&crt, keyUsageFlags) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Setting key usage failed.");
@@ -475,9 +412,18 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     mbedtls_asn1_sequence *ext_key_usage;
     ext_key_usage = (mbedtls_asn1_sequence *)mbedtls_calloc(1, sizeof(mbedtls_asn1_sequence));
+    if(!ext_key_usage) {
+        errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     ext_key_usage->buf.tag = MBEDTLS_ASN1_OID;
     SET_OID(ext_key_usage->buf, MBEDTLS_OID_SERVER_AUTH);
     ext_key_usage->next = (mbedtls_asn1_sequence *)mbedtls_calloc(1, sizeof(mbedtls_asn1_sequence));
+    if(!ext_key_usage->next) {
+        mbedtls_free(ext_key_usage);
+        errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     ext_key_usage->next->buf.tag = MBEDTLS_ASN1_OID;
     SET_OID(ext_key_usage->next->buf, MBEDTLS_OID_CLIENT_AUTH);
 
@@ -508,7 +454,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     /* Write Certificate */
     if ((write_certificate(&crt, certFormat, outCertificate,
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
-                           mbedtls_ctr_drbg_random, &ctr_drbg
+                           mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE
 #else
                            NULL, NULL
 #endif
@@ -520,12 +466,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     }
 
 cleanup:
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-#else
     UA_mbedTLS_PsaKey_clear(&generatedKey);
-#endif
     mbedtls_x509write_crt_free(&crt);
     mbedtls_pk_free(&key);
     return errRet;
@@ -558,9 +499,9 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
     }
     }
 
-    outPrivateKey->length = len;
-    UA_ByteString_allocBuffer(outPrivateKey, outPrivateKey->length);
-    memcpy(outPrivateKey->data, c, outPrivateKey->length);
+    if(UA_ByteString_allocBuffer(outPrivateKey, len) != UA_STATUSCODE_GOOD)
+        return -1;
+    memcpy(outPrivateKey->data, c, len);
 
     return 0;
 }
@@ -602,51 +543,12 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
     }
     }
 
-    outCertificate->length = len;
-    UA_ByteString_allocBuffer(outCertificate, outCertificate->length);
-    memcpy(outCertificate->data, c, outCertificate->length);
+    if(UA_ByteString_allocBuffer(outCertificate, len) != UA_STATUSCODE_GOOD)
+        return -1;
+    memcpy(outCertificate->data, c, len);
 
     return 0;
 }
-
-#if MBEDTLS_VERSION_NUMBER < 0x03030000
-int mbedtls_x509write_crt_set_ext_key_usage(mbedtls_x509write_cert *ctx,
-                                            const mbedtls_asn1_sequence *exts) {
-    unsigned char buf[256];
-    unsigned char *c = buf + sizeof(buf);
-    int ret;
-    size_t len = 0;
-    const mbedtls_asn1_sequence *last_ext = NULL;
-    const mbedtls_asn1_sequence *ext;
-
-    memset(buf, 0, sizeof(buf));
-
-    /* We need at least one extension: SEQUENCE SIZE (1..MAX) OF KeyPurposeId */
-    if(!exts) {
-        return MBEDTLS_ERR_X509_BAD_INPUT_DATA;
-    }
-
-    /* Iterate over exts backwards, so we write them out in the requested order */
-    while(last_ext != exts) {
-        for(ext = exts; ext->next != last_ext; ext = ext->next) {
-        }
-        if(ext->buf.tag != MBEDTLS_ASN1_OID) {
-            return MBEDTLS_ERR_X509_BAD_INPUT_DATA;
-        }
-        MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_raw_buffer(&c, buf, ext->buf.p, ext->buf.len));
-        MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&c, buf, ext->buf.len));
-        MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&c, buf, MBEDTLS_ASN1_OID));
-        last_ext = ext;
-    }
-
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&c, buf, len));
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&c, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
-
-    return mbedtls_x509write_crt_set_extension(ctx, MBEDTLS_OID_EXTENDED_KEY_USAGE,
-                                               MBEDTLS_OID_SIZE(MBEDTLS_OID_EXTENDED_KEY_USAGE), 1, c, len);
-}
-
-#endif
 
 static size_t mbedtls_get_san_list_deep(const mbedtls_write_san_list* sanlist) {
     size_t ret = 0;

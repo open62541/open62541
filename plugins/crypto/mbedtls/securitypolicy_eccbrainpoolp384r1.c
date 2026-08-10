@@ -10,7 +10,6 @@
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 #include <mbedtls/version.h>
-#if MBEDTLS_VERSION_NUMBER >= 0x03000000
 
 #include "securitypolicy_common.h"
 
@@ -29,20 +28,20 @@
 #define UA_SECURITYPOLICY_ECCBRAINPOOLP384R1_NONCE_LENGTH_BYTES 96
 
 typedef struct {
+    UA_ByteString localCertThumbprint;
     mbedtls_pk_context localPrivateKey;
     mbedtls_pk_context csrLocalPrivateKey;
-    UA_ByteString localCertThumbprint;
     UA_ApplicationType applicationType;
 } Policy_Context_EccBrainpoolP384r1;
 
 typedef struct Channel_Context_EccBrainpoolP384r1 {
     UA_mbedTLS_PsaKey localEphemeralKeyPair;
     UA_Boolean ephemeralKeyInitialized;
-    UA_ByteString localSymSigningKey;
-    UA_ByteString localSymEncryptingKey;
+    UA_mbedTLS_PsaKey localSymSigningKey;
+    UA_mbedTLS_PsaKey localSymEncryptingKey;
     UA_ByteString localSymIv;
-    UA_ByteString remoteSymSigningKey;
-    UA_ByteString remoteSymEncryptingKey;
+    UA_mbedTLS_PsaKey remoteSymSigningKey;
+    UA_mbedTLS_PsaKey remoteSymEncryptingKey;
     UA_ByteString remoteSymIv;
 
     UA_ByteString remoteCertificate;
@@ -62,19 +61,14 @@ UA_Policy_EccBrainpoolP384r1_New_Context(UA_SecurityPolicy *securityPolicy,
     mbedtls_pk_init(&context->localPrivateKey);
     mbedtls_pk_init(&context->csrLocalPrivateKey);
     int mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey,
-                                            &context->localPrivateKey, NULL);
+                                            &context->localPrivateKey);
     if(mbedErr) {
         UA_free(context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     /* Verify the key is an EC signing key */
-#if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    if(!PSA_KEY_TYPE_IS_ECC_KEY_PAIR(
-           mbedtls_pk_get_key_type(&context->localPrivateKey))) {
-#else
-    if(!mbedtls_pk_can_do(&context->localPrivateKey, MBEDTLS_PK_ECKEY)) {
-#endif
+    if(!UA_mbedTLS_IsEccKeyPair(&context->localPrivateKey)) {
         mbedtls_pk_free(&context->localPrivateKey);
         UA_free(context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -88,7 +82,7 @@ UA_Policy_EccBrainpoolP384r1_New_Context(UA_SecurityPolicy *securityPolicy,
         return retval;
     }
 
-    retval = mbedtls_thumbprint_sha1(&securityPolicy->localCertificate,
+    retval = UA_mbedTLS_thumbprintSha1(&securityPolicy->localCertificate,
                                      &context->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&context->localCertThumbprint);
@@ -121,33 +115,6 @@ UA_Policy_EccBrainpoolP384r1_Clear_Context(UA_SecurityPolicy *policy) {
 }
 
 static UA_StatusCode
-createSigningRequest_sp_eccbrainpoolp384r1(UA_SecurityPolicy *securityPolicy,
-                                    const UA_String *subjectName,
-                                    const UA_ByteString *nonce,
-                                    const UA_KeyValueMap *params,
-                                    UA_ByteString *csr,
-                                    UA_ByteString *newPrivateKey) {
-    if(!securityPolicy || !csr)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(!securityPolicy->policyContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    Policy_Context_EccBrainpoolP384r1 *pc =
-        (Policy_Context_EccBrainpoolP384r1*)securityPolicy->policyContext;
-    return mbedtls_createSigningRequest(&pc->localPrivateKey,
-                                        &pc->csrLocalPrivateKey, NULL, NULL,
-                                        securityPolicy, subjectName,
-                                        nonce, csr, newPrivateKey);
-#else
-    Policy_Context_EccBrainpoolP384r1 *pc =
-        (Policy_Context_EccBrainpoolP384r1*)securityPolicy->policyContext;
-    return UA_mbedTLS_createSigningRequestV4(
-        &pc->localPrivateKey, &pc->csrLocalPrivateKey, securityPolicy,
-        subjectName, nonce, csr, newPrivateKey);
-#endif
-}
-
-static UA_StatusCode
 updateCertificateAndPrivateKey_sp_EccBrainpoolP384r1(UA_SecurityPolicy *securityPolicy,
                                               const UA_ByteString newCertificate,
                                               const UA_ByteString newPrivateKey) {
@@ -166,7 +133,7 @@ updateCertificateAndPrivateKey_sp_EccBrainpoolP384r1(UA_SecurityPolicy *security
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
     int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey,
-                                            &pc->localPrivateKey, NULL);
+                                            &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -176,7 +143,7 @@ updateCertificateAndPrivateKey_sp_EccBrainpoolP384r1(UA_SecurityPolicy *security
     retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    retval = mbedtls_thumbprint_sha1(&securityPolicy->localCertificate,
+    retval = UA_mbedTLS_thumbprintSha1(&securityPolicy->localCertificate,
                                      &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
@@ -220,6 +187,10 @@ EccBrainpoolP384r1_New_Context(const UA_SecurityPolicy *securityPolicy,
     }
 
     UA_mbedTLS_PsaKey_init(&newContext->localEphemeralKeyPair);
+    UA_mbedTLS_PsaKey_init(&newContext->localSymSigningKey);
+    UA_mbedTLS_PsaKey_init(&newContext->localSymEncryptingKey);
+    UA_mbedTLS_PsaKey_init(&newContext->remoteSymSigningKey);
+    UA_mbedTLS_PsaKey_init(&newContext->remoteSymEncryptingKey);
     newContext->ephemeralKeyInitialized = UA_FALSE;
 
     *channelContext = newContext;
@@ -235,11 +206,11 @@ EccBrainpoolP384r1_Delete_Context(const UA_SecurityPolicy *policy,
         (Channel_Context_EccBrainpoolP384r1 *)channelContext;
     mbedtls_x509_crt_free(&cc->remoteCertificateX509);
     UA_ByteString_clear(&cc->remoteCertificate);
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    UA_mbedTLS_PsaKey_clear(&cc->localSymSigningKey);
+    UA_mbedTLS_PsaKey_clear(&cc->localSymEncryptingKey);
     UA_ByteString_clear(&cc->localSymIv);
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    UA_mbedTLS_PsaKey_clear(&cc->remoteSymSigningKey);
+    UA_mbedTLS_PsaKey_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
     UA_mbedTLS_PsaKey_clear(&cc->localEphemeralKeyPair);
     UA_free(cc);
@@ -261,7 +232,7 @@ static UA_StatusCode
 UA_makeCertificateThumbprint_EccBrainpoolP384r1(const UA_SecurityPolicy *securityPolicy,
                                          const UA_ByteString *certificate,
                                          UA_ByteString *thumbprint) {
-    return mbedtls_thumbprint_sha1(certificate, thumbprint);
+    return UA_mbedTLS_thumbprintSha1(certificate, thumbprint);
 }
 
 static size_t
@@ -345,8 +316,8 @@ EccBrainpoolP384r1_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP384r1 *cc = (Channel_Context_EccBrainpoolP384r1 *)channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+    return UA_mbedTLS_PsaKey_import(&cc->localSymSigningKey, PSA_KEY_TYPE_HMAC,
+        PSA_KEY_USAGE_SIGN_MESSAGE, PSA_ALG_HMAC(PSA_ALG_SHA_384), key);
 }
 
 static UA_StatusCode
@@ -356,8 +327,8 @@ EccBrainpoolP384r1_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP384r1 *cc = (Channel_Context_EccBrainpoolP384r1 *)channelContext;
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+    return UA_mbedTLS_PsaKey_import(&cc->localSymEncryptingKey, PSA_KEY_TYPE_AES,
+        PSA_KEY_USAGE_ENCRYPT, PSA_ALG_CBC_NO_PADDING, key);
 }
 
 static UA_StatusCode
@@ -396,8 +367,8 @@ EccBrainpoolP384r1_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP384r1 *cc = (Channel_Context_EccBrainpoolP384r1 *)channelContext;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+    return UA_mbedTLS_PsaKey_import(&cc->remoteSymSigningKey, PSA_KEY_TYPE_HMAC,
+        PSA_KEY_USAGE_VERIFY_MESSAGE, PSA_ALG_HMAC(PSA_ALG_SHA_384), key);
 }
 
 static UA_StatusCode
@@ -407,8 +378,8 @@ EccBrainpoolP384r1_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP384r1 *cc = (Channel_Context_EccBrainpoolP384r1 *)channelContext;
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+    return UA_mbedTLS_PsaKey_import(&cc->remoteSymEncryptingKey, PSA_KEY_TYPE_AES,
+        PSA_KEY_USAGE_DECRYPT, PSA_ALG_CBC_NO_PADDING, key);
 }
 
 static UA_StatusCode
@@ -464,14 +435,8 @@ UA_SymSig_EccBrainpoolP384r1_verify(const UA_SecurityPolicy *policy, void *chann
     if(signature->length != UA_SHA384_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     Channel_Context_EccBrainpoolP384r1 *cc = (Channel_Context_EccBrainpoolP384r1 *)channelContext;
-    UA_Byte mac[UA_SHA384_LENGTH];
-    UA_ByteString computed = {sizeof(mac), mac};
-    UA_StatusCode res = UA_mbedTLS_PsaMacComputeRaw(&cc->remoteSymSigningKey,
-        PSA_ALG_HMAC(PSA_ALG_SHA_384), message, &computed);
-    if(res != UA_STATUSCODE_GOOD ||
-       !UA_constantTimeEqual(computed.data, signature->data, computed.length))
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaMacVerify(cc->remoteSymSigningKey.id,
+        PSA_ALG_HMAC(PSA_ALG_SHA_384), message, signature);
 }
 
 static UA_StatusCode
@@ -482,7 +447,7 @@ UA_SymSig_EccBrainpoolP384r1_sign(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP384r1 *cc = (Channel_Context_EccBrainpoolP384r1 *)channelContext;
     signature->length = UA_SHA384_LENGTH;
-    return UA_mbedTLS_PsaMacComputeRaw(&cc->localSymSigningKey,
+    return UA_mbedTLS_PsaMacCompute(cc->localSymSigningKey.id,
         PSA_ALG_HMAC(PSA_ALG_SHA_384), message, signature);
 }
 
@@ -504,7 +469,7 @@ UA_SymEn_EccBrainpoolP384r1_decrypt(const UA_SecurityPolicy *policy,
     if(data->length % UA_SECURITYPOLICY_ECCBRAINPOOLP384R1_SYM_ENCRYPTION_BLOCK_SIZE != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    return UA_mbedTLS_PsaCipherRaw(&cc->remoteSymEncryptingKey,
+    return UA_mbedTLS_PsaCipher(cc->remoteSymEncryptingKey.id,
                                    PSA_ALG_CBC_NO_PADDING, false,
                                    &cc->remoteSymIv, data);
 }
@@ -523,7 +488,7 @@ UA_SymEn_EccBrainpoolP384r1_encrypt(const UA_SecurityPolicy *policy,
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    return UA_mbedTLS_PsaCipherRaw(&cc->localSymEncryptingKey,
+    return UA_mbedTLS_PsaCipher(cc->localSymEncryptingKey.id,
                                    PSA_ALG_CBC_NO_PADDING, true,
                                    &cc->localSymIv, data);
 }
@@ -629,7 +594,7 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccBrainpoolP384r1;
     sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccBrainpoolP384r1;
     sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccBrainpoolP384r1;
-    sp->createSigningRequest = createSigningRequest_sp_eccbrainpoolp384r1;
+    sp->createSigningRequest = UA_mbedTLS_createSigningRequest_generic;
     sp->clear = UA_Policy_EccBrainpoolP384r1_Clear_Context;
 
     UA_StatusCode res =
@@ -646,5 +611,4 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif /* MBEDTLS_VERSION_NUMBER >= 0x03000000 */
 #endif /* UA_ENABLE_ENCRYPTION_MBEDTLS */
