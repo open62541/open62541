@@ -949,9 +949,10 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
-     * browseable. Skipped when the NS0 RBAC information model is unavailable
-     * or the Role Object already exists (well-known roles). On failure the
-     * appended registry entry is rolled back. */
+     * browseable. Skipped when the Role Object already exists, which is the
+     * case for the well-known roles. The RoleSet itself is created by
+     * initNS0RBAC before any role is registered. On failure the appended
+     * registry entry is rolled back. */
     UA_NodeId roleSetId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
     UA_QualifiedName probe;
