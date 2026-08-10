@@ -952,6 +952,94 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     return retval;
 }
 
+typedef struct {
+    const char *oid;
+    size_t oidLength;
+    const char *name;
+    size_t nameLength;
+} RoleDnAttribute;
+
+static UA_Boolean
+roleOidEqual(const mbedtls_x509_buf *oid, const RoleDnAttribute *attribute) {
+    return oid->len == attribute->oidLength &&
+           memcmp(oid->p, attribute->oid, oid->len) == 0;
+}
+
+static UA_StatusCode
+roleDnCriteria(const mbedtls_x509_name *dn, UA_String *output) {
+    static const RoleDnAttribute attributes[] = {
+        {"\x55\x04\x03", 3, "CN", 2},
+        {"\x55\x04\x0a", 3, "O", 1},
+        {"\x55\x04\x0b", 3, "OU", 2},
+        {"\x09\x92\x26\x89\x93\xf2\x2c\x64\x01\x19", 10, "DC", 2},
+        {"\x55\x04\x07", 3, "L", 1},
+        {"\x55\x04\x08", 3, "S", 1},
+        {"\x55\x04\x06", 3, "C", 1},
+        {"\x55\x04\x2e", 3, "dnQualifier", 11},
+        {"\x55\x04\x05", 3, "serialNumber", 12}
+    };
+    UA_ByteString result = UA_BYTESTRING_NULL;
+    for(size_t a = 0; a < sizeof(attributes) / sizeof(attributes[0]); a++) {
+        for(const mbedtls_x509_name *entry = dn; entry; entry = entry->next) {
+            if(!roleOidEqual(&entry->oid, &attributes[a]))
+                continue;
+            for(size_t i = 0; i < entry->val.len; i++) {
+                if(entry->val.p[i] < 0x20 || entry->val.p[i] > 0x7e ||
+                   entry->val.p[i] == '"') {
+                    UA_ByteString_clear(&result);
+                    return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+                }
+            }
+            size_t separator = result.length > 0 ? 1 : 0;
+            size_t oldLength = result.length;
+            size_t added = separator + attributes[a].nameLength + 2 +
+                           entry->val.len + 1;
+            UA_Byte *data = (UA_Byte*)UA_realloc(result.data, oldLength + added);
+            if(!data) {
+                UA_ByteString_clear(&result);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            result.data = data;
+            size_t offset = oldLength;
+            if(separator)
+                data[offset++] = '/';
+            memcpy(&data[offset], attributes[a].name, attributes[a].nameLength);
+            offset += attributes[a].nameLength;
+            data[offset++] = '=';
+            data[offset++] = '"';
+            memcpy(&data[offset], entry->val.p, entry->val.len);
+            offset += entry->val.len;
+            data[offset] = '"';
+            result.length = oldLength + added;
+        }
+    }
+    *output = result;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria) {
+    if(!certificate || !subjectCriteria || !issuerCriteria)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *subjectCriteria = UA_STRING_NULL;
+    *issuerCriteria = UA_STRING_NULL;
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode res = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(res == UA_STATUSCODE_GOOD)
+        res = roleDnCriteria(&cert.subject, subjectCriteria);
+    if(res == UA_STATUSCODE_GOOD)
+        res = roleDnCriteria(&cert.issuer, issuerCriteria);
+    mbedtls_x509_crt_free(&cert);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(subjectCriteria);
+        UA_String_clear(issuerCriteria);
+    }
+    return res;
+}
+
 UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint){
