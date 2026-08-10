@@ -12,9 +12,10 @@
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include "securitypolicy_common.h"
+#include "securitypolicy_mbedtls_compat.h"
 #include "../deps/musl_inet_pton.h"
 
-#include <time.h>
+#include <stdio.h>
 
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>
@@ -22,7 +23,6 @@
 #include <mbedtls/platform.h>
 #include <mbedtls/platform_util.h>
 #include <mbedtls/psa_util.h>
-#include <mbedtls/version.h>
 
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
@@ -43,8 +43,7 @@ static size_t mbedtls_get_san_list_deep(const mbedtls_write_san_list* sanlist);
 int mbedtls_x509write_crt_set_subject_alt_name(mbedtls_x509write_cert *ctx, const mbedtls_write_san_list* sanlist);
 
 static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat certFormat,
-                             UA_ByteString *outCertificate, int (*f_rng)(void *, unsigned char *, size_t),
-                             void *p_rng);
+                             UA_ByteString *outCertificate);
 
 static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFormat, UA_ByteString *outPrivateKey);
 
@@ -57,6 +56,17 @@ clearSanList(mbedtls_write_san_list *head) {
         mbedtls_free(head);
         head = next;
     }
+}
+
+static UA_Boolean
+formatCertificateTime(UA_DateTime time, char output[15]) {
+    UA_DateTimeStruct value = UA_DateTime_toStruct(time);
+    if(value.year < 0 || value.year > 9999)
+        return false;
+    return snprintf(output, 15, "%04d%02u%02u%02u%02u%02u",
+                    (int)value.year, (unsigned)value.month,
+                    (unsigned)value.day, (unsigned)value.hour,
+                    (unsigned)value.min, (unsigned)value.sec) == 14;
 }
 
 /* Case-insensitive comparison of a UA_String with a C string literal */
@@ -366,24 +376,17 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    /* Get the current time */
-    time_t rawTime;
-    if(time(&rawTime) == (time_t)-1) {
-        errRet = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-    time_t futureTime = rawTime + (time_t)expiresInDays * 24 * 60 * 60;
-    struct tm *timeInfo = gmtime(&rawTime);
+    /* Use the open62541 UTC conversion. Unlike gmtime, this is reentrant. */
+    UA_DateTime currentTime = UA_DateTime_now();
+    UA_DateTime futureTime = currentTime +
+        (UA_DateTime)expiresInDays * 24 * 60 * 60 * UA_DATETIME_SEC;
     char current_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
-    if(!timeInfo || strftime(current_timestamp, sizeof(current_timestamp),
-                             "%Y%m%d%H%M%S", timeInfo) == 0) {
+    if(!formatCertificateTime(currentTime, current_timestamp)) {
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-    timeInfo = gmtime(&futureTime);
     char future_timestamp[15]; /* YYYYMMDDhhmmss + '\0' */
-    if(!timeInfo || strftime(future_timestamp, sizeof(future_timestamp),
-                             "%Y%m%d%H%M%S", timeInfo) == 0) {
+    if(!formatCertificateTime(futureTime, future_timestamp)) {
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
@@ -457,13 +460,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     }
 
     /* Write Certificate */
-    if((write_certificate(&crt, certFormat, &certificateOutput,
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-                           mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE
-#else
-                           NULL, NULL
-#endif
-                           )) != 0) {
+    if(write_certificate(&crt, certFormat, &certificateOutput) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Writing certificate failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
@@ -531,8 +528,7 @@ cleanup:
 }
 
 static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat certFormat,
-                      UA_ByteString *outCertificate, int (*f_rng)(void *, unsigned char *, size_t),
-                      void *p_rng) {
+                             UA_ByteString *outCertificate) {
     int ret;
     unsigned char output_buf[4096];
     unsigned char *c = output_buf;
@@ -541,26 +537,20 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
     memset(output_buf, 0, sizeof(output_buf));
     switch(certFormat) {
     case UA_CERTIFICATEFORMAT_DER: {
-        if((ret = mbedtls_x509write_crt_der(crt, output_buf, sizeof(output_buf)
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-                                           , f_rng, p_rng
-#endif
-                                           )) < 0) {
+        ret = UA_mbedTLS_compat_writeCertificateDer(
+            crt, output_buf, sizeof(output_buf));
+        if(ret < 0)
             return ret;
-        }
 
         len = (size_t)ret;
         c = output_buf + sizeof(output_buf) - len;
         break;
     }
     case UA_CERTIFICATEFORMAT_PEM: {
-        if((ret = mbedtls_x509write_crt_pem(crt, output_buf, sizeof(output_buf)
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-                                           , f_rng, p_rng
-#endif
-                                           )) < 0) {
+        ret = UA_mbedTLS_compat_writeCertificatePem(
+            crt, output_buf, sizeof(output_buf));
+        if(ret < 0)
             return ret;
-        }
 
         len = strlen((char *)output_buf);
         break;
