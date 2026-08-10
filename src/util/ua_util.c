@@ -550,7 +550,7 @@ UA_KeyValueMap_clear(UA_KeyValueMap *map) {
         UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     }
     map->map = NULL;
-    map->mapSize = 0
+    map->mapSize = 0;
 }
 
 void
