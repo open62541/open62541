@@ -19,11 +19,69 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/ecp.h>
 
+#if MBEDTLS_VERSION_NUMBER >= 0x03060000
+#include <psa/crypto.h>
+#define UA_MBEDTLS_USE_PSA 1
+#endif
+
 // MBEDTLS_ENTROPY_HARDWARE_ALT should be defined if your hardware does not supportd platform entropy
 
 #define UA_SHA1_LENGTH 20
 #define UA_MAXSUBJECTLENGTH 512
 #define MBEDTLS_SAN_MAX_LEN    64
+
+#if defined(UA_MBEDTLS_USE_PSA)
+typedef struct {
+    mbedtls_svc_key_id_t id;
+    UA_Boolean owned;
+} UA_mbedTLS_PsaKey;
+
+UA_StatusCode
+UA_mbedTLS_PSA_Init(void);
+
+void
+UA_mbedTLS_PsaKey_init(UA_mbedTLS_PsaKey *key);
+
+void
+UA_mbedTLS_PsaKey_clear(UA_mbedTLS_PsaKey *key);
+
+UA_StatusCode
+UA_mbedTLS_PsaKey_import(UA_mbedTLS_PsaKey *target,
+                         psa_key_type_t type, psa_key_usage_t usage,
+                         psa_algorithm_t algorithm,
+                         const UA_ByteString *material);
+
+UA_StatusCode
+UA_mbedTLS_PsaKey_importPk(UA_mbedTLS_PsaKey *target,
+                           const mbedtls_pk_context *source,
+                           psa_key_usage_t usage,
+                           psa_algorithm_t algorithm);
+
+UA_StatusCode
+UA_mbedTLS_PsaHashCompute(psa_algorithm_t algorithm,
+                          const UA_ByteString *input,
+                          UA_ByteString *output);
+
+UA_StatusCode
+UA_mbedTLS_PsaMacCompute(mbedtls_svc_key_id_t key,
+                         psa_algorithm_t algorithm,
+                         const UA_ByteString *input,
+                         UA_ByteString *output);
+
+UA_StatusCode
+UA_mbedTLS_PsaMacComputeRaw(const UA_ByteString *key,
+                            psa_algorithm_t algorithm,
+                            const UA_ByteString *input,
+                            UA_ByteString *output);
+
+UA_StatusCode
+UA_mbedTLS_PsaRandom(UA_ByteString *output);
+
+UA_StatusCode
+UA_mbedTLS_PsaCipher(mbedtls_svc_key_id_t key,
+                     psa_algorithm_t algorithm, UA_Boolean encrypt,
+                     const UA_ByteString *iv, UA_ByteString *data);
+#endif
 
 /* 
  * Define fallback for MBEDTLS_ASN1_CHK_CLEANUP_ADD if not already defined.
@@ -67,6 +125,13 @@ typedef struct {
     UA_ByteString remoteSymIv;
 
     mbedtls_x509_crt remoteCertificate;
+#if defined(UA_MBEDTLS_USE_PSA)
+    UA_mbedTLS_PsaKey localSymSigningKeyPsa;
+    UA_mbedTLS_PsaKey localSymEncryptingKeyPsa;
+    UA_mbedTLS_PsaKey remoteSymSigningKeyPsa;
+    UA_mbedTLS_PsaKey remoteSymEncryptingKeyPsa;
+    UA_mbedTLS_PsaKey remotePublicKeyPsa;
+#endif
 } mbedtls_ChannelContext;
 
 typedef struct {
@@ -77,7 +142,30 @@ typedef struct {
     mbedtls_md_context_t mdContext;
     mbedtls_pk_context localPrivateKey;
     mbedtls_pk_context csrLocalPrivateKey;
+#if defined(UA_MBEDTLS_USE_PSA)
+    UA_mbedTLS_PsaKey localPrivateKeyPsa;
+    UA_mbedTLS_PsaKey csrLocalPrivateKeyPsa;
+#endif
 } mbedtls_PolicyContext;
+
+#if defined(UA_MBEDTLS_USE_PSA)
+void
+UA_mbedTLS_ChannelContext_initPsa(mbedtls_ChannelContext *context);
+
+void
+UA_mbedTLS_ChannelContext_clearPsa(mbedtls_ChannelContext *context);
+
+void
+UA_mbedTLS_PolicyContext_initPsa(mbedtls_PolicyContext *context);
+
+void
+UA_mbedTLS_PolicyContext_clearPsa(mbedtls_PolicyContext *context);
+#else
+#define UA_mbedTLS_ChannelContext_initPsa(context) ((void)(context))
+#define UA_mbedTLS_ChannelContext_clearPsa(context) ((void)(context))
+#define UA_mbedTLS_PolicyContext_initPsa(context) ((void)(context))
+#define UA_mbedTLS_PolicyContext_clearPsa(context) ((void)(context))
+#endif
 
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
