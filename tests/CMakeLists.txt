@@ -51,7 +51,7 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # mbedtls includes
-    include_directories(${MBEDTLS_INCLUDE_DIRS})
+    include_directories(SYSTEM ${MBEDTLS_INCLUDE_DIRS})
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
