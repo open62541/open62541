@@ -1474,13 +1474,13 @@ initNS0RBAC(UA_Server *server) {
     if(UA_Server_readBrowseName(server, roleSetId, &bn) != UA_STATUSCODE_GOOD) {
         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
         oAttr.displayName = UA_LOCALIZEDTEXT("", "RoleSet");
-        retval |= UA_Server_addObjectNode(
+        RBAC_INIT_TRY(UA_Server_addObjectNode(
             server, roleSetId,
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES),
             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
             UA_QUALIFIEDNAME(0, "RoleSet"),
             UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE),
-            oAttr, NULL, NULL);
+            oAttr, NULL, NULL));
     } else {
         UA_QualifiedName_clear(&bn);
     }
@@ -1507,12 +1507,12 @@ initNS0RBAC(UA_Server *server) {
         if(UA_Server_readBrowseName(server, rId, &bn) != UA_STATUSCODE_GOOD) {
             UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
             oAttr.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)roles[i].name);
-            retval |= UA_Server_addObjectNode(
+            RBAC_INIT_TRY(UA_Server_addObjectNode(
                 server, rId, roleSetId,
                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                 UA_QUALIFIEDNAME(0, (char*)(uintptr_t)roles[i].name),
                 UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE),
-                oAttr, NULL, NULL);
+                oAttr, NULL, NULL));
         } else {
             UA_QualifiedName_clear(&bn);
         }
@@ -1525,8 +1525,8 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource identitiesDataSource;
             identitiesDataSource.read = readRoleIdentities;
             identitiesDataSource.write = NULL;
-            retval |= UA_Server_setVariableNode_dataSource(server, identitiesId,
-                                                           identitiesDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, identitiesId, identitiesDataSource));
             UA_NodeId_clear(&identitiesId);
         }
 
@@ -1536,8 +1536,8 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource applicationsExcludeDataSource;
             applicationsExcludeDataSource.read = readRoleApplicationsExclude;
             applicationsExcludeDataSource.write = writeRoleApplicationsExclude;
-            retval |= UA_Server_setVariableNode_dataSource(server, applicationsExcludeId,
-                                                           applicationsExcludeDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, applicationsExcludeId, applicationsExcludeDataSource));
             UA_NodeId_clear(&applicationsExcludeId);
         }
 
@@ -1547,8 +1547,8 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource endpointsExcludeDataSource;
             endpointsExcludeDataSource.read = readRoleEndpointsExclude;
             endpointsExcludeDataSource.write = writeRoleEndpointsExclude;
-            retval |= UA_Server_setVariableNode_dataSource(server, endpointsExcludeId,
-                                                           endpointsExcludeDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, endpointsExcludeId, endpointsExcludeDataSource));
             UA_NodeId_clear(&endpointsExcludeId);
         }
 
@@ -1560,45 +1560,49 @@ initNS0RBAC(UA_Server *server) {
             UA_DataSource customConfigDataSource;
             customConfigDataSource.read = readRoleCustomConfiguration;
             customConfigDataSource.write = NULL;
-            retval |= UA_Server_setVariableNode_dataSource(server, customConfigId,
-                                                           customConfigDataSource);
+            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+                server, customConfigId, customConfigDataSource));
             UA_NodeId_clear(&customConfigId);
         }
 
-        retval |= ensureRoleTypeMethods(server, &rId, false);
+        RBAC_INIT_TRY(ensureRoleTypeMethods(server, &rId, false));
     }
 
     /* The method callbacks must be attached to the RoleSet *instance* methods.
      * A Call resolves the object's own HasComponent method (the instance node),
      * not the type method, so a callback on the type node would never fire. */
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE),
-        addRoleMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addRoleMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_REMOVEROLE),
-        removeRoleMethodCallback);
+        removeRoleMethodCallback));
 
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY),
-        addIdentityMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addIdentityMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEIDENTITY),
-        removeIdentityMethodCallback);
+        removeIdentityMethodCallback));
 
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDAPPLICATION),
-        addApplicationMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addApplicationMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEAPPLICATION),
-        removeApplicationMethodCallback);
+        removeApplicationMethodCallback));
 
-    retval |= UA_Server_setMethodNode_callback(
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDENDPOINT),
-        addEndpointMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(
+        addEndpointMethodCallback));
+    RBAC_INIT_TRY(UA_Server_setMethodNode_callback(
         server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEENDPOINT),
-        removeEndpointMethodCallback);
+        removeEndpointMethodCallback));
 
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = initUserManagement(server);
+
+#undef RBAC_INIT_TRY
     return retval;
 }
 
