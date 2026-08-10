@@ -678,6 +678,14 @@
             }
           }
         },
+        "wellKnownRoleMappings": {
+          "type": "array",
+          "description": "Mappings and filters applied to mutable well-known Roles during startup; identify each Role by roleId or roleName",
+          "items": {
+            "type": "object",
+            "description": "Uses the same fields as entries in roles; mandatory Anonymous, AuthenticatedUser and TrustedApplication Roles cannot be updated"
+          }
+        },
         "rolePermissionPresets": {
           "type": "array",
           "description": "Initial role-permission presets (protected, never deleted at runtime)",

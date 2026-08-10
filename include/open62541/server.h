@@ -2624,8 +2624,17 @@ struct UA_ServerConfig {
     size_t rolesSize;
     UA_Role *roles;
 
-    /* If true, all permissions are granted regardless of roles.
-     * WARNING: Effectively disables authorization. Use for testing only. */
+    /* Mutable mappings and filters applied to already registered well-known
+     * Roles during startup. roleId or roleName identifies the target. The
+     * mandatory Anonymous, AuthenticatedUser and TrustedApplication Roles
+     * cannot be changed. */
+    size_t wellKnownRoleMappingsSize;
+    UA_Role *wellKnownRoleMappings;
+
+    /* If true, nodes without explicit or namespace-default RolePermissions
+     * grant all permissions regardless of roles. Explicit RolePermissions are
+     * still enforced. Defaults to true for backwards compatibility.
+     * WARNING: Authorization is ineffective for unconfigured nodes. */
     UA_Boolean allPermissionsForAnonymous;
 #endif
 };
