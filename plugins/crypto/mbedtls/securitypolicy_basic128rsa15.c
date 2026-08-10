@@ -306,58 +306,8 @@ static UA_StatusCode
 updateCertificateAndPrivateKey_basic128rsa15(UA_SecurityPolicy *securityPolicy,
                                                 const UA_ByteString newCertificate,
                                                 const UA_ByteString newPrivateKey) {
-    if(securityPolicy == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(securityPolicy->policyContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    mbedtls_PolicyContext *pc =
-        (mbedtls_PolicyContext *)securityPolicy->policyContext;
-
-    UA_Boolean isLocalKey = false;
-    if(newPrivateKey.length <= 0) {
-        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
-            isLocalKey = true;
-    }
-
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-
-    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
-
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Set the new private key */
-    if(newPrivateKey.length > 0) {
-        mbedtls_pk_free(&pc->localPrivateKey);
-        mbedtls_pk_init(&pc->localPrivateKey);
-        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey)) {
-            retval = UA_STATUSCODE_BADNOTSUPPORTED;
-            goto error;
-        }
-    } else {
-        if(!isLocalKey) {
-            mbedtls_pk_free(&pc->localPrivateKey);
-            pc->localPrivateKey = pc->csrLocalPrivateKey;
-            mbedtls_pk_init(&pc->csrLocalPrivateKey);
-        }
-    }
-
-    retval = asym_makeThumbprint_basic128rsa15(securityPolicy,
-                                                  &securityPolicy->localCertificate,
-                                                  &pc->localCertThumbprint);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return retval;
-
-    error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext != NULL)
-        clear_basic128rsa15(securityPolicy);
-    return retval;
+    return UA_mbedTLS_UpdateCertificateAndPrivateKey(
+        securityPolicy, newCertificate, newPrivateKey);
 }
 
 static UA_StatusCode
@@ -448,7 +398,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     asymEnc->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#rsa-1_5");
     asymEnc->encrypt = asym_encrypt_basic128rsa15;
     asymEnc->decrypt = asym_decrypt_basic128rsa15;
-    asymEnc->getLocalKeyLength = UA_mbedTLS_getRemoteCertificatePrivateKeyLength;
+    asymEnc->getLocalKeyLength = UA_mbedTLS_getLocalPrivateKeyBitLength;
     asymEnc->getRemoteKeyLength = asym_getRemoteEncryptionKeyLength_basic128rsa15;
     asymEnc->getRemoteBlockSize = UA_mbedTLS_getRemoteCertificatePrivateKeyLength;
     asymEnc->getRemotePlainTextBlockSize = asym_getRemotePlainTextBlockSize_basic128rsa15;

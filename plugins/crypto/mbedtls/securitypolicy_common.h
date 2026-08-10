@@ -122,6 +122,12 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         const UA_ByteString *key2,
                         UA_ByteString *output);
 
+UA_StatusCode
+UA_mbedTLS_EccGenerateNonce(const UA_SecurityPolicy *policy,
+                            UA_mbedTLS_PsaKey *ephemeralKey,
+                            psa_ecc_family_t family, size_t bits,
+                            UA_ByteString *output);
+
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
 UA_StatusCode
 UA_mbedTLS_createSigningRequestV4(mbedtls_pk_context *localPrivateKey,
@@ -220,7 +226,17 @@ UA_mbedTLS_LoadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
 
 UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target);
 
-UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);
+UA_StatusCode
+UA_mbedTLS_UpdateCertificateAndPrivateKey(UA_SecurityPolicy *securityPolicy,
+                                          const UA_ByteString newCertificate,
+                                          const UA_ByteString newPrivateKey);
+
+UA_StatusCode
+UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data,
+                               UA_ByteString *result);
+
+void
+UA_mbedTLS_clearSensitiveByteString(UA_ByteString *value);
 
 size_t
 UA_mbedTLS_asym_getRemoteSignatureSize_generic(const UA_SecurityPolicy *policy, const void *channelContext);
@@ -271,6 +287,10 @@ UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
 size_t
 UA_mbedTLS_getLocalPrivateKeyLength(const UA_SecurityPolicy *policy,
                                     const void *channelContext);
+
+size_t
+UA_mbedTLS_getLocalPrivateKeyBitLength(const UA_SecurityPolicy *policy,
+                                       const void *channelContext);
 
 UA_StatusCode
 UA_mbedTLS_compareCertificateThumbprint_generic(const UA_SecurityPolicy *securityPolicy,

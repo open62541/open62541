@@ -317,6 +317,47 @@ START_TEST(check_ca_intermediate) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+START_TEST(certificate_utils_reject_invalid_arguments) {
+    UA_ByteString invalid = {1, NULL};
+    UA_ByteString malformed = UA_BYTESTRING("not-a-certificate");
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_String uri = UA_STRING("urn:test");
+    UA_DateTime expiry = 0;
+    UA_String output = UA_STRING_NULL;
+    size_t keySize = 0;
+
+    ck_assert_uint_eq(
+        UA_CertificateUtils_verifyApplicationUri(&invalid, &uri),
+        UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_getExpirationDate(NULL, &expiry),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_getExpirationDate(&cert, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_getSubjectName(&invalid, &output),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_getThumbprint(&cert, &output),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_getKeySize(&cert, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_comparePublicKeys(&malformed, &cert),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_CertificateUtils_checkKeyPair(&cert, &invalid),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCA(&invalid),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_ByteString invalidPassword = {1, NULL};
+    UA_ByteString decrypted = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(
+        UA_CertificateUtils_decryptPrivateKey(cert, invalidPassword, &decrypted),
+        UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_getCertCommonName(&invalid, &output),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+}
+END_TEST
+#endif
+
 /* ===== Suite 2: SecurityPolicy None ===== */
 
 START_TEST(policy_none_update_certificate) {
@@ -566,10 +607,11 @@ START_TEST(certificate_generation_ip_san) {
     UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
                             UA_STRING_STATIC("O=TestOrganization"),
                             UA_STRING_STATIC("CN=TestServer@localhost")};
+    UA_Byte ipSanData[] = {'I', 'P', ':', '1', '2', '7', '.', '0', '.', '0', '.', '1'};
     UA_String subjectAltName[3] = {
         UA_STRING_STATIC("DNS:localhost"),
         UA_STRING_STATIC("URI:urn:test.application"),
-        UA_STRING_STATIC("IP:127.0.0.1")
+        {sizeof(ipSanData), ipSanData}
     };
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();
     UA_UInt16 expiresIn = 14;
@@ -1001,6 +1043,9 @@ static Suite *testSuite_crypto_coverage(void) {
     tcase_add_test(tc_utils, check_key_pair_pem);
     tcase_add_test(tc_utils, verify_application_uri_pem);
     tcase_add_test(tc_utils, check_ca_intermediate);
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    tcase_add_test(tc_utils, certificate_utils_reject_invalid_arguments);
+#endif
 #endif
     suite_add_tcase(s, tc_utils);
 

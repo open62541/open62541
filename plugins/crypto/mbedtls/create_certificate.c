@@ -20,6 +20,7 @@
 #include <mbedtls/oid.h>
 #include <mbedtls/asn1write.h>
 #include <mbedtls/platform.h>
+#include <mbedtls/platform_util.h>
 #include <mbedtls/psa_util.h>
 #include <mbedtls/version.h>
 
@@ -117,6 +118,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     UA_ByteString_init(outPrivateKey);
     UA_ByteString_init(outCertificate);
+    UA_ByteString privateKeyOutput = UA_BYTESTRING_NULL;
+    UA_ByteString certificateOutput = UA_BYTESTRING_NULL;
 
     mbedtls_pk_context key;
     UA_mbedTLS_PsaKey generatedKey;
@@ -184,6 +187,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                             PSA_KEY_USAGE_EXPORT | PSA_KEY_USAGE_SIGN_HASH);
     psa_status_t psaStatus = psa_generate_key(&keyAttributes, &generatedKey.id);
     psa_reset_key_attributes(&keyAttributes);
+    if(psaStatus == PSA_SUCCESS)
+        generatedKey.owned = true;
     if(psaStatus != PSA_SUCCESS ||
        mbedtls_pk_copy_from_psa(generatedKey.id, &key) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -191,7 +196,6 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-    generatedKey.owned = true;
 
     /* Setting certificate values */
     mbedtls_x509write_crt_set_version(&crt, MBEDTLS_X509_CRT_VERSION_3);
@@ -275,6 +279,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         }
 
         char *sanValue = (char *)subjectAltName[i].data + strlen(sanType) + 1;
+        const char *sanValueTerminated = subAlt + strlen(sanType) + 1;
         size_t sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
 
         cur_tmp = (mbedtls_write_san_list*)mbedtls_calloc(1, sizeof(mbedtls_write_san_list));
@@ -299,7 +304,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                 UA_free(subAlt);
                 continue;
             }
-            if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
+            if(musl_inet_pton(AF_INET, sanValueTerminated, ip) <= 0) {
                 UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
                 mbedtls_free(ip);
                 mbedtls_free(cur_tmp);
@@ -444,7 +449,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
 
     /* Write private key */
-    if ((write_private_key(&key, certFormat, outPrivateKey)) != 0) {
+    if((write_private_key(&key, certFormat, &privateKeyOutput)) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Writing private key failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
@@ -452,7 +457,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     }
 
     /* Write Certificate */
-    if ((write_certificate(&crt, certFormat, outCertificate,
+    if((write_certificate(&crt, certFormat, &certificateOutput,
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
                            mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE
 #else
@@ -465,7 +470,14 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
+    *outPrivateKey = privateKeyOutput;
+    UA_ByteString_init(&privateKeyOutput);
+    *outCertificate = certificateOutput;
+    UA_ByteString_init(&certificateOutput);
+
 cleanup:
+    UA_mbedTLS_clearSensitiveByteString(&privateKeyOutput);
+    UA_ByteString_clear(&certificateOutput);
     UA_mbedTLS_PsaKey_clear(&generatedKey);
     mbedtls_x509write_crt_free(&crt);
     mbedtls_pk_free(&key);
@@ -473,37 +485,49 @@ cleanup:
 }
 
 static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFormat, UA_ByteString *outPrivateKey) {
-    int ret;
-    unsigned char output_buf[16000];
+    if(!key || !outPrivateKey)
+        return -1;
+
+    int ret = -1;
+    UA_ByteString_init(outPrivateKey);
+    unsigned char output_buf[16000] = {0};
     unsigned char *c = output_buf;
     size_t len = 0;
 
-    memset(output_buf, 0, sizeof(output_buf));
     switch(keyFormat) {
     case UA_CERTIFICATEFORMAT_DER: {
-        if((ret = mbedtls_pk_write_key_der(key, output_buf, sizeof(output_buf))) < 0) {
-            return ret;
-        }
+        ret = mbedtls_pk_write_key_der(key, output_buf, sizeof(output_buf));
+        if(ret <= 0)
+            goto cleanup;
 
         len = (size_t)ret;
         c = output_buf + sizeof(output_buf) - len;
         break;
     }
     case UA_CERTIFICATEFORMAT_PEM: {
-        if((ret = mbedtls_pk_write_key_pem(key, output_buf, sizeof(output_buf))) != 0) {
-            return ret;
-        }
+        ret = mbedtls_pk_write_key_pem(key, output_buf, sizeof(output_buf));
+        if(ret != 0)
+            goto cleanup;
 
         len = strlen((char *)output_buf);
         break;
     }
+    default:
+        goto cleanup;
     }
 
-    if(UA_ByteString_allocBuffer(outPrivateKey, len) != UA_STATUSCODE_GOOD)
-        return -1;
+    if(UA_ByteString_allocBuffer(outPrivateKey, len) != UA_STATUSCODE_GOOD) {
+        ret = -1;
+        goto cleanup;
+    }
     memcpy(outPrivateKey->data, c, len);
+    ret = 0;
 
-    return 0;
+cleanup:
+    mbedtls_platform_zeroize(output_buf, sizeof(output_buf));
+    if(ret != 0)
+        UA_mbedTLS_clearSensitiveByteString(outPrivateKey);
+    return ret;
 }
 
 static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat certFormat,

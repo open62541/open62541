@@ -322,59 +322,8 @@ static UA_StatusCode
 updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
                                            const UA_ByteString newCertificate,
                                            const UA_ByteString newPrivateKey) {
-    if(securityPolicy == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(securityPolicy->policyContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
-        securityPolicy->policyContext;
-
-    UA_Boolean isLocalKey = false;
-    if(newPrivateKey.length <= 0) {
-        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
-            isLocalKey = true;
-    }
-
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-
-    UA_StatusCode retval =
-        UA_mbedTLS_LoadLocalCertificate(&newCertificate,
-                                        &securityPolicy->localCertificate);
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Set the new private key */
-    if(newPrivateKey.length > 0) {
-        mbedtls_pk_free(&pc->localPrivateKey);
-        mbedtls_pk_init(&pc->localPrivateKey);
-        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey)) {
-            retval = UA_STATUSCODE_BADNOTSUPPORTED;
-            goto error;
-        }
-    } else {
-        if(!isLocalKey) {
-            mbedtls_pk_free(&pc->localPrivateKey);
-            pc->localPrivateKey = pc->csrLocalPrivateKey;
-            mbedtls_pk_init(&pc->csrLocalPrivateKey);
-        }
-    }
-
-    retval = asym_makeThumbprint_sp_basic256(securityPolicy,
-                                             &securityPolicy->localCertificate,
-                                             &pc->localCertThumbprint);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return retval;
-
-    error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext != NULL)
-        clear_sp_basic256(securityPolicy);
-    return retval;
+    return UA_mbedTLS_UpdateCertificateAndPrivateKey(
+        securityPolicy, newCertificate, newPrivateKey);
 }
 
 static UA_StatusCode
