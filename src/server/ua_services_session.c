@@ -1318,32 +1318,63 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
          channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) &&
         channel->remoteCertificate.length > 0);
+    UA_StatusCode ctxRes = UA_STATUSCODE_GOOD;
     if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *ut = (const UA_UserNameIdentityToken*)
             req->userIdentityToken.content.decoded.data;
-        UA_String_copy(&ut->userName, &ctx.userName);
+        ctxRes = UA_String_copy(&ut->userName, &ctx.userName);
     } else if(rbacTokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
         /* Derive the thumbprint and subject of the user certificate for the
          * Thumbprint and X509Subject identity criteria (Part 18 §4.4.2). */
         UA_X509IdentityToken *x509 = (UA_X509IdentityToken*)
             req->userIdentityToken.content.decoded.data;
-        UA_CertificateUtils_getThumbprint(&x509->certificateData, &ctx.userThumbprint);
-        UA_CertificateUtils_getSubjectName(&x509->certificateData, &ctx.userSubject);
+        /* The certificate utility writes the 20-byte SHA-1 thumbprint as 40
+         * hexadecimal characters into caller-provided storage. */
+        ctxRes = UA_ByteString_allocBuffer((UA_ByteString*)&ctx.userThumbprint, 40);
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_CertificateUtils_getThumbprint(&x509->certificateData,
+                                                       &ctx.userThumbprint);
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_CertificateUtils_getRoleSubjectCriteria(
+                &x509->certificateData, &ctx.userSubject, &ctx.userIssuer);
     }
-    /* ApplicationUri of the connecting client for the Application identity
-     * criterion and the Application role filter. */
-    UA_String_copy(&session->clientDescription.applicationUri, &ctx.applicationUri);
-    if(ed) {
-        UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
+    /* Only retain an ApplicationUri for authorization if CreateSession bound it
+     * to an accepted ApplicationInstance Certificate on a signed channel. */
+    if(ctxRes == UA_STATUSCODE_GOOD && ctx.trustedApplication)
+        ctxRes = UA_String_copy(&session->clientDescription.applicationUri,
+                                &ctx.applicationUri);
+    if(ctxRes == UA_STATUSCODE_GOOD && ed) {
+        ctxRes = UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
         ctx.endpointSecurityMode = ed->securityMode;
-        UA_String_copy(&ed->securityPolicyUri, &ctx.securityPolicyUri);
-        UA_String_copy(&ed->transportProfileUri, &ctx.transportProfileUri);
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_String_copy(&ed->securityPolicyUri,
+                                    &ctx.securityPolicyUri);
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_String_copy(&ed->transportProfileUri,
+                                    &ctx.transportProfileUri);
     }
     /* GroupIds for the GroupId identity criterion (optional hook) */
-    if(server->config.accessControl.getUserGroups) {
-        server->config.accessControl.getUserGroups(
+    if(ctxRes == UA_STATUSCODE_GOOD &&
+       server->config.accessControl.getUserGroups) {
+        ctxRes = server->config.accessControl.getUserGroups(
             server, &server->config.accessControl, &session->sessionId,
             session->context, &ctx.groups, &ctx.groupsSize);
+    }
+    /* Role criteria represent claims from an accepted access token, not
+     * composition with another OPC UA Role. Never query this provider for
+     * anonymous, username or certificate identity tokens. */
+    if(ctxRes == UA_STATUSCODE_GOOD &&
+       rbacTokenType == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN] &&
+       server->config.accessControl.getUserTokenRoles) {
+        ctxRes = server->config.accessControl.getUserTokenRoles(
+            server, &server->config.accessControl, &session->sessionId,
+            session->context, &ctx.tokenRoles, &ctx.tokenRolesSize);
+    }
+
+    if(ctxRes != UA_STATUSCODE_GOOD) {
+        UA_SessionIdentityContext_clear(&ctx);
+        rh->serviceResult = ctxRes;
+        UA_SECURITY_REJECT;
     }
 
     /* Store the snapshot (transfer ownership), replacing any previous one from
