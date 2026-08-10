@@ -15,9 +15,11 @@
 #include <mbedtls/x509.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
-#include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
-#include <mbedtls/sha256.h>
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+# include <mbedtls/entropy.h>
+# include <mbedtls/sha256.h>
+#endif
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
 #include <mbedtls/psa_util.h>
 #endif
@@ -390,10 +392,9 @@ mbedtlsFindNextIssuer(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
                     prev = NULL; /* This was the last issuer we tried to verify */
                 continue;
             }
-            /* Compare issuer name and subject name.
-             * Skip when the key does not match the signature. */
-            if(mbedtlsSameName(issuerName, &i->subject) &&
-               mbedtls_pk_can_do(&i->pk, cert->MBEDTLS_PRIVATE(sig_pk)))
+            /* Compare issuer name and subject name. Signature verification
+             * below rejects candidates with an incompatible key. */
+            if(mbedtlsSameName(issuerName, &i->subject))
                 return i;
         }
 
@@ -466,10 +467,15 @@ mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
         return false;
 #endif
     const mbedtls_x509_buf *sig = &cert->MBEDTLS_PRIVATE(sig);
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    return (mbedtls_pk_verify_ext(cert->MBEDTLS_PRIVATE(sig_pk), &issuer->pk, md,
+                                  hash, hash_len, sig->p, sig->len) == 0);
+#else
     void *sig_opts = cert->MBEDTLS_PRIVATE(sig_opts);
     mbedtls_pk_type_t pktype = cert->MBEDTLS_PRIVATE(sig_pk);
     return (mbedtls_pk_verify_ext(pktype, sig_opts, &issuer->pk, md,
                                   hash, hash_len, sig->p, sig->len) == 0);
+#endif
 }
 
 static UA_StatusCode
@@ -641,6 +647,9 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     if(certGroup == NULL || certificateGroupId == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
@@ -865,17 +874,23 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    if(!PSA_KEY_TYPE_IS_RSA(mbedtls_pk_get_key_type(&publicKey.pk))) {
+        mbedtls_x509_crt_free(&publicKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    *keySize = mbedtls_pk_get_bitlen(&publicKey.pk);
+#else
     if(!mbedtls_pk_can_do(&publicKey.pk, MBEDTLS_PK_RSA)) {
         mbedtls_x509_crt_free(&publicKey);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(publicKey.pk);
-
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     *keySize = rsa->len * 8;
 #else
     *keySize = mbedtls_rsa_get_len(rsa) * 8;
+#endif
 #endif
     mbedtls_x509_crt_free(&publicKey);
 
@@ -891,8 +906,6 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     mbedtls_x509_crt cert2;
     mbedtls_x509_csr csr1;
     mbedtls_x509_csr csr2;
-    mbedtls_mpi N1, E1;
-    mbedtls_mpi N2, E2;
 
     UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate1);
     UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(certificate2);
@@ -901,10 +914,6 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     mbedtls_x509_crt_init(&cert2);
     mbedtls_x509_csr_init(&csr1);
     mbedtls_x509_csr_init(&csr2);
-    mbedtls_mpi_init(&N1);
-    mbedtls_mpi_init(&E1);
-    mbedtls_mpi_init(&N2);
-    mbedtls_mpi_init(&E2);
 
     int mbedErr = mbedtls_x509_crt_parse(&cert1, data1.data, data1.length);
     if(mbedErr) {
@@ -927,48 +936,26 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     }
 
 #if MBEDTLS_VERSION_NUMBER < 0x03000000
-    mbedtls_pk_context pk1 = cert1.pk.pk_info ? cert1.pk : csr1.pk;
-    mbedtls_pk_context pk2 = cert2.pk.pk_info ? cert2.pk : csr2.pk;
+    mbedtls_pk_context *pk1 = cert1.pk.pk_info ? &cert1.pk : &csr1.pk;
+    mbedtls_pk_context *pk2 = cert2.pk.pk_info ? &cert2.pk : &csr2.pk;
 #else
-    mbedtls_pk_context pk1 = cert1.pk_raw.p ? cert1.pk : csr1.pk;
-    mbedtls_pk_context pk2 = cert2.pk_raw.p ? cert2.pk : csr2.pk;
+    mbedtls_pk_context *pk1 = cert1.pk_raw.p ? &cert1.pk : &csr1.pk;
+    mbedtls_pk_context *pk2 = cert2.pk_raw.p ? &cert2.pk : &csr2.pk;
 #endif
-
-    if(!mbedtls_pk_rsa(pk1) || !mbedtls_pk_rsa(pk2)) {
+    unsigned char pub1[4096];
+    unsigned char pub2[4096];
+    int len1 = mbedtls_pk_write_pubkey_der(pk1, pub1, sizeof(pub1));
+    int len2 = mbedtls_pk_write_pubkey_der(pk2, pub2, sizeof(pub2));
+    if(len1 <= 0 || len2 <= 0) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-
-    if(!mbedtls_pk_can_do(&pk1, MBEDTLS_PK_RSA) &&
-       !mbedtls_pk_can_do(&pk2, MBEDTLS_PK_RSA)) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-
-#if MBEDTLS_VERSION_NUMBER < 0x02070000
-    N1 = mbedtls_pk_rsa(pk1)->N;
-    E1 = mbedtls_pk_rsa(pk1)->E;
-    N2 = mbedtls_pk_rsa(pk2)->N;
-    E2 = mbedtls_pk_rsa(pk2)->E;
-#else
-    if(mbedtls_rsa_export(mbedtls_pk_rsa(pk1), &N1, NULL, NULL, NULL, &E1) != 0) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-    if(mbedtls_rsa_export(mbedtls_pk_rsa(pk2), &N2, NULL, NULL, NULL, &E2) != 0) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-#endif
-
-    if(mbedtls_mpi_cmp_mpi(&N1, &N2) || mbedtls_mpi_cmp_mpi(&E1, &E2))
+    if(len1 != len2 ||
+       memcmp(pub1 + sizeof(pub1) - (size_t)len1,
+              pub2 + sizeof(pub2) - (size_t)len2, (size_t)len1) != 0)
         retval = UA_STATUSCODE_BADNOMATCH;
 
 cleanup:
-    mbedtls_mpi_free(&N1);
-    mbedtls_mpi_free(&E1);
-    mbedtls_mpi_free(&N2);
-    mbedtls_mpi_free(&E2);
     mbedtls_x509_crt_free(&cert1);
     mbedtls_x509_crt_free(&cert2);
     mbedtls_x509_csr_free(&csr1);
@@ -996,22 +983,20 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Verify the private key matches the public key in the certificate */
-    if(!mbedtls_pk_can_do(&pk, mbedtls_pk_get_type(&cert.pk))) {
+    /* Compare the encoded public keys. This avoids the version-specific
+     * mbedtls_pk_check_pair API and works for both RSA and ECC keys. */
+    unsigned char certPublicKey[4096];
+    unsigned char privatePublicKey[4096];
+    int certPublicKeySize = mbedtls_pk_write_pubkey_der(&cert.pk, certPublicKey,
+                                                        sizeof(certPublicKey));
+    int privatePublicKeySize = mbedtls_pk_write_pubkey_der(&pk, privatePublicKey,
+                                                           sizeof(privatePublicKey));
+    if(certPublicKeySize <= 0 || privatePublicKeySize <= 0 ||
+       certPublicKeySize != privatePublicKeySize ||
+       memcmp(certPublicKey + sizeof(certPublicKey) - (size_t)certPublicKeySize,
+              privatePublicKey + sizeof(privatePublicKey) - (size_t)privatePublicKeySize,
+              (size_t)certPublicKeySize) != 0)
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto cleanup;
-    }
-
-    /* Check if the public key from the certificate matches the private key */
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    if(mbedtls_pk_check_pair(&cert.pk, &pk) != 0) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-#else
-    if(mbedtls_pk_check_pair(&cert.pk, &pk, mbedtls_entropy_func, NULL) != 0) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-#endif
 
 cleanup:
     mbedtls_pk_free(&pk);
@@ -1043,6 +1028,8 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       UA_ByteString *outDerKey) {
     if(!outDerKey)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     if (privateKey.length == 0) {
         *outDerKey = UA_BYTESTRING_NULL;
@@ -1064,7 +1051,11 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
     /* Create the private-key context */
     mbedtls_pk_context ctx;
     mbedtls_pk_init(&ctx);
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
+                                   nullTerminatedKey.length,
+                                   password.data, password.length);
+#elif MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
                                    nullTerminatedKey.length,
                                    password.data, password.length);

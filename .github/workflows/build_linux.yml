@@ -3,6 +3,51 @@ name: Linux Build & Test
 on: [push, pull_request]
 
 jobs:
+  mbedtls-compatibility:
+    name: mbedTLS ${{ matrix.mbedtls-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        mbedtls-version: ["3.6.4", "4.2.0"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/checkout@v7
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: mbedtls-${{ matrix.mbedtls-version }}
+          path: mbedtls-source
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3
+      - name: Build mbedTLS
+        run: |
+          cmake -S mbedtls-source -B mbedtls-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/mbedtls \
+            -DENABLE_PROGRAMS=OFF \
+            -DENABLE_TESTING=OFF
+          cmake --build mbedtls-build --parallel
+          cmake --install mbedtls-build
+      - name: Build and test open62541
+        run: |
+          cmake -S . -B build-mbedtls \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DMBEDTLS_FOLDER_INCLUDE=${{ runner.temp }}/mbedtls/include \
+            -DMBEDTLS_FOLDER_LIBRARY=${{ runner.temp }}/mbedtls/lib \
+            -DUA_BUILD_UNIT_TESTS=ON \
+            -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
+            -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+            -DUA_ENABLE_PUBSUB=ON \
+            -DUA_FORCE_WERROR=ON \
+            -DUA_NAMESPACE_ZERO=FULL
+          cmake --build build-mbedtls --parallel
+          ctest --test-dir build-mbedtls --output-on-failure \
+            -R "(encryption|cert|crypto|ecc|pubsub)"
+
   build:
     strategy:
       fail-fast: false

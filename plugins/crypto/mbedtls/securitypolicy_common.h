@@ -138,6 +138,17 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         const UA_ByteString *key1,
                         const UA_ByteString *key2,
                         UA_ByteString *output);
+
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+UA_StatusCode
+UA_mbedTLS_createSigningRequestV4(mbedtls_pk_context *localPrivateKey,
+                                  mbedtls_pk_context *csrLocalPrivateKey,
+                                  UA_SecurityPolicy *securityPolicy,
+                                  const UA_String *subjectName,
+                                  const UA_ByteString *nonce,
+                                  UA_ByteString *csr,
+                                  UA_ByteString *newPrivateKey);
+#endif
 #endif
 
 /* 
@@ -194,7 +205,9 @@ typedef struct {
 typedef struct {
     UA_ByteString localCertThumbprint;
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_md_context_t mdContext;
+#endif
     mbedtls_pk_context localPrivateKey;
     mbedtls_pk_context csrLocalPrivateKey;
 #if MBEDTLS_VERSION_NUMBER < 0x04000000

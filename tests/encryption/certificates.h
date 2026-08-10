@@ -403,10 +403,45 @@ UA_Byte CERT_PEM_DATA[1367] = {
     0x45, 0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x0a
 };
 
-/* Generated from KEY_PEM_DATA via: openssl pkcs8 -topk8 -v2 des3 -in key.pem -out key-password.pem
-   The password is pass1234 */
-#define KEY_PEM_PASSWORD_LENGTH 1854
-UA_Byte KEY_PEM_PASSWORD_DATA[KEY_PEM_PASSWORD_LENGTH] = {
+/* Generated from KEY_PEM_DATA via:
+ * openssl pkcs8 -topk8 -v2 aes-256-cbc -in key.pem -out key-password.pem
+ * The password is pass1234. AES-PBES2 is supported by both Mbed TLS 3 and 4. */
+UA_Byte KEY_PEM_PASSWORD_DATA[] =
+    "-----BEGIN ENCRYPTED PRIVATE KEY-----\n"
+    "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\n"
+    "-----END ENCRYPTED PRIVATE KEY-----\n";
+#define KEY_PEM_PASSWORD_LENGTH (sizeof(KEY_PEM_PASSWORD_DATA) - 1)
+
+/* Legacy PBES2/3DES fixture. Mbed TLS 4 intentionally has no DES support. */
+#define KEY_PEM_PASSWORD_3DES_LENGTH 1854
+UA_Byte KEY_PEM_PASSWORD_3DES_DATA[KEY_PEM_PASSWORD_3DES_LENGTH] = {
     0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, 0x49, 0x4e, 0x20, 0x45, 0x4e, 0x43, 0x52, 0x59,
     0x50, 0x54, 0x45, 0x44, 0x20, 0x50, 0x52, 0x49, 0x56, 0x41, 0x54, 0x45, 0x20, 0x4b, 0x45, 0x59,
     0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x0a, 0x4d, 0x49, 0x49, 0x46, 0x48, 0x44, 0x42, 0x4f, 0x42, 0x67,

@@ -962,7 +962,6 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
 }
 #endif
 
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
 static size_t
 mbedtls_getSequenceListDeep(const mbedtls_x509_sequence *sanlist) {
     size_t ret = 0;
@@ -1053,8 +1052,6 @@ mbedtls_writePrivateKeyDer(mbedtls_pk_context *key, UA_ByteString *outPrivateKey
 
     return UA_STATUSCODE_GOOD;
 }
-#endif
-
 #if MBEDTLS_VERSION_NUMBER < 0x04000000
 UA_StatusCode
 mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
@@ -1248,9 +1245,151 @@ cleanup:
 }
 #endif
 
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+UA_StatusCode
+UA_mbedTLS_createSigningRequestV4(mbedtls_pk_context *localPrivateKey,
+                                  mbedtls_pk_context *csrLocalPrivateKey,
+                                  UA_SecurityPolicy *securityPolicy,
+                                  const UA_String *subjectName,
+                                  const UA_ByteString *nonce,
+                                  UA_ByteString *csr,
+                                  UA_ByteString *newPrivateKey) {
+    if(!securityPolicy || !csr || !localPrivateKey || !csrLocalPrivateKey)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    (void)nonce; /* PSA manages its own entropy pool. */
+    mbedtls_pk_free(csrLocalPrivateKey);
+    if(newPrivateKey && newPrivateKey->length > 0) {
+        mbedtls_pk_init(csrLocalPrivateKey);
+        return UA_mbedTLS_LoadPrivateKey(newPrivateKey, csrLocalPrivateKey, NULL) == 0 ?
+            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+    if(csr->length > 0)
+        return UA_STATUSCODE_GOOD;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    char *subj = NULL;
+    mbedtls_x509_crt x509Cert;
+    mbedtls_x509_crt_init(&x509Cert);
+    mbedtls_x509write_csr request;
+    mbedtls_x509write_csr_init(&request);
+
+    UA_ByteString certificateStr =
+        UA_mbedTLS_CopyDataFormatAware(&securityPolicy->localCertificate);
+    int ret = mbedtls_x509_crt_parse(&x509Cert, certificateStr.data,
+                                     certificateStr.length);
+    UA_ByteString_clear(&certificateStr);
+    if(ret != 0) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto cleanup;
+    }
+
+    mbedtls_x509write_csr_set_md_alg(&request, MBEDTLS_MD_SHA256);
+    ret = mbedtls_x509write_csr_set_key_usage(
+        &request, MBEDTLS_X509_KU_DIGITAL_SIGNATURE |
+                  MBEDTLS_X509_KU_DATA_ENCIPHERMENT |
+                  MBEDTLS_X509_KU_NON_REPUDIATION |
+                  MBEDTLS_X509_KU_KEY_ENCIPHERMENT);
+    if(ret != 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(subjectName && subjectName->length > 0) {
+        subj = (char*)UA_malloc(subjectName->length + 1);
+        if(!subj) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        memcpy(subj, subjectName->data, subjectName->length);
+        subj[subjectName->length] = 0;
+        for(size_t i = 0; i < subjectName->length; i++) {
+            if(subj[i] == '/')
+                subj[i] = ',';
+        }
+    } else {
+        subj = (char*)UA_malloc(UA_MAXSUBJECTLENGTH);
+        if(!subj) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        if(mbedtls_x509_dn_gets(subj, UA_MAXSUBJECTLENGTH,
+                               &x509Cert.subject) <= 0) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+    }
+    if(mbedtls_x509write_csr_set_subject_name(&request, subj) != 0 ||
+       mbedtls_x509write_csrSetSubjectAltName(
+           &request, &x509Cert.subject_alt_names) != UA_STATUSCODE_GOOD) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(newPrivateKey) {
+        psa_key_type_t keyType = mbedtls_pk_get_key_type(localPrivateKey);
+        psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+        psa_set_key_type(&attributes, keyType);
+        psa_set_key_bits(&attributes, mbedtls_pk_get_bitlen(localPrivateKey));
+        psa_set_key_usage_flags(&attributes,
+                                PSA_KEY_USAGE_EXPORT | PSA_KEY_USAGE_SIGN_HASH);
+        if(keyType == PSA_KEY_TYPE_RSA_KEY_PAIR)
+            psa_set_key_algorithm(&attributes,
+                PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_256));
+        else if(PSA_KEY_TYPE_IS_ECC_KEY_PAIR(keyType))
+            psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+        else {
+            psa_reset_key_attributes(&attributes);
+            retval = UA_STATUSCODE_BADNOTSUPPORTED;
+            goto cleanup;
+        }
+        UA_mbedTLS_PsaKey generated;
+        UA_mbedTLS_PsaKey_init(&generated);
+        psa_status_t status = psa_generate_key(&attributes, &generated.id);
+        psa_reset_key_attributes(&attributes);
+        if(status == PSA_SUCCESS)
+            generated.owned = true;
+        mbedtls_pk_init(csrLocalPrivateKey);
+        if(status != PSA_SUCCESS ||
+           mbedtls_pk_copy_from_psa(generated.id, csrLocalPrivateKey) != 0) {
+            UA_mbedTLS_PsaKey_clear(&generated);
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+        UA_mbedTLS_PsaKey_clear(&generated);
+        mbedtls_x509write_csr_set_key(&request, csrLocalPrivateKey);
+        retval = mbedtls_writePrivateKeyDer(csrLocalPrivateKey, newPrivateKey);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    } else {
+        mbedtls_x509write_csr_set_key(&request, localPrivateKey);
+    }
+
+    unsigned char requestBuf[CSR_BUFFER_SIZE];
+    memset(requestBuf, 0, sizeof(requestBuf));
+    ret = mbedtls_x509write_csr_der(&request, requestBuf, sizeof(requestBuf));
+    if(ret <= 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    size_t byteCount = (size_t)ret;
+    retval = UA_ByteString_allocBuffer(csr, byteCount);
+    if(retval == UA_STATUSCODE_GOOD)
+        memcpy(csr->data, requestBuf + sizeof(requestBuf) - byteCount, byteCount);
+
+cleanup:
+    mbedtls_x509_crt_free(&x509Cert);
+    mbedtls_x509write_csr_free(&request);
+    UA_free(subj);
+    return retval;
+}
+#endif
+
 int
 UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target,
                           void *p_rng) {
+    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD)
+        return -1;
     UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(key);
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
     int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0);
@@ -1266,6 +1405,9 @@ UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target,
 
 UA_StatusCode
 UA_mbedTLS_LoadCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target) {
+    UA_StatusCode res = UA_mbedTLS_PSA_Init();
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     const unsigned char *pData = certificate->data;
 
     // Magic number for DER encoded files
@@ -1299,6 +1441,9 @@ UA_mbedTLS_LoadPemCertificate(const UA_ByteString *certificate, mbedtls_x509_crt
 
 UA_StatusCode
 UA_mbedTLS_LoadCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
+    UA_StatusCode res = UA_mbedTLS_PSA_Init();
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     const unsigned char *pData = crl->data;
 
     // Magic number for DER encoded files
@@ -1333,6 +1478,8 @@ UA_mbedTLS_LoadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
 UA_StatusCode
 UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData,
                                 UA_ByteString *target) {
+    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(certData);
     if(!data.data) {
         UA_ByteString_init(target);
@@ -1609,12 +1756,10 @@ UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
     mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)securityPolicy->policyContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000
-    (void)pc;
-    (void)subjectName;
-    (void)nonce;
     (void)params;
-    (void)newPrivateKey;
-    return UA_STATUSCODE_BADNOTSUPPORTED;
+    return UA_mbedTLS_createSigningRequestV4(
+        &pc->localPrivateKey, &pc->csrLocalPrivateKey, securityPolicy,
+        subjectName, nonce, csr, newPrivateKey);
 #else
     return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                         &pc->entropyContext, &pc->drbgContext,

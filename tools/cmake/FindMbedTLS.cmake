@@ -56,7 +56,7 @@ endif()
 # Set the libraries variable for convenience
 set(MBEDTLS_LIBRARIES ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 
-# Detect mbedTLS major version from header
+# Detect the complete mbedTLS version from the public version header.
 if(MBEDTLS_INCLUDE_DIRS)
     foreach(_ver_hdr "mbedtls/build_info.h" "mbedtls/version.h")
         set(_ver_path "${MBEDTLS_INCLUDE_DIRS}/${_ver_hdr}")
@@ -65,8 +65,12 @@ if(MBEDTLS_INCLUDE_DIRS)
                  REGEX "^#[ \t]*define[ \t]+MBEDTLS_VERSION_NUMBER[ \t]+0x")
             if(_ver_line)
                 string(REGEX REPLACE ".*0x([0-9a-fA-F]+).*" "\\1" _ver_hex "${_ver_line}")
-                math(EXPR MBEDTLS_VERSION_MAJOR "0x${_ver_hex} >> 24")
-                message(STATUS "mbedTLS major version: ${MBEDTLS_VERSION_MAJOR}")
+                math(EXPR MBEDTLS_VERSION_MAJOR "(0x${_ver_hex} >> 24) & 0xFF")
+                math(EXPR MBEDTLS_VERSION_MINOR "(0x${_ver_hex} >> 16) & 0xFF")
+                math(EXPR MBEDTLS_VERSION_PATCH "(0x${_ver_hex} >> 8) & 0xFF")
+                set(MBEDTLS_VERSION
+                    "${MBEDTLS_VERSION_MAJOR}.${MBEDTLS_VERSION_MINOR}.${MBEDTLS_VERSION_PATCH}")
+                message(STATUS "mbedTLS version: ${MBEDTLS_VERSION}")
                 break()
             endif()
         endif()
@@ -75,11 +79,18 @@ endif()
 
 # Standard CMake package handling
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(MbedTLS DEFAULT_MSG 
-    MBEDTLS_INCLUDE_DIRS
-    MBEDTLS_LIBRARY 
-    MBEDX509_LIBRARY 
-    MBEDCRYPTO_LIBRARY
-)
+find_package_handle_standard_args(MbedTLS
+    REQUIRED_VARS
+        MBEDTLS_INCLUDE_DIRS
+        MBEDTLS_LIBRARY
+        MBEDX509_LIBRARY
+        MBEDCRYPTO_LIBRARY
+        MBEDTLS_VERSION
+    VERSION_VAR MBEDTLS_VERSION)
+
+if(MbedTLS_FOUND AND MBEDTLS_VERSION VERSION_LESS "3.6.0")
+    message(FATAL_ERROR
+        "open62541 requires mbedTLS 3.6.0 or newer; found ${MBEDTLS_VERSION}")
+endif()
 
 mark_as_advanced(MBEDTLS_INCLUDE_DIRS MBEDTLS_LIBRARY MBEDX509_LIBRARY MBEDCRYPTO_LIBRARY)

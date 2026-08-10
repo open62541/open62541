@@ -19,8 +19,10 @@
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/asn1write.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+# include <mbedtls/entropy.h>
+# include <mbedtls/ctr_drbg.h>
+#endif
 #include <mbedtls/platform.h>
 #include <mbedtls/version.h>
 
@@ -114,19 +116,28 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_ByteString_init(outCertificate);
 
     mbedtls_pk_context key;
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_ctr_drbg_context ctr_drbg;
     mbedtls_entropy_context entropy;
     const char *pers = "gen_key";
+#else
+    UA_mbedTLS_PsaKey generatedKey;
+#endif
     mbedtls_x509write_cert crt;
 
     UA_StatusCode errRet = UA_STATUSCODE_GOOD;
 
     /* Set to sane values */
     mbedtls_pk_init(&key);
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_ctr_drbg_init(&ctr_drbg);
     mbedtls_entropy_init(&entropy);
+#else
+    UA_mbedTLS_PsaKey_init(&generatedKey);
+#endif
     mbedtls_x509write_crt_init(&crt);
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     /* Seed the random number generator */
     if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers)) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -134,8 +145,73 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
+#else
+    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Failed to initialize PSA Crypto.");
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+#endif
 
     /* Generate a key pair */
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    psa_key_attributes_t keyAttributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_algorithm_t hashAlgorithm = PSA_ALG_SHA_256;
+    if(keyTypeEC &&
+       (uaStringEqualsCI_mbedtls(&eccCurve, "secp384r1") ||
+        uaStringEqualsCI_mbedtls(&eccCurve, "nistp384") ||
+        uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp384r1")))
+        hashAlgorithm = PSA_ALG_SHA_384;
+
+    if(keyTypeEC) {
+        psa_ecc_family_t family = PSA_ECC_FAMILY_SECP_R1;
+        size_t keyBits = 256;
+        if(uaStringEqualsCI_mbedtls(&eccCurve, "prime256v1") ||
+           uaStringEqualsCI_mbedtls(&eccCurve, "nistp256")) {
+            /* Defaults already selected. */
+        } else if(uaStringEqualsCI_mbedtls(&eccCurve, "secp384r1") ||
+                  uaStringEqualsCI_mbedtls(&eccCurve, "nistp384")) {
+            keyBits = 384;
+        } else if(uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp256r1")) {
+            family = PSA_ECC_FAMILY_BRAINPOOL_P_R1;
+        } else if(uaStringEqualsCI_mbedtls(&eccCurve, "brainpoolp384r1")) {
+            family = PSA_ECC_FAMILY_BRAINPOOL_P_R1;
+            keyBits = 384;
+        } else if(uaStringEqualsCI_mbedtls(&eccCurve, "ed25519") ||
+                  uaStringEqualsCI_mbedtls(&eccCurve, "ed448")) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "EdDSA certificate generation is not supported with mbedTLS.");
+            errRet = UA_STATUSCODE_BADNOTIMPLEMENTED;
+            goto cleanup;
+        } else {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "Create Certificate: Unsupported ECC curve for mbedTLS.");
+            errRet = UA_STATUSCODE_BADINVALIDARGUMENT;
+            goto cleanup;
+        }
+        psa_set_key_type(&keyAttributes, PSA_KEY_TYPE_ECC_KEY_PAIR(family));
+        psa_set_key_bits(&keyAttributes, keyBits);
+        psa_set_key_algorithm(&keyAttributes, PSA_ALG_ECDSA(hashAlgorithm));
+    } else {
+        psa_set_key_type(&keyAttributes, PSA_KEY_TYPE_RSA_KEY_PAIR);
+        psa_set_key_bits(&keyAttributes, keySizeBits);
+        psa_set_key_algorithm(&keyAttributes,
+                              PSA_ALG_RSA_PKCS1V15_SIGN(hashAlgorithm));
+    }
+    psa_set_key_usage_flags(&keyAttributes,
+                            PSA_KEY_USAGE_EXPORT | PSA_KEY_USAGE_SIGN_HASH);
+    psa_status_t psaStatus = psa_generate_key(&keyAttributes, &generatedKey.id);
+    psa_reset_key_attributes(&keyAttributes);
+    if(psaStatus != PSA_SUCCESS ||
+       mbedtls_pk_copy_from_psa(generatedKey.id, &key) != 0) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Failed to generate certificate key pair with PSA Crypto.");
+        errRet = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    generatedKey.owned = true;
+#else
     if(keyTypeEC) {
 #if MBEDTLS_VERSION_NUMBER >= 0x03000000
         /* Map curve name to mbedTLS group ID */
@@ -189,6 +265,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
             goto cleanup;
         }
     }
+#endif
 
     /* Setting certificate values */
     mbedtls_x509write_crt_set_version(&crt, MBEDTLS_X509_CRT_VERSION_3);
@@ -430,21 +507,25 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     /* Write Certificate */
     if ((write_certificate(&crt, certFormat, outCertificate,
-                                 mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+                           mbedtls_ctr_drbg_random, &ctr_drbg
+#else
+                           NULL, NULL
+#endif
+                           )) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Writing certificate failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-    mbedtls_x509write_crt_free(&crt);
-    mbedtls_pk_free(&key);
-
 cleanup:
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
+#else
+    UA_mbedTLS_PsaKey_clear(&generatedKey);
+#endif
     mbedtls_x509write_crt_free(&crt);
     mbedtls_pk_free(&key);
     return errRet;
@@ -495,7 +576,11 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
     memset(output_buf, 0, sizeof(output_buf));
     switch(certFormat) {
     case UA_CERTIFICATEFORMAT_DER: {
-        if((ret = mbedtls_x509write_crt_der(crt, output_buf, sizeof(output_buf), f_rng, p_rng)) < 0) {
+        if((ret = mbedtls_x509write_crt_der(crt, output_buf, sizeof(output_buf)
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+                                           , f_rng, p_rng
+#endif
+                                           )) < 0) {
             return ret;
         }
 
@@ -504,7 +589,11 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
         break;
     }
     case UA_CERTIFICATEFORMAT_PEM: {
-        if((ret = mbedtls_x509write_crt_pem(crt, output_buf, sizeof(output_buf), f_rng, p_rng)) < 0) {
+        if((ret = mbedtls_x509write_crt_pem(crt, output_buf, sizeof(output_buf)
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+                                           , f_rng, p_rng
+#endif
+                                           )) < 0) {
             return ret;
         }
 
