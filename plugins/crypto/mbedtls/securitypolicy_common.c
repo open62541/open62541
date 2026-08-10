@@ -42,7 +42,7 @@ static void
 swapBuffers(UA_ByteString *bufA, UA_ByteString *bufB);
 
 static UA_Boolean
-validByteString(const UA_ByteString *value) {
+mbedtlsValidByteString(const UA_ByteString *value) {
     return value && (value->length == 0 || value->data);
 }
 
@@ -101,7 +101,7 @@ UA_mbedTLS_PsaKey_import(UA_mbedTLS_PsaKey *target,
                          psa_key_type_t type, psa_key_usage_t usage,
                          psa_algorithm_t algorithm,
                          const UA_ByteString *material) {
-    if(!target || !validByteString(material) || material->length == 0)
+    if(!target || !mbedtlsValidByteString(material) || material->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_StatusCode res = UA_mbedTLS_PSA_Init();
     if(res != UA_STATUSCODE_GOOD)
@@ -158,7 +158,7 @@ static UA_StatusCode
 UA_mbedTLS_PsaHashCompute(psa_algorithm_t algorithm,
                           const UA_ByteString *input,
                           UA_ByteString *output) {
-    if(!validByteString(input) || !validByteString(output))
+    if(!mbedtlsValidByteString(input) || !mbedtlsValidByteString(output))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     size_t outputLength = 0;
     psa_status_t status = psa_hash_compute(algorithm, input->data, input->length,
@@ -176,7 +176,7 @@ UA_mbedTLS_PsaMacCompute(mbedtls_svc_key_id_t key,
                          psa_algorithm_t algorithm,
                          const UA_ByteString *input,
                          UA_ByteString *output) {
-    if(!validByteString(input) || !validByteString(output))
+    if(!mbedtlsValidByteString(input) || !mbedtlsValidByteString(output))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     size_t outputLength = 0;
     psa_status_t status = psa_mac_compute(key, algorithm, input->data,
@@ -194,7 +194,7 @@ UA_mbedTLS_PsaMacVerify(mbedtls_svc_key_id_t key,
                         psa_algorithm_t algorithm,
                         const UA_ByteString *input,
                         const UA_ByteString *mac) {
-    if(!validByteString(input) || !validByteString(mac))
+    if(!mbedtlsValidByteString(input) || !mbedtlsValidByteString(mac))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     return psaStatusToStatusCode(psa_mac_verify(
         key, algorithm, input->data, input->length, mac->data, mac->length));
@@ -202,7 +202,7 @@ UA_mbedTLS_PsaMacVerify(mbedtls_svc_key_id_t key,
 
 UA_StatusCode
 UA_mbedTLS_PsaRandom(UA_ByteString *output) {
-    if(!validByteString(output))
+    if(!mbedtlsValidByteString(output))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_StatusCode res = UA_mbedTLS_PSA_Init();
     if(res != UA_STATUSCODE_GOOD)
@@ -234,8 +234,8 @@ UA_mbedTLS_PsaPHash(psa_algorithm_t hashAlgorithm,
                     const UA_ByteString *secret,
                     const UA_ByteString *seed,
                     UA_ByteString *output) {
-    if(!validByteString(secret) || !validByteString(seed) ||
-       !validByteString(output) || !PSA_ALG_IS_HASH(hashAlgorithm))
+    if(!mbedtlsValidByteString(secret) || !mbedtlsValidByteString(seed) ||
+       !mbedtlsValidByteString(output) || !PSA_ALG_IS_HASH(hashAlgorithm))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     size_t hashLength = PSA_HASH_LENGTH(hashAlgorithm);
     if(hashLength == 0)
@@ -303,7 +303,7 @@ UA_StatusCode
 UA_mbedTLS_PsaCipher(mbedtls_svc_key_id_t key,
                      psa_algorithm_t algorithm, UA_Boolean encrypt,
                      const UA_ByteString *iv, UA_ByteString *data) {
-    if(!validByteString(iv) || !validByteString(data))
+    if(!mbedtlsValidByteString(iv) || !mbedtlsValidByteString(data))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_ByteString output = UA_BYTESTRING_NULL;
@@ -343,7 +343,7 @@ UA_mbedTLS_PsaAsymmetricSign(const mbedtls_pk_context *key,
                              psa_algorithm_t hashAlgorithm,
                              const UA_ByteString *message,
                              UA_ByteString *signature) {
-    if(!key || !validByteString(message) || !validByteString(signature))
+    if(!key || !mbedtlsValidByteString(message) || !mbedtlsValidByteString(signature))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_Byte hashBuffer[PSA_HASH_MAX_SIZE];
     UA_ByteString hash = {PSA_HASH_LENGTH(hashAlgorithm), hashBuffer};
@@ -372,7 +372,7 @@ UA_mbedTLS_PsaAsymmetricVerify(const mbedtls_pk_context *key,
                                psa_algorithm_t hashAlgorithm,
                                const UA_ByteString *message,
                                const UA_ByteString *signature) {
-    if(!key || !validByteString(message) || !validByteString(signature))
+    if(!key || !mbedtlsValidByteString(message) || !mbedtlsValidByteString(signature))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_Byte hashBuffer[PSA_HASH_MAX_SIZE];
     UA_ByteString hash = {PSA_HASH_LENGTH(hashAlgorithm), hashBuffer};
@@ -396,7 +396,7 @@ UA_mbedTLS_PsaAsymmetricEncrypt(const mbedtls_pk_context *key,
                                 psa_algorithm_t algorithm,
                                 size_t plainTextBlockSize,
                                 UA_ByteString *data) {
-    if(!key || !validByteString(data) || data->length == 0 ||
+    if(!key || !mbedtlsValidByteString(data) || data->length == 0 ||
        plainTextBlockSize == 0 ||
        data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -438,7 +438,7 @@ UA_StatusCode
 UA_mbedTLS_PsaAsymmetricDecrypt(const mbedtls_pk_context *key,
                                 psa_algorithm_t algorithm,
                                 UA_ByteString *data) {
-    if(!key || !validByteString(data) || data->length == 0)
+    if(!key || !mbedtlsValidByteString(data) || data->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     size_t keyLength = (mbedtls_pk_get_bitlen(key) + 7) / 8;
     if(keyLength == 0 || data->length % keyLength != 0)
@@ -478,7 +478,7 @@ static UA_StatusCode
 UA_mbedTLS_PsaEccGenerate(psa_ecc_family_t family, size_t bits,
                           UA_mbedTLS_PsaKey *keyPair,
                           UA_ByteString *publicKey) {
-    if(!keyPair || !validByteString(publicKey) ||
+    if(!keyPair || !mbedtlsValidByteString(publicKey) ||
        publicKey->length != 2 * ((bits + 7) / 8))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_StatusCode res = UA_mbedTLS_PSA_Init();
@@ -536,8 +536,8 @@ UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
                         const UA_ByteString *key1,
                         const UA_ByteString *key2,
                         UA_ByteString *output) {
-    if(!localEphemeralKeyPair || !validByteString(key1) ||
-       !validByteString(key2) || !validByteString(output))
+    if(!localEphemeralKeyPair || !mbedtlsValidByteString(key1) ||
+       !mbedtlsValidByteString(key2) || !mbedtlsValidByteString(output))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_Byte encoded[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE];
     size_t encodedLength = 0;
@@ -672,7 +672,7 @@ UA_StatusCode
 UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
                                   const UA_ByteString *certificate,
                                   UA_ByteString *hash) {
-    if(!policy || !validByteString(certificate) || !hash)
+    if(!policy || !mbedtlsValidByteString(certificate) || !hash)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Select the digest from the policy's elliptic curve, not a fixed
@@ -741,8 +741,8 @@ UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
 UA_StatusCode
 UA_mbedTLS_thumbprintSha1(const UA_ByteString *certificate,
                         UA_ByteString *thumbprint) {
-    if(!validByteString(certificate) || certificate->length == 0 ||
-       !validByteString(thumbprint) || thumbprint->length != UA_SHA1_LENGTH)
+    if(!mbedtlsValidByteString(certificate) || certificate->length == 0 ||
+       !mbedtlsValidByteString(thumbprint) || thumbprint->length != UA_SHA1_LENGTH)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The certificate thumbprint is always a 20 bit sha1 hash, see Part 4 of the Specification. */
@@ -1025,7 +1025,7 @@ UA_mbedTLS_LoadCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *t
 
 static UA_StatusCode
 loadDerCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target) {
-    if(!validByteString(certificate) || !target)
+    if(!mbedtlsValidByteString(certificate) || !target)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     int mbedErr = mbedtls_x509_crt_parse(target, certificate->data, certificate->length);
     if(mbedErr)
@@ -1036,7 +1036,7 @@ loadDerCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target) {
 
 static UA_StatusCode
 loadPemCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target) {
-    if(!validByteString(certificate) || !target)
+    if(!mbedtlsValidByteString(certificate) || !target)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ByteString certificateData = UA_BYTESTRING_NULL;
     UA_StatusCode retval =
@@ -1070,7 +1070,7 @@ UA_mbedTLS_LoadCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
 
 static UA_StatusCode
 loadDerCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
-    if(!validByteString(crl) || !target)
+    if(!mbedtlsValidByteString(crl) || !target)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     int mbedErr = mbedtls_x509_crl_parse(target, crl->data, crl->length);
     if(mbedErr)
@@ -1081,7 +1081,7 @@ loadDerCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
 
 static UA_StatusCode
 loadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
-    if(!validByteString(crl) || !target)
+    if(!mbedtlsValidByteString(crl) || !target)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ByteString crlData = UA_BYTESTRING_NULL;
     UA_StatusCode retval = UA_mbedTLS_CopyDataFormatAware(crl, &crlData);
@@ -1098,7 +1098,7 @@ loadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
 UA_StatusCode
 UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData,
                                 UA_ByteString *target) {
-    if(!validByteString(certData) || !target)
+    if(!mbedtlsValidByteString(certData) || !target)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ByteString_init(target);
     UA_StatusCode initResult = UA_mbedTLS_PSA_Init();
@@ -1162,8 +1162,8 @@ UA_mbedTLS_UpdateCertificateAndPrivateKey(UA_SecurityPolicy *securityPolicy,
                                           const UA_ByteString newCertificate,
                                           const UA_ByteString newPrivateKey) {
     if(!securityPolicy || !securityPolicy->policyContext ||
-       !validByteString(&newCertificate) || newCertificate.length == 0 ||
-       !validByteString(&newPrivateKey))
+       !mbedtlsValidByteString(&newCertificate) || newCertificate.length == 0 ||
+       !mbedtlsValidByteString(&newPrivateKey))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     mbedtls_PolicyContext *pc =
@@ -1295,7 +1295,7 @@ UA_StatusCode
 UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
                                             void *channelContext,
                                             const UA_ByteString *key) {
-    if(!policy || !channelContext || !validByteString(key) || key->length == 0)
+    if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
@@ -1317,7 +1317,7 @@ UA_StatusCode
 UA_mbedTLS_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
                                          void *channelContext,
                                          const UA_ByteString *key) {
-    if(!policy || !channelContext || !validByteString(key) || key->length == 0)
+    if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
     UA_mbedTLS_PsaKey replacementPsa;
@@ -1338,7 +1338,7 @@ UA_StatusCode
 UA_mbedTLS_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
                                  void *channelContext,
                                  const UA_ByteString *iv) {
-    if(!policy || !channelContext || !validByteString(iv) || iv->length == 0)
+    if(!policy || !channelContext || !mbedtlsValidByteString(iv) || iv->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
     UA_ByteString replacement = UA_BYTESTRING_NULL;
@@ -1354,7 +1354,7 @@ UA_StatusCode
 UA_mbedTLS_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
                                              void *channelContext,
                                              const UA_ByteString *key) {
-    if(!policy || !channelContext || !validByteString(key) || key->length == 0)
+    if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
@@ -1376,7 +1376,7 @@ UA_StatusCode
 UA_mbedTLS_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
                                           void *channelContext,
                                           const UA_ByteString *key) {
-    if(!policy || !channelContext || !validByteString(key) || key->length == 0)
+    if(!policy || !channelContext || !mbedtlsValidByteString(key) || key->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
@@ -1398,7 +1398,7 @@ UA_StatusCode
 UA_mbedTLS_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
                                   void *channelContext,
                                   const UA_ByteString *iv) {
-    if(!policy || !channelContext || !validByteString(iv) || iv->length == 0)
+    if(!policy || !channelContext || !mbedtlsValidByteString(iv) || iv->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
@@ -1415,7 +1415,7 @@ UA_StatusCode
 UA_mbedTLS_compareCertificate_generic(const UA_SecurityPolicy *policy,
                                       const void *channelContext,
                                       const UA_ByteString *certificate) {
-    if(!policy || !channelContext || !validByteString(certificate) ||
+    if(!policy || !channelContext || !mbedtlsValidByteString(certificate) ||
        certificate->length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -1475,7 +1475,7 @@ UA_StatusCode
 UA_mbedTLS_compareCertificateThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
                                                 const UA_ByteString *certificateThumbprint) {
     if(!securityPolicy || !securityPolicy->policyContext ||
-       !validByteString(certificateThumbprint))
+       !mbedtlsValidByteString(certificateThumbprint))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     const mbedtls_PolicyContext *pc = (const mbedtls_PolicyContext *)
         securityPolicy->policyContext;
@@ -1488,8 +1488,8 @@ UA_StatusCode
 UA_mbedTLS_sym_generateKey_generic(const UA_SecurityPolicy *policy,
                                    void *channelContext, const UA_ByteString *secret,
                                    const UA_ByteString *seed, UA_ByteString *out) {
-    if(!policy || !validByteString(secret) || !validByteString(seed) ||
-       !validByteString(out))
+    if(!policy || !mbedtlsValidByteString(secret) || !mbedtlsValidByteString(seed) ||
+       !mbedtlsValidByteString(out))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     psa_algorithm_t hashAlgorithm = PSA_ALG_SHA_256;
     if(policyUriContains(&policy->policyUri, "Basic128Rsa15") ||
@@ -1505,7 +1505,7 @@ UA_mbedTLS_sym_generateKey_generic(const UA_SecurityPolicy *policy,
 UA_StatusCode
 UA_mbedTLS_sym_generateNonce_generic(const UA_SecurityPolicy *policy,
                                      void *channelContext, UA_ByteString *out) {
-    if(!policy || !validByteString(out))
+    if(!policy || !mbedtlsValidByteString(out))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     return UA_mbedTLS_PsaRandom(out);
 }
@@ -1518,9 +1518,9 @@ UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
                                         UA_ByteString *csr,
                                         UA_ByteString *newPrivateKey) {
     if(!securityPolicy || !csr ||
-       (subjectName && !validByteString(subjectName)) ||
-       (nonce && !validByteString(nonce)) ||
-       (newPrivateKey && !validByteString(newPrivateKey)))
+       (subjectName && !mbedtlsValidByteString(subjectName)) ||
+       (nonce && !mbedtlsValidByteString(nonce)) ||
+       (newPrivateKey && !mbedtlsValidByteString(newPrivateKey)))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(securityPolicy->policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;

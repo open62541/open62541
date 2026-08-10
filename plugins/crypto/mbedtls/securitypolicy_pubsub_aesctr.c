@@ -87,7 +87,7 @@ getEncryptionKeyLength(const UA_PubSubSecurityPolicy *policy,
 }
 
 static UA_StatusCode
-crypt(void *gContext, UA_ByteString *data, UA_Boolean encrypting) {
+pubSubCrypt(void *gContext, UA_ByteString *data, UA_Boolean encrypting) {
     if(!gContext || !data)
         return UA_STATUSCODE_BADINTERNALERROR;
     PubSubAesCtrChannelContext *cc = (PubSubAesCtrChannelContext*)gContext;
@@ -105,17 +105,17 @@ crypt(void *gContext, UA_ByteString *data, UA_Boolean encrypting) {
 }
 
 static UA_StatusCode
-encrypt(const UA_PubSubSecurityPolicy *policy, void *gContext,
-        UA_ByteString *data) {
+pubSubEncrypt(const UA_PubSubSecurityPolicy *policy, void *gContext,
+              UA_ByteString *data) {
     (void)policy;
-    return crypt(gContext, data, true);
+    return pubSubCrypt(gContext, data, true);
 }
 
 static UA_StatusCode
-decrypt(const UA_PubSubSecurityPolicy *policy, void *gContext,
-        UA_ByteString *data) {
+pubSubDecrypt(const UA_PubSubSecurityPolicy *policy, void *gContext,
+              UA_ByteString *data) {
     (void)policy;
-    return crypt(gContext, data, false);
+    return pubSubCrypt(gContext, data, false);
 }
 
 static UA_StatusCode
@@ -148,6 +148,11 @@ deleteGroupContext(UA_PubSubSecurityPolicy *policy, void *gContext) {
     UA_free(cc);
 }
 
+static UA_Boolean
+validByteString(const UA_ByteString *value) {
+    return value && (value->length == 0 || value->data);
+}
+
 static UA_StatusCode
 newGroupContext(UA_PubSubSecurityPolicy *policy,
                 const UA_ByteString *signingKey,
@@ -155,6 +160,10 @@ newGroupContext(UA_PubSubSecurityPolicy *policy,
                 const UA_ByteString *keyNonce, void **gContext) {
     if(!policy || !gContext)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if((signingKey && !validByteString(signingKey)) ||
+       (encryptingKey && !validByteString(encryptingKey)) ||
+       (keyNonce && !validByteString(keyNonce)))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     if((signingKey && signingKey->length != UA_PUBSUB_AESCTR_SIGNING_KEY_LENGTH) ||
        (encryptingKey && encryptingKey->length != encryptionKeyLength(policy)) ||
        (keyNonce && keyNonce->length != UA_PUBSUB_AESCTR_KEYNONCE_LENGTH))
@@ -193,6 +202,9 @@ setSecurityKeys(UA_PubSubSecurityPolicy *policy, void *gContext,
                 const UA_ByteString *keyNonce) {
     if(!policy || !gContext || !signingKey || !encryptingKey || !keyNonce)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!validByteString(signingKey) || !validByteString(encryptingKey) ||
+       !validByteString(keyNonce))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(signingKey->length != UA_PUBSUB_AESCTR_SIGNING_KEY_LENGTH ||
        encryptingKey->length != encryptionKeyLength(policy) ||
        keyNonce->length != UA_PUBSUB_AESCTR_KEYNONCE_LENGTH)
@@ -231,6 +243,8 @@ setMessageNonce(UA_PubSubSecurityPolicy *policy, void *gContext,
     (void)policy;
     if(!gContext || !nonce)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!validByteString(nonce))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(nonce->length != UA_PUBSUB_AESCTR_MESSAGENONCE_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     PubSubAesCtrChannelContext *cc = (PubSubAesCtrChannelContext*)gContext;
@@ -274,8 +288,8 @@ setup(UA_PubSubSecurityPolicy *sp, const UA_Logger *logger,
     sp->getSignatureSize = getSignatureSize;
     sp->getSignatureKeyLength = getSignatureKeyLength;
     sp->getEncryptionKeyLength = getEncryptionKeyLength;
-    sp->encrypt = encrypt;
-    sp->decrypt = decrypt;
+    sp->encrypt = pubSubEncrypt;
+    sp->decrypt = pubSubDecrypt;
     sp->setSecurityKeys = setSecurityKeys;
     sp->generateKey = generateKey;
     sp->generateNonce = generateNonce;

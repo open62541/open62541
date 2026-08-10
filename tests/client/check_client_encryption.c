@@ -104,16 +104,17 @@ START_TEST(encryption_reconnect_session) {
     /* Secure client initialization */
     client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
+    UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(
+        cc, certificate, privateKey, trustList, trustListSize,
+        revocationList, revocationListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
     /* Secure client connect */
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant val;

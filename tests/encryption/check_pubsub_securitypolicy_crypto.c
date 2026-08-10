@@ -51,6 +51,16 @@ exercisePubSubPolicy(PubSubPolicyInit init) {
     rv = policy.setSecurityKeys(&policy, ctx, &shortKey, &encKey, &keyNonce);
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
+    UA_ByteString malformedSignKey = {signKeyLen, NULL};
+    UA_ByteString malformedEncKey = {encKeyLen, NULL};
+    UA_ByteString malformedKeyNonce = {KEYNONCE_LENGTH, NULL};
+    rv = policy.setSecurityKeys(&policy, ctx, &malformedSignKey, &encKey, &keyNonce);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINVALIDARGUMENT);
+    rv = policy.setSecurityKeys(&policy, ctx, &signKey, &malformedEncKey, &keyNonce);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINVALIDARGUMENT);
+    rv = policy.setSecurityKeys(&policy, ctx, &signKey, &encKey, &malformedKeyNonce);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINVALIDARGUMENT);
+
     rv = policy.setSecurityKeys(&policy, ctx, &signKey, &encKey, &keyNonce);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -58,6 +68,9 @@ exercisePubSubPolicy(PubSubPolicyInit init) {
     UA_ByteString msgNonce;
     UA_ByteString_allocBuffer(&msgNonce, MESSAGENONCE_LENGTH);
     for(size_t i = 0; i < msgNonce.length; i++) msgNonce.data[i] = (UA_Byte)(i + 2);
+    UA_ByteString malformedMsgNonce = {MESSAGENONCE_LENGTH, NULL};
+    rv = policy.setMessageNonce(&policy, ctx, &malformedMsgNonce);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINVALIDARGUMENT);
     rv = policy.setMessageNonce(&policy, ctx, &msgNonce);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -166,6 +179,10 @@ START_TEST(pubsub_policy_newGroupContext_withKeys) {
     memset(keyNonce.data, 0x33, keyNonce.length);
 
     void *ctx = NULL;
+    UA_ByteString malformedKeyNonce = {KEYNONCE_LENGTH, NULL};
+    rv = policy.newGroupContext(&policy, &signKey, &encKey, &malformedKeyNonce, &ctx);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_ptr_eq(ctx, NULL);
     rv = policy.newGroupContext(&policy, &signKey, &encKey, &keyNonce, &ctx);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert_ptr_ne(ctx, NULL);
