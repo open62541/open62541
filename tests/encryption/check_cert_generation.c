@@ -12,6 +12,11 @@
 #include <check.h>
 #include "test_helpers.h"
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include <mbedtls/oid.h>
+#include <mbedtls/x509_crt.h>
+#endif
+
 UA_Server *server;
 
 static void setup(void) {
@@ -49,6 +54,22 @@ START_TEST(certificate_generation) {
     ck_assert(status == UA_STATUSCODE_GOOD);
     ck_assert(derPrivKey.length > 0);
     ck_assert(derCert.length > 0);
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    mbedtls_x509_crt parsed;
+    mbedtls_x509_crt_init(&parsed);
+    ck_assert_int_eq(mbedtls_x509_crt_parse_der(&parsed, derCert.data,
+                                                derCert.length), 0);
+    ck_assert_uint_eq(parsed.serial.len, 16);
+    ck_assert(!mbedtls_x509_crt_has_ext_type(&parsed,
+                                             MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
+              !mbedtls_x509_crt_get_ca_istrue(&parsed));
+    ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
+                         &parsed, MBEDTLS_X509_KU_KEY_CERT_SIGN), 0);
+    ck_assert_int_ne(mbedtls_x509_crt_check_key_usage(
+                         &parsed, MBEDTLS_X509_KU_CRL_SIGN), 0);
+    mbedtls_x509_crt_free(&parsed);
+#endif
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     status = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &derCert, &derPrivKey,

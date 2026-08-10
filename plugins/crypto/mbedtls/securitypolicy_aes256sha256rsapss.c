@@ -13,15 +13,6 @@
 
 #include "securitypolicy_common.h"
 
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-#include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/sha1.h>
-#include <mbedtls/sha256.h>
-#endif
-#include <mbedtls/error.h>
-#include <mbedtls/md.h>
 #include <mbedtls/version.h>
 #include <mbedtls/x509_crt.h>
 
@@ -133,7 +124,7 @@ makeThumbprint_aes256sha256rsapss(const UA_SecurityPolicy *securityPolicy,
                                   UA_ByteString *thumbprint) {
     if(securityPolicy == NULL || certificate == NULL || thumbprint == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return mbedtls_thumbprint_sha1(certificate, thumbprint);
+    return UA_mbedTLS_thumbprintSha1(certificate, thumbprint);
 }
 
 static UA_StatusCode
@@ -300,11 +291,7 @@ deleteContext_aes256sha256rsapss(const UA_SecurityPolicy *policy,
                                  void *channelContext) {
     mbedtls_ChannelContext *cc =
         (mbedtls_ChannelContext*)channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
     UA_ByteString_clear(&cc->localSymIv);
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
     mbedtls_x509_crt_free(&cc->remoteCertificate);
     UA_mbedTLS_ChannelContext_clearPsa(cc);
@@ -327,11 +314,7 @@ newContext_aes256sha256rsapss(const UA_SecurityPolicy *securityPolicy,
         (mbedtls_ChannelContext *)*channelContext;
 
     /* Initialize the channel context */
-    UA_ByteString_init(&cc->localSymSigningKey);
-    UA_ByteString_init(&cc->localSymEncryptingKey);
     UA_ByteString_init(&cc->localSymIv);
-    UA_ByteString_init(&cc->remoteSymSigningKey);
-    UA_ByteString_init(&cc->remoteSymEncryptingKey);
     UA_ByteString_init(&cc->remoteSymIv);
     mbedtls_x509_crt_init(&cc->remoteCertificate);
     UA_mbedTLS_ChannelContext_initPsa(cc);
@@ -361,17 +344,9 @@ clear_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy) {
     mbedtls_PolicyContext *pc = (mbedtls_PolicyContext *)
         securityPolicy->policyContext;
 
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_ctr_drbg_free(&pc->drbgContext);
-    mbedtls_entropy_free(&pc->entropyContext);
-#endif
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_free(&pc->csrLocalPrivateKey);
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_md_free(&pc->mdContext);
-#endif
     UA_ByteString_clear(&pc->localCertThumbprint);
-    UA_mbedTLS_PolicyContext_clearPsa(pc);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for aes256sha256rsapss");
@@ -410,8 +385,7 @@ updateCertificateAndPrivateKey_aes256sha256rsapss(UA_SecurityPolicy *securityPol
     if(newPrivateKey.length > 0) {
         mbedtls_pk_free(&pc->localPrivateKey);
         mbedtls_pk_init(&pc->localPrivateKey);
-        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey,
-                                     UA_MBEDTLS_LEGACY_ENTROPY(pc))) {
+        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey)) {
             retval = UA_STATUSCODE_BADNOTSUPPORTED;
             goto error;
         }
@@ -461,48 +435,12 @@ policyContext_newContext_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy,
 
     /* Initialize the PolicyContext */
     memset(pc, 0, sizeof(mbedtls_PolicyContext));
-    UA_mbedTLS_PolicyContext_initPsa(pc);
     int mbedErr;
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_ctr_drbg_init(&pc->drbgContext);
-    mbedtls_entropy_init(&pc->entropyContext);
-#endif
     mbedtls_pk_init(&pc->localPrivateKey);
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedtls_md_init(&pc->mdContext);
 
-    /* Initialized the message digest */
-    const mbedtls_md_info_t *const mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    mbedErr = mbedtls_md_setup(&pc->mdContext, mdInfo, MBEDTLS_MD_SHA256);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto error;
-    }
-#endif
-
-#if MBEDTLS_VERSION_NUMBER < 0x04000000
-    mbedErr = mbedtls_entropy_self_test(0);
-
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    /* Seed the RNG */
-    char *personalization = "open62541-drbg";
-    mbedErr = mbedtls_ctr_drbg_seed(&pc->drbgContext, mbedtls_entropy_func,
-                                    &pc->entropyContext,
-                                    (const unsigned char *)personalization, 14);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-#endif
 
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey,
-                                        UA_MBEDTLS_LEGACY_ENTROPY(pc));
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
