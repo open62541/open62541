@@ -481,8 +481,8 @@ createReaderGroup(UA_PubSubManager *psm,
 
 /* Creates TargetVariables or SubscribedDataSetMirror for a given DataSetReader */
 static UA_StatusCode
-addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
-                     const UA_ExtensionObject *subscribedDataSet) {
+createSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
+                        const UA_ExtensionObject *subscribedDataSet) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(subscribedDataSet->content.decoded.type ==
@@ -497,7 +497,7 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
                                                       targetVars->targetVariables);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                         "[UA_PubSubManager_addSubscribedDataSet] "
+                         "[UA_PubSubManager_createSubscribedDataSet] "
                          "create TargetVariables failed");
         }
         return res;
@@ -506,13 +506,13 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_SUBSCRIBEDDATASETMIRRORDATATYPE]) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "[UA_PubSubManager_addSubscribedDataSet] "
+                     "[UA_PubSubManager_createSubscribedDataSet] "
                      "DataSetMirror is currently not supported");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                 "[UA_PubSubManager_addSubscribedDataSet] "
+                 "[UA_PubSubManager_createSubscribedDataSet] "
                  "Invalid Type of SubscribedDataSet");
     return UA_STATUSCODE_BADINTERNALERROR;
 }
@@ -549,7 +549,7 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     }
 
     /* Create the SubscribedDataSet */
-    res = addSubscribedDataSet(psm, dsReaderIdent, &dsrParams->subscribedDataSet);
+    res = createSubscribedDataSet(psm, dsReaderIdent, &dsrParams->subscribedDataSet);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createDataSetReader] "
