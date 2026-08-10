@@ -1140,28 +1140,74 @@ static UA_StatusCode
 addRoleManagementPermissions(UA_Server *server, const UA_NodeId *nodeId) {
     const UA_NodeId secAdmin =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
-    const UA_NodeId publicRoles[] = {
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
-    };
-
     UA_StatusCode retval =
         UA_Server_addRolePermissions(server, *nodeId, secAdmin,
                                      UA_PERMISSIONTYPE_BROWSE |
-                                     UA_PERMISSIONTYPE_CALL,
+                                     UA_PERMISSIONTYPE_READ |
+                                     UA_PERMISSIONTYPE_CALL |
+                                     UA_PERMISSIONTYPE_READROLEPERMISSIONS,
                                      false, false);
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
         return retval;
 
-    for(size_t i = 0; i < sizeof(publicRoles) / sizeof(publicRoles[0]); i++) {
-        retval = UA_Server_addRolePermissions(server, *nodeId, publicRoles[i],
-                                              UA_PERMISSIONTYPE_BROWSE,
-                                              false, false);
-        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
-            return retval;
+    /* Role configuration is sensitive and may only be browsed/read/called via
+     * an encrypted channel (Part 18 §4.4.1). */
+    retval = UA_Server_setNodeAccessRestrictions(
+        server, *nodeId,
+        UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+        UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+    if(retval == UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return UA_STATUSCODE_GOOD;
+    return retval;
+}
+
+/* Protect every HasProperty child of a Role Object or management Method.
+ * Exclude flags are the only Role Properties writable through Write. */
+static UA_StatusCode
+protectRolePropertyChildren(UA_Server *server, const UA_NodeId *parentId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *parentId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD) {
+        UA_StatusCode res = br.statusCode;
+        UA_BrowseResult_clear(&br);
+        return res;
     }
 
-    return UA_STATUSCODE_GOOD;
+    const UA_NodeId secAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    const UA_String applicationsExclude = UA_STRING("ApplicationsExclude");
+    const UA_String endpointsExclude = UA_STRING("EndpointsExclude");
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        const UA_ReferenceDescription *ref = &br.references[i];
+        UA_PermissionType permissions =
+            UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+        if(UA_String_equal(&ref->browseName.name, &applicationsExclude) ||
+           UA_String_equal(&ref->browseName.name, &endpointsExclude))
+            permissions |= UA_PERMISSIONTYPE_WRITE;
+
+        retval = UA_Server_addRolePermissions(server, ref->nodeId.nodeId,
+                                              secAdmin, permissions,
+                                              false, false);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        retval = UA_Server_setNodeAccessRestrictions(
+            server, ref->nodeId.nodeId,
+            UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+            UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+    UA_BrowseResult_clear(&br);
+    return retval;
 }
 
 static UA_StatusCode
@@ -1192,8 +1238,11 @@ addOrBindRoleMethod(UA_Server *server, const UA_NodeId *roleId,
                                       0, NULL, NULL, &methodId);
     }
 
-    if(res == UA_STATUSCODE_GOOD && applyPermissions)
+    if(res == UA_STATUSCODE_GOOD && applyPermissions) {
         res = addRoleManagementPermissions(server, &methodId);
+        if(res == UA_STATUSCODE_GOOD)
+            res = protectRolePropertyChildren(server, &methodId);
+    }
     UA_NodeId_clear(&methodId);
     return res;
 }
@@ -1203,6 +1252,9 @@ ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
                       UA_Boolean applyPermissions) {
     if(applyPermissions) {
         UA_StatusCode res = addRoleManagementPermissions(server, roleId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        res = protectRolePropertyChildren(server, roleId);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
@@ -1242,9 +1294,8 @@ ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
 }
 
 /* Restrict the RoleSet Object and the security-sensitive RoleSet/RoleType
- * Methods to the SecurityAdmin Role (OPC UA Part 18). The RoleSet stays
- * browsable for the Anonymous/AuthenticatedUser Roles. Skipped when the NS0
- * RBAC information model is unavailable. */
+ * Methods to the SecurityAdmin Role over an encrypted channel (OPC UA Part
+ * 18). Skipped when the NS0 RBAC information model is unavailable. */
 UA_StatusCode
 initRoleSetRolePermissions(UA_Server *server) {
     UA_NodeId roleSetId =
@@ -1256,15 +1307,9 @@ initRoleSetRolePermissions(UA_Server *server) {
 
     const UA_NodeId secAdmin =
         UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
-    const UA_NodeId publicRoles[] = {
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER)
-    };
-
     /* Nodes whose CALL is restricted to SecurityAdmin. The RoleSet Object is
      * included because the Call service checks CALL on both the Object and the
-     * Method node. BROWSE is granted back to the public Roles so the nodes
-     * stay visible. */
+     * Method node. */
     const UA_UInt32 callNodes[] = {
         UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET,
         UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET_ADDROLE,
@@ -1295,19 +1340,23 @@ initRoleSetRolePermissions(UA_Server *server) {
         /* SecurityAdmin: browse + call */
         retval = UA_Server_addRolePermissions(server, nodeId, secAdmin,
                                               UA_PERMISSIONTYPE_BROWSE |
-                                              UA_PERMISSIONTYPE_CALL,
+                                              UA_PERMISSIONTYPE_READ |
+                                              UA_PERMISSIONTYPE_CALL |
+                                              UA_PERMISSIONTYPE_READROLEPERMISSIONS,
                                               false, false);
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
             return retval;
 
-        /* Public Roles: browse only (visible but not callable) */
-        for(size_t j = 0; j < sizeof(publicRoles) / sizeof(publicRoles[0]); j++) {
-            retval = UA_Server_addRolePermissions(server, nodeId, publicRoles[j],
-                                                  UA_PERMISSIONTYPE_BROWSE,
-                                                  false, false);
-            if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
-                return retval;
-        }
+        retval = UA_Server_setNodeAccessRestrictions(
+            server, nodeId,
+            UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+            UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
+
+        retval = protectRolePropertyChildren(server, &nodeId);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            return retval;
     }
 
     UA_BrowseDescription bd;

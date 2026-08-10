@@ -505,7 +505,8 @@ START_TEST(Client_accessRestrictions_enforced) {
         UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ, false, false),
         UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, restricted,
-        UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED), UA_STATUSCODE_GOOD);
+        UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED |
+        UA_ACCESSRESTRICTIONTYPE_APPLYRESTRICTIONSTOBROWSE), UA_STATUSCODE_GOOD);
 
     UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_uint_eq(UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
@@ -518,6 +519,19 @@ START_TEST(Client_accessRestrictions_enforced) {
     UA_StatusCode rd = UA_Client_readValueAttribute(client, restricted, &v);
     ck_assert_uint_ne(rd, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&v);
+
+    /* ApplyRestrictionsToBrowse applies to the same insecure Session. */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = restricted;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCES);
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 0, &bd);
+    ck_assert_uint_eq(br.statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_BrowseResult_clear(&br);
 
     UA_NodeId_clear(&opRoleId);
     UA_Client_disconnect(client);
