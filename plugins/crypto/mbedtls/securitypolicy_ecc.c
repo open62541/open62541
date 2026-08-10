@@ -35,25 +35,24 @@ eccNewPolicyContext(UA_SecurityPolicy *policy, UA_ByteString localPrivateKey,
     EccPolicyContext *context = (EccPolicyContext*)UA_calloc(1, sizeof(*context));
     if(!context)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    mbedtls_pk_init(&context->common.localPrivateKey);
-    mbedtls_pk_init(&context->common.csrLocalPrivateKey);
-    if(UA_mbedTLS_LoadPrivateKey(&localPrivateKey,
-                                 &context->common.localPrivateKey) != 0 ||
-       !UA_mbedTLS_compat_isEccKeyPair(&context->common.localPrivateKey)) {
-        mbedtls_pk_free(&context->common.localPrivateKey);
-        mbedtls_pk_free(&context->common.csrLocalPrivateKey);
+    UA_mbedTLS_PolicyContext_init(&context->common);
+    UA_StatusCode res = UA_mbedTLS_LoadPrivateKey(
+        &localPrivateKey, &context->common.localPrivateKey);
+    if(res == UA_STATUSCODE_GOOD &&
+       !UA_mbedTLS_compat_isEccKeyPair(&context->common.localPrivateKey))
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_mbedTLS_PolicyContext_clear(&context->common);
         UA_free(context);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+        return res;
     }
-    UA_StatusCode res = UA_ByteString_allocBuffer(
+    res = UA_ByteString_allocBuffer(
         &context->common.localCertThumbprint, UA_SHA1_LENGTH);
     if(res == UA_STATUSCODE_GOOD)
         res = UA_mbedTLS_thumbprintSha1(
             &policy->localCertificate, &context->common.localCertThumbprint);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&context->common.localCertThumbprint);
-        mbedtls_pk_free(&context->common.localPrivateKey);
-        mbedtls_pk_free(&context->common.csrLocalPrivateKey);
+        UA_mbedTLS_PolicyContext_clear(&context->common);
         UA_free(context);
         return res;
     }
@@ -71,9 +70,7 @@ eccClearPolicyContext(UA_SecurityPolicy *policy) {
     EccPolicyContext *context = (EccPolicyContext*)policy->policyContext;
     if(!context)
         return;
-    mbedtls_pk_free(&context->common.localPrivateKey);
-    mbedtls_pk_free(&context->common.csrLocalPrivateKey);
-    UA_ByteString_clear(&context->common.localCertThumbprint);
+    UA_mbedTLS_PolicyContext_clear(&context->common);
     UA_free(context);
     policy->policyContext = NULL;
 }
@@ -82,26 +79,28 @@ static UA_StatusCode
 eccNewChannelContext(const UA_SecurityPolicy *policy,
                   const UA_ByteString *remoteCertificate,
                   void **channelContext) {
-    if(!policy || !remoteCertificate || !channelContext ||
+    const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
+    if(!config || !remoteCertificate || !channelContext ||
        (remoteCertificate->length > 0 && !remoteCertificate->data))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     EccChannelContext *context = (EccChannelContext*)UA_calloc(1, sizeof(*context));
     if(!context)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    mbedtls_x509_crt_init(&context->common.remoteCertificate);
+    UA_mbedTLS_ChannelContext_init(&context->common);
+    context->common.symmetricMacAlgorithm =
+        PSA_ALG_HMAC(config->hashAlgorithm);
+    UA_mbedTLS_PsaKey_init(&context->localEphemeralKeyPair);
     UA_StatusCode res = UA_ByteString_copy(
         remoteCertificate, &context->remoteCertificateRaw);
     if(res == UA_STATUSCODE_GOOD)
         res = UA_mbedTLS_LoadCertificate(
             &context->remoteCertificateRaw, &context->common.remoteCertificate);
     if(res != UA_STATUSCODE_GOOD) {
-        mbedtls_x509_crt_free(&context->common.remoteCertificate);
+        UA_mbedTLS_ChannelContext_clear(&context->common);
         UA_ByteString_clear(&context->remoteCertificateRaw);
         UA_free(context);
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
     }
-    UA_mbedTLS_ChannelContext_initPsa(&context->common);
-    UA_mbedTLS_PsaKey_init(&context->localEphemeralKeyPair);
     *channelContext = context;
     return UA_STATUSCODE_GOOD;
 }
@@ -112,11 +111,8 @@ eccDeleteChannelContext(const UA_SecurityPolicy *policy, void *channelContext) {
     EccChannelContext *context = (EccChannelContext*)channelContext;
     if(!context)
         return;
-    mbedtls_x509_crt_free(&context->common.remoteCertificate);
     UA_ByteString_clear(&context->remoteCertificateRaw);
-    UA_mbedTLS_ChannelContext_clearPsa(&context->common);
-    UA_ByteString_clear(&context->common.localSymIv);
-    UA_ByteString_clear(&context->common.remoteSymIv);
+    UA_mbedTLS_ChannelContext_clear(&context->common);
     UA_mbedTLS_PsaKey_clear(&context->localEphemeralKeyPair);
     UA_free(context);
 }
@@ -149,14 +145,6 @@ eccGetEncryptionKeyLength(const UA_SecurityPolicy *policy,
     (void)channelContext;
     const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
     return config ? config->symmetricEncryptionKeyLength : 0;
-}
-
-static size_t
-eccGetEncryptionBlockSize(const UA_SecurityPolicy *policy,
-                       const void *channelContext) {
-    (void)policy;
-    (void)channelContext;
-    return 16;
 }
 
 static UA_StatusCode
@@ -223,24 +211,14 @@ eccAsymmetricNoop(const UA_SecurityPolicy *policy, void *channelContext,
 }
 
 static UA_StatusCode
-eccMakeCertificateThumbprint(const UA_SecurityPolicy *policy,
-                          const UA_ByteString *certificate,
-                          UA_ByteString *thumbprint) {
-    (void)policy;
-    return UA_mbedTLS_thumbprintSha1(certificate, thumbprint);
-}
-
-static UA_StatusCode
 eccSymmetricSign(const UA_SecurityPolicy *policy, void *channelContext,
               const UA_ByteString *message, UA_ByteString *signature) {
     const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
     EccChannelContext *context = (EccChannelContext*)channelContext;
-    if(!config || !context || !signature)
+    if(!config || !context)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    signature->length = config->hashLength;
-    return UA_mbedTLS_PsaMacCompute(
-        context->common.localSymSigningKeyPsa.id,
-        PSA_ALG_HMAC(config->hashAlgorithm), message, signature);
+    return UA_mbedTLS_symmetricSign(&context->common, config->hashLength,
+                                    message, signature);
 }
 
 static UA_StatusCode
@@ -249,39 +227,10 @@ eccSymmetricVerify(const UA_SecurityPolicy *policy, void *channelContext,
                 const UA_ByteString *signature) {
     const UA_mbedTLS_EccPolicyConfig *config = eccGetConfig(policy);
     EccChannelContext *context = (EccChannelContext*)channelContext;
-    if(!config || !context || !signature)
+    if(!config || !context)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(signature->length != config->hashLength)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    return UA_mbedTLS_PsaMacVerify(
-        context->common.remoteSymSigningKeyPsa.id,
-        PSA_ALG_HMAC(config->hashAlgorithm), message, signature);
-}
-
-static UA_StatusCode
-eccSymmetricEncrypt(const UA_SecurityPolicy *policy, void *channelContext,
-                 UA_ByteString *data) {
-    (void)policy;
-    EccChannelContext *context = (EccChannelContext*)channelContext;
-    if(!context || !data || context->common.localSymIv.length != 16 ||
-       data->length % 16 != 0)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    return UA_mbedTLS_PsaCipher(
-        context->common.localSymEncryptingKeyPsa.id, PSA_ALG_CBC_NO_PADDING,
-        true, &context->common.localSymIv, data);
-}
-
-static UA_StatusCode
-eccSymmetricDecrypt(const UA_SecurityPolicy *policy, void *channelContext,
-                 UA_ByteString *data) {
-    (void)policy;
-    EccChannelContext *context = (EccChannelContext*)channelContext;
-    if(!context || !data || context->common.remoteSymIv.length != 16 ||
-       data->length % 16 != 0)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    return UA_mbedTLS_PsaCipher(
-        context->common.remoteSymEncryptingKeyPsa.id, PSA_ALG_CBC_NO_PADDING,
-        false, &context->common.remoteSymIv, data);
+    return UA_mbedTLS_symmetricVerify(&context->common, config->hashLength,
+                                      message, signature);
 }
 
 UA_StatusCode
@@ -338,12 +287,12 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     UA_SecurityPolicyEncryptionAlgorithm *symEnc =
         &policy->symEncryptionAlgorithm;
     symEnc->uri = UA_STRING(config->symmetricEncryptionUri);
-    symEnc->encrypt = eccSymmetricEncrypt;
-    symEnc->decrypt = eccSymmetricDecrypt;
+    symEnc->encrypt = UA_mbedTLS_symmetricEncrypt;
+    symEnc->decrypt = UA_mbedTLS_symmetricDecrypt;
     symEnc->getLocalKeyLength = eccGetEncryptionKeyLength;
     symEnc->getRemoteKeyLength = eccGetEncryptionKeyLength;
-    symEnc->getRemoteBlockSize = eccGetEncryptionBlockSize;
-    symEnc->getRemotePlainTextBlockSize = eccGetEncryptionBlockSize;
+    symEnc->getRemoteBlockSize = UA_mbedTLS_symmetricEncryptionBlockSize;
+    symEnc->getRemotePlainTextBlockSize = UA_mbedTLS_symmetricEncryptionBlockSize;
 
     policy->certSignatureAlgorithm = policy->asymSignatureAlgorithm;
     policy->newChannelContext = eccNewChannelContext;
@@ -360,7 +309,7 @@ UA_mbedTLS_SecurityPolicy_Ecc(UA_SecurityPolicy *policy,
     policy->generateKey = eccGenerateKey;
     policy->generateNonce = eccGenerateNonce;
     policy->nonceLength = config->nonceLength;
-    policy->makeCertThumbprint = eccMakeCertificateThumbprint;
+    policy->makeCertThumbprint = UA_mbedTLS_makeCertificateThumbprint_generic;
     policy->compareCertThumbprint =
         UA_mbedTLS_compareCertificateThumbprint_generic;
     policy->updateCertificate = UA_mbedTLS_UpdateCertificateAndPrivateKey;
