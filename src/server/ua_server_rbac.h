@@ -136,6 +136,11 @@ UA_Server_getUserRolePermissions(UA_Server *server,
                                  size_t *entriesSize,
                                  UA_RolePermissionType **entries);
 
+/* True when every UserManagement callback is configured. The NS0 setup keeps
+ * the UserManagement Object only in that case; initUserManagement binds it. */
+UA_Boolean
+UA_Server_hasUserManagementProvider(const UA_AccessControl *ac);
+
 #endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS

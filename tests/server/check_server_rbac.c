@@ -3338,6 +3338,518 @@ static Suite *testSuite_NamespaceDefaults(void) {
     return s;
 }
 
+/**********************************/
+/* Part 18 §5.2 UserManagement    */
+/**********************************/
+
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+
+/* A minimal in-memory UserManagement provider. Real implementations own
+ * password hashing, persistence and rate limiting; this one only has to be
+ * observable so the core's argument checking, policy validation and
+ * self-reference guards can be tested. */
+#define UM_MAX_USERS 8
+typedef struct {
+    UA_String userName;
+    UA_String password;
+    UA_UserConfigurationMask configuration;
+    UA_String description;
+} UMUser;
+
+static UMUser umUsers[UM_MAX_USERS];
+static size_t umUsersSize;
+static UA_PasswordOptionsMask umOptions;
+static UA_StatusCode umForcedStatus;
+/* Records the arguments the core forwarded, so the tests can assert that the
+ * Method arguments reach the provider unchanged and in the right order. */
+static UA_String umLastPassword;
+static UA_String umLastOldPassword;
+static UA_Boolean umChangePasswordCalled;
+
+static void umReset(void) {
+    for(size_t i = 0; i < umUsersSize; i++) {
+        UA_String_clear(&umUsers[i].userName);
+        UA_String_clear(&umUsers[i].password);
+        UA_String_clear(&umUsers[i].description);
+    }
+    umUsersSize = 0;
+    UA_String_clear(&umLastPassword);
+    UA_String_clear(&umLastOldPassword);
+    umChangePasswordCalled = false;
+    umForcedStatus = UA_STATUSCODE_GOOD;
+    umOptions = UA_PASSWORDOPTIONSMASK_SUPPORTINITIALPASSWORDCHANGE |
+                UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEUSER |
+                UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEDELETEFORUSER |
+                UA_PASSWORDOPTIONSMASK_SUPPORTNOCHANGEFORUSER;
+}
+
+static UMUser *umFind(const UA_String *userName) {
+    for(size_t i = 0; i < umUsersSize; i++) {
+        if(UA_String_equal(&umUsers[i].userName, userName))
+            return &umUsers[i];
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+umGetUsers(UA_Server *s, UA_AccessControl *ac,
+           UA_UserManagementDataType **users, size_t *usersSize) {
+    if(umForcedStatus != UA_STATUSCODE_GOOD)
+        return umForcedStatus;
+    *users = NULL;
+    *usersSize = 0;
+    if(umUsersSize == 0)
+        return UA_STATUSCODE_GOOD;
+    UA_UserManagementDataType *out = (UA_UserManagementDataType*)
+        UA_Array_new(umUsersSize, &UA_TYPES[UA_TYPES_USERMANAGEMENTDATATYPE]);
+    if(!out)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    for(size_t i = 0; i < umUsersSize; i++) {
+        UA_String_copy(&umUsers[i].userName, &out[i].userName);
+        UA_String_copy(&umUsers[i].description, &out[i].description);
+        out[i].userConfiguration = umUsers[i].configuration;
+    }
+    *users = out;
+    *usersSize = umUsersSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umGetPasswordPolicy(UA_Server *s, UA_AccessControl *ac, UA_Range *length,
+                    UA_PasswordOptionsMask *options,
+                    UA_LocalizedText *restrictions) {
+    length->low = 8.0;
+    length->high = 64.0;
+    *options = umOptions;
+    *restrictions = UA_LOCALIZEDTEXT_ALLOC("en-US", "at least eight characters");
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umGetUserConfiguration(UA_Server *s, UA_AccessControl *ac,
+                       const UA_String *userName,
+                       UA_UserConfigurationMask *configuration) {
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    *configuration = u->configuration;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umAddUser(UA_Server *s, UA_AccessControl *ac, const UA_String *userName,
+          const UA_String *password, UA_UserConfigurationMask configuration,
+          const UA_String *description) {
+    if(umForcedStatus != UA_STATUSCODE_GOOD)
+        return umForcedStatus;
+    if(umFind(userName))
+        return UA_STATUSCODE_BADALREADYEXISTS;
+    if(umUsersSize >= UM_MAX_USERS)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    UMUser *u = &umUsers[umUsersSize++];
+    UA_String_copy(userName, &u->userName);
+    UA_String_copy(password, &u->password);
+    UA_String_copy(description, &u->description);
+    u->configuration = configuration;
+    UA_String_clear(&umLastPassword);
+    UA_String_copy(password, &umLastPassword);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umModifyUser(UA_Server *s, UA_AccessControl *ac, const UA_String *userName,
+             UA_Boolean modifyPassword, const UA_String *password,
+             UA_Boolean modifyConfiguration,
+             UA_UserConfigurationMask configuration,
+             UA_Boolean modifyDescription, const UA_String *description) {
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    if(modifyPassword) {
+        UA_String_clear(&u->password);
+        UA_String_copy(password, &u->password);
+    }
+    if(modifyConfiguration)
+        u->configuration = configuration;
+    if(modifyDescription) {
+        UA_String_clear(&u->description);
+        UA_String_copy(description, &u->description);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umRemoveUser(UA_Server *s, UA_AccessControl *ac, const UA_String *userName) {
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    UA_String_clear(&u->userName);
+    UA_String_clear(&u->password);
+    UA_String_clear(&u->description);
+    size_t idx = (size_t)(u - umUsers);
+    for(size_t i = idx; i + 1 < umUsersSize; i++)
+        umUsers[i] = umUsers[i + 1];
+    umUsersSize--;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+umChangePassword(UA_Server *s, UA_AccessControl *ac, const UA_String *userName,
+                 const UA_String *oldPassword, const UA_String *newPassword) {
+    umChangePasswordCalled = true;
+    UA_String_clear(&umLastOldPassword);
+    UA_String_copy(oldPassword, &umLastOldPassword);
+    UMUser *u = umFind(userName);
+    if(!u)
+        return UA_STATUSCODE_BADNOTFOUND;
+    if(!UA_String_equal(&u->password, oldPassword))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    UA_String_clear(&u->password);
+    return UA_String_copy(newPassword, &u->password);
+}
+
+/* initNS0RBAC runs from UA_Server_init, so the provider has to be part of the
+ * configuration handed to UA_Server_newWithConfig. Installing the callbacks on
+ * UA_Server_getConfig() after the Server exists is too late to wire the
+ * Object - the tests below would then silently exercise nothing. */
+static void setupUserManagement(void) {
+    umReset();
+    UA_ServerConfig sc;
+    memset(&sc, 0, sizeof(UA_ServerConfig));
+    sc.logging = UA_Log_Stdout_new(UA_LOGLEVEL_ERROR);
+    UA_ServerConfig_setMinimal(&sc, 4840, NULL);
+    sc.accessControl.getUsers = umGetUsers;
+    sc.accessControl.getPasswordPolicy = umGetPasswordPolicy;
+    sc.accessControl.getUserConfiguration = umGetUserConfiguration;
+    sc.accessControl.addUser = umAddUser;
+    sc.accessControl.modifyUser = umModifyUser;
+    sc.accessControl.removeUser = umRemoveUser;
+    sc.accessControl.changePassword = umChangePassword;
+    server = UA_Server_newWithConfig(&sc);
+    ck_assert(server != NULL);
+    UA_Server_run_startup(server);
+}
+
+static void teardownUserManagement(void) {
+    teardown();
+    umReset();
+}
+
+/* A server without a provider must leave the UserManagement Object inert. */
+static void setupNoUserManagement(void) {
+    umReset();
+    setup();
+}
+
+static UA_CallMethodResult
+callUserMethod(UA_UInt32 methodId, size_t inputSize, UA_Variant *input) {
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT);
+    req.methodId = UA_NODEID_NUMERIC(0, methodId);
+    req.inputArguments = input;
+    req.inputArgumentsSize = inputSize;
+    return UA_Server_call(server, &req);
+}
+
+static void
+setUserArgs(UA_Variant *v, UA_String *name, UA_String *password,
+            UA_UserConfigurationMask *cfg, UA_String *description) {
+    UA_Variant_setScalar(&v[0], name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&v[1], password, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&v[2], cfg, &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&v[3], description, &UA_TYPES[UA_TYPES_STRING]);
+}
+
+/* AddUser reaches the provider with its arguments intact, and the Users
+ * Property reports what the provider holds. */
+START_TEST(userManagement_addUserReachesProvider) {
+    UA_String name = UA_STRING("alice");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("plant operator");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+
+    UA_CallMethodResult res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER,
+                                             4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    ck_assert_uint_eq(umUsersSize, 1);
+    ck_assert(UA_String_equal(&umUsers[0].userName, &name));
+    ck_assert(UA_String_equal(&umLastPassword, &password));
+    ck_assert(UA_String_equal(&umUsers[0].description, &description));
+
+    /* The Users Property is backed by getUsers */
+    UA_Variant users;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_USERS),
+                          &users), UA_STATUSCODE_GOOD);
+    ck_assert(users.type == &UA_TYPES[UA_TYPES_USERMANAGEMENTDATATYPE]);
+    ck_assert_uint_eq(users.arrayLength, 1);
+    UA_UserManagementDataType *list = (UA_UserManagementDataType*)users.data;
+    ck_assert(UA_String_equal(&list[0].userName, &name));
+    UA_Variant_clear(&users);
+
+    /* A provider failure is reported rather than swallowed */
+    umForcedStatus = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+    UA_Variant unused;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_USERS),
+                          &unused), UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    umForcedStatus = UA_STATUSCODE_GOOD;
+}
+END_TEST
+
+/* The password policy Properties are served from getPasswordPolicy. */
+START_TEST(userManagement_passwordPolicyReadable) {
+    UA_Variant v;
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDLENGTH),
+                &v), UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_RANGE]);
+    ck_assert(((UA_Range*)v.data)->low == 8.0);
+    ck_assert(((UA_Range*)v.data)->high == 64.0);
+    UA_Variant_clear(&v);
+
+    ck_assert_uint_eq(UA_Server_readValue(server,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDOPTIONS),
+                &v), UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_PASSWORDOPTIONSMASK]);
+    ck_assert_uint_eq(*(UA_PasswordOptionsMask*)v.data, umOptions);
+    UA_Variant_clear(&v);
+
+    ck_assert_uint_eq(UA_Server_readValue(server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_USERMANAGEMENT_PASSWORDRESTRICTIONS),
+            &v), UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_Variant_clear(&v);
+}
+END_TEST
+
+/* Malformed arguments are rejected without reaching the provider. The Call
+ * service validates arity and types against the declared InputArguments, so it
+ * usually answers first (Bad_ArgumentsMissing, Bad_InvalidArgument or
+ * Bad_TypeMismatch); the callback's own userMethodInputs check backs that up
+ * for callers that reach it directly. What matters here is that no combination
+ * reaches the provider. */
+START_TEST(userManagement_rejectsMalformedArguments) {
+    UA_String name = UA_STRING("bob");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+
+    /* Too few arguments */
+    UA_Variant one;
+    UA_Variant_setScalar(&one, &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 1, &one);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* Right arity, wrong type in the middle */
+    UA_Variant bad[4];
+    UA_Variant_setScalar(&bad[0], &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&bad[1], &cfg,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&bad[2], &cfg,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&bad[3], &name, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, bad);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* An array where a scalar is required */
+    UA_String names[2] = {UA_STRING("a"), UA_STRING("b")};
+    UA_Variant arr;
+    UA_Variant_setArray(&arr, names, 2, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &arr);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* ModifyUser takes seven arguments, not four */
+    UA_String password = UA_STRING("pw");
+    UA_String description = UA_STRING("d");
+    UA_Variant four[4];
+    setUserArgs(four, &name, &password, &cfg, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 4, four);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    ck_assert_uint_eq(umUsersSize, 0);
+    ck_assert(!umChangePasswordCalled);
+}
+END_TEST
+
+/* The requested UserConfiguration is validated against the provider's
+ * PasswordOptions before the provider is asked to apply it. */
+START_TEST(userManagement_configurationValidatedAgainstPolicy) {
+    UA_String name = UA_STRING("carol");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("");
+    UA_Variant in[4];
+
+    /* NoChangeByUser and MustChangePassword contradict each other */
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NOCHANGEBYUSER |
+                                   UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD;
+    setUserArgs(in, &name, &password, &cfg, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADCONFIGURATIONERROR);
+    UA_CallMethodResult_clear(&res);
+
+    /* A flag the provider does not advertise is refused */
+    umOptions = UA_PASSWORDOPTIONSMASK_NONE;
+    cfg = UA_USERCONFIGURATIONMASK_DISABLED;
+    setUserArgs(in, &name, &password, &cfg, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_CallMethodResult_clear(&res);
+
+    /* Once advertised, the same request succeeds */
+    umOptions = UA_PASSWORDOPTIONSMASK_SUPPORTDISABLEUSER;
+    setUserArgs(in, &name, &password, &cfg, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umUsersSize, 1);
+    ck_assert_uint_eq(umUsers[0].configuration,
+                      UA_USERCONFIGURATIONMASK_DISABLED);
+}
+END_TEST
+
+/* ModifyUser forwards each modify flag and its value separately. */
+START_TEST(userManagement_modifyUserAppliesSelectedFields) {
+    UA_String name = UA_STRING("dave");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("before");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    /* Change only the description; leave password and configuration alone */
+    UA_Boolean no = false, yes = true;
+    UA_String newPassword = UA_STRING("unused");
+    UA_String newDescription = UA_STRING("after");
+    UA_Variant mod[7];
+    UA_Variant_setScalar(&mod[0], &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[1], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[2], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[3], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[4], &cfg,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&mod[5], &yes, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[6], &newDescription, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 7, mod);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    ck_assert(UA_String_equal(&umUsers[0].description, &newDescription));
+    ck_assert(UA_String_equal(&umUsers[0].password, &password));
+
+    /* An unsupported configuration is still refused on modify */
+    umOptions = UA_PASSWORDOPTIONSMASK_NONE;
+    UA_UserConfigurationMask disabled = UA_USERCONFIGURATIONMASK_DISABLED;
+    UA_Variant_setScalar(&mod[3], &yes, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[4], &disabled,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 7, mod);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_CallMethodResult_clear(&res);
+}
+END_TEST
+
+/* RemoveUser forwards to the provider and surfaces its status. */
+START_TEST(userManagement_removeUserReachesProvider) {
+    UA_String name = UA_STRING("erin");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+
+    UA_Variant rm;
+    UA_Variant_setScalar(&rm, &name, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &rm);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umUsersSize, 0);
+
+    /* Removing it again is the provider's Bad_NotFound, passed through */
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &rm);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_BADNOTFOUND);
+    UA_CallMethodResult_clear(&res);
+}
+END_TEST
+
+/* ChangePassword acts on the caller's own account over an encrypted channel.
+ * The local admin Session has neither a channel nor a user name, so it cannot
+ * reach the provider - a privileged caller must not change a password for
+ * someone else through this Method. */
+START_TEST(userManagement_changePasswordNeedsOwnEncryptedSession) {
+    UA_String oldPassword = UA_STRING("s3cret-password");
+    UA_String newPassword = UA_STRING("even-more-s3cret");
+    UA_Variant in[2];
+    UA_Variant_setScalar(&in[0], &oldPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&in[1], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD, 2, in);
+    ck_assert_uint_eq(res.statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_CallMethodResult_clear(&res);
+    ck_assert(!umChangePasswordCalled);
+}
+END_TEST
+
+/* Without a complete provider the Object stays inert: no DataSource behind the
+ * Properties and no callbacks on the Methods. */
+START_TEST(userManagement_inertWithoutProvider) {
+    UA_String name = UA_STRING("frank");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("");
+    UA_UserConfigurationMask cfg = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &cfg, &description);
+
+    UA_CallMethodResult res = callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER,
+                                             4, in);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umUsersSize, 0);
+}
+END_TEST
+
+static Suite *testSuite_UserManagement(void) {
+    Suite *s = suite_create("RBAC User Management");
+
+    TCase *tc = tcase_create("UserManagement");
+    tcase_add_checked_fixture(tc, setupUserManagement, teardownUserManagement);
+    tcase_add_test(tc, userManagement_addUserReachesProvider);
+    tcase_add_test(tc, userManagement_passwordPolicyReadable);
+    tcase_add_test(tc, userManagement_rejectsMalformedArguments);
+    tcase_add_test(tc, userManagement_configurationValidatedAgainstPolicy);
+    tcase_add_test(tc, userManagement_modifyUserAppliesSelectedFields);
+    tcase_add_test(tc, userManagement_removeUserReachesProvider);
+    tcase_add_test(tc, userManagement_changePasswordNeedsOwnEncryptedSession);
+    suite_add_tcase(s, tc);
+
+    TCase *tc_none = tcase_create("NoProvider");
+    tcase_add_checked_fixture(tc_none, setupNoUserManagement,
+                              teardownUserManagement);
+    tcase_add_test(tc_none, userManagement_inertWithoutProvider);
+    suite_add_tcase(s, tc_none);
+    return s;
+}
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL && UA_ENABLE_METHODCALLS */
+
 static Suite *testSuite_InformationModel(void) {
     Suite *s = suite_create("RBAC Information Model");
     TCase *tc = tcase_create("NS0");
@@ -3405,6 +3917,9 @@ int main(void) {
     srunner_add_suite(sr, testSuite_PermissionMapping());
     srunner_add_suite(sr, testSuite_NamespaceDefaults());
     srunner_add_suite(sr, testSuite_InformationModel());
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)
+    srunner_add_suite(sr, testSuite_UserManagement());
+#endif
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
     number_failed += srunner_ntests_failed(sr);
