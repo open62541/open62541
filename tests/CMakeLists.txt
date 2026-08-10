@@ -660,8 +660,10 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
 endif()
 
-# Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
+# The replay implementation is available only for 64-bit Linux builds with
+# libpcap (see test_plugin_sources above).
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND
+   PCAP_INCLUDE_DIR)
     ua_add_test(network_replay/check_network_replay.c)
 endif()
 
