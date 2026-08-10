@@ -460,6 +460,9 @@ isConditionOrBranch(UA_Server *server,
                     const UA_NodeId *conditionSource,
                     UA_Boolean *isCallerAC);
 
+UA_StatusCode
+UA_setConditionMethodCallbacks(UA_Server *server);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 /* Returns the first "HasTypeDefinition" or "HasSubtype" reference to the
