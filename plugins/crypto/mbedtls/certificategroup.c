@@ -1015,8 +1015,7 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    retval = (UA_mbedTLS_LoadPrivateKey(privateKey, &pk) ?
-              UA_STATUSCODE_BADSECURITYCHECKSFAILED : UA_STATUSCODE_GOOD);
+    retval = UA_mbedTLS_LoadPrivateKey(privateKey, &pk);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 

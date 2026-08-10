@@ -197,8 +197,6 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                             PSA_KEY_USAGE_EXPORT | PSA_KEY_USAGE_SIGN_HASH);
     psa_status_t psaStatus = psa_generate_key(&keyAttributes, &generatedKey.id);
     psa_reset_key_attributes(&keyAttributes);
-    if(psaStatus == PSA_SUCCESS)
-        generatedKey.owned = true;
     if(psaStatus != PSA_SUCCESS ||
        mbedtls_pk_copy_from_psa(generatedKey.id, &key) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,

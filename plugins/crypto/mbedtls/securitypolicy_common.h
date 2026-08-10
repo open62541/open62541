@@ -24,7 +24,6 @@
 
 typedef struct {
     mbedtls_svc_key_id_t id;
-    UA_Boolean owned;
 } UA_mbedTLS_PsaKey;
 
 UA_StatusCode
@@ -114,10 +113,11 @@ typedef struct {
     UA_ByteString remoteSymIv;
 
     mbedtls_x509_crt remoteCertificate;
-    UA_mbedTLS_PsaKey localSymSigningKeyPsa;
-    UA_mbedTLS_PsaKey localSymEncryptingKeyPsa;
-    UA_mbedTLS_PsaKey remoteSymSigningKeyPsa;
-    UA_mbedTLS_PsaKey remoteSymEncryptingKeyPsa;
+    UA_mbedTLS_PsaKey localSymSigningKey;
+    UA_mbedTLS_PsaKey localSymEncryptingKey;
+    UA_mbedTLS_PsaKey remoteSymSigningKey;
+    UA_mbedTLS_PsaKey remoteSymEncryptingKey;
+    psa_algorithm_t symmetricMacAlgorithm;
 } mbedtls_ChannelContext;
 
 typedef struct {
@@ -127,17 +127,29 @@ typedef struct {
 } mbedtls_PolicyContext;
 
 void
-UA_mbedTLS_ChannelContext_initPsa(mbedtls_ChannelContext *context);
+UA_mbedTLS_ChannelContext_init(mbedtls_ChannelContext *context);
 
 void
-UA_mbedTLS_ChannelContext_clearPsa(mbedtls_ChannelContext *context);
+UA_mbedTLS_ChannelContext_clear(mbedtls_ChannelContext *context);
+
+void
+UA_mbedTLS_PolicyContext_init(mbedtls_PolicyContext *context);
+
+void
+UA_mbedTLS_PolicyContext_clear(mbedtls_PolicyContext *context);
 
 UA_StatusCode
 UA_mbedTLS_thumbprintSha1(const UA_ByteString *certificate,
                         UA_ByteString *thumbprint);
 
-int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key,
-                              mbedtls_pk_context *target);
+UA_StatusCode
+UA_mbedTLS_makeCertificateThumbprint_generic(const UA_SecurityPolicy *policy,
+                                              const UA_ByteString *certificate,
+                                              UA_ByteString *thumbprint);
+
+UA_StatusCode
+UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key,
+                          mbedtls_pk_context *target);
 
 UA_StatusCode
 UA_mbedTLS_LoadCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
@@ -160,11 +172,33 @@ void
 UA_mbedTLS_clearSensitiveByteString(UA_ByteString *value);
 
 size_t
-UA_mbedTLS_asym_getRemoteSignatureSize_generic(const UA_SecurityPolicy *policy, const void *channelContext);
+UA_mbedTLS_getRemoteCertificateKeyLength(const UA_SecurityPolicy *policy,
+                                         const void *channelContext);
 
 size_t
-UA_mbedTLS_asym_getRemoteBlockSize_generic(const UA_SecurityPolicy *policy,
-                                           const void *channelContext);
+UA_mbedTLS_getRemoteCertificateKeyBitLength(const UA_SecurityPolicy *policy,
+                                            const void *channelContext);
+
+size_t
+UA_mbedTLS_symmetricEncryptionBlockSize(const UA_SecurityPolicy *policy,
+                                        const void *channelContext);
+
+UA_StatusCode
+UA_mbedTLS_symmetricSign(mbedtls_ChannelContext *context, size_t signatureLength,
+                         const UA_ByteString *message, UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_symmetricVerify(mbedtls_ChannelContext *context, size_t signatureLength,
+                           const UA_ByteString *message,
+                           const UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_symmetricEncrypt(const UA_SecurityPolicy *policy,
+                            void *channelContext, UA_ByteString *data);
+
+UA_StatusCode
+UA_mbedTLS_symmetricDecrypt(const UA_SecurityPolicy *policy,
+                            void *channelContext, UA_ByteString *data);
 
 UA_StatusCode
 UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
@@ -202,10 +236,6 @@ UA_mbedTLS_compareCertificate_generic(const UA_SecurityPolicy *policy,
                                       const UA_ByteString *certificate);
 
 size_t
-UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
-                                                const void *channelContext);
-
-size_t
 UA_mbedTLS_getLocalPrivateKeyLength(const UA_SecurityPolicy *policy,
                                     const void *channelContext);
 
@@ -216,11 +246,6 @@ UA_mbedTLS_getLocalPrivateKeyBitLength(const UA_SecurityPolicy *policy,
 UA_StatusCode
 UA_mbedTLS_compareCertificateThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
                                                 const UA_ByteString *certificateThumbprint);
-
-UA_StatusCode
-UA_mbedTLS_sym_generateKey_generic(const UA_SecurityPolicy *policy,
-                                   void *channelContext, const UA_ByteString *secret,
-                                   const UA_ByteString *seed, UA_ByteString *out);
 
 UA_StatusCode
 UA_mbedTLS_sym_generateNonce_generic(const UA_SecurityPolicy *policy,
