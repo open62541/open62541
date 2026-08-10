@@ -13,22 +13,6 @@
 
 #include "securitypolicy_common.h"
 
-#include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/error.h>
-#include <mbedtls/md.h>
-#include <mbedtls/sha1.h>
-#include <mbedtls/sha256.h>
-#include <mbedtls/version.h>
-#include <mbedtls/x509_crt.h>
-
-/* Orinigal Notes:
- * mbedTLS' AES allows in-place encryption and decryption. Sow we don't have to
- * allocate temp buffers.
- * https://tls.mbed.org/discussions/generic/in-place-decryption-with-aes256-same-input-output-buffer
- */
-
 #define UA_SHA256_LENGTH 32
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
@@ -37,14 +21,12 @@
 #define UA_AES128CTR_ENCRYPTION_BLOCK_SIZE 16
 
 typedef struct {
-    mbedtls_ctr_drbg_context drbgContext;
-    mbedtls_entropy_context entropyContext;
-    mbedtls_md_context_t sha256MdContext;
+    UA_Byte unused;
 } PUBSUB_AES128CTR_PolicyContext;
 
 typedef struct {
-    UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH];
-    UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH];
+    UA_mbedTLS_PsaKey signingKey;
+    UA_mbedTLS_PsaKey encryptingKey;
     UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH];
     UA_Byte messageNonce[UA_AES128CTR_MESSAGENONCE_LENGTH];
 } PUBSUB_AES128CTR_ChannelContext;
@@ -61,15 +43,14 @@ verify_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy,
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    PUBSUB_AES128CTR_PolicyContext *pc =
-        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
     PUBSUB_AES128CTR_ChannelContext *gc =
         (PUBSUB_AES128CTR_ChannelContext*)gContext;
 
     unsigned char mac[UA_SHA256_LENGTH];
-    UA_ByteString signingKey =
-        {UA_AES128CTR_SIGNING_KEY_LENGTH, gc->signingKey};
-    if(mbedtls_hmac(&pc->sha256MdContext, &signingKey, message, mac) != UA_STATUSCODE_GOOD)
+    UA_ByteString computed = {UA_SHA256_LENGTH, mac};
+    if(UA_mbedTLS_PsaMacCompute(gc->signingKey.id,
+                               PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                               message, &computed) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Compare with Signature */
@@ -85,15 +66,11 @@ sign_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy,
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    PUBSUB_AES128CTR_PolicyContext *pc =
-        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
     PUBSUB_AES128CTR_ChannelContext *gc =
         (PUBSUB_AES128CTR_ChannelContext*)gContext;
-
-    UA_ByteString signingKey =
-        {UA_AES128CTR_SIGNING_KEY_LENGTH, gc->signingKey};
-    if(mbedtls_hmac(&pc->sha256MdContext, &signingKey, 
-                    message, signature->data) != UA_STATUSCODE_GOOD)
+    if(UA_mbedTLS_PsaMacCompute(gc->signingKey.id,
+                               PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                               message, signature) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     return UA_STATUSCODE_GOOD;
@@ -126,20 +103,6 @@ encrypt_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     PUBSUB_AES128CTR_ChannelContext *gc =
         (PUBSUB_AES128CTR_ChannelContext*)gContext;
 
-    /* CTR mode does not need padding */
-
-    /* Decode the header to Extract the message nonce */
-
-    /* Keylength in bits */
-    unsigned int keylength = (unsigned int)(UA_AES128CTR_KEY_LENGTH * 8);
-    mbedtls_aes_context aesContext;
-    mbedtls_aes_init(&aesContext);
-    int mbedErr = mbedtls_aes_setkey_enc(&aesContext, gc->encryptingKey, keylength);
-    if(mbedErr) {
-        mbedtls_aes_free(&aesContext);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
     /* Prepare the counterBlock required for encryption/decryption 
      * Block counter starts at 1 according to part 14 (7.2.2.4.3.2)*/
     UA_Byte counterBlockCopy[UA_AES128CTR_ENCRYPTION_BLOCK_SIZE];
@@ -150,14 +113,9 @@ encrypt_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     memcpy(counterBlockCopy + UA_AES128CTR_KEYNONCE_LENGTH +
            UA_AES128CTR_MESSAGENONCE_LENGTH, &counterInitialValue, 4);
 
-    size_t counterblockoffset = 0;
-    UA_Byte aesBuffer[UA_AES128CTR_ENCRYPTION_BLOCK_SIZE];
-    mbedErr = mbedtls_aes_crypt_ctr(&aesContext, data->length, &counterblockoffset,
-                                    counterBlockCopy, aesBuffer, data->data, data->data);
-    mbedtls_aes_free(&aesContext);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
+    UA_ByteString counterBlock = {sizeof(counterBlockCopy), counterBlockCopy};
+    return UA_mbedTLS_PsaCipher(gc->encryptingKey.id, PSA_ALG_CTR, true,
+                                &counterBlock, data);
 }
 
 /* a decryption function is exactly the same as an encryption one, since they all do XOR
@@ -165,7 +123,20 @@ encrypt_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
 static UA_StatusCode
 decrypt_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
                          UA_ByteString *data) {
-    return encrypt_pubsub_aes128ctr(policy, gContext, data);
+    if(gContext == NULL || data == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    PUBSUB_AES128CTR_ChannelContext *gc =
+        (PUBSUB_AES128CTR_ChannelContext*)gContext;
+    UA_Byte counterBlockCopy[UA_AES128CTR_ENCRYPTION_BLOCK_SIZE];
+    UA_Byte counterInitialValue[4] = {0,0,0,1};
+    memcpy(counterBlockCopy, gc->keyNonce, UA_AES128CTR_KEYNONCE_LENGTH);
+    memcpy(counterBlockCopy + UA_AES128CTR_KEYNONCE_LENGTH,
+           gc->messageNonce, UA_AES128CTR_MESSAGENONCE_LENGTH);
+    memcpy(counterBlockCopy + UA_AES128CTR_KEYNONCE_LENGTH +
+           UA_AES128CTR_MESSAGENONCE_LENGTH, &counterInitialValue, 4);
+    UA_ByteString counterBlock = {sizeof(counterBlockCopy), counterBlockCopy};
+    return UA_mbedTLS_PsaCipher(gc->encryptingKey.id, PSA_ALG_CTR, false,
+                                &counterBlock, data);
 }
 
 static UA_StatusCode
@@ -174,9 +145,7 @@ generateKey_pubsub_aes128ctr(UA_PubSubSecurityPolicy *policy,
                              const UA_ByteString *seed, UA_ByteString *out) {
     if(policy == NULL || secret == NULL || seed == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    PUBSUB_AES128CTR_PolicyContext *pc =
-        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
-    return mbedtls_generateKey(&pc->sha256MdContext, secret, seed, out);
+    return UA_mbedTLS_PsaPHash(PSA_ALG_SHA_256, secret, seed, out);
 }
 
 static UA_StatusCode
@@ -184,17 +153,18 @@ generateNonce_pubsub_aes128ctr(UA_PubSubSecurityPolicy *policy,
                                void *gContext, UA_ByteString *out) {
     if(policy == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    PUBSUB_AES128CTR_PolicyContext *pc =
-        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
-    int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    return UA_STATUSCODE_GOOD;
+    return UA_mbedTLS_PsaRandom(out);
 }
 
 static void
 deleteContext_pubsub_aes128ctr(UA_PubSubSecurityPolicy *policy, void *gContext) {
-    UA_free(gContext);
+    PUBSUB_AES128CTR_ChannelContext *gc =
+        (PUBSUB_AES128CTR_ChannelContext*)gContext;
+    if(gc) {
+        UA_mbedTLS_PsaKey_clear(&gc->signingKey);
+        UA_mbedTLS_PsaKey_clear(&gc->encryptingKey);
+        UA_free(gc);
+    }
 }
 
 static UA_StatusCode
@@ -214,11 +184,26 @@ newContext_pubsub_aes128ctr(UA_PubSubSecurityPolicy *policy,
     if(gc == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Initialize the channel context */
-    if(signingKey)
-        memcpy(gc->signingKey, signingKey->data, signingKey->length);
-    if(encryptingKey)
-        memcpy(gc->encryptingKey, encryptingKey->data, encryptingKey->length);
+    UA_mbedTLS_PsaKey_init(&gc->signingKey);
+    UA_mbedTLS_PsaKey_init(&gc->encryptingKey);
+    if(signingKey) {
+        UA_StatusCode res = UA_mbedTLS_PsaKey_import(&gc->signingKey,
+            PSA_KEY_TYPE_HMAC, PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_VERIFY_MESSAGE,
+            PSA_ALG_HMAC(PSA_ALG_SHA_256), signingKey);
+        if(res != UA_STATUSCODE_GOOD) {
+            deleteContext_pubsub_aes128ctr(policy, gc);
+            return res;
+        }
+    }
+    if(encryptingKey) {
+        UA_StatusCode res = UA_mbedTLS_PsaKey_import(&gc->encryptingKey,
+            PSA_KEY_TYPE_AES, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT,
+            PSA_ALG_CTR, encryptingKey);
+        if(res != UA_STATUSCODE_GOOD) {
+            deleteContext_pubsub_aes128ctr(policy, gc);
+            return res;
+        }
+    }
     if(keyNonce)
         memcpy(gc->keyNonce, keyNonce->data, keyNonce->length);
     *gContext = gc;
@@ -238,8 +223,16 @@ setKeys_pubsub_aes128ctr(UA_PubSubSecurityPolicy *policy, void *gContext,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     PUBSUB_AES128CTR_ChannelContext *gc =
         (PUBSUB_AES128CTR_ChannelContext*)gContext;
-    memcpy(gc->signingKey, signingKey->data, signingKey->length);
-    memcpy(gc->encryptingKey, encryptingKey->data, encryptingKey->length);
+    UA_StatusCode res = UA_mbedTLS_PsaKey_import(&gc->signingKey,
+        PSA_KEY_TYPE_HMAC, PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_VERIFY_MESSAGE,
+        PSA_ALG_HMAC(PSA_ALG_SHA_256), signingKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_mbedTLS_PsaKey_import(&gc->encryptingKey,
+        PSA_KEY_TYPE_AES, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT,
+        PSA_ALG_CTR, encryptingKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     memcpy(gc->keyNonce, keyNonce->data, keyNonce->length);
     return UA_STATUSCODE_GOOD;
 }
@@ -261,14 +254,9 @@ clear_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPolicy) {
         return;
     if(securityPolicy->policyContext == NULL)
         return;
-    PUBSUB_AES128CTR_PolicyContext *pc =
-        (PUBSUB_AES128CTR_PolicyContext *)securityPolicy->policyContext;
-    mbedtls_ctr_drbg_free(&pc->drbgContext);
-    mbedtls_entropy_free(&pc->entropyContext);
-    mbedtls_md_free(&pc->sha256MdContext);
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for PUBSUB_AES128CTR");
-    UA_free(pc);
+    UA_free(securityPolicy->policyContext);
     securityPolicy->policyContext = NULL;
 }
 
@@ -286,31 +274,7 @@ setup_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPolicy) {
         goto error;
     }
 
-    /* Initialize the PolicyContext */
-    mbedtls_ctr_drbg_init(&pc->drbgContext);
-    mbedtls_entropy_init(&pc->entropyContext);
-    mbedtls_md_init(&pc->sha256MdContext);
-
-    /* Initialized the message digest */
-    const mbedtls_md_info_t *const mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    int mbedErr = mbedtls_md_setup(&pc->sha256MdContext, mdInfo, MBEDTLS_MD_SHA256);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto error;
-    }
-
-    mbedErr = mbedtls_entropy_self_test(0);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    /* Seed the RNG */
-    char *personalization = "open62541-drbg";
-    mbedErr = mbedtls_ctr_drbg_seed(&pc->drbgContext, mbedtls_entropy_func,
-                                    &pc->entropyContext,
-                                    (const unsigned char *)personalization, 14);
-    if(mbedErr) {
+    if(UA_mbedTLS_PSA_Init() != UA_STATUSCODE_GOOD) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }

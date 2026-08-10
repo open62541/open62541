@@ -15,9 +15,11 @@
 #include <mbedtls/version.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/x509_csr.h>
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ecp.h>
+#endif
 
 #if MBEDTLS_VERSION_NUMBER >= 0x03060000
 #include <psa/crypto.h>
@@ -69,6 +71,12 @@ UA_mbedTLS_PsaMacCompute(mbedtls_svc_key_id_t key,
                          UA_ByteString *output);
 
 UA_StatusCode
+UA_mbedTLS_PsaMacVerify(mbedtls_svc_key_id_t key,
+                        psa_algorithm_t algorithm,
+                        const UA_ByteString *input,
+                        const UA_ByteString *mac);
+
+UA_StatusCode
 UA_mbedTLS_PsaMacComputeRaw(const UA_ByteString *key,
                             psa_algorithm_t algorithm,
                             const UA_ByteString *input,
@@ -78,9 +86,58 @@ UA_StatusCode
 UA_mbedTLS_PsaRandom(UA_ByteString *output);
 
 UA_StatusCode
+UA_mbedTLS_PsaPHash(psa_algorithm_t hashAlgorithm,
+                    const UA_ByteString *secret,
+                    const UA_ByteString *seed,
+                    UA_ByteString *output);
+
+UA_StatusCode
 UA_mbedTLS_PsaCipher(mbedtls_svc_key_id_t key,
                      psa_algorithm_t algorithm, UA_Boolean encrypt,
                      const UA_ByteString *iv, UA_ByteString *data);
+
+UA_StatusCode
+UA_mbedTLS_PsaCipherRaw(const UA_ByteString *key,
+                        psa_algorithm_t algorithm, UA_Boolean encrypt,
+                        const UA_ByteString *iv, UA_ByteString *data);
+
+UA_StatusCode
+UA_mbedTLS_PsaAsymmetricSign(const mbedtls_pk_context *key,
+                             psa_algorithm_t signatureAlgorithm,
+                             psa_algorithm_t hashAlgorithm,
+                             const UA_ByteString *message,
+                             UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_PsaAsymmetricVerify(const mbedtls_pk_context *key,
+                               psa_algorithm_t signatureAlgorithm,
+                               psa_algorithm_t hashAlgorithm,
+                               const UA_ByteString *message,
+                               const UA_ByteString *signature);
+
+UA_StatusCode
+UA_mbedTLS_PsaAsymmetricEncrypt(const mbedtls_pk_context *key,
+                                psa_algorithm_t algorithm,
+                                size_t plainTextBlockSize,
+                                UA_ByteString *data);
+
+UA_StatusCode
+UA_mbedTLS_PsaAsymmetricDecrypt(const mbedtls_pk_context *key,
+                                psa_algorithm_t algorithm,
+                                UA_ByteString *data);
+
+UA_StatusCode
+UA_mbedTLS_PsaEccGenerate(psa_ecc_family_t family, size_t bits,
+                          UA_mbedTLS_PsaKey *keyPair,
+                          UA_ByteString *publicKey);
+
+UA_StatusCode
+UA_mbedTLS_PsaEccDerive(psa_algorithm_t hashAlgorithm,
+                        const UA_ApplicationType applicationType,
+                        const UA_mbedTLS_PsaKey *localEphemeralKeyPair,
+                        const UA_ByteString *key1,
+                        const UA_ByteString *key2,
+                        UA_ByteString *output);
 #endif
 
 /* 
@@ -137,16 +194,24 @@ typedef struct {
 typedef struct {
     UA_ByteString localCertThumbprint;
 
-    mbedtls_ctr_drbg_context drbgContext;
-    mbedtls_entropy_context entropyContext;
     mbedtls_md_context_t mdContext;
     mbedtls_pk_context localPrivateKey;
     mbedtls_pk_context csrLocalPrivateKey;
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+    mbedtls_ctr_drbg_context drbgContext;
+    mbedtls_entropy_context entropyContext;
+#endif
 #if defined(UA_MBEDTLS_USE_PSA)
     UA_mbedTLS_PsaKey localPrivateKeyPsa;
     UA_mbedTLS_PsaKey csrLocalPrivateKeyPsa;
 #endif
 } mbedtls_PolicyContext;
+
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
+#define UA_MBEDTLS_LEGACY_ENTROPY(context) (&(context)->entropyContext)
+#else
+#define UA_MBEDTLS_LEGACY_ENTROPY(context) NULL
+#endif
 
 #if defined(UA_MBEDTLS_USE_PSA)
 void
@@ -170,6 +235,7 @@ UA_mbedTLS_PolicyContext_clearPsa(mbedtls_PolicyContext *context);
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
 UA_StatusCode
 mbedtls_hmac(mbedtls_md_context_t *context, const UA_ByteString *key,
              const UA_ByteString *in, unsigned char *out);
@@ -178,20 +244,18 @@ UA_StatusCode
 mbedtls_generateKey(mbedtls_md_context_t *context,
                     const UA_ByteString *secret, const UA_ByteString *seed,
                     UA_ByteString *out);
+#endif
 
 UA_StatusCode
 mbedtls_verifySig_sha1(mbedtls_x509_crt *certificate, const UA_ByteString *message,
                        const UA_ByteString *signature);
 
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
 UA_StatusCode
 mbedtls_sign_sha1(mbedtls_pk_context *localPrivateKey,
                   mbedtls_ctr_drbg_context *drbgContext,
                   const UA_ByteString *message,
                   UA_ByteString *signature);
-
-UA_StatusCode
-mbedtls_thumbprint_sha1(const UA_ByteString *certificate,
-                        UA_ByteString *thumbprint);
 
 /* Set the hashing scheme before calling
  * E.g. mbedtls_rsa_set_padding(context, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1); */
@@ -215,6 +279,11 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
                              const UA_ByteString *nonce,
                              UA_ByteString *csr,
                              UA_ByteString *newPrivateKey);
+#endif
+
+UA_StatusCode
+mbedtls_thumbprint_sha1(const UA_ByteString *certificate,
+                        UA_ByteString *thumbprint);
 
 int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng);
 
@@ -311,7 +380,7 @@ UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
                                         UA_ByteString *csr,
                                         UA_ByteString *newPrivateKey);
 
-#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000 && MBEDTLS_VERSION_NUMBER < 0x04000000
 
 /* ECC key generation per curve */
 UA_StatusCode

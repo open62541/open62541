@@ -14,12 +14,8 @@
 
 #include "securitypolicy_common.h"
 
-#include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/md.h>
-#include <mbedtls/sha256.h>
 #include <mbedtls/version.h>
 #include <mbedtls/x509_crt.h>
 
@@ -35,14 +31,12 @@
 typedef struct {
     mbedtls_pk_context localPrivateKey;
     mbedtls_pk_context csrLocalPrivateKey;
-    mbedtls_ctr_drbg_context drbgContext;
-    mbedtls_entropy_context entropyContext;
     UA_ByteString localCertThumbprint;
     UA_ApplicationType applicationType;
 } Policy_Context_EccBrainpoolP256r1;
 
 typedef struct Channel_Context_EccBrainpoolP256r1 {
-    mbedtls_pk_context localEphemeralKeyPair;
+    UA_mbedTLS_PsaKey localEphemeralKeyPair;
     UA_Boolean ephemeralKeyInitialized;
     UA_ByteString localSymSigningKey;
     UA_ByteString localSymEncryptingKey;
@@ -67,22 +61,9 @@ UA_Policy_EccBrainpoolP256r1_New_Context(UA_SecurityPolicy *securityPolicy,
 
     mbedtls_pk_init(&context->localPrivateKey);
     mbedtls_pk_init(&context->csrLocalPrivateKey);
-    mbedtls_entropy_init(&context->entropyContext);
-    mbedtls_ctr_drbg_init(&context->drbgContext);
-
-    int mbedErr = mbedtls_ctr_drbg_seed(&context->drbgContext,
-                                         mbedtls_entropy_func,
-                                         &context->entropyContext, NULL, 0);
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey,
+                                            &context->localPrivateKey, NULL);
     if(mbedErr) {
-        UA_free(context);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &context->localPrivateKey,
-                                        &context->entropyContext);
-    if(mbedErr) {
-        mbedtls_ctr_drbg_free(&context->drbgContext);
-        mbedtls_entropy_free(&context->entropyContext);
         UA_free(context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -90,8 +71,6 @@ UA_Policy_EccBrainpoolP256r1_New_Context(UA_SecurityPolicy *securityPolicy,
     /* Verify the key is an EC key */
     if(!mbedtls_pk_can_do(&context->localPrivateKey, MBEDTLS_PK_ECKEY)) {
         mbedtls_pk_free(&context->localPrivateKey);
-        mbedtls_ctr_drbg_free(&context->drbgContext);
-        mbedtls_entropy_free(&context->entropyContext);
         UA_free(context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -100,8 +79,6 @@ UA_Policy_EccBrainpoolP256r1_New_Context(UA_SecurityPolicy *securityPolicy,
         UA_ByteString_allocBuffer(&context->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD) {
         mbedtls_pk_free(&context->localPrivateKey);
-        mbedtls_ctr_drbg_free(&context->drbgContext);
-        mbedtls_entropy_free(&context->entropyContext);
         UA_free(context);
         return retval;
     }
@@ -111,8 +88,6 @@ UA_Policy_EccBrainpoolP256r1_New_Context(UA_SecurityPolicy *securityPolicy,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&context->localCertThumbprint);
         mbedtls_pk_free(&context->localPrivateKey);
-        mbedtls_ctr_drbg_free(&context->drbgContext);
-        mbedtls_entropy_free(&context->entropyContext);
         UA_free(context);
         return retval;
     }
@@ -136,8 +111,6 @@ UA_Policy_EccBrainpoolP256r1_Clear_Context(UA_SecurityPolicy *policy) {
 
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_free(&pc->csrLocalPrivateKey);
-    mbedtls_ctr_drbg_free(&pc->drbgContext);
-    mbedtls_entropy_free(&pc->entropyContext);
     UA_ByteString_clear(&pc->localCertThumbprint);
     UA_free(pc);
 }
@@ -155,12 +128,14 @@ createSigningRequest_sp_eccbrainpoolp256r1(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Policy_Context_EccBrainpoolP256r1 *pc =
         (Policy_Context_EccBrainpoolP256r1*)securityPolicy->policyContext;
+#if MBEDTLS_VERSION_NUMBER < 0x04000000
     return mbedtls_createSigningRequest(&pc->localPrivateKey,
-                                        &pc->csrLocalPrivateKey,
-                                        &pc->entropyContext,
-                                        &pc->drbgContext,
+                                        &pc->csrLocalPrivateKey, NULL, NULL,
                                         securityPolicy, subjectName,
                                         nonce, csr, newPrivateKey);
+#else
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
 }
 
 static UA_StatusCode
@@ -183,8 +158,8 @@ updateCertificateAndPrivateKey_sp_EccBrainpoolP256r1(UA_SecurityPolicy *security
     /* Set the new private key */
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey,
-                                            &pc->entropyContext);
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey,
+                                            &pc->localPrivateKey, NULL);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -239,7 +214,7 @@ EccBrainpoolP256r1_New_Context(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
     }
 
-    mbedtls_pk_init(&newContext->localEphemeralKeyPair);
+    UA_mbedTLS_PsaKey_init(&newContext->localEphemeralKeyPair);
     newContext->ephemeralKeyInitialized = UA_FALSE;
 
     *channelContext = newContext;
@@ -261,8 +236,7 @@ EccBrainpoolP256r1_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
-    if(cc->ephemeralKeyInitialized)
-        mbedtls_pk_free(&cc->localEphemeralKeyPair);
+    UA_mbedTLS_PsaKey_clear(&cc->localEphemeralKeyPair);
     UA_free(cc);
 }
 
@@ -320,26 +294,22 @@ UA_AsymEn_EccBrainpoolP256r1_getRemoteKeyLength(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_Sym_EccBrainpoolP256r1_generateNonce(const UA_SecurityPolicy *policy,
                                  void *channelContext, UA_ByteString *out) {
-    Policy_Context_EccBrainpoolP256r1 *pctx =
-        (Policy_Context_EccBrainpoolP256r1*)policy->policyContext;
-    if(!pctx)
+    if(!policy->policyContext)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
     /* Detect if we want to create an ephemeral key or just cryptographic random
      * data */
     if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
         Channel_Context_EccBrainpoolP256r1 *cctx = (Channel_Context_EccBrainpoolP256r1*)channelContext;
-        if(cctx->ephemeralKeyInitialized)
-            mbedtls_pk_free(&cctx->localEphemeralKeyPair);
-        UA_StatusCode res = UA_mbedTLS_ECC_BRAINPOOLP256R1_GenerateKey(
-            &cctx->localEphemeralKeyPair, &pctx->drbgContext, out);
+        UA_StatusCode res = UA_mbedTLS_PsaEccGenerate(
+            PSA_ECC_FAMILY_BRAINPOOL_P_R1, 256,
+            &cctx->localEphemeralKeyPair, out);
         if(res == UA_STATUSCODE_GOOD)
             cctx->ephemeralKeyInitialized = UA_TRUE;
         return res;
     }
 
-    int rc = mbedtls_ctr_drbg_random(&pctx->drbgContext, out->data, out->length);
-    return (rc == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_mbedTLS_PsaRandom(out);
 }
 
 static size_t
@@ -363,11 +333,9 @@ UA_Sym_EccBrainpoolP256r1_generateKey(const UA_SecurityPolicy *policy,
     Channel_Context_EccBrainpoolP256r1 *cc = (Channel_Context_EccBrainpoolP256r1 *)channelContext;
     if(!pctx || !cc)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    return UA_mbedTLS_ECC_DeriveKeys(MBEDTLS_ECP_DP_BP256R1, MBEDTLS_MD_SHA256,
-                                     pctx->applicationType,
-                                     &cc->localEphemeralKeyPair,
-                                     &pctx->drbgContext,
-                                     secret, seed, out);
+    return UA_mbedTLS_PsaEccDerive(PSA_ALG_SHA_256, pctx->applicationType,
+                                   &cc->localEphemeralKeyPair,
+                                   secret, seed, out);
 }
 
 static UA_StatusCode
@@ -461,8 +429,8 @@ UA_AsymSig_EccBrainpoolP256r1_sign(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Policy_Context_EccBrainpoolP256r1 *pc =
         (Policy_Context_EccBrainpoolP256r1 *)policy->policyContext;
-    return UA_mbedTLS_ECDSA_SHA256_Sign(message, &pc->localPrivateKey,
-                                        &pc->drbgContext, signature);
+    return UA_mbedTLS_PsaAsymmetricSign(&pc->localPrivateKey,
+        PSA_ALG_ECDSA(PSA_ALG_SHA_256), PSA_ALG_SHA_256, message, signature);
 }
 
 static UA_StatusCode
@@ -472,7 +440,8 @@ UA_AsymSig_EccBrainpoolP256r1_verify(const UA_SecurityPolicy *policy, void *chan
     if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP256r1 *cc = (Channel_Context_EccBrainpoolP256r1 *)channelContext;
-    return UA_mbedTLS_ECDSA_SHA256_Verify(message, &cc->remoteCertificateX509, signature);
+    return UA_mbedTLS_PsaAsymmetricVerify(&cc->remoteCertificateX509.pk,
+        PSA_ALG_ECDSA(PSA_ALG_SHA_256), PSA_ALG_SHA_256, message, signature);
 }
 
 static UA_StatusCode
@@ -492,8 +461,17 @@ UA_SymSig_EccBrainpoolP256r1_verify(const UA_SecurityPolicy *policy, void *chann
                              const UA_ByteString *message, const UA_ByteString *signature) {
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(signature->length != UA_SHA256_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     Channel_Context_EccBrainpoolP256r1 *cc = (Channel_Context_EccBrainpoolP256r1 *)channelContext;
-    return UA_mbedTLS_HMAC_SHA256_Verify(message, &cc->remoteSymSigningKey, signature);
+    UA_Byte mac[UA_SHA256_LENGTH];
+    UA_ByteString computed = {sizeof(mac), mac};
+    UA_StatusCode res = UA_mbedTLS_PsaMacComputeRaw(&cc->remoteSymSigningKey,
+        PSA_ALG_HMAC(PSA_ALG_SHA_256), message, &computed);
+    if(res != UA_STATUSCODE_GOOD ||
+       !UA_constantTimeEqual(computed.data, signature->data, computed.length))
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -503,7 +481,9 @@ UA_SymSig_EccBrainpoolP256r1_sign(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccBrainpoolP256r1 *cc = (Channel_Context_EccBrainpoolP256r1 *)channelContext;
-    return UA_mbedTLS_HMAC_SHA256_Sign(message, &cc->localSymSigningKey, signature);
+    signature->length = UA_SHA256_LENGTH;
+    return UA_mbedTLS_PsaMacComputeRaw(&cc->localSymSigningKey,
+        PSA_ALG_HMAC(PSA_ALG_SHA_256), message, signature);
 }
 
 static size_t
@@ -524,24 +504,9 @@ UA_SymEn_EccBrainpoolP256r1_decrypt(const UA_SecurityPolicy *policy,
     if(data->length % UA_SECURITYPOLICY_ECCBRAINPOOLP256R1_SYM_ENCRYPTION_BLOCK_SIZE != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    unsigned int keylength = (unsigned int)(cc->remoteSymEncryptingKey.length * 8);
-    mbedtls_aes_context aesContext;
-    int mbedErr = mbedtls_aes_setkey_dec(&aesContext, cc->remoteSymEncryptingKey.data,
-                                         keylength);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString ivCopy;
-    UA_StatusCode retval = UA_ByteString_copy(&cc->remoteSymIv, &ivCopy);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    mbedErr = mbedtls_aes_crypt_cbc(&aesContext, MBEDTLS_AES_DECRYPT, data->length,
-                                    ivCopy.data, data->data, data->data);
-    if(mbedErr)
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_clear(&ivCopy);
-    return retval;
+    return UA_mbedTLS_PsaCipherRaw(&cc->remoteSymEncryptingKey,
+                                   PSA_ALG_CBC_NO_PADDING, false,
+                                   &cc->remoteSymIv, data);
 }
 
 static UA_StatusCode
@@ -558,24 +523,9 @@ UA_SymEn_EccBrainpoolP256r1_encrypt(const UA_SecurityPolicy *policy,
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    unsigned int keylength = (unsigned int)(cc->localSymEncryptingKey.length * 8);
-    mbedtls_aes_context aesContext;
-    int mbedErr = mbedtls_aes_setkey_enc(&aesContext, cc->localSymEncryptingKey.data,
-                                         keylength);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString ivCopy;
-    UA_StatusCode retval = UA_ByteString_copy(&cc->localSymIv, &ivCopy);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    mbedErr = mbedtls_aes_crypt_cbc(&aesContext, MBEDTLS_AES_ENCRYPT, data->length,
-                                    ivCopy.data, data->data, data->data);
-    if(mbedErr)
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_clear(&ivCopy);
-    return retval;
+    return UA_mbedTLS_PsaCipherRaw(&cc->localSymEncryptingKey,
+                                   PSA_ALG_CBC_NO_PADDING, true,
+                                   &cc->localSymIv, data);
 }
 
 static UA_StatusCode
