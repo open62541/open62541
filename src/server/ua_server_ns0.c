@@ -22,6 +22,10 @@
 #include "ua_session.h"
 #include "ua_subscription.h"
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 static UA_StatusCode
 ns0_addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
             UA_UInt32 nodeId, char *name, void *attributes,
@@ -1113,7 +1117,12 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(LLDP), true);
 #endif
     deleteNode(server, UA_NS0ID(PROVISIONABLEDEVICE), true);
-    deleteNode(server, UA_NS0ID(USERMANAGEMENT), true);
+#ifdef UA_ENABLE_RBAC
+    /* Keep the UserManagement Object when a provider is configured. Without one
+     * the Server cannot implement its Methods, so it stays removed. */
+    if(!UA_Server_hasUserManagementProvider(&server->config.accessControl))
+#endif
+        deleteNode(server, UA_NS0ID(USERMANAGEMENT), true);
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_TRANSACTIONDIAGNOSTICS), true);
 #ifdef UA_NS0ID_SERVERCONFIGURATION_CONFIGURATIONFILE
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CONFIGURATIONFILE), true);
