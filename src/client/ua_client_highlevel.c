@@ -1043,8 +1043,12 @@ UA_Client_readUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId no
 UA_StatusCode
 UA_Client_readAccessRestrictionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                           UA_AccessRestrictionType *out) {
+    /* AccessRestrictionType has typeKind UInt16, so a Variant carries it as the
+     * builtin UInt16 and the decoded value never points at the
+     * AccessRestrictionType descriptor. Expect the type that actually arrives;
+     * UA_AccessRestrictionType is a UInt16 typedef, so the copy is unchanged. */
     return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSRESTRICTIONS,
-                                  out, &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+                                  out, &UA_TYPES[UA_TYPES_UINT16]);
 }
 
 UA_StatusCode
