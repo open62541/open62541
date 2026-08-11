@@ -193,7 +193,13 @@ START_TEST(hl_readRbacAttributes) {
     UA_AccessRestrictionType restrictions;
     res = UA_Client_readAccessRestrictionsAttribute(client,
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &restrictions);
+#ifdef UA_ENABLE_RBAC
+    /* With RBAC the attribute reports the effective AccessRestrictions of the
+     * Node (Part 3 §5.2.11) instead of being unsupported. */
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+#else
     ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+#endif
     disconnectClient(client);
 } END_TEST
 
