@@ -56,39 +56,66 @@ browseDataTypesRecursive(UA_Client *client, NodeIdTree *tree,
         return res;
     }
 
-    /* Check which types are unknown, add them and recurse */
-    for(size_t i = 0; i < br.referencesSize && res == UA_STATUSCODE_GOOD; i++) {
-        UA_ReferenceDescription *rd = &br.references[i];
-        if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
-            continue;
+    while(res == UA_STATUSCODE_GOOD) {
+        /* Process references */
+        for(size_t i = 0; i < br.referencesSize && res == UA_STATUSCODE_GOOD; i++) {
+            UA_ReferenceDescription *rd = &br.references[i];
+            if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
+                continue;
 
-        /* Skip known types */
-        if(UA_findDataTypeWithCustom(&rd->nodeId.nodeId,
-                                     client->config.customDataTypes))
-            continue;
-        if(ZIP_FIND(NodeIdTree, tree, &rd->nodeId.nodeId))
-            continue;
+            /* Skip known types */
+            if(UA_findDataTypeWithCustom(&rd->nodeId.nodeId,
+                                         client->config.customDataTypes))
+                continue;
+            if(ZIP_FIND(NodeIdTree, tree, &rd->nodeId.nodeId))
+                continue;
 
-        /* Create an entry */
-        NodeIdTreeEntry *entry = (NodeIdTreeEntry*)UA_malloc(sizeof(NodeIdTreeEntry));
-        if(!entry) {
-            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            /* Create an entry */
+            NodeIdTreeEntry *entry = (NodeIdTreeEntry*)UA_malloc(sizeof(NodeIdTreeEntry));
+            if(!entry) {
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
+            *entry = (NodeIdTreeEntry){{NULL, NULL}, rd->nodeId.nodeId, rd->displayName.text};
+
+            ZIP_INSERT(NodeIdTree, tree, entry);
+            (*treeSize)++;
+
+            /* Recurse */
+            res = browseDataTypesRecursive(client, tree, treeSize, rd->nodeId.nodeId);
+
+            /* Don't double-free */
+            UA_NodeId_init(&rd->nodeId.nodeId);
+            UA_String_init(&rd->displayName.text);
+        }
+
+        /* No continuation point or error, done */
+        if(res != UA_STATUSCODE_GOOD ||
+           UA_ByteString_equal(&br.continuationPoint, &UA_BYTESTRING_NULL)) {
+            /* Release the continuation point */
+            if(res != UA_STATUSCODE_GOOD && br.continuationPoint.length > 0) {
+                UA_Client_browseNext(client, true, br.continuationPoint);
+            }
+            UA_BrowseResult_clear(&br);
             break;
         }
-        *entry = (NodeIdTreeEntry){{NULL, NULL}, rd->nodeId.nodeId, rd->displayName.text};
-            
-        ZIP_INSERT(NodeIdTree, tree, entry);
-        (*treeSize)++;
 
-        /* Recurse */
-        res = browseDataTypesRecursive(client, tree, treeSize, rd->nodeId.nodeId);
-
-        /* Don't double-free */
-        UA_NodeId_init(&rd->nodeId.nodeId);
-        UA_String_init(&rd->displayName.text);
+        /* Browse next */
+        UA_ByteString cp = br.continuationPoint;
+        UA_ByteString_init(&br.continuationPoint); /* Don't double-free */
+        UA_BrowseResult_clear(&br);
+        br = UA_Client_browseNext(client, false, cp);
+        UA_ByteString_clear(&cp);
+        if(br.statusCode != UA_STATUSCODE_GOOD) {
+            res = br.statusCode;
+            /* Release the continuation point */
+            if(br.continuationPoint.length > 0) {
+                UA_Client_browseNext(client, true, br.continuationPoint);
+            }
+            UA_BrowseResult_clear(&br);
+        }
     }
 
-    UA_BrowseResult_clear(&br);
     return res;
 }
 
