@@ -113,8 +113,9 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     dta->cleanup = true;
-    dta->types = (UA_DataType*)UA_calloc(typesSize, sizeof(UA_DataType));
-    if(!dta->types) {
+    UA_DataType *newTypes = (UA_DataType*)UA_calloc(typesSize, sizeof(UA_DataType));
+    dta->types = newTypes;
+    if(!newTypes) {
         UA_ReadResponse_clear(&rr);
         UA_cleanupDataTypeWithCustom(dta);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -147,7 +148,7 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
         UA_DataTypeArray lookupTypes = *dta;
         lookupTypes.next = client->config.customDataTypes;
 
-        res = UA_DataType_fromDescription(&dta->types[dta->typesSize], &eo,
+        res = UA_DataType_fromDescription(&newTypes[dta->typesSize], &eo,
                                           &lookupTypes);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -167,7 +168,7 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
     UA_ReadResponse_clear(&rr);
     UA_ReadRequest_clear(req);
     if(dta->typesSize == 0) {
-        UA_free(dta->types);
+        UA_free(newTypes);
         dta->types = NULL;
     }
     return UA_STATUSCODE_GOOD;
