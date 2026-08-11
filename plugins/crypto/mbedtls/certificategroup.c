@@ -836,7 +836,6 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
     if(!certificateGroupValidByteString(certificate) || !subjectName)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_String_init(subjectName);
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
 
@@ -863,7 +862,11 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     if(res < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_String tmp = {(size_t)res, (UA_Byte*)buf};
-    return UA_String_copy(&tmp, subjectName);
+    UA_String result = UA_STRING_NULL;
+    retval = UA_String_copy(&tmp, &result);
+    if(retval == UA_STATUSCODE_GOOD)
+        *subjectName = result;
+    return retval;
 }
 
 UA_StatusCode
@@ -1131,7 +1134,6 @@ UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
     if(!certificateGroupValidByteString(certificate) || certificate->length == 0 || !commonName)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_String_init(commonName);
 
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
@@ -1144,6 +1146,8 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
         return retval;
     }
 
+    retval = UA_STATUSCODE_BADNOTFOUND;
+    UA_String result = UA_STRING_NULL;
     for(mbedtls_x509_name *name = &publicKey.subject;
         name != NULL;
         name = name->next) {
@@ -1152,13 +1156,15 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
                 (size_t)name->val.len,
                 (UA_Byte*)name->val.p
             };
-            retval = UA_String_copy(&tmp, commonName);
+            retval = UA_String_copy(&tmp, &result);
 
             break;
         }
     }
 
     mbedtls_x509_crt_free(&publicKey);
+    if(retval == UA_STATUSCODE_GOOD)
+        *commonName = result;
     return retval;
 }
 #endif

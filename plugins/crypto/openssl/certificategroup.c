@@ -835,6 +835,9 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
+    if(!certificate || (certificate->length > 0 && !certificate->data) ||
+       !subjectName)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     X509_NAME *sn = NULL;
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     X509_CRL *x509_crl = NULL;
@@ -849,13 +852,21 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     }
 
     char buf[1024];
-    *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
+    char *name = X509_NAME_oneline(sn, buf, sizeof(buf));
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
+    UA_String result = UA_STRING_NULL;
+    if(name) {
+        UA_String tmp = UA_STRING(name);
+        retval = UA_String_copy(&tmp, &result);
+    }
 
     if(x509)
         X509_free(x509);
     if(x509_crl)
         X509_CRL_free(x509_crl);
-    return UA_STATUSCODE_GOOD;
+    if(retval == UA_STATUSCODE_GOOD)
+        *subjectName = result;
+    return retval;
 }
 
 UA_StatusCode
@@ -1151,13 +1162,13 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
 
 UA_StatusCode
 UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
-	UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
+	UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     const unsigned char *p = NULL;
 	X509 *x509;
 	X509_NAME *subj;
 
 	if(!certificate || !certificate->data || !commonName)
-		return UA_STATUSCODE_BADINTERNALERROR;
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
 	p = certificate->data;
 
 	x509 = d2i_X509(NULL, &p, (long)certificate->length);
@@ -1166,14 +1177,19 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
 
     subj = X509_get_subject_name(x509);
 
+    UA_String result = UA_STRING_NULL;
     if(subj) {
         char buf[1024] = {0};
-        X509_NAME_get_text_by_NID(subj, NID_commonName, buf, sizeof(buf));
-        UA_String tmp = UA_STRING(buf);
-        retval = UA_String_copy(&tmp, commonName);
+        int length = X509_NAME_get_text_by_NID(subj, NID_commonName, buf, sizeof(buf));
+        if(length >= 0) {
+            UA_String tmp = {(size_t)length, (UA_Byte*)buf};
+            retval = UA_String_copy(&tmp, &result);
+        }
     }
 	X509_free(x509);
 
+	if(retval == UA_STATUSCODE_GOOD)
+		*commonName = result;
 	return retval;
 }
 
