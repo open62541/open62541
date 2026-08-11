@@ -202,6 +202,13 @@ class CGenerator:
         self.fd = None
         self.fe = None
 
+    def _can_be_const(self):
+        """The base UA_TYPES array (outname 'types', namespace 0) is never
+        modified at runtime and can therefore be declared const. Type arrays
+        generated for additional nodesets get their NamespaceIndex adjusted
+        at runtime and must remain mutable."""
+        return self.parser.outname == "types"
+
     @staticmethod
     def get_type_index(datatype):
         if isinstance(datatype,  BuiltinType):
@@ -288,7 +295,7 @@ class CGenerator:
         if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
+        members = "static const UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
         before = None
         size = len(datatype.elements) if isEnum else len(datatype.members)
         if isEnum:
@@ -594,9 +601,9 @@ _UA_BEGIN_DECLS
         self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(totalCount)))
 
         if totalCount > 0:
-
+            const_q = "const " if self._can_be_const() else ""
             self.printh(
-                "extern " + self.export_macro + " UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+                "extern " + self.export_macro + " " + const_q + "UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -657,8 +664,9 @@ _UA_END_DECLS
                 self.printc(CGenerator.print_members(t))
 
         if totalCount > 0:
+            const_q = "const " if self._can_be_const() else ""
             self.printc(
-                "UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
+                "{}UA_DataType UA_{}[UA_{}_COUNT] = {{".format(const_q, self.parser.outname.upper(), self.parser.outname.upper()))
 
             for ns in self.filtered_types:
                 for _, t_name in enumerate(self.filtered_types[ns]):
