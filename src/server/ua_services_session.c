@@ -1338,8 +1338,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
         UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
             req->userIdentityToken.content.decoded.data;
-        UA_CertificateUtils_getSubjectName(&session->clientUserIdOfSession,
-                                           &userCertToken->certificateData);
+        UA_CertificateUtils_getSubjectName(&userCertToken->certificateData,
+                                           &session->clientUserIdOfSession);
     } else {
         /* TODO: Handle issued token */
     }

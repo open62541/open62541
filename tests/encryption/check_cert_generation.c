@@ -82,12 +82,75 @@ START_TEST(certificate_generation) {
 }
 END_TEST
 
+START_TEST(certificate_generation_rejects_malformed_names) {
+    UA_String validSubject = UA_STRING_STATIC("CN=localhost");
+    UA_String validSubjectAltName = UA_STRING_STATIC("DNS:localhost");
+    UA_String malformed = {1, NULL};
+    UA_Byte keySentinelData = 0x11;
+    UA_Byte certSentinelData = 0x22;
+    UA_ByteString privateKey = {1, &keySentinelData};
+    UA_ByteString certificate = {1, &certSentinelData};
+
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, &malformed, 1, &validSubjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, NULL, &privateKey, &certificate);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_ptr_eq(privateKey.data, &keySentinelData);
+    ck_assert_ptr_eq(certificate.data, &certSentinelData);
+
+    status = UA_CreateCertificate(
+        UA_Log_Stdout, &validSubject, 1, &malformed, 1,
+        UA_CERTIFICATEFORMAT_DER, NULL, &privateKey, &certificate);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_ptr_eq(privateKey.data, &keySentinelData);
+    ck_assert_ptr_eq(certificate.data, &certSentinelData);
+}
+END_TEST
+
+START_TEST(certificate_utils_outputs_are_transactional) {
+    UA_String subject[2] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=open62541")};
+    UA_String subjectAltName = UA_STRING_STATIC("DNS:localhost");
+    UA_KeyValueMap *params = UA_KeyValueMap_new();
+    ck_assert_ptr_ne(params, NULL);
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(params, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             &keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 2, &subjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, params, &privateKey, &certificate);
+    UA_KeyValueMap_delete(params);
+    ck_assert_uint_eq(status, UA_STATUSCODE_GOOD);
+
+    UA_Byte sentinelData[] = "unchanged";
+    UA_String output = {sizeof(sentinelData) - 1, sentinelData};
+    status = UA_CertificateUtils_getCertCommonName(&certificate, &output);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_ptr_eq(output.data, sentinelData);
+    ck_assert_uint_eq(output.length, sizeof(sentinelData) - 1);
+
+    UA_ByteString malformedCertificate = UA_BYTESTRING("not-a-certificate");
+    status = UA_CertificateUtils_getSubjectName(&malformedCertificate, &output);
+    ck_assert_uint_ne(status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(output.data, sentinelData);
+    ck_assert_uint_eq(output.length, sizeof(sentinelData) - 1);
+
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Create Certificate");
     TCase *tc_cert = tcase_create("Certificate Create");
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, certificate_generation);
+    tcase_add_test(tc_cert, certificate_generation_rejects_malformed_names);
+    tcase_add_test(tc_cert, certificate_utils_outputs_are_transactional);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
     return s;

@@ -163,6 +163,14 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
        subjectAltNameSize == 0 || subjectSize == 0 ||
        (certFormat != UA_CERTIFICATEFORMAT_DER && certFormat != UA_CERTIFICATEFORMAT_PEM))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    for(size_t i = 0; i < subjectSize; i++) {
+        if(subject[i].length > 0 && !subject[i].data)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    for(size_t i = 0; i < subjectAltNameSize; i++) {
+        if(subjectAltName[i].length > 0 && !subjectAltName[i].data)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     /* Use the maximum size */
     UA_UInt16 keySizeBits = 4096;

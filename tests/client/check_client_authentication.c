@@ -93,6 +93,18 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+static void
+assertCertificateUserId(const UA_Client *client) {
+    UA_Variant userId;
+    UA_Variant_init(&userId);
+    UA_StatusCode res = UA_Server_getSessionAttributeCopy(
+        server, &client->sessionId, UA_QUALIFIEDNAME(0, "clientUserId"), &userId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&userId, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert_uint_gt(((UA_String*)userId.data)->length, 0);
+    UA_Variant_clear(&userId);
+}
+
 START_TEST(Client_connect_certificate) {
     /* Load client certificate and private key for the SecureChannel */
     UA_ByteString certificate;
@@ -485,6 +497,7 @@ START_TEST(client_authenticate_with_certificate) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    assertCertificateUserId(client);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -528,6 +541,7 @@ START_TEST(client_authenticate_none_with_certificate) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    assertCertificateUserId(client);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
