@@ -152,7 +152,15 @@ START_TEST(read_accessRestrictions) {
     UA_AccessRestrictionType restrictions;
     UA_StatusCode res = UA_Server_readAccessRestrictions(server,
         UA_NODEID_NUMERIC(1, 70001), &restrictions);
+#ifdef UA_ENABLE_RBAC
+    /* With RBAC the attribute reports the effective AccessRestrictions of the
+     * Node (Part 3 §5.2.11) instead of being unsupported. A Node without its
+     * own value and without a namespace default resolves to none set. */
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(restrictions, 0);
+#else
     ck_assert_uint_eq(res, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+#endif
 } END_TEST
 
 START_TEST(read_userExecutable) {
