@@ -81,7 +81,7 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
 size_t
 UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  const UA_DataSetMessage_EncodingMetaData *em,
-                                 UA_DataSetMessage *src,
+                                 const UA_DataSetMessage *src,
                                  size_t currentOffset);
 
 /******************/

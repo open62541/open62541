@@ -1152,7 +1152,10 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* DataSetMessageSequenceNr */
     if(src->dataSetMessageSequenceNrEnabled) {
-        rv = _ENCODE_BINARY(&src->dataSetMessageSequenceNr, UINT16);
+        if(src->dataSetMessageSequenceNr > UA_UINT16_MAX)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        UA_UInt16 sequenceNumber = (UA_UInt16)src->dataSetMessageSequenceNr;
+        rv = _ENCODE_BINARY(&sequenceNumber, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1170,7 +1173,8 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* Status */
     if(src->statusEnabled) {
-        rv = _ENCODE_BINARY(&src->status, UINT16);
+        UA_UInt16 status = (UA_UInt16)src->status;
+        rv = _ENCODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1273,8 +1277,10 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
      * } */
 
     if(dsmh->dataSetMessageSequenceNrEnabled) {
-        rv = _DECODE_BINARY(&dsmh->dataSetMessageSequenceNr, UINT16);
+        UA_UInt16 sequenceNumber = 0;
+        rv = _DECODE_BINARY(&sequenceNumber, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        dsmh->dataSetMessageSequenceNr = sequenceNumber;
     } else {
         dsmh->dataSetMessageSequenceNr = 0;
     }
@@ -1294,8 +1300,10 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
     }
 
     if(dsmh->statusEnabled) {
-        rv = _DECODE_BINARY(&dsmh->status, UINT16);
+        UA_UInt16 status = 0;
+        rv = _DECODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        dsmh->status = status;
     } else {
         dsmh->status = 0;
     }
@@ -1460,8 +1468,23 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
     /* Store the beginning */
     UA_Byte *begin = ctx->ctx.pos;
     
+    /* Compute the Valid bit without mutating the caller's message. */
+    UA_DataSetMessageHeader header = src->header;
+    if(emd && emd->configuredSize > 0) {
+        UA_DataSetMessage_EncodingMetaData unconfigured = *emd;
+        unconfigured.configuredSize = 0;
+        /* Size calculation must not append a second set of entries to an
+         * offset table that belongs to the actual encoding operation. */
+        PubSubEncodeCtx sizeCtx = *ctx;
+        sizeCtx.ot = NULL;
+        size_t actualSize = UA_DataSetMessage_calcSizeBinary(
+            &sizeCtx, &unconfigured, src, 0);
+        if(actualSize > emd->configuredSize)
+            header.dataSetMessageValid = false;
+    }
+
     /* Encode Header */
-    UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(ctx, &src->header);
+    UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(ctx, &header);
     UA_CHECK_STATUS(rv, return rv);
 
     /* Encode Payload */
@@ -1482,7 +1505,7 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
      * If the actual payload exceeds the configuredSize, mark the message
      * invalid (spec: the valid bit shall be false). This was previously done
      * as a side effect in calcSizeBinary which mutated the const input. */
-    if(emd && emd->configuredSize > 0 && src->header.dataSetMessageValid) {
+    if(emd && emd->configuredSize > 0 && header.dataSetMessageValid) {
         UA_Byte *configuredEnd = begin + emd->configuredSize;
         if(configuredEnd > ctx->ctx.end)
             return UA_STATUSCODE_BADENCODINGERROR;
@@ -1684,8 +1707,12 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
     if(!dsm->header.dataSetMessageValid) {
         if(dsmSize == 0) /* Only possible if the size is known */
             return UA_STATUSCODE_BADDECODINGERROR;
-        /* dsmSize must not exceed the remaining buffer */
-        if(begin + dsmSize > ctx->ctx.end)
+        /* Compare lengths instead of constructing an out-of-bounds pointer.
+         * The declared size must also cover all bytes already consumed; a
+         * smaller size would rewind into the DataSetMessage header. */
+        size_t remaining = (size_t)(ctx->ctx.end - begin);
+        size_t consumed = (size_t)(ctx->ctx.pos - begin);
+        if(dsmSize > remaining || dsmSize < consumed)
             return UA_STATUSCODE_BADDECODINGERROR;
         ctx->ctx.pos = begin + dsmSize;
     }
@@ -1764,7 +1791,7 @@ UA_DataSetMessage_raw_calcSizeBinary(const UA_Variant *v, const UA_FieldMetaData
 size_t
 UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  const UA_DataSetMessage_EncodingMetaData *emd,
-                                 UA_DataSetMessage *p,
+                                 const UA_DataSetMessage *p,
                                  size_t size) {
     UA_PubSubOffsetTable *ot = ctx->ot;
 
@@ -1886,17 +1913,11 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
         return 0;
     }
 
-    /* Minimum message size configured.
-     * If the message is larger than the configuredSize, it shall be set to not valid.
-     * NOTE: This mutates p->header.dataSetMessageValid, which is a side effect
-     * on a const-input when called from UA_NetworkMessage_calcSizeBinary. The
-     * header encoder (line 1118) reads this flag, so it must be set before
-     * encoding. A proper fix would refactor the encode pipeline to compute
-     * validity separately, but that is a larger change. */
+    /* A configured size pads smaller messages. Oversized messages retain their
+     * actual size and are marked invalid by the encoder without mutating p. */
     if(emd && emd->configuredSize > 0) {
-        if(emd->configuredSize < size)
-            p->header.dataSetMessageValid = false;
-        size = emd->configuredSize;
+        if(emd->configuredSize > size)
+            size = emd->configuredSize;
     }
     
     return size;
