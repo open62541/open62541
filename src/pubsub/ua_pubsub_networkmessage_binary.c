@@ -40,6 +40,7 @@
 #define SECURITY_HEADER_NM_ENCRYPTED 2
 #define SECURITY_HEADER_SEC_FOOTER_ENABLED 4
 #define SECURITY_HEADER_FORCE_KEY_RESET 8
+#define SECURITY_HEADER_KNOWN_FLAGS 15
 #define DS_MESSAGEHEADER_DS_MSG_VALID 1
 #define DS_MESSAGEHEADER_FIELD_ENCODING_MASK 6
 #define DS_MESSAGEHEADER_SEQ_NR_ENABLED_MASK 8
@@ -56,6 +57,41 @@
 static UA_Boolean UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
+
+static UA_StatusCode
+validateSecurityHeader(const UA_NetworkMessage *nm, UA_Boolean encoding) {
+    if(!nm->securityEnabled)
+        return UA_STATUSCODE_GOOD;
+
+    const UA_NetworkMessageSecurityHeader *sh = &nm->securityHeader;
+    /* UADP exposes Sign and SignAndEncrypt, but no Encrypt-only mode. */
+    if(sh->networkMessageEncrypted && !sh->networkMessageSigned)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    /* The nonce is the input to the encryption counter. Its policy-specific
+     * exact length is checked by setMessageNonce after reader dispatch. */
+    if(sh->networkMessageEncrypted && sh->messageNonceSize == 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    if(sh->messageNonceSize > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    /* A footer and ForceKeyReset affect security processing and therefore
+     * have to be authenticated. */
+    if((sh->securityFooterEnabled || sh->forceKeyReset) &&
+       !sh->networkMessageSigned)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    if(encoding) {
+        if(sh->securityFooterEnabled) {
+            if(sh->securityFooterSize == 0 ||
+               sh->securityFooterSize > nm->securityFooter.length ||
+               !nm->securityFooter.data)
+                return UA_STATUSCODE_BADENCODINGERROR;
+        } else if(sh->securityFooterSize != 0 ||
+                  nm->securityFooter.length != 0) {
+            return UA_STATUSCODE_BADENCODINGERROR;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 UA_NetworkMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
@@ -386,7 +422,9 @@ UA_StatusCode
 UA_NetworkMessage_encodeBinaryWithEncryptStart(PubSubEncodeCtx *ctx,
                                                const UA_NetworkMessage* src,
                                                UA_Byte **dataToEncryptStart) {
-    UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(ctx, src);
+    UA_StatusCode rv = validateSecurityHeader(src, true);
+    UA_CHECK_STATUS(rv, return rv);
+    rv = UA_NetworkMessage_encodeHeaders(ctx, src);
     if(dataToEncryptStart)
         *dataToEncryptStart = ctx->ctx.pos;
     rv |= UA_NetworkMessage_encodePayload(ctx, src);
@@ -616,6 +654,9 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
     UA_StatusCode rv = _DECODE_BINARY(&decoded, BYTE);
     UA_CHECK_STATUS(rv, return rv);
 
+    if(decoded & (UA_Byte)~SECURITY_HEADER_KNOWN_FLAGS)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     if((decoded & SECURITY_HEADER_NM_SIGNED) != 0)
         nm->securityHeader.networkMessageSigned = true;
 
@@ -651,7 +692,8 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
     /* SecurityFooterSize */
     if(nm->securityHeader.securityFooterEnabled)
         rv = _DECODE_BINARY(&nm->securityHeader.securityFooterSize, UINT16);
-    return rv;
+    UA_CHECK_STATUS(rv, return rv);
+    return validateSecurityHeader(nm, false);
 }
 
 /* If no PayloadHeader is defined, then assume the EncodingOptions reflect the
@@ -906,6 +948,8 @@ UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p,
 size_t
 UA_NetworkMessage_calcSizeBinaryInternal(PubSubEncodeCtx *ctx,
                                          const UA_NetworkMessage *p) {
+    if(validateSecurityHeader(p, true) != UA_STATUSCODE_GOOD)
+        return 0;
     UA_PubSubOffsetTable *ot = ctx->ot;
 
     size_t size = 1; /* byte */
