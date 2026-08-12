@@ -707,6 +707,29 @@ START_TEST(DeleteKeyStorageWhileSksConnectIsPending) {
 }
 END_TEST
 
+START_TEST(RejectSecondSksClientWhileRequestIsActive) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *first = newEncryptedClientConfig("user1", "password");
+    UA_ClientConfig *second = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_ne(first, NULL);
+    ck_assert_ptr_ne(second, NULL);
+    retval = UA_Server_setSksClient(
+        publisherApp, securityGroupId, first, testingSKSEndpointUrl,
+        sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_setSksClient(
+        publisherApp, securityGroupId, second, testingSKSEndpointUrl,
+        sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWOULDBLOCK);
+    /* A rejected replacement retains ownership of its caller config. */
+    UA_ClientConfig_clear(second);
+    UA_free(second);
+    UA_free(first);
+} END_TEST
+
 START_TEST(ClearManagerWhileSksConnectIsPendingIsRetriable) {
     UA_StatusCode retval = addPublisher(publisherApp);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1057,6 +1080,8 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, SetWrongSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, DeleteKeyStorageWhileSksConnectIsPending);
+    tcase_add_test(tc_pubsub_sks_client,
+                   RejectSecondSksClientWhileRequestIsActive);
     tcase_add_test(tc_pubsub_sks_client,
                    ClearManagerWhileSksConnectIsPendingIsRetriable);
     tcase_add_test(tc_pubsub_sks_client, ShutdownWhileSksConnectIsPending);

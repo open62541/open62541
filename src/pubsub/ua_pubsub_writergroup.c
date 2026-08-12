@@ -84,38 +84,12 @@ UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) 
 #ifdef UA_ENABLE_PUBSUB_SKS
 static UA_StatusCode
 writerGroupAttachSKSKeystorage(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    /* No SecurityGroup defined */
-    if(UA_String_isEmpty(&wg->config.securityGroupId) || !wg->config.securityPolicy)
-        return UA_STATUSCODE_GOOD;
-
     /* KeyStorage already connected */
     if(wg->keyStorage)
         return UA_STATUSCODE_GOOD;
-
-    /* Does the key storage already exist? */
-    wg->keyStorage = UA_PubSubKeyStorage_find(psm, wg->config.securityGroupId);
-    if(wg->keyStorage) {
-        wg->keyStorage->referenceCount++; /* Increase the ref count */
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Create a new key storage */
-    wg->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-    if(!wg->keyStorage)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Initialize the KeyStorage */
-    UA_StatusCode res =
-        UA_PubSubKeyStorage_init(psm, wg->keyStorage, &wg->config.securityGroupId,
-                                 wg->config.securityPolicy, 0, 0);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_PubSubKeyStorage_delete(psm, wg->keyStorage);
-        wg->keyStorage = NULL;
-        return res;
-    }
-
-    wg->keyStorage->referenceCount++; /* Increase the ref count */
-    return UA_STATUSCODE_GOOD;
+    return UA_PubSubKeyStorage_acquireForGroup(
+        psm, &wg->config.securityGroupId, wg->config.securityPolicy,
+        wg->config.securityMode, &wg->keyStorage);
 }
 #endif
 
@@ -1723,6 +1697,11 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
     /* Store the old configuration */
     UA_WriterGroupConfig oldConfig = wg->config;
     memset(&wg->config, 0, sizeof(UA_WriterGroupConfig));
+#ifdef UA_ENABLE_PUBSUB_SKS
+    UA_PubSubKeyStorage *oldKeyStorage = wg->keyStorage;
+    UA_PubSubKeyStorage *replacementKeyStorage = oldKeyStorage;
+    UA_Boolean replacementAcquired = false;
+#endif
 
     /* Deep copy the new config */
     res = UA_WriterGroupConfig_copy(config, &wg->config);
@@ -1739,21 +1718,20 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(!UA_String_equal(&wg->config.securityGroupId, &oldConfig.securityGroupId) ||
-       wg->config.securityMode != oldConfig.securityMode) {
-        /* Detach keystorage and reattach if needed */
-        if(wg->keyStorage) {
-            UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
-            wg->keyStorage = NULL;
+       wg->config.securityMode != oldConfig.securityMode ||
+       wg->config.securityPolicy != oldConfig.securityPolicy) {
+        res = UA_PubSubKeyStorage_acquireForGroup(
+            psm, &wg->config.securityGroupId, wg->config.securityPolicy,
+            wg->config.securityMode, &replacementKeyStorage);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                                "Attaching the SKS KeyStorage failed");
+            goto errout;
         }
-        if(wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-           wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-            res = writerGroupAttachSKSKeystorage(psm, wg);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR_PUBSUB(psm->logging, wg,
-                                    "Attaching the SKS KeyStorage failed");
-                goto errout;
-            }
-        }
+        replacementAcquired = (replacementKeyStorage != NULL);
+        wg->keyStorage = replacementKeyStorage;
+        if(oldKeyStorage)
+            UA_PubSubKeyStorage_detachKeyStorage(psm, oldKeyStorage);
     }
 #endif
 
@@ -1763,6 +1741,11 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
     return UA_STATUSCODE_GOOD;
 
  errout:
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(replacementAcquired)
+        UA_PubSubKeyStorage_detachKeyStorage(psm, replacementKeyStorage);
+    wg->keyStorage = oldKeyStorage;
+#endif
     UA_WriterGroupConfig_clear(&wg->config);
     wg->config = oldConfig; /* Restore the old config */
     unlockServer(server);
