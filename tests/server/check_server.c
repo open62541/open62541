@@ -16,11 +16,32 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "check.h"
 
 static UA_Server *server = NULL;
+
+typedef struct {
+    UA_ConnectionManager cm;
+    UA_BinaryProtocolManager *bpm;
+    void *connectionContexts[2];
+    size_t closeCalls;
+} ZeroIdConnectionManager;
+
+static UA_StatusCode
+closeZeroIdConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
+    ZeroIdConnectionManager *zcm = (ZeroIdConnectionManager*)(void*)cm;
+    ck_assert_uint_lt(connectionId, 2);
+    zcm->closeCalls++;
+
+    serverNetworkCallback(cm, connectionId, zcm->bpm,
+                          &zcm->connectionContexts[connectionId],
+                          UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    return UA_STATUSCODE_GOOD;
+}
 
 static void
 serverNotificationCallback(UA_Server *server, UA_ApplicationNotificationType type,
@@ -139,6 +160,40 @@ START_TEST(checkGetLifecycleState) {
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+START_TEST(checkShutdownClosesZeroConnectionId) {
+    UA_BinaryProtocolManager *bpm =
+        (UA_BinaryProtocolManager*)(void*)server->binaryDriver;
+    ck_assert_ptr_ne(bpm, NULL);
+
+    ZeroIdConnectionManager zcm;
+    memset(&zcm, 0, sizeof(zcm));
+    zcm.cm.closeConnection = closeZeroIdConnection;
+    zcm.bpm = bpm;
+
+    /* Avoid transport-specific discovery processing. The test exercises the
+     * generic listener registration and shutdown path directly. */
+    bpm->addDiscoveryUrl = NULL;
+
+    serverNetworkCallback(&zcm.cm, 0, bpm, &zcm.connectionContexts[0],
+                          UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    serverNetworkCallback(&zcm.cm, 1, bpm, &zcm.connectionContexts[1],
+                          UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
+    ck_assert_ptr_ne(zcm.connectionContexts[0], NULL);
+    ck_assert_ptr_ne(zcm.connectionContexts[1], NULL);
+    ck_assert_ptr_ne(zcm.connectionContexts[0], zcm.connectionContexts[1]);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 2);
+
+    bpm->drv.state = UA_LIFECYCLESTATE_STARTED;
+    bpm->drv.stop(&bpm->drv);
+
+    ck_assert_uint_eq(zcm.closeCalls, 2);
+    ck_assert_uint_eq(bpm->serverConnectionsSize, 0);
+    ck_assert_int_eq(bpm->drv.state, UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
 /* ---- Additional coverage tests ---- */
@@ -685,6 +740,7 @@ int main(void) {
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
+    tcase_add_test(tc_call, checkShutdownClosesZeroConnectionId);
     tcase_add_test(tc_call, checkGetStatistics);
     tcase_add_test(tc_call, checkGetLifecycleState);
     suite_add_tcase(s, tc_call);
