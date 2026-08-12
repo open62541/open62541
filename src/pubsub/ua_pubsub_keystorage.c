@@ -92,6 +92,12 @@ void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
+    /* Cancellation was already requested. Repeated manager-clear attempts
+     * must not enqueue another disconnect/cleanup callback for the same
+     * client. The existing callback retains ownership until final deletion. */
+    if(ks->pendingDelete)
+        return;
+
     /* requestActive covers connection setup, the method call and asynchronous
      * client shutdown. reqId alone misses the connection phase. */
     if(ks->sksConfig.requestActive) {

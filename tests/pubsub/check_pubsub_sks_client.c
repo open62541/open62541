@@ -708,6 +708,39 @@ START_TEST(DeleteKeyStorageWhileSksConnectIsPending) {
 }
 END_TEST
 
+START_TEST(ClearManagerWhileSksConnectIsPendingIsRetriable) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_ne(config, NULL);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
+                                    testingSKSEndpointUrl,
+                                    sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(publisherApp);
+    lockServer(publisherApp);
+    psm->drv.stop(&psm->drv);
+    retval = UA_PubSubManager_clear(psm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWOULDBLOCK);
+    /* A retry before asynchronous cancellation completes is idempotent. */
+    retval = UA_PubSubManager_clear(psm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWOULDBLOCK);
+    unlockServer(publisherApp);
+
+    for(size_t i = 0; i < 40; i++)
+        UA_Server_run_iterate(publisherApp, false);
+
+    lockServer(publisherApp);
+    retval = UA_PubSubManager_clear(psm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(LIST_EMPTY(&psm->pubSubKeyList));
+    unlockServer(publisherApp);
+    UA_free(config);
+}
+END_TEST
+
 START_TEST(ShutdownWhileSksConnectIsPending) {
     UA_StatusCode retval = addPublisher(publisherApp);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1025,6 +1058,8 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, SetWrongSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, DeleteKeyStorageWhileSksConnectIsPending);
+    tcase_add_test(tc_pubsub_sks_client,
+                   ClearManagerWhileSksConnectIsPendingIsRetriable);
     tcase_add_test(tc_pubsub_sks_client, ShutdownWhileSksConnectIsPending);
     tcase_add_test(tc_pubsub_sks_client, CheckPublishedValuesInUserLand);
     tcase_add_test(tc_pubsub_sks_client, PublisherSubscriberTogethor);
