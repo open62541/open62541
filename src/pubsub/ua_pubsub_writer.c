@@ -25,11 +25,13 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
     dst->name = UA_STRING_NULL;
     dst->dataSetName = UA_STRING_NULL;
     UA_ExtensionObject_init(&dst->messageSettings);
+    UA_ExtensionObject_init(&dst->transportSettings);
     dst->dataSetWriterProperties = UA_KEYVALUEMAP_NULL;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
+    retVal |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     retVal |= UA_KeyValueMap_copy(&src->dataSetWriterProperties, &dst->dataSetWriterProperties);
     if(retVal != UA_STATUSCODE_GOOD)
         UA_DataSetWriterConfig_clear(dst);
@@ -60,6 +62,7 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
     UA_String_clear(&pdsConfig->dataSetName);
     UA_KeyValueMap_clear(&pdsConfig->dataSetWriterProperties);
     UA_ExtensionObject_clear(&pdsConfig->messageSettings);
+    UA_ExtensionObject_clear(&pdsConfig->transportSettings);
     memset(pdsConfig, 0, sizeof(UA_DataSetWriterConfig));
 }
 

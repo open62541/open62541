@@ -47,7 +47,6 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     UA_ExtensionObject_init(&dst->transportSettings);
     UA_ExtensionObject_init(&dst->messageSettings);
     dst->securityKeyServices = NULL;
-    dst->securityKeyServicesSize = 0;
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_String_copy(&src->name, &dst->name);
@@ -59,8 +58,8 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                          src->securityKeyServicesSize,
                          (void**)&dst->securityKeyServices,
                          &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    if(res == UA_STATUSCODE_GOOD)
-        dst->securityKeyServicesSize = src->securityKeyServicesSize;
+    dst->securityKeyServicesSize =
+        dst->securityKeyServices ? src->securityKeyServicesSize : 0;
     if(res != UA_STATUSCODE_GOOD)
         UA_ReaderGroupConfig_clear(dst);
     return res;

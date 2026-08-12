@@ -492,6 +492,8 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     UA_ExtensionObject_init(&dst->transportSettings);
     memset(&dst->subscribedDataSet, 0, sizeof(dst->subscribedDataSet));
     dst->linkedStandaloneSubscribedDataSetName = UA_STRING_NULL;
+    dst->headerLayoutUri = UA_STRING_NULL;
+    dst->dataSetReaderProperties = UA_KEYVALUEMAP_NULL;
 
     UA_StatusCode ret = UA_String_copy(&src->name, &dst->name);
     ret |= UA_PublisherId_copy(&src->publisherId, &dst->publisherId);
@@ -500,6 +502,9 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     ret |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     ret |= UA_String_copy(&src->linkedStandaloneSubscribedDataSetName,
                              &dst->linkedStandaloneSubscribedDataSetName);
+    ret |= UA_String_copy(&src->headerLayoutUri, &dst->headerLayoutUri);
+    ret |= UA_KeyValueMap_copy(&src->dataSetReaderProperties,
+                               &dst->dataSetReaderProperties);
 
     if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         ret |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
@@ -520,6 +525,8 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     UA_DataSetMetaDataType_clear(&cfg->dataSetMetaData);
     UA_ExtensionObject_clear(&cfg->messageSettings);
     UA_ExtensionObject_clear(&cfg->transportSettings);
+    UA_String_clear(&cfg->headerLayoutUri);
+    UA_KeyValueMap_clear(&cfg->dataSetReaderProperties);
     if(cfg->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         UA_TargetVariablesDataType_clear(&cfg->subscribedDataSet.target);
     }
@@ -559,6 +566,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
         dsr->head.state = targetState;
+        dsr->receivedKeyFrame = false;
+        dsr->deltaFrameCounter = 0;
         break;
 
         /* Enabled */
@@ -738,9 +747,12 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         }
     }
 
-    if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
+    UA_Boolean deltaFrame =
+        (msg->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME);
+    if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME &&
+       !deltaFrame) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "DataSetMessage is discarded: Only keyframes are supported");
+                              "DataSetMessage is discarded: unsupported message type");
         return;
     }
 
@@ -750,11 +762,28 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Check whether the field count matches the configuration */
     UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
-    if(tvs->targetVariablesSize != msg->fieldCount) {
+    if(!deltaFrame && tvs->targetVariablesSize != msg->fieldCount) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Number of fields does not match the "
                               "TargetVariables configuration");
         return;
+    }
+
+    if(deltaFrame) {
+        /* Delta fields can only be matched after a complete key frame. The
+         * configured period also bounds the number of consecutive deltas so a
+         * missing key frame cannot leave the subscriber indefinitely stale. */
+        if(dsr->config.keyFrameCount <= 1 || !dsr->receivedKeyFrame ||
+           dsr->deltaFrameCounter >= dsr->config.keyFrameCount - 1) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "DataSetMessage is discarded: delta frame "
+                                  "does not match the configured key-frame period");
+            return;
+        }
+        dsr->deltaFrameCounter++;
+    } else {
+        dsr->receivedKeyFrame = true;
+        dsr->deltaFrameCounter = 0;
     }
 
     if(dsr->lastUsableValuesSize != tvs->targetVariablesSize) {
@@ -775,8 +804,21 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     /* Write the message fields. RT has the external data value configured. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < msg->fieldCount; i++) {
-        UA_FieldTargetDataType *tv = &tvs->targetVariables[i];
-        UA_DataValue *field = &msg->data.keyFrameFields[i];
+        size_t targetIndex = i;
+        UA_DataValue *field = NULL;
+        if(deltaFrame) {
+            targetIndex = msg->data.deltaFrameFields[i].index;
+            field = &msg->data.deltaFrameFields[i].value;
+            if(targetIndex >= tvs->targetVariablesSize) {
+                UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                      "Delta-frame field index is outside the "
+                                      "TargetVariables configuration");
+                return;
+            }
+        } else {
+            field = &msg->data.keyFrameFields[i];
+        }
+        UA_FieldTargetDataType *tv = &tvs->targetVariables[targetIndex];
 
         /* Apply OverrideValueHandling per spec Table 80. A missing value is
          * handled like a Bad value instead of being skipped before the mode is
@@ -793,7 +835,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                     UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNODATAAVAILABLE;
                 writeValue.hasStatus = true;
             } else if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) {
-                UA_DataValue *last = &dsr->lastUsableValues[i];
+                UA_DataValue *last = &dsr->lastUsableValues[targetIndex];
                 if(last->hasValue) {
                     writeValue = *last;
                 } else {
@@ -836,7 +878,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                    "Invalid ReceiverIndexRange for field %u: %s",
-                                   (unsigned)i, UA_StatusCode_name(res));
+                                   (unsigned)targetIndex, UA_StatusCode_name(res));
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
                 UA_Variant_clear(&rangedValue);
                 return;
@@ -861,7 +903,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
-                               (unsigned)i, UA_StatusCode_name(res));
+                               (unsigned)targetIndex, UA_StatusCode_name(res));
             UA_Variant_clear(&rangedValue);
             /* A target-specific write rejection must not disable the complete
              * reader. Later messages (or other targets in this message) may
@@ -871,8 +913,9 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
         /* Retain an owned copy only for usable received values. */
         if(fromReceivedValue) {
-            UA_DataValue_clear(&dsr->lastUsableValues[i]);
-            res = UA_DataValue_copy(&writeValue, &dsr->lastUsableValues[i]);
+            UA_DataValue_clear(&dsr->lastUsableValues[targetIndex]);
+            res = UA_DataValue_copy(&writeValue,
+                                    &dsr->lastUsableValues[targetIndex]);
             if(res != UA_STATUSCODE_GOOD) {
                 UA_Variant_clear(&rangedValue);
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);

@@ -592,6 +592,9 @@ typedef struct {
     size_t securityKeyServicesSize;
     UA_EndpointDescription *securityKeyServices;
     UA_UInt32 maxNetworkMessageSize;
+    size_t localeIdsSize;
+    UA_String *localeIds;
+    UA_String headerLayoutUri;
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -791,6 +794,10 @@ typedef struct {
                                       * message. Gets reset after every received
                                       * message. If <= 0.0, then no timeout is
                                       * configured. */
+    UA_UInt32 keyFrameCount; /* Maximum key-frame period. A value <= 1
+                              * accepts key frames only. */
+    UA_String headerLayoutUri;
+    UA_KeyValueMap dataSetReaderProperties;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetType subscribedDataSetType;

@@ -347,7 +347,8 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
     dst->groupProperties = UA_KEYVALUEMAP_NULL;
     dst->securityGroupId = UA_STRING_NULL;
     dst->securityKeyServices = NULL;
-    dst->securityKeyServicesSize = 0;
+    dst->localeIds = NULL;
+    dst->headerLayoutUri = UA_STRING_NULL;
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_String_copy(&src->name, &dst->name);
@@ -359,8 +360,13 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                          src->securityKeyServicesSize,
                          (void**)&dst->securityKeyServices,
                          &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    if(res == UA_STATUSCODE_GOOD)
-        dst->securityKeyServicesSize = src->securityKeyServicesSize;
+    res |= UA_Array_copy(src->localeIds, src->localeIdsSize,
+                         (void**)&dst->localeIds, &UA_TYPES[UA_TYPES_STRING]);
+    res |= UA_String_copy(&src->headerLayoutUri, &dst->headerLayoutUri);
+    dst->securityKeyServicesSize =
+        dst->securityKeyServices ? src->securityKeyServicesSize : 0;
+    dst->localeIdsSize =
+        dst->localeIds ? src->localeIdsSize : 0;
     if(res != UA_STATUSCODE_GOOD)
         UA_WriterGroupConfig_clear(dst);
     return res;
@@ -431,6 +437,10 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_Array_delete(writerGroupConfig->securityKeyServices,
                     writerGroupConfig->securityKeyServicesSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    UA_Array_delete(writerGroupConfig->localeIds,
+                    writerGroupConfig->localeIdsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    UA_String_clear(&writerGroupConfig->headerLayoutUri);
     memset(writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
 }
 

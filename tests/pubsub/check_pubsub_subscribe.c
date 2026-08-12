@@ -3187,6 +3187,118 @@ START_TEST(DataSetReaderConfigurationVersionMatching) {
     UA_Server_removeReaderGroup(server, rgId);
 } END_TEST
 
+START_TEST(DataSetReaderMatchesConfiguredKeyFramePeriod) {
+    UA_UInt32 firstValue = 10;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &firstValue, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, nodeId32, value),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-KeyPeriod");
+    UA_NodeId rgId;
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_FieldMetaData fields[2];
+    memset(fields, 0, sizeof(fields));
+    for(size_t i = 0; i < 2; i++) {
+        fields[i].builtInType = UA_NS0ID_UINT32;
+        fields[i].dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+        fields[i].valueRank = UA_VALUERANK_SCALAR;
+    }
+
+    UA_DataSetReaderConfig rc;
+    memset(&rc, 0, sizeof(rc));
+    rc.name = UA_STRING("DSR-KeyPeriod");
+    rc.keyFrameCount = 3;
+    rc.dataSetMetaData.fields = fields;
+    rc.dataSetMetaData.fieldsSize = 2;
+    UA_NodeId dsrId;
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, rgId, &rc, &dsrId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_FieldTargetDataType targets[2];
+    memset(targets, 0, sizeof(targets));
+    targets[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    targets[0].targetNodeId = nodeId32;
+    targets[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    targets[1].targetNodeId = nodeId32;
+    ck_assert_uint_eq(UA_Server_DataSetReader_createTargetVariables(server, dsrId,
+                                                                    2, targets),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    dsr->linkedReaderGroup->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    dsr->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    UA_DataSetMessage_DeltaFrameField delta;
+    memset(&delta, 0, sizeof(delta));
+    delta.index = 1;
+    UA_UInt32 deltaValue = 30;
+    UA_Variant_setScalar(&delta.value.value, &deltaValue,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    delta.value.hasValue = true;
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    message.header.dataSetMessageValid = true;
+    message.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    message.fieldCount = 1;
+    message.data.deltaFrameFields = &delta;
+
+    /* A delta cannot establish the field-index baseline. */
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    UA_Variant out;
+    UA_Variant_init(&out);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, firstValue);
+    UA_Variant_clear(&out);
+
+    UA_DataValue keyFields[2];
+    memset(keyFields, 0, sizeof(keyFields));
+    UA_UInt32 keyValues[2] = {40, 50};
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&keyFields[i].value, &keyValues[i],
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        keyFields[i].hasValue = true;
+    }
+    message.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    message.fieldCount = 2;
+    message.data.keyFrameFields = keyFields;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+
+    message.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    message.fieldCount = 1;
+    message.data.deltaFrameFields = &delta;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, deltaValue);
+    UA_Variant_clear(&out);
+
+    /* A third consecutive delta exceeds KeyFrameCount=3 and is discarded. */
+    deltaValue = 31;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, deltaValue);
+    UA_Variant_clear(&out);
+
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -3271,6 +3383,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderOverrideValueHandling);
     tcase_add_test(tc_pubsub_reader_lifecycle,
                    DataSetReaderConfigurationVersionMatching);
+    tcase_add_test(tc_pubsub_reader_lifecycle,
+                   DataSetReaderMatchesConfiguredKeyFramePeriod);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
