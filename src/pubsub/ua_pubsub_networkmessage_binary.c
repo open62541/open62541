@@ -1438,6 +1438,9 @@ static UA_StatusCode
 UA_DataSetMessage_keyFrame_encodeBinary(PubSubEncodeCtx *ctx,
                                         const UA_DataSetMessage_EncodingMetaData *emd,
                                         const UA_DataSetMessage *src) {
+    if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
+       (!emd || src->fieldCount > emd->fieldsSize))
+        return UA_STATUSCODE_BADENCODINGERROR;
     /* Heartbeat: "DataSetMessage is a key frame that only contains header
      * information". For non-RawData encoding, FieldCount=0 is part of the
      * representation and is consumed unconditionally by the decoder. */
@@ -1909,6 +1912,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
         return size;
 
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
+        if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
+           (!emd || p->fieldCount > emd->fieldsSize))
+            return 0;
         if(p->header.fieldEncoding != UA_FIELDENCODING_RAWDATA)
             size += 2; /* p->data.keyFrameData.fieldCount */
 
