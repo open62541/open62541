@@ -1289,6 +1289,55 @@ addDataSetFolderAction(UA_Server *server,
 }
 
 static UA_StatusCode
+disablePubSubFolderChildren(UA_Server *server, const UA_NodeId nodeId) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(psm, nodeId);
+    if(connection)
+        return UA_PubSubConnection_setPubSubState(
+            psm, connection, UA_PUBSUBSTATE_DISABLED);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, nodeId);
+    if(wg)
+        return UA_WriterGroup_setPubSubState(psm, wg,
+                                             UA_PUBSUBSTATE_DISABLED);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, nodeId);
+    if(rg)
+        return UA_ReaderGroup_setPubSubState(psm, rg,
+                                             UA_PUBSUBSTATE_DISABLED);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, nodeId);
+    if(dsw)
+        return UA_DataSetWriter_setPubSubState(psm, dsw,
+                                               UA_PUBSUBSTATE_DISABLED);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, nodeId);
+    if(dsr)
+        return UA_DataSetReader_setPubSubState(psm, dsr,
+                                               UA_PUBSUBSTATE_DISABLED,
+                                               UA_STATUSCODE_GOOD);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = nodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NS0ID(HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD)
+        return br.statusCode;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(br.references[i].nodeId.serverIndex != 0 ||
+           br.references[i].nodeId.namespaceUri.length != 0)
+            continue;
+        res |= disablePubSubFolderChildren(
+            server, br.references[i].nodeId.nodeId);
+    }
+    UA_BrowseResult_clear(&br);
+    return res;
+}
+
+static UA_StatusCode
 removeDataSetFolderAction(UA_Server *server,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
@@ -1296,6 +1345,9 @@ removeDataSetFolderAction(UA_Server *server,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    UA_StatusCode res = disablePubSubFolderChildren(server, nodeToRemove);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     return UA_Server_deleteNode(server, nodeToRemove, true);
 }
 
