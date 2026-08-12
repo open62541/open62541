@@ -272,7 +272,17 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
     /* Add the new writer to the group in order of the DataSetWriterId. */
     UA_DataSetWriter *elm, *prev = NULL;
     LIST_FOREACH(elm, &wg->writers, listEntry) {
-        /* TODO: Issue an error if the DataSetWriterId is not unique */
+        /* Zero is retained as the API's unassigned/default identifier. Only
+         * non-zero wire identifiers participate in the uniqueness rule. */
+        if(dsw->config.dataSetWriterId != 0 &&
+           dsw->config.dataSetWriterId == elm->config.dataSetWriterId) {
+            UA_DataSetWriterConfig_clear(&dsw->config);
+            for(size_t i = 0; i < dsw->lastSamplesCount; i++)
+                UA_DataValue_clear(&dsw->lastSamples[i].value);
+            UA_free(dsw->lastSamples);
+            UA_free(dsw);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
         if(dsw->config.dataSetWriterId < elm->config.dataSetWriterId)
             break;
         prev = elm;

@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/server_config_default.h>
@@ -205,6 +206,57 @@ START_TEST(AddDataSetWriterWithValidConfiguration){
     UA_WriterGroup *wg1 = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert_ptr_ne(wg1, NULL);
     ck_assert_uint_eq(wg1->writersCount, 1);
+} END_TEST
+
+START_TEST(AddDataSetWriterRejectsDuplicateIdInWriterGroup) {
+    setupDataSetWriterTestEnvironment();
+    setupPublishedDataSetTestEnvironment();
+
+    UA_DataSetWriterConfig config;
+    memset(&config, 0, sizeof(config));
+    config.name = UA_STRING("Ascending 10");
+    config.dataSetWriterId = 10;
+    UA_StatusCode res = UA_Server_addDataSetWriter(
+        server, writerGroup1, publishedDataSet1, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Ascending 20");
+    config.dataSetWriterId = 20;
+    res = UA_Server_addDataSetWriter(server, writerGroup1,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Ascending duplicate 10");
+    config.dataSetWriterId = 10;
+    res = UA_Server_addDataSetWriter(server, writerGroup1,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    config.name = UA_STRING("Descending 20");
+    config.dataSetWriterId = 20;
+    res = UA_Server_addDataSetWriter(server, writerGroup2,
+                                     publishedDataSet1, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Descending 10");
+    config.dataSetWriterId = 10;
+    res = UA_Server_addDataSetWriter(server, writerGroup2,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Descending duplicate 20");
+    config.dataSetWriterId = 20;
+    res = UA_Server_addDataSetWriter(server, writerGroup2,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg1 = UA_WriterGroup_find(psm, writerGroup1);
+    UA_WriterGroup *wg2 = UA_WriterGroup_find(psm, writerGroup2);
+    ck_assert_ptr_nonnull(wg1);
+    ck_assert_ptr_nonnull(wg2);
+    ck_assert_uint_eq(wg1->writersCount, 2);
+    ck_assert_uint_eq(wg2->writersCount, 2);
 } END_TEST
 
 START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
@@ -1351,6 +1403,8 @@ int main(void) {
     TCase *tc_add_pubsub_datasetwriter = tcase_create("PubSub DataSetWriter items handling");
     tcase_add_checked_fixture(tc_add_pubsub_datasetwriter, setup, teardown);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddDataSetWriterWithValidConfiguration);
+    tcase_add_test(tc_add_pubsub_datasetwriter,
+                   AddDataSetWriterRejectsDuplicateIdInWriterGroup);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddRemoveAddDataSetWriterWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddDataSetWriterWithNullConfig);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddDataSetWriterWithInvalidPDSId);
