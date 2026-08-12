@@ -176,7 +176,6 @@ UA_SecurityGroup_rotateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
     if(!nextCurrentItem)
         nextCurrentItem = generatedItem;
     keyStorage->currentItem = nextCurrentItem;
-    keyStorage->currentTokenId = nextCurrentItem->keyID;
 
     /* Activate the new current key to all channel contexts that use this
      * security group. Without this, the SKS server advances currentItem
@@ -223,21 +222,12 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
     if(!policy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage *)
-        UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-    if(!ks)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode retval =
-        UA_PubSubKeyStorage_init(psm, ks, &sg->securityGroupId,
-                                 policy, sg->config.maxPastKeyCount,
-                                 sg->config.maxFutureKeyCount);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(ks);
+    UA_PubSubKeyStorage *ks = NULL;
+    UA_StatusCode retval = UA_PubSubKeyStorage_acquire(
+        psm, &sg->securityGroupId, policy, sg->config.maxPastKeyCount,
+        sg->config.maxFutureKeyCount, &ks);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
-
-    ks->referenceCount++;
     sg->keyStorage = ks;
 
     UA_ByteString currentKey = UA_BYTESTRING_NULL;
@@ -267,21 +257,27 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
             goto cleanup;
     }
 
-    UA_UInt32 startingKeyId = 1;
-    retval |= (UA_PubSubKeyStorage_push(ks, &currentKey, startingKeyId)) ?
-        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_PubSubKeyStorage_setCurrentKey(ks, startingKeyId);
-    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, sg->config.maxFutureKeyCount,
-                                                  futurekeys, startingKeyId);
-    ks->keyLifeTime = sg->config.keyLifeTime;
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
     sg->baseTime = el->dateTime_nowMonotonic(el);
     retval = el->addTimer(el, updateSKSKeyStorage, psm,
                           sg, sg->config.keyLifeTime, NULL,
                           UA_TIMERPOLICY_CURRENTTIME, &sg->callbackId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Install the key batch last. It is atomic, so every preceding failure
+     * leaves an existing shared storage untouched. */
+    UA_UInt32 startingKeyId = 1;
+    retval = UA_PubSubKeyStorage_installKeyBatch(
+        ks, startingKeyId, &currentKey, sg->config.maxFutureKeyCount,
+        futurekeys);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    ks->maxPastKeyCount = sg->config.maxPastKeyCount;
+    ks->maxFutureKeyCount = sg->config.maxFutureKeyCount;
+    ks->maxKeyListSize = (size_t)sg->config.maxPastKeyCount + 1u +
+                         (size_t)sg->config.maxFutureKeyCount;
+    ks->keyLifeTime = sg->config.keyLifeTime;
 
 cleanup:
     if(futurekeys)
@@ -289,10 +285,28 @@ cleanup:
                         &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_ByteString_clear(&currentKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_PubSubKeyStorage_delete(psm, ks);
+        UA_PubSubKeyStorage_detachKeyStorage(psm, ks);
         sg->keyStorage = NULL;
     }
     return retval;
+}
+
+static void
+clearSecurityGroupRuntime(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
+    if(sg->callbackId > 0) {
+        removeCallback(psm->drv.server, sg->callbackId);
+        sg->callbackId = 0;
+    }
+    if(sg->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(psm, sg->keyStorage);
+        sg->keyStorage = NULL;
+    }
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    if(!UA_NodeId_isNull(&sg->securityGroupNodeId)) {
+        deleteNode(psm->drv.server, sg->securityGroupNodeId, true);
+        UA_NodeId_clear(&sg->securityGroupNodeId);
+    }
+#endif
 }
 
 static UA_StatusCode
@@ -350,24 +364,30 @@ addSecurityGroup(UA_PubSubManager *psm, UA_NodeId securityGroupFolderNodeId,
         return retval;
     }
 
-    retval = initializeKeyStorageWithKeys(psm, newSecurityGroup);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_SecurityGroup_delete(newSecurityGroup);
-        return retval;
-    }
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval = addSecurityGroupRepresentation(psm->drv.server, newSecurityGroup);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",
                      UA_StatusCode_name(retval));
+        clearSecurityGroupRuntime(psm, newSecurityGroup);
         UA_SecurityGroup_delete(newSecurityGroup);
         return retval;
     }
 #else
     UA_PubSubManager_generateUniqueNodeId(psm, &newSecurityGroup->securityGroupNodeId);
 #endif
+
+    /* Only allocate keys and arm timers after the InformationModel
+     * representation has been committed. This keeps representation failures
+     * from mutating or leaking a shared key storage. */
+    retval = initializeKeyStorageWithKeys(psm, newSecurityGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        clearSecurityGroupRuntime(psm, newSecurityGroup);
+        UA_SecurityGroup_delete(newSecurityGroup);
+        return retval;
+    }
+
     if(securityGroupNodeId)
         UA_NodeId_copy(&newSecurityGroup->securityGroupNodeId, securityGroupNodeId);
 
@@ -393,21 +413,10 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
 
 void
 UA_SecurityGroup_remove(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(psm->drv.server, sg->securityGroupNodeId, true);
-#endif
-
     /* Unlink from the server */
     TAILQ_REMOVE(&psm->securityGroups, sg, listEntry);
     psm->securityGroupsSize--;
-    if(sg->callbackId > 0)
-        removeCallback(psm->drv.server, sg->callbackId);
-
-    if(sg->keyStorage) {
-        UA_PubSubKeyStorage_detachKeyStorage(psm, sg->keyStorage);
-        sg->keyStorage = NULL;
-    }
-
+    clearSecurityGroupRuntime(psm, sg);
     UA_SecurityGroup_delete(sg);
 }
 

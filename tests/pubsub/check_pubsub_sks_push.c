@@ -107,7 +107,9 @@ encyrptedclientconnect(UA_Client *client) {
 }
 
 static UA_StatusCode
-callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 currentTokenId, UA_UInt32 futureKeySize){
+callSetSecurityKeyInternal(UA_Client *client, UA_String pSecurityGroupId,
+                           UA_UInt32 currentTokenId, UA_UInt32 futureKeySize,
+                           UA_Boolean invalidFutureKeyLength) {
     UA_NodeId parentId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
     UA_NodeId methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS);
     size_t inputSize = 7;
@@ -131,8 +133,11 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
     futureKey = (UA_ByteString *)UA_calloc(futureKeySize, sizeof(UA_ByteString));
 
     for (size_t i = 0; i < futureKeySize; i++) {
-        UA_ByteString_allocBuffer(&futureKey[i], keyLength);
-        generateKeyData(server->config.pubSubConfig.securityPolicies, &futureKey[i]);
+        size_t futureKeyLength = invalidFutureKeyLength ? keyLength - 1 : keyLength;
+        UA_ByteString_allocBuffer(&futureKey[i], futureKeyLength);
+        if(!invalidFutureKeyLength)
+            generateKeyData(server->config.pubSubConfig.securityPolicies,
+                            &futureKey[i]);
     }
     UA_Variant_setArrayCopy(&inputs[4], futureKey, futureKeySize, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
@@ -146,6 +151,34 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
     UA_ByteString_clear(&currentKey);
     UA_Variant_clear(&inputs[4]);
     UA_Array_delete(futureKey, futureKeySize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return retval;
+}
+
+static UA_StatusCode
+callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId,
+                   UA_UInt32 currentTokenId, UA_UInt32 futureKeySize) {
+    return callSetSecurityKeyInternal(client, pSecurityGroupId, currentTokenId,
+                                      futureKeySize, false);
+}
+
+static UA_StatusCode
+callGetSecurityKeys(UA_Client *client, UA_String groupId) {
+    UA_Variant input[3];
+    memset(input, 0, sizeof(input));
+    UA_UInt32 startingTokenId = 0;
+    UA_UInt32 requestedKeyCount = 1;
+    UA_Variant_setScalar(&input[0], &groupId, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&input[1], &startingTokenId,
+                         &UA_TYPES[UA_TYPES_INTEGERID]);
+    UA_Variant_setScalar(&input[2], &requestedKeyCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS),
+        3, input, &outputSize, &output);
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     return retval;
 }
 
@@ -291,6 +324,18 @@ START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(TestGetSecurityKeysRejectsGroupOnlyKeyStorage) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+    UA_StatusCode retval = encyrptedclientconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* The fixture has Reader/WriterGroups and therefore a key storage, but no
+     * local SKS SecurityGroup that owns and authorizes those keys. */
+    retval = callGetSecurityKeys(client, securityGroupId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(TestSetSecurityKeys_GOOD) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
@@ -318,6 +363,35 @@ START_TEST(TestSetSecurityKeys_GOOD) {
         startingTokenId++;
     }
     ck_assert_uint_eq(ks->keyListSize, futureKeySize+1);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(TestSetSecurityKeysInvalidBatchLeavesExistingKeysUntouched) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+    UA_StatusCode retval = encyrptedclientconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callSetSecurityKey(client, securityGroupId, 1, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(
+        getPSM(server), securityGroupId);
+    ck_assert_ptr_ne(ks, NULL);
+    UA_ByteString original = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_copy(&ks->currentItem->key, &original),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    retval = callSetSecurityKeyInternal(client, securityGroupId, 10, 1, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    lockServer(server);
+    ck_assert_ptr_ne(ks->currentItem, NULL);
+    ck_assert_uint_eq(ks->currentItem->keyID, 1);
+    ck_assert(UA_ByteString_equal(&ks->currentItem->key, &original));
+    unlockServer(server);
+
+    UA_ByteString_clear(&original);
     UA_Client_delete(client);
 } END_TEST
 
@@ -417,7 +491,11 @@ main(void) {
     tcase_add_checked_fixture(tc_pubsub_sks_push, setup, teardown);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_InsufficientSecurityMode);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_MissingSecurityGroup);
+    tcase_add_test(tc_pubsub_sks_push,
+                   TestGetSecurityKeysRejectsGroupOnlyKeyStorage);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_GOOD);
+    tcase_add_test(tc_pubsub_sks_push,
+                   TestSetSecurityKeysInvalidBatchLeavesExistingKeysUntouched);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_UpdateCurrentKeyFromExistingList);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKeys);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList);

@@ -134,8 +134,50 @@ START_TEST(AddSecurityGroupWithInvalidSecurityGroupFolderNodeId) {
         UA_Server_addSecurityGroup(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                    &config, &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADPARENTNODEIDINVALID);
+    lockServer(server);
+    ck_assert_ptr_null(UA_PubSubKeyStorage_find(
+        getPSM(server), config.securityGroupName));
+    ck_assert_uint_eq(getPSM(server)->securityGroupsSize, 0);
+    unlockServer(server);
+    UA_fakeSleep(config.keyLifeTime + 1);
+    UA_Server_run_iterate(server, false);
 }
 END_TEST
+
+START_TEST(FailedSecurityGroupCreationPreservesSharedKeyStorage) {
+    UA_SecurityGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    config.keyLifeTime = 2000;
+    config.securityPolicyUri = UA_STRING(
+        "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+    config.securityGroupName = UA_STRING("SharedSecurityGroup");
+    config.maxFutureKeyCount = 3;
+    config.maxPastKeyCount = 2;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = NULL;
+    UA_StatusCode retval = UA_PubSubKeyStorage_acquire(
+        psm, &config.securityGroupName,
+        &server->config.pubSubConfig.securityPolicies[1], 0, 0, &ks);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ks->referenceCount, 1);
+    unlockServer(server);
+
+    retval = UA_Server_addSecurityGroup(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), &config, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADPARENTNODEIDINVALID);
+
+    lockServer(server);
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(
+        psm, config.securityGroupName), ks);
+    ck_assert_uint_eq(ks->referenceCount, 1);
+    ck_assert_uint_eq(ks->keyListSize, 0);
+    ck_assert_uint_eq(ks->callBackId, 0);
+    ck_assert_uint_eq(ks->maxKeyListSize, 1);
+    UA_PubSubKeyStorage_detachKeyStorage(psm, ks);
+    unlockServer(server);
+} END_TEST
 
 START_TEST(AddSecurityGroupWithvalidConfig) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
@@ -431,7 +473,42 @@ START_TEST(SecurityGroupInformationModelKeyMethods) {
     UA_CallMethodResult_clear(&result);
     lockServer(server);
     ck_assert_ptr_null(sg->keyStorage->currentItem);
-    ck_assert_uint_eq(sg->keyStorage->currentTokenId, 0);
+    unlockServer(server);
+} END_TEST
+
+START_TEST(ForceKeyRotationWorksWithSingleRecycledItem) {
+    UA_SecurityGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    config.keyLifeTime = 2000;
+    config.securityPolicyUri = UA_STRING(
+        "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+    config.securityGroupName = UA_STRING("SingleKeySecurityGroup");
+    UA_NodeId securityGroupNodeId;
+    ck_assert_uint_eq(UA_Server_addSecurityGroup(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS),
+        &config, &securityGroupNodeId), UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(getPSM(server),
+                                                  securityGroupNodeId);
+    ck_assert_ptr_ne(sg, NULL);
+    ck_assert_uint_eq(sg->keyStorage->keyListSize, 1);
+    UA_PubSubKeyListItem *recycledItem = sg->keyStorage->currentItem;
+    UA_UInt32 oldKeyId = recycledItem->keyID;
+    unlockServer(server);
+
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = securityGroupNodeId;
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SECURITYGROUPTYPE_FORCEKEYROTATION);
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    lockServer(server);
+    ck_assert_ptr_eq(sg->keyStorage->currentItem, recycledItem);
+    ck_assert_uint_ne(sg->keyStorage->currentItem->keyID, oldKeyId);
     unlockServer(server);
 } END_TEST
 
@@ -452,12 +529,16 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_securityGroup,
                    AddSecurityGroupWithInvalidSecurityGroupFolderNodeId);
     tcase_add_test(tc_pubsub_sks_securityGroup,
+                   FailedSecurityGroupCreationPreservesSharedKeyStorage);
+    tcase_add_test(tc_pubsub_sks_securityGroup,
                    AddTwoSecurityGroupsWithSameSecurityGroupName);
     tcase_add_test(tc_pubsub_sks_securityGroup, RemoveSecurityGroup);
     tcase_add_test(tc_pubsub_sks_securityGroup, AddSecurityGroupWithKeyManagement);
     tcase_add_test(tc_pubsub_sks_securityGroup, SecurityGroupPeriodicInsertNewKeys);
     tcase_add_test(tc_pubsub_sks_securityGroup,
                    SecurityGroupInformationModelKeyMethods);
+    tcase_add_test(tc_pubsub_sks_securityGroup,
+                   ForceKeyRotationWorksWithSingleRecycledItem);
     Suite *s = suite_create("PubSub SKS SecurityGroups");
     suite_add_tcase(s, tc_pubsub_sks_securityGroup);
 
