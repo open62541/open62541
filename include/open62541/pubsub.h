@@ -54,10 +54,12 @@ typedef struct {
     UA_FieldEncoding fieldEncoding;
 
     UA_Boolean dataSetMessageSequenceNrEnabled;
-    UA_UInt16 dataSetMessageSequenceNr;
+    /* UADP encodes this as UInt16; JSON uses UInt32. */
+    UA_UInt32 dataSetMessageSequenceNr;
 
     UA_Boolean statusEnabled;
-    UA_UInt16 status;
+    /* UADP encodes the low 16 bits; JSON uses the full StatusCode. */
+    UA_StatusCode status;
 
     UA_Boolean configVersionMajorVersionEnabled;
     UA_UInt32 configVersionMajorVersion;
