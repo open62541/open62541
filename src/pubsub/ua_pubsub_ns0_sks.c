@@ -188,19 +188,11 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!UA_String_equal(securityPolicyUri, &ks->policy->policyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, currentKeyId);
-    if(!current) {
-        UA_PubSubKeyStorage_clearKeyList(ks);
-        retval |= (UA_PubSubKeyStorage_push(ks, currentKey, currentKeyId)) ?
-            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_PubSubKeyStorage_setCurrentKey(ks, currentKeyId);
-    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, futureKeySize,
-                                                  futureKeys, currentKeyId);
-    ks->keyLifeTime = msKeyLifeTime;
+    UA_StatusCode retval = UA_PubSubKeyStorage_installKeyBatch(
+        ks, currentKeyId, currentKey, futureKeySize, futureKeys);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    ks->keyLifeTime = msKeyLifeTime;
 
     retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
                                                              ks->securityGroupID);
@@ -266,6 +258,8 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     UA_Boolean executable = false;
     UA_SecurityGroup *sg = UA_SecurityGroup_findByName(psm, *securityGroupId);
+    if(!sg || sg->keyStorage != ks)
+        return UA_STATUSCODE_BADNOTFOUND;
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
     executable = server->config.accessControl.getUserExecutableOnObject(
@@ -445,12 +439,13 @@ forceKeyRotationAction(UA_Server *server, const UA_NodeId *sessionId,
     UA_SecurityGroup *sg = UA_SecurityGroup_find(getPSM(server), *objectId);
     if(!sg || !sg->keyStorage)
         return UA_STATUSCODE_BADNOTFOUND;
-    UA_UInt32 oldToken = sg->keyStorage->currentTokenId;
+    UA_UInt32 oldCurrentKeyId = sg->keyStorage->currentItem ?
+        sg->keyStorage->currentItem->keyID : 0;
     res = UA_SecurityGroup_rotateKeys(getPSM(server), sg);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     if(!sg->keyStorage->currentItem ||
-       sg->keyStorage->currentTokenId == oldToken)
+       sg->keyStorage->currentItem->keyID == oldCurrentKeyId)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
