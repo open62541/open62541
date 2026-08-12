@@ -29,6 +29,46 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+static UA_WriterGroup *
+findWriterGroupByName(UA_PubSubConnection *connection, const char *name) {
+    UA_String expected = UA_STRING((char*)(uintptr_t)name);
+    UA_WriterGroup *wg;
+    LIST_FOREACH(wg, &connection->writerGroups, listEntry) {
+        if(UA_String_equal(&wg->config.name, &expected))
+            return wg;
+    }
+    return NULL;
+}
+
+static void
+addSecondWriterGroup(UA_PubSubConnection *connection,
+                     UA_WriterGroup *templateGroup) {
+    UA_WriterGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    UA_StatusCode res =
+        UA_WriterGroupConfig_copy(&templateGroup->config, &config);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_String_clear(&config.name);
+    config.name = UA_STRING_ALLOC("Second WriterGroup");
+    ck_assert_ptr_nonnull(config.name.data);
+    config.writerGroupId++;
+    config.enabled = false;
+
+    UA_NodeId id;
+    res = UA_Server_addWriterGroup(server, connection->head.identifier,
+                                   &config, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_WriterGroupConfig_clear(&config);
+}
+
+static void
+assertWriterGroupEnabled(UA_PubSubConnection *connection, const char *name,
+                         UA_Boolean expected) {
+    UA_WriterGroup *wg = findWriterGroupByName(connection, name);
+    ck_assert_ptr_nonnull(wg);
+    ck_assert_uint_eq(wg->config.enabled, expected);
+}
+
 START_TEST(AddPublisherUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
     UA_ByteString publisherConfiguration = loadFile("../../tests/pubsub/check_publisher_configuration.bin");
@@ -230,12 +270,118 @@ START_TEST(SaveEmptyConfiguration) {
     UA_ByteString_clear(&savedConfiguration);
 } END_TEST
 
+/* Before the identity-based restore fix, WriterGroups were paired with the
+ * decoded array by linked-list position. Creating them inserts at the list
+ * head, so a round trip swaps mixed enabled flags between two groups. */
+START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
+    UA_ByteString input =
+        loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+    ck_assert_uint_gt(input.length, 0);
+    UA_Server_disableAllPubSubComponents(server);
+    UA_StatusCode res =
+        UA_Server_loadPubSubConfigFromByteString(server, input);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection = TAILQ_FIRST(&psm->connections);
+    ck_assert_ptr_nonnull(connection);
+    UA_WriterGroup *first = LIST_FIRST(&connection->writerGroups);
+    ck_assert_ptr_nonnull(first);
+    addSecondWriterGroup(connection, first);
+
+    first = findWriterGroupByName(connection, "Demo WriterGroup");
+    UA_WriterGroup *second =
+        findWriterGroupByName(connection, "Second WriterGroup");
+    ck_assert_ptr_nonnull(first);
+    ck_assert_ptr_nonnull(second);
+    connection->config.enabled = true;
+    first->config.enabled = true;
+    second->config.enabled = false;
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    res = UA_Server_writePubSubConfigurationToByteString(server, &encoded);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_loadPubSubConfigFromByteString(server, encoded);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    connection = TAILQ_FIRST(&psm->connections);
+    ck_assert_ptr_nonnull(connection);
+    ck_assert_uint_eq(connection->config.enabled, true);
+    assertWriterGroupEnabled(connection, "Demo WriterGroup", true);
+    assertWriterGroupEnabled(connection, "Second WriterGroup", false);
+
+    UA_ByteString_clear(&encoded);
+    UA_ByteString_clear(&input);
+} END_TEST
+
+/* A disabled parent still has to retain the desired enabled state of its
+ * children. The old second-phase loop skipped every child when the connection
+ * was disabled and silently rewrote enabled=true to false. */
+START_TEST(DisabledParentPreservesChildEnabledIntent) {
+    UA_ByteString input =
+        loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+    ck_assert_uint_gt(input.length, 0);
+    UA_Server_disableAllPubSubComponents(server);
+    UA_StatusCode res =
+        UA_Server_loadPubSubConfigFromByteString(server, input);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection = TAILQ_FIRST(&psm->connections);
+    ck_assert_ptr_nonnull(connection);
+    UA_WriterGroup *group = LIST_FIRST(&connection->writerGroups);
+    ck_assert_ptr_nonnull(group);
+    connection->config.enabled = false;
+    group->config.enabled = true;
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    res = UA_Server_writePubSubConfigurationToByteString(server, &encoded);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_loadPubSubConfigFromByteString(server, encoded);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    connection = TAILQ_FIRST(&psm->connections);
+    ck_assert_ptr_nonnull(connection);
+    ck_assert_uint_eq(connection->config.enabled, false);
+    assertWriterGroupEnabled(connection, "Demo WriterGroup", true);
+
+    UA_ByteString_clear(&encoded);
+    UA_ByteString_clear(&input);
+} END_TEST
+
+START_TEST(FileConfigurationRejectsNullArguments) {
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_Server_loadPubSubConfigFromByteString(NULL, empty),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_Server_writePubSubConfigurationToByteString(NULL,
+                                                                     &empty),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_Server_writePubSubConfigurationToByteString(server,
+                                                                     NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+} END_TEST
+
+START_TEST(FileConfigurationRejectsMalformedEncoding) {
+    UA_Byte malformedData[] = {0xff, 0xff, 0xff, 0xff};
+    UA_ByteString malformed = {sizeof(malformedData), malformedData};
+    ck_assert_uint_ne(UA_Server_loadPubSubConfigFromByteString(server, malformed),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     TCase *tc_pubsub_file_configuration = tcase_create("File Configuration");
     tcase_add_checked_fixture(tc_pubsub_file_configuration, setup, teardown);
     tcase_add_test(tc_pubsub_file_configuration, AddPublisherUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, AddSubscriberUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, SaveEmptyConfiguration);
+    tcase_add_test(tc_pubsub_file_configuration,
+                   EnabledFlagsAreRestoredByComponentIdentity);
+    tcase_add_test(tc_pubsub_file_configuration,
+                   DisabledParentPreservesChildEnabledIntent);
+    tcase_add_test(tc_pubsub_file_configuration,
+                   FileConfigurationRejectsNullArguments);
+    tcase_add_test(tc_pubsub_file_configuration,
+                   FileConfigurationRejectsMalformedEncoding);
 
     Suite *s = suite_create("PubSub file configuration");
     suite_add_tcase(s, tc_pubsub_file_configuration);
