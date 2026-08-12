@@ -478,7 +478,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
 
 /* the input message is already initialized and that the method 
  * must not be called twice for the same message */
-static UA_StatusCode
+UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
                                                  UA_DataSetMessage *dsm,
                                                  UA_DataSetWriter *dsw) {
@@ -520,7 +520,46 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
 
         /* Check if the value has changed */
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
-        if(!UA_Variant_equal(&ls->value.value, &value.value)) {
+        UA_Boolean changed = !UA_Variant_equal(&ls->value.value, &value.value);
+        const UA_PublishedVariableDataType *params =
+            &dsf->config.field.variable.publishParameters;
+        if(changed && params->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
+           params->deadbandValue >= 0.0 && value.value.type &&
+           value.value.type == ls->value.value.type &&
+           UA_Variant_isScalar(&value.value) &&
+           UA_Variant_isScalar(&ls->value.value)) {
+            UA_Double difference = params->deadbandValue + 1.0;
+#define UA_PUBSUB_ABS_DIFF_INT(TYPE) do {                                  \
+    TYPE a = *(TYPE*)value.value.data;                                     \
+    TYPE b = *(TYPE*)ls->value.value.data;                                 \
+    UA_UInt64 magnitude = (a > b) ? (UA_UInt64)a - (UA_UInt64)b            \
+                                  : (UA_UInt64)b - (UA_UInt64)a;            \
+    difference = (UA_Double)magnitude;                                     \
+} while(false)
+#define UA_PUBSUB_ABS_DIFF_FLOAT(TYPE) do {                                \
+    TYPE a = *(TYPE*)value.value.data;                                     \
+    TYPE b = *(TYPE*)ls->value.value.data;                                 \
+    difference = (a > b) ? (UA_Double)a - (UA_Double)b                    \
+                         : (UA_Double)b - (UA_Double)a;                    \
+} while(false)
+            switch(value.value.type->typeKind) {
+            case UA_DATATYPEKIND_SBYTE:  UA_PUBSUB_ABS_DIFF_INT(UA_SByte); break;
+            case UA_DATATYPEKIND_BYTE:   UA_PUBSUB_ABS_DIFF_INT(UA_Byte); break;
+            case UA_DATATYPEKIND_INT16:  UA_PUBSUB_ABS_DIFF_INT(UA_Int16); break;
+            case UA_DATATYPEKIND_UINT16: UA_PUBSUB_ABS_DIFF_INT(UA_UInt16); break;
+            case UA_DATATYPEKIND_INT32:  UA_PUBSUB_ABS_DIFF_INT(UA_Int32); break;
+            case UA_DATATYPEKIND_UINT32: UA_PUBSUB_ABS_DIFF_INT(UA_UInt32); break;
+            case UA_DATATYPEKIND_INT64:  UA_PUBSUB_ABS_DIFF_INT(UA_Int64); break;
+            case UA_DATATYPEKIND_UINT64: UA_PUBSUB_ABS_DIFF_INT(UA_UInt64); break;
+            case UA_DATATYPEKIND_FLOAT:  UA_PUBSUB_ABS_DIFF_FLOAT(UA_Float); break;
+            case UA_DATATYPEKIND_DOUBLE: UA_PUBSUB_ABS_DIFF_FLOAT(UA_Double); break;
+            default: break;
+            }
+#undef UA_PUBSUB_ABS_DIFF_INT
+#undef UA_PUBSUB_ABS_DIFF_FLOAT
+            changed = difference > params->deadbandValue;
+        }
+        if(changed) {
             /* increase fieldCount for current delta message */
             dsm->fieldCount++;
             ls->valueChanged = true;
@@ -589,6 +628,29 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
         currentDeltaField++;
     }
     return UA_STATUSCODE_GOOD;
+}
+
+static void
+prepareKeepAliveMessage(UA_DataSetMessage *dsm) {
+    UA_DataSetMessageHeader header = dsm->header;
+    UA_DataSetMessage_clear(dsm);
+    dsm->header = header;
+    dsm->header.dataSetMessageValid = true;
+    dsm->header.dataSetMessageType = UA_DATASETMESSAGE_KEEPALIVE;
+}
+
+static size_t
+dataSetMessageBinarySize(UA_DataSetWriter *dsw, UA_DataSetMessage *dsm) {
+    PubSubEncodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    if(dsw->connectedDataSet) {
+        emd.fields = dsw->connectedDataSet->dataSetMetaData.fields;
+        emd.fieldsSize = dsw->connectedDataSet->dataSetMetaData.fieldsSize;
+    }
+    emd.dataSetWriterId = dsw->config.dataSetWriterId;
+    return UA_DataSetMessage_calcSizeBinary(&ctx, &emd, dsm, 0);
 }
 
 /* Generate a DataSetMessage for the given writer. */
@@ -781,15 +843,57 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
          * produced delta frames). Changed to `<`. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
            dsw->deltaFrameCounter < dsw->config.keyFrameCount) {
-            UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm, dataSetMessage, dsw);
-            dsw->deltaFrameCounter++;
+            UA_StatusCode res =
+                UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm,
+                                                                  dataSetMessage,
+                                                                  dsw);
+            if(res == UA_STATUSCODE_GOODNODATA) {
+                UA_WriterGroup *wg = dsw->linkedWriterGroup;
+                UA_DateTime now = el->dateTime_nowMonotonic(el);
+                if(wg->config.keepAliveTime <= 0.0 ||
+                   dsw->lastDataSetMessageTime == 0 ||
+                   now - dsw->lastDataSetMessageTime <
+                       (UA_DateTime)(wg->config.keepAliveTime * UA_DATETIME_MSEC))
+                    return res;
+                prepareKeepAliveMessage(dataSetMessage);
+                dsw->lastDataSetMessageTime = now;
+                return UA_STATUSCODE_GOOD;
+            }
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+
+            UA_DataSetMessage keyFrame;
+            memset(&keyFrame, 0, sizeof(keyFrame));
+            res = UA_PubSubDataSetWriter_generateKeyFrameMessage(psm,
+                                                                 &keyFrame, dsw);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+            size_t deltaSize = dataSetMessageBinarySize(dsw, dataSetMessage);
+            size_t keySize = dataSetMessageBinarySize(dsw, &keyFrame);
+            if(deltaSize == 0 || keySize == 0) {
+                UA_DataSetMessage_clear(&keyFrame);
+                return UA_STATUSCODE_BADENCODINGERROR;
+            }
+            if(deltaSize > keySize) {
+                UA_DataSetMessage_clear(dataSetMessage);
+                *dataSetMessage = keyFrame;
+                dsw->deltaFrameCounter = 1;
+            } else {
+                UA_DataSetMessage_clear(&keyFrame);
+                dsw->deltaFrameCounter++;
+            }
+            dsw->lastDataSetMessageTime = el->dateTime_nowMonotonic(el);
             return UA_STATUSCODE_GOOD;
         }
 
         dsw->deltaFrameCounter = 1;
     }
 
-    return UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
+    UA_StatusCode res =
+        UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
+    if(res == UA_STATUSCODE_GOOD)
+        dsw->lastDataSetMessageTime = el->dateTime_nowMonotonic(el);
+    return res;
 }
 
 /**************/

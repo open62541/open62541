@@ -292,6 +292,7 @@ typedef struct UA_DataSetWriter {
     UA_DataSetWriterSample *lastSamples;
 
     UA_UInt16 actualDataSetMessageSequenceCount;
+    UA_DateTime lastDataSetMessageTime;
     UA_Boolean configurationFrozen;
     UA_UInt64 pubSubStateTimerId;
 } UA_DataSetWriter;
@@ -311,6 +312,11 @@ UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
                                         UA_DataSetWriter *dsw,
                                         UA_DataSetMessage *dsm);
+
+UA_StatusCode
+UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
+                                                 UA_DataSetMessage *dsm,
+                                                 UA_DataSetWriter *dsw);
 
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,

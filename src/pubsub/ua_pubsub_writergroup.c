@@ -876,6 +876,9 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         if(wg->config.securityMode >= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
             nm->securityHeader.networkMessageEncrypted = true;
         nm->securityHeader.securityTokenId = wg->securityTokenId;
+        /* A wrapped nonce sequence requires the receiver to reset its key
+         * nonce state before processing this message. */
+        nm->securityHeader.forceKeyReset = (wg->nonceSequenceNumber == 0);
 
         /* Generate the MessageNonce. Key-material length and per-message
          * nonce length are distinct policy properties. The final four bytes
