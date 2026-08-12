@@ -585,6 +585,12 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+
+    /* Fields defined by PubSubGroupDataType and preserved by file-config
+     * save/load. securityPolicy remains the runtime policy implementation. */
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+    UA_UInt32 maxNetworkMessageSize;
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -772,6 +778,9 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
 typedef struct {
     UA_PUBSUBCOMPONENT_COMMON
     UA_PublisherId publisherId;
+    /* A zero-initialized config keeps the legacy wildcard behavior. Set this
+     * to true to filter explicitly for the legitimate Byte PublisherId 0. */
+    UA_Boolean publisherIdFilterEnabled;
     UA_UInt16 writerGroupId;
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;
@@ -861,6 +870,7 @@ typedef struct {
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
+    UA_ExtensionObject messageSettings;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information
@@ -868,6 +878,9 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+    UA_UInt32 maxNetworkMessageSize;
 } UA_ReaderGroupConfig;
 
 void UA_EXPORT
