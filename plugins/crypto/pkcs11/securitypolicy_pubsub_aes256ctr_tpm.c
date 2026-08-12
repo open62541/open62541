@@ -652,6 +652,7 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM(UA_PubSubSecurityPolicy *sp, char *userpin,
     sp->generateNonce = generateNonce_pubsub_aes256ctr_tpm;
     sp->nonceLength = UA_AES256CTR_SIGNING_KEY_LENGTH +
         UA_AES256CTR_KEY_LENGTH + UA_AES256CTR_KEYNONCE_LENGTH;
+    sp->messageNonceLength = UA_AES256CTR_MESSAGENONCE_LENGTH;
     sp->setMessageNonce = setMessageNonce_pubsub_aes256ctr_tpm;
     sp->clear = clear_pubsub_aes256ctr_tpm;
 

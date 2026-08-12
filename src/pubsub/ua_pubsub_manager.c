@@ -8,6 +8,7 @@
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_pubsub_internal.h"
@@ -824,6 +825,8 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     LIST_FOREACH_SAFE(ks, &psm->pubSubKeyList, keyStorageList, ksTmp) {
         UA_PubSubKeyStorage_delete(psm, ks);
     }
+    if(!LIST_EMPTY(&psm->pubSubKeyList))
+        return UA_STATUSCODE_BADWOULDBLOCK;
 #endif
 
     return UA_STATUSCODE_GOOD;

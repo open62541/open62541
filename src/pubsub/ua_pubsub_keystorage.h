@@ -5,6 +5,7 @@
  * Copyright (c) 2019 ifak e.V. Magdeburg (Holger Zipper)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_PUBSUB_KEYSTORAGE
@@ -125,6 +126,11 @@ typedef struct UA_PubSubSKSConfig {
     UA_Server_sksPullRequestCallback userNotifyCallback;
     void *context;
     UA_UInt32 reqId;
+    /* Covers the entire asynchronous lifecycle, including connection setup
+     * before a service request id exists and client shutdown afterwards. */
+    UA_Boolean requestActive;
+    UA_Client *client;
+    void *clientContext;
 } UA_PubSubSKSConfig;
 
 /* Holds all info and keys related to one SecurityGroup */
@@ -177,14 +183,13 @@ struct UA_PubSubKeyStorage {
      * keys */
     UA_PubSubSKSConfig sksConfig;
 
-    /* Set to true when UA_PubSubKeyStorage_delete is called while an SKS pull
-     * request is in flight (sksConfig.reqId != 0). In that case the struct is
-     * not freed immediately; storeFetchedKeys performs the final cleanup once
-     * the response arrives, preventing a use-after-free. */
+    /* Set when deletion is requested while an asynchronous SKS client still
+     * owns this storage. The client cleanup callback performs final deletion. */
     UA_Boolean pendingDelete;
 
     /* Pointer to the key storage list */
     LIST_ENTRY(UA_PubSubKeyStorage) keyStorageList;
+    UA_Boolean listed;
 
 };
 

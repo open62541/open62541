@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/plugin/securitypolicy.h>
@@ -92,8 +93,11 @@ addTestWriterGroup(UA_String securitygroupId){
     writerGroupConfig.securityGroupId = securitygroupId;
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retval |= UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_enableWriterGroup(server, writerGroup);
+    retval = UA_Server_addWriterGroup(server, connection, &writerGroupConfig,
+                                      &writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -113,8 +117,11 @@ addTestReaderGroup(UA_String securitygroupId){
     readerGroupConfig.securityGroupId = securitygroupId;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retVal |=  UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
-    UA_Server_enableReaderGroup(server, readerGroup);
+    retVal = UA_Server_addReaderGroup(server, connection, &readerGroupConfig,
+                                      &readerGroup);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableReaderGroup(server, readerGroup);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static UA_PubSubKeyStorage*
@@ -276,6 +283,48 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     ck_assert_msg(futureKeySize + 1 == tKeyStorage->keyListSize,"Expected KeyListSize to be equal to FutureKeySize + 1");
     ck_assert_msg(tKeyStorage->keyLifeTime == msTimeToNextKey, "Expected keyLifetime to be equal to the Keystorage->keyLifeTime");
     unlockServer(server);
+} END_TEST
+
+START_TEST(TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubSecurityPolicy *policy =
+        server->config.pubSubConfig.securityPolicies;
+    ck_assert_ptr_ne(policy, NULL);
+    ck_assert_uint_gt(policy->nonceLength, 1);
+
+    UA_PubSubKeyStorage *ks =
+        (UA_PubSubKeyStorage*)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    ck_assert_ptr_ne(ks, NULL);
+
+    lockServer(server);
+    UA_StatusCode retval =
+        UA_PubSubKeyStorage_init(psm, ks, &SecurityGroupId, policy, 0, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString shortKey = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&shortKey, policy->nonceLength - 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &shortKey, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(ks->keyListSize, 0);
+
+    UA_ByteString emptyKey = UA_BYTESTRING_NULL;
+    retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &emptyKey, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(ks->keyListSize, 0);
+
+    UA_ByteString validKey = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&validKey, policy->nonceLength);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = generateKeyData(policy, &validKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &validKey, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ks->keyListSize, 1);
+    unlockServer(server);
+
+    UA_ByteString_clear(&shortKey);
+    UA_ByteString_clear(&validKey);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
@@ -455,6 +504,8 @@ main(void) {
     tcase_add_checked_fixture(tc_pubsub_keystorage, setup, teardown);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_initialize);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorageSetKeys);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_MovetoNextKeyCallback);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeystorage_ImportedKey);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithWriterGroup);
