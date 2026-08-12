@@ -658,7 +658,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* Find and use a free connection slot */
         bpm->serverConnectionsSize++;
         UA_ServerConnection *sc = bpm->serverConnections;
-        while(sc->connectionId != 0)
+        while(sc->state != UA_CONNECTIONSTATE_CLOSED)
             sc++;
         sc->state = state;
         sc->connectionId = connectionId;
@@ -683,6 +683,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
             /* Server socket is closed */
             sc->state = UA_CONNECTIONSTATE_CLOSED;
             sc->connectionId = 0;
+            sc->connectionManager = NULL;
             bpm->serverConnectionsSize--;
         } else {
             /* A connection attached to a SecureChannel is closing. This is the
@@ -852,9 +853,10 @@ UA_BinaryProtocolManager_stop(UA_Driver *drv) {
     /* Stop all server sockets */
     for(size_t i = 0; i < UA_MAXSERVERCONNECTIONS; i++) {
         UA_ServerConnection *sc = &bpm->serverConnections[i];
-        UA_ConnectionManager *cm = sc->connectionManager;
-        if(sc->connectionId > 0)
+        if(sc->state != UA_CONNECTIONSTATE_CLOSED) {
+            UA_ConnectionManager *cm = sc->connectionManager;
             cm->closeConnection(cm, sc->connectionId);
+        }
     }
 
     /* If open sockets remain, set to STOPPING */
