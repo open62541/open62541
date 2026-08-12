@@ -1102,6 +1102,13 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
     if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE)
         maxDSM = 1;
 
+    if(wg->writersCount == 0) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                              "Cannot publish -- No Writers are configured");
+        unlockServer(psm->drv.server);
+        return;
+    }
+
     /* Build array of enabled writers for ordering (DataSetOrdering, OPC UA Part 14 6.3.1.1.3) */
     UA_STACKARRAY(UA_DataSetWriter*, writers, wg->writersCount);
     size_t enabledWriters = 0;
