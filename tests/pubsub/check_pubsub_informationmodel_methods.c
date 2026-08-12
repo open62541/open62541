@@ -5,6 +5,7 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2020-2021 Kalycito Infotech Private Limited
  * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/server_config_default.h>
@@ -1207,7 +1208,11 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
             /* For creating Targetvariables */
             UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);
             targetVars.targetVariables[i].attributeId  = UA_ATTRIBUTEID_VALUE;
-            targetVars.targetVariables[i].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000);
+            /* Keep the explicit target ids outside the dynamic PubSub node-id
+             * range. The old implementation ignored BadNodeIdExists here and
+             * made this test pass with missing target nodes. */
+            targetVars.targetVariables[i].targetNodeId =
+                UA_NODEID_NUMERIC(1, (UA_UInt32)i + 60000);
             extensionObjectTargetVars.encoding = UA_EXTENSIONOBJECT_DECODED;
             extensionObjectTargetVars.content.decoded.type = &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE];
         }

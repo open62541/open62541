@@ -9,6 +9,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright (c) 2025 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_pubsub_internal.h"
@@ -831,6 +832,17 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
     const UA_TargetVariablesDataType *targetVars =
         (UA_TargetVariablesDataType*)eoTargetVar->content.decoded.data;
 
+    /* Validate the mapping before creating the folder. Otherwise an invalid
+     * request leaves an orphan object in the AddressSpace. */
+    if(targetVars->targetVariablesSize > pMetaData->fieldsSize) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "AddSubscribedVariables: targetVariablesSize (%u) exceeds "
+                     "DataSetMetaData fieldsSize (%u)",
+                     (unsigned)targetVars->targetVariablesSize,
+                     (unsigned)pMetaData->fieldsSize);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dataSetReaderId);
     if(!dsr)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -849,29 +861,20 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
         folderBrowseName = UA_QUALIFIEDNAME(1, "Subscribed Variables");
     }
 
-    addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NULL,
-            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
-            folderBrowseName, UA_NS0ID(BASEOBJECTTYPE),
-            &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-            NULL, &folderId);
+    UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NULL,
+                                UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                folderBrowseName, UA_NS0ID(BASEOBJECTTYPE),
+                                &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                NULL, &folderId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* The SubscribedDataSet option TargetVariables defines a list of Variable
      * mappings between received DataSet fields and target Variables in the
      * Subscriber AddressSpace. The values subscribed from the Publisher are
      * updated in the value field of these variables */
 
-    /* Add variable for the fields.
-     * The number of target variables must not exceed the number of fields in
-     * the DataSetMetaData, otherwise pMetaData->fields[i] would read past the
-     * allocated array (heap over-read). */
-    if(targetVars->targetVariablesSize > pMetaData->fieldsSize) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "AddSubscribedVariables: targetVariablesSize (%u) exceeds "
-                     "DataSetMetaData fieldsSize (%u)",
-                     (unsigned)targetVars->targetVariablesSize,
-                     (unsigned)pMetaData->fieldsSize);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+    /* Add variable for the fields. */
     for(size_t i = 0; i < targetVars->targetVariablesSize; i++) {
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = pMetaData->fields[i].description;
@@ -879,17 +882,25 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
         vAttr.displayName.text = pMetaData->fields[i].name;
         vAttr.dataType = pMetaData->fields[i].dataType;
         UA_QualifiedName varname = {1, pMetaData->fields[i].name};
-        addNode(server, UA_NODECLASS_VARIABLE,
-                targetVars->targetVariables[i].targetNodeId, folderId,
-                UA_NS0ID(HASCOMPONENT), varname, UA_NS0ID(BASEDATAVARIABLETYPE),
-                &vAttr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
-                NULL, &targetVars->targetVariables[i].targetNodeId);
+        res = addNode(server, UA_NODECLASS_VARIABLE,
+                      targetVars->targetVariables[i].targetNodeId, folderId,
+                      UA_NS0ID(HASCOMPONENT), varname,
+                      UA_NS0ID(BASEDATAVARIABLETYPE), &vAttr,
+                      &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], NULL,
+                      &targetVars->targetVariables[i].targetNodeId);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Server_deleteNode(server, folderId, true);
+            return res;
+        }
     }
 
     /* Set the TargetVariables in the DSR config */
-    return DataSetReader_createTargetVariables(psm, dsr,
-                                               targetVars->targetVariablesSize,
-                                               targetVars->targetVariables);
+    res = DataSetReader_createTargetVariables(psm, dsr,
+                                              targetVars->targetVariablesSize,
+                                              targetVars->targetVariables);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_Server_deleteNode(server, folderId, true);
+    return res;
 }
 
 /**
@@ -917,6 +928,8 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
                                           &readerConfig.name);
     retVal |= UA_PublisherId_fromVariant(&readerConfig.publisherId,
                                          &dataSetReader->publisherId);
+    if(retVal == UA_STATUSCODE_GOOD)
+        readerConfig.publisherIdFilterEnabled = true;
     readerConfig.writerGroupId = dataSetReader->writerGroupId;
     readerConfig.dataSetWriterId = dataSetReader->dataSetWriterId;
     readerConfig.dataSetFieldContentMask =
@@ -1355,17 +1368,42 @@ addDataSetFolderAction(UA_Server *server,
 
     /* defined in R 1.04 9.1.4.5.7 */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_String newFolderName = *((UA_String *) input[0].data);
+    if(inputSize != 1 || outputSize != 1 || !input || !output ||
+       !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_String newFolderName = *((UA_String *)input[0].data);
+    if(newFolderName.length == 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* UA_String is length-delimited and is not required to be NUL-terminated.
+     * Construct the BrowseName directly instead of using UA_QUALIFIEDNAME,
+     * which calls strlen. */
+    UA_QualifiedName browseName = {0, newFolderName};
+    UA_NodeId existing = findSingleChildNode(server, browseName,
+                                             UA_NS0ID(ORGANIZES), *objectId);
+    if(!UA_NodeId_isNull(&existing)) {
+        UA_NodeId_clear(&existing);
+        return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
+    }
+
     UA_NodeId generatedId;
     UA_ObjectAttributes objectAttributes = UA_ObjectAttributes_default;
     UA_LocalizedText name = {UA_STRING(""), newFolderName};
     objectAttributes.displayName = name;
-    retVal |= UA_Server_addObjectNode(server, UA_NODEID_NULL, *objectId,
-                                      UA_NS0ID(ORGANIZES),
-                                      UA_QUALIFIEDNAME(0, (const char *)newFolderName.data),
-                                      UA_NS0ID(DATASETFOLDERTYPE),
-                                      objectAttributes, NULL, &generatedId);
-    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+    retVal = UA_Server_addObjectNode(server, UA_NODEID_NULL, *objectId,
+                                     UA_NS0ID(ORGANIZES), browseName,
+                                     UA_NS0ID(DATASETFOLDERTYPE),
+                                     objectAttributes, NULL, &generatedId);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    retVal = UA_Variant_setScalarCopy(output, &generatedId,
+                                      &UA_TYPES[UA_TYPES_NODEID]);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_Server_deleteNode(server, generatedId, true);
+        return retVal;
+    }
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
         retVal |= UA_Server_addReference(server, generatedId, UA_NS0ID(HASCOMPONENT),

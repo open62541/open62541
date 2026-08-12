@@ -10,6 +10,7 @@
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_PUBSUB_INTERNAL_H_
@@ -436,6 +437,10 @@ struct UA_DataSetReader {
 
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
+
+    /* Per-target retained values for OverrideValueHandling::LastUsableValue. */
+    UA_DataValue *lastUsableValues;
+    size_t lastUsableValuesSize;
 };
 
 UA_DataSetReader *
