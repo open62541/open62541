@@ -534,6 +534,20 @@ struct UA_PubSubSecurityPolicy {
     void (*clear)(UA_PubSubSecurityPolicy *policy);
 };
 
+/* The historical nonceLength member predates SKS support and actually denotes
+ * the complete key-material item (signing key, encryption key and key nonce).
+ * Prefer these accessors in new code so it cannot be confused with the nonce
+ * carried in an individual NetworkMessage. */
+static UA_INLINE size_t
+UA_PubSubSecurityPolicy_getKeyMaterialLength(const UA_PubSubSecurityPolicy *policy) {
+    return policy ? policy->nonceLength : 0;
+}
+
+static UA_INLINE size_t
+UA_PubSubSecurityPolicy_getMessageNonceLength(const UA_PubSubSecurityPolicy *policy) {
+    return policy ? policy->messageNonceLength : 0;
+}
+
 _UA_END_DECLS
 
 #endif /* UA_PLUGIN_SECURITYPOLICY_H_ */

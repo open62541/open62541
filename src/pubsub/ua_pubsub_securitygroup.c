@@ -122,7 +122,7 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
     /* nonceLength is the complete key-material length exposed by the PubSub
      * security-policy interface. */
     UA_PubSubSecurityPolicy *sp = keyStorage->policy;
-    size_t keyLength = sp->nonceLength;
+    size_t keyLength = UA_PubSubSecurityPolicy_getKeyMaterialLength(sp);
 
     retval = UA_ByteString_allocBuffer(&newKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -243,7 +243,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
 
     UA_ByteString currentKey = UA_BYTESTRING_NULL;
     UA_ByteString *futurekeys = NULL;
-    size_t keyLength = ks->policy->nonceLength;
+    size_t keyLength = UA_PubSubSecurityPolicy_getKeyMaterialLength(ks->policy);
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;

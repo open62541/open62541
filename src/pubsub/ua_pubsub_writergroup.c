@@ -170,6 +170,11 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    res = UA_PubSubSecurityPolicy_validate(config->securityPolicy,
+                                            config->securityMode);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Allocate new WriterGroup */
     UA_WriterGroup *wg = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
     if(!wg)
@@ -866,7 +871,7 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         if(!sp)
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-        size_t nonceLen = sp->messageNonceLength;
+        size_t nonceLen = UA_PubSubSecurityPolicy_getMessageNonceLength(sp);
         if(nonceLen < sizeof(UA_UInt32) ||
            nonceLen > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;

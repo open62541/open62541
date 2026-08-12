@@ -199,7 +199,7 @@ UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
      * policy. Do not add the component lengths a second time. */
     if(!ks->policy || ks->policy->nonceLength == 0)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-    size_t expectedLen = ks->policy->nonceLength;
+    size_t expectedLen = UA_PubSubSecurityPolicy_getKeyMaterialLength(ks->policy);
     for(size_t i = 0; i < keysSize; ++i) {
         if(keys[i].length != expectedLen || !keys[i].data)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
