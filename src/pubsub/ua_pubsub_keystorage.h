@@ -193,6 +193,12 @@ struct UA_PubSubKeyStorage {
 
 };
 
+/* Validate the response shape and types of a GetSecurityKeys method call
+ * before the asynchronous client callback dereferences its Variants. */
+UA_StatusCode
+UA_PubSubKeyStorage_validateGetSecurityKeysResponse(
+    const UA_CallResponse *response);
+
 /**
  * @brief Find the Keystorage from the KeyStorageList and returns the pointer to
  * the keystorage

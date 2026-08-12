@@ -327,6 +327,82 @@ START_TEST(TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths) {
     UA_ByteString_clear(&validKey);
 } END_TEST
 
+static void
+setValidGetSecurityKeysOutput(UA_CallResponse *response,
+                              UA_CallMethodResult *result,
+                              UA_Variant output[5],
+                              UA_ByteString keys[1]) {
+    UA_CallResponse_init(response);
+    UA_CallMethodResult_init(result);
+    memset(output, 0, 5 * sizeof(UA_Variant));
+    response->results = result;
+    response->resultsSize = 1;
+    result->outputArguments = output;
+    result->outputArgumentsSize = 5;
+
+    UA_String policyUri = UA_STRING("policy");
+    UA_UInt32 tokenId = 1;
+    UA_Duration timeToNextKey = 1000.0;
+    UA_Duration keyLifetime = 2000.0;
+    keys[0] = UA_BYTESTRING("key");
+    UA_Variant_setScalar(&output[0], &policyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&output[1], &tokenId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[2], keys, 1,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&output[3], &timeToNextKey,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Variant_setScalar(&output[4], &keyLifetime,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+}
+
+/* The asynchronous callback used to check only data != NULL. A scalar Int32
+ * in the Keys slot therefore survived validation and was reinterpreted as a
+ * ByteString array. */
+START_TEST(TestGetSecurityKeysResponseRejectsWrongVariantTypes) {
+    UA_CallResponse response;
+    UA_CallMethodResult result;
+    UA_Variant output[5];
+    UA_ByteString keys[1];
+    setValidGetSecurityKeysOutput(&response, &result, output, keys);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_GOOD);
+
+    UA_Int32 invalidKeys = 42;
+    UA_Variant_setScalar(&output[2], &invalidKeys,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+} END_TEST
+
+START_TEST(TestGetSecurityKeysResponseRejectsWrongVariantShapes) {
+    UA_CallResponse response;
+    UA_CallMethodResult result;
+    UA_Variant output[5];
+    UA_ByteString keys[1];
+    setValidGetSecurityKeysOutput(&response, &result, output, keys);
+
+    UA_Variant_setScalar(&output[2], keys,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+
+    UA_Variant_setArray(&output[2], keys, 0,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+
+    result.outputArgumentsSize = 4;
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_UInt32 currentTokenId = 1;
     futureKeySize = 2;
@@ -506,6 +582,10 @@ main(void) {
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorageSetKeys);
     tcase_add_test(tc_pubsub_keystorage,
                    TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestGetSecurityKeysResponseRejectsWrongVariantTypes);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestGetSecurityKeysResponseRejectsWrongVariantShapes);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_MovetoNextKeyCallback);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeystorage_ImportedKey);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithWriterGroup);
