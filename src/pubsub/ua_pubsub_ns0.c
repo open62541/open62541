@@ -2348,7 +2348,21 @@ deletePubSubConfigMethodFinalize(void *application, void *context) {
     UA_PubSubManager *psm = (UA_PubSubManager *) application;
     UA_Server *server = psm->drv.server;
     lockServer(psm->drv.server);
-    UA_PubSubManager_clear(psm);
+    UA_StatusCode res = UA_PubSubManager_clear(psm);
+    if(res == UA_STATUSCODE_BADWOULDBLOCK) {
+        /* An SKS client still owns a key storage while its asynchronous
+         * disconnect is completing. Retry the accepted delete operation after
+         * callbacks have made progress instead of reporting success and
+         * silently abandoning a partially cleared manager. */
+        server->config.eventLoop->addDelayedCallback(server->config.eventLoop,
+                                                     (UA_DelayedCallback*)context);
+        unlockServer(server);
+        return;
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_PUBSUB,
+                     "Asynchronous PubSub configuration deletion failed: %s",
+                     UA_StatusCode_name(res));
     unlockServer(server);
     UA_free(context);
 }
