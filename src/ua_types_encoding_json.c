@@ -50,20 +50,31 @@ decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type);
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChar(CtxJson *ctx, char c) {
+    if(ctx->calcOnly) {
+        if((uintptr_t)ctx->pos >= (uintptr_t)ctx->end)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        ctx->pos = (UA_Byte*)((uintptr_t)ctx->pos + 1u);
+        return UA_STATUSCODE_GOOD;
+    }
     if(ctx->pos >= ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
-        *ctx->pos = (UA_Byte)c;
-    ctx->pos++;
+    *ctx->pos++ = (UA_Byte)c;
     return UA_STATUSCODE_GOOD;
 }
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChars(CtxJson *ctx, const char *c, size_t len) {
-    if(ctx->pos + len > ctx->end)
+    if(ctx->calcOnly) {
+        uintptr_t pos = (uintptr_t)ctx->pos;
+        uintptr_t end = (uintptr_t)ctx->end;
+        if(len > end - pos)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        ctx->pos = (UA_Byte*)(pos + len);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(len > (size_t)(ctx->end - ctx->pos))
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
-        memcpy(ctx->pos, c, len);
+    memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
 }
@@ -2252,8 +2263,9 @@ DiagnosticInfoInner_decodeJson(ParseCtx* ctx, void* dst, const UA_DataType* type
     return DiagnosticInfo_decodeJson(ctx, inner, type);
 }
 
-status
-decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
+static status
+decodeFieldsInternal(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount,
+                     UA_Boolean allowUnknown) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NULL_SKIP; /* null is treated like an empty object */
 
@@ -2302,6 +2314,11 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 
         /* The key is unknown */
         if(!entry) {
+            if(allowUnknown) {
+                ctx->index++; /* key -> value */
+                skipObject(ctx);
+                continue;
+            }
             ret = UA_STATUSCODE_BADDECODINGERROR;
             break;
         }
@@ -2334,6 +2351,17 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 
     ctx->depth--;
     return ret;
+}
+
+status
+decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
+    return decodeFieldsInternal(ctx, entries, entryCount, false);
+}
+
+status
+decodeFieldsAllowUnknown(ParseCtx *ctx, DecodeEntry *entries,
+                         size_t entryCount) {
+    return decodeFieldsInternal(ctx, entries, entryCount, true);
 }
 
 static status

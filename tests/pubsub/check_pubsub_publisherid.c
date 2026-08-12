@@ -239,22 +239,31 @@ ValidatePublishSubscribe(
         UA_Variant_clear(&writeValue);
     }
 
-    UA_Boolean done = false;
-    while(!done) {
-        UA_fakeSleep(Sleep_ms);
-        UA_Server_run_iterate(server, true);
-        done = true;
-        UA_UInt32 i = 0;
-        for(i = 0; i < NoOfTestVars; i++) {
+    /* Advance the publisher timer once. Repeatedly advancing the fake clock while
+     * waiting for the subscriber would enqueue another publication on every
+     * retry and can exhaust the UDP socket buffer in fast release builds. */
+    UA_fakeSleep(Sleep_ms);
+    for(size_t attempt = 0; attempt < 1000; attempt++) {
+        UA_Server_run_iterate(server, false);
+        UA_Boolean done = true;
+        for(UA_UInt32 i = 0; i < NoOfTestVars; i++) {
             tmpValue = TestValue + (UA_Int32)i;
             UA_Variant SubscribedNodeData;
             UA_Variant_init(&SubscribedNodeData);
-            UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
-            if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
+            UA_StatusCode res = UA_Server_readValue(server, subscriberVarIds[i],
+                                                    &SubscribedNodeData);
+            if(res != UA_STATUSCODE_GOOD ||
+               !UA_Variant_hasScalarType(&SubscribedNodeData,
+                                         &UA_TYPES[UA_TYPES_INT32]) ||
+               tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
                 done = false;
             UA_Variant_clear(&SubscribedNodeData);
         }
+        if(done)
+            return;
     }
+
+    ck_abort_msg("The subscriber values did not converge after 1000 iterations");
 }
 
 static void DoTest_1_Connection(UA_PublisherId publisherId) {
@@ -1895,15 +1904,18 @@ START_TEST(Test_multiple_datasets) {
 /***************************************************************************************************/
 int main(void) {
 
-    TCase *tc_basic = tcase_create("PublisherId");
-    tcase_add_checked_fixture(tc_basic, setup, teardown);
+    /* Keep the historically long PublisherId matrix split into selectable
+     * cases. Each test already has an independent fixture, so this changes no
+     * behavior and makes timeouts attributable to one scenario. */
+    TCase *tc_one_connection = tcase_create("PublisherId one connection");
+    tcase_add_checked_fixture(tc_one_connection, setup, teardown);
 
     /* test case description:
         - test 1 connection with 1 WriterGroup, 1 DatasetWriter, 1 ReaderGroup and 1 DataSetReader
         - test all possible publisherId types
         - test with all combinations of fast-path and raw-encoding
     */
-    tcase_add_test(tc_basic, Test_1_connection);
+    tcase_add_test(tc_one_connection, Test_1_connection);
 
     /* test case description:
         - setup a PubSub configuration with multiple Connections
@@ -1915,7 +1927,10 @@ int main(void) {
         - TODO: fast-path does not support multiple groups and datasets, therefore we only test multiple connections with fast-path here
         - TODO: fast-path does not support STRING publisherIds
     */
-    tcase_add_test(tc_basic, Test_multiple_connections);
+    TCase *tc_multiple_connections =
+        tcase_create("PublisherId multiple connections");
+    tcase_add_checked_fixture(tc_multiple_connections, setup, teardown);
+    tcase_add_test(tc_multiple_connections, Test_multiple_connections);
 
     /* test case description:
         - setup a PubSub configuration with multiple Connections
@@ -1926,13 +1941,17 @@ int main(void) {
         - test with and without raw-encoding
         - TODO: fast-path does not support string PublisherIds at the moment
     */
-    tcase_add_test(tc_basic, Test_string_publisherId);
+    TCase *tc_string = tcase_create("PublisherId string");
+    tcase_add_checked_fixture(tc_string, setup, teardown);
+    tcase_add_test(tc_string, Test_string_publisherId);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
     /* test case description:
         - test pubsub file config with string PublisherId
     */
-    tcase_add_test(tc_basic, Test_string_publisherId_file_config);
+    TCase *tc_string_file = tcase_create("PublisherId string file config");
+    tcase_add_checked_fixture(tc_string_file, setup, teardown);
+    tcase_add_test(tc_string_file, Test_string_publisherId_file_config);
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
     /* test case description:
@@ -1941,7 +1960,9 @@ int main(void) {
         - set different publishing values to ensure that PublisherId check works and every DataSetReader receives the correct message
         - test with with and without raw-encoding
     */
-    tcase_add_test(tc_basic, Test_multiple_groups);
+    TCase *tc_multiple_groups = tcase_create("PublisherId multiple groups");
+    tcase_add_checked_fixture(tc_multiple_groups, setup, teardown);
+    tcase_add_test(tc_multiple_groups, Test_multiple_groups);
 
     /* test case description:
         - setup a PubSub configuration with multiple DataSets
@@ -1949,10 +1970,19 @@ int main(void) {
         - set different publishing values to ensure that PublisherId check works and every DataSetReader receives the correct message
         - test with with and without raw-encoding
     */
-    tcase_add_test(tc_basic, Test_multiple_datasets);
+    TCase *tc_multiple_datasets = tcase_create("PublisherId multiple datasets");
+    tcase_add_checked_fixture(tc_multiple_datasets, setup, teardown);
+    tcase_add_test(tc_multiple_datasets, Test_multiple_datasets);
 
     Suite *s = suite_create("PubSub publisherId tests");
-    suite_add_tcase(s, tc_basic);
+    suite_add_tcase(s, tc_one_connection);
+    suite_add_tcase(s, tc_multiple_connections);
+    suite_add_tcase(s, tc_string);
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+    suite_add_tcase(s, tc_string_file);
+#endif
+    suite_add_tcase(s, tc_multiple_groups);
+    suite_add_tcase(s, tc_multiple_datasets);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

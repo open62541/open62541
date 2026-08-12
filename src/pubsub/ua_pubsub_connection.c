@@ -31,8 +31,14 @@ UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 UA_StatusCode
 UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_PubSubConnectionConfig));
+    memset(&dst->publisherId, 0, sizeof(dst->publisherId));
+    dst->name = UA_STRING_NULL;
+    UA_Variant_init(&dst->address);
+    dst->transportProfileUri = UA_STRING_NULL;
+    UA_Variant_init(&dst->connectionTransportSettings);
+    dst->connectionProperties = UA_KEYVALUEMAP_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_PublisherId_copy(&src->publisherId, &dst->publisherId);
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_Variant_copy(&src->address, &dst->address);
@@ -66,6 +72,7 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
     UA_Variant_clear(&connectionConfig->connectionTransportSettings);
     UA_Variant_clear(&connectionConfig->address);
     UA_KeyValueMap_clear(&connectionConfig->connectionProperties);
+    memset(connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
 }
 
 UA_StatusCode
@@ -635,6 +642,11 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the UDP network URL");
         return res;
+    }
+    if(port == 0) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "UDP network URL requires a non-zero port");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     /* Detect a wildcard address for unicast receiving. The individual
