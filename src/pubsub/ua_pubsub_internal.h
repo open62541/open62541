@@ -292,6 +292,7 @@ typedef struct UA_DataSetWriter {
     UA_DataSetWriterSample *lastSamples;
 
     UA_UInt16 actualDataSetMessageSequenceCount;
+    UA_DateTime lastDataSetMessageTime;
     UA_Boolean configurationFrozen;
     UA_UInt64 pubSubStateTimerId;
 } UA_DataSetWriter;
@@ -311,6 +312,19 @@ UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
                                         UA_DataSetWriter *dsw,
                                         UA_DataSetMessage *dsm);
+
+UA_StatusCode
+UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
+                                                 UA_DataSetMessage *dsm,
+                                                 UA_DataSetWriter *dsw);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+void
+updateSKSKeyStorage(void *application, void *context);
+
+UA_StatusCode
+UA_SecurityGroup_rotateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg);
+#endif
 
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,
@@ -436,6 +450,12 @@ struct UA_DataSetReader {
 
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
+    UA_Boolean receivedKeyFrame;
+    UA_UInt32 deltaFrameCounter;
+
+    /* Per-target retained values for OverrideValueHandling::LastUsableValue. */
+    UA_DataValue *lastUsableValues;
+    size_t lastUsableValuesSize;
 };
 
 UA_DataSetReader *
@@ -666,6 +686,15 @@ void
 UA_PubSubManager_setState(UA_PubSubManager *psm,
                           UA_LifecycleState state);
 
+UA_PubSubState
+UA_PubSubManager_getPubSubState(const UA_PubSubManager *psm);
+
+UA_StatusCode
+UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
+                                  UA_PubSubComponentType componentType,
+                                  UA_PubSubState targetState,
+                                  UA_StatusCode errorReason);
+
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId,
                             UA_UInt16 numRegWriterGroupIds,
@@ -686,6 +715,10 @@ UA_PubSubManager_generateUniqueGuid(UA_PubSubManager *psm);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
+
+UA_StatusCode
+UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
+                                 UA_MessageSecurityMode securityMode);
 
 /************************************/
 /* Information Model Representation */

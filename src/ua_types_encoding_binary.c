@@ -1997,10 +1997,13 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 size_t
 UA_calcSizeBinary(const void *p, const UA_DataType *type,
                   UA_EncodeBinaryOptions *options) {
-    u8 *pos = NULL;
+    /* Start at a non-null sentinel. The encoder advances the pointer while a
+     * NULL end pointer suppresses writes. Advancing a null pointer is undefined
+     * behavior even when it is used only as a byte counter. */
+    u8 *pos = (u8*)(uintptr_t)1u;
     const u8 *posEnd = NULL;
     UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         return 0;
-    return (size_t)(uintptr_t)pos;
+    return (size_t)((uintptr_t)pos - 1u);
 }

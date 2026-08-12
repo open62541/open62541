@@ -23,23 +23,23 @@ static UA_StatusCode
 createWriterGroup(UA_PubSubManager *psm,
                   const UA_WriterGroupDataType *writerGroupParameters,
                   UA_NodeId connectionIdent, UA_UInt32 pdsCount,
-                  const UA_NodeId *pdsIdent);
+                  const UA_NodeId *pdsIdent, UA_NodeId *writerGroupIdent);
 
 static UA_StatusCode
 createDataSetWriter(UA_PubSubManager *psm,
                     const UA_DataSetWriterDataType *dataSetWriterParameters,
                     UA_NodeId writerGroupIdent, UA_UInt32 pdsCount,
-                    const UA_NodeId *pdsIdent);
+                    const UA_NodeId *pdsIdent, UA_NodeId *dataSetWriterIdent);
 
 static UA_StatusCode
 createReaderGroup(UA_PubSubManager *psm,
                   const UA_ReaderGroupDataType *readerGroupParameters,
-                  UA_NodeId connectionIdent);
+                  UA_NodeId connectionIdent, UA_NodeId *readerGroupIdent);
 
 static UA_StatusCode
 createDataSetReader(UA_PubSubManager *psm,
                     const UA_DataSetReaderDataType *dataSetReaderParameters,
-                    UA_NodeId readerGroupIdent);
+                    UA_NodeId readerGroupIdent, UA_NodeId *dataSetReaderIdent);
 
 static UA_StatusCode
 createPublishedDataSet(UA_PubSubManager *psm,
@@ -60,8 +60,9 @@ static UA_StatusCode
 extractPubSubConfigFromExtensionObject(UA_PubSubManager *psm,
                                        const UA_ExtensionObject *src,
                                        UA_PubSubConfigurationDataType **dst) {
-    if(src->encoding != UA_EXTENSIONOBJECT_DECODED ||
-       src->content.decoded.type != &UA_TYPES[UA_TYPES_UABINARYFILEDATATYPE]) {
+    if(!src || !dst || src->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       src->content.decoded.type != &UA_TYPES[UA_TYPES_UABINARYFILEDATATYPE] ||
+       !src->content.decoded.data) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_extractPubSubConfigFromDecodedObject] "
                      "Reading extensionObject failed");
@@ -123,9 +124,12 @@ updatePubSubConfig(UA_PubSubManager *psm,
 
     /* Configuration of Published DataSets: */
     UA_UInt32 pdsCount = (UA_UInt32)configurationParameters->publishedDataSetsSize;
-    UA_NodeId *publishedDataSetIdent = (UA_NodeId*)UA_calloc(pdsCount, sizeof(UA_NodeId));
-    if(!publishedDataSetIdent)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_NodeId *publishedDataSetIdent = NULL;
+    if(pdsCount > 0) {
+        publishedDataSetIdent = (UA_NodeId*)UA_calloc(pdsCount, sizeof(UA_NodeId));
+        if(!publishedDataSetIdent)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     for(UA_UInt32 i = 0; i < pdsCount; i++) {
         res = createPublishedDataSet(psm,
@@ -135,6 +139,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
             UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                          "[UA_PubSubManager_updatePubSubConfig] PDS creation failed");
             UA_free(publishedDataSetIdent);
+            UA_PubSubManager_clear(psm);
             return res;
         }
     }
@@ -170,6 +175,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
     
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(publishedDataSetIdent);
+        UA_PubSubManager_clear(psm);
         return res;
     }
     
@@ -177,56 +183,25 @@ updatePubSubConfig(UA_PubSubManager *psm,
     UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                 "[UA_PubSubManager_updatePubSubConfig] START COMPONENTS (Phase 2: Enabling)");
     
-    /* Enable connections and their child components */
+    /* Apply the configured desired state by component identity. The runtime
+     * lists do not preserve the order of the decoded arrays: groups are
+     * inserted at the list head and writers are sorted by DataSetWriterId. */
     for(size_t i = 0; i < configurationParameters->connectionsSize; i++) {
         const UA_PubSubConnectionDataType *connParams = &configurationParameters->connections[i];
-        
-        if(connParams->enabled) {
-            UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionIdents[i]);
-            if(conn) {
-                conn->config.enabled = true;                
-                UA_WriterGroup *wg;
-                size_t wgIndex = 0;
-                LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
-                    if(wgIndex < connParams->writerGroupsSize && connParams->writerGroups[wgIndex].enabled) {
-                        wg->config.enabled = true;
-                        UA_DataSetWriter *dsw;
-                        size_t dswIndex = 0;
-                        LIST_FOREACH(dsw, &wg->writers, listEntry) {
-                            if(dswIndex < connParams->writerGroups[wgIndex].dataSetWritersSize && 
-                               connParams->writerGroups[wgIndex].dataSetWriters[dswIndex].enabled) {
-                                dsw->config.enabled = true;
-                            }
-                            dswIndex++;
-                        }
-                    }
-                    wgIndex++;
-                }
-                
-                /* Enable reader groups */
-                UA_ReaderGroup *rg;
-                size_t rgIndex = 0;
-                LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
-                    if(rgIndex < connParams->readerGroupsSize && connParams->readerGroups[rgIndex].enabled) {
-                        rg->config.enabled = true;                        
-                        UA_DataSetReader *dsr;
-                        size_t dsrIndex = 0;
-                        LIST_FOREACH(dsr, &rg->readers, listEntry) {
-                            if(dsrIndex < connParams->readerGroups[rgIndex].dataSetReadersSize && 
-                               connParams->readerGroups[rgIndex].dataSetReaders[dsrIndex].enabled) {
-                                dsr->config.enabled = true;
-                            }
-                            dsrIndex++;
-                        }
-                    }
-                    rgIndex++;
-                }
-            }
+        UA_PubSubConnection *conn =
+            UA_PubSubConnection_find(psm, connectionIdents[i]);
+        if(!conn) {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+            break;
         }
+        conn->config.enabled = connParams->enabled;
     }
 
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PubSubManager_clear(psm);
+
     /* Enable PubSubManager if specified */
-    if(configurationParameters->enabled) {
+    if(res == UA_STATUSCODE_GOOD && configurationParameters->enabled) {
         UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "[UA_PubSubManager_updatePubSubConfig] PubSubManager is enabled");
         UA_assert(psm->drv.state == UA_LIFECYCLESTATE_STOPPED);
@@ -290,16 +265,61 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Connection creation failed");
+        UA_PublisherId_clear(&config.publisherId);
         return res;
     }
 
     for(size_t i = 0; i < connParams->writerGroupsSize; i++) {
-        createWriterGroup(psm, &connParams->writerGroups[i],
-                          *connectionIdent, pdsCount, pdsIdent);
+        UA_NodeId writerGroupIdent;
+        res = createWriterGroup(psm, &connParams->writerGroups[i],
+                                *connectionIdent, pdsCount, pdsIdent,
+                                &writerGroupIdent);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
+            UA_PublisherId_clear(&config.publisherId);
+            return res;
+        }
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
+        if(!wg) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
+            UA_PublisherId_clear(&config.publisherId);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        wg->config.enabled = connParams->writerGroups[i].enabled;
     }
 
     for(size_t j = 0; j < connParams->readerGroupsSize; j++) {
-        createReaderGroup(psm, &connParams->readerGroups[j], *connectionIdent);
+        UA_NodeId readerGroupIdent;
+        res = createReaderGroup(psm, &connParams->readerGroups[j],
+                                *connectionIdent, &readerGroupIdent);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
+            UA_PublisherId_clear(&config.publisherId);
+            return res;
+        }
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
+        if(!rg) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
+            UA_PublisherId_clear(&config.publisherId);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        rg->config.enabled = connParams->readerGroups[j].enabled;
     }
 
     UA_PublisherId_clear(&config.publisherId);
@@ -346,7 +366,7 @@ static UA_StatusCode
 createWriterGroup(UA_PubSubManager *psm,
                   const UA_WriterGroupDataType *writerGroupParameters,
                   UA_NodeId connectionIdent, UA_UInt32 pdsCount,
-                  const UA_NodeId *pdsIdent) {
+                  const UA_NodeId *pdsIdent, UA_NodeId *writerGroupIdent) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_WriterGroupConfig config;
@@ -357,6 +377,13 @@ createWriterGroup(UA_PubSubManager *psm,
     config.keepAliveTime =         writerGroupParameters->keepAliveTime;
     config.priority =              writerGroupParameters->priority;
     config.securityMode =          writerGroupParameters->securityMode;
+    config.securityGroupId =       writerGroupParameters->securityGroupId;
+    config.securityKeyServicesSize = writerGroupParameters->securityKeyServicesSize;
+    config.securityKeyServices =   writerGroupParameters->securityKeyServices;
+    config.maxNetworkMessageSize = writerGroupParameters->maxNetworkMessageSize;
+    config.localeIdsSize =       writerGroupParameters->localeIdsSize;
+    config.localeIds =           writerGroupParameters->localeIds;
+    config.headerLayoutUri =     writerGroupParameters->headerLayoutUri;
     config.transportSettings =     writerGroupParameters->transportSettings;
     config.messageSettings =       writerGroupParameters->messageSettings;
     config.groupProperties.mapSize =   writerGroupParameters->groupPropertiesSize;
@@ -374,8 +401,8 @@ createWriterGroup(UA_PubSubManager *psm,
 
     /* Load config. The enabled flag is "false" here.
      * Auto-enable only after adding the DataSetWriters. */
-    UA_NodeId writerGroupIdent;
-    res = UA_WriterGroup_create(psm, connectionIdent, &config, &writerGroupIdent);
+    res = UA_WriterGroup_create(psm, connectionIdent, &config,
+                                writerGroupIdent);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createWriterGroup] "
@@ -385,10 +412,32 @@ createWriterGroup(UA_PubSubManager *psm,
 
     /* Configuration of all DataSetWriters that belong to this WriterGroup - all created disabled */
     for(size_t dsw = 0; dsw < writerGroupParameters->dataSetWritersSize; dsw++) {
-        createDataSetWriter(psm, &writerGroupParameters->dataSetWriters[dsw],
-                            writerGroupIdent, pdsCount, pdsIdent);
+        UA_NodeId dataSetWriterIdent;
+        res = createDataSetWriter(psm,
+                                  &writerGroupParameters->dataSetWriters[dsw],
+                                  *writerGroupIdent, pdsCount, pdsIdent,
+                                  &dataSetWriterIdent);
+        if(res != UA_STATUSCODE_GOOD)
+            goto rollback;
+        UA_DataSetWriter *writer =
+            UA_DataSetWriter_find(psm, dataSetWriterIdent);
+        if(!writer)
+            goto rollbackInternal;
+        writer->config.enabled =
+            writerGroupParameters->dataSetWriters[dsw].enabled;
     }
 
+    return res;
+
+rollbackInternal:
+    res = UA_STATUSCODE_BADINTERNALERROR;
+rollback:
+    {
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, *writerGroupIdent);
+        if(wg)
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
+    }
     return res;
 }
 
@@ -396,7 +445,7 @@ static UA_StatusCode
 createDataSetWriter(UA_PubSubManager *psm,
                     const UA_DataSetWriterDataType *dataSetWriterParameters,
                     UA_NodeId writerGroupIdent, UA_UInt32 pdsCount,
-                    const UA_NodeId *pdsIdent) {
+                    const UA_NodeId *pdsIdent, UA_NodeId *dataSetWriterIdent) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Search the PDS among the supplied PDS-NodeIds.
@@ -429,16 +478,18 @@ createDataSetWriter(UA_PubSubManager *psm,
     config.keyFrameCount = dataSetWriterParameters->keyFrameCount;
     config.dataSetFieldContentMask = dataSetWriterParameters->dataSetFieldContentMask;
     config.messageSettings = dataSetWriterParameters->messageSettings;
+    config.transportSettings = dataSetWriterParameters->transportSettings;
     config.dataSetName = dataSetWriterParameters->dataSetName;
     config.dataSetWriterProperties.mapSize = dataSetWriterParameters->dataSetWriterPropertiesSize;
     config.dataSetWriterProperties.map = dataSetWriterParameters->dataSetWriterProperties;
     config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
     /* Create the DataSetWriter disabled. Enable later in Phase 2. */
-    UA_NodeId dataSetWriterIdent;
+    UA_NodeId localIdent;
+    UA_NodeId *ident = dataSetWriterIdent ? dataSetWriterIdent : &localIdent;
     UA_StatusCode res =
         UA_DataSetWriter_create(psm, writerGroupIdent, pdsIdent[i],
-                                &config, &dataSetWriterIdent);
+                                &config, ident);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_addDataSetWriterWithPdsReference] "
@@ -451,7 +502,7 @@ createDataSetWriter(UA_PubSubManager *psm,
 static UA_StatusCode
 createReaderGroup(UA_PubSubManager *psm,
                   const UA_ReaderGroupDataType *readerGroupParameters,
-                  UA_NodeId connectionIdent) {
+                  UA_NodeId connectionIdent, UA_NodeId *readerGroupIdent) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_ReaderGroupConfig config;
@@ -459,11 +510,18 @@ createReaderGroup(UA_PubSubManager *psm,
 
     config.name = readerGroupParameters->name;
     config.securityMode = readerGroupParameters->securityMode;
+    config.securityGroupId = readerGroupParameters->securityGroupId;
+    config.securityKeyServicesSize = readerGroupParameters->securityKeyServicesSize;
+    config.securityKeyServices = readerGroupParameters->securityKeyServices;
+    config.maxNetworkMessageSize = readerGroupParameters->maxNetworkMessageSize;
+    config.transportSettings = readerGroupParameters->transportSettings;
+    config.messageSettings = readerGroupParameters->messageSettings;
+    config.groupProperties.mapSize = readerGroupParameters->groupPropertiesSize;
+    config.groupProperties.map = readerGroupParameters->groupProperties;
     config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
-    UA_NodeId readerGroupIdent;
     UA_StatusCode res = UA_ReaderGroup_create(psm, connectionIdent,
-                                              &config, &readerGroupIdent);
+                                              &config, readerGroupIdent);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createReaderGroup] Adding ReaderGroup "
@@ -472,11 +530,32 @@ createReaderGroup(UA_PubSubManager *psm,
     }
 
     for(UA_UInt32 i = 0; i < readerGroupParameters->dataSetReadersSize; i++) {
-        createDataSetReader(psm, &readerGroupParameters->dataSetReaders[i],
-                            readerGroupIdent);
+        UA_NodeId dataSetReaderIdent;
+        res = createDataSetReader(psm,
+                                  &readerGroupParameters->dataSetReaders[i],
+                                  *readerGroupIdent, &dataSetReaderIdent);
+        if(res != UA_STATUSCODE_GOOD)
+            goto rollback;
+        UA_DataSetReader *reader =
+            UA_DataSetReader_find(psm, dataSetReaderIdent);
+        if(!reader)
+            goto rollbackInternal;
+        reader->config.enabled =
+            readerGroupParameters->dataSetReaders[i].enabled;
     }
 
     return UA_STATUSCODE_GOOD;
+
+rollbackInternal:
+    res = UA_STATUSCODE_BADINTERNALERROR;
+rollback:
+    {
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, *readerGroupIdent);
+        if(rg)
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, rg, UA_PUBSUBCOMPONENT_READERGROUP);
+    }
+    return res;
 }
 
 /* Creates TargetVariables or SubscribedDataSetMirror for a given DataSetReader */
@@ -484,6 +563,16 @@ static UA_StatusCode
 addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
                      const UA_ExtensionObject *subscribedDataSet) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+
+    if(!subscribedDataSet ||
+       subscribedDataSet->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       !subscribedDataSet->content.decoded.type ||
+       !subscribedDataSet->content.decoded.data) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "[UA_PubSubManager_addSubscribedDataSet] "
+                     "SubscribedDataSet is not a decoded value");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]) {
@@ -519,7 +608,7 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
 
 static UA_StatusCode
 createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrParams,
-                    UA_NodeId readerGroupIdent) {
+                    UA_NodeId readerGroupIdent, UA_NodeId *dataSetReaderIdent) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     /* Prepare the config parameters */
@@ -531,15 +620,26 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     config.dataSetMetaData = dsrParams->dataSetMetaData;
     config.dataSetFieldContentMask = dsrParams->dataSetFieldContentMask;
     config.messageReceiveTimeout =  dsrParams->messageReceiveTimeout;
+    config.keyFrameCount = dsrParams->keyFrameCount;
+    config.headerLayoutUri = dsrParams->headerLayoutUri;
+    config.dataSetReaderProperties.mapSize =
+        dsrParams->dataSetReaderPropertiesSize;
+    config.dataSetReaderProperties.map = dsrParams->dataSetReaderProperties;
     config.messageSettings = dsrParams->messageSettings;
+    config.transportSettings = dsrParams->transportSettings;
     config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
-    UA_StatusCode res = UA_PublisherId_fromVariant(&config.publisherId,
-                                                   &dsrParams->publisherId);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(dsrParams->publisherId.type) {
+        res = UA_PublisherId_fromVariant(&config.publisherId,
+                                         &dsrParams->publisherId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        config.publisherIdFilterEnabled = true;
+    }
 
-    UA_NodeId dsReaderIdent;
-    res = UA_DataSetReader_create(psm, readerGroupIdent, &config, &dsReaderIdent);
+    UA_NodeId localIdent;
+    UA_NodeId *ident = dataSetReaderIdent ? dataSetReaderIdent : &localIdent;
+    res = UA_DataSetReader_create(psm, readerGroupIdent, &config, ident);
     UA_PublisherId_clear(&config.publisherId);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
@@ -549,11 +649,14 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     }
 
     /* Create the SubscribedDataSet */
-    res = addSubscribedDataSet(psm, dsReaderIdent, &dsrParams->subscribedDataSet);
+    res = addSubscribedDataSet(psm, *ident, &dsrParams->subscribedDataSet);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createDataSetReader] "
                      "Create subscribedDataSet failed");
+        UA_DataSetReader *dsr = UA_DataSetReader_find(psm, *ident);
+        if(dsr)
+            UA_DataSetReader_remove(psm, dsr);
         return res;
     }
 
@@ -621,6 +724,9 @@ createPublishedDataSet(UA_PubSubManager *psm,
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createPublishedDataSet] "
                      "Creating DataSetFieldConfig failed.");
+        UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, *pdsIdent);
+        if(pds)
+            UA_PublishedDataSet_remove(psm, pds);
     }
 
     return res;
@@ -652,6 +758,12 @@ addDataSetFieldVariables(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
         fc.field.variable.promotedField = pdsParams->dataSetMetaData.
             fields[i].fieldFlags & 0x0001;
         fc.field.variable.publishParameters = pdItems->publishedData[i];
+        fc.field.variable.maxStringLength =
+            pdsParams->dataSetMetaData.fields[i].maxStringLength;
+        fc.field.variable.description =
+            pdsParams->dataSetMetaData.fields[i].description;
+        fc.field.variable.dataSetFieldId =
+            pdsParams->dataSetMetaData.fields[i].dataSetFieldId;
 
         UA_NodeId fieldIdent;
         UA_StatusCode res = UA_DataSetField_create(psm, *pdsIdent, &fc, &fieldIdent).result;
@@ -661,7 +773,31 @@ addDataSetFieldVariables(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
                          "Adding DataSetField Variable failed.");
             return res;
         }
+
+        /* The public field configuration does not carry every FieldMetaData
+         * member. Preserve the serialized schema verbatim after validating
+         * that the source node can be used to create the field. */
+        UA_DataSetField *field = UA_DataSetField_find(psm, fieldIdent);
+        if(!field)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        UA_FieldMetaData_clear(&field->fieldMetaData);
+        res = UA_FieldMetaData_copy(&pdsParams->dataSetMetaData.fields[i],
+                                    &field->fieldMetaData);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
+
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, *pdsIdent);
+    if(!pds)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_DataSetMetaDataType replacement;
+    UA_DataSetMetaDataType_init(&replacement);
+    UA_StatusCode res = UA_DataSetMetaDataType_copy(&pdsParams->dataSetMetaData,
+                                                    &replacement);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_DataSetMetaDataType_clear(&pds->dataSetMetaData);
+    pds->dataSetMetaData = replacement;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -703,12 +839,10 @@ UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server, const UA_ByteString buffer) {
     size_t offset = 0;
     UA_ExtensionObject decodedFile;
+    UA_ExtensionObject_init(&decodedFile);
 
-    if(server == NULL) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_Server_loadPubSubConfigFromByteString] Invalid argument");
+    if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     lockServer(server);
 
@@ -798,36 +932,51 @@ generatePublishedDataSetDataType(UA_PubSubManager *psm,
     memset(dst, 0, sizeof(UA_PublishedDataSetDataType));
 
     UA_PublishedDataItemsDataType *tmp = UA_PublishedDataItemsDataType_new();
-    UA_String_copy(&src->config.name, &dst->name);
-    dst->dataSetMetaData.fieldsSize = src->fieldSize;
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res = UA_String_copy(&src->config.name, &dst->name);
+
+    /* Copy the full DataSetMetaData from the runtime PDS metadata rather than
+     * reconstructing it field-by-field. The previous save path only wrote
+     * fields[].name, fieldFlags, and configurationVersion, dropping the
+     * DataSetMetaData name, description, dataSetClassId, namespaces, and
+     * per-field builtInType, dataType, valueRank, arrayDimensions,
+     * maxStringLength, dataSetFieldId, and properties. A tool reloading a
+     * saved PDS could not reconstruct the dataset schema. */
+    res |= UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "generatePublishedDataSetDataType: DataSetMetaData copy failed");
+        UA_PublishedDataSetDataType_clear(dst);
+        UA_PublishedDataItemsDataType_delete(tmp);
+        return res;
+    }
 
     size_t index = 0;
     tmp->publishedDataSize = src->fieldSize;
-    tmp->publishedData = (UA_PublishedVariableDataType*)
-        UA_Array_new(tmp->publishedDataSize, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-    if(tmp->publishedData == NULL) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB, "Allocation memory failed");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    dst->dataSetMetaData.fields = (UA_FieldMetaData*)
-        UA_Array_new(dst->dataSetMetaData.fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-    if(dst->dataSetMetaData.fields == NULL) {
-        UA_free(tmp->publishedData);
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB, "Allocation memory failed");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(tmp->publishedDataSize > 0) {
+        tmp->publishedData = (UA_PublishedVariableDataType*)
+            UA_Array_new(tmp->publishedDataSize,
+                         &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+        if(!tmp->publishedData) {
+            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                         "Allocation memory failed");
+            UA_PublishedDataItemsDataType_delete(tmp);
+            UA_PublishedDataSetDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     UA_DataSetField *dsf, *dsf_tmp = NULL;
     TAILQ_FOREACH_SAFE(dsf ,&src->fields, listEntry, dsf_tmp) {
-        UA_String_copy(&dsf->config.field.variable.fieldNameAlias,
-                       &dst->dataSetMetaData.fields[index].name);
-        UA_PublishedVariableDataType_copy(&dsf->config.field.variable.publishParameters,
-                                          &tmp->publishedData[index]);
-        UA_ConfigurationVersionDataType_copy(&dsf->config.field.variable.configurationVersion,
-                                             &dst->dataSetMetaData.configurationVersion);
-        dst->dataSetMetaData.fields[index].fieldFlags =
-            dsf->config.field.variable.promotedField;
+        res = UA_PublishedVariableDataType_copy(
+            &dsf->config.field.variable.publishParameters,
+            &tmp->publishedData[index]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PublishedDataItemsDataType_delete(tmp);
+            UA_PublishedDataSetDataType_clear(dst);
+            return res;
+        }
         index++;
     }
     UA_ExtensionObject_setValue(&dst->dataSetSource, tmp,
@@ -838,7 +987,7 @@ generatePublishedDataSetDataType(UA_PubSubManager *psm,
 
 static UA_StatusCode
 generateDataSetWriterDataType(const UA_DataSetWriter *src,
-                              UA_DataSetWriterDataType *dst) {
+                               UA_DataSetWriterDataType *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(dst, 0, sizeof(UA_DataSetWriterDataType));
     res |= UA_String_copy(&src->config.name, &dst->name);
@@ -846,7 +995,11 @@ generateDataSetWriterDataType(const UA_DataSetWriter *src,
     dst->keyFrameCount = src->config.keyFrameCount;
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
+    res |= UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
     res |= UA_String_copy(&src->config.dataSetName, &dst->dataSetName);
+    /* Preserve the enabled flag so a save→load round-trip keeps components
+     * enabled instead of silently disabling everything. */
+    dst->enabled = src->config.enabled;
     if(res != UA_STATUSCODE_GOOD) {
         UA_DataSetWriterDataType_clear(dst);
         return res;
@@ -866,48 +1019,64 @@ generateDataSetWriterDataType(const UA_DataSetWriter *src,
 
 static UA_StatusCode
 generateWriterGroupDataType(const UA_WriterGroup *src,
-                            UA_WriterGroupDataType *dst) {
+                             UA_WriterGroupDataType *dst) {
     memset(dst, 0, sizeof(UA_WriterGroupDataType));
 
-    UA_String_copy(&src->config.name, &dst->name);
+    UA_StatusCode res = UA_String_copy(&src->config.name, &dst->name);
     dst->writerGroupId = src->config.writerGroupId;
     dst->publishingInterval = src->config.publishingInterval;
     dst->keepAliveTime = src->config.keepAliveTime;
     dst->priority = src->config.priority;
     dst->securityMode = src->config.securityMode;
-
-    UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
-    UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
-
-    UA_StatusCode res =
-        UA_Array_copy(src->config.groupProperties.map,
-                      src->config.groupProperties.mapSize,
-                      (void**)&dst->groupProperties,
-                      &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    dst->enabled = src->config.enabled;
+    dst->maxNetworkMessageSize = src->config.maxNetworkMessageSize;
+    res |= UA_Array_copy(src->config.localeIds, src->config.localeIdsSize,
+                         (void**)&dst->localeIds, &UA_TYPES[UA_TYPES_STRING]);
+    res |= UA_String_copy(&src->config.headerLayoutUri,
+                          &dst->headerLayoutUri);
+    res |= UA_String_copy(&src->config.securityGroupId, &dst->securityGroupId);
+    res |= UA_ExtensionObject_copy(&src->config.transportSettings,
+                                   &dst->transportSettings);
+    res |= UA_ExtensionObject_copy(&src->config.messageSettings,
+                                   &dst->messageSettings);
+    res |= UA_Array_copy(src->config.securityKeyServices,
+                         src->config.securityKeyServicesSize,
+                         (void**)&dst->securityKeyServices,
+                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    res |= UA_Array_copy(src->config.groupProperties.map,
+                         src->config.groupProperties.mapSize,
+                         (void**)&dst->groupProperties,
+                         &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     if(res != UA_STATUSCODE_GOOD) {
         UA_WriterGroupDataType_clear(dst);
         return res;
     }
-    dst->groupPropertiesSize = src->config.groupProperties.mapSize,
+    dst->securityKeyServicesSize = src->config.securityKeyServicesSize;
+    dst->groupPropertiesSize = src->config.groupProperties.mapSize;
+    dst->localeIdsSize = src->config.localeIdsSize;
 
-    dst->dataSetWriters = (UA_DataSetWriterDataType*)
-        UA_calloc(src->writersCount, sizeof(UA_DataSetWriterDataType));
-    if(!dst->dataSetWriters) {
-        UA_WriterGroupDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->writersCount > 0) {
+        dst->dataSetWriters = (UA_DataSetWriterDataType*)
+            UA_calloc(src->writersCount, sizeof(UA_DataSetWriterDataType));
+        if(!dst->dataSetWriters) {
+            UA_WriterGroupDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
-
     dst->dataSetWritersSize = src->writersCount;
 
     UA_DataSetWriter *dsw;
     size_t dsWriterIndex = 0;
     LIST_FOREACH(dsw, &src->writers, listEntry) {
-        res |= generateDataSetWriterDataType(dsw, &dst->dataSetWriters[dsWriterIndex]);
+        res = generateDataSetWriterDataType(dsw,
+                                             &dst->dataSetWriters[dsWriterIndex]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_WriterGroupDataType_clear(dst);
+            return res;
+        }
         dsWriterIndex++;
     }
-    if(res != UA_STATUSCODE_GOOD)
-        UA_WriterGroupDataType_clear(dst);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -919,55 +1088,115 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
     dst->dataSetWriterId = src->config.dataSetWriterId;
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     dst->messageReceiveTimeout = src->config.messageReceiveTimeout;
+    dst->keyFrameCount = src->config.keyFrameCount;
+    /* Preserve the enabled flag for round-trip consistency. */
+    dst->enabled = src->config.enabled;
     res |= UA_String_copy(&src->config.name, &dst->name);
     res |= UA_DataSetMetaDataType_copy(&src->config.dataSetMetaData,
                                        &dst->dataSetMetaData);
     res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
+    res |= UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
+    res |= UA_String_copy(&src->config.headerLayoutUri, &dst->headerLayoutUri);
+    res |= UA_Array_copy(src->config.dataSetReaderProperties.map,
+                         src->config.dataSetReaderProperties.mapSize,
+                         (void**)&dst->dataSetReaderProperties,
+                         &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 
-    UA_Variant var;
-    UA_PublisherId_toVariant(&src->config.publisherId, &var);
-    res |= UA_Variant_copy(&var, &dst->publisherId);
+    if(src->config.publisherIdFilterEnabled ||
+       src->config.publisherId.idType != UA_PUBLISHERIDTYPE_BYTE ||
+       src->config.publisherId.id.byte != 0) {
+        UA_Variant var;
+        UA_Variant_init(&var);
+        UA_PublisherId_toVariant(&src->config.publisherId, &var);
+        res |= UA_Variant_copy(&var, &dst->publisherId);
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_DataSetReaderDataType_clear(dst);
+        return res;
+    }
+    dst->dataSetReaderPropertiesSize =
+        src->config.dataSetReaderProperties.mapSize;
 
     UA_TargetVariablesDataType *tmpTarget = UA_TargetVariablesDataType_new();
-    if(!tmpTarget)
+    if(!tmpTarget) {
+        UA_DataSetReaderDataType_clear(dst);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     const UA_TargetVariablesDataType *targets = &src->config.subscribedDataSet.target;
-    tmpTarget->targetVariables = (UA_FieldTargetDataType *)
-        UA_calloc(targets->targetVariablesSize, sizeof(UA_FieldTargetDataType));
-    if(!tmpTarget->targetVariables)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(targets->targetVariablesSize > 0) {
+        tmpTarget->targetVariables = (UA_FieldTargetDataType *)
+            UA_calloc(targets->targetVariablesSize, sizeof(UA_FieldTargetDataType));
+        if(!tmpTarget->targetVariables) {
+            UA_TargetVariablesDataType_delete(tmpTarget);
+            UA_DataSetReaderDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
     tmpTarget->targetVariablesSize = targets->targetVariablesSize;
     for(size_t i = 0; i < tmpTarget->targetVariablesSize; i++) {
-        res |= UA_FieldTargetDataType_copy(&targets->targetVariables[i],
-                                           &tmpTarget->targetVariables[i]);
+        res = UA_FieldTargetDataType_copy(&targets->targetVariables[i],
+                                          &tmpTarget->targetVariables[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_TargetVariablesDataType_delete(tmpTarget);
+            UA_DataSetReaderDataType_clear(dst);
+            return res;
+        }
     }
 
     UA_ExtensionObject_setValue(&dst->subscribedDataSet, tmpTarget,
                                 &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
 
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 generateReaderGroupDataType(const UA_ReaderGroup *src,
-                            UA_ReaderGroupDataType *dst) {
+                             UA_ReaderGroupDataType *dst) {
     memset(dst, 0, sizeof(UA_ReaderGroupDataType));
 
-    UA_String_copy(&src->config.name, &dst->name);
-    dst->dataSetReaders = (UA_DataSetReaderDataType*)
-        UA_calloc(src->readersCount, sizeof(UA_DataSetReaderDataType));
-    if(dst->dataSetReaders == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res = UA_String_copy(&src->config.name, &dst->name);
+    dst->enabled = src->config.enabled;
+    dst->securityMode = src->config.securityMode;
+    dst->maxNetworkMessageSize = src->config.maxNetworkMessageSize;
+    res |= UA_String_copy(&src->config.securityGroupId, &dst->securityGroupId);
+    res |= UA_ExtensionObject_copy(&src->config.transportSettings,
+                                   &dst->transportSettings);
+    res |= UA_ExtensionObject_copy(&src->config.messageSettings,
+                                   &dst->messageSettings);
+    res |= UA_Array_copy(src->config.securityKeyServices,
+                         src->config.securityKeyServicesSize,
+                         (void**)&dst->securityKeyServices,
+                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    res |= UA_Array_copy(src->config.groupProperties.map,
+                         src->config.groupProperties.mapSize,
+                         (void**)&dst->groupProperties,
+                         &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ReaderGroupDataType_clear(dst);
+        return res;
+    }
+    dst->securityKeyServicesSize = src->config.securityKeyServicesSize;
+    dst->groupPropertiesSize = src->config.groupProperties.mapSize;
+
+    if(src->readersCount > 0) {
+        dst->dataSetReaders = (UA_DataSetReaderDataType*)
+            UA_calloc(src->readersCount, sizeof(UA_DataSetReaderDataType));
+        if(!dst->dataSetReaders) {
+            UA_ReaderGroupDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
     dst->dataSetReadersSize = src->readersCount;
 
     size_t i = 0;
     UA_DataSetReader *dsr, *dsr_tmp = NULL;
     LIST_FOREACH_SAFE(dsr, &src->readers, listEntry, dsr_tmp) {
-        UA_StatusCode res =
-            generateDataSetReaderDataType(dsr, &dst->dataSetReaders[i]);
-        if(res != UA_STATUSCODE_GOOD)
+        res = generateDataSetReaderDataType(dsr, &dst->dataSetReaders[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ReaderGroupDataType_clear(dst);
             return res;
+        }
         i++;
     }
 
@@ -982,14 +1211,19 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
     const UA_DataType *publisherIdType;
     memset(dst, 0, sizeof(UA_PubSubConnectionDataType));
 
-    UA_String_copy(&src->config.name, &dst->name);
-    UA_String_copy(&src->config.transportProfileUri, &dst->transportProfileUri);
+    UA_StatusCode res = UA_String_copy(&src->config.name, &dst->name);
+    res |= UA_String_copy(&src->config.transportProfileUri,
+                          &dst->transportProfileUri);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubConnectionDataType_clear(dst);
+        return res;
+    }
+    dst->enabled = src->config.enabled;
 
-    UA_StatusCode res =
-        UA_Array_copy(src->config.connectionProperties.map,
-                      src->config.connectionProperties.mapSize,
-                      (void**)&dst->connectionProperties,
-                      &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    res = UA_Array_copy(src->config.connectionProperties.map,
+                        src->config.connectionProperties.mapSize,
+                        (void**)&dst->connectionProperties,
+                        &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     if(res != UA_STATUSCODE_GOOD) {
         UA_PubSubConnectionDataType_clear(dst);
         return res;
@@ -1015,12 +1249,16 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
         default:
             UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                          "generatePubSubConnectionDataType(): publisher Id type is not supported");
+            UA_PubSubConnectionDataType_clear(dst);
             return UA_STATUSCODE_BADINTERNALERROR;
-            break;
     }
-    UA_Variant_setScalarCopy(&dst->publisherId,
-                             &src->config.publisherId.id,
-                             publisherIdType);
+    res = UA_Variant_setScalarCopy(&dst->publisherId,
+                                   &src->config.publisherId.id,
+                                   publisherIdType);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubConnectionDataType_clear(dst);
+        return res;
+    }
 
     /* Possibly, array size and dimensions of src->config->address and
      * src->config->connectionTransportSettings should be checked beforehand. */
@@ -1048,11 +1286,13 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
         }
     }
 
-    dst->writerGroups = (UA_WriterGroupDataType*)
-        UA_calloc(src->writerGroupsSize, sizeof(UA_WriterGroupDataType));
-    if(!dst->writerGroups) {
-        UA_PubSubConnectionDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->writerGroupsSize > 0) {
+        dst->writerGroups = (UA_WriterGroupDataType*)
+            UA_calloc(src->writerGroupsSize, sizeof(UA_WriterGroupDataType));
+        if(!dst->writerGroups) {
+            UA_PubSubConnectionDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     dst->writerGroupsSize = src->writerGroupsSize;
@@ -1067,11 +1307,13 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
         wgIndex++;
     }
 
-    dst->readerGroups = (UA_ReaderGroupDataType*)
-        UA_calloc(src->readerGroupsSize, sizeof(UA_ReaderGroupDataType));
-    if(dst->readerGroups == NULL) {
-        UA_PubSubConnectionDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->readerGroupsSize > 0) {
+        dst->readerGroups = (UA_ReaderGroupDataType*)
+            UA_calloc(src->readerGroupsSize, sizeof(UA_ReaderGroupDataType));
+        if(!dst->readerGroups) {
+            UA_PubSubConnectionDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     dst->readerGroupsSize = src->readerGroupsSize;
@@ -1095,6 +1337,11 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PubSubConfigurationDataType_init(configDT);
+    /* Preserve the global enabled flag (PubSubManager started/stopped state)
+     * so a save→load round-trip auto-starts the PubSubManager if it was
+     * running. Previously this flag was read on load but never written on
+     * save, so every round-trip disabled everything. */
+    configDT->enabled = (psm->drv.state == UA_LIFECYCLESTATE_STARTED);
     configDT->publishedDataSetsSize = psm->publishedDataSetsSize;
     if(configDT->publishedDataSetsSize > 0) {
         configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
@@ -1148,11 +1395,8 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
 UA_StatusCode
 UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
                                                UA_ByteString *buffer) {
-    if(server == NULL) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_Server_writePubSubConfigurationToByteString] Invalid argument");
+    if(!server || !buffer)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     lockServer(server);
 

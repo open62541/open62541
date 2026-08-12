@@ -91,8 +91,11 @@ addTestWriterGroup(UA_String securitygroupId){
     writerGroupConfig.securityGroupId = securitygroupId;
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retval |= UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_enableWriterGroup(server, writerGroup);
+    retval = UA_Server_addWriterGroup(server, connection, &writerGroupConfig,
+                                      &writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -112,8 +115,11 @@ addTestReaderGroup(UA_String securitygroupId){
     readerGroupConfig.securityGroupId = securitygroupId;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retVal |=  UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
-    UA_Server_enableReaderGroup(server, readerGroup);
+    retVal = UA_Server_addReaderGroup(server, connection, &readerGroupConfig,
+                                      &readerGroup);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableReaderGroup(server, readerGroup);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static UA_PubSubKeyStorage*
@@ -194,9 +200,11 @@ setup(void) {
 
     UA_ServerConfig *config = &server->config;
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
-        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
-    config->pubSubConfig.securityPoliciesSize = 1;
-    UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
+        UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 2;
+    UA_PubSubSecurityPolicy_Aes256Ctr(&config->pubSubConfig.securityPolicies[0],
+                                      config->logging);
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
                                       config->logging);
 
     UA_Server_run_startup(server);
@@ -277,6 +285,167 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     unlockServer(server);
 } END_TEST
 
+START_TEST(TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubSecurityPolicy *policy =
+        server->config.pubSubConfig.securityPolicies;
+    ck_assert_ptr_ne(policy, NULL);
+    ck_assert_uint_gt(policy->nonceLength, 1);
+
+    UA_PubSubKeyStorage *ks =
+        (UA_PubSubKeyStorage*)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    ck_assert_ptr_ne(ks, NULL);
+
+    lockServer(server);
+    UA_StatusCode retval =
+        UA_PubSubKeyStorage_init(psm, ks, &SecurityGroupId, policy, 0, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString shortKey = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&shortKey, policy->nonceLength - 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &shortKey, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(ks->keyListSize, 0);
+
+    UA_ByteString emptyKey = UA_BYTESTRING_NULL;
+    retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &emptyKey, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(ks->keyListSize, 0);
+
+    UA_ByteString validKey = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&validKey, policy->nonceLength);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = generateKeyData(policy, &validKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &validKey, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ks->keyListSize, 1);
+    unlockServer(server);
+
+    UA_ByteString_clear(&shortKey);
+    UA_ByteString_clear(&validKey);
+} END_TEST
+
+START_TEST(TestInstallKeyBatchIsAtomicOnInvalidFutureKey) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubSecurityPolicy *policy =
+        server->config.pubSubConfig.securityPolicies;
+    size_t keyLength = UA_PubSubSecurityPolicy_getKeyMaterialLength(policy);
+
+    lockServer(server);
+    UA_PubSubKeyStorage *ks = NULL;
+    UA_StatusCode retval = UA_PubSubKeyStorage_acquire(
+        psm, &SecurityGroupId, policy, 0, 1, &ks);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(ks, NULL);
+
+    UA_ByteString original = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&original, keyLength);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memset(original.data, 0x11, original.length);
+    retval = UA_PubSubKeyStorage_installKeyBatch(ks, 7, &original, 0, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString replacement = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&replacement, keyLength);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memset(replacement.data, 0x22, replacement.length);
+    UA_ByteString invalidFuture = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&invalidFuture, keyLength - 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_PubSubKeyStorage_installKeyBatch(
+        ks, 8, &replacement, 1, &invalidFuture);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(ks->keyListSize, 1);
+    ck_assert_ptr_ne(ks->currentItem, NULL);
+    ck_assert_uint_eq(ks->currentItem->keyID, 7);
+    ck_assert(UA_ByteString_equal(&ks->currentItem->key, &original));
+
+    UA_PubSubKeyStorage_detachKeyStorage(psm, ks);
+    unlockServer(server);
+    UA_ByteString_clear(&original);
+    UA_ByteString_clear(&replacement);
+    UA_ByteString_clear(&invalidFuture);
+} END_TEST
+
+static void
+setValidGetSecurityKeysOutput(UA_CallResponse *response,
+                              UA_CallMethodResult *result,
+                              UA_Variant output[5],
+                              UA_ByteString keys[1]) {
+    UA_CallResponse_init(response);
+    UA_CallMethodResult_init(result);
+    memset(output, 0, 5 * sizeof(UA_Variant));
+    response->results = result;
+    response->resultsSize = 1;
+    result->outputArguments = output;
+    result->outputArgumentsSize = 5;
+
+    UA_String policyUri = UA_STRING("policy");
+    UA_UInt32 tokenId = 1;
+    UA_Duration timeToNextKey = 1000.0;
+    UA_Duration keyLifetime = 2000.0;
+    keys[0] = UA_BYTESTRING("key");
+    UA_Variant_setScalar(&output[0], &policyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&output[1], &tokenId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[2], keys, 1,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&output[3], &timeToNextKey,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Variant_setScalar(&output[4], &keyLifetime,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+}
+
+/* The asynchronous callback used to check only data != NULL. A scalar Int32
+ * in the Keys slot therefore survived validation and was reinterpreted as a
+ * ByteString array. */
+START_TEST(TestGetSecurityKeysResponseRejectsWrongVariantTypes) {
+    UA_CallResponse response;
+    UA_CallMethodResult result;
+    UA_Variant output[5];
+    UA_ByteString keys[1];
+    setValidGetSecurityKeysOutput(&response, &result, output, keys);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_GOOD);
+
+    UA_Int32 invalidKeys = 42;
+    UA_Variant_setScalar(&output[2], &invalidKeys,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+} END_TEST
+
+START_TEST(TestGetSecurityKeysResponseRejectsWrongVariantShapes) {
+    UA_CallResponse response;
+    UA_CallMethodResult result;
+    UA_Variant output[5];
+    UA_ByteString keys[1];
+    setValidGetSecurityKeysOutput(&response, &result, output, keys);
+
+    UA_Variant_setScalar(&output[2], keys,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+
+    UA_Variant_setArray(&output[2], keys, 0,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+
+    result.outputArgumentsSize = 4;
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_UInt32 currentTokenId = 1;
     futureKeySize = 2;
@@ -293,8 +462,8 @@ START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_Server_run_iterate(server,false);
     ck_assert_ptr_eq(nextCurrentKey, tKeyStorage->currentItem);
     ck_assert_msg(UA_ByteString_equal(&nextCurrentKey->key, &tKeyStorage->currentItem->key), "Expected Current key to be the First Future key after first TimeToNextKey expires");
-    /*securityTokenId must be updated after KeyLifeTime elapses*/
-    ck_assert_uint_eq(nextCurrentKey->keyID, tKeyStorage->currentTokenId);
+    /* securityTokenId must be updated after KeyLifeTime elapses */
+    ck_assert_uint_eq(nextCurrentKey->keyID, tKeyStorage->currentItem->keyID);
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     ck_assert_uint_eq(wg->securityTokenId, nextCurrentKey->keyID);
@@ -391,6 +560,107 @@ START_TEST(TestAddingNewGroupToExistingKeyStorage){
     unlockServer(server);
 } END_TEST
 
+START_TEST(TestWriterGroupUpdatePreservesOldKeyStorageOnAttachFailure) {
+    UA_String oldId = UA_STRING("OldWriterSecurityGroup");
+    UA_String conflictingId = UA_STRING("ConflictingWriterSecurityGroup");
+    addTestWriterGroup(oldId);
+    ck_assert_uint_eq(UA_Server_disableWriterGroup(server, writerGroup),
+                      UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_PubSubKeyStorage *oldKs = wg->keyStorage;
+    UA_PubSubKeyStorage *conflictingKs = NULL;
+    UA_StatusCode retval = UA_PubSubKeyStorage_acquire(
+        psm, &conflictingId, &server->config.pubSubConfig.securityPolicies[0],
+        0, 0, &conflictingKs);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    UA_WriterGroupConfig update;
+    retval = UA_Server_getWriterGroupConfig(server, writerGroup, &update);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_String_clear(&update.securityGroupId);
+    ck_assert_uint_eq(UA_String_copy(&conflictingId, &update.securityGroupId),
+                      UA_STATUSCODE_GOOD);
+    update.securityPolicy = &server->config.pubSubConfig.securityPolicies[1];
+    retval = UA_Server_updateWriterGroupConfig(server, writerGroup, &update);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+    UA_WriterGroupConfig_clear(&update);
+
+    lockServer(server);
+    wg = UA_WriterGroup_find(psm, writerGroup);
+    ck_assert_ptr_eq(wg->keyStorage, oldKs);
+    ck_assert(UA_String_equal(&wg->config.securityGroupId, &oldId));
+    ck_assert_ptr_eq(wg->config.securityPolicy,
+                     &server->config.pubSubConfig.securityPolicies[0]);
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(psm, oldId), oldKs);
+    ck_assert_uint_eq(conflictingKs->referenceCount, 1);
+    UA_PubSubKeyStorage_detachKeyStorage(psm, conflictingKs);
+    unlockServer(server);
+} END_TEST
+
+START_TEST(TestReaderGroupUpdatePreservesOldKeyStorageOnAttachFailure) {
+    UA_String oldId = UA_STRING("OldReaderSecurityGroup");
+    UA_String conflictingId = UA_STRING("ConflictingReaderSecurityGroup");
+    addTestReaderGroup(oldId);
+    ck_assert_uint_eq(UA_Server_disableReaderGroup(server, readerGroup),
+                      UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
+    UA_PubSubKeyStorage *oldKs = rg->keyStorage;
+    UA_PubSubKeyStorage *conflictingKs = NULL;
+    UA_StatusCode retval = UA_PubSubKeyStorage_acquire(
+        psm, &conflictingId, &server->config.pubSubConfig.securityPolicies[0],
+        0, 0, &conflictingKs);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    /* An internally inconsistent array forces a deterministic deep-copy
+     * failure without relying on allocation-failure instrumentation. */
+    UA_ReaderGroupConfig malformed;
+    retval = UA_Server_getReaderGroupConfig(server, readerGroup, &malformed);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(malformed.securityKeyServices, NULL);
+    malformed.securityKeyServicesSize = 1;
+    retval = UA_Server_updateReaderGroupConfig(
+        server, readerGroup, &malformed);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+    malformed.securityKeyServicesSize = 0;
+    UA_ReaderGroupConfig_clear(&malformed);
+
+    lockServer(server);
+    rg = UA_ReaderGroup_find(psm, readerGroup);
+    ck_assert_ptr_eq(rg->keyStorage, oldKs);
+    ck_assert(UA_String_equal(&rg->config.securityGroupId, &oldId));
+    unlockServer(server);
+
+    UA_ReaderGroupConfig update;
+    retval = UA_Server_getReaderGroupConfig(server, readerGroup, &update);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_String_clear(&update.securityGroupId);
+    ck_assert_uint_eq(UA_String_copy(&conflictingId, &update.securityGroupId),
+                      UA_STATUSCODE_GOOD);
+    update.securityPolicy = &server->config.pubSubConfig.securityPolicies[1];
+    retval = UA_Server_updateReaderGroupConfig(server, readerGroup, &update);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+    UA_ReaderGroupConfig_clear(&update);
+
+    lockServer(server);
+    rg = UA_ReaderGroup_find(psm, readerGroup);
+    ck_assert_ptr_eq(rg->keyStorage, oldKs);
+    ck_assert(UA_String_equal(&rg->config.securityGroupId, &oldId));
+    ck_assert_ptr_eq(rg->config.securityPolicy,
+                     &server->config.pubSubConfig.securityPolicies[0]);
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(psm, oldId), oldKs);
+    ck_assert_uint_eq(conflictingKs->referenceCount, 1);
+    UA_PubSubKeyStorage_detachKeyStorage(psm, conflictingKs);
+    unlockServer(server);
+} END_TEST
+
 START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     UA_PubSubManager *psm = getPSM(server);
     addTestWriterGroup(SecurityGroupId);
@@ -410,6 +680,110 @@ START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     unlockServer(server);
 } END_TEST
 
+/* Regression test for the inverted callback guard in UA_PubSubKeyStorage_delete.
+ * A key storage with an armed key-rollover timer must deregister that timer on
+ * deletion. The previous guard `if(!ks->callBackId)` removed the timer only when
+ * callBackId was 0 (no timer) and skipped removal when a timer was armed, leaving
+ * a dangling EventLoop callback pointing at freed memory -> use-after-free. */
+START_TEST(TestRemoveKeyStorageWithArmedRolloverTimer){
+    UA_UInt32 currentTokenId = 1;
+    futureKeySize = 2;
+    UA_Duration msTimeToNextKey = 2000;
+    UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
+
+    /* createKeyStoragewithkeys arms the rollover callback (sets callBackId). */
+    UA_PubSubKeyStorage *tKeyStorage =
+        createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey, 0, testSecurityGroupId);
+    ck_assert_ptr_ne(tKeyStorage, NULL);
+    ck_assert_msg(tKeyStorage->callBackId != 0,
+                 "Expected the rollover timer to be armed");
+
+    /* Remove both groups so the key storage's reference count drops to 0 and
+     * UA_PubSubKeyStorage_delete is invoked while the timer is still armed. */
+    UA_Server_removeWriterGroup(server, writerGroup);
+    UA_Server_removeReaderGroup(server, readerGroup);
+
+    /* The key storage must have been deleted. */
+    UA_PubSubManager *psm = getPSM(server);
+    lockServer(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
+    ck_assert_ptr_eq(ks, NULL);
+    unlockServer(server);
+
+    /* Advance the fake clock past the rollover time and run the event loop. With
+     * the bug present, the EventLoop would fire the dangling callback here and
+     * dereference freed memory. We assert the server survives the iteration. */
+    UA_fakeSleep(msTimeToNextKey + 1);
+    UA_Server_run_iterate(server, false);
+} END_TEST
+
+START_TEST(TestRemoveKeyStorageWithArmedRefetchTimer) {
+    UA_UInt32 currentTokenId = 1;
+    futureKeySize = 0;
+    UA_Duration keyLifeTime = 2000;
+    UA_PubSubKeyStorage *ks = createKeyStoragewithkeys(
+        currentTokenId, futureKeySize, keyLifeTime, 0, SecurityGroupId);
+    ck_assert_ptr_ne(ks, NULL);
+
+    lockServer(server);
+    ks->sksConfig.endpointUrl =
+        UA_STRING_ALLOC("opc.tcp://localhost:4840");
+    ck_assert_ptr_ne(ks->sksConfig.endpointUrl.data, NULL);
+    unlockServer(server);
+
+    /* With no future key, rollover schedules a one-shot SKS refetch timer. */
+    UA_PubSubKeyStorage_keyRolloverCallback(getPSM(server), ks);
+    ck_assert_uint_ne(ks->refetchCallbackId, 0);
+
+    UA_Server_removeWriterGroup(server, writerGroup);
+    UA_Server_removeReaderGroup(server, readerGroup);
+    lockServer(server);
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(getPSM(server), SecurityGroupId),
+                     NULL);
+    unlockServer(server);
+
+    /* The deleted storage must not remain as the refetch callback context. */
+    UA_fakeSleep(keyLifeTime / 2 + 1);
+    UA_Server_run_iterate(server, false);
+} END_TEST
+
+START_TEST(TestSetSksClientOwnsEndpointAndAcceptsExistingKeys) {
+    addTestWriterGroup(SecurityGroupId);
+    ck_assert_uint_eq(UA_Server_disableWriterGroup(server, writerGroup),
+                      UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(
+        getPSM(server), SecurityGroupId);
+    ck_assert_ptr_ne(ks, NULL);
+    size_t keyLength = UA_PubSubSecurityPolicy_getKeyMaterialLength(ks->policy);
+    UA_ByteString key = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&key, keyLength),
+                      UA_STATUSCODE_GOOD);
+    memset(key.data, 0x5a, key.length);
+    ck_assert_uint_eq(UA_PubSubKeyStorage_installKeyBatch(
+        ks, 1, &key, 0, NULL), UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_ne(client, NULL);
+    char endpoint[] = "opc.tcp://localhost:4840";
+    UA_StatusCode retval = UA_Server_setSksClient(
+        server, SecurityGroupId, UA_Client_getConfig(client), endpoint,
+        NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memset(endpoint, 'x', strlen(endpoint));
+
+    lockServer(server);
+    UA_String expected = UA_STRING("opc.tcp://localhost:4840");
+    ck_assert(UA_String_equal(&ks->sksConfig.endpointUrl, &expected));
+    ck_assert_ptr_ne(ks->sksConfig.endpointUrl.data, endpoint);
+    unlockServer(server);
+
+    UA_ByteString_clear(&key);
+    UA_Client_delete(client);
+} END_TEST
+
 int
 main(void) {
     int number_failed = 0;
@@ -417,12 +791,28 @@ main(void) {
     tcase_add_checked_fixture(tc_pubsub_keystorage, setup, teardown);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_initialize);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorageSetKeys);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestInstallKeyBatchIsAtomicOnInvalidFutureKey);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestGetSecurityKeysResponseRejectsWrongVariantTypes);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestGetSecurityKeysResponseRejectsWrongVariantShapes);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_MovetoNextKeyCallback);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeystorage_ImportedKey);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithWriterGroup);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithReaderGroup);
     tcase_add_test(tc_pubsub_keystorage, TestAddingNewGroupToExistingKeyStorage);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestWriterGroupUpdatePreservesOldKeyStorageOnAttachFailure);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestReaderGroupUpdatePreservesOldKeyStorageOnAttachFailure);
     tcase_add_test(tc_pubsub_keystorage, TestRemoveAPubSubGroupWithKeyStorage);
+    tcase_add_test(tc_pubsub_keystorage, TestRemoveKeyStorageWithArmedRolloverTimer);
+    tcase_add_test(tc_pubsub_keystorage, TestRemoveKeyStorageWithArmedRefetchTimer);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestSetSksClientOwnsEndpointAndAcceptsExistingKeys);
 
     Suite *s =
         suite_create("PubSub Keystorage and handling keys for Publisher and Subscriber");

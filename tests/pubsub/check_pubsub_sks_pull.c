@@ -275,9 +275,7 @@ START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGN;
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
     UA_CallResponse response = callGetSecurityKeys(client, securityGroupId, 1, 1);
     ck_assert(response.results != NULL);
@@ -295,9 +293,7 @@ START_TEST(getSecuritykeysBadNotFound) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_String badSecurityGroupId = UA_STRING("BadSecurityGroupId");
     UA_StatusCode expectedCode = UA_STATUSCODE_BADNOTFOUND;
     UA_CallResponse response = callGetSecurityKeys(sksClient, badSecurityGroupId, 1, 1);
@@ -316,9 +312,7 @@ START_TEST(getSecuritykeysBadUserAccessDenied) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user2", "password2");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_BADUSERACCESSDENIED;
     UA_UInt32 reqkeyCount = 1;
     UA_CallResponse response =
@@ -342,9 +336,7 @@ START_TEST(getSecuritykeysGoodAndValidOutput) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
     UA_CallResponse response = callGetSecurityKeys(sksClient, securityGroupId, 1, reqkeyCount);
@@ -393,9 +385,7 @@ START_TEST(requestCurrentKeyWithFutureKeys) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
     UA_UInt32 reqStartingTokenId = 0;
@@ -435,9 +425,7 @@ START_TEST(requestCurrentKeyOnly) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 0;
     UA_UInt32 reqStartingTokenId = 0;
@@ -478,9 +466,7 @@ START_TEST(requestPastKey) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 0;
     UA_UInt32 reqStartingTokenId = 1;
@@ -517,9 +503,7 @@ START_TEST(requestUnknownStartingTokenId){
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = UA_UINT32_MAX;
     UA_UInt32 reqStartingTokenId = UA_UINT32_MAX;
@@ -558,9 +542,7 @@ START_TEST(requestMaxFutureKeys) {
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(sksClient);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = UA_UINT32_MAX;
     UA_UInt32 reqStartingTokenId = 0;
@@ -579,6 +561,9 @@ START_TEST(requestMaxFutureKeys) {
     UA_UInt32 firstTokenId = *(UA_UInt32 *)output[1].data;
     size_t retKeyCount = output[2].arrayLength;
     ck_assert(retKeyCount == sg->keyStorage->maxFutureKeyCount + 1 );
+    UA_Duration timeToNextKey = *(UA_Duration*)output[3].data;
+    ck_assert(timeToNextKey >= 0.0);
+    ck_assert(timeToNextKey <= sg->config.keyLifeTime);
 
     UA_ByteString *retKeys = (UA_ByteString *)output[2].data;
     UA_PubSubKeyListItem *iterator = sg->keyStorage->currentItem;

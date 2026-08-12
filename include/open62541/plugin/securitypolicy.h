@@ -516,8 +516,13 @@ struct UA_PubSubSecurityPolicy {
     UA_StatusCode (*generateNonce)(UA_PubSubSecurityPolicy *policy,
                                    void *gContext, UA_ByteString *out);
 
-    /* The length of the nonce used in the SecureChannel */
+    /* Total length of one SKS key-material item. For the CTR policies this is
+     * signing key + encryption key + key nonce. The historical member name is
+     * retained for API compatibility. */
     size_t nonceLength;
+
+    /* Length of the per-NetworkMessage nonce passed to setMessageNonce. */
+    size_t messageNonceLength;
 
     /* The nonce is contained in the NetworkMessage SecurityHeader. Set before
      * each en-/decryption step. */
@@ -528,6 +533,20 @@ struct UA_PubSubSecurityPolicy {
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_PubSubSecurityPolicy *policy);
 };
+
+/* The historical nonceLength member predates SKS support and actually denotes
+ * the complete key-material item (signing key, encryption key and key nonce).
+ * Prefer these accessors in new code so it cannot be confused with the nonce
+ * carried in an individual NetworkMessage. */
+static UA_INLINE size_t
+UA_PubSubSecurityPolicy_getKeyMaterialLength(const UA_PubSubSecurityPolicy *policy) {
+    return policy ? policy->nonceLength : 0;
+}
+
+static UA_INLINE size_t
+UA_PubSubSecurityPolicy_getMessageNonceLength(const UA_PubSubSecurityPolicy *policy) {
+    return policy ? policy->messageNonceLength : 0;
+}
 
 _UA_END_DECLS
 

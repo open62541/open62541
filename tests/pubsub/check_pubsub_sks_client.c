@@ -679,6 +679,108 @@ START_TEST(SetWrongSKSEndpointUrl) {
 }
 END_TEST
 
+START_TEST(DeleteKeyStorageWhileSksConnectIsPending) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_ne(config, NULL);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
+                                    testingSKSEndpointUrl,
+                                    sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Removing the only group immediately exercises the interval after
+     * connectAsync has accepted the request but before a service request id
+     * necessarily exists. The key storage must stay alive until the client is
+     * fully disconnected and then be removed exactly once. */
+    retval = UA_Server_removeWriterGroup(publisherApp, writerGroupId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 20; i++)
+        UA_Server_run_iterate(publisherApp, false);
+
+    UA_PubSubManager *psm = getPSM(publisherApp);
+    lockServer(publisherApp);
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(psm, securityGroupId), NULL);
+    unlockServer(publisherApp);
+    UA_free(config);
+}
+END_TEST
+
+START_TEST(RejectSecondSksClientWhileRequestIsActive) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *first = newEncryptedClientConfig("user1", "password");
+    UA_ClientConfig *second = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_ne(first, NULL);
+    ck_assert_ptr_ne(second, NULL);
+    retval = UA_Server_setSksClient(
+        publisherApp, securityGroupId, first, testingSKSEndpointUrl,
+        sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_setSksClient(
+        publisherApp, securityGroupId, second, testingSKSEndpointUrl,
+        sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWOULDBLOCK);
+    /* A rejected replacement retains ownership of its caller config. */
+    UA_ClientConfig_clear(second);
+    UA_free(second);
+    UA_free(first);
+} END_TEST
+
+START_TEST(ClearManagerWhileSksConnectIsPendingIsRetriable) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_ne(config, NULL);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
+                                    testingSKSEndpointUrl,
+                                    sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(publisherApp);
+    lockServer(publisherApp);
+    psm->drv.stop(&psm->drv);
+    retval = UA_PubSubManager_clear(psm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWOULDBLOCK);
+    /* A retry before asynchronous cancellation completes is idempotent. */
+    retval = UA_PubSubManager_clear(psm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWOULDBLOCK);
+    unlockServer(publisherApp);
+
+    for(size_t i = 0; i < 40; i++)
+        UA_Server_run_iterate(publisherApp, false);
+
+    lockServer(publisherApp);
+    retval = UA_PubSubManager_clear(psm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(LIST_EMPTY(&psm->pubSubKeyList));
+    unlockServer(publisherApp);
+    UA_free(config);
+}
+END_TEST
+
+START_TEST(ShutdownWhileSksConnectIsPending) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_ne(config, NULL);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
+                                    testingSKSEndpointUrl,
+                                    sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The checked fixture now shuts down and deletes the server while the SKS
+     * connection owns callback context. ASan catches any retained manager or
+     * key-storage pointer used during teardown. */
+    UA_free(config);
+}
+END_TEST
+
 START_TEST(CheckPublishedValuesInUserLand) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     int retryCnt = 0;
@@ -977,6 +1079,12 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSClient);
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, SetWrongSKSEndpointUrl);
+    tcase_add_test(tc_pubsub_sks_client, DeleteKeyStorageWhileSksConnectIsPending);
+    tcase_add_test(tc_pubsub_sks_client,
+                   RejectSecondSksClientWhileRequestIsActive);
+    tcase_add_test(tc_pubsub_sks_client,
+                   ClearManagerWhileSksConnectIsPendingIsRetriable);
+    tcase_add_test(tc_pubsub_sks_client, ShutdownWhileSksConnectIsPending);
     tcase_add_test(tc_pubsub_sks_client, CheckPublishedValuesInUserLand);
     tcase_add_test(tc_pubsub_sks_client, PublisherSubscriberTogethor);
     tcase_add_test(tc_pubsub_sks_client, PublisherDelayedSubscriberTogethor);

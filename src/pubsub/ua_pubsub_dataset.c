@@ -442,6 +442,22 @@ UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm, UA_DataSetField *field,
     rvid.indexRange = params->indexRange;
     *value = readWithSession(psm->drv.server, &psm->drv.server->adminSession,
                              &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+
+    /* Table 79: a configured SubstituteValue replaces a Bad source value and
+     * is explicitly marked UncertainSubstituteValue. */
+    if(value->hasStatus && UA_StatusCode_isBad(value->status) &&
+       params->substituteValue.type) {
+        UA_Variant substitute;
+        UA_Variant_init(&substitute);
+        if(UA_Variant_copy(&params->substituteValue, &substitute) ==
+           UA_STATUSCODE_GOOD) {
+            UA_Variant_clear(&value->value);
+            value->value = substitute;
+            value->hasValue = true;
+            value->status = UA_STATUSCODE_UNCERTAINSUBSTITUTEVALUE;
+            value->hasStatus = true;
+        }
+    }
 }
 
 UA_AddPublishedDataSetResult

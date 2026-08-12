@@ -19,8 +19,12 @@
 UA_StatusCode
 UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
                             UA_DataSetWriterConfig *dst){
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_DataSetWriterConfig));
+    dst->name = UA_STRING_NULL;
+    dst->dataSetName = UA_STRING_NULL;
+    UA_ExtensionObject_init(&dst->messageSettings);
+    dst->dataSetWriterProperties = UA_KEYVALUEMAP_NULL;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
@@ -266,7 +270,17 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
     /* Add the new writer to the group in order of the DataSetWriterId. */
     UA_DataSetWriter *elm, *prev = NULL;
     LIST_FOREACH(elm, &wg->writers, listEntry) {
-        /* TODO: Issue an error if the DataSetWriterId is not unique */
+        /* Zero is retained as the API's unassigned/default identifier. Only
+         * non-zero wire identifiers participate in the uniqueness rule. */
+        if(dsw->config.dataSetWriterId != 0 &&
+           dsw->config.dataSetWriterId == elm->config.dataSetWriterId) {
+            UA_DataSetWriterConfig_clear(&dsw->config);
+            for(size_t i = 0; i < dsw->lastSamplesCount; i++)
+                UA_DataValue_clear(&dsw->lastSamples[i].value);
+            UA_free(dsw->lastSamples);
+            UA_free(dsw);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
         if(dsw->config.dataSetWriterId < elm->config.dataSetWriterId)
             break;
         prev = elm;
@@ -382,12 +396,39 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
 /*********************************************************/
 
 static UA_StatusCode
+syncLastSamples(UA_DataSetWriter *dsw, size_t fieldCount) {
+    if(dsw->lastSamplesCount == fieldCount)
+        return UA_STATUSCODE_GOOD;
+
+    UA_DataSetWriterSample *newSamples = NULL;
+    if(fieldCount > 0) {
+        newSamples = (UA_DataSetWriterSample *)
+            UA_calloc(fieldCount, sizeof(UA_DataSetWriterSample));
+        if(!newSamples)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < dsw->lastSamplesCount; i++)
+        UA_DataValue_clear(&dsw->lastSamples[i].value);
+    UA_free(dsw->lastSamples);
+    dsw->lastSamples = newSamples;
+    dsw->lastSamplesCount = fieldCount;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
                                                UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    if(psm->drv.server->config.pubSubConfig.enableDeltaFrames) {
+        UA_StatusCode res = syncLastSamples(dsw, pds->fieldSize);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
@@ -437,7 +478,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
 
 /* the input message is already initialized and that the method 
  * must not be called twice for the same message */
-static UA_StatusCode
+UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
                                                  UA_DataSetMessage *dsm,
                                                  UA_DataSetWriter *dsw) {
@@ -445,9 +486,27 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    UA_StatusCode res = syncLastSamples(dsw, pds->fieldSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Prepare DataSetMessageContent */
     dsm->header.dataSetMessageValid = true;
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    /* Spec 7.2.4.5.11: "RawField encoding shall only be applied to Data Key
+     * Frame DataSetMessages." Force non-RawData encoding for delta frames
+     * even if the RawData content mask is set. */
+    if(dsw->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
+        if(dsw->config.dataSetFieldContentMask &
+           ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP |
+            (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP |
+            (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
+            (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS |
+            (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE))
+            dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
+        else
+            dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+    }
     if(pds->fieldSize == 0)
         return UA_STATUSCODE_GOOD;
 
@@ -461,7 +520,46 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
 
         /* Check if the value has changed */
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
-        if(!UA_Variant_equal(&ls->value.value, &value.value)) {
+        UA_Boolean changed = !UA_Variant_equal(&ls->value.value, &value.value);
+        const UA_PublishedVariableDataType *params =
+            &dsf->config.field.variable.publishParameters;
+        if(changed && params->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
+           params->deadbandValue >= 0.0 && value.value.type &&
+           value.value.type == ls->value.value.type &&
+           UA_Variant_isScalar(&value.value) &&
+           UA_Variant_isScalar(&ls->value.value)) {
+            UA_Double difference = params->deadbandValue + 1.0;
+#define UA_PUBSUB_ABS_DIFF_INT(TYPE) do {                                  \
+    TYPE a = *(TYPE*)value.value.data;                                     \
+    TYPE b = *(TYPE*)ls->value.value.data;                                 \
+    UA_UInt64 magnitude = (a > b) ? (UA_UInt64)a - (UA_UInt64)b            \
+                                  : (UA_UInt64)b - (UA_UInt64)a;            \
+    difference = (UA_Double)magnitude;                                     \
+} while(false)
+#define UA_PUBSUB_ABS_DIFF_FLOAT(TYPE) do {                                \
+    TYPE a = *(TYPE*)value.value.data;                                     \
+    TYPE b = *(TYPE*)ls->value.value.data;                                 \
+    difference = (a > b) ? (UA_Double)a - (UA_Double)b                    \
+                         : (UA_Double)b - (UA_Double)a;                    \
+} while(false)
+            switch(value.value.type->typeKind) {
+            case UA_DATATYPEKIND_SBYTE:  UA_PUBSUB_ABS_DIFF_INT(UA_SByte); break;
+            case UA_DATATYPEKIND_BYTE:   UA_PUBSUB_ABS_DIFF_INT(UA_Byte); break;
+            case UA_DATATYPEKIND_INT16:  UA_PUBSUB_ABS_DIFF_INT(UA_Int16); break;
+            case UA_DATATYPEKIND_UINT16: UA_PUBSUB_ABS_DIFF_INT(UA_UInt16); break;
+            case UA_DATATYPEKIND_INT32:  UA_PUBSUB_ABS_DIFF_INT(UA_Int32); break;
+            case UA_DATATYPEKIND_UINT32: UA_PUBSUB_ABS_DIFF_INT(UA_UInt32); break;
+            case UA_DATATYPEKIND_INT64:  UA_PUBSUB_ABS_DIFF_INT(UA_Int64); break;
+            case UA_DATATYPEKIND_UINT64: UA_PUBSUB_ABS_DIFF_INT(UA_UInt64); break;
+            case UA_DATATYPEKIND_FLOAT:  UA_PUBSUB_ABS_DIFF_FLOAT(UA_Float); break;
+            case UA_DATATYPEKIND_DOUBLE: UA_PUBSUB_ABS_DIFF_FLOAT(UA_Double); break;
+            default: break;
+            }
+#undef UA_PUBSUB_ABS_DIFF_INT
+#undef UA_PUBSUB_ABS_DIFF_FLOAT
+            changed = difference > params->deadbandValue;
+        }
+        if(changed) {
             /* increase fieldCount for current delta message */
             dsm->fieldCount++;
             ls->valueChanged = true;
@@ -477,9 +575,19 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
         counter++;
     }
 
-    /* Allocate DeltaFrameFields */
+    /* Spec 6.2.4.3: "If no changes exist, the delta frame DataSetMessage shall
+     * not be sent." Skip the delta frame entirely if no values changed. */
+    if(dsm->fieldCount == 0)
+        return UA_STATUSCODE_GOODNODATA;
+
+    /* Allocate DeltaFrameFields.
+     * Spec Table 164: FieldCount for a delta frame = the count of delta
+     * fields (changed fields). The previous code overwrote dsm->fieldCount
+     * (correctly accumulated per changed field at line 466) with `counter`
+     * (the total field count) here, so the subscriber decoded too many
+     * delta entries. */
     UA_DataSetMessage_DeltaFrameField *deltaFields = (UA_DataSetMessage_DeltaFrameField *)
-        UA_calloc(counter, sizeof(UA_DataSetMessage_DeltaFrameField));
+        UA_calloc(dsm->fieldCount, sizeof(UA_DataSetMessage_DeltaFrameField));
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -522,6 +630,29 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+prepareKeepAliveMessage(UA_DataSetMessage *dsm) {
+    UA_DataSetMessageHeader header = dsm->header;
+    UA_DataSetMessage_clear(dsm);
+    dsm->header = header;
+    dsm->header.dataSetMessageValid = true;
+    dsm->header.dataSetMessageType = UA_DATASETMESSAGE_KEEPALIVE;
+}
+
+static size_t
+dataSetMessageBinarySize(UA_DataSetWriter *dsw, UA_DataSetMessage *dsm) {
+    PubSubEncodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    if(dsw->connectedDataSet) {
+        emd.fields = dsw->connectedDataSet->dataSetMetaData.fields;
+        emd.fieldsSize = dsw->connectedDataSet->dataSetMetaData.fieldsSize;
+    }
+    emd.dataSetWriterId = dsw->config.dataSetWriterId;
+    return UA_DataSetMessage_calcSizeBinary(&ctx, &emd, dsm, 0);
+}
+
 /* Generate a DataSetMessage for the given writer. */
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
@@ -556,12 +687,16 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         dsm = &defaultUadpConfiguration; /* type is UADP */
     }
 
-    /* The field encoding depends on the flags inside the writer config. */
+    /* The field encoding depends on the flags inside the writer config.
+     * Spec Table 32: "If one of the bits 0 to 4 is set, the fields are
+     * represented as DataValue." Bit 2 (SERVERTIMESTAMP) was previously
+     * missing from this mask check. */
     if(dsw->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
     } else if((u64)dsw->config.dataSetFieldContentMask &
               ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP |
+               (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP |
                (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
                (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS |
                (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE)) {
@@ -683,24 +818,14 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
     if(dsm && psm->drv.server->config.pubSubConfig.enableDeltaFrames) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
-        if(dsw->connectedDataSetVersion.majorVersion !=
+        if(dsw->lastSamplesCount != pds->fieldSize ||
+           dsw->connectedDataSetVersion.majorVersion !=
            pds->dataSetMetaData.configurationVersion.majorVersion ||
            dsw->connectedDataSetVersion.minorVersion !=
            pds->dataSetMetaData.configurationVersion.minorVersion) {
-            /* Remove old samples */
-            for(size_t i = 0; i < dsw->lastSamplesCount; i++)
-                UA_DataValue_clear(&dsw->lastSamples[i].value);
-
-            /* Realloc PDS dependent memory */
-            dsw->lastSamplesCount = pds->fieldSize;
-            UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
-                UA_realloc(dsw->lastSamples,
-                           sizeof(UA_DataSetWriterSample) * dsw->lastSamplesCount);
-            if(!newSamplesArray)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            dsw->lastSamples = newSamplesArray;
-            memset(dsw->lastSamples, 0,
-                   sizeof(UA_DataSetWriterSample) * dsw->lastSamplesCount);
+            UA_StatusCode res = syncLastSamples(dsw, pds->fieldSize);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
 
             dsw->connectedDataSetVersion =
                 pds->dataSetMetaData.configurationVersion;
@@ -711,18 +836,64 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
 
         /* The standard defines: if a PDS contains only one fields no delta messages
          * should be generated because they need more memory than a keyframe with 1
-         * field. */
+         * field.
+         * Spec 6.2.4.3: "If the KeyFrameCount is set to 1, every message contains
+         * a key frame." The previous `<=` comparison generated a delta frame
+         * when deltaFrameCounter == keyFrameCount (e.g., keyFrameCount=1
+         * produced delta frames). Changed to `<`. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
-           dsw->deltaFrameCounter <= dsw->config.keyFrameCount) {
-            UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm, dataSetMessage, dsw);
-            dsw->deltaFrameCounter++;
+           dsw->deltaFrameCounter < dsw->config.keyFrameCount) {
+            UA_StatusCode res =
+                UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm,
+                                                                  dataSetMessage,
+                                                                  dsw);
+            if(res == UA_STATUSCODE_GOODNODATA) {
+                UA_WriterGroup *wg = dsw->linkedWriterGroup;
+                UA_DateTime now = el->dateTime_nowMonotonic(el);
+                if(wg->config.keepAliveTime <= 0.0 ||
+                   dsw->lastDataSetMessageTime == 0 ||
+                   now - dsw->lastDataSetMessageTime <
+                       (UA_DateTime)(wg->config.keepAliveTime * UA_DATETIME_MSEC))
+                    return res;
+                prepareKeepAliveMessage(dataSetMessage);
+                dsw->lastDataSetMessageTime = now;
+                return UA_STATUSCODE_GOOD;
+            }
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+
+            UA_DataSetMessage keyFrame;
+            memset(&keyFrame, 0, sizeof(keyFrame));
+            res = UA_PubSubDataSetWriter_generateKeyFrameMessage(psm,
+                                                                 &keyFrame, dsw);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+            size_t deltaSize = dataSetMessageBinarySize(dsw, dataSetMessage);
+            size_t keySize = dataSetMessageBinarySize(dsw, &keyFrame);
+            if(deltaSize == 0 || keySize == 0) {
+                UA_DataSetMessage_clear(&keyFrame);
+                return UA_STATUSCODE_BADENCODINGERROR;
+            }
+            if(deltaSize > keySize) {
+                UA_DataSetMessage_clear(dataSetMessage);
+                *dataSetMessage = keyFrame;
+                dsw->deltaFrameCounter = 1;
+            } else {
+                UA_DataSetMessage_clear(&keyFrame);
+                dsw->deltaFrameCounter++;
+            }
+            dsw->lastDataSetMessageTime = el->dateTime_nowMonotonic(el);
             return UA_STATUSCODE_GOOD;
         }
 
         dsw->deltaFrameCounter = 1;
     }
 
-    return UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
+    UA_StatusCode res =
+        UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
+    if(res == UA_STATUSCODE_GOOD)
+        dsw->lastDataSetMessageTime = el->dateTime_nowMonotonic(el);
+    return res;
 }
 
 /**************/
