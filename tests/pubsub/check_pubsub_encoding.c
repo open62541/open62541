@@ -1719,6 +1719,45 @@ START_TEST(UA_PubSub_Encode_RejectsInconsistentSecurityFooter) {
     clearKeyFrame(&dataSetMessage);
 } END_TEST
 
+START_TEST(UA_PubSub_Encode_RejectsMissingRawFieldMetadata) {
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    message.version = 1;
+    message.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.fieldCount = 2;
+    dsm.data.keyFrameFields = (UA_DataValue*)
+        UA_calloc(dsm.fieldCount, sizeof(UA_DataValue));
+    ck_assert_ptr_nonnull(dsm.data.keyFrameFields);
+    UA_UInt32 values[2] = {1, 2};
+    for(size_t i = 0; i < dsm.fieldCount; i++) {
+        UA_Variant_setScalar(&dsm.data.keyFrameFields[i].value, &values[i],
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        dsm.data.keyFrameFields[i].hasValue = true;
+    }
+    message.payload.dataSetMessages = &dsm;
+    message.messageCount = 1;
+
+    UA_FieldMetaData field;
+    UA_FieldMetaData_init(&field);
+    field.builtInType = UA_NS0ID_UINT32;
+    field.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetMessage_EncodingMetaData metadata = {0, 1, &field, 0};
+    UA_NetworkMessage_EncodingOptions options = {1, &metadata};
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&message, &buffer, &options),
+                      UA_STATUSCODE_BADENCODINGERROR);
+    UA_ByteString_clear(&buffer);
+    UA_free(dsm.data.keyFrameFields);
+} END_TEST
+
 START_TEST(UA_PubSub_EnDecode_DataSetClassIdRoundtrip) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -1819,6 +1858,8 @@ int main(void) {
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DataSetClassIdRoundtrip);
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DiscoveryRequestType);
     tcase_add_test(tc_nm_optional, UA_PubSub_Encode_RejectsInconsistentSecurityFooter);
+    tcase_add_test(tc_nm_optional,
+                   UA_PubSub_Encode_RejectsMissingRawFieldMetadata);
 
 
     Suite *s = suite_create("PubSub NetworkMessage");

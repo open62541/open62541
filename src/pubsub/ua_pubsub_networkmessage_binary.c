@@ -325,7 +325,7 @@ getFieldMetaData(const UA_DataSetMessage_EncodingMetaData *emd,
                  size_t index) {
     if(!emd)
         return NULL;
-    if(index > emd->fieldsSize)
+    if(index >= emd->fieldsSize)
         return NULL;
     return &emd->fields[index];
 }
@@ -1444,6 +1444,9 @@ static UA_StatusCode
 UA_DataSetMessage_keyFrame_encodeBinary(PubSubEncodeCtx *ctx,
                                         const UA_DataSetMessage_EncodingMetaData *emd,
                                         const UA_DataSetMessage *src) {
+    if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
+       (!emd || src->fieldCount > emd->fieldsSize))
+        return UA_STATUSCODE_BADENCODINGERROR;
     /* Heartbeat: "DataSetMessage is a key frame that only contains header
      * information". Spec 7.2.4.5.5 says heartbeat detection is based on the
      * DataSetMessage size equaling the header size. The encoder must write
@@ -1899,6 +1902,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
         return size;
 
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
+        if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
+           (!emd || p->fieldCount > emd->fieldsSize))
+            return 0;
         if(p->header.fieldEncoding != UA_FIELDENCODING_RAWDATA)
             size += 2; /* p->data.keyFrameData.fieldCount */
 
