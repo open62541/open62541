@@ -39,6 +39,32 @@ UA_PubSubState_name(UA_PubSubState state) {
     return pubSubStateNames[state];
 }
 
+UA_StatusCode
+UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
+                                  UA_PubSubComponentType componentType,
+                                  UA_PubSubState targetState,
+                                  UA_StatusCode errorReason) {
+    switch(componentType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        return UA_PubSubConnection_setPubSubState(
+            psm, (UA_PubSubConnection*)component, targetState);
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        return UA_WriterGroup_setPubSubState(
+            psm, (UA_WriterGroup*)component, targetState);
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        return UA_ReaderGroup_setPubSubState(
+            psm, (UA_ReaderGroup*)component, targetState);
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        return UA_DataSetReader_setPubSubState(
+            psm, (UA_DataSetReader*)component, targetState, errorReason);
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        return UA_DataSetWriter_setPubSubState(
+            psm, (UA_DataSetWriter*)component, targetState);
+    default:
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+}
+
 void
 UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch) {
     UA_NodeId_clear(&psch->identifier);
@@ -774,6 +800,28 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
             }
         }
     }
+}
+
+UA_PubSubState
+UA_PubSubManager_getPubSubState(const UA_PubSubManager *psm) {
+    if(psm->drv.state == UA_LIFECYCLESTATE_STOPPED)
+        return UA_PUBSUBSTATE_DISABLED;
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_PUBSUBSTATE_PAUSED;
+
+    UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &psm->connections, listEntry) {
+        UA_PubSubState childState = connection->head.state;
+        if(childState == UA_PUBSUBSTATE_ERROR)
+            return childState;
+        if(childState == UA_PUBSUBSTATE_PREOPERATIONAL)
+            state = childState;
+        else if(childState == UA_PUBSUBSTATE_PAUSED &&
+                state == UA_PUBSUBSTATE_OPERATIONAL)
+            state = childState;
+    }
+    return state;
 }
 
 static UA_StatusCode
