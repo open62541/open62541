@@ -381,6 +381,9 @@ createWriterGroup(UA_PubSubManager *psm,
     config.securityKeyServicesSize = writerGroupParameters->securityKeyServicesSize;
     config.securityKeyServices =   writerGroupParameters->securityKeyServices;
     config.maxNetworkMessageSize = writerGroupParameters->maxNetworkMessageSize;
+    config.localeIdsSize =       writerGroupParameters->localeIdsSize;
+    config.localeIds =           writerGroupParameters->localeIds;
+    config.headerLayoutUri =     writerGroupParameters->headerLayoutUri;
     config.transportSettings =     writerGroupParameters->transportSettings;
     config.messageSettings =       writerGroupParameters->messageSettings;
     config.groupProperties.mapSize =   writerGroupParameters->groupPropertiesSize;
@@ -617,6 +620,11 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     config.dataSetMetaData = dsrParams->dataSetMetaData;
     config.dataSetFieldContentMask = dsrParams->dataSetFieldContentMask;
     config.messageReceiveTimeout =  dsrParams->messageReceiveTimeout;
+    config.keyFrameCount = dsrParams->keyFrameCount;
+    config.headerLayoutUri = dsrParams->headerLayoutUri;
+    config.dataSetReaderProperties.mapSize =
+        dsrParams->dataSetReaderPropertiesSize;
+    config.dataSetReaderProperties.map = dsrParams->dataSetReaderProperties;
     config.messageSettings = dsrParams->messageSettings;
     config.transportSettings = dsrParams->transportSettings;
     config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
@@ -1022,6 +1030,10 @@ generateWriterGroupDataType(const UA_WriterGroup *src,
     dst->securityMode = src->config.securityMode;
     dst->enabled = src->config.enabled;
     dst->maxNetworkMessageSize = src->config.maxNetworkMessageSize;
+    res |= UA_Array_copy(src->config.localeIds, src->config.localeIdsSize,
+                         (void**)&dst->localeIds, &UA_TYPES[UA_TYPES_STRING]);
+    res |= UA_String_copy(&src->config.headerLayoutUri,
+                          &dst->headerLayoutUri);
     res |= UA_String_copy(&src->config.securityGroupId, &dst->securityGroupId);
     res |= UA_ExtensionObject_copy(&src->config.transportSettings,
                                    &dst->transportSettings);
@@ -1041,6 +1053,7 @@ generateWriterGroupDataType(const UA_WriterGroup *src,
     }
     dst->securityKeyServicesSize = src->config.securityKeyServicesSize;
     dst->groupPropertiesSize = src->config.groupProperties.mapSize;
+    dst->localeIdsSize = src->config.localeIdsSize;
 
     if(src->writersCount > 0) {
         dst->dataSetWriters = (UA_DataSetWriterDataType*)
@@ -1075,6 +1088,7 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
     dst->dataSetWriterId = src->config.dataSetWriterId;
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     dst->messageReceiveTimeout = src->config.messageReceiveTimeout;
+    dst->keyFrameCount = src->config.keyFrameCount;
     /* Preserve the enabled flag for round-trip consistency. */
     dst->enabled = src->config.enabled;
     res |= UA_String_copy(&src->config.name, &dst->name);
@@ -1082,6 +1096,11 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
                                        &dst->dataSetMetaData);
     res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
     res |= UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
+    res |= UA_String_copy(&src->config.headerLayoutUri, &dst->headerLayoutUri);
+    res |= UA_Array_copy(src->config.dataSetReaderProperties.map,
+                         src->config.dataSetReaderProperties.mapSize,
+                         (void**)&dst->dataSetReaderProperties,
+                         &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 
     if(src->config.publisherIdFilterEnabled ||
        src->config.publisherId.idType != UA_PUBLISHERIDTYPE_BYTE ||
@@ -1095,6 +1114,8 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
         UA_DataSetReaderDataType_clear(dst);
         return res;
     }
+    dst->dataSetReaderPropertiesSize =
+        src->config.dataSetReaderProperties.mapSize;
 
     UA_TargetVariablesDataType *tmpTarget = UA_TargetVariablesDataType_new();
     if(!tmpTarget) {

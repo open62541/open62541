@@ -114,6 +114,14 @@ START_TEST(AddPublisherUsingBinaryFile) {
                             &writerGroup->config.securityGroupId);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     writerGroup->config.maxNetworkMessageSize = 123456u;
+    writerGroup->config.localeIds = (UA_String*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_ptr_nonnull(writerGroup->config.localeIds);
+    writerGroup->config.localeIdsSize = 2;
+    writerGroup->config.localeIds[0] = UA_STRING_ALLOC("de-DE");
+    writerGroup->config.localeIds[1] = UA_STRING_ALLOC("en-US");
+    writerGroup->config.headerLayoutUri =
+        UA_STRING_ALLOC("urn:open62541:test:writer-layout");
     writerGroup->config.securityKeyServices = UA_EndpointDescription_new();
     ck_assert_ptr_nonnull(writerGroup->config.securityKeyServices);
     writerGroup->config.securityKeyServicesSize = 1;
@@ -167,6 +175,14 @@ START_TEST(AddPublisherUsingBinaryFile) {
     ck_assert(UA_String_equal(&writerGroup->config.securityGroupId,
                               &securityGroup));
     ck_assert_uint_eq(writerGroup->config.maxNetworkMessageSize, 123456u);
+    ck_assert_uint_eq(writerGroup->config.localeIdsSize, 2);
+    UA_String deDe = UA_STRING("de-DE");
+    UA_String enUs = UA_STRING("en-US");
+    UA_String writerLayout = UA_STRING("urn:open62541:test:writer-layout");
+    ck_assert(UA_String_equal(&writerGroup->config.localeIds[0], &deDe));
+    ck_assert(UA_String_equal(&writerGroup->config.localeIds[1], &enUs));
+    ck_assert(UA_String_equal(&writerGroup->config.headerLayoutUri,
+                              &writerLayout));
     ck_assert_uint_eq(writerGroup->config.securityKeyServicesSize, 1);
     ck_assert(UA_String_equal(
         &writerGroup->config.securityKeyServices[0].endpointUrl,
@@ -233,6 +249,18 @@ START_TEST(AddSubscriberUsingBinaryFile) {
         &readerGroup->config.securityKeyServices[0].endpointUrl);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 
+    dataSetReader = LIST_FIRST(&readerGroup->readers);
+    ck_assert_ptr_nonnull(dataSetReader);
+    dataSetReader->config.keyFrameCount = 7;
+    dataSetReader->config.headerLayoutUri =
+        UA_STRING_ALLOC("urn:open62541:test:reader-layout");
+    UA_UInt32 readerProperty = 73;
+    retVal = UA_KeyValueMap_setScalar(
+        &dataSetReader->config.dataSetReaderProperties,
+        UA_QUALIFIEDNAME(3, "reader-roundtrip"), &readerProperty,
+        &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+
     /* A subscriber-only configuration has no PublishedDataSets and must still
      * be serializable. */
     UA_ByteString savedConfiguration = UA_BYTESTRING_NULL;
@@ -256,6 +284,19 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     ck_assert(UA_String_equal(
         &readerGroup->config.securityKeyServices[0].endpointUrl,
         &sksEndpoint));
+    dataSetReader = LIST_FIRST(&readerGroup->readers);
+    ck_assert_ptr_nonnull(dataSetReader);
+    ck_assert_uint_eq(dataSetReader->config.keyFrameCount, 7);
+    UA_String readerLayout = UA_STRING("urn:open62541:test:reader-layout");
+    ck_assert(UA_String_equal(&dataSetReader->config.headerLayoutUri,
+                              &readerLayout));
+    ck_assert_uint_eq(dataSetReader->config.dataSetReaderProperties.mapSize, 1);
+    const UA_Variant *readerPropertyValue = UA_KeyValueMap_get(
+        &dataSetReader->config.dataSetReaderProperties,
+        UA_QUALIFIEDNAME(3, "reader-roundtrip"));
+    ck_assert_ptr_nonnull(readerPropertyValue);
+    ck_assert_ptr_eq(readerPropertyValue->type, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(*(UA_UInt32*)readerPropertyValue->data, readerProperty);
     UA_ByteString_clear(&savedConfiguration);
     UA_ByteString_clear(&subscriberConfiguration);
 } END_TEST

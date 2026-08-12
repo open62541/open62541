@@ -1318,6 +1318,55 @@ START_TEST(GetWriterGroupLastPublishTimestampInvalid) {
     ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+START_TEST(WriterGroupRejectsOversizedNetworkMessage) {
+    UA_PublishedDataSetConfig pdc;
+    memset(&pdc, 0, sizeof(pdc));
+    pdc.name = UA_STRING("PDS-SizeLimit");
+    UA_NodeId pdsId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdc, &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("state");
+    field.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("WG-SizeLimit");
+    wgc.publishingInterval = 100;
+    wgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    wgc.maxNetworkMessageSize = 1;
+    UA_NodeId wgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1, &wgc, &wgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig dswc;
+    memset(&dswc, 0, sizeof(dswc));
+    dswc.name = UA_STRING("DSW-SizeLimit");
+    UA_NodeId dswId;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId,
+                                                 &dswc, &dswId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_enableAllPubSubComponents(server),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    ck_assert_ptr_nonnull(wg);
+    UA_WriterGroup_publishCallback(psm, wg);
+    ck_assert_uint_eq(wg->head.state, UA_PUBSUBSTATE_ERROR);
+
+    UA_Server_disableAllPubSubComponents(server);
+    UA_Server_removeWriterGroup(server, wgId);
+    UA_Server_removePublishedDataSet(server, pdsId);
+} END_TEST
+
 START_TEST(GetDataSetWriterStateAndConfigInvalid) {
     UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
     UA_StatusCode r =
@@ -1446,6 +1495,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_lifecycle, GetWriterGroupStateInvalid);
     tcase_add_test(tc_pubsub_lifecycle, TriggerWriterGroupPublishOnDisabledGroup);
     tcase_add_test(tc_pubsub_lifecycle, GetWriterGroupLastPublishTimestampInvalid);
+    tcase_add_test(tc_pubsub_lifecycle,
+                   WriterGroupRejectsOversizedNetworkMessage);
     tcase_add_test(tc_pubsub_lifecycle, GetDataSetWriterStateAndConfigInvalid);
     tcase_add_test(tc_pubsub_lifecycle, ComputeOffsetTableMoreThanMaxWriters);
 

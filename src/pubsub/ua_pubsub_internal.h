@@ -436,6 +436,8 @@ struct UA_DataSetReader {
 
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
+    UA_Boolean receivedKeyFrame;
+    UA_UInt32 deltaFrameCounter;
 
     /* Per-target retained values for OverrideValueHandling::LastUsableValue. */
     UA_DataValue *lastUsableValues;
