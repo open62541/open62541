@@ -275,9 +275,7 @@ teardown(void) {
 START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = callSetSecurityKey(client, securityGroupId, 1, 2);
     ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT, "Expected BAD_SECURITYMODEINSUFFICIENT but erorr code : %s \n", UA_StatusCode_name(retval));
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);

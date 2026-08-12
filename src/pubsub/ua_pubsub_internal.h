@@ -318,6 +318,14 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
                                                  UA_DataSetMessage *dsm,
                                                  UA_DataSetWriter *dsw);
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+void
+updateSKSKeyStorage(void *application, void *context);
+
+UA_StatusCode
+UA_SecurityGroup_rotateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg);
+#endif
+
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,

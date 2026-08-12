@@ -208,6 +208,31 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
 }
 END_TEST
 
+START_TEST(SecurityGroupConfigCopyOwnsStrings) {
+    UA_SecurityGroupConfig source;
+    memset(&source, 0, sizeof(source));
+    source.securityGroupName = UA_STRING_ALLOC("owned-group");
+    source.securityPolicyUri = UA_STRING_ALLOC("urn:owned-policy");
+    ck_assert_ptr_nonnull(source.securityGroupName.data);
+    ck_assert_ptr_nonnull(source.securityPolicyUri.data);
+
+    UA_SecurityGroupConfig copy;
+    memset(&copy, 0, sizeof(copy));
+    ck_assert_uint_eq(UA_SecurityGroupConfig_copy(&source, &copy),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(copy.securityGroupName.data, source.securityGroupName.data);
+    ck_assert_ptr_ne(copy.securityPolicyUri.data, source.securityPolicyUri.data);
+    UA_String_clear(&source.securityGroupName);
+    UA_String_clear(&source.securityPolicyUri);
+
+    UA_String expectedName = UA_STRING("owned-group");
+    UA_String expectedPolicy = UA_STRING("urn:owned-policy");
+    ck_assert(UA_String_equal(&copy.securityGroupName, &expectedName));
+    ck_assert(UA_String_equal(&copy.securityPolicyUri, &expectedPolicy));
+    UA_String_clear(&copy.securityGroupName);
+    UA_String_clear(&copy.securityPolicyUri);
+} END_TEST
+
 START_TEST(AddTwoSecurityGroupsWithSameSecurityGroupName) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_NodeId securityGroupNodeId;
@@ -346,6 +371,70 @@ START_TEST(SecurityGroupPeriodicInsertNewKeys) {
     }
 } END_TEST
 
+START_TEST(SecurityGroupInformationModelKeyMethods) {
+    UA_SecurityGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    config.keyLifeTime = 2000;
+    config.securityPolicyUri = UA_STRING(
+        "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+    config.securityGroupName = UA_STRING("MethodSecurityGroup");
+    config.maxFutureKeyCount = 1;
+    config.maxPastKeyCount = 1;
+    UA_NodeId securityGroupNodeId;
+    ck_assert_uint_eq(UA_Server_addSecurityGroup(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS),
+        &config, &securityGroupNodeId), UA_STATUSCODE_GOOD);
+
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &config.securityGroupName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYGROUP);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 1);
+    ck_assert(UA_NodeId_equal((UA_NodeId*)result.outputArguments[0].data,
+                              &securityGroupNodeId));
+    UA_CallMethodResult_clear(&result);
+
+    lockServer(server);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(getPSM(server),
+                                                  securityGroupNodeId);
+    ck_assert_ptr_nonnull(sg);
+    UA_UInt32 tokenBefore = sg->keyStorage->currentItem->keyID;
+    ck_assert(sg->baseTime > 0);
+    unlockServer(server);
+
+    UA_CallMethodRequest_init(&request);
+    request.objectId = securityGroupNodeId;
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SECURITYGROUPTYPE_FORCEKEYROTATION);
+    result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+    lockServer(server);
+    ck_assert_ptr_nonnull(sg->keyStorage->currentItem);
+    ck_assert_uint_ne(sg->keyStorage->currentItem->keyID, tokenBefore);
+    ck_assert(sg->baseTime > 0);
+    unlockServer(server);
+
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SECURITYGROUPTYPE_INVALIDATEKEYS);
+    result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+    lockServer(server);
+    ck_assert_ptr_null(sg->keyStorage->currentItem);
+    ck_assert_uint_eq(sg->keyStorage->currentTokenId, 0);
+    unlockServer(server);
+} END_TEST
+
 int
 main(void) {
     int number_failed = 0;
@@ -353,6 +442,8 @@ main(void) {
     tcase_add_checked_fixture(tc_pubsub_sks_securityGroup, securityGroup_setup,
                               securityGroup_teardown);
     tcase_add_test(tc_pubsub_sks_securityGroup, AddSecurityGroupWithvalidConfig);
+    tcase_add_test(tc_pubsub_sks_securityGroup,
+                   SecurityGroupConfigCopyOwnsStrings);
     tcase_add_test(tc_pubsub_sks_securityGroup, AddSecurityGroupWithNullConfig);
     tcase_add_test(tc_pubsub_sks_securityGroup, AddSecurityGroupWithInvalidKeyLifeTime);
     tcase_add_test(tc_pubsub_sks_securityGroup,
@@ -365,6 +456,8 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_securityGroup, RemoveSecurityGroup);
     tcase_add_test(tc_pubsub_sks_securityGroup, AddSecurityGroupWithKeyManagement);
     tcase_add_test(tc_pubsub_sks_securityGroup, SecurityGroupPeriodicInsertNewKeys);
+    tcase_add_test(tc_pubsub_sks_securityGroup,
+                   SecurityGroupInformationModelKeyMethods);
     Suite *s = suite_create("PubSub SKS SecurityGroups");
     suite_add_tcase(s, tc_pubsub_sks_securityGroup);
 

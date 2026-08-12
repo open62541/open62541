@@ -55,17 +55,20 @@ UA_SecurityGroup_find(UA_PubSubManager *psm, const UA_NodeId id) {
 UA_StatusCode
 UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
                             UA_SecurityGroupConfig *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     memcpy(dst, src, sizeof(UA_SecurityGroupConfig));
-    if(UA_String_copy(&src->securityGroupName, &dst->securityGroupName) !=
-       UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BAD;
+    dst->securityGroupName = UA_STRING_NULL;
+    dst->securityPolicyUri = UA_STRING_NULL;
 
-    if(UA_String_copy(&src->securityPolicyUri, &dst->securityPolicyUri) !=
-       UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BAD;
-    return retval;
+    UA_StatusCode res =
+        UA_String_copy(&src->securityGroupName, &dst->securityGroupName);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_String_copy(&src->securityPolicyUri,
+                             &dst->securityPolicyUri);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&dst->securityGroupName);
+        UA_String_clear(&dst->securityPolicyUri);
+    }
+    return res;
 }
 
 static UA_StatusCode
@@ -98,39 +101,24 @@ generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     return retVal;
 }
 
-static void
-updateSKSKeyStorage(void *application /* UA_PubSubManager */,
-                    void *context /* UA_SecurityGroup */) {
-    UA_PubSubManager *psm = (UA_PubSubManager*)application;
-    UA_SecurityGroup *sg = (UA_SecurityGroup*)context;
-    if(!sg) {
-        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "UpdateSKSKeyStorage callback failed with Error: %s ",
-                       UA_StatusCode_name(UA_STATUSCODE_BADINVALIDARGUMENT));
-        return;
-    }
-
-    /* EventLoop timer callbacks enter without the server lock. Key-list
-     * rotation, channel activation and SecurityGroup deletion are all shared
-     * PubSub-manager operations and must be serialized with server APIs. */
-    lockServer(psm->drv.server);
-
+UA_StatusCode
+UA_SecurityGroup_rotateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+    if(!sg || !sg->keyStorage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_PubSubKeyStorage *keyStorage = sg->keyStorage;
-
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
-    UA_ByteString newKey;
+    UA_ByteString newKey = UA_BYTESTRING_NULL;
     /* nonceLength is the complete key-material length exposed by the PubSub
      * security-policy interface. */
     UA_PubSubSecurityPolicy *sp = keyStorage->policy;
     size_t keyLength = UA_PubSubSecurityPolicy_getKeyMaterialLength(sp);
 
-    retval = UA_ByteString_allocBuffer(&newKey, keyLength);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&newKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "UpdateSKSKeyStorage callback failed to allocate memory for new key with Error: %s ",
                        UA_StatusCode_name(retval));
-        unlockServer(psm->drv.server);
-        return;
+        return retval;
     }
 
     retval = generateKeyData(keyStorage->policy, &newKey);
@@ -139,14 +127,12 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
                        "UpdateSKSKeyStorage callback failed to generate key: %s",
                        UA_StatusCode_name(retval));
         UA_ByteString_clear(&newKey);
-        unlockServer(psm->drv.server);
-        return;
+        return retval;
     }
     UA_PubSubKeyListItem *last = TAILQ_LAST(&keyStorage->keyList, keyListItems);
     if(!last) {
         UA_ByteString_clear(&newKey);
-        unlockServer(psm->drv.server);
-        return;
+        return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_UInt32 newKeyID = last->keyID;
 
@@ -170,15 +156,10 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
         UA_ByteString_clear(&oldestKey->key);
         oldestKey->keyID = newKeyID;
-        retval = UA_ByteString_copy(&newKey, &oldestKey->key);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                           "UpdateSKSKeyStorage: failed to copy new key: %s",
-                           UA_StatusCode_name(retval));
-            UA_ByteString_clear(&newKey);
-            unlockServer(psm->drv.server);
-            return;
-        }
+        /* Transfer the generated key into the recycled item. This cannot fail
+         * and avoids leaving an empty list item after a second allocation. */
+        oldestKey->key = newKey;
+        newKey = UA_BYTESTRING_NULL;
         generatedItem = oldestKey;
     } else {
         generatedItem = UA_PubSubKeyStorage_push(keyStorage, &newKey, newKeyID);
@@ -187,9 +168,8 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
                            "UpdateSKSKeyStorage callback failed to add new key to the "
                            "sks keystorage for the SecurityGroup %S",
                            sg->securityGroupId);
-            UA_Byte_delete(newKey.data);
-            unlockServer(psm->drv.server);
-            return;
+            UA_ByteString_clear(&newKey);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
 
@@ -207,11 +187,30 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
                                                     sg->securityGroupId);
 
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
+    sg->baseTime = el->dateTime_nowMonotonic(el);
     el->modifyTimer(el, sg->callbackId, sg->config.keyLifeTime,
                     NULL, UA_TIMERPOLICY_CURRENTTIME);
 
     /* We allocated memory for data with allocBuffer so now we free it */
     UA_ByteString_clear(&newKey);
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+updateSKSKeyStorage(void *application /* UA_PubSubManager */,
+                    void *context /* UA_SecurityGroup */) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_SecurityGroup *sg = (UA_SecurityGroup*)context;
+    if(!sg) {
+        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                       "UpdateSKSKeyStorage callback failed with Error: %s ",
+                       UA_StatusCode_name(UA_STATUSCODE_BADINVALIDARGUMENT));
+        return;
+    }
+
+    /* EventLoop timer callbacks enter without the server lock. */
+    lockServer(psm->drv.server);
+    UA_SecurityGroup_rotateKeys(psm, sg);
     unlockServer(psm->drv.server);
 }
 
@@ -279,6 +278,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         goto cleanup;
 
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
+    sg->baseTime = el->dateTime_nowMonotonic(el);
     retval = el->addTimer(el, updateSKSKeyStorage, psm,
                           sg, sg->config.keyLifeTime, NULL,
                           UA_TIMERPOLICY_CURRENTTIME, &sg->callbackId);
@@ -327,7 +327,12 @@ addSecurityGroup(UA_PubSubManager *psm, UA_NodeId securityGroupFolderNodeId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     memset(newSecurityGroup, 0, sizeof(UA_SecurityGroup));
-    UA_SecurityGroupConfig_copy(securityGroupConfig, &newSecurityGroup->config);
+    retval = UA_SecurityGroupConfig_copy(securityGroupConfig,
+                                         &newSecurityGroup->config);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SecurityGroup_delete(newSecurityGroup);
+        return retval;
+    }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval = UA_NodeId_copy(&securityGroupFolderNodeId,
