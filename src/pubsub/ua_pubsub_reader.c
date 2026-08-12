@@ -256,10 +256,11 @@ connectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 
     /* Already connected? */
     if(sds->connectedReader) {
-        if(sds->connectedReader != dsr)
-            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
-                                "Configured StandaloneSubscribedDataSet already "
-                                "connected to a different DataSetReader");
+        if(sds->connectedReader == dsr)
+            return UA_STATUSCODE_GOOD;
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                            "Configured StandaloneSubscribedDataSet already "
+                            "connected to a different DataSetReader");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1002,6 +1003,14 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
 
     /* Store the old config */
     UA_DataSetReaderConfig oldConfig = dsr->config;
+    UA_Boolean standaloneChanged =
+        !UA_String_equal(&config->linkedStandaloneSubscribedDataSetName,
+                         &oldConfig.linkedStandaloneSubscribedDataSetName);
+
+    /* disconnectDSR2Standalone resolves the SDS through the current config,
+     * so this must happen before replacing that config. */
+    if(standaloneChanged)
+        disconnectDSR2Standalone(psm, dsr);
 
     /* Copy the config into the new dataSetReader */
     UA_StatusCode retVal = UA_DataSetReaderConfig_copy(config, &dsr->config);
@@ -1009,9 +1018,7 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
         goto errout;
 
     /* Change the connection to a StandaloneSubscribedDataSet */
-    if(!UA_String_equal(&dsr->config.linkedStandaloneSubscribedDataSetName,
-                        &oldConfig.linkedStandaloneSubscribedDataSetName)) {
-        disconnectDSR2Standalone(psm, dsr);
+    if(standaloneChanged) {
         retVal = connectDSR2Standalone(psm, dsr);
         if(retVal != UA_STATUSCODE_GOOD)
             goto errout;
@@ -1032,6 +1039,15 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
  errout:
     UA_DataSetReaderConfig_clear(&dsr->config);
     dsr->config = oldConfig;
+    if(standaloneChanged) {
+        UA_StatusCode reconnect = connectDSR2Standalone(psm, dsr);
+        if(reconnect != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                                "Failed to restore StandaloneSubscribedDataSet "
+                                "after rejected config update");
+            retVal = reconnect;
+        }
+    }
     unlockServer(server);
     return retVal;
 }

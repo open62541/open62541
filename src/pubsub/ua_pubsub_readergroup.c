@@ -236,6 +236,15 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
 
+    /* A channel-close callback re-enters removal to complete the deferred
+     * free. Do not notify the lifecycle callback or tear down children and
+     * key storage a second time on that completion pass. */
+    if(rg->deleteFlag) {
+        if(rg->recvChannelsSize != 0)
+            return UA_STATUSCODE_GOOD;
+        goto finalize;
+    }
+
     /* Check with the application if we can remove */
     UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
@@ -271,6 +280,7 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 #endif
 
     if(rg->recvChannelsSize == 0) {
+finalize:
         /* Unlink from the connection */
         LIST_REMOVE(rg, listEntry);
         connection->readerGroupsSize--;
