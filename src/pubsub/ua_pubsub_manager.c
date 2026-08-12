@@ -824,6 +824,8 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     LIST_FOREACH_SAFE(ks, &psm->pubSubKeyList, keyStorageList, ksTmp) {
         UA_PubSubKeyStorage_delete(psm, ks);
     }
+    if(!LIST_EMPTY(&psm->pubSubKeyList))
+        return UA_STATUSCODE_BADWOULDBLOCK;
 #endif
 
     return UA_STATUSCODE_GOOD;

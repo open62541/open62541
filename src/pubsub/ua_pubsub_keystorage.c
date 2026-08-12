@@ -15,6 +15,21 @@
 #include "../server/ua_server_internal.h"
 #include "../client/ua_client_internal.h"
 
+/* State retained by the asynchronous SKS client from connect until the
+ * client has been shut down and deleted. */
+typedef struct {
+    UA_PubSubManager *psm;
+    UA_PubSubKeyStorage *ks;
+    UA_UInt32 startingTokenId;
+    UA_UInt32 requestedKeyCount;
+    UA_DelayedCallback dc;
+    UA_Boolean deletingSynchronously;
+} sksClientContext;
+
+static void sksClientCleanupCb(void *client, void *context);
+static void addDelayedSksClientCleanupCb(UA_Client *client,
+                                         sksClientContext *context);
+
 UA_PubSubKeyStorage *
 UA_PubSubKeyStorage_find(UA_PubSubManager *psm, UA_String securityGroupId) {
     if(!psm)
@@ -43,11 +58,21 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyU
     return NULL;
 }
 
+static void
+prepareSksClientForDelete(UA_Client *client) {
+    client->config.stateCallback = NULL;
+    /* These members are borrowed from the key-storage client configuration. */
+    client->config.securityPolicies = NULL;
+    client->config.securityPoliciesSize = 0;
+    client->config.authSecurityPolicies = NULL;
+    client->config.authSecurityPoliciesSize = 0;
+    client->config.certificateVerification.context = NULL;
+    client->config.logging = NULL;
+    client->config.clientContext = NULL;
+}
+
 void
 UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
-    if(TAILQ_EMPTY(&ks->keyList))
-        return;
-
     UA_PubSubKeyListItem *item, *item_tmp;
     TAILQ_FOREACH_SAFE(item, &ks->keyList, keyListEntry, item_tmp) {
         TAILQ_REMOVE(&ks->keyList, item, keyListEntry);
@@ -65,13 +90,44 @@ void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    /* If an SKS pull request is in flight (sksConfig.reqId != 0), defer the
-     * deletion. The storeFetchedKeys callback still holds a raw pointer to this
-     * key storage via the sksClientContext. Freeing now would cause a
-     * use-after-free when the response arrives. Mark for pending deletion;
-     * storeFetchedKeys performs the final cleanup. */
-    if(ks->sksConfig.reqId != 0) {
+    /* requestActive covers connection setup, the method call and asynchronous
+     * client shutdown. reqId alone misses the connection phase. */
+    if(ks->sksConfig.requestActive) {
         ks->pendingDelete = true;
+
+        UA_Client *client = ks->sksConfig.client;
+        sksClientContext *ctx =
+            (sksClientContext*)ks->sksConfig.clientContext;
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
+
+        /* Server shutdown stops the EventLoop before freeing drivers. At that
+         * point no delayed callback will run, so finalize the client
+         * synchronously and do not leave callback state pointing at psm. */
+        if(client && ctx &&
+           (el->state == UA_EVENTLOOPSTATE_STOPPED ||
+            el->state == UA_EVENTLOOPSTATE_FRESH)) {
+            /* UA_Client_delete cancels outstanding async service calls and
+             * invokes their callbacks. Mark this path so storeFetchedKeys does
+             * not recursively take the already-held server lock. */
+            ctx->deletingSynchronously = true;
+            prepareSksClientForDelete(client);
+            UA_Client_delete(client);
+            UA_free(ctx);
+            ks->sksConfig.client = NULL;
+            ks->sksConfig.clientContext = NULL;
+            ks->sksConfig.reqId = 0;
+            ks->sksConfig.requestActive = false;
+            ks->pendingDelete = false;
+            UA_PubSubKeyStorage_deleteNow(psm, ks);
+            return;
+        }
+
+        /* During normal operation, actively cancel connection/request work.
+         * The delayed cleanup is idempotent and owns final deletion. */
+        if(client && ctx) {
+            UA_Client_disconnectAsync(client);
+            addDelayedSksClientCleanupCb(client, ctx);
+        }
         return;
     }
 
@@ -81,6 +137,11 @@ UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
 void
 UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+
+    if(ks->listed) {
+        LIST_REMOVE(ks, keyStorageList);
+        ks->listed = false;
+    }
 
     /* Remove the key-rollover callback timer if it is armed.
      * The previous guard was inverted (`!ks->callBackId`), which removed the
@@ -117,6 +178,7 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
 
     /* Add this keystorage to the keystoragelist */
     LIST_INSERT_HEAD(&psm->pubSubKeyList, ks, keyStorageList);
+    ks->listed = true;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -124,18 +186,17 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
 UA_StatusCode
 UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
                                      UA_ByteString *keys, UA_UInt32 currentKeyId) {
-    /* Validate key length against the policy's expected key material size.
-     * Spec Table 155: key material = signingKeyLen + encryptingKeyLen +
-     * keyNonceLen. A key with the wrong length cannot be activated later. */
-    if(ks->policy) {
-        size_t expectedLen = ks->policy->getSignatureKeyLength(ks->policy, NULL) +
-                             ks->policy->getEncryptionKeyLength(ks->policy, NULL) +
-                             ks->policy->nonceLength;
-        for(size_t i = 0; i < keysSize; ++i) {
-            if(keys[i].length != expectedLen && keys[i].length != 0) {
-                return UA_STATUSCODE_BADINTERNALERROR;
-            }
-        }
+    if(!ks || (keysSize > 0 && !keys))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* nonceLength is the complete SKS key-material length for the PubSub
+     * policy. Do not add the component lengths a second time. */
+    if(!ks->policy || ks->policy->nonceLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    size_t expectedLen = ks->policy->nonceLength;
+    for(size_t i = 0; i < keysSize; ++i) {
+        if(keys[i].length != expectedLen || !keys[i].data)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
     for(size_t i = 0; i < keysSize; ++i) {
@@ -238,8 +299,9 @@ splitCurrentKeyMaterial(UA_PubSubKeyStorage *ks, UA_ByteString *signingKey,
      * + nonce parts. Without this check, keyNonceLength below underflows
      * (size_t) when key.length is smaller than signingkeyLength + encryptkeyLength,
      * and keyNonce->data points past the buffer -> OOB read. */
-    if(key.length < signingkeyLength + encryptkeyLength)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(key.length != policy->nonceLength ||
+       key.length < signingkeyLength + encryptkeyLength)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Rest of the part is the keyNonce */
     size_t keyNonceLength = key.length - signingkeyLength - encryptkeyLength;
@@ -325,7 +387,7 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!ks->policy && !(ks->keyListSize > 0))
+    if(!ks->policy || !ks->currentItem || ks->keyListSize == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_UInt32 securityTokenId = ks->currentItem->keyID;
@@ -391,7 +453,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */
                      ks->securityGroupID, UA_StatusCode_name(retval));
     }
 
-    if(ks->currentItem != TAILQ_LAST(&ks->keyList, keyListItems)) {
+    if(ks->currentItem &&
+       ks->currentItem != TAILQ_LAST(&ks->keyList, keyListItems)) {
         ks->currentItem = TAILQ_NEXT(ks->currentItem, keyListEntry);
         ks->currentTokenId = ks->currentItem->keyID;
         retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
@@ -401,7 +464,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */
                          "Failed to update keys for security group id '%S'. Reason: '%s'.",
                          ks->securityGroupID, UA_StatusCode_name(retval));
         }
-    } else if(ks->sksConfig.endpointUrl && ks->sksConfig.reqId == 0) {
+    } else if(ks->sksConfig.endpointUrl && !ks->sksConfig.requestActive) {
         /* Publishers using a central SKS shall call GetSecurityKeys at a period
          * of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = ks->keyLifeTime / 2;
@@ -418,25 +481,9 @@ void
 UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
     ks->referenceCount--;
-    if(ks->referenceCount == 0) {
-        LIST_REMOVE(ks, keyStorageList);
+    if(ks->referenceCount == 0)
         UA_PubSubKeyStorage_delete(psm, ks);
-    }
 }
-
-/**
- * @brief It holds the information required in the async callback to
- * GetSecurityKeys method Call.
- */
-typedef struct {
-    UA_PubSubManager *psm;
-    UA_PubSubKeyStorage *ks;
-    UA_UInt32 startingTokenId;
-    UA_UInt32 requestedKeyCount;
-    UA_DelayedCallback dc;
-} sksClientContext;
-
-static void sksClientCleanupCb(void *client, void *context);
 
 static void
 addDelayedSksClientCleanupCb(UA_Client *client, sksClientContext *context) {
@@ -466,17 +513,22 @@ sksClientCleanupCb(void *client, void *context) {
     }
 
     if(sksClient->channel.state == UA_SECURECHANNELSTATE_CLOSED) {
-        /* We cannot make deep copy of the following pointers because these have
-         * internal structures, therefore we do not free them here. These will
-         * be freed in UA_PubSubKeyStorage_delete. */
-        sksClient->config.securityPolicies = NULL;
-        sksClient->config.securityPoliciesSize = 0;
-        sksClient->config.authSecurityPolicies = NULL;
-        sksClient->config.authSecurityPoliciesSize = 0;
-        sksClient->config.certificateVerification.context = NULL;
-        sksClient->config.logging = NULL;
-        sksClient->config.clientContext = NULL;
+        prepareSksClientForDelete(sksClient);
         UA_Client_delete(sksClient);
+
+        /* No client callback can access the key storage after the client has
+         * been deleted. Release the asynchronous ownership and honor a
+         * deletion that was requested during connect or the service call. */
+        UA_PubSubManager *psm = ctx->psm;
+        UA_PubSubKeyStorage *ks = ctx->ks;
+        lockServer(psm->drv.server);
+        ks->sksConfig.client = NULL;
+        ks->sksConfig.clientContext = NULL;
+        ks->sksConfig.reqId = 0;
+        ks->sksConfig.requestActive = false;
+        if(ks->pendingDelete)
+            UA_PubSubKeyStorage_deleteNow(psm, ks);
+        unlockServer(psm->drv.server);
         UA_free(context);
     } else {
         sksClient->config.eventLoop->
@@ -488,21 +540,20 @@ static void
 storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
                  UA_CallResponse *response) {
     sksClientContext *ctx = (sksClientContext *)userdata;
+    if(ctx->deletingSynchronously)
+        return;
     UA_PubSubKeyStorage *ks = ctx->ks;
     UA_PubSubManager *psm = ctx->psm;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
     lockServer(psm->drv.server);
 
-    /* If the key storage was marked for deferred deletion while the SKS pull
-     * was in flight, perform the final cleanup now and return. This prevents
-     * a use-after-free where UA_PubSubKeyStorage_delete deferred freeing ks
-     * until the in-flight response arrived. */
+    /* A deletion request cancels result processing. Final key-storage cleanup
+     * happens only after the client is closed, in sksClientCleanupCb. */
     if(ks->pendingDelete) {
         ks->sksConfig.reqId = 0;
         UA_Client_disconnectAsync(client);
         addDelayedSksClientCleanupCb(client, ctx);
-        UA_PubSubKeyStorage_deleteNow(psm, ks);
         unlockServer(psm->drv.server);
         return;
     }
@@ -638,6 +689,14 @@ callGetSecurityKeysMethod(UA_Client *client) {
 static void
 onConnect(UA_Client *client, UA_SecureChannelState channelState,
           UA_SessionState sessionState, UA_StatusCode connectStatus) {
+    sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
+    UA_PubSubKeyStorage *ks = ctx->ks;
+    if(ks->pendingDelete) {
+        UA_Client_disconnectAsync(client);
+        addDelayedSksClientCleanupCb(client, ctx);
+        return;
+    }
+
     UA_Boolean triggerSKSCleanup = false;
     if(connectStatus != UA_STATUSCODE_GOOD &&
        connectStatus != UA_STATUSCODE_BADNOTCONNECTED &&
@@ -659,8 +718,6 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
     }
     if(triggerSKSCleanup) {
         /* call user callback to notify about the status */
-        sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
-        UA_PubSubKeyStorage *ks = ctx->ks;
         if(ks->sksConfig.userNotifyCallback)
             ks->sksConfig.userNotifyCallback(ctx->psm->drv.server, connectStatus,
                                              ks->sksConfig.context);
@@ -682,7 +739,7 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
     UA_UInt32 startingTokenId = UA_REQ_CURRENT_TOKEN;
     UA_UInt32 requestKeyCount = UA_UINT32_MAX;
 
-    if(ks->sksConfig.reqId != 0) {
+    if(ks->sksConfig.requestActive) {
         UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                     "SKS Client: SKS Pull request in process ");
         return UA_STATUSCODE_GOOD;
@@ -700,17 +757,32 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
 
     /* this is cleanedup in sksClientCleanupCb */
     sksClientContext *ctx   = (sksClientContext *)UA_calloc(1, sizeof(sksClientContext));
-    if(!ctx)
-         return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!ctx) {
+        UA_ClientConfig_clear(&cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     ctx->ks = ks;
     ctx->psm = psm;
     ctx->startingTokenId = startingTokenId;
     ctx->requestedKeyCount = requestKeyCount;
     cc.clientContext = ctx;
+    /* Install the callback before creating/connecting the client. A fast
+     * asynchronous connection must never complete while the callback is still
+     * unset, otherwise the request remains permanently active. */
+    cc.stateCallback = onConnect;
 
     UA_Client *client = UA_Client_newWithConfig(&cc);
-    if(!client)
-        return retval;
+    if(!client) {
+        UA_free(ctx);
+        UA_ClientConfig_clear(&cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Set before connectAsync: the connect callback already owns ks even
+     * though no service request id has been assigned yet. */
+    ks->sksConfig.client = client;
+    ks->sksConfig.clientContext = ctx;
+    ks->sksConfig.requestActive = true;
     /* connect to sks server */
     retval = UA_Client_connectAsync(client, ks->sksConfig.endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -726,9 +798,6 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
         addDelayedSksClientCleanupCb(client, ctx);
         return retval;
     }
-
-    /* add user specified callback, if the client is properly configured. */
-    client->config.stateCallback = onConnect;
 
     return retval;
 }

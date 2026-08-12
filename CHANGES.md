@@ -3,6 +3,15 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub security-policy nonce lengths
+
+Custom `UA_PubSubSecurityPolicy` implementations must initialize the new
+`messageNonceLength` member with the nonce size carried in each secured
+NetworkMessage. The historical `nonceLength` member continues to describe the
+complete SKS key-material item. SignAndEncrypt groups reject policies that do
+not provide a valid message nonce length. This changes the public policy
+structure ABI; custom policies must be rebuilt and updated.
+
 ### Automatic ModelChange and SemanticChange notifications
 
 Servers built with `UA_ENABLE_SUBSCRIPTIONS_EVENTS` now emit the standard
