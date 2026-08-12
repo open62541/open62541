@@ -10,6 +10,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "pubsub_test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
@@ -170,12 +171,84 @@ static void addPublishedDataSets(void){
     result = UA_Server_call(server, &callMethodRequest);
     ck_assert_uint_eq(3, result.outputArgumentsSize);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&result.outputArguments[0],
+                                       &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert(UA_Variant_hasScalarType(
+        &result.outputArguments[1],
+        &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]));
+    ck_assert(UA_Variant_hasArrayType(&result.outputArguments[2],
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]));
+    ck_assert_uint_eq(result.outputArguments[2].arrayLength, 2);
+    UA_StatusCode *addResults =
+        (UA_StatusCode*)result.outputArguments[2].data;
+    ck_assert_uint_eq(addResults[0], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(addResults[1], UA_STATUSCODE_GOOD);
     UA_CallMethodResult_clear(&result);
     UA_free(inputArguments);
     UA_free(fieldNameAliases);
     UA_free(dataSetFieldFlags);
     UA_free(variablesToAdd);
 }
+
+START_TEST(AddAndRemoveVariablesMethods) {
+    addPublishedDataSets();
+    lockServer(server);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_findByName(
+        getPSM(server), UA_STRING("Test PDS"));
+    ck_assert_ptr_nonnull(pds);
+    UA_NodeId pdsId;
+    UA_NodeId_copy(&pds->head.identifier, &pdsId);
+    UA_ConfigurationVersionDataType version =
+        pds->dataSetMetaData.configurationVersion;
+    unlockServer(server);
+
+    UA_String alias = UA_STRING("field3");
+    UA_Boolean promoted = false;
+    UA_PublishedVariableDataType variable;
+    UA_PublishedVariableDataType_init(&variable);
+    variable.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
+    variable.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Variant input[4];
+    memset(input, 0, sizeof(input));
+    UA_Variant_setScalar(&input[0], &version,
+        &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+    UA_Variant_setArray(&input[1], &alias, 1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setArray(&input[2], &promoted, 1, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setArray(&input[3], &variable, 1,
+                        &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = pdsId;
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE_ADDVARIABLES);
+    request.inputArgumentsSize = 4;
+    request.inputArguments = input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 2);
+    ck_assert_uint_eq(result.outputArguments[1].arrayLength, 1);
+    ck_assert_uint_eq(*(UA_StatusCode*)result.outputArguments[1].data,
+                      UA_STATUSCODE_GOOD);
+    version = *(UA_ConfigurationVersionDataType*)result.outputArguments[0].data;
+    UA_CallMethodResult_clear(&result);
+
+    UA_UInt32 index = 2;
+    memset(input, 0, 2 * sizeof(UA_Variant));
+    UA_Variant_setScalar(&input[0], &version,
+        &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+    UA_Variant_setArray(&input[1], &index, 1, &UA_TYPES[UA_TYPES_UINT32]);
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE_REMOVEVARIABLES);
+    request.inputArgumentsSize = 2;
+    result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 2);
+    ck_assert_uint_eq(*(UA_StatusCode*)result.outputArguments[1].data,
+                      UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId_clear(&pdsId);
+} END_TEST
 
 static UA_StatusCode CallReserveIds(UA_Client *client, UA_String *transportProfileUri,
     UA_UInt16 numRegWriterGroupIds, UA_UInt16 numRegDataSetWriterIds,
@@ -1012,8 +1085,10 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
             (UA_ReaderGroupDataType *)UA_calloc(pubSubConnection.readerGroupsSize, sizeof(UA_ReaderGroupDataType));
         UA_TargetVariablesDataType targetVars;
         pubSubConnection.readerGroups->name = UA_STRING("TestReaderGroup");
-        pubSubConnection.readerGroups->securityGroupId = UA_STRING("SecurityGroup");
-        pubSubConnection.readerGroups->securityMode = UA_MESSAGESECURITYMODE_SIGN;
+        /* This CRUD fixture does not configure an SKS or group keys. Keep the
+         * ReaderGroup unsecured; security policy validation has dedicated
+         * coverage in the PubSub encryption suites. */
+        pubSubConnection.readerGroups->securityMode = UA_MESSAGESECURITYMODE_NONE;
         UA_UInt32 groupPropertyValue = 42;
         UA_KeyValuePair groupProperty;
         memset(&groupProperty, 0, sizeof(groupProperty));
@@ -1175,7 +1250,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         ck_assert(UA_String_equal(&readerGroupConfig.securityGroupId,
                                   &pubSubConnection.readerGroups->securityGroupId));
         ck_assert_int_eq(readerGroupConfig.securityMode,
-                         UA_MESSAGESECURITYMODE_SIGN);
+                         UA_MESSAGESECURITYMODE_NONE);
         ck_assert_uint_eq(readerGroupConfig.groupProperties.mapSize, 1);
         ck_assert(readerGroupConfig.transportSettings.encoding ==
                   UA_EXTENSIONOBJECT_DECODED);
@@ -1882,12 +1957,22 @@ START_TEST(TestEnableDisableDataSetReader){
 } END_TEST
 
 START_TEST(TestEnableDisableTopLevelPublishSubscribe){
-    /* Calls Enable/Disable methods on the top-level PublishSubscribe Status
-     * node. Covers the isPublishSubscribeObject branch in
-     * enablePubSubObjectAction / disablePubSubObjectAction. */
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Make a child operational before disabling the root. The root method
+     * must use the manager lifecycle and disable its children, not merely
+     * overwrite the manager state. */
+    UA_NodeId connectionId = addPubSubConnection();
+    ck_assert(!UA_NodeId_isNull(&connectionId));
+    UA_NodeId connectionStatusId = findSingleChildNode(
+        UA_QUALIFIEDNAME(0, "Status"), UA_NS0ID(HASCOMPONENT), connectionId);
+    ck_assert(!UA_NodeId_isNull(&connectionStatusId));
+    UA_NodeId connectionStateId = findSingleChildNode(
+        UA_QUALIFIEDNAME(0, "State"), UA_NS0ID(HASCOMPONENT),
+        connectionStatusId);
+    ck_assert(!UA_NodeId_isNull(&connectionStateId));
 
     UA_CallRequest callRequest;
     UA_CallRequest_init(&callRequest);
@@ -1896,40 +1981,52 @@ START_TEST(TestEnableDisableTopLevelPublishSubscribe){
     callRequest.methodsToCall = &callMethodRequest;
     callRequest.methodsToCallSize = 1;
 
+    callMethodRequest.objectId = connectionStatusId;
+    callMethodRequest.methodId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBSTATUSTYPE_ENABLE);
+    UA_CallResponse callResponse = UA_Client_Service_call(client, callRequest);
+    ck_assert_int_eq(callResponse.resultsSize, 1);
+    ck_assert_int_eq(callResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_CallResponse_clear(&callResponse);
+
+    UA_Variant stateValue;
+    UA_Variant_init(&stateValue);
+    retVal = UA_Client_readValueAttribute(client, connectionStateId, &stateValue);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_ne(*(UA_PubSubState*)stateValue.data,
+                     UA_PUBSUBSTATE_DISABLED);
+    UA_Variant_clear(&stateValue);
+
     callMethodRequest.objectId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_STATUS);
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
     callMethodRequest.methodId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBSTATUSTYPE_DISABLE);
 
-    /* First disable: may already be disabled or running, both acceptable */
-    UA_CallResponse callResponse = UA_Client_Service_call(client, callRequest);
+    callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
-    UA_StatusCode firstDisable = callResponse.results[0].statusCode;
-    if(firstDisable == UA_STATUSCODE_BADNODEIDUNKNOWN) {
-        /* In reduced build profiles the top-level Status node can be absent. */
-        UA_CallResponse_clear(&callResponse);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return;
-    }
-    ck_assert(firstDisable == UA_STATUSCODE_GOOD ||
-              firstDisable == UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_int_eq(callResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     UA_CallResponse_clear(&callResponse);
 
-    /* Now enable */
+    retVal = UA_Client_readValueAttribute(client, connectionStateId, &stateValue);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_PubSubState*)stateValue.data,
+                     UA_PUBSUBSTATE_DISABLED);
+    UA_Variant_clear(&stateValue);
+
+    /* Root Enable starts the manager through its driver lifecycle. */
     callMethodRequest.methodId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBSTATUSTYPE_ENABLE);
     callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
-    UA_StatusCode enableResult = callResponse.results[0].statusCode;
-    ck_assert(enableResult == UA_STATUSCODE_GOOD ||
-              enableResult == UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_int_eq(callResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     UA_CallResponse_clear(&callResponse);
 
     /* Calling Enable a second time when already enabled exercises the
      * BADINVALIDSTATE return path. */
     callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
+    ck_assert_int_eq(callResponse.results[0].statusCode,
+                     UA_STATUSCODE_BADINVALIDSTATE);
     UA_CallResponse_clear(&callResponse);
 
     /* And disable */
@@ -1937,13 +2034,19 @@ START_TEST(TestEnableDisableTopLevelPublishSubscribe){
         UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBSTATUSTYPE_DISABLE);
     callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
+    ck_assert_int_eq(callResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     UA_CallResponse_clear(&callResponse);
 
     /* And disable again (already disabled) -> BADINVALIDSTATE */
     callResponse = UA_Client_Service_call(client, callRequest);
     ck_assert_int_eq(callResponse.resultsSize, 1);
+    ck_assert_int_eq(callResponse.results[0].statusCode,
+                     UA_STATUSCODE_BADINVALIDSTATE);
     UA_CallResponse_clear(&callResponse);
 
+    UA_NodeId_clear(&connectionId);
+    UA_NodeId_clear(&connectionStatusId);
+    UA_NodeId_clear(&connectionStateId);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
@@ -1972,6 +2075,8 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, TestEnableDisableDataSetWriter);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, TestEnableDisableDataSetReader);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, TestEnableDisableTopLevelPublishSubscribe);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection,
+                   AddAndRemoveVariablesMethods);
 
     Suite *s = suite_create("PubSub CRUD configuration by the information model functions");
     suite_add_tcase(s, tc_add_pubsub_informationmodel_methods_connection);

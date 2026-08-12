@@ -678,6 +678,15 @@ void
 UA_PubSubManager_setState(UA_PubSubManager *psm,
                           UA_LifecycleState state);
 
+UA_PubSubState
+UA_PubSubManager_getPubSubState(const UA_PubSubManager *psm);
+
+UA_StatusCode
+UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
+                                  UA_PubSubComponentType componentType,
+                                  UA_PubSubState targetState,
+                                  UA_StatusCode errorReason);
+
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId,
                             UA_UInt16 numRegWriterGroupIds,
