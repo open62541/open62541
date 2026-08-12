@@ -352,7 +352,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_PubSubManager *psm,
     /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
      * securityGroupId*/
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
         /* For each writerGroup in server with matching SecurityGroupId */
