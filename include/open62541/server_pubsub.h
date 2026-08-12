@@ -1052,7 +1052,8 @@ typedef void
  *        the securityGroupId is deleted. The input config is copied to an
  *        internal config object and the content of input config object will be
  *        reset to zero.
- * @param endpointUrl holds the endpointUrl of the SKS server
+ * @param endpointUrl holds the endpointUrl of the SKS server. It is copied and
+ *        does not need to outlive this call.
  * @param securityGroupId the SecurityGroupId of the securityGroup on SKS and
  *        reader/writergroups
  * @param callback the user defined callback to notify the user about the status

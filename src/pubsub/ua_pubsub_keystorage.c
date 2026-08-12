@@ -85,7 +85,6 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
     /* Clear currentItem so the next rollover callback or
      * splitCurrentKeyMaterial does not dereference freed memory. */
     ks->currentItem = NULL;
-    ks->currentTokenId = 0;
 }
 
 void
@@ -160,9 +159,14 @@ UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
         removeCallback(psm->drv.server, ks->callBackId);
         ks->callBackId = 0;
     }
+    if(ks->refetchCallbackId != 0) {
+        removeCallback(psm->drv.server, ks->refetchCallbackId);
+        ks->refetchCallbackId = 0;
+    }
 
     UA_PubSubKeyStorage_clearKeyList(ks);
     UA_String_clear(&ks->securityGroupID);
+    UA_String_clear(&ks->sksConfig.endpointUrl);
     UA_ClientConfig_clear(&ks->sksConfig.clientConfig);
     UA_free(ks);
 }
@@ -176,10 +180,10 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    UA_UInt32 currentkeyCount = 1;
     ks->maxPastKeyCount = maxPastKeyCount;
     ks->maxFutureKeyCount = maxFutureKeyCount;
-    ks->maxKeyListSize = maxPastKeyCount + currentkeyCount + maxFutureKeyCount;
+    ks->maxKeyListSize = (size_t)maxPastKeyCount + 1u +
+                         (size_t)maxFutureKeyCount;
     ks->policy = policy;
 
     TAILQ_INIT(&ks->keyList);
@@ -189,6 +193,165 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
     ks->listed = true;
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_PubSubKeyStorage_acquire(UA_PubSubManager *psm,
+                            const UA_String *securityGroupId,
+                            UA_PubSubSecurityPolicy *policy,
+                            UA_UInt32 maxPastKeyCount,
+                            UA_UInt32 maxFutureKeyCount,
+                            UA_PubSubKeyStorage **keyStorage) {
+    if(!psm || !securityGroupId || !policy || !keyStorage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+    *keyStorage = NULL;
+
+    UA_PubSubKeyStorage *ks =
+        UA_PubSubKeyStorage_find(psm, *securityGroupId);
+    if(ks) {
+        /* The disconnect callback owns this storage until final deletion.
+         * A new group must retry after cleanup has completed. */
+        if(ks->pendingDelete)
+            return UA_STATUSCODE_BADWOULDBLOCK;
+        if(ks->policy != policy)
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        ks->referenceCount++;
+        *keyStorage = ks;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    ks = (UA_PubSubKeyStorage*)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!ks)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_init(psm, ks, securityGroupId, policy,
+                                 maxPastKeyCount, maxFutureKeyCount);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(ks);
+        return res;
+    }
+    ks->referenceCount = 1;
+    *keyStorage = ks;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_PubSubKeyStorage_acquireForGroup(UA_PubSubManager *psm,
+                                    const UA_String *securityGroupId,
+                                    UA_PubSubSecurityPolicy *policy,
+                                    UA_MessageSecurityMode securityMode,
+                                    UA_PubSubKeyStorage **keyStorage) {
+    if(!keyStorage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *keyStorage = NULL;
+    if(securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
+    /* A secured group can also be configured with keys supplied directly via
+     * UA_Server_set{Reader,Writer}GroupEncryptionKeys. Such a group has no SKS
+     * SecurityGroupId and therefore needs no shared key storage. */
+    if(!securityGroupId || UA_String_isEmpty(securityGroupId) || !policy)
+        return UA_STATUSCODE_GOOD;
+    return UA_PubSubKeyStorage_acquire(psm, securityGroupId, policy, 0, 0,
+                                       keyStorage);
+}
+
+static void
+clearTemporaryKeyList(keyListItems *list) {
+    UA_PubSubKeyListItem *item, *tmp;
+    TAILQ_FOREACH_SAFE(item, list, keyListEntry, tmp) {
+        TAILQ_REMOVE(list, item, keyListEntry);
+        UA_ByteString_clear(&item->key);
+        UA_free(item);
+    }
+}
+
+static UA_PubSubKeyListItem *
+pushTemporaryKey(keyListItems *list, const UA_ByteString *key,
+                 UA_UInt32 keyId) {
+    UA_PubSubKeyListItem *item =
+        (UA_PubSubKeyListItem*)UA_malloc(sizeof(UA_PubSubKeyListItem));
+    if(!item)
+        return NULL;
+    memset(item, 0, sizeof(*item));
+    item->keyID = keyId;
+    if(UA_ByteString_copy(key, &item->key) != UA_STATUSCODE_GOOD) {
+        UA_free(item);
+        return NULL;
+    }
+    TAILQ_INSERT_TAIL(list, item, keyListEntry);
+    return item;
+}
+
+static UA_PubSubKeyListItem *
+findTemporaryKey(keyListItems *list, UA_UInt32 keyId) {
+    UA_PubSubKeyListItem *item;
+    TAILQ_FOREACH(item, list, keyListEntry) {
+        if(item->keyID == keyId)
+            return item;
+    }
+    return NULL;
+}
+
+UA_StatusCode
+UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *ks,
+                                    UA_UInt32 currentKeyId,
+                                    const UA_ByteString *currentKey,
+                                    size_t futureKeysSize,
+                                    const UA_ByteString *futureKeys) {
+    if(!ks || !currentKey || (futureKeysSize > 0 && !futureKeys))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!ks->policy || ks->policy->keyMaterialLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    const size_t expectedLen = ks->policy->keyMaterialLength;
+    if(currentKey->length != expectedLen || !currentKey->data)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    for(size_t i = 0; i < futureKeysSize; i++) {
+        if(futureKeys[i].length != expectedLen || !futureKeys[i].data)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    keyListItems replacement;
+    TAILQ_INIT(&replacement);
+    UA_PubSubKeyListItem *item;
+    TAILQ_FOREACH(item, &ks->keyList, keyListEntry) {
+        if(!pushTemporaryKey(&replacement, &item->key, item->keyID))
+            goto oom;
+    }
+
+    UA_PubSubKeyListItem *newCurrent =
+        findTemporaryKey(&replacement, currentKeyId);
+    if(!newCurrent) {
+        clearTemporaryKeyList(&replacement);
+        newCurrent = pushTemporaryKey(&replacement, currentKey, currentKeyId);
+        if(!newCurrent)
+            goto oom;
+    }
+
+    UA_UInt32 keyId = currentKeyId;
+    for(size_t i = 0; i < futureKeysSize; i++) {
+        if(++keyId == 0)
+            keyId = 1;
+        if(!findTemporaryKey(&replacement, keyId) &&
+           !pushTemporaryKey(&replacement, &futureKeys[i], keyId))
+            goto oom;
+    }
+
+    UA_PubSubKeyStorage_clearKeyList(ks);
+    while((item = TAILQ_FIRST(&replacement))) {
+        TAILQ_REMOVE(&replacement, item, keyListEntry);
+        TAILQ_INSERT_TAIL(&ks->keyList, item, keyListEntry);
+        ks->keyListSize++;
+        if(item->keyID == currentKeyId)
+            ks->currentItem = item;
+    }
+    return UA_STATUSCODE_GOOD;
+
+oom:
+    clearTemporaryKeyList(&replacement);
+    return UA_STATUSCODE_BADOUTOFMEMORY;
 }
 
 UA_StatusCode
@@ -427,18 +590,21 @@ nextGetSecuritykeysCallback(void *application /* UA_PubSubManager */,
                             void *context /* UA_PubSubKeyStorage */) {
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
     UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage*)context;
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    lockServer(psm->drv.server);
     if(!ks) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "GetSecurityKeysCall Failed with error: KeyStorage does not exist "
                      "in the server");
+        unlockServer(psm->drv.server);
         return;
     }
-    retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
+    ks->refetchCallbackId = 0;
+    UA_StatusCode retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "GetSecurityKeysCall Failed with error: %s ",
                      UA_StatusCode_name(retval));
+    unlockServer(psm->drv.server);
 }
 
 void
@@ -462,7 +628,6 @@ UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */
     if(ks->currentItem &&
        ks->currentItem != TAILQ_LAST(&ks->keyList, keyListItems)) {
         ks->currentItem = TAILQ_NEXT(ks->currentItem, keyListEntry);
-        ks->currentTokenId = ks->currentItem->keyID;
         retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
                                                                  ks->securityGroupID);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -470,14 +635,15 @@ UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */
                          "Failed to update keys for security group id '%S'. Reason: '%s'.",
                          ks->securityGroupID, UA_StatusCode_name(retval));
         }
-    } else if(ks->sksConfig.endpointUrl && !ks->sksConfig.requestActive) {
+    } else if(!UA_String_isEmpty(&ks->sksConfig.endpointUrl) &&
+              !ks->sksConfig.requestActive && ks->refetchCallbackId == 0) {
         /* Publishers using a central SKS shall call GetSecurityKeys at a period
          * of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = ks->keyLifeTime / 2;
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
         retval = el->addTimer(el, nextGetSecuritykeysCallback, psm,
                               ks, msTimeToNextGetSecurityKeys, NULL,
-                              UA_TIMERPOLICY_ONCE, NULL);
+                              UA_TIMERPOLICY_ONCE, &ks->refetchCallbackId);
     }
 
     unlockServer(psm->drv.server);
@@ -486,6 +652,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */
 void
 UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+    if(ks->referenceCount == 0)
+        return;
     ks->referenceCount--;
     if(ks->referenceCount == 0)
         UA_PubSubKeyStorage_delete(psm, ks);
@@ -625,17 +793,11 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
         goto cleanup;
     }
 
-    UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, firstTokenId);
-    if(!current) {
-        UA_PubSubKeyStorage_clearKeyList(ks);
-        retval |= (UA_PubSubKeyStorage_push(ks, currentKey, firstTokenId)) ?
-            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_PubSubKeyStorage_setCurrentKey(ks, firstTokenId);
-    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, futureKeySize, futureKeys, firstTokenId);
-    ks->keyLifeTime = msKeyLifeTime;
+    retval = UA_PubSubKeyStorage_installKeyBatch(
+        ks, firstTokenId, currentKey, futureKeySize, futureKeys);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
+    ks->keyLifeTime = msKeyLifeTime;
 
     /* After a new batch of keys is fetched from SKS server, the key storage is
      * updated with new keys and new keylifetime. Also the remaining time for
@@ -745,6 +907,7 @@ setServerEventloopOnSksClient(UA_ClientConfig *cc, UA_EventLoop *externalEventlo
 
 UA_StatusCode
 getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_UInt32 startingTokenId = UA_REQ_CURRENT_TOKEN;
     UA_UInt32 requestKeyCount = UA_UINT32_MAX;
@@ -794,7 +957,17 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
     ks->sksConfig.clientContext = ctx;
     ks->sksConfig.requestActive = true;
     /* connect to sks server */
-    retval = UA_Client_connectAsync(client, ks->sksConfig.endpointUrl);
+    char *endpointUrl = (char*)UA_malloc(ks->sksConfig.endpointUrl.length + 1u);
+    if(!endpointUrl) {
+        client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
+        addDelayedSksClientCleanupCb(client, ctx);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    memcpy(endpointUrl, ks->sksConfig.endpointUrl.data,
+           ks->sksConfig.endpointUrl.length);
+    endpointUrl[ks->sksConfig.endpointUrl.length] = 0;
+    retval = UA_Client_connectAsync(client, endpointUrl);
+    UA_free(endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Failed to connect SKS server with error: %s ",
@@ -827,8 +1000,29 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
         unlockServer(server);
         return retval;
     }
+    if(ks->sksConfig.requestActive) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADWOULDBLOCK;
+    }
 
-    UA_ClientConfig_copy(clientConfig, &ks->sksConfig.clientConfig);
+    UA_ClientConfig newConfig;
+    memset(&newConfig, 0, sizeof(newConfig));
+    retval = UA_ClientConfig_copy(clientConfig, &newConfig);
+    if(retval != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return retval;
+    }
+    UA_String newEndpointUrl = UA_STRING_ALLOC(endpointUrl);
+    if(strlen(endpointUrl) > 0 && !newEndpointUrl.data) {
+        UA_ClientConfig_clear(&newConfig);
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_ClientConfig_clear(&ks->sksConfig.clientConfig);
+    UA_String_clear(&ks->sksConfig.endpointUrl);
+    ks->sksConfig.clientConfig = newConfig;
+    ks->sksConfig.endpointUrl = newEndpointUrl;
     /*Clear the content of original config, so that no body can access the original config */
     clientConfig->authSecurityPolicies = NULL;
     clientConfig->certificateVerification.context = NULL;
@@ -837,13 +1031,13 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     clientConfig->securityPolicies = NULL;
     UA_ClientConfig_clear(clientConfig);
 
-    ks->sksConfig.endpointUrl = endpointUrl;
     ks->sksConfig.userNotifyCallback = callback;
     ks->sksConfig.context = context;
     /* if keys are not previously fetched, then first call GetSecurityKeys*/
     if(ks->keyListSize == 0) {
         retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
-    }
+    } else
+        retval = UA_STATUSCODE_GOOD;
     unlockServer(server);
     return retval;
 }
