@@ -508,7 +508,7 @@ END_TEST
 
 START_TEST(UA_Networkmessage_json_uint32_and_datavalue_roundtrip) {
     static const UA_UInt32 sequenceNumbers[] = {
-        0u, 4711u, UA_UINT16_MAX
+        65535u, 65536u, 70000u, UA_UINT32_MAX
     };
 
     UA_FieldMetaData field = {0};
@@ -526,7 +526,7 @@ START_TEST(UA_Networkmessage_json_uint32_and_datavalue_roundtrip) {
         int len = snprintf(json, sizeof(json),
             "{\"MessageType\":\"ua-data\",\"Messages\":[{"
             "\"DataSetWriterId\":1,\"SequenceNumber\":%u,"
-            "\"Status\":12345,\"Payload\":{\"Field\":{"
+            "\"Status\":2147483648,\"Payload\":{\"Field\":{"
             "\"UaType\":7,\"Value\":27,"
             "\"Status\":{\"Code\":1073741824},"
             "\"SourceTimestamp\":\"1970-01-15T06:56:07Z\","
@@ -543,7 +543,7 @@ START_TEST(UA_Networkmessage_json_uint32_and_datavalue_roundtrip) {
         UA_DataSetMessage *dsm = &decoded.payload.dataSetMessages[0];
         ck_assert_uint_eq(dsm->header.dataSetMessageSequenceNr,
                           sequenceNumbers[i]);
-        ck_assert_uint_eq(dsm->header.status, 12345u);
+        ck_assert_uint_eq(dsm->header.status, 0x80000000u);
         ck_assert_int_eq(dsm->header.fieldEncoding, UA_FIELDENCODING_DATAVALUE);
         UA_DataValue *dv = &dsm->data.keyFrameFields[0];
         ck_assert(dv->hasStatus);
@@ -561,7 +561,7 @@ START_TEST(UA_Networkmessage_json_uint32_and_datavalue_roundtrip) {
         UA_DataSetMessage *roundtripDsm = &roundtrip.payload.dataSetMessages[0];
         ck_assert_uint_eq(roundtripDsm->header.dataSetMessageSequenceNr,
                           sequenceNumbers[i]);
-        ck_assert_uint_eq(roundtripDsm->header.status, 12345u);
+        ck_assert_uint_eq(roundtripDsm->header.status, 0x80000000u);
         UA_DataValue *roundtripDv = &roundtripDsm->data.keyFrameFields[0];
         ck_assert_uint_eq(roundtripDv->status, 0x40000000u);
         ck_assert_int_eq(roundtripDv->sourceTimestamp, dv->sourceTimestamp);
@@ -571,23 +571,6 @@ START_TEST(UA_Networkmessage_json_uint32_and_datavalue_roundtrip) {
         UA_ByteString_clear(&encoded);
         UA_NetworkMessage_clear(&decoded);
     }
-
-    /* Reject UInt32 JSON values that the UInt16 fields cannot represent. */
-    UA_ByteString oversizedSequence = UA_STRING(
-        "{\"MessageType\":\"ua-data\",\"Messages\":[{"
-        "\"DataSetWriterId\":1,\"SequenceNumber\":65536,"
-        "\"Payload\":{\"Field\":{\"UaType\":7,\"Value\":27}}}]}");
-    UA_NetworkMessage decoded;
-    UA_StatusCode res =
-        UA_NetworkMessage_decodeJson(&oversizedSequence, &decoded, &eo, NULL);
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
-
-    UA_ByteString oversizedStatus = UA_STRING(
-        "{\"MessageType\":\"ua-data\",\"Messages\":[{"
-        "\"DataSetWriterId\":1,\"Status\":65536,"
-        "\"Payload\":{\"Field\":{\"UaType\":7,\"Value\":27}}}]}");
-    res = UA_NetworkMessage_decodeJson(&oversizedStatus, &decoded, &eo, NULL);
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
 }
 END_TEST
 

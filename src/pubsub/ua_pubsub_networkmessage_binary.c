@@ -1195,7 +1195,10 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* DataSetMessageSequenceNr */
     if(src->dataSetMessageSequenceNrEnabled) {
-        rv = _ENCODE_BINARY(&src->dataSetMessageSequenceNr, UINT16);
+        if(src->dataSetMessageSequenceNr > UA_UINT16_MAX)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        UA_UInt16 sequenceNumber = (UA_UInt16)src->dataSetMessageSequenceNr;
+        rv = _ENCODE_BINARY(&sequenceNumber, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1213,7 +1216,8 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* Status */
     if(src->statusEnabled) {
-        rv = _ENCODE_BINARY(&src->status, UINT16);
+        UA_UInt16 status = (UA_UInt16)src->status;
+        rv = _ENCODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1316,8 +1320,10 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
      * } */
 
     if(dsmh->dataSetMessageSequenceNrEnabled) {
-        rv = _DECODE_BINARY(&dsmh->dataSetMessageSequenceNr, UINT16);
+        UA_UInt16 sequenceNumber = 0;
+        rv = _DECODE_BINARY(&sequenceNumber, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        dsmh->dataSetMessageSequenceNr = sequenceNumber;
     } else {
         dsmh->dataSetMessageSequenceNr = 0;
     }
@@ -1337,8 +1343,10 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
     }
 
     if(dsmh->statusEnabled) {
-        rv = _DECODE_BINARY(&dsmh->status, UINT16);
+        UA_UInt16 status = 0;
+        rv = _DECODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        dsmh->status = status;
     } else {
         dsmh->status = 0;
     }
