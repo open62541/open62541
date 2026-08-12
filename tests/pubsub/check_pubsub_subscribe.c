@@ -2803,6 +2803,27 @@ START_TEST(DataSetReaderIdentifierMismatchPaths) {
     r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
     ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
 
+    /* Byte zero is a valid PublisherId. The explicit filter flag separates it
+     * from the legacy zero-initialized wildcard configuration. */
+    dsr->config.publisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    dsr->config.publisherId.id.byte = 0;
+    dsr->config.publisherIdFilterEnabled = false;
+    msg.publisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    msg.publisherId.id.byte = 17;
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+    dsr->config.publisherIdFilterEnabled = true;
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
+    msg.publisherId.id.byte = 0;
+    r = UA_DataSetReader_checkIdentifier(psm, dsr, &msg);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    dsr->config.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    dsr->config.publisherId.id.uint16 = PUBLISHER_ID;
+    msg.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    msg.publisherId.id.uint16 = PUBLISHER_ID;
+
     /* WriterGroupId mismatch */
     msg.publisherId.id.uint16 = PUBLISHER_ID;
     msg.groupHeader.writerGroupId = (UA_UInt16)(WRITER_GROUP_ID + 1);
@@ -2870,6 +2891,114 @@ START_TEST(GetDataSetReaderStateInvalid) {
     ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+START_TEST(DataSetReaderOverrideValueHandling) {
+    static const UA_OverrideValueHandling modes[] = {
+        UA_OVERRIDEVALUEHANDLING_DISABLED,
+        UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE,
+        UA_OVERRIDEVALUEHANDLING_OVERRIDEVALUE
+    };
+
+    for(size_t modeIndex = 0; modeIndex < 3; modeIndex++) {
+        UA_ReaderGroupConfig rgc;
+        memset(&rgc, 0, sizeof(rgc));
+        rgc.name = UA_STRING("RG-Override");
+        UA_NodeId rgId;
+        UA_StatusCode res =
+            UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+        UA_FieldMetaData metadataField;
+        UA_FieldMetaData_init(&metadataField);
+        metadataField.builtInType = UA_NS0ID_UINT32;
+        metadataField.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+        metadataField.valueRank = UA_VALUERANK_SCALAR;
+
+        UA_DataSetReaderConfig rc;
+        memset(&rc, 0, sizeof(rc));
+        rc.name = UA_STRING("DSR-Override");
+        rc.dataSetMetaData.fields = &metadataField;
+        rc.dataSetMetaData.fieldsSize = 1;
+        UA_NodeId dsrId;
+        res = UA_Server_addDataSetReader(server, rgId, &rc, &dsrId);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+        UA_UInt32 override = 99;
+        UA_FieldTargetDataType target;
+        UA_FieldTargetDataType_init(&target);
+        target.attributeId = UA_ATTRIBUTEID_VALUE;
+        target.targetNodeId = nodeId32;
+        target.overrideValueHandling = modes[modeIndex];
+        UA_Variant_setScalar(&target.overrideValue, &override,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        res = UA_Server_DataSetReader_createTargetVariables(server, dsrId, 1,
+                                                             &target);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+        UA_PubSubManager *psm = getPSM(server);
+        UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+        ck_assert_ptr_ne(dsr, NULL);
+        dsr->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+        UA_DataValue field;
+        UA_DataValue_init(&field);
+        UA_UInt32 value = 10;
+        UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
+        field.hasValue = true;
+
+        UA_DataSetMessage message;
+        memset(&message, 0, sizeof(message));
+        message.header.dataSetMessageValid = true;
+        message.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+        message.fieldCount = 1;
+        message.data.keyFrameFields = &field;
+
+        lockServer(server);
+        UA_DataSetReader_process(psm, dsr, &message);
+        unlockServer(server);
+
+        /* Uncertain is usable and becomes the retained value. */
+        value = 30;
+        field.hasStatus = true;
+        field.status = UA_STATUSCODE_UNCERTAIN;
+        lockServer(server);
+        UA_DataSetReader_process(psm, dsr, &message);
+        unlockServer(server);
+
+        value = 20;
+        field.status = UA_STATUSCODE_BADINTERNALERROR;
+        lockServer(server);
+        UA_DataSetReader_process(psm, dsr, &message);
+        unlockServer(server);
+
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.nodeId = nodeId32;
+        rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_DataValue received =
+            UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        ck_assert(received.hasValue);
+        ck_assert_ptr_eq(received.value.type, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_UInt32 expected = (modes[modeIndex] ==
+                              UA_OVERRIDEVALUEHANDLING_DISABLED) ? 20 :
+                             (modes[modeIndex] ==
+                              UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) ? 30 : 99;
+        ck_assert_uint_eq(*(UA_UInt32*)received.value.data, expected);
+        if(modes[modeIndex] == UA_OVERRIDEVALUEHANDLING_DISABLED) {
+            ck_assert(received.hasStatus);
+            ck_assert_uint_eq(received.status, UA_STATUSCODE_BADINTERNALERROR);
+        } else if(modes[modeIndex] ==
+                  UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) {
+            ck_assert(received.hasStatus);
+            ck_assert_uint_eq(received.status, UA_STATUSCODE_UNCERTAIN);
+        } else {
+            ck_assert(received.hasStatus);
+            ck_assert_uint_eq(received.status, UA_STATUSCODE_GOOD);
+        }
+        UA_DataValue_clear(&received);
+        UA_Server_removeReaderGroup(server, rgId);
+    }
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -2901,8 +3030,6 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish_subscribe, setup, teardown);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTimeRaw);
-    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
-    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32StatusCode);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt64);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeBool);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribewithValidIdentifiers);
@@ -2910,6 +3037,21 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeWithoutPayloadHeader);
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishOnDemand);
+
+    /* Keep the scalar Int32 path independently selectable. It is a compact
+     * regression for DataValue/OverrideValueHandling write semantics and
+     * avoids hiding a stalled receive loop inside the large integration case. */
+    TCase *tc_pubsub_publish_subscribe_int32 =
+        tcase_create("Publisher publishing and Subscriber subscribing Int32");
+    tcase_add_checked_fixture(tc_pubsub_publish_subscribe_int32, setup, teardown);
+    tcase_add_test(tc_pubsub_publish_subscribe_int32,
+                   SinglePublishSubscribeInt32);
+
+    TCase *tc_pubsub_publish_subscribe_status =
+        tcase_create("Publisher publishing and Subscriber subscribing StatusCode");
+    tcase_add_checked_fixture(tc_pubsub_publish_subscribe_status, setup, teardown);
+    tcase_add_test(tc_pubsub_publish_subscribe_status,
+                   SinglePublishSubscribeInt32StatusCode);
 
     /*Test cases for the subscribed datasets */
     TCase *tc_pubsub_datasets = tcase_create("Subscriber using subscribed datasets");
@@ -2936,10 +3078,13 @@ int main(void) {
     tcase_add_test(tc_pubsub_reader_lifecycle,
                    JsonDataSetReaderMatchesAnyDataSetMessageWriterId);
     tcase_add_test(tc_pubsub_reader_lifecycle, GetDataSetReaderStateInvalid);
+    tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderOverrideValueHandling);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
+    suite_add_tcase(suite, tc_pubsub_publish_subscribe_int32);
+    suite_add_tcase(suite, tc_pubsub_publish_subscribe_status);
     suite_add_tcase(suite, tc_pubsub_datasets);
     suite_add_tcase(suite, tc_dataSetMessage_padding);
     suite_add_tcase(suite, tc_pubsub_reader_lifecycle);

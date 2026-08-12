@@ -19,8 +19,12 @@
 UA_StatusCode
 UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
                             UA_DataSetWriterConfig *dst){
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_DataSetWriterConfig));
+    dst->name = UA_STRING_NULL;
+    dst->dataSetName = UA_STRING_NULL;
+    UA_ExtensionObject_init(&dst->messageSettings);
+    dst->dataSetWriterProperties = UA_KEYVALUEMAP_NULL;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
@@ -525,7 +529,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     /* Spec 6.2.4.3: "If no changes exist, the delta frame DataSetMessage shall
      * not be sent." Skip the delta frame entirely if no values changed. */
     if(dsm->fieldCount == 0)
-        return UA_STATUSCODE_GOOD;
+        return UA_STATUSCODE_GOODNODATA;
 
     /* Allocate DeltaFrameFields.
      * Spec Table 164: FieldCount for a delta frame = the count of delta

@@ -39,11 +39,26 @@ UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst) {
     memcpy(dst, src, sizeof(UA_ReaderGroupConfig));
+    dst->name = UA_STRING_NULL;
+    dst->groupProperties = UA_KEYVALUEMAP_NULL;
+    dst->securityGroupId = UA_STRING_NULL;
+    UA_ExtensionObject_init(&dst->transportSettings);
+    UA_ExtensionObject_init(&dst->messageSettings);
+    dst->securityKeyServices = NULL;
+    dst->securityKeyServicesSize = 0;
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
     res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
     res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
+    res |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
+    res |= UA_Array_copy(src->securityKeyServices,
+                         src->securityKeyServicesSize,
+                         (void**)&dst->securityKeyServices,
+                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->securityKeyServicesSize = src->securityKeyServicesSize;
     if(res != UA_STATUSCODE_GOOD)
         UA_ReaderGroupConfig_clear(dst);
     return res;
@@ -55,6 +70,11 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_KeyValueMap_clear(&readerGroupConfig->groupProperties);
     UA_String_clear(&readerGroupConfig->securityGroupId);
     UA_ExtensionObject_clear(&readerGroupConfig->transportSettings);
+    UA_ExtensionObject_clear(&readerGroupConfig->messageSettings);
+    UA_Array_delete(readerGroupConfig->securityKeyServices,
+                    readerGroupConfig->securityKeyServicesSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    memset(readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
 }
 
 
@@ -484,7 +504,8 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
         /* Process only the payloads where the WriterId from the header is expected */
         for(size_t i = 0; i < nm->messageCount; i++) {
-            if(reader->config.dataSetWriterId == nm->dataSetWriterIds[i])
+            if(reader->config.dataSetWriterId == 0 ||
+               reader->config.dataSetWriterId == nm->dataSetWriterIds[i])
                 UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
         }
     }
@@ -497,6 +518,10 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
                                     UA_ReaderGroup *rg,
                                     UA_ByteString buffer,
                                     UA_NetworkMessage *nm) {
+    if(rg->config.maxNetworkMessageSize > 0 &&
+       buffer.length > rg->config.maxNetworkMessageSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Set up the decoding context */
     PubSubDecodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubDecodeCtx));
@@ -578,6 +603,10 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
                                         UA_ReaderGroup *rg,
                                         UA_ByteString buffer,
                                         UA_NetworkMessage *nm) {
+    if(rg->config.maxNetworkMessageSize > 0 &&
+       buffer.length > rg->config.maxNetworkMessageSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Set up the decoding options */
     UA_DecodeJsonOptions jo;
     memset(&jo, 0, sizeof(jo));
