@@ -1626,7 +1626,7 @@ START_TEST(UA_PubSub_EnDecode_SecurityHeaderAndFooter) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.securityEnabled = true;
-    m.securityHeader.networkMessageSigned = false;
+    m.securityHeader.networkMessageSigned = true;
     m.securityHeader.networkMessageEncrypted = false;
     m.securityHeader.securityFooterEnabled = true;
     m.securityHeader.forceKeyReset = true;
@@ -1664,6 +1664,59 @@ START_TEST(UA_PubSub_EnDecode_SecurityHeaderAndFooter) {
     UA_NetworkMessage_clear(&m2);
     UA_ByteString_clear(&buffer);
     clearKeyFrame(&dmkf);
+} END_TEST
+
+static void
+assertSecurityHeaderRejected(UA_Byte securityFlags, UA_Byte nonceLength) {
+    UA_Byte raw[10 + UA_NETWORKMESSAGE_MAX_NONCE_LENGTH] = {
+        0x81, /* version=1, ExtendedFlags1 */
+        0x10, /* Security enabled */
+        securityFlags,
+        0x01, 0x00, 0x00, 0x00, /* SecurityTokenId */
+        nonceLength
+    };
+    /* Supply a footer-size field as well. Cases without the footer flag leave
+     * these trailing bytes untouched by header decoding. */
+    raw[8 + nonceLength] = 1;
+    raw[9 + nonceLength] = 0;
+    UA_ByteString buffer = {10 + nonceLength, raw};
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    size_t payloadOffset = 0;
+    UA_StatusCode res = UA_NetworkMessage_decodeBinaryHeaders(
+        &buffer, &message, NULL, NULL, &payloadOffset);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    UA_NetworkMessage_clear(&message);
+}
+
+START_TEST(UA_PubSub_Decode_RejectsInvalidSecurityFlags) {
+    assertSecurityHeaderRejected(0x10, 0); /* reserved flag */
+    assertSecurityHeaderRejected(0x02, 1); /* encrypt without sign */
+    assertSecurityHeaderRejected(0x03, 0); /* encrypt without nonce */
+    assertSecurityHeaderRejected(0x04, 0); /* unauthenticated footer */
+    assertSecurityHeaderRejected(0x08, 0); /* unauthenticated key reset */
+} END_TEST
+
+START_TEST(UA_PubSub_Encode_RejectsInconsistentSecurityFooter) {
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    message.version = 1;
+    message.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    message.securityEnabled = true;
+    message.securityHeader.networkMessageSigned = true;
+    message.securityHeader.securityFooterEnabled = true;
+    message.securityHeader.securityFooterSize = 4;
+
+    UA_DataSetMessage dataSetMessage;
+    fillKeyFrame(&dataSetMessage, 1);
+    message.payload.dataSetMessages = &dataSetMessage;
+    message.messageCount = 1;
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_NetworkMessage_encodeBinary(&message, &buffer, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+    UA_ByteString_clear(&buffer);
+    clearKeyFrame(&dataSetMessage);
 } END_TEST
 
 START_TEST(UA_PubSub_EnDecode_DataSetClassIdRoundtrip) {
@@ -1757,6 +1810,7 @@ int main(void) {
     tcase_add_test(tc_decode_err,
                    UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError);
+    tcase_add_test(tc_decode_err, UA_PubSub_Decode_RejectsInvalidSecurityFlags);
 
     TCase *tc_nm_optional = tcase_create("NetworkMessage optional headers");
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_PicosecondsRoundtrip);
@@ -1764,6 +1818,7 @@ int main(void) {
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_SecurityHeaderAndFooter);
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DataSetClassIdRoundtrip);
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DiscoveryRequestType);
+    tcase_add_test(tc_nm_optional, UA_PubSub_Encode_RejectsInconsistentSecurityFooter);
 
 
     Suite *s = suite_create("PubSub NetworkMessage");
