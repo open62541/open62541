@@ -675,11 +675,6 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Received a network message");
 
-    /* Received a (first) message for the Reader.
-     * Transition from PreOperational to Operational. */
-    if(dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
-
     if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
@@ -693,16 +688,34 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         return;
     }
 
-    /* TODO: Check ConfigurationVersion */
-    /* if(msg->header.configVersionMajorVersionEnabled) {
-     *     if(msg->header.configVersionMajorVersion !=
-     *            dsr->config.dataSetMetaData.configurationVersion.majorVersion) {
-     *         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_SERVER,
-     *                        "DataSetMessage is discarded: ConfigurationVersion "
-     *                        "MajorVersion does not match");
-     *         return;
-     *     }
-     * } */
+    /* A version carried by the message has to match the reader metadata.
+     * Omitted version fields are compatible with a statically configured
+     * reader. A mismatch discards only this message: the reader remains ready
+     * for a later message matching its current metadata. */
+    const UA_ConfigurationVersionDataType *expected =
+        &dsr->config.dataSetMetaData.configurationVersion;
+    if(expected->majorVersion != 0 &&
+       msg->header.configVersionMajorVersionEnabled &&
+       msg->header.configVersionMajorVersion != expected->majorVersion) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                              "DataSetMessage discarded: ConfigurationVersion "
+                              "MajorVersion does not match");
+        return;
+    }
+    if(expected->minorVersion != 0 &&
+       msg->header.configVersionMinorVersionEnabled &&
+       msg->header.configVersionMinorVersion != expected->minorVersion) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                              "DataSetMessage discarded: ConfigurationVersion "
+                              "MinorVersion does not match");
+        return;
+    }
+
+    /* A valid and compatible first message promotes the reader from
+     * PreOperational to Operational. Rejected messages must not do so. */
+    if(dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
+                                        UA_STATUSCODE_GOOD);
 
     /* Reset the message receive timeout before discarding non-keyframe
      * messages. Spec 6.2.9.6: "The DataSetMessages that reset the period

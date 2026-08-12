@@ -3064,6 +3064,127 @@ START_TEST(DataSetReaderOverrideValueHandling) {
     }
 } END_TEST
 
+START_TEST(DataSetReaderConfigurationVersionMatching) {
+    UA_UInt32 initial = 5;
+    UA_Variant initialValue;
+    UA_Variant_setScalar(&initialValue, &initial, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, nodeId32, initialValue),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("RG-Version");
+    UA_NodeId rgId;
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_FieldMetaData metadataField;
+    UA_FieldMetaData_init(&metadataField);
+    metadataField.builtInType = UA_NS0ID_UINT32;
+    metadataField.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    metadataField.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_DataSetReaderConfig rc;
+    memset(&rc, 0, sizeof(rc));
+    rc.name = UA_STRING("DSR-Version");
+    rc.dataSetMetaData.configurationVersion.majorVersion = 7;
+    rc.dataSetMetaData.configurationVersion.minorVersion = 11;
+    rc.dataSetMetaData.fields = &metadataField;
+    rc.dataSetMetaData.fieldsSize = 1;
+    UA_NodeId dsrId;
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, rgId, &rc, &dsrId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_FieldTargetDataType target;
+    UA_FieldTargetDataType_init(&target);
+    target.attributeId = UA_ATTRIBUTEID_VALUE;
+    target.targetNodeId = nodeId32;
+    ck_assert_uint_eq(UA_Server_DataSetReader_createTargetVariables(server, dsrId,
+                                                                    1, &target),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    ck_assert_ptr_ne(dsr, NULL);
+    dsr->linkedReaderGroup->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    dsr->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
+
+    UA_UInt32 value = 41;
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
+    field.hasValue = true;
+
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    message.header.dataSetMessageValid = true;
+    message.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    message.header.configVersionMajorVersionEnabled = true;
+    message.header.configVersionMajorVersion = 8;
+    message.fieldCount = 1;
+    message.data.keyFrameFields = &field;
+
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(dsr->head.state, UA_PUBSUBSTATE_PREOPERATIONAL);
+    UA_Variant out;
+    UA_Variant_init(&out);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, initial);
+    UA_Variant_clear(&out);
+
+    /* An omitted minor version is compatible when the major version matches. */
+    value = 42;
+    message.header.configVersionMajorVersion = 7;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(dsr->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, value);
+    UA_Variant_clear(&out);
+
+    value = 43;
+    message.header.configVersionMinorVersionEnabled = true;
+    message.header.configVersionMinorVersion = 12;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, 42);
+    UA_Variant_clear(&out);
+
+    value = 44;
+    message.header.configVersionMinorVersion = 11;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, value);
+    UA_Variant_clear(&out);
+
+    /* A zero reader version explicitly leaves that component unspecified. */
+    dsr->config.dataSetMetaData.configurationVersion.majorVersion = 0;
+    dsr->config.dataSetMetaData.configurationVersion.minorVersion = 0;
+    value = 45;
+    message.header.configVersionMajorVersion = 99;
+    message.header.configVersionMinorVersion = 100;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(UA_Server_readValue(server, nodeId32, &out),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)out.data, value);
+    UA_Variant_clear(&out);
+
+    UA_Server_removeReaderGroup(server, rgId);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -3146,6 +3267,8 @@ int main(void) {
                    JsonDataSetReaderMatchesAnyDataSetMessageWriterId);
     tcase_add_test(tc_pubsub_reader_lifecycle, GetDataSetReaderStateInvalid);
     tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderOverrideValueHandling);
+    tcase_add_test(tc_pubsub_reader_lifecycle,
+                   DataSetReaderConfigurationVersionMatching);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
