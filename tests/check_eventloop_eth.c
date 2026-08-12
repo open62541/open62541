@@ -190,6 +190,22 @@ START_TEST(connectETH) {
     }
     ck_assert(received);
 
+    UA_ByteString oversized = UA_BYTESTRING_NULL;
+    retval = cm->allocNetworkBuffer(cm, clientId, &oversized, 1523);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADENCODINGERROR);
+    ck_assert_ptr_eq(oversized.data, NULL);
+
+    retval = cm->allocNetworkBuffer(cm, clientId, &oversized, (size_t)-1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADENCODINGERROR);
+    ck_assert_ptr_eq(oversized.data, NULL);
+
+    /* Keep an allocated application buffer while the connection is removed.
+     * sendWithConnection still owns and must free it on the rejection path. */
+    UA_ByteString stale;
+    retval = cm->allocNetworkBuffer(cm, clientId, &stale, 16);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(stale.data, NULL);
+
     /* Close the connection */
     retval = cm->closeConnection(cm, clientId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -199,6 +215,10 @@ START_TEST(connectETH) {
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert_uint_eq(testContext.connCount, listenSockets);
+
+    retval = cm->sendWithConnection(cm, clientId, NULL, &stale);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONREJECTED);
+    ck_assert_ptr_eq(stale.data, NULL);
 
     /* Stop the EventLoop */
     int max_stop_iteration_count = 10;
