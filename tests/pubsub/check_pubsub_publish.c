@@ -17,6 +17,7 @@
 #include "ua_pubsub_internal.h"
 
 #include <check.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -815,7 +816,8 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         psm = getPSM(server);
         dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
         ck_assert_ptr_nonnull(dsw);
-        retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &deltaFrame);
+        retVal = UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm, &deltaFrame,
+                                                                  dsw);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deltaFrame.header.dataSetMessageType,
                           UA_DATASETMESSAGE_DATADELTAFRAME);
@@ -892,6 +894,253 @@ START_TEST(DataSetWriterResizesSamplesAfterFieldAddition) {
     ck_assert_uint_eq(message.fieldCount, 2);
     UA_DataSetMessage_clear(&message);
 } END_TEST
+
+static size_t deltaSizeReadCount;
+
+static void
+countDeltaSizeRead(UA_Server *srv, const UA_NodeId *sessionId,
+                   void *sessionContext, const UA_NodeId *nodeId,
+                   void *nodeContext, const UA_NumericRange *range,
+                   const UA_DataValue *value) {
+    deltaSizeReadCount++;
+}
+
+START_TEST(KeepAliveAndDeltaSizeSelection) {
+    setupPublishedDataSetTestEnvironment();
+    UA_Server_getConfig(server)->pubSubConfig.enableDeltaFrames = true;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 values[2] = {10, 20};
+    UA_NodeId nodes[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&attr.value, &values[i], &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_addVariableNode(
+            server, UA_NODEID_NULL,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+            UA_QUALIFIEDNAME(1, "DeltaSizeField"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+            attr, NULL, &nodes[i]), UA_STATUSCODE_GOOD);
+
+        UA_DataSetFieldConfig field;
+        memset(&field, 0, sizeof(field));
+        field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        field.field.variable.fieldNameAlias = UA_STRING("field");
+        field.field.variable.publishParameters.publishedVariable = nodes[i];
+        field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                    &field, NULL).result,
+                          UA_STATUSCODE_GOOD);
+    }
+    setupDataSetFieldTestEnvironment();
+    UA_ValueSourceNotifications notifications = {countDeltaSizeRead, NULL};
+    for(size_t i = 0; i < 2; i++)
+        ck_assert_uint_eq(UA_Server_setVariableNode_internalValueSource(
+            server, nodes[i], NULL, &notifications), UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    UA_WriterGroup *wg = dsw->linkedWriterGroup;
+    dsw->config.keyFrameCount = 10;
+    dsw->config.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
+    UA_UadpDataSetWriterMessageDataType settings;
+    UA_UadpDataSetWriterMessageDataType_init(&settings);
+    settings.dataSetMessageContentMask =
+        UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER |
+        UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP |
+        UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION;
+    UA_ExtensionObject_clear(&dsw->config.messageSettings);
+    ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&dsw->config.messageSettings,
+        &settings, &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]),
+        UA_STATUSCODE_GOOD);
+    wg->config.keepAliveTime = 100;
+
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATAKEYFRAME);
+    UA_DataSetMessage_clear(&message);
+
+    /* No change before KeepAliveTime produces no message. */
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOODNODATA);
+    UA_EventLoop *el = server->config.eventLoop;
+    lockServer(server);
+    dsw->lastDataSetMessageTime = el->dateTime_nowMonotonic(el) -
+        (UA_DateTime)(wg->config.keepAliveTime * UA_DATETIME_MSEC) - 1;
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_KEEPALIVE);
+    ck_assert_uint_eq(message.fieldCount, 0);
+    UA_DataSetMessage_clear(&message);
+
+    /* Changing all fields makes the indexed delta larger than the key frame;
+     * the writer selects the key frame. */
+    values[0] = 11;
+    values[1] = 21;
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant updated;
+        UA_Variant_setScalar(&updated, &values[i], &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_writeValue(server, nodes[i], updated),
+                          UA_STATUSCODE_GOOD);
+    }
+    lockServer(server);
+    memset(&message, 0, sizeof(message));
+    deltaSizeReadCount = 0;
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATAKEYFRAME);
+    ck_assert_uint_eq(deltaSizeReadCount, 2);
+    ck_assert_uint_eq(message.header.fieldEncoding, UA_FIELDENCODING_DATAVALUE);
+    ck_assert(message.header.dataSetMessageSequenceNrEnabled);
+    ck_assert(message.header.timestampEnabled);
+    ck_assert(message.header.configVersionMajorVersionEnabled);
+    UA_DataSetMessage_clear(&message);
+} END_TEST
+
+static UA_StatusCode
+readBadPublishedValue(UA_Server *serverArg, const UA_NodeId *sessionId,
+                      void *sessionContext, const UA_NodeId *nodeId,
+                      void *nodeContext, UA_Boolean includeSourceTimestamp,
+                      const UA_NumericRange *range, UA_DataValue *value) {
+    (void)serverArg;
+    (void)sessionId;
+    (void)sessionContext;
+    (void)nodeId;
+    (void)nodeContext;
+    (void)includeSourceTimestamp;
+    (void)range;
+    value->hasStatus = true;
+    value->status = UA_STATUSCODE_BADNODATA;
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(PublishedVariableDeadbandAndSubstituteValue) {
+    setupPublishedDataSetTestEnvironment();
+    UA_Server_getConfig(server)->pubSubConfig.enableDeltaFrames = true;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    UA_Double source = 100;
+    UA_Variant_setScalar(&attr.value, &source, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_NodeId sourceId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "DeadbandSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &sourceId), UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("deadband");
+    field.field.variable.publishParameters.publishedVariable = sourceId;
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    field.field.variable.publishParameters.deadbandType = UA_DEADBANDTYPE_ABSOLUTE;
+    field.field.variable.publishParameters.deadbandValue = 5;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_Double badInitial = 0;
+    UA_Variant_setScalar(&attr.value, &badInitial, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_NodeId badSourceId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SubstituteSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &badSourceId), UA_STATUSCODE_GOOD);
+    UA_CallbackValueSource badSource = {readBadPublishedValue, NULL};
+    ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(
+        server, badSourceId, badSource), UA_STATUSCODE_GOOD);
+
+    UA_Double substitute = 777;
+    field.field.variable.fieldNameAlias = UA_STRING("substitute");
+    field.field.variable.publishParameters.publishedVariable = badSourceId;
+    field.field.variable.publishParameters.deadbandType = UA_DEADBANDTYPE_NONE;
+    UA_Variant_setScalar(&field.field.variable.publishParameters.substituteValue,
+                         &substitute, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+    setupDataSetFieldTestEnvironment();
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    dsw->config.keyFrameCount = 10;
+    dsw->config.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.fieldCount, 2);
+    ck_assert_uint_eq(message.data.keyFrameFields[1].status,
+                      UA_STATUSCODE_UNCERTAINSUBSTITUTEVALUE);
+    ck_assert_double_eq(*(UA_Double*)message.data.keyFrameFields[1].value.data,
+                     substitute);
+    UA_DataSetMessage_clear(&message);
+
+    source = 104;
+    UA_Variant updated;
+    UA_Variant_setScalar(&updated, &source, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, sourceId, updated),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOODNODATA);
+
+    source = 106;
+    UA_Variant_setScalar(&updated, &source, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, sourceId, updated),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* Only the changed field is needed, including its DataValue encoding. */
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATADELTAFRAME);
+    ck_assert_uint_eq(message.fieldCount, 1);
+    ck_assert_double_eq(*(UA_Double*)message.data.deltaFrameFields[0].value.value.data,
+                     source);
+    UA_DataSetMessage_clear(&message);
+
+    /* A transition into or out of NaN must not disappear in the deadband. */
+    UA_Double transitions[2] = {NAN, 107.0};
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&updated, &transitions[i], &UA_TYPES[UA_TYPES_DOUBLE]);
+        ck_assert_uint_eq(UA_Server_writeValue(server, sourceId, updated),
+                          UA_STATUSCODE_GOOD);
+        lockServer(server);
+        res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+        unlockServer(server);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        UA_DataSetMessage_clear(&message);
+    }
+} END_TEST
+
 
 /* Test DataSetOrdering reconfiguration (OPC UA Part 14, section 6.3.1.1.3) 
  * 
@@ -1479,6 +1728,9 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish, DeltaFrameFieldCountMatchesChangedFields);
     tcase_add_test(tc_pubsub_publish,
                    DataSetWriterResizesSamplesAfterFieldAddition);
+    tcase_add_test(tc_pubsub_publish, KeepAliveAndDeltaSizeSelection);
+    tcase_add_test(tc_pubsub_publish,
+                   PublishedVariableDeadbandAndSubstituteValue);
 
     TCase *tc_pubsub_datasetordering = tcase_create("PubSub DataSetOrdering (OPC UA Part 14)");
     tcase_add_checked_fixture(tc_pubsub_datasetordering, setup, teardown);
