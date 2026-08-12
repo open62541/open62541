@@ -1458,8 +1458,23 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
     /* Store the beginning */
     UA_Byte *begin = ctx->ctx.pos;
     
+    /* Compute the Valid bit without mutating the caller's message. */
+    UA_DataSetMessageHeader header = src->header;
+    if(emd && emd->configuredSize > 0) {
+        UA_DataSetMessage_EncodingMetaData unconfigured = *emd;
+        unconfigured.configuredSize = 0;
+        /* Size calculation must not append a second set of entries to an
+         * offset table that belongs to the actual encoding operation. */
+        PubSubEncodeCtx sizeCtx = *ctx;
+        sizeCtx.ot = NULL;
+        size_t actualSize = UA_DataSetMessage_calcSizeBinary(
+            &sizeCtx, &unconfigured, src, 0);
+        if(actualSize > emd->configuredSize)
+            header.dataSetMessageValid = false;
+    }
+
     /* Encode Header */
-    UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(ctx, &src->header);
+    UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(ctx, &header);
     UA_CHECK_STATUS(rv, return rv);
 
     /* Encode Payload */
@@ -1476,14 +1491,13 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    /* Zero-Padding according to a ConfiguredSize.
-     * If the actual payload exceeds the configuredSize, mark the message
-     * invalid (spec: the valid bit shall be false). This was previously done
-     * as a side effect in calcSizeBinary which mutated the const input. */
-    if(emd && emd->configuredSize > 0 && src->header.dataSetMessageValid) {
-        UA_Byte *configuredEnd = begin + emd->configuredSize;
-        if(configuredEnd > ctx->ctx.end)
+    /* Zero-padding according to a ConfiguredSize. Oversized payloads are
+     * marked invalid without mutating the caller's message. */
+    if(emd && emd->configuredSize > 0 && header.dataSetMessageValid) {
+        size_t remaining = (size_t)(ctx->ctx.end - begin);
+        if(emd->configuredSize > remaining)
             return UA_STATUSCODE_BADENCODINGERROR;
+        UA_Byte *configuredEnd = begin + emd->configuredSize;
         if(configuredEnd > ctx->ctx.pos) {
             size_t padding = (size_t)(configuredEnd - ctx->ctx.pos);
             memset(ctx->ctx.pos, 0, padding);
@@ -1701,17 +1715,11 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    /* If the message could not be decoded (e.g. no metadata for the raw
-     * encoding), but technically the message is not faulty, jump to the next
-     * dsm. Validate the declared size against the remaining buffer so an
-     * attacker-controlled dsmSize cannot jump pos past the end (which would
-     * corrupt the security footer/signature decode) or before the current
-     * position (which would re-read header bytes as the next dsm). */
+    /* An invalid message with a known size is skipped to the next DSM. */
     if(!dsm->header.dataSetMessageValid) {
         if(dsmSize == 0) /* Only possible if the size is known */
             return UA_STATUSCODE_BADDECODINGERROR;
-        /* Validate lengths without constructing an out-of-bounds pointer. The
-         * declared size must cover all bytes already consumed. */
+        /* The declared span contains the consumed header and remaining data. */
         size_t remaining = (size_t)(ctx->ctx.end - begin);
         size_t consumed = (size_t)(ctx->ctx.pos - begin);
         if(dsmSize > remaining || dsmSize < consumed)
@@ -1793,7 +1801,7 @@ UA_DataSetMessage_raw_calcSizeBinary(const UA_Variant *v, const UA_FieldMetaData
 size_t
 UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  const UA_DataSetMessage_EncodingMetaData *emd,
-                                 UA_DataSetMessage *p,
+                                 const UA_DataSetMessage *p,
                                  size_t size) {
     UA_PubSubOffsetTable *ot = ctx->ot;
 
@@ -1917,17 +1925,11 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
         return 0;
     }
 
-    /* Minimum message size configured.
-     * If the message is larger than the configuredSize, it shall be set to not valid.
-     * NOTE: This mutates p->header.dataSetMessageValid, which is a side effect
-     * on a const-input when called from UA_NetworkMessage_calcSizeBinary. The
-     * header encoder (line 1118) reads this flag, so it must be set before
-     * encoding. A proper fix would refactor the encode pipeline to compute
-     * validity separately, but that is a larger change. */
+    /* A configured size pads smaller messages. Oversized messages retain their
+     * actual size and are marked invalid by the encoder without mutating p. */
     if(emd && emd->configuredSize > 0) {
-        if(emd->configuredSize < size)
-            p->header.dataSetMessageValid = false;
-        size = emd->configuredSize;
+        if(emd->configuredSize > size)
+            size = emd->configuredSize;
     }
     
     return size;

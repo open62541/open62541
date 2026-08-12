@@ -55,9 +55,10 @@ UA_DataSetMessage_encodeJson_internal(CtxJson *ctx,
 
     /* DataSetMessageSequenceNr */
     if(src->header.dataSetMessageSequenceNrEnabled) {
+        UA_UInt32 sequenceNumber = src->header.dataSetMessageSequenceNr;
         rv |= writeJsonObjElm(ctx, UA_DECODEKEY_SEQUENCENUMBER,
-                              &src->header.dataSetMessageSequenceNr,
-                              &UA_TYPES[UA_TYPES_UINT16]);
+                              &sequenceNumber,
+                              &UA_TYPES[UA_TYPES_UINT32]);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
     }
@@ -86,8 +87,9 @@ UA_DataSetMessage_encodeJson_internal(CtxJson *ctx,
 
     /* Status */
     if(src->header.statusEnabled) {
+        UA_StatusCode statusCode = src->header.status;
         rv |= writeJsonObjElm(ctx, UA_DECODEKEY_DSM_STATUS,
-                              &src->header.status, &UA_TYPES[UA_TYPES_UINT16]);
+                              &statusCode, &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
     }
@@ -179,6 +181,14 @@ UA_NetworkMessage_encodeJsonInternal(PubSubEncodeJsonCtx *ctx,
                 UA_String s;
                 s.data = bs.data;
                 s.length = bs.length;
+                /* The reversible JSON encoder already quotes UInt64 values.
+                 * PublisherId itself is then written as a JSON string, so
+                 * remove that one pair of quotes to avoid double encoding. */
+                if(s.length >= 2 && s.data[0] == '"' &&
+                   s.data[s.length - 1] == '"') {
+                    s.data++;
+                    s.length -= 2;
+                }
                 rv |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](&ctx->ctx, &s, NULL);
             }
         }
@@ -301,6 +311,17 @@ MetaDataVersion_decodeJsonInternal(ParseCtx *ctx, void* cvd, const UA_DataType *
         (ctx, cvd, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
 }
 
+/* Accept the reversible StatusCode object and the raw UInt32 form. */
+static status
+StatusCode_decodeJsonInternal(ParseCtx *ctx, void *statusCode,
+                              const UA_DataType *_) {
+    if(currentTokenType(ctx) == CJ5_TOKEN_NUMBER)
+        return decodeJsonJumpTable[UA_DATATYPEKIND_UINT32]
+            (ctx, statusCode, &UA_TYPES[UA_TYPES_UINT32]);
+    return decodeJsonJumpTable[UA_DATATYPEKIND_STATUSCODE]
+        (ctx, statusCode, &UA_TYPES[UA_TYPES_STATUSCODE]);
+}
+
 static size_t
 decodingFieldIndex(const UA_DataSetMessage_EncodingMetaData *emd,
                    UA_String name, size_t origIndex) {
@@ -378,37 +399,46 @@ static status
 DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMessage *nm,
                                           size_t dsmIndex) {
     UA_DataSetMessage *dsm = &nm->payload.dataSetMessages[dsmIndex];
-    UA_ConfigurationVersionDataType cvd;
+    UA_ConfigurationVersionDataType cvd = {0};
+    UA_String messageType = UA_STRING_NULL;
     struct PayloadData pd;
     pd.nm = nm;
     pd.dsmIndex = dsmIndex;
 
-    /* Spec Table 185 defines SequenceNumber as UInt32 and Status as StatusCode
-     * (UInt32) for JSON encoding. The struct fields are UInt16 (for UADP binary
-     * compatibility), so decode into temporaries and truncate. Values > 65535
-     * are truncated (the top 16 bits are lost) rather than rejected. */
-    UA_UInt32 seqNr32 = 0;
-    UA_UInt32 status32 = 0;
+    /* JSON uses UInt32 SequenceNumber and StatusCode. Keep the public 1.5
+     * fields at UInt16 and reject values that cannot be represented. */
+    UA_UInt32 sequenceNumber = 0;
+    UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
     DecodeEntry entries[7] = {
         {UA_DECODEKEY_DATASETWRITERID, &nm->dataSetWriterIds[dsmIndex], NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
-        {UA_DECODEKEY_SEQUENCENUMBER, &seqNr32, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
+        {UA_DECODEKEY_SEQUENCENUMBER, &sequenceNumber, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
         {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
         {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
-        {UA_DECODEKEY_DSM_STATUS, &status32, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
-        {UA_DECODEKEY_MESSAGETYPE, NULL, NULL, false, NULL},
-        {UA_DECODEKEY_PAYLOAD, &pd, (decodeJsonSignature)DataSetPayload_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_DSM_STATUS, &statusCode,
+         &StatusCode_decodeJsonInternal, false, NULL},
+        {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false,
+         &UA_TYPES[UA_TYPES_STRING]},
+        {UA_DECODEKEY_PAYLOAD, &pd,
+         (decodeJsonSignature)DataSetPayload_decodeJsonInternal, false, NULL}
     };
-    status ret = decodeFields(&ctx->ctx, entries, 7);
+    status ret = decodeFieldsAllowUnknown(&ctx->ctx, entries, 7);
+
+    if(ret == UA_STATUSCODE_GOOD && entries[5].found) {
+        UA_String keyFrame = UA_STRING("ua-keyframe");
+        if(!UA_String_equal(&messageType, &keyFrame))
+            ret = UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+    UA_String_clear(&messageType);
 
     /* Error or no DatasetWriterId found or no payload found */
     if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[6].found)
         return UA_STATUSCODE_BADDECODINGERROR;
+    if(sequenceNumber > UA_UINT16_MAX || statusCode > UA_UINT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Truncate UInt32 → UInt16 for the struct fields */
-    dsm->header.dataSetMessageSequenceNr = (UA_UInt16)seqNr32;
-    dsm->header.status = (UA_UInt16)status32;
+    dsm->header.dataSetMessageSequenceNr = (UA_UInt16)sequenceNumber;
+    dsm->header.status = (UA_UInt16)statusCode;
 
-    /* TODO: Check FieldEncoding1 and FieldEncoding2 to determine the field encoding */
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
     dsm->header.dataSetMessageSequenceNrEnabled = entries[1].found;
     dsm->header.configVersionMajorVersion = cvd.majorVersion;
@@ -421,11 +451,6 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dsm->header.picoSecondsIncluded = false;
     dsm->header.dataSetMessageValid = true;
-    /* JSON fields are decoded as DataValue objects, but the field encoding
-     * flag is kept as VARIANT for compatibility with the existing encode path
-     * (which uses the VARIANT branch for JSON keyframes). This is consistent
-     * with the keyFrame decoder which also sets VARIANT. */
-    dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -469,6 +494,19 @@ decodePublisherIdJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
         p->idType = UA_PUBLISHERIDTYPE_UINT32;
         return decodeJsonJumpTable[UA_DATATYPEKIND_UINT32](ctx, &p->id.uint32, NULL);
     } else if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
+        /* Part 14 encodes both numeric and string PublisherIds as JSON
+         * strings. Recover numeric ids when the complete token is a UInt64;
+         * non-numeric strings remain string PublisherIds. */
+        size_t index = ctx->index;
+        UA_UInt64 numeric = 0;
+        status res = decodeJsonJumpTable[UA_DATATYPEKIND_UINT64]
+            (ctx, &numeric, &UA_TYPES[UA_TYPES_UINT64]);
+        if(res == UA_STATUSCODE_GOOD) {
+            p->idType = UA_PUBLISHERIDTYPE_UINT64;
+            p->id.uint64 = numeric;
+            return UA_STATUSCODE_GOOD;
+        }
+        ctx->index = index;
         p->idType = UA_PUBLISHERIDTYPE_STRING;
         return decodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &p->id.string, NULL);
     }
@@ -543,12 +581,14 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
         {UA_DECODEKEY_MESSAGES, dst, (decodeJsonSignature)DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
-    status ret = decodeFields(&ctx->ctx, entries, 5);
+    status ret = decodeFieldsAllowUnknown(&ctx->ctx, entries, 5);
+    /* Ensure cleanup owns an allocated string PublisherId even if a later
+     * top-level member fails to decode. */
+    dst->publisherIdEnabled = entries[2].found;
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
     dst->messageIdEnabled = entries[0].found;
-    dst->publisherIdEnabled = entries[2].found;
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = true;
 
