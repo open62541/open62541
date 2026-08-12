@@ -197,11 +197,9 @@ UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
     if(!ks || (keysSize > 0 && !keys))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* nonceLength is the complete SKS key-material length for the PubSub
-     * policy. Do not add the component lengths a second time. */
-    if(!ks->policy || ks->policy->nonceLength == 0)
+    if(!ks->policy || ks->policy->keyMaterialLength == 0)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-    size_t expectedLen = ks->policy->nonceLength;
+    size_t expectedLen = ks->policy->keyMaterialLength;
     for(size_t i = 0; i < keysSize; ++i) {
         if(keys[i].length != expectedLen || !keys[i].data)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -307,7 +305,7 @@ splitCurrentKeyMaterial(UA_PubSubKeyStorage *ks, UA_ByteString *signingKey,
      * + nonce parts. Without this check, keyNonceLength below underflows
      * (size_t) when key.length is smaller than signingkeyLength + encryptkeyLength,
      * and keyNonce->data points past the buffer -> OOB read. */
-    if(key.length != policy->nonceLength ||
+    if(key.length != policy->keyMaterialLength ||
        key.length < signingkeyLength + encryptkeyLength)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 

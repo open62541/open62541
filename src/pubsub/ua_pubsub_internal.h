@@ -692,6 +692,10 @@ UA_PubSubManager_generateUniqueGuid(UA_PubSubManager *psm);
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
+UA_StatusCode
+UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
+                                 UA_MessageSecurityMode securityMode);
+
 /************************************/
 /* Information Model Representation */
 /************************************/

@@ -7,10 +7,11 @@ refactorings and bug fixes are not reported here.
 
 Custom `UA_PubSubSecurityPolicy` implementations must initialize the new
 `messageNonceLength` member with the nonce size carried in each secured
-NetworkMessage. The historical `nonceLength` member continues to describe the
-complete SKS key-material item. SignAndEncrypt groups reject policies that do
-not provide a valid message nonce length. This changes the public policy
-structure ABI; custom policies must be rebuilt and updated.
+NetworkMessage. The `nonceLength` member is renamed to `keyMaterialLength`
+and describes the complete SKS key-material item.
+SignAndEncrypt groups reject policies that do not provide a valid message nonce
+length. This changes the public policy structure ABI; custom policies must be
+rebuilt and updated.
 
 ### Automatic ModelChange and SemanticChange notifications
 

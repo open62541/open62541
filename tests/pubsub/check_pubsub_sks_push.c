@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/plugin/log.h>
@@ -123,7 +124,7 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
 
     UA_Variant_setScalar(&inputs[2], &currentTokenId, &UA_TYPES[UA_TYPES_UINT32]);
 
-    size_t keyLength = server->config.pubSubConfig.securityPolicies->nonceLength;
+    size_t keyLength = server->config.pubSubConfig.securityPolicies->keyMaterialLength;
     UA_ByteString_allocBuffer(&currentKey, keyLength);
     generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
     UA_Variant_setScalar(&inputs[3], &currentKey, &UA_TYPES[UA_TYPES_BYTESTRING]);

@@ -172,6 +172,11 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    res = UA_PubSubSecurityPolicy_validate(config->securityPolicy,
+                                            config->securityMode);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Allocate new WriterGroup */
     UA_WriterGroup *wg = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
     if(!wg)

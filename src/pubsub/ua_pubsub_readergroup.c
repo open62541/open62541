@@ -132,6 +132,11 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     if(!c)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    UA_StatusCode retval =
+        UA_PubSubSecurityPolicy_validate(rgc->securityPolicy, rgc->securityMode);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     /* Allocate memory for new reader group and add settings */
     UA_ReaderGroup *newGroup = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
     if(!newGroup)
@@ -141,7 +146,7 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     newGroup->linkedConnection = c;
 
     /* Deep copy of the config */
-    UA_StatusCode retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
+    retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(newGroup);
         return retval;

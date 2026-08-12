@@ -73,6 +73,8 @@ static UA_StatusCode
 generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     if(!key || !policy)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!policy->generateNonce || !policy->generateKey)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     UA_StatusCode retVal;
 
@@ -120,10 +122,12 @@ updateSKSKeyStorage(void *application /* UA_PubSubManager */,
 
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_ByteString newKey;
-    /* nonceLength is the complete key-material length exposed by the PubSub
-     * security-policy interface. */
     UA_PubSubSecurityPolicy *sp = keyStorage->policy;
-    size_t keyLength = sp->nonceLength;
+    if(!sp) {
+        unlockServer(psm->drv.server);
+        return;
+    }
+    size_t keyLength = sp->keyMaterialLength;
 
     retval = UA_ByteString_allocBuffer(&newKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -244,7 +248,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
 
     UA_ByteString currentKey = UA_BYTESTRING_NULL;
     UA_ByteString *futurekeys = NULL;
-    size_t keyLength = ks->policy->nonceLength;
+    size_t keyLength = ks->policy->keyMaterialLength;
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;

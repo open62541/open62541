@@ -138,7 +138,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
     UA_PubSubKeyStorage *tKeyStorage =
         UA_PubSubKeyStorage_find(psm, SecurityGroupId);
 
-    size_t keyLength = server->config.pubSubConfig.securityPolicies->nonceLength;
+    size_t keyLength = server->config.pubSubConfig.securityPolicies->keyMaterialLength;
     UA_ByteString_allocBuffer(&currentKey, keyLength);
     generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
 
@@ -290,7 +290,7 @@ START_TEST(TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths) {
     UA_PubSubSecurityPolicy *policy =
         server->config.pubSubConfig.securityPolicies;
     ck_assert_ptr_ne(policy, NULL);
-    ck_assert_uint_gt(policy->nonceLength, 1);
+    ck_assert_uint_gt(policy->keyMaterialLength, 1);
 
     UA_PubSubKeyStorage *ks =
         (UA_PubSubKeyStorage*)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
@@ -302,7 +302,7 @@ START_TEST(TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString shortKey = UA_BYTESTRING_NULL;
-    retval = UA_ByteString_allocBuffer(&shortKey, policy->nonceLength - 1);
+    retval = UA_ByteString_allocBuffer(&shortKey, policy->keyMaterialLength - 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_PubSubKeyStorage_addSecurityKeys(ks, 1, &shortKey, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
@@ -314,7 +314,7 @@ START_TEST(TestPubSubKeyStorageRejectsInvalidKeyMaterialLengths) {
     ck_assert_uint_eq(ks->keyListSize, 0);
 
     UA_ByteString validKey = UA_BYTESTRING_NULL;
-    retval = UA_ByteString_allocBuffer(&validKey, policy->nonceLength);
+    retval = UA_ByteString_allocBuffer(&validKey, policy->keyMaterialLength);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = generateKeyData(policy, &validKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

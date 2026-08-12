@@ -653,7 +653,7 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicy *sp, char *userpin,
     sp->setSecurityKeys = setKeys_pubsub_aes128ctr_tpm;
     sp->generateKey = NULL;
     sp->generateNonce = generateNonce_pubsub_aes128ctr_tpm;
-    sp->nonceLength = UA_AES128CTR_SIGNING_KEY_LENGTH +
+    sp->keyMaterialLength = UA_AES128CTR_SIGNING_KEY_LENGTH +
         UA_AES128CTR_KEY_LENGTH + UA_AES128CTR_KEYNONCE_LENGTH;
     sp->messageNonceLength = UA_AES128CTR_MESSAGENONCE_LENGTH;
     sp->setMessageNonce = setMessageNonce_pubsub_aes128ctr_tpm;

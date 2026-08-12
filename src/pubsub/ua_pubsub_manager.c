@@ -346,6 +346,32 @@ UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now) {
     return timeDiffSince2000;
 }
 
+UA_StatusCode
+UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
+                                 UA_MessageSecurityMode securityMode) {
+    if(securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
+
+    if(!policy || !policy->newGroupContext || !policy->deleteGroupContext ||
+       !policy->verify || !policy->sign || !policy->getSignatureSize ||
+       !policy->getSignatureKeyLength || !policy->getEncryptionKeyLength ||
+       !policy->setSecurityKeys ||
+       !policy->generateNonce || !policy->clear ||
+       policy->keyMaterialLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    if(securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        size_t nonceLength = policy->messageNonceLength;
+        if(!policy->encrypt || !policy->decrypt || !policy->setMessageNonce ||
+           nonceLength < sizeof(UA_UInt32) ||
+           nonceLength > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Generate a new unique NodeId. This NodeId will be used for the information
  * model representation of PubSub entities. */
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
