@@ -2707,6 +2707,71 @@ START_TEST(UpdateDataSetReaderConfigInvalid) {
     UA_Server_removeReaderGroup(server, rgId);
 } END_TEST
 
+START_TEST(UpdateDataSetReaderConfigRestoresStandaloneLink) {
+    addTargetVariable();
+
+    UA_SubscribedDataSetConfig sdsConfig;
+    memset(&sdsConfig, 0, sizeof(sdsConfig));
+    sdsConfig.name = UA_STRING("RollbackSDS");
+    sdsConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    sdsConfig.dataSetMetaData.name = UA_STRING("RollbackMetadata");
+    sdsConfig.dataSetMetaData.fieldsSize = 1;
+    UA_FieldMetaData field;
+    UA_FieldMetaData_init(&field);
+    field.name = UA_STRING("RollbackField");
+    field.builtInType = UA_NS0ID_DATETIME;
+    field.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    sdsConfig.dataSetMetaData.fields = &field;
+
+    UA_FieldTargetDataType target;
+    UA_FieldTargetDataType_init(&target);
+    target.attributeId = UA_ATTRIBUTEID_VALUE;
+    target.targetNodeId = UA_NODEID_STRING(1, "demoVar");
+    sdsConfig.subscribedDataSet.target.targetVariables = &target;
+    sdsConfig.subscribedDataSet.target.targetVariablesSize = 1;
+
+    UA_NodeId sdsId;
+    UA_StatusCode res = UA_Server_addSubscribedDataSet(server, &sdsConfig, &sdsId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig rgConfig;
+    memset(&rgConfig, 0, sizeof(rgConfig));
+    rgConfig.name = UA_STRING("RollbackRG");
+    UA_NodeId rgId;
+    res = UA_Server_addReaderGroup(server, connectionId, &rgConfig, &rgId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_DataSetReaderConfig readerConfig;
+    memset(&readerConfig, 0, sizeof(readerConfig));
+    readerConfig.name = UA_STRING("RollbackReader");
+    readerConfig.linkedStandaloneSubscribedDataSetName = sdsConfig.name;
+    UA_NodeId readerId;
+    res = UA_Server_addDataSetReader(server, rgId, &readerConfig, &readerId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(psm, sdsId);
+    UA_DataSetReader *reader = UA_DataSetReader_find(psm, readerId);
+    ck_assert_ptr_eq(sds->connectedReader, reader);
+
+    UA_DataSetReaderConfig update;
+    res = UA_Server_getDataSetReaderConfig(server, readerId, &update);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_String_clear(&update.linkedStandaloneSubscribedDataSetName);
+    update.linkedStandaloneSubscribedDataSetName = UA_STRING_ALLOC("MissingSDS");
+    res = UA_Server_updateDataSetReaderConfig(server, readerId, &update);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTFOUND);
+    UA_DataSetReaderConfig_clear(&update);
+
+    ck_assert_ptr_eq(sds->connectedReader, reader);
+    ck_assert(UA_String_equal(&reader->config.linkedStandaloneSubscribedDataSetName,
+                              &sdsConfig.name));
+
+    UA_Server_removeReaderGroup(server, rgId);
+    UA_Server_removeSubscribedDataSet(server, sdsId);
+} END_TEST
+
 /* ---- Additional reader/reader-group public-API coverage ---- */
 
 START_TEST(GetReaderGroupStateAndConfigInvalid) {
@@ -3072,6 +3137,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_reader_lifecycle, RemoveDataSetReaderTwiceReturnsBadNotFound);
     tcase_add_test(tc_pubsub_reader_lifecycle, RemoveReaderGroupCascadesReaders);
     tcase_add_test(tc_pubsub_reader_lifecycle, UpdateDataSetReaderConfigInvalid);
+    tcase_add_test(tc_pubsub_reader_lifecycle,
+                   UpdateDataSetReaderConfigRestoresStandaloneLink);
     tcase_add_test(tc_pubsub_reader_lifecycle, GetReaderGroupStateAndConfigInvalid);
     tcase_add_test(tc_pubsub_reader_lifecycle, UpdateReaderGroupConfigInvalid);
     tcase_add_test(tc_pubsub_reader_lifecycle, DataSetReaderIdentifierMismatchPaths);
