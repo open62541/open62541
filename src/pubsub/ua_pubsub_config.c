@@ -277,11 +277,21 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
                                 *connectionIdent, pdsCount, pdsIdent,
                                 &writerGroupIdent);
         if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
             UA_PublisherId_clear(&config.publisherId);
             return res;
         }
         UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
         if(!wg) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
             UA_PublisherId_clear(&config.publisherId);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -293,11 +303,21 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
         res = createReaderGroup(psm, &connParams->readerGroups[j],
                                 *connectionIdent, &readerGroupIdent);
         if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
             UA_PublisherId_clear(&config.publisherId);
             return res;
         }
         UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
         if(!rg) {
+            UA_PubSubConnection *created =
+                UA_PubSubConnection_find(psm, *connectionIdent);
+            if(created)
+                UA_PubSubComponent_freeWithoutLifecycleCallback(
+                    psm, created, UA_PUBSUBCOMPONENT_CONNECTION);
             UA_PublisherId_clear(&config.publisherId);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -397,15 +417,26 @@ createWriterGroup(UA_PubSubManager *psm,
                                   *writerGroupIdent, pdsCount, pdsIdent,
                                   &dataSetWriterIdent);
         if(res != UA_STATUSCODE_GOOD)
-            return res;
+            goto rollback;
         UA_DataSetWriter *writer =
             UA_DataSetWriter_find(psm, dataSetWriterIdent);
         if(!writer)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            goto rollbackInternal;
         writer->config.enabled =
             writerGroupParameters->dataSetWriters[dsw].enabled;
     }
 
+    return res;
+
+rollbackInternal:
+    res = UA_STATUSCODE_BADINTERNALERROR;
+rollback:
+    {
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, *writerGroupIdent);
+        if(wg)
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
+    }
     return res;
 }
 
@@ -503,16 +534,27 @@ createReaderGroup(UA_PubSubManager *psm,
                                   &readerGroupParameters->dataSetReaders[i],
                                   *readerGroupIdent, &dataSetReaderIdent);
         if(res != UA_STATUSCODE_GOOD)
-            return res;
+            goto rollback;
         UA_DataSetReader *reader =
             UA_DataSetReader_find(psm, dataSetReaderIdent);
         if(!reader)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            goto rollbackInternal;
         reader->config.enabled =
             readerGroupParameters->dataSetReaders[i].enabled;
     }
 
     return UA_STATUSCODE_GOOD;
+
+rollbackInternal:
+    res = UA_STATUSCODE_BADINTERNALERROR;
+rollback:
+    {
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, *readerGroupIdent);
+        if(rg)
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, rg, UA_PUBSUBCOMPONENT_READERGROUP);
+    }
+    return res;
 }
 
 /* Creates TargetVariables or SubscribedDataSetMirror for a given DataSetReader */
