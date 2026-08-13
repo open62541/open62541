@@ -895,6 +895,12 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnection *c = rg->linkedConnection;
+    if(!c || c->config.address.data == NULL ||
+       c->config.address.type != &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg,
+                            "Invalid or missing address for MQTT ReaderGroup");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
 
