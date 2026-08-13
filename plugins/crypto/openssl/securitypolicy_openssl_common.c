@@ -551,7 +551,9 @@ UA_OpenSSL_HMAC_SHA256_Verify (const UA_ByteString *     message,
               mac.data, (unsigned int *) &mac.length) == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if (UA_ByteString_equal (signature, &mac)) {
+    if (signature->length != mac.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if (UA_constantTimeEqual(signature->data, mac.data, mac.length)) {
         return UA_STATUSCODE_GOOD;
     }
     else {
@@ -858,7 +860,9 @@ UA_OpenSSL_HMAC_SHA1_Verify (const UA_ByteString *     message,
              mac.data, (unsigned int *) &mac.length) == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if (UA_ByteString_equal (signature, &mac)) {
+    if (signature->length != mac.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if (UA_constantTimeEqual(signature->data, mac.data, mac.length)) {
         return UA_STATUSCODE_GOOD;
     }
     else {
