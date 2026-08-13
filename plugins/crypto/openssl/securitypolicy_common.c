@@ -701,7 +701,9 @@ UA_OpenSSL_HMAC_SHA256_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(!UA_ByteString_equal(signature, &mac))
+    if(signature->length != mac.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!UA_constantTimeEqual(signature->data, mac.data, mac.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -988,7 +990,9 @@ UA_OpenSSL_HMAC_SHA1_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(!UA_ByteString_equal(signature, &mac))
+    if(signature->length != mac.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!UA_constantTimeEqual(signature->data, mac.data, mac.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -2251,7 +2255,9 @@ UA_OpenSSL_HMAC_SHA384_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(!UA_ByteString_equal(signature, &mac))
+    if(signature->length != mac.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!UA_constantTimeEqual(signature->data, mac.data, mac.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }

@@ -1314,7 +1314,9 @@ UA_mbedTLS_HMAC_SHA256_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ByteString macBs = {32, mac};
-    if(!UA_ByteString_equal(signature, &macBs))
+    if(signature->length != macBs.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!UA_constantTimeEqual(signature->data, macBs.data, macBs.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -1349,7 +1351,9 @@ UA_mbedTLS_HMAC_SHA384_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ByteString macBs = {48, mac};
-    if(!UA_ByteString_equal(signature, &macBs))
+    if(signature->length != macBs.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!UA_constantTimeEqual(signature->data, macBs.data, macBs.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
