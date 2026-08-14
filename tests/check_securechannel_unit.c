@@ -128,6 +128,42 @@ START_TEST(setSecurityPolicy_alreadyConfigured_rejected) {
     ck_assert_ptr_nonnull((void*)ch.securityPolicy);
 } END_TEST
 
+START_TEST(setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext) {
+    UA_SecureChannel direct;
+    UA_SecureChannel_init(&direct);
+    UA_SecurityPolicy *policy = getNonePolicy();
+    ck_assert_uint_eq(
+        UA_SecureChannel_setSecurityPolicyWithoutOPN(
+            &direct, policy, NULL, UA_MESSAGESECURITYMODE_NONE),
+        UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(direct.securityPolicy, policy);
+    ck_assert_ptr_null(direct.channelContext);
+    ck_assert_uint_eq(direct.remoteCertificate.length, 0);
+    ck_assert_uint_eq(direct.enhancedSecurity,
+                      UA_SecurityPolicy_isEnhancedSecurity(policy));
+    ck_assert_uint_eq(direct.legacySequenceNumbers,
+                      UA_SecurityPolicy_useLegacySequenceNumbers(policy));
+    UA_SecureChannel_clear(&direct);
+} END_TEST
+
+#ifdef UA_ENABLE_ENCRYPTION
+START_TEST(setSecurityPolicyWithoutOPN_enhancedPolicy_rejected) {
+    UA_SecureChannel direct;
+    UA_SecureChannel_init(&direct);
+    UA_SecurityPolicy policy = *getNonePolicy();
+    const UA_String enhancedPolicyUri = UA_STRING_STATIC(
+        "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
+    policy.policyUri = enhancedPolicyUri;
+    ck_assert(UA_SecurityPolicy_isEnhancedSecurity(&policy));
+    ck_assert_uint_eq(
+        UA_SecureChannel_setSecurityPolicyWithoutOPN(
+            &direct, &policy, NULL, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT),
+        UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+    ck_assert_ptr_null(direct.securityPolicy);
+    UA_SecureChannel_clear(&direct);
+} END_TEST
+#endif
+
 /* ==== UA_SecureChannel_processHELACK ==== */
 
 START_TEST(processHELACK_happyPath_returnsGood) {
@@ -369,6 +405,21 @@ START_TEST(shutdown_notConnected_isNoop) {
     ck_assert_uint_eq(ch.state, UA_SECURECHANNELSTATE_CLOSED);
 } END_TEST
 
+START_TEST(shutdown_withoutOwnedConnection_setsStateAndReason) {
+    ch.state = UA_SECURECHANNELSTATE_OPEN;
+    UA_SecureChannel_shutdown(&ch, UA_SHUTDOWNREASON_CLOSE);
+    ck_assert_uint_eq(ch.state, UA_SECURECHANNELSTATE_CLOSING);
+    ck_assert_uint_eq(ch.shutdownReason, UA_SHUTDOWNREASON_CLOSE);
+} END_TEST
+
+START_TEST(shutdown_closingIsNoop) {
+    ch.state = UA_SECURECHANNELSTATE_CLOSING;
+    ch.shutdownReason = UA_SHUTDOWNREASON_CLOSE;
+    UA_SecureChannel_shutdown(&ch, UA_SHUTDOWNREASON_ABORT);
+    ck_assert_uint_eq(ch.state, UA_SECURECHANNELSTATE_CLOSING);
+    ck_assert_uint_eq(ch.shutdownReason, UA_SHUTDOWNREASON_CLOSE);
+} END_TEST
+
 static Suite *
 testSuite(void) {
     Suite *s = suite_create("SecureChannel unit");
@@ -381,6 +432,12 @@ testSuite(void) {
     tcase_add_test(tc_mode, setSecurityMode_nonePolicyWithSign_rejected);
     tcase_add_test(tc_mode, setSecurityMode_noneMode_accepted);
     tcase_add_test(tc_mode, setSecurityPolicy_alreadyConfigured_rejected);
+    tcase_add_test(tc_mode,
+                   setSecurityPolicyWithoutOPN_withoutCertificate_hasNoContext);
+#ifdef UA_ENABLE_ENCRYPTION
+    tcase_add_test(tc_mode,
+                   setSecurityPolicyWithoutOPN_enhancedPolicy_rejected);
+#endif
     suite_add_tcase(s, tc_mode);
 
     TCase *tc_hel = tcase_create("processHELACK");
@@ -410,6 +467,8 @@ testSuite(void) {
     tcase_add_test(tc_state, isConnected_closingState_returnsFalse);
     tcase_add_test(tc_state, clear_emptyChannel_doesNotCrash);
     tcase_add_test(tc_state, shutdown_notConnected_isNoop);
+    tcase_add_test(tc_state, shutdown_withoutOwnedConnection_setsStateAndReason);
+    tcase_add_test(tc_state, shutdown_closingIsNoop);
     suite_add_tcase(s, tc_state);
 
     return s;

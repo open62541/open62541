@@ -30,47 +30,80 @@ void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Normal linked lists are initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
+    channel->transport = UA_SECURECHANNEL_TRANSPORT_UACP;
+    channel->encoding = UA_SECURECHANNEL_ENCODING_BINARY;
     TAILQ_INIT(&channel->chunks);
 }
 
-UA_StatusCode
-UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
-                                   const UA_ByteString *remoteCertificate) {
+static UA_StatusCode
+setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
+                  const UA_ByteString *remoteCertificate,
+                  UA_MessageSecurityMode securityMode,
+                  UA_Boolean createContext) {
     /* Is a policy already configured? */
     UA_CHECK_ERROR(!channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR,
                    sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "Security policy already configured");
 
-    /* Create the context */
-    UA_StatusCode res = sp->newChannelContext(sp, remoteCertificate,
-                                              &channel->channelContext);
-    res |= UA_ByteString_copy(remoteCertificate, &channel->remoteCertificate);
-    UA_CHECK_STATUS_ERROR(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                          "Could not set up the SecureChannel context");
-
-    /* Compute the certificate thumbprint */
-    UA_ByteString remoteCertificateThumbprint =
-        {20, channel->remoteCertificateThumbprint};
-    res = sp->makeCertThumbprint(sp, &channel->remoteCertificate,
-                                 &remoteCertificateThumbprint);
-    UA_CHECK_STATUS_ERROR(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                          "Could not create the certificate thumbprint");
+    /* Build all fallible state locally so a failure leaves the channel
+     * untouched and therefore safely clearable. */
+    void *channelContext = NULL;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_Byte thumbprint[20] = {0};
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(createContext)
+        res = sp->newChannelContext(sp, remoteCertificate, &channelContext);
+    if(res == UA_STATUSCODE_GOOD && remoteCertificate)
+        res = UA_ByteString_copy(remoteCertificate, &certificate);
+    if(res == UA_STATUSCODE_GOOD && certificate.length > 0) {
+        UA_ByteString thumbprintString = {sizeof(thumbprint), thumbprint};
+        res = sp->makeCertThumbprint(sp, &certificate, &thumbprintString);
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        if(channelContext)
+            sp->deleteChannelContext(sp, channelContext);
+        UA_ByteString_clear(&certificate);
+        UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Could not set up the SecureChannel policy");
+        return res;
+    }
 
     /* Set the SecurityPolicy and cache the URI-derived properties (the policy
      * is fixed for the channel's lifetime). */
     channel->securityPolicy = sp;
+    channel->channelContext = channelContext;
+    channel->remoteCertificate = certificate;
+    memcpy(channel->remoteCertificateThumbprint, thumbprint,
+           sizeof(thumbprint));
     channel->enhancedSecurity = UA_SecurityPolicy_isEnhancedSecurity(sp);
     channel->legacySequenceNumbers = UA_SecurityPolicy_useLegacySequenceNumbers(sp);
-
-    /* Set a temporary SecurityMode. The client sets the final SecurityMode
-     * right after. The server only after fully decoding the OPN message in the
-     * OpenSecureChannel service. But we need the SecurityMode for decoding. The
-     * OPN message is always signed and encrypted when not #None. */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
-        channel->securityMode = UA_MESSAGESECURITYMODE_NONE;
-    else
-        channel->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    channel->securityMode = securityMode;
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
+                                   UA_SecurityPolicy *sp,
+                                   const UA_ByteString *remoteCertificate) {
+    UA_MessageSecurityMode mode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+        mode = UA_MESSAGESECURITYMODE_NONE;
+    return setSecurityPolicy(channel, sp, remoteCertificate, mode, true);
+}
+
+UA_StatusCode
+UA_SecureChannel_setSecurityPolicyWithoutOPN(
+    UA_SecureChannel *channel, UA_SecurityPolicy *sp,
+    const UA_ByteString *remoteCertificate,
+    UA_MessageSecurityMode securityMode) {
+    /* Enhanced SecurityPolicies bind Session signatures to values exchanged in
+     * OPN. A direct transport cannot establish that binding. */
+    if(UA_SecurityPolicy_isEnhancedSecurity(sp))
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    UA_Boolean createContext =
+        remoteCertificate && remoteCertificate->length > 0;
+    return setSecurityPolicy(channel, sp, remoteCertificate, securityMode,
+                             createContext);
 }
 
 /* The #None SecurityPolicy must use the NONE SecurityMode. All other
@@ -183,16 +216,22 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
 void
 UA_SecureChannel_shutdown(UA_SecureChannel *channel,
                           UA_ShutdownReason shutdownReason) {
-    /* No open socket or already closing -> nothing to do */
+    /* No open channel or already closing -> nothing to do */
     if(!UA_SecureChannel_isConnected(channel))
         return;
 
     /* Set the shutdown event for diagnostics */
     channel->shutdownReason = shutdownReason;
+    channel->state = UA_SECURECHANNELSTATE_CLOSING;
+
+    /* Direct transports such as HTTP have no persistent ConnectionManager
+     * connection owned by the SecureChannel. Their transport owner performs
+     * the remaining teardown after the common state transition above. */
+    UA_ConnectionManager *cm = channel->connectionManager;
+    if(!cm || channel->connectionId == 0)
+        return;
 
     /* Trigger the async closing of the connection */
-    UA_ConnectionManager *cm = channel->connectionManager;
-    channel->state = UA_SECURECHANNELSTATE_CLOSING;
     cm->closeConnection(cm, channel->connectionId);
 }
 
@@ -204,7 +243,8 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Delete the channel context for the security policy */
     UA_SecurityPolicy *sp = channel->securityPolicy;
     if(sp) {
-        sp->deleteChannelContext(sp, channel->channelContext);
+        if(channel->channelContext)
+            sp->deleteChannelContext(sp, channel->channelContext);
         channel->securityPolicy = NULL;
         channel->channelContext = NULL;
         channel->enhancedSecurity = false;     /* No policy => not enhanced */
@@ -257,6 +297,8 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Set the state to closed */
     channel->state = UA_SECURECHANNELSTATE_CLOSED;
     channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+    channel->transport = UA_SECURECHANNEL_TRANSPORT_UACP;
+    channel->encoding = UA_SECURECHANNEL_ENCODING_BINARY;
 }
 
 UA_StatusCode
