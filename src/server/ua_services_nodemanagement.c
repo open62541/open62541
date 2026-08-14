@@ -602,6 +602,31 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
     return found;
 }
 
+#define UA_MAX_NODE_INSTANTIATION_DEPTH 64
+
+static UA_StatusCode
+beginChildInstantiation(UA_Server *server, UA_Session *session,
+                        const UA_NodeId *destinationNodeId,
+                        const UA_NodeId *sourceNodeId) {
+    if(server->nodeInstantiationDepth >= UA_MAX_NODE_INSTANTIATION_DEPTH) {
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "AddNode (%N): Recursive child instantiation "
+                               "exceeded the maximum depth %u while copying %N",
+                               *destinationNodeId,
+                               UA_MAX_NODE_INSTANTIATION_DEPTH, *sourceNodeId);
+        return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+    }
+
+    server->nodeInstantiationDepth++;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+endChildInstantiation(UA_Server *server) {
+    UA_assert(server->nodeInstantiationDepth > 0);
+    server->nodeInstantiationDepth--;
+}
+
 static UA_StatusCode
 copyAllChildren(UA_Server *server, UA_Session *session,
                 const UA_NodeId *source, const UA_NodeId *destination);
@@ -800,8 +825,15 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Existing child with that browseName. Deep-copy missing members. */
     if(retval == UA_STATUSCODE_GOOD) {
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
-           rd->nodeClass == UA_NODECLASS_OBJECT)
-            retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
+           rd->nodeClass == UA_NODECLASS_OBJECT) {
+            retval = beginChildInstantiation(server, session, destinationNodeId,
+                                             &rd->nodeId.nodeId);
+            if(retval == UA_STATUSCODE_GOOD) {
+                retval = copyAllChildren(server, session, &rd->nodeId.nodeId,
+                                         &existingChild);
+                endChildInstantiation(server);
+            }
+        }
         UA_NodeId_clear(&existingChild);
         return retval;
     }
@@ -839,7 +871,12 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Child is a variable or object */
     if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
        rd->nodeClass == UA_NODECLASS_OBJECT) {
+        retval = beginChildInstantiation(server, session, destinationNodeId,
+                                         &rd->nodeId.nodeId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
         retval = copyObjectVariableChild(server, session, destinationNodeId, rd);
+        endChildInstantiation(server);
     }
 
     return retval;

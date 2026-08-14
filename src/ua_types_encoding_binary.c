@@ -979,13 +979,21 @@ ExtensionObject_decodeBinaryContent(Ctx *ctx, UA_ExtensionObject *dst,
     dst->content.decoded.data = ctxCalloc(ctx, 1, type->memSize);
     UA_CHECK_MEM(dst->content.decoded.data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
-    /* Jump over the length field (TODO: check if the decoded length matches) */
-    ctx->pos += 4;
+    /* Read the length field and validate that the inner decoder consumes exactly
+     * that many bytes, closing a decoder-vs-IDS split-view channel. */
+    u32 member_length = 0;
+    status ret = DECODE_DIRECT(&member_length, UInt32);
+    UA_CHECK_STATUS(ret, return ret);
+    UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+    const u8 *expected_end = ctx->pos + member_length;
 
     /* Decode */
     dst->encoding = UA_EXTENSIONOBJECT_DECODED;
     dst->content.decoded.type = type;
-    return decodeBinaryJumpTable[type->typeKind](ctx, dst->content.decoded.data, type);
+    ret = decodeBinaryJumpTable[type->typeKind](ctx, dst->content.decoded.data, type);
+    if(ret == UA_STATUSCODE_GOOD && ctx->pos != expected_end)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    return ret;
 }
 
 FUNC_DECODE_BINARY(ExtensionObject) {
@@ -1147,10 +1155,17 @@ Variant_decodeBinaryUnwrapExtensionObject(Ctx *ctx, UA_Variant *dst) {
     UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &typeId); return ret);
 
     /* Search for the datatype. Default to ExtensionObject. */
+    const u8 *expected_end = NULL;
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
        (dst->type = UA_findDataTypeByBinaryInternal(ctx, &typeId)) != NULL) {
-        /* Jump over the length field (TODO: check if length matches) */
-        ctx->pos += 4;
+        /* Read the length field and validate that the inner decoder consumes
+         * exactly that many bytes, closing a decoder-vs-IDS split-view channel. */
+        u32 member_length = 0;
+        ret = DECODE_DIRECT(&member_length, UInt32);
+        UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &typeId); return ret);
+        UA_CHECK(ctx->pos + member_length <= ctx->end,
+                 ctxClearNodeId(ctx, &typeId); return UA_STATUSCODE_BADDECODINGERROR);
+        expected_end = ctx->pos + member_length;
     } else {
         /* Reset and decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
@@ -1163,7 +1178,10 @@ Variant_decodeBinaryUnwrapExtensionObject(Ctx *ctx, UA_Variant *dst) {
     UA_CHECK_MEM(dst->data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
     /* Decode the content */
-    return decodeBinaryJumpTable[dst->type->typeKind](ctx, dst->data, dst->type);
+    ret = decodeBinaryJumpTable[dst->type->typeKind](ctx, dst->data, dst->type);
+    if(ret == UA_STATUSCODE_GOOD && expected_end != NULL && ctx->pos != expected_end)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    return ret;
 }
 
 /* Unwraps all ExtensionObjects in an array if they have the same type.
@@ -1256,9 +1274,19 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
     uintptr_t array_pos = (uintptr_t)*dst;
     ctx->pos = &orig_pos[4];
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; i++) {
-        ctx->pos += header.length + 4; /* Jump over the header and length field */
+        ctx->pos += header.length; /* Jump over the header */
+        /* Read the per-element length and validate that the inner decoder
+         * consumes exactly that many bytes, closing a decoder-vs-IDS
+         * split-view channel. */
+        u32 member_length = 0;
+        ret = DECODE_DIRECT(&member_length, UInt32);
+        UA_CHECK_STATUS(ret, return ret);
+        UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+        const u8 *expected_end = ctx->pos + member_length;
         ret = decodeBinaryJumpTable[contentType->typeKind]
             (ctx, (void*)array_pos, contentType);
+        if(ret == UA_STATUSCODE_GOOD && ctx->pos != expected_end)
+            return UA_STATUSCODE_BADDECODINGERROR;
         array_pos += contentType->memSize;
     }
     return ret;

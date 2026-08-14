@@ -235,6 +235,9 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+    /* Current depth while recursively instantiating node children */
+    size_t nodeInstantiationDepth;
+
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The admin session is initialized with a special subscription. This
