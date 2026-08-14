@@ -92,9 +92,42 @@ START_TEST(ClientConfig_Copy){
     UA_ClientConfig_setDefault(&srcConfig);
     srcConfig.eventLoop->dateTime_now = UA_DateTime_now_fake;
     srcConfig.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    srcConfig.httpAllowUnencrypted = true;
+    srcConfig.httpCaCertificate = UA_BYTESTRING_ALLOC("independent HTTP CA");
+    ck_assert_ptr_nonnull(srcConfig.httpCaCertificate.data);
+    srcConfig.httpClientCertificate = UA_BYTESTRING_ALLOC("HTTP client cert");
+    srcConfig.httpClientPrivateKey = UA_BYTESTRING_ALLOC("HTTP client key");
+    srcConfig.httpClientPrivateKeyPassword = UA_STRING_ALLOC("HTTP key password");
+    srcConfig.httpTimeout = 17;
+    srcConfig.httpMaxMsgSize = 123456;
+    srcConfig.httpMaxDecompressedMsgSize = 654321;
 
     UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(dstConfig.httpAllowUnencrypted);
+    ck_assert(UA_ByteString_equal(&dstConfig.httpCaCertificate,
+                                  &srcConfig.httpCaCertificate));
+    ck_assert_ptr_ne(dstConfig.httpCaCertificate.data,
+                     srcConfig.httpCaCertificate.data);
+    ck_assert(UA_ByteString_equal(&dstConfig.httpClientCertificate,
+                                  &srcConfig.httpClientCertificate));
+    ck_assert(UA_ByteString_equal(&dstConfig.httpClientPrivateKey,
+                                  &srcConfig.httpClientPrivateKey));
+    ck_assert_ptr_ne(dstConfig.httpClientCertificate.data,
+                     srcConfig.httpClientCertificate.data);
+    ck_assert_ptr_ne(dstConfig.httpClientPrivateKey.data,
+                     srcConfig.httpClientPrivateKey.data);
+    ck_assert(UA_String_equal(&dstConfig.httpClientPrivateKeyPassword,
+                              &srcConfig.httpClientPrivateKeyPassword));
+    ck_assert_ptr_ne(dstConfig.httpClientPrivateKeyPassword.data,
+                     srcConfig.httpClientPrivateKeyPassword.data);
+    ck_assert_uint_eq(dstConfig.httpTimeout, 17);
+    ck_assert_uint_eq(dstConfig.httpMaxMsgSize, 123456);
+    ck_assert_uint_eq(dstConfig.httpMaxDecompressedMsgSize, 654321);
+    UA_ByteString_clear(&srcConfig.httpCaCertificate);
+    UA_ByteString_clear(&srcConfig.httpClientCertificate);
+    UA_ByteString_clear(&srcConfig.httpClientPrivateKey);
+    UA_String_clear(&srcConfig.httpClientPrivateKeyPassword);
 
     UA_Client *dstConfigClient = UA_Client_newWithConfig(&dstConfig);
     retval = UA_Client_connect(dstConfigClient, "opc.tcp://localhost:4840");

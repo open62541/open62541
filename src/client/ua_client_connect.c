@@ -15,13 +15,13 @@
 #include "../ua_types_encoding_binary.h"
 #include "mp_printf.h"
 
-/* Some OPC UA servers only return all Endpoints if the EndpointURL used during
- * the HEL/ACK handshake exactly matches -- including the path following the
- * address and port! Hence for the first connection we only call FindServers and
- * reopen a new TCP connection using then EndpointURL found there.
+/* Some OPC UA servers only return all Endpoints if the EndpointURL used for
+ * discovery exactly matches -- including the path following the address and
+ * port. Hence for the first connection we only call FindServers and reopen the
+ * transport connection using the EndpointURL found there.
  *
  * The overall process is this:
- * - Connect with the EndpointURL provided by the user (HEL/ACK)
+ * - Connect with the EndpointURL provided by the user
  * - Call FindServers
  *   - If one of the results has an exactly matching EndpointUrl, continue.
  *   - Otherwise select a matching server, update the endpointURL member of
@@ -52,7 +52,7 @@ getEndpointUrl(UA_Client *client) {
     return client->config.endpointUrl;
 }
 
-/* If an EndpointUrl doesn't work (TCP connection fails), fall back to the
+/* If an EndpointUrl doesn't work (the transport connection fails), fall back to the
  * initial EndpointUrl */
 static UA_StatusCode
 fallbackEndpointUrl(UA_Client* client) {
@@ -60,7 +60,7 @@ fallbackEndpointUrl(UA_Client* client) {
     UA_String currentUrl = getEndpointUrl(client);
     if(UA_String_equal(&currentUrl, &client->config.endpointUrl)) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "Could not open a TCP connection to the Endpoint at %S",
+                     "Could not open a transport connection to the Endpoint at %S",
                      client->config.endpointUrl);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
@@ -68,7 +68,7 @@ fallbackEndpointUrl(UA_Client* client) {
     if(client->endpoint.endpointUrl.length > 0) {
         /* Overwrite the EndpointUrl of the Endpoint */
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Could not open a TCP connection to the Endpoint at %S. "
+                       "Could not open a transport connection to the Endpoint at %S. "
                        "Overriding the endpoint description with the initial "
                        "EndpointUrl at %S.",
                        client->config.endpoint.endpointUrl,
@@ -417,8 +417,7 @@ encryptUserIdentityToken(UA_Client *client, UA_ExtensionObject *userIdentityToke
 static UA_StatusCode
 checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
                             const UA_CreateSessionResponse *response) {
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(!UA_SecureChannel_hasApplicationSecurity(channel))
         return UA_STATUSCODE_GOOD;
 
     if(!channel->securityPolicy)
@@ -743,7 +742,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     }
 
     /* Prepare the entry for the linked list */
-    UA_UInt32 requestId = ++client->requestId;
+    UA_UInt32 requestId = __Client_nextRequestId(client);
 
     /* Send the OPN message */
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_SECURECHANNEL,
@@ -771,6 +770,12 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
 UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
+
+    /* Direct HTTP has no OPN lifetime or token renewal exchange. The logical
+     * SecureChannel remains pinned to its endpoint, encoding and policy until
+     * the client closes the HTTP binding. */
+    if(client->channel.transport == UA_SECURECHANNEL_TRANSPORT_HTTP)
+        return UA_STATUSCODE_GOODCALLAGAIN;
 
     UA_EventLoop *el = client->config.eventLoop;
     UA_DateTime now = el->dateTime_nowMonotonic(el);
@@ -1098,8 +1103,7 @@ activateSessionAsync(UA_Client *client) {
 
     /* Create the client signature with the SecurityPolicy of the SecureChannel */
     UA_SecureChannel *channel = &client->channel;
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(UA_SecureChannel_hasApplicationSecurity(channel))
         retval |= signClientSignature(client, &request);
 
     /* Send the request */
@@ -1128,27 +1132,64 @@ typedef struct {
     UA_String connectionManagerProtocol;
     UA_String profileUri;
     UA_UInt16 defaultPort;
-    UA_Boolean webSocket;
+    UA_SecureChannelTransport transport;
+    UA_SecureChannelEncoding encoding;
+    UA_Boolean useTls;
 } UA_ClientTransport;
 
 static const UA_ClientTransport clientTransports[] = {
     {UA_STRING_STATIC("opc.tcp:"), UA_STRING_STATIC("tcp"),
      UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary"),
-     4840, false},
+     4840, UA_SECURECHANNEL_TRANSPORT_UACP,
+     UA_SECURECHANNEL_ENCODING_BINARY, false},
 #ifdef UA_ENABLE_LWS
     {UA_STRING_STATIC("opc.wss:"), UA_STRING_STATIC("websocket"),
      UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary"),
-     443, true},
+     443, UA_SECURECHANNEL_TRANSPORT_UACP,
+     UA_SECURECHANNEL_ENCODING_BINARY, true},
+#endif
+    {UA_STRING_STATIC("opc.https:"), UA_STRING_STATIC("http"),
+     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/https-uabinary"),
+     443, UA_SECURECHANNEL_TRANSPORT_HTTP,
+     UA_SECURECHANNEL_ENCODING_BINARY, true},
+#ifdef UA_ENABLE_JSON_ENCODING
+    {UA_STRING_STATIC("opc.https:"), UA_STRING_STATIC("http"),
+     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/https-uajson"),
+     443, UA_SECURECHANNEL_TRANSPORT_HTTP,
+     UA_SECURECHANNEL_ENCODING_JSON, true},
+#endif
+    {UA_STRING_STATIC("opc.http:"), UA_STRING_STATIC("http"),
+     UA_STRING_STATIC("http://open62541.org/UA-Profile/Transport/http-uabinary"),
+     80, UA_SECURECHANNEL_TRANSPORT_HTTP,
+     UA_SECURECHANNEL_ENCODING_BINARY, false},
+#ifdef UA_ENABLE_JSON_ENCODING
+    {UA_STRING_STATIC("opc.http:"), UA_STRING_STATIC("http"),
+     UA_STRING_STATIC("http://open62541.org/UA-Profile/Transport/http-uajson"),
+     80, UA_SECURECHANNEL_TRANSPORT_HTTP,
+     UA_SECURECHANNEL_ENCODING_JSON, false},
 #endif
 };
 
 static const UA_ClientTransport *
-getClientTransport(const UA_String *endpointUrl) {
+getClientTransport(const UA_String *endpointUrl,
+                   const UA_String *profileUri) {
+    UA_Boolean jsonPath = false;
+#ifdef UA_ENABLE_JSON_ENCODING
+    const UA_String jsonSuffix = UA_STRING_STATIC("/json");
+    jsonPath = (!profileUri || profileUri->length == 0) &&
+        endpointUrl->length >= jsonSuffix.length &&
+        memcmp(&endpointUrl->data[endpointUrl->length - jsonSuffix.length],
+               jsonSuffix.data, jsonSuffix.length) == 0;
+#endif
     for(size_t i = 0;
         i < sizeof(clientTransports) / sizeof(clientTransports[0]); i++) {
         const UA_String *prefix = &clientTransports[i].urlSchemePrefix;
         if(endpointUrl->length >= prefix->length &&
-           memcmp(endpointUrl->data, prefix->data, prefix->length) == 0)
+           memcmp(endpointUrl->data, prefix->data, prefix->length) == 0 &&
+           (!jsonPath || clientTransports[i].encoding ==
+                         UA_SECURECHANNEL_ENCODING_JSON) &&
+           (!profileUri || profileUri->length == 0 ||
+            UA_String_equal(profileUri, &clientTransports[i].profileUri)))
             return &clientTransports[i];
     }
     return NULL;
@@ -1166,6 +1207,33 @@ isSupportedClientTransportProfile(const UA_String *profileUri) {
 
 /* Find a matching endpoint -- the UserTokenPolicy is matched later */
 static UA_Boolean
+clientTransportMatchesCurrent(UA_Client *client, const UA_String *endpointUrl,
+                              const UA_String *profileUri) {
+    UA_String activeUrl = getEndpointUrl(client);
+    const UA_ClientTransport *active = getClientTransport(&activeUrl, NULL);
+    const UA_ClientTransport *candidate =
+        getClientTransport(endpointUrl, profileUri);
+    return active && candidate &&
+        candidate->transport == client->channel.transport &&
+        candidate->transport == active->transport &&
+        candidate->encoding == client->channel.encoding &&
+        candidate->useTls == active->useTls;
+}
+
+static UA_Boolean
+endpointMatchesTransport(UA_Client *client,
+                         const UA_EndpointDescription *endpoint) {
+    /* Keep endpoint selection on the transport, encoding and TLS mode used for
+     * discovery. Direct HTTP Binary and JSON variants can share an origin but
+     * represent distinct logical channels. This also prevents an EndpointUrl
+     * returned by discovery from downgrading opc.https to opc.http. */
+    const UA_String *profileUri = endpoint->transportProfileUri.length > 0 ?
+        &endpoint->transportProfileUri : NULL;
+    return clientTransportMatchesCurrent(client, &endpoint->endpointUrl,
+                                         profileUri);
+}
+
+static UA_Boolean
 matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigned i) {
     /* Matching ApplicationUri if defined */
     if(client->config.applicationUri.length > 0 &&
@@ -1178,13 +1246,22 @@ matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigne
         return false;
     }
 
-    /* Look out for supported binary transport endpoints.
-     * Note: Siemens returns empty ProfileUrl, we will accept it as binary. */
+    /* Look out for supported transport endpoints. Some servers return an
+     * empty ProfileUri, which is accepted only if the EndpointUrl remains
+     * compatible with the active transport below. */
     if(endpoint->transportProfileUri.length != 0 &&
        !isSupportedClientTransportProfile(&endpoint->transportProfileUri)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "Endpoint %u: Rejected, the TransportProfileUri %S "
                     "is not supported", i, endpoint->transportProfileUri);
+        return false;
+    }
+
+    if(!endpointMatchesTransport(client, endpoint)) {
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                    "Endpoint %u: Rejected, transport, encoding or TLS mode "
+                    "does not match the active endpoint %S", i,
+                    getEndpointUrl(client));
         return false;
     }
 
@@ -1638,7 +1715,8 @@ responseFindServers(UA_Client *client, void *userdata,
             UA_StatusCode res =
                 UA_parseEndpointUrl(&server->discoveryUrls[j], &hostname, &port, &path);
             if(res != UA_STATUSCODE_GOOD ||
-               !getClientTransport(&server->discoveryUrls[j]))
+               !clientTransportMatchesCurrent(client,
+                                              &server->discoveryUrls[j], NULL))
                 continue;
 
             /* Use this DiscoveryUrl in the client */
@@ -1698,8 +1776,7 @@ createSessionCallback(UA_Client *client, void *userdata,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+    if(UA_SecureChannel_hasApplicationSecurity(&client->channel)) {
         /* Verify the session response was created with the same certificate as
          * the SecureChannel */
         if(!UA_ByteString_equal(&csr->serverCertificate,
@@ -1895,7 +1972,7 @@ verifyServerCertificateEku(const UA_ClientConfig *config,
 }
 
 static UA_StatusCode
-initSecurityPolicy(UA_Client *client) {
+initSecurityPolicy(UA_Client *client, const UA_ClientTransport *transport) {
     /* Find the SecurityPolicy. Use #None if the endpoint is not (yet)
      * configured. */
     UA_String secPolicyUri = client->endpoint.securityPolicyUri;
@@ -1941,7 +2018,28 @@ initSecurityPolicy(UA_Client *client) {
     UA_ByteString appInstCert =
         getLeafCertificate(client->endpoint.serverCertificate);
 
-    /* Instantiate the SecurityPolicy context with the remote certificate */
+    /* Direct HTTP has no OPN exchange. Its MessageSecurityMode describes the
+     * confidentiality of the HTTP carrier, independently of the application
+     * SecurityPolicy used for Session signatures and identity tokens. */
+    UA_Boolean directHttp = transport &&
+        transport->transport == UA_SECURECHANNEL_TRANSPORT_HTTP;
+    if(directHttp) {
+        /* Plain HTTP cannot carry an application SecurityPolicy. Validate the
+         * policy selected from GetEndpoints, not only an explicitly configured
+         * policy URI. Enhanced policies are rejected by the no-OPN setter. */
+        if(!transport->useTls &&
+           sp->policyType != UA_SECURITYPOLICYTYPE_NONE) {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
+                           "opc.http:// only supports SecurityPolicy None");
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        }
+        UA_MessageSecurityMode mode =
+            UA_SecureChannel_httpSecurityMode(transport->useTls);
+        return UA_SecureChannel_setSecurityPolicyWithoutOPN(
+            &client->channel, sp, &appInstCert, mode);
+    }
+
+    /* Instantiate the UACP SecurityPolicy context with the remote certificate */
     res = UA_SecureChannel_setSecurityPolicy(&client->channel, sp, &appInstCert);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1965,7 +2063,7 @@ initSecurityPolicy(UA_Client *client) {
     return res;
 }
 
-static void
+void
 connectActivity(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
     UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -2215,7 +2313,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_SecureChannel_clear(&client->channel);
 
         /* The connection closed before it actually opened. Since we are
-         * connecting asynchronously, this happens when the TCP connection
+         * connecting asynchronously, this happens when the transport connection
          * fails. Try to fall back on the initial EndpointUrl. */
         if(oldState == UA_SECURECHANNELSTATE_CONNECTING &&
            client->connectStatus == UA_STATUSCODE_GOOD)
@@ -2322,7 +2420,7 @@ delayedNetworkCallback(void *application, void *context) {
                                  &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 }
 
-/* Initialize a binary transport connection. Writes the result to
+/* Initialize a transport connection. Writes the result to
  * client->connectStatus. */
 static void
 initConnect(UA_Client *client) {
@@ -2360,31 +2458,63 @@ initConnect(UA_Client *client) {
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
     client->channel.processOPNHeaderApplication = client;
 
-    /* Initialize the SecurityPolicy */
-    setConnectStatus(client, initSecurityPolicy(client));
+    /* Select the transport from the active EndpointUrl. FindServers and
+     * GetEndpoints can replace the initial URL with a compatible endpoint. */
+    UA_String endpointUrl;
+    const UA_ClientTransport *transport;
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port;
+    while(true) {
+        endpointUrl = getEndpointUrl(client);
+        const UA_String *profileUri = endpointUnconfigured(&client->endpoint) ?
+            NULL : &client->endpoint.transportProfileUri;
+        transport = getClientTransport(&endpointUrl, profileUri);
+        if(!transport) {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
+                           "Endpoint URL transport is not supported: %S",
+                           endpointUrl);
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+        } else {
+            /* Extract hostname, port and path from the URL. */
+            port = transport->defaultPort;
+            res = UA_parseEndpointUrl(&endpointUrl, &hostname, &port, &path);
+            if(res == UA_STATUSCODE_GOOD)
+                break;
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
+                           "Endpoint URL is invalid: %S", endpointUrl);
+        }
+
+        /* Discovery can yield an unusable URL. Preserve the established
+         * fallback to the URL initially configured by the user. */
+        if(UA_String_equal(&endpointUrl, &client->config.endpointUrl)) {
+            setConnectStatus(client, res);
+            return;
+        }
+        res = fallbackEndpointUrl(client);
+        if(res != UA_STATUSCODE_GOOD) {
+            setConnectStatus(client, res);
+            return;
+        }
+    }
+
+    if(transport->transport == UA_SECURECHANNEL_TRANSPORT_HTTP) {
+        res = __Client_validateHttpConnection(client, transport->useTls);
+        if(res != UA_STATUSCODE_GOOD) {
+            setConnectStatus(client, res);
+            return;
+        }
+    }
+
+    /* Initialize the SecurityPolicy after selecting the transport. Direct HTTP
+     * derives its MessageSecurityMode from TLS and does not perform OPN. */
+    setConnectStatus(client, initSecurityPolicy(client, transport));
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
-    /* Select the binary transport from the URL scheme. */
-    const UA_ClientTransport *transport =
-        getClientTransport(&client->config.endpointUrl);
-    if(!transport) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
-                       "Endpoint URL transport is not supported: %S",
-                       client->config.endpointUrl);
-        setConnectStatus(client, UA_STATUSCODE_BADNOTSUPPORTED);
-        return;
-    }
-
-    /* Extract hostname, port and path from the URL. */
-    UA_String hostname = UA_STRING_NULL;
-    UA_String path = UA_STRING_NULL;
-    UA_UInt16 port = transport->defaultPort;
-
-    res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
+    UA_String requestPath = UA_STRING_NULL;
+    res = UA_String_format(&requestPath, "/%S", path);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
-                       "Endpoint URL is invalid: %S", client->config.endpointUrl);
         setConnectStatus(client, res);
         return;
     }
@@ -2402,7 +2532,7 @@ initConnect(UA_Client *client) {
             continue;
         haveConnectionManager = true;
 
-        UA_KeyValuePair params[10];
+        UA_KeyValuePair params[12];
         size_t paramsSize = 0;
         params[paramsSize].key = UA_QUALIFIEDNAME(0, "port");
         UA_Variant_setScalar(&params[paramsSize++].value, &port,
@@ -2411,19 +2541,15 @@ initConnect(UA_Client *client) {
         UA_Variant_setScalar(&params[paramsSize++].value, &hostname,
                              &UA_TYPES[UA_TYPES_STRING]);
 
-        UA_String websocketPath = UA_STRING_STATIC("/");
-        UA_Boolean useSSL = true;
+        UA_Boolean useSSL = transport->useTls;
         UA_String subprotocol = UA_STRING_STATIC("opcua+uacp");
         UA_Boolean binaryOnly = true;
-        if(transport->webSocket) {
-            if(path.length > 0) {
-                /* UA_parseEndpointUrl returns the path without its leading
-                 * slash. Refer back into the EndpointUrl without allocating. */
-                websocketPath.data = path.data - 1;
-                websocketPath.length = path.length + 1;
-            }
+        const UA_String websocketProtocol = UA_STRING_STATIC("websocket");
+        UA_Boolean webSocket = UA_String_equal(
+            &transport->connectionManagerProtocol, &websocketProtocol);
+        if(webSocket) {
             params[paramsSize].key = UA_QUALIFIEDNAME(0, "path");
-            UA_Variant_setScalar(&params[paramsSize++].value, &websocketPath,
+            UA_Variant_setScalar(&params[paramsSize++].value, &requestPath,
                                  &UA_TYPES[UA_TYPES_STRING]);
             params[paramsSize].key = UA_QUALIFIEDNAME(0, "subprotocol");
             UA_Variant_setScalar(&params[paramsSize++].value, &subprotocol,
@@ -2471,11 +2597,20 @@ initConnect(UA_Client *client) {
             if(res == UA_STATUSCODE_GOOD)
                 break;
             continue;
-        } else {
+        } else if(transport->transport == UA_SECURECHANNEL_TRANSPORT_UACP) {
             params[paramsSize].key = UA_QUALIFIEDNAME(0, "reuse");
             UA_Variant_setScalar(&params[paramsSize++].value,
                                  &client->config.tcpReuseAddr,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
+        }
+
+        if(transport->transport == UA_SECURECHANNEL_TRANSPORT_HTTP) {
+            res = __Client_openHttpConnection(
+                client, cm, &hostname, port, &requestPath, useSSL,
+                transport->encoding);
+            if(res == UA_STATUSCODE_GOOD)
+                break;
+            continue;
         }
 
         UA_KeyValueMap paramMap = {paramsSize, params};
@@ -2498,11 +2633,12 @@ initConnect(UA_Client *client) {
     /* Opening the transport connection failed */
     if(res != UA_STATUSCODE_GOOD || client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Could not open a binary transport connection to %S",
-                       client->config.endpointUrl);
+                       "Could not open a transport connection to %S",
+                       endpointUrl);
         if(client->connectStatus == UA_STATUSCODE_GOOD)
             setConnectStatus(client, res);
     }
+    UA_String_clear(&requestPath);
 }
 
 void
@@ -2846,7 +2982,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     client->channel.processOPNHeaderApplication = client;
     client->channel.connectionId = 0;
 
-    setConnectStatus(client, initSecurityPolicy(client));
+    setConnectStatus(client, initSecurityPolicy(client, NULL));
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return client->connectStatus;
 
@@ -2939,8 +3075,10 @@ closeSecureChannel(UA_Client *client) {
 
     disconnectListenSockets(client);
 
-    /* Send CLO if the SecureChannel is open */
-    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN) {
+    /* Only UACP has a CloseSecureChannel message. Direct HTTP proceeds
+     * immediately to transport shutdown. */
+    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN &&
+       client->channel.transport == UA_SECURECHANNEL_TRANSPORT_UACP) {
         UA_LOG_DEBUG_CHANNEL(client->config.logging, &client->channel,
                              "Sending the CLO message");
 
@@ -2953,7 +3091,8 @@ closeSecureChannel(UA_Client *client) {
         request.requestHeader.timestamp = el->dateTime_now(el);
         request.requestHeader.timeoutHint = client->config.timeout;
         request.requestHeader.authenticationToken = client->authenticationToken;
-        UA_SecureChannel_sendCLO(&client->channel, ++client->requestId, &request);
+        UA_SecureChannel_sendCLO(&client->channel,
+                                 __Client_nextRequestId(client), &request);
     }
 
     /* The connection is eventually closed in the next callback from the

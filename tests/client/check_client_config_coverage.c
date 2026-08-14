@@ -120,6 +120,10 @@ START_TEST(ClientConfig_setDefault_populatesBasics) {
     /* EventLoop is allocated. */
     ck_assert_ptr_ne(cfg.eventLoop, NULL);
     ck_assert_uint_eq(cfg.externalEventLoop, false);
+    ck_assert(!cfg.httpAllowUnencrypted);
+    ck_assert_uint_gt(cfg.httpTimeout, 0);
+    ck_assert_uint_gt(cfg.httpMaxMsgSize, 0);
+    ck_assert_uint_eq(cfg.httpMaxDecompressedMsgSize, cfg.httpMaxMsgSize);
     /* ApplicationDescription has a non-empty applicationUri. */
     ck_assert(cfg.clientDescription.applicationUri.length > 0);
 
@@ -135,6 +139,10 @@ START_TEST(ClientConfig_setDefault_preservesCustomValues) {
     cfg.maxAsyncServiceCalls = 23;
     cfg.asyncServiceCallRule = UA_RULEHANDLING_ACCEPT;
     cfg.certificateEkuRule = UA_RULEHANDLING_WARN;
+    cfg.httpAllowUnencrypted = true;
+    cfg.httpTimeout = 42;
+    cfg.httpMaxMsgSize = 1234;
+    cfg.httpMaxDecompressedMsgSize = 5678;
 
     UA_StatusCode rv = UA_ClientConfig_setDefault(&cfg);
     ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
@@ -144,6 +152,10 @@ START_TEST(ClientConfig_setDefault_preservesCustomValues) {
     ck_assert_uint_eq(cfg.maxAsyncServiceCalls, 23);
     ck_assert_uint_eq(cfg.asyncServiceCallRule, UA_RULEHANDLING_ACCEPT);
     ck_assert_uint_eq(cfg.certificateEkuRule, UA_RULEHANDLING_WARN);
+    ck_assert(cfg.httpAllowUnencrypted);
+    ck_assert_uint_eq(cfg.httpTimeout, 42);
+    ck_assert_uint_eq(cfg.httpMaxMsgSize, 1234);
+    ck_assert_uint_eq(cfg.httpMaxDecompressedMsgSize, 5678);
 
     UA_ClientConfig_clear(&cfg);
 } END_TEST

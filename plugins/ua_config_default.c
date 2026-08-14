@@ -2141,6 +2141,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         if(wsCM)
             config->eventLoop->registerEventSource(config->eventLoop,
                                                     (UA_EventSource*)wsCM);
+        UA_ConnectionManager *httpCM =
+            UA_ConnectionManager_new_HTTP(UA_STRING("http connection manager"));
+        if(httpCM)
+            config->eventLoop->registerEventSource(config->eventLoop,
+                                                    (UA_EventSource*)httpCM);
 #endif
 
 #if defined(UA_ARCHITECTURE_LWIP)
@@ -2185,6 +2190,13 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
             UINT32_MAX : sendBufferSize * 16;
     }
 #endif
+    if(config->httpTimeout == 0)
+        config->httpTimeout = 60;
+    if(config->httpMaxMsgSize == 0)
+        config->httpMaxMsgSize =
+            config->localConnectionConfig.localMaxMessageSize;
+    if(config->httpMaxDecompressedMsgSize == 0)
+        config->httpMaxDecompressedMsgSize = config->httpMaxMsgSize;
 
     if(!config->certificateVerification.logging) {
         config->certificateVerification.logging = config->logging;

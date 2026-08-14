@@ -17,7 +17,7 @@
     "endpointUrl": {
       "type": "string",
       "description": "OPC UA server endpoint URL",
-      "pattern": "^opc\\.tcp://.*"
+      "pattern": "^opc\\.(tcp|wss|https|http)://.*"
     },
     "sessionName": {
       "type": "string",
@@ -68,6 +68,43 @@
       "type": "boolean",
       "description": "Reuse TCP address",
       "default": true
+    },
+    "httpAllowUnencrypted": {
+      "type": "boolean",
+      "description": "Allow the non-standard unencrypted opc.http transport",
+      "default": false
+    },
+    "httpCaCertificate": {
+      "type": "string",
+      "description": "Path to a DER or PEM CA certificate for HTTPS; the system trust store is used when empty"
+    },
+    "httpClientCertificate": {
+      "type": "string",
+      "description": "Path to a DER or PEM TLS client certificate for mutual HTTPS authentication"
+    },
+    "httpClientPrivateKey": {
+      "type": "string",
+      "description": "Path to the TLS client private key for mutual HTTPS authentication"
+    },
+    "httpClientPrivateKeyPassword": {
+      "type": "string",
+      "description": "Optional password for the encrypted TLS client private key"
+    },
+    "httpTimeout": {
+      "type": "integer",
+      "description": "Default HTTP binding and request timeout in seconds",
+      "minimum": 0,
+      "maximum": 65535
+    },
+    "httpMaxMsgSize": {
+      "type": "integer",
+      "description": "Maximum encoded HTTP request or response size",
+      "minimum": 0
+    },
+    "httpMaxDecompressedMsgSize": {
+      "type": "integer",
+      "description": "Maximum decompressed HTTP response size",
+      "minimum": 0
     },
     "endpoint": {
       "$ref": "#/definitions/EndpointDescription",

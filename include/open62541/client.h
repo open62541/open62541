@@ -651,6 +651,14 @@ struct UA_ClientConfig {
     UA_UInt32 webSocketMaxQueueSize; /* Max bytes queued for a slow WebSocket
                                       * peer (default: 16 * sendBufferSize) */
 #endif
+    UA_Boolean httpAllowUnencrypted; /* Allow the non-standard opc.http scheme */
+    UA_ByteString httpCaCertificate; /* DER or PEM CA; empty uses system trust */
+    UA_ByteString httpClientCertificate; /* DER or PEM TLS client certificate */
+    UA_ByteString httpClientPrivateKey;  /* DER or PEM TLS client private key */
+    UA_String httpClientPrivateKeyPassword; /* Password for encrypted TLS key */
+    UA_UInt16 httpTimeout;           /* HTTP binding/request timeout in seconds */
+    UA_UInt32 httpMaxMsgSize;        /* Maximum encoded HTTP message size */
+    UA_UInt32 httpMaxDecompressedMsgSize; /* Maximum expanded HTTP response */
 
     /* Endpoint Selection
      * ~~~~~~~~~~~~~~~~~~

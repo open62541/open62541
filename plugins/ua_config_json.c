@@ -1702,6 +1702,36 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                         &ctx, &config->webSocketCaCertificate, NULL);
                 }
 #endif
+                else if(strcmp(field, "httpAllowUnencrypted") == 0)
+                    retval = BooleanField_parseJson(
+                        &ctx, &config->httpAllowUnencrypted, NULL);
+                else if(strcmp(field, "httpCaCertificate") == 0) {
+                    UA_ByteString_clear(&config->httpCaCertificate);
+                    retval = CertificateFileField_parseJson(
+                        &ctx, &config->httpCaCertificate, NULL);
+                }
+                else if(strcmp(field, "httpClientCertificate") == 0) {
+                    UA_ByteString_clear(&config->httpClientCertificate);
+                    retval = CertificateFileField_parseJson(
+                        &ctx, &config->httpClientCertificate, NULL);
+                }
+                else if(strcmp(field, "httpClientPrivateKey") == 0) {
+                    UA_ByteString_clear(&config->httpClientPrivateKey);
+                    retval = CertificateFileField_parseJson(
+                        &ctx, &config->httpClientPrivateKey, NULL);
+                }
+                else if(strcmp(field, "httpClientPrivateKeyPassword") == 0) {
+                    UA_String_clear(&config->httpClientPrivateKeyPassword);
+                    retval = StringField_parseJson(
+                        &ctx, &config->httpClientPrivateKeyPassword, NULL);
+                }
+                else if(strcmp(field, "httpTimeout") == 0)
+                    retval = UInt16Field_parseJson(&ctx, &config->httpTimeout, NULL);
+                else if(strcmp(field, "httpMaxMsgSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->httpMaxMsgSize, NULL);
+                else if(strcmp(field, "httpMaxDecompressedMsgSize") == 0)
+                    retval = UInt32Field_parseJson(
+                        &ctx, &config->httpMaxDecompressedMsgSize, NULL);
                 else if(strcmp(field, "endpoint") == 0)
                     retval = EndpointDescription_parseJson(&ctx, &config->endpoint, NULL);
                 else if(strcmp(field, "userTokenPolicy") == 0)

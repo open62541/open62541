@@ -45,7 +45,8 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq build-essential cmake libssl-dev pkg-config netcat-openbsd
+          sudo apt-get install -y -qq build-essential cmake libssl-dev \
+            libwebsockets-dev pkg-config netcat-openbsd zlib1g-dev
 
       - name: Build supported mbedTLS
         if: matrix.cmake_crypto == 'MBEDTLS'
@@ -64,6 +65,7 @@ jobs:
         with:
           dotnet-version: |
             9.0.x
+            10.0.x
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -75,7 +77,12 @@ jobs:
 
       - name: Clone .NET Reference Server
         run: |
-          git clone https://github.com/OPCFoundation/UA-.NETStandard.git \
+          # 1.5.378.134 is the latest release with the classic HTTPS binding.
+          # The 2.x sample currently exposes only opc.tcp by default.
+          # Nerdbank.GitVersioning needs the history back to the last version
+          # height reset when the reference server is built.
+          git clone --branch 1.5.378.134 --single-branch \
+            https://github.com/OPCFoundation/UA-.NETStandard.git \
             ${{ github.workspace }}/UA-.NETStandard
 
       - name: Generate interop certificates
@@ -91,9 +98,11 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Debug \
                 -DUA_BUILD_INTEROP_TESTS=ON \
                 -DUA_ENABLE_ENCRYPTION=${{ matrix.cmake_crypto }} \
+                -DUA_ENABLE_LWS=ON \
                 -DUA_FORCE_WERROR=ON \
                 ..
-          make -j$(nproc) interop_server check_interop_client
+          make -j$(nproc) interop_server check_interop_client \
+            interop_server_https check_interop_client_https
 
       - name: Build .NET interop tests
         run: |
@@ -101,7 +110,7 @@ jobs:
 
       - name: Build .NET Reference Server
         run: |
-          dotnet build ${{ github.workspace }}/UA-.NETStandard/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
+          dotnet build ${{ github.workspace }}/UA-.NETStandard/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
 
       - name: Run interop tests
         env:

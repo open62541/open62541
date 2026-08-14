@@ -277,6 +277,28 @@ function unit_tests_libwebsockets {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+
+    # Compile and run the HTTP transport without the optional JSON codec. This
+    # catches feature guards in tests as well as in the library itself.
+    cd ..
+    rm -rf build-lws-nojson
+    cmake -S . -B build-lws-nojson \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=OFF \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=OFF \
+          -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_HTTP_COMPRESSION=ON \
+          -DUA_ENABLE_LWS_MQTT=OFF \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF \
+          -DUA_FORCE_WERROR=ON
+    cmake --build build-lws-nojson --parallel --target \
+          check_eventloop_http check_http_compression check_server_http \
+          check_client_http check_server_http_protocol
+    ctest --test-dir build-lws-nojson \
+          -R '^check_(eventloop_http|http_compression|server_http|client_http|server_http_protocol)$' \
+          --output-on-failure
 }
 
 function unit_tests_libwebsockets_tsan {

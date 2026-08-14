@@ -6,5 +6,5 @@
 
 int
 main(int argc, char *argv[]) {
-    return interopServerMain(argc, argv, false);
+    return interopServerMain(argc, argv, UA_INTEROP_TRANSPORT_TCP);
 }

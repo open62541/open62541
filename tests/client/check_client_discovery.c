@@ -6,6 +6,7 @@
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
+#include "server/ua_server_internal.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -55,6 +56,36 @@ START_TEST(Client_connect_badEndpointUrl) {
     unlockClient(client);
     ck_assert_uint_eq(client->connectStatus, UA_STATUSCODE_GOOD);
 
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_connect_keepsTransportAcrossDiscovery) {
+    /* Put an HTTPS URL first, as done by the .NET reference server. A client
+     * connected over opc.tcp must select the later TCP discovery URL. */
+    lockServer(server);
+    UA_ApplicationDescription *ad =
+        &UA_Server_getConfig(server)->applicationDescription;
+    size_t oldSize = ad->discoveryUrlsSize;
+    const UA_String httpsUrl =
+        UA_STRING_STATIC("opc.https://localhost:62540/discovery");
+    ck_assert_uint_eq(UA_Array_appendCopy(
+                          (void **)&ad->discoveryUrls,
+                          &ad->discoveryUrlsSize, &httpsUrl,
+                          &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+    UA_String added = ad->discoveryUrls[oldSize];
+    memmove(&ad->discoveryUrls[1], &ad->discoveryUrls[0],
+            oldSize * sizeof(UA_String));
+    ad->discoveryUrls[0] = added;
+    unlockServer(server);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(client->channel.transport,
+                      UA_SECURECHANNEL_TRANSPORT_UACP);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -251,6 +282,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Discovery");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_connect_badEndpointUrl);
+    tcase_add_test(tc_client, Client_connect_keepsTransportAcrossDiscovery);
     tcase_add_test(tc_client, Client_getEndpoints);
     tcase_add_test(tc_client, Client_findServers);
     tcase_add_test(tc_client, Client_getEndpoints_connected);

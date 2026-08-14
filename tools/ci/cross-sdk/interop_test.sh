@@ -5,8 +5,10 @@
 #
 #   Scenario A: C server        <-->  C client  (self-test)
 #   Scenario A: C server        <-->  .NET client
+#   Scenario H1: C HTTPS server <-->  .NET HTTPS client
 #   Scenario A: C server        <-->  node-opcua client
 #   Scenario B: .NET server     <-->  C client
+#   Scenario H2: .NET HTTPS srv <-->  C HTTPS client
 #   Scenario C: node-opcua srv  <-->  C client
 #
 # Prerequisites:
@@ -33,16 +35,26 @@ CI_SERVER="$C_BUILD_DIR/bin/tests/interop_server"
 INTEROP_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client"
 CI_WSS_SERVER="$C_BUILD_DIR/bin/tests/interop_server_wss"
 INTEROP_WSS_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client_wss"
+CI_HTTPS_SERVER="$C_BUILD_DIR/bin/tests/interop_server_https"
+INTEROP_HTTPS_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client_https"
 DOTNET_INTEROP_PROJECT="$REPO_ROOT/tests/interop/dotnet/Opc.Ua.Interop.Tests.csproj"
-DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
+DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
+if [[ ! -f "$DOTNET_SERVER_PROJECT" ]]; then
+    DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
+fi
 NODEOPCUA_CLIENT_DIR="$REPO_ROOT/tests/interop/node-opcua"
 NODEOPCUA_WSS_CLIENT="$NODEOPCUA_CLIENT_DIR/websocket/client_wss.mjs"
 INTEROP_ENABLE_WSS="${INTEROP_ENABLE_WSS:-0}"
 INTEROP_ENABLE_NODE_WSS="${INTEROP_ENABLE_NODE_WSS:-0}"
 
+# Local interoperability traffic must not be routed through a CI proxy.
+export NO_PROXY="${NO_PROXY:+$NO_PROXY,}localhost,127.0.0.1,::1"
+export no_proxy="${no_proxy:+$no_proxy,}localhost,127.0.0.1,::1"
+
 RESULT=0
 C_SERVER_PID=""
 C_WSS_SERVER_PID=""
+C_HTTPS_SERVER_PID=""
 DOTNET_SERVER_PID=""
 NODEOPCUA_SERVER_PID=""
 
@@ -78,6 +90,7 @@ cleanup() {
     echo "=== Cleaning up ==="
     stop_server "$C_SERVER_PID" "C server"
     stop_server "$C_WSS_SERVER_PID" "C WSS server"
+    stop_server "$C_HTTPS_SERVER_PID" "C HTTPS server"
     stop_server "$DOTNET_SERVER_PID" ".NET server"
     stop_server "$NODEOPCUA_SERVER_PID" "node-opcua server"
 }
@@ -87,10 +100,11 @@ wait_for_server() {
     local url="$1"
     local timeout="${2:-30}"
     local port="${url##*:}"
+    local host="${url%:*}"
     local start=$SECONDS
     echo "  Waiting for server at $url (timeout: ${timeout}s)..."
     while (( SECONDS - start < timeout )); do
-        if nc -z localhost "$port" 2>/dev/null; then
+        if nc -z "$host" "$port" 2>/dev/null; then
             echo "  Server is ready (took $(( SECONDS - start ))s)"
             return 0
         fi
@@ -131,7 +145,8 @@ echo "  .NET SDK dir:   $DOTNET_SDK_DIR"
 echo "  Cert dir:       $CERT_DIR"
 echo ""
 
-for f in "$CI_SERVER" "$INTEROP_CLIENT"; do
+for f in "$CI_SERVER" "$INTEROP_CLIENT" \
+         "$CI_HTTPS_SERVER" "$INTEROP_HTTPS_CLIENT"; do
     if [[ ! -x "$f" ]]; then
         echo "ERROR: Missing executable: $f"
         exit 1
@@ -154,7 +169,7 @@ fi
 
 REQUIRED_CERTS=(
     server_c.cert.der server_c.key.der
-    client_c.cert.der client_c.key.der
+    client_c.cert.der client_c.key.der client_c.cert.pem client_c.key.pem
     client_dotnet.cert.der
     client_nodeopcua.cert.der
     server_dotnet.cert.der
@@ -319,6 +334,46 @@ stop_server "$C_SERVER_PID" "C server"
 C_SERVER_PID=""
 
 # ============================================================
+# Scenario H1: C HTTPS server <--> .NET HTTPS client
+# ============================================================
+
+echo ""
+echo "=========================================="
+echo "  Scenario H1: C HTTPS server <--> .NET HTTPS client"
+echo "=========================================="
+echo ""
+
+C_HTTPS_PORT=4844
+C_HTTPS_URL="opc.https://localhost:$C_HTTPS_PORT/interop"
+C_HTTPS_LOG="$(mktemp)"
+echo "Starting C HTTPS server on port $C_HTTPS_PORT..."
+"$CI_HTTPS_SERVER" "$C_HTTPS_PORT" \
+    "$CERT_DIR/server_c.cert.der" \
+    "$CERT_DIR/server_c.key.der" \
+    "$CERT_DIR/client_c.cert.der" \
+    "$CERT_DIR/client_dotnet.cert.der" > >(tee "$C_HTTPS_LOG") 2>&1 &
+C_HTTPS_SERVER_PID=$!
+
+if ! wait_for_server "localhost:$C_HTTPS_PORT"; then
+    echo "FAIL: C HTTPS server did not start"
+    RESULT=1
+else
+    echo "Running .NET HTTPS anonymous/username subscription matrix..."
+    export OPCUA_INTEROP_HTTPS_SERVER_URL="$C_HTTPS_URL"
+    if dotnet test "$DOTNET_INTEROP_PROJECT" --no-build --verbosity normal \
+         --configuration "${DOTNET_CONFIG:-Debug}" \
+         --filter "Category=HttpInterop" 2>&1; then
+        echo "PASS: Scenario H1 - .NET HTTPS client matrix passed"
+    else
+        echo "FAIL: Scenario H1 - .NET HTTPS client matrix failed"
+        RESULT=1
+    fi
+    unset OPCUA_INTEROP_HTTPS_SERVER_URL
+fi
+stop_server "$C_HTTPS_SERVER_PID" "C HTTPS server"
+C_HTTPS_SERVER_PID=""
+
+# ============================================================
 # Scenario B: .NET server <--> C client
 # ============================================================
 
@@ -360,6 +415,40 @@ else
     else
         echo "FAIL: Scenario B - C client tests failed"
         RESULT=1
+    fi
+
+    echo ""
+    echo "Running C HTTPS anonymous/username subscription matrix..."
+    DOTNET_HTTPS_URL="$(grep -m1 '^opc\.https://' "$DOTNET_LOG" | \
+        sed 's:/*$::' || true)"
+    DOTNET_TLS_CERT="$CERT_DIR/server_dotnet_tls.cert.der"
+    if [[ -z "$DOTNET_HTTPS_URL" ]]; then
+        echo "FAIL: .NET server did not advertise an HTTPS endpoint"
+        RESULT=1
+    else
+        DOTNET_HTTPS_AUTHORITY="${DOTNET_HTTPS_URL#opc.https://}"
+        DOTNET_HTTPS_AUTHORITY="${DOTNET_HTTPS_AUTHORITY%%/*}"
+        DOTNET_HTTPS_HOST="${DOTNET_HTTPS_AUTHORITY%:*}"
+        if ! wait_for_server "$DOTNET_HTTPS_AUTHORITY"; then
+            echo "FAIL: .NET HTTPS server did not start"
+            RESULT=1
+        elif ! openssl s_client -connect "$DOTNET_HTTPS_AUTHORITY" \
+                 -servername "$DOTNET_HTTPS_HOST" \
+                 -cert "$CERT_DIR/client_c.cert.pem" \
+                 -key "$CERT_DIR/client_c.key.pem" </dev/null 2>/dev/null | \
+                 openssl x509 -outform DER -out "$DOTNET_TLS_CERT"; then
+            echo "FAIL: Could not obtain the .NET HTTPS TLS certificate"
+            RESULT=1
+        elif "$INTEROP_HTTPS_CLIENT" \
+            "$DOTNET_HTTPS_URL" \
+            "$CERT_DIR/client_c.cert.der" \
+            "$CERT_DIR/client_c.key.der" \
+            "$DOTNET_TLS_CERT" 2>&1; then
+            echo "PASS: Scenario H2 - C HTTPS client matrix passed"
+        else
+            echo "FAIL: Scenario H2 - C HTTPS client matrix failed"
+            RESULT=1
+        fi
     fi
 
     if [[ "$INTEROP_ENABLE_WSS" != "0" ]]; then

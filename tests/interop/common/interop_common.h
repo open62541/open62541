@@ -7,7 +7,13 @@
 
 #include <open62541/types.h>
 
-int interopServerMain(int argc, char *argv[], UA_Boolean webSocket);
+typedef enum {
+    UA_INTEROP_TRANSPORT_TCP,
+    UA_INTEROP_TRANSPORT_WEBSOCKET,
+    UA_INTEROP_TRANSPORT_HTTP
+} UA_InteropTransport;
+
+int interopServerMain(int argc, char *argv[], UA_InteropTransport transport);
 int interopClientMain(int argc, char *argv[], UA_Boolean webSocket);
 
 #endif

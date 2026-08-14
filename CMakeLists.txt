@@ -174,7 +174,7 @@ mark_as_advanced(UA_ENABLE_LWS)
 option(UA_ENABLE_LWS_MQTT "Enable the libwebsockets MQTT ConnectionManager" OFF)
 mark_as_advanced(UA_ENABLE_LWS_MQTT)
 option(UA_ENABLE_HTTP_COMPRESSION
-       "Enable bounded gzip/deflate support for the HTTP server (requires zlib)"
+       "Enable bounded gzip/deflate support for HTTP clients and servers (requires zlib)"
        OFF)
 mark_as_advanced(UA_ENABLE_HTTP_COMPRESSION)
 
@@ -1033,6 +1033,7 @@ endif()
 if(UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                             ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_http.c
                             ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                             ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                             ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
@@ -1858,6 +1859,24 @@ if(UA_BUILD_INTEROP_TESTS AND NOT UA_BUILD_UNIT_TESTS)
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
 
     if(UA_ENABLE_LWS)
+        add_executable(interop_server_https
+            tests/interop/http/interop_server_https.c
+            tests/interop/common/interop_server_common.c)
+        target_link_libraries(interop_server_https open62541::open62541)
+        if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+            target_include_directories(interop_server_https SYSTEM PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+        endif()
+        set_target_properties(interop_server_https PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+
+        add_executable(check_interop_client_https
+            tests/interop/http/check_interop_client_https.c)
+        target_link_libraries(check_interop_client_https open62541::open62541)
+        set_target_properties(check_interop_client_https PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+
         add_executable(interop_server_wss
             tests/interop/websocket/interop_server_wss.c
             tests/interop/common/interop_server_common.c)
