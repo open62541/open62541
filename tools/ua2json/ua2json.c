@@ -62,7 +62,6 @@ static UA_StatusCode
 encodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
     UA_EncodeJsonOptions options;
     memset(&options, 0, sizeof(UA_EncodeJsonOptions));
-    options.useReversible = true;
 
     UA_NetworkMessage msg;
     UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &msg, NULL, NULL);

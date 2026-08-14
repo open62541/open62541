@@ -1304,7 +1304,6 @@ typedef struct UA_EncodeJsonOptions {
 
     const UA_String *serverUris;
     size_t serverUrisSize;
-    UA_Boolean useReversible;
 
     UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
 
