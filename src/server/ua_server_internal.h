@@ -119,6 +119,9 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+    /* Current depth while recursively instantiating node children */
+    size_t nodeInstantiationDepth;
+
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
     UA_DiscoveryManager discoveryManager;
