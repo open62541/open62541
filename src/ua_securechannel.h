@@ -118,9 +118,24 @@ typedef enum {
     UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT
 } UA_SecureChannelRenewState;
 
+/* The transport and message encoding are fixed for the lifetime of a
+ * SecureChannel. TCP and WebSocket both use UACP. HTTP carries service
+ * messages directly without UACP framing. */
+typedef enum {
+    UA_SECURECHANNEL_TRANSPORT_UACP = 0,
+    UA_SECURECHANNEL_TRANSPORT_HTTP = 1
+} UA_SecureChannelTransport;
+
+typedef enum {
+    UA_SECURECHANNEL_ENCODING_BINARY = 0,
+    UA_SECURECHANNEL_ENCODING_JSON = 1
+} UA_SecureChannelEncoding;
+
 struct UA_SecureChannel {
     UA_SecureChannelState state;
     UA_SecureChannelRenewState renewState;
+    UA_SecureChannelTransport transport;
+    UA_SecureChannelEncoding encoding;
     UA_MessageSecurityMode securityMode;
     UA_ShutdownReason shutdownReason;
 
@@ -225,7 +240,9 @@ struct UA_SecureChannel {
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
-/* Trigger the shutdown */
+/* Enter CLOSING and close an owned physical ConnectionManager connection.
+ * Direct transports without such a connection complete their teardown in the
+ * transport owner. */
 void UA_SecureChannel_shutdown(UA_SecureChannel *channel,
                                UA_ShutdownReason shutdownReason);
 
@@ -243,6 +260,15 @@ UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate);
+
+/* Establish the policy state without a UACP OpenSecureChannel exchange. A null
+ * or empty remote certificate installs the immutable policy metadata without
+ * constructing a cryptographic channel context. */
+UA_StatusCode
+UA_SecureChannel_setSecurityPolicyWithoutOPN(
+    UA_SecureChannel *channel, UA_SecurityPolicy *securityPolicy,
+    const UA_ByteString *remoteCertificate,
+    UA_MessageSecurityMode securityMode);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
