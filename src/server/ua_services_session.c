@@ -177,27 +177,27 @@ cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
 /************/
 
 UA_Session *
-getSessionByToken(UA_Server *server, const UA_NodeId *token) {
+findSessionByToken(UA_Server *server, const UA_NodeId *token) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
-        /* Token does not match */
-        if(!UA_NodeId_equal(&current->session.authenticationToken, token))
-            continue;
-
-        /* Session has timed out */
-        UA_EventLoop *el = server->config.eventLoop;
-        UA_DateTime now = el->dateTime_nowMonotonic(el);
-        if(now > current->session.validTill) {
-            UA_LOG_WARNING_SESSION(server->config.logging, &current->session,
-                                   "Client tries to use a session that has timed out");
-            return NULL;
-        }
-
-        return &current->session;
+        if(UA_NodeId_equal(&current->session.authenticationToken, token))
+            return &current->session;
     }
+    return NULL;
+}
 
+UA_Session *
+getSessionByToken(UA_Server *server, const UA_NodeId *token) {
+    UA_Session *session = findSessionByToken(server, token);
+    if(!session)
+        return NULL;
+    UA_EventLoop *el = server->config.eventLoop;
+    if(el->dateTime_nowMonotonic(el) <= session->validTill)
+        return session;
+    UA_LOG_WARNING_SESSION(server->config.logging, session,
+                           "Client tries to use a session that has timed out");
     return NULL;
 }
 
@@ -241,8 +241,7 @@ static UA_StatusCode
 signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
                           const UA_CreateSessionRequest *request,
                           UA_CreateSessionResponse *response) {
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(!UA_SecureChannel_hasApplicationSecurity(channel))
         return UA_STATUSCODE_GOOD;
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -474,6 +473,14 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
+/* UACP exchanges the ApplicationInstanceCertificate in the asymmetric OPN
+ * header. Direct HTTP has no OPN exchange; its application certificate first
+ * arrives in CreateSession and is independent of the TLS peer certificate. */
+static UA_Boolean
+applicationCertificateBoundToSecureChannel(const UA_SecureChannel *channel) {
+    return channel->transport == UA_SECURECHANNEL_TRANSPORT_UACP;
+}
+
 static void
 Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                             const UA_CreateSessionRequest *request,
@@ -500,8 +507,9 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
      * Instance." So we assume that the SecureChannel was created with the same
      * ApplicationInstanceCertificate. This may change in the future for
      * additional transport types. */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+    if(applicationCertificateBoundToSecureChannel(channel) &&
+       (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) {
 
         /* Compare the clientCertificate with the remoteCertificate of the
          * channel.
@@ -876,6 +884,7 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         /* A non-anonymous authentication token is transmitted over an
          * unencrypted SecureChannel */
         if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+           channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
            channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE &&
            candidateSp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
             /* Check if the allowNonePolicyPassword option is set.
@@ -904,8 +913,13 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
     for(size_t i = 0; i < sc->endpointsSize; ++i) {
         const UA_EndpointDescription *desc = &sc->endpoints[i];
 
-        /* Match the Security Mode */
-        if(desc->securityMode != channel->securityMode)
+        /* HTTPS transport confidentiality is represented as SignAndEncrypt
+         * for the logical HTTP channel, independently of the mode configured
+         * for the UACP endpoint template. */
+        UA_MessageSecurityMode effectiveMode = desc->securityMode;
+        if(channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP)
+            effectiveMode = channel->securityMode;
+        if(effectiveMode != channel->securityMode)
             continue;
 
         /* Match the SecurityPolicy of the endpoint with the current channel */
@@ -1118,8 +1132,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Check the client signature */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+    if(UA_SecureChannel_hasApplicationSecurity(channel)) {
         const UA_SecurityPolicy *csp = channel->securityPolicy;
         if(UA_SecurityPolicy_isEnhancedSecurity(csp)) {
             /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
@@ -1470,7 +1483,8 @@ Service_Cancel(UA_Server *server, UA_Session *session,
 
         /* Send response and clean up */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
-        sendResponse(server, session->channel, pre->requestId, (UA_Response *)response,
+        sendResponse(server, session->channel, pre->responseToken,
+                     (UA_Response *)response,
                      &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(&pre->response);
         UA_free(pre);

@@ -21,6 +21,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
+#include "../ua_types_encoding_binary.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 /* store the authentication token and session ID so we can help fuzzing by
@@ -167,6 +168,47 @@ getServiceDescription(UA_UInt32 requestTypeId) {
     return NULL;
 }
 
+UA_StatusCode
+decodeBinaryServiceRequest(UA_Server *server, const UA_ByteString *message,
+                           UA_ServiceDescription **description,
+                           UA_Request *request, size_t *requestOffset,
+                           UA_UInt32 *requestTypeId) {
+    *description = NULL;
+    size_t offset = 0;
+    UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
+    UA_StatusCode res = UA_NodeId_decodeBinary(message, &offset, &typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(requestOffset)
+        *requestOffset = offset;
+    if(typeId.namespaceIndex != 0 ||
+       typeId.identifierType != UA_NODEIDTYPE_NUMERIC) {
+        UA_NodeId_clear(&typeId);
+        return UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+    }
+
+    UA_UInt32 numericTypeId = typeId.identifier.numeric;
+    UA_NodeId_clear(&typeId);
+    if(requestTypeId)
+        *requestTypeId = numericTypeId;
+    *description = getServiceDescription(numericTypeId);
+    if(!*description)
+        return UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+
+    memset(request, 0, sizeof(*request));
+    UA_DecodeBinaryOptions options;
+    memset(&options, 0, sizeof(options));
+    options.customTypes = serverCustomTypes(server);
+    res = UA_decodeBinaryInternal(message, &offset, request,
+                                  (*description)->requestType, &options);
+    if(res == UA_STATUSCODE_GOOD && offset != message->length)
+        res = UA_STATUSCODE_BADDECODINGERROR;
+    if(res != UA_STATUSCODE_GOOD)
+        UA_clear(request, (*description)->requestType);
+    return res;
+}
+
 /* Allocates the results array and iterates over it to execute the operations
  * within a request */
 UA_StatusCode
@@ -198,9 +240,17 @@ allocProcessServiceOperations(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_UInt32
+getUacpRequestId(const UA_SecureChannel *channel, UA_UInt64 responseToken) {
+    if(channel->transport != UA_SECURECHANNEL_TRANSPORT_UACP)
+        return 0;
+    UA_assert(responseToken <= UINT32_MAX);
+    return (UA_UInt32)responseToken;
+}
+
 static UA_Boolean
 processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
-                       UA_UInt32 requestId, UA_ServiceDescription *sd,
+                       UA_UInt64 responseToken, UA_ServiceDescription *sd,
                        const UA_Request *request, UA_Response *response) {
     UA_ResponseHeader *rh = &response->responseHeader;
 
@@ -284,8 +334,10 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     UA_DateTime now = el->dateTime_now(el);
     UA_Session_updateLifetime(session, now, nowMonotonic);
 
-    /* Store the request id -- will be used to create async responses */
-    server->asyncManager.currentRequestId = requestId;
+    /* Store the response token -- will be used to create async responses */
+    server->asyncManager.currentResponseToken = responseToken;
+    server->asyncManager.currentUacpRequestId =
+        getUacpRequestId(channel, responseToken);
     server->asyncManager.currentRequestHandle = request->requestHeader.requestHandle;
 
     /* Execute the service */
@@ -294,7 +346,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
 UA_Boolean
 processRequest(UA_Server *server, UA_SecureChannel *channel,
-               UA_UInt32 requestId, UA_ServiceDescription *sd,
+               UA_UInt64 responseToken, UA_ServiceDescription *sd,
                const UA_Request *request, UA_Response *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -320,6 +372,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
     UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
+    UA_UInt32 uacpRequestId = getUacpRequestId(channel, responseToken);
 
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
     UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
@@ -333,7 +386,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
                          &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&notifyPayload[2].value, &requestId,
+    UA_Variant_setScalar(&notifyPayload[2].value, &uacpRequestId,
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setScalar(&notifyPayload[3].value,
                          (void *)(uintptr_t)&sd->requestType->typeId,
@@ -344,7 +397,8 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* Process the service */
     beginModelChange(server);
     UA_Boolean done = processServiceInternal(server, channel, session,
-                                             requestId, sd, request, response);
+                                             responseToken, sd, request,
+                                             response);
     endModelChange(server);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_assert(server->modelChangeDepth == 0);
@@ -374,4 +428,48 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     return done;
+}
+
+UA_Boolean
+processDecodedServiceRequest(UA_Server *server, UA_SecureChannel *channel,
+                             UA_UInt64 responseToken,
+                             UA_ServiceDescription *sd,
+                             const UA_Request *request, UA_Response *response) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_init(response, sd->responseType);
+    response->responseHeader.requestHandle =
+        request->requestHeader.requestHandle;
+    return processRequest(server, channel, responseToken, sd, request,
+                          response);
+}
+
+void
+abandonServiceRequest(UA_Server *server, UA_SecureChannel *channel,
+                      UA_UInt64 responseToken) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    for(UA_Session *session = channel->sessions; session;
+        session = session->next) {
+        UA_PublishResponseEntry *pre, *next, *previous = NULL;
+        SIMPLEQ_FOREACH_SAFE(pre, &session->responseQueue, listEntry, next) {
+            if(pre->responseToken != responseToken) {
+                previous = pre;
+                continue;
+            }
+            if(previous)
+                SIMPLEQ_REMOVE_AFTER(&session->responseQueue, previous,
+                                     listEntry);
+            else
+                SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+            session->responseQueueSize--;
+            UA_PublishResponse_clear(&pre->response);
+            UA_free(pre);
+            UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                                 "Removed abandoned Publish response token %"
+                                 PRIu64, responseToken);
+            break;
+        }
+    }
+#endif
+    UA_AsyncManager_abandon(server, channel, responseToken);
 }

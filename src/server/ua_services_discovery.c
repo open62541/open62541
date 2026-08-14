@@ -704,6 +704,42 @@ static const UA_String wsBinaryTransportProfile = UA_STRING_STATIC(
     "http://opcfoundation.org/UA-Profile/Transport/ws-uasc-uabinary");
 static const UA_String wssBinaryTransportProfile = UA_STRING_STATIC(
     "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
+#ifdef UA_ENABLE_JSON_ENCODING
+static UA_Boolean
+isHttpJsonTransportProfile(const UA_String *profileUri) {
+    return UA_String_equal(profileUri, &UA_HTTP_PROFILE_HTTPS_JSON) ||
+        UA_String_equal(profileUri, &UA_HTTP_PROFILE_HTTP_JSON);
+}
+
+/* Binary and JSON HTTP transports use distinct endpoint URLs. The configured
+ * URL is the Binary endpoint. JSON is pinned to its /json child endpoint. */
+static UA_StatusCode
+httpProfileEndpointUrl(const UA_String *url, const UA_String *profileUri,
+                       UA_String *profileUrl) {
+    static const UA_String suffix = UA_STRING_STATIC("/json");
+    UA_Boolean hasSuffix =
+        url->length >= suffix.length &&
+        memcmp(&url->data[url->length - suffix.length], suffix.data,
+               suffix.length) == 0;
+    UA_Boolean json = isHttpJsonTransportProfile(profileUri);
+    if(json == hasSuffix)
+        return UA_String_copy(url, profileUrl);
+    if(json) {
+        if(url->length > 0 && url->data[url->length - 1] == '/')
+            return UA_String_format(profileUrl, "%Sjson", *url);
+        return UA_String_format(profileUrl, "%S/json", *url);
+    }
+    UA_String binaryUrl = {url->length - suffix.length, url->data};
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    if(UA_parseEndpointUrl(&binaryUrl, &hostname, &port, &path) ==
+           UA_STATUSCODE_GOOD &&
+       path.length == 0)
+        return UA_String_format(profileUrl, "%S/", binaryUrl);
+    return UA_String_copy(&binaryUrl, profileUrl);
+}
+#endif
 
 static UA_Boolean
 isSecureWebSocketEndpointUrl(const UA_String *url) {
@@ -719,6 +755,62 @@ isInsecureWebSocketEndpointUrl(const UA_String *url) {
         memcmp(url->data, prefix.data, prefix.length) == 0;
 }
 
+static UA_StatusCode
+setCurrentEndpoint(UA_Server *server, const UA_EndpointDescription *source,
+                   UA_SecurityPolicy *sp, const UA_String endpointUrl,
+                   const UA_String *currentEndpointUrl,
+                   const UA_String *transportProfileUri,
+                   UA_EndpointDescription *ed) {
+    UA_StatusCode res = UA_EndpointDescription_copy(source, ed);
+    UA_String_clear(&ed->transportProfileUri);
+    res |= UA_String_copy(transportProfileUri, &ed->transportProfileUri);
+    UA_ApplicationDescription_clear(&ed->server);
+    res |= UA_ApplicationDescription_copy(
+        &server->config.applicationDescription, &ed->server);
+
+    /* Set the local certificate configured for the SecurityPolicy */
+    UA_ByteString_clear(&ed->serverCertificate);
+    res |= UA_ByteString_copy(&sp->localCertificate, &ed->serverCertificate);
+
+    /* Set the User Identity Token list from the AccessControl plugin. This
+     * also selects an appropriate SecurityPolicy for the AuthenticationToken. */
+    res |= updateEndpointUserIdentityToken(server, sp->policyType, ed);
+
+    /* OPC UA Part 4 §5.4.2: A client needs a certificate to encrypt credentials
+     * if the endpoint uses None but a token policy requires encryption. */
+    if(ed->serverCertificate.length == 0) {
+        for(size_t i = 0; i < ed->userIdentityTokensSize; i++) {
+            UA_UserTokenPolicy *utp = &ed->userIdentityTokens[i];
+            if(utp->securityPolicyUri.length == 0)
+                continue;
+            UA_SecurityPolicy *encSP =
+                getSecurityPolicyByUri(server, &utp->securityPolicyUri);
+            if(!encSP || encSP->localCertificate.length == 0)
+                continue;
+            res |= UA_ByteString_copy(&encSP->localCertificate,
+                                      &ed->serverCertificate);
+            break;
+        }
+    }
+
+    UA_String_clear(&ed->endpointUrl);
+    if(endpointUrl.length == 0)
+        return res | UA_String_copy(currentEndpointUrl, &ed->endpointUrl);
+
+    /* Mirror the requested URL and include it in the discovery URLs. */
+    res |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
+    size_t i = 0;
+    for(; i < ed->server.discoveryUrlsSize; i++) {
+        if(UA_String_equal(&ed->endpointUrl, &ed->server.discoveryUrls[i]))
+            break;
+    }
+    if(i == ed->server.discoveryUrlsSize)
+        res |= UA_Array_appendCopy((void **)&ed->server.discoveryUrls,
+                                   &ed->server.discoveryUrlsSize, &endpointUrl,
+                                   &UA_TYPES[UA_TYPES_STRING]);
+    return res;
+}
+
 UA_StatusCode
 setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
@@ -731,8 +823,17 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
         clone_times = sc->applicationDescription.discoveryUrlsSize;
 
     /* Allocate the array */
+    size_t maxTransportProfiles = 1;
+#ifdef UA_ENABLE_JSON_ENCODING
+    maxTransportProfiles = 2;
+#endif
+    if(clone_times > 0 &&
+       sc->endpointsSize > SIZE_MAX / clone_times / maxTransportProfiles)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    size_t allocationSize =
+        sc->endpointsSize * clone_times * maxTransportProfiles;
     *arr = (UA_EndpointDescription*)
-        UA_Array_new(sc->endpointsSize * clone_times,
+        UA_Array_new(allocationSize,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!*arr)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -757,94 +858,79 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
             const UA_String *currentEndpointUrl = &endpointUrl;
             if(endpointUrl.length == 0)
                 currentEndpointUrl = &sc->applicationDescription.discoveryUrls[i];
+            UA_Boolean secureHttp = false;
+            UA_Boolean httpEndpoint =
+                getHttpUrlSecurity(currentEndpointUrl, &secureHttp);
 
-            const UA_String *transportProfileUri = &ep->transportProfileUri;
-            if(isSecureWebSocketEndpointUrl(currentEndpointUrl))
-                transportProfileUri = &wssBinaryTransportProfile;
-            else if(isInsecureWebSocketEndpointUrl(currentEndpointUrl))
-                transportProfileUri = &wsBinaryTransportProfile;
-
-            /* Test if the effective transport profile shall be returned */
-            UA_Boolean usable = (profileUrisSize == 0);
-            if(!usable) {
-                for(size_t p = 0; p < profileUrisSize; ++p) {
-                    if(!UA_String_equal(&profileUris[p], transportProfileUri))
-                        continue;
-                    usable = true;
-                    break;
-                }
-            }
-            if(!usable)
+            /* Plain HTTP provides no transport security and therefore exposes
+             * only SecurityPolicy None endpoints. For HTTPS, represent TLS
+             * confidentiality as SignAndEncrypt so shared Session and identity
+             * token handling does not require redundant token encryption. */
+            if(httpEndpoint && !secureHttp &&
+               sp->policyType != UA_SECURITYPOLICYTYPE_NONE)
                 continue;
 
-            /* Copy the endpoint with a current ApplicationDescription */
-            UA_EndpointDescription *ed = &(*arr)[pos];
-            retval |= UA_EndpointDescription_copy(&sc->endpoints[j], ed);
-            UA_String_clear(&ed->transportProfileUri);
-            retval |= UA_String_copy(transportProfileUri,
-                                     &ed->transportProfileUri);
-            UA_ApplicationDescription_clear(&ed->server);
-            retval |= UA_ApplicationDescription_copy(&sc->applicationDescription,
-                                                     &ed->server);
-
-            /* Set the local certificate configured for the SecurityPolicy */
-            UA_ByteString_clear(&ed->serverCertificate);
-            retval |= UA_ByteString_copy(&sp->localCertificate,
-                                         &ed->serverCertificate);
-
-            /* Set the User Identity Token list from the AccessControl plugin.
-             * This also selects an appropriate SecurityPolicy for the
-             * AuthenticationToken. */
-            retval |= updateEndpointUserIdentityToken(server, sp->policyType, ed);
-
-            /* OPC UA Part 4 §5.4.2:
-             *
-             * If the endpoint uses None security but a token policy requires
-             * encryption, the client needs a certificate to encrypt the token.
-             * Set serverCertificate from the first token policy's encryption
-             * SecurityPolicy so the client can encrypt the credential. */
-            if(ed->serverCertificate.length == 0) {
-                for(size_t ti = 0; ti < ed->userIdentityTokensSize; ti++) {
-                    UA_UserTokenPolicy *utp = &ed->userIdentityTokens[ti];
-                    if(utp->securityPolicyUri.length == 0)
-                        continue;
-                    UA_SecurityPolicy *encSP =
-                        getSecurityPolicyByUri(server, &utp->securityPolicyUri);
-                    if(!encSP || encSP->localCertificate.length == 0)
-                        continue;
-                    retval |= UA_ByteString_copy(&encSP->localCertificate,
-                                                 &ed->serverCertificate);
-                    break;
-                }
+            const UA_String *transportProfileUris[2] = {
+                &ep->transportProfileUri, NULL};
+            size_t transportProfileUrisSize = 1;
+            if(isSecureWebSocketEndpointUrl(currentEndpointUrl))
+                transportProfileUris[0] = &wssBinaryTransportProfile;
+            else if(isInsecureWebSocketEndpointUrl(currentEndpointUrl))
+                transportProfileUris[0] = &wsBinaryTransportProfile;
+            else if(httpEndpoint && secureHttp) {
+                transportProfileUris[0] = &UA_HTTP_PROFILE_HTTPS_BINARY;
+#ifdef UA_ENABLE_JSON_ENCODING
+                transportProfileUris[1] = &UA_HTTP_PROFILE_HTTPS_JSON;
+                transportProfileUrisSize = 2;
+#endif
+            } else if(httpEndpoint) {
+                transportProfileUris[0] = &UA_HTTP_PROFILE_HTTP_BINARY;
+#ifdef UA_ENABLE_JSON_ENCODING
+                transportProfileUris[1] = &UA_HTTP_PROFILE_HTTP_JSON;
+                transportProfileUrisSize = 2;
+#endif
             }
 
-            /* Set the EndpointURL */
-            UA_String_clear(&ed->endpointUrl);
-            if(endpointUrl.length == 0) {
-                retval |= UA_String_copy(currentEndpointUrl, &ed->endpointUrl);
-            } else {
-                /* Mirror back the requested EndpointUrl and also add it to the
-                 * array of discovery urls */
-                retval |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
+            for(size_t tp = 0; tp < transportProfileUrisSize; tp++) {
+                const UA_String *transportProfileUri = transportProfileUris[tp];
 
-                /* Check if the ServerUrl is already present in the DiscoveryUrl
-                 * array */
-                size_t k = 0;
-                for(; k < ed->server.discoveryUrlsSize; k++) {
-                    if(UA_String_equal(&ed->endpointUrl, &ed->server.discoveryUrls[k]))
+                /* Test if the effective transport profile shall be returned */
+                UA_Boolean usable = (profileUrisSize == 0);
+                if(!usable) {
+                    for(size_t p = 0; p < profileUrisSize; ++p) {
+                        if(!UA_String_equal(&profileUris[p],
+                                            transportProfileUri))
+                            continue;
+                        usable = true;
                         break;
+                    }
                 }
-                if(k == ed->server.discoveryUrlsSize) {
-                    retval |= UA_Array_appendCopy((void **)&ed->server.discoveryUrls,
-                                                  &ed->server.discoveryUrlsSize,
-                                                  &endpointUrl,
-                                                  &UA_TYPES[UA_TYPES_STRING]);
-                }
-            }
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
+                if(!usable)
+                    continue;
 
-            pos++;
+                UA_String profileEndpointUrl = UA_STRING_NULL;
+#ifdef UA_ENABLE_JSON_ENCODING
+                if(httpEndpoint)
+                    retval |= httpProfileEndpointUrl(
+                        currentEndpointUrl, transportProfileUri,
+                        &profileEndpointUrl);
+#endif
+                const UA_String *effectiveUrl = currentEndpointUrl;
+                if(profileEndpointUrl.length > 0)
+                    effectiveUrl = &profileEndpointUrl;
+                UA_EndpointDescription effectiveEndpoint = *ep;
+                if(httpEndpoint)
+                    effectiveEndpoint.securityMode =
+                        UA_SecureChannel_httpSecurityMode(secureHttp);
+                retval |= setCurrentEndpoint(
+                    server, &effectiveEndpoint, sp, *effectiveUrl, effectiveUrl,
+                    transportProfileUri, &(*arr)[pos]);
+                UA_String_clear(&profileEndpointUrl);
+                if(retval != UA_STATUSCODE_GOOD)
+                    goto error;
+
+                pos++;
+            }
         }
     }
 
@@ -852,7 +938,7 @@ setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
     return UA_STATUSCODE_GOOD;
 
  error:
-    UA_Array_delete(*arr, sc->endpointsSize * clone_times,
+    UA_Array_delete(*arr, allocationSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     *arr = NULL;
     return retval;

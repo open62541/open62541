@@ -153,7 +153,7 @@ notifyServiceEnd(UA_Server *server, UA_AsyncResponse *ar,
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
                          &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&notifyPayload[2].value, &ar->requestId,
+    UA_Variant_setScalar(&notifyPayload[2].value, &ar->uacpRequestId,
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setScalar(&notifyPayload[3].value, &serviceTypeId,
                          &UA_TYPES[UA_TYPES_NODEID]);
@@ -165,6 +165,13 @@ notifyServiceEnd(UA_Server *server, UA_AsyncResponse *ar,
 static void
 sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
     UA_assert(ar->opCountdown == 0);
+
+    if(ar->abandoned) {
+        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Async response for closed transport carrier token %"
+                     PRIu64 " was abandoned", ar->responseToken);
+        return;
+    }
 
     /* Get the session */
     UA_Session *session = getSessionById(server, &ar->sessionId);
@@ -194,12 +201,12 @@ sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
     responseHeader->requestHandle = ar->requestHandle;
 
     /* Send the Response */
-    UA_StatusCode res = sendResponse(server, channel, ar->requestId,
+    UA_StatusCode res = sendResponse(server, channel, ar->responseToken,
                                      (UA_Response*)&ar->response, ar->responseType);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
-                               "Async Response for Req# %" PRIu32 " failed "
-                               "with StatusCode %s", ar->requestId,
+                               "Async response for token %" PRIu64 " failed "
+                               "with StatusCode %s", ar->responseToken,
                                UA_StatusCode_name(res));
     }
 }
@@ -402,15 +409,39 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     return count;
 }
 
+void
+UA_AsyncManager_abandon(UA_Server *server, UA_SecureChannel *channel,
+                        UA_UInt64 responseToken) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_AsyncManager *am = &server->asyncManager;
+    UA_AsyncResponse *ar;
+    TAILQ_FOREACH(ar, &am->waitingResponses, pointers) {
+        if(ar->responseToken != responseToken)
+            continue;
+        UA_Session *session = getSessionById(server, &ar->sessionId);
+        if(session && session->channel == channel)
+            ar->abandoned = true;
+    }
+    TAILQ_FOREACH(ar, &am->readyResponses, pointers) {
+        if(ar->responseToken != responseToken)
+            continue;
+        UA_Session *session = getSessionById(server, &ar->sessionId);
+        if(session && session->channel == channel)
+            ar->abandoned = true;
+    }
+}
+
 static void
 persistAsyncResponse(UA_Server *server, UA_Session *session,
                      void *response, UA_AsyncResponse *ar) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_AsyncManager *am = &server->asyncManager;
 
-    /* Pending results, attach the AsyncResponse to the AsyncManager. RequestId
-     * and -Handle are set in the AsyncManager before processing the request. */
-    ar->requestId = am->currentRequestId;
+    /* Pending results, attach the AsyncResponse to the AsyncManager. The
+     * transport correlation token, optional UACP RequestId and client-supplied
+     * RequestHandle are set before processing the request. */
+    ar->responseToken = am->currentResponseToken;
+    ar->uacpRequestId = am->currentUacpRequestId;
     ar->requestHandle = am->currentRequestHandle;
     ar->sessionId = session->sessionId;
     ar->timeout = UA_INT64_MAX;

@@ -71,9 +71,25 @@ START_TEST(parse_url_https) {
     UA_String host, path;
     UA_UInt16 port = 0;
     UA_StatusCode res = UA_parseEndpointUrl(&url, &host, &port, &path);
-    /* BUG: opc.https is a valid OPC UA endpoint scheme (Part 6) but
-     * UA_parseEndpointUrl does not support it. See COVERAGE_BUGS.md #6. */
-    ck_assert(res != UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_String expectedHost = UA_STRING("host");
+    ck_assert(UA_String_equal(&host, &expectedHost));
+    ck_assert_uint_eq(port, 443);
+    UA_String expectedPath = UA_STRING("path");
+    ck_assert(UA_String_equal(&path, &expectedPath));
+} END_TEST
+
+START_TEST(parse_url_http) {
+    UA_String url = UA_STRING("opc.http://localhost:8080/ua");
+    UA_String host, path;
+    UA_UInt16 port = 0;
+    UA_StatusCode res = UA_parseEndpointUrl(&url, &host, &port, &path);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_String expectedHost = UA_STRING("localhost");
+    ck_assert(UA_String_equal(&host, &expectedHost));
+    ck_assert_uint_eq(port, 8080);
+    UA_String expectedPath = UA_STRING("ua");
+    ck_assert(UA_String_equal(&path, &expectedPath));
 } END_TEST
 
 START_TEST(parse_url_wss) {
@@ -747,6 +763,7 @@ int main(void) {
     tcase_add_test(tc_url, parse_url_ipv6_noport);
     tcase_add_test(tc_url, parse_url_invalid);
     tcase_add_test(tc_url, parse_url_https);
+    tcase_add_test(tc_url, parse_url_http);
     tcase_add_test(tc_url, parse_url_wss);
     tcase_add_test(tc_url, parse_url_ethernet);
     tcase_add_test(tc_url, parse_url_ethernet_vlan);

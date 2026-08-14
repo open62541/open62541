@@ -39,6 +39,7 @@ setBinaryProtocolManagerState(UA_BinaryProtocolManager *bpm,
 void
 deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_assert(channel->transport == UA_SECURECHANNEL_TRANSPORT_UACP);
 
     /* Clean up the SecureChannel. This is the only place where
      * UA_SecureChannel_clear must be called within the server code-base.
@@ -54,7 +55,7 @@ deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     }
 
     /* Detach the channel from the server list */
-    TAILQ_REMOVE(&server->channels, channel, serverEntry);
+    unregisterSecureChannel(server, channel);
 
     UA_ServerConfig *sc = &server->config;
 
@@ -97,9 +98,22 @@ deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_free(channel);
 }
 
+static UA_StatusCode
+sendServiceMessage(UA_Server *server, UA_SecureChannel *channel,
+                   UA_UInt64 responseToken,
+                   void *payload, const UA_DataType *payloadType) {
+    if(channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP)
+        return sendHttpServiceResponse(server, channel, responseToken, payload,
+                                       payloadType);
+    if(responseToken > UINT32_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_SecureChannel_sendMSG(channel, (UA_UInt32)responseToken, payload,
+                                    payloadType);
+}
+
 UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
-                 UA_UInt32 requestId, UA_UInt32 requestHandle,
+                 UA_UInt64 responseToken, UA_UInt32 requestHandle,
                  UA_StatusCode statusCode) {
     UA_EventLoop *el = server->config.eventLoop;
 
@@ -111,13 +125,14 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
     responseHeader->serviceResult = statusCode;
 
     UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
-                 "Sending response for RequestId %u with ServiceResult %s",
-                 (unsigned)requestId, UA_StatusCode_name(statusCode));
+                 "Sending response for token %" PRIu64
+                 " with ServiceResult %s", responseToken,
+                 UA_StatusCode_name(statusCode));
 
     /* Send error message. Message type is MSG and not ERR, since we are on a
      * SecureChannel! */
-    return UA_SecureChannel_sendMSG(channel, requestId, &response,
-                                    &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+    return sendServiceMessage(server, channel, responseToken, &response,
+                              &UA_TYPES[UA_TYPES_SERVICEFAULT]);
 }
 
 /* This is not an ERR message, the connection is not closed afterwards */
@@ -283,44 +298,25 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
 
 /* The responseHeader must have the requestHandle already set */
 UA_StatusCode
-sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-             UA_Response *response, const UA_DataType *responseType) {
+sendResponse(UA_Server *server, UA_SecureChannel *channel,
+             UA_UInt64 responseToken, UA_Response *response,
+             const UA_DataType *responseType) {
     if(!channel)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* If the overall service call failed, answer with a ServiceFault */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return sendServiceFault(server, channel, requestId,
+        return sendServiceFault(server, channel, responseToken,
                                 response->responseHeader.requestHandle,
                                 response->responseHeader.serviceResult);
 
     /* Prepare the ResponseHeader */
     UA_EventLoop *el = server->config.eventLoop;
     response->responseHeader.timestamp = el->dateTime_now(el);
-
-    /* Start the message context */
-    UA_MessageContext mc;
-    UA_StatusCode retval = UA_MessageContext_begin(&mc, channel, requestId, UA_MESSAGETYPE_MSG);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Assert's required for clang-analyzer */
-    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH]);
-    UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
-
-    /* Encode the response type */
-    retval = UA_MessageContext_encode(&mc, &responseType->binaryEncodingId,
-                                      &UA_TYPES[UA_TYPES_NODEID]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Encode the response */
-    retval = UA_MessageContext_encode(&mc, response, responseType);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Finish / send out */
-    return UA_MessageContext_finish(&mc);
+    UA_StatusCode res =
+        sendServiceMessage(server, channel, responseToken, response,
+                           responseType);
+    return res;
 }
 
 /* A Session is "bound" to a SecureChannel if it was created by the
@@ -370,58 +366,42 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     if(channel->state != UA_SECURECHANNELSTATE_OPEN)
         return UA_STATUSCODE_BADINTERNALERROR;
-    /* Decode the nodeid */
-    size_t offset = 0;
-    UA_NodeId requestTypeId;
-    UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestTypeId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    if(requestTypeId.namespaceIndex != 0 ||
-       requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-        UA_NodeId_clear(&requestTypeId); /* leads to badserviceunsupported */
 
-    /* Get the service pointers */
-    UA_ServiceDescription *sd = getServiceDescription(requestTypeId.identifier.numeric);
-    if(!sd) {
-        if(requestTypeId.identifier.numeric ==
+    /* Decode the service type and body shared by all Binary transports. */
+    UA_Request request;
+    UA_ServiceDescription *sd = NULL;
+    size_t requestOffset = 0;
+    UA_UInt32 requestTypeId = 0;
+    UA_StatusCode retval = decodeBinaryServiceRequest(
+        server, msg, &sd, &request, &requestOffset, &requestTypeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(!sd && requestTypeId ==
            UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY) {
             UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                                 "Client requested a subscription, "
                                 "but those are not enabled in the build");
-        } else {
+        } else if(!sd) {
             UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                                 "Unknown request with type identifier %" PRIi32,
-                                requestTypeId.identifier.numeric);
+                                requestTypeId);
+        } else {
+            UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
+                                 "Could not decode the request with StatusCode %s",
+                                 UA_StatusCode_name(retval));
         }
-        return decodeHeaderSendServiceFault(server, channel, msg, offset,
-                                            &UA_TYPES[UA_TYPES_SERVICEFAULT],
-                                            requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        const UA_DataType *responseType = sd ? sd->responseType :
+            &UA_TYPES[UA_TYPES_SERVICEFAULT];
+        return decodeHeaderSendServiceFault(server, channel, msg,
+                                            requestOffset, responseType,
+                                            requestId, retval);
     }
 
-    /* Decode the request */
-    UA_Request request;
-    size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
-    UA_DecodeBinaryOptions opt;
-    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
-    opt.customTypes = serverCustomTypes(server);
-    retval = UA_decodeBinaryInternal(msg, &offset, &request, sd->requestType, &opt);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
-                             "Could not decode the request with StatusCode %s",
-                             UA_StatusCode_name(retval));
-        return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
-                                            sd->responseType, requestId, retval);
-    }
-
-    /* Initialize the response */
     UA_Response response;
-    UA_init(&response, sd->responseType);
-    response.responseHeader.requestHandle = request.requestHeader.requestHandle;
 
     lockServer(server);
 
-    /* Process the request */
-    UA_Boolean done = processRequest(server, channel, requestId, sd, &request, &response);
+    UA_Boolean done = processDecodedServiceRequest(
+        server, channel, requestId, sd, &request, &response);
 
     /* Send response if not async */
     if(UA_LIKELY(done))
@@ -502,10 +482,11 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
 
 /* Remove the first channel that has no session attached */
 static UA_Boolean
-purgeFirstChannelWithoutSession(UA_Server *server) {
+purgeFirstUascChannelWithoutSession(UA_Server *server) {
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->sessions)
+        if(channel->transport != UA_SECURECHANNEL_TRANSPORT_UACP ||
+           channel->sessions)
             continue;
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Channel was purged since maxSecureChannels was "
@@ -527,7 +508,7 @@ createServerSecureChannel(UA_Server *server,
 
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
     if(scs->currentChannelCount >= config->maxSecureChannels &&
-       !purgeFirstChannelWithoutSession(server))
+       !purgeFirstUascChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Allocate memory for the SecureChannel */
@@ -591,13 +572,6 @@ createServerSecureChannel(UA_Server *server,
             UA_String_copy(address, &channel->remoteAddress);
     }
 
-    /* Set the SecureChannel identifier already here. So we get the right
-     * identifier for logging right away. The rest of the SecurityToken is set
-     * in UA_SecureChannelManager_open. Set the ChannelId also in the
-     * alternative security token, we don't touch this value during the token
-     * rollover. */
-    channel->securityToken.channelId = server->lastChannelId++;
-
     /* Set an initial timeout before the negotiation handshake. So the channel
      * is caught if the client is unresponsive.
      *
@@ -606,8 +580,13 @@ createServerSecureChannel(UA_Server *server,
     channel->securityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->securityToken.revisedLifetime = 10000; /* 10s should be enough */
 
-    /* Add to the server's list */
-    TAILQ_INSERT_TAIL(&server->channels, channel, serverEntry);
+    /* Assign a transport-independent ChannelId and add to the server list. */
+    UA_StatusCode res = registerSecureChannel(server, channel);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_SecureChannel_clear(channel);
+        UA_free(channel);
+        return res;
+    }
 
     /* Update the statistics */
     scs->currentChannelCount++;

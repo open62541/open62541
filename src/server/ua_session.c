@@ -97,18 +97,27 @@ UA_Session_attachToSecureChannel(UA_Server *server, UA_Session *session,
 
 void
 UA_Session_detachFromSecureChannel(UA_Server *server, UA_Session *session) {
+    UA_SecureChannel *channel = session->channel;
+
     /* Clean up the response queue. Their RequestId is bound to the
-     * SecureChannel so they cannot be reused. */
+     * SecureChannel so they cannot be reused. Complete the request when the
+     * old channel can still carry a response. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_PublishResponseEntry *pre;
     while((pre = UA_Session_dequeuePublishReq(session))) {
+        if(channel) {
+            pre->response.responseHeader.serviceResult =
+                UA_STATUSCODE_BADSECURECHANNELCLOSED;
+            (void)sendResponse(server, channel, pre->responseToken,
+                               (UA_Response *)&pre->response,
+                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        }
         UA_PublishResponse_clear(&pre->response);
         UA_free(pre);
     }
 #endif
 
     /* Remove from singly-linked list */
-    UA_SecureChannel *channel = session->channel;
     if(!channel)
         return;
 
@@ -127,6 +136,11 @@ UA_Session_detachFromSecureChannel(UA_Server *server, UA_Session *session) {
     /* Notify the application */
     notifySession(server, session,
                   UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED);
+
+    /* A direct HTTP channel belongs to its logical client. */
+    if(channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP &&
+       !channel->sessions && UA_SecureChannel_isConnected(channel))
+        shutdownSecureChannel(server, channel, UA_SHUTDOWNREASON_CLOSE);
 }
 
 UA_StatusCode
@@ -221,7 +235,7 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     while((pre = UA_Session_dequeuePublishReq(session))) {
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        sendResponse(server, session->channel, pre->requestId,
+        sendResponse(server, session->channel, pre->responseToken,
                      (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(response);
         UA_free(pre);

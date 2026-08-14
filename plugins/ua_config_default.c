@@ -328,6 +328,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(wsCM)
             conf->eventLoop->registerEventSource(conf->eventLoop,
                                                  (UA_EventSource*)wsCM);
+        UA_ConnectionManager *httpCM =
+            UA_ConnectionManager_new_HTTP(UA_STRING("http connection manager"));
+        if(httpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop,
+                                                 (UA_EventSource*)httpCM);
 #endif
 
         /* Add the UDP connection manager */
@@ -391,9 +396,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
      * Otherwise a long TCP TIME_WAIT is required before the port can be used again. */
     conf->tcpReuseAddr = true;
     conf->tcpEnabled = true;
-#ifdef UA_ENABLE_LWS
     conf->webSocketEnabled = false;
-#endif
+    conf->httpEnabled = false;
+    conf->httpAllowUnencrypted = false;
+    if(conf->httpTimeout == 0)
+        conf->httpTimeout = 60;
 
     /* --> Start setting the default static config <-- */
 

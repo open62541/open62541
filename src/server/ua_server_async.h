@@ -96,12 +96,14 @@ typedef struct UA_AsyncOperation {
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
 
-    UA_UInt32 requestId;
+    UA_UInt64 responseToken;
+    UA_UInt32 uacpRequestId; /* Zero for transports without a UACP RequestId */
     UA_UInt32 requestHandle;
     UA_DateTime timeout;
     UA_NodeId sessionId;
     UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
                             * only be deleted when all have returned. */
+    UA_Boolean abandoned;  /* The transport carrier closed before completion */
 
     const UA_DataType *responseType;
     union {
@@ -112,9 +114,10 @@ struct UA_AsyncResponse {
 };
 
 typedef struct {
-    /* Forward the request id here as the "UA_Service" method signature does not
-     * contain it */
-    UA_UInt32 currentRequestId;
+    /* Forward the transport response token here as the "UA_Service" method
+     * signature does not contain it. */
+    UA_UInt64 currentResponseToken;
+    UA_UInt32 currentUacpRequestId;
     UA_UInt32 currentRequestHandle;
 
     /* Async responses */
@@ -141,6 +144,11 @@ void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
  * Then sends out the responses with a StatusCode. */
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
+
+/* Abandon an asynchronous response whose transport carrier has closed. */
+void
+UA_AsyncManager_abandon(UA_Server *server, UA_SecureChannel *channel,
+                        UA_UInt64 responseToken);
 
 /* Internal async API */
 UA_StatusCode

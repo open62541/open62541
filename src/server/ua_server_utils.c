@@ -12,6 +12,65 @@
 
 #include "ua_server_internal.h"
 
+/**************************/
+/* Discovery URL Handling */
+/**************************/
+
+UA_Boolean
+addServerDiscoveryUrl(UA_Server *server, const UA_String *url) {
+    UA_ApplicationDescription *ad = &server->config.applicationDescription;
+    for(size_t i = 0; i < ad->discoveryUrlsSize; i++) {
+        if(UA_String_equal(url, &ad->discoveryUrls[i]))
+            return false;
+    }
+
+    UA_StatusCode res =
+        UA_Array_appendCopy((void **)&ad->discoveryUrls, &ad->discoveryUrlsSize,
+                            url, &UA_TYPES[UA_TYPES_STRING]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not register DiscoveryUrl -- out of memory");
+        return false;
+    }
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "New DiscoveryUrl added: %S", *url);
+    return true;
+}
+
+void
+removeServerDiscoveryUrl(UA_Server *server, const UA_String *url) {
+    UA_ApplicationDescription *ad = &server->config.applicationDescription;
+    for(size_t i = 0; i < ad->discoveryUrlsSize; i++) {
+        if(!UA_String_equal(url, &ad->discoveryUrls[i]))
+            continue;
+        UA_String_clear(&ad->discoveryUrls[i]);
+        ad->discoveryUrlsSize--;
+        if(i < ad->discoveryUrlsSize)
+            memmove(&ad->discoveryUrls[i], &ad->discoveryUrls[i + 1],
+                    (ad->discoveryUrlsSize - i) * sizeof(UA_String));
+        if(ad->discoveryUrlsSize == 0) {
+            UA_free(ad->discoveryUrls);
+            ad->discoveryUrls = NULL;
+        }
+        return;
+    }
+}
+
+UA_Boolean
+getHttpUrlSecurity(const UA_String *url, UA_Boolean *secure) {
+    static const UA_String schemes[2] = {
+        UA_STRING_STATIC("opc.http://"), UA_STRING_STATIC("opc.https://")};
+    for(size_t i = 0; i < 2; i++) {
+        if(url->length < schemes[i].length ||
+           memcmp(url->data, schemes[i].data, schemes[i].length) != 0)
+            continue;
+        if(secure)
+            *secure = (i == 1);
+        return true;
+    }
+    return false;
+}
+
 UA_ConnectionManager *
 findConnectionManager(UA_EventLoop *eventLoop, const UA_String *protocol) {
     if(!eventLoop)
@@ -412,22 +471,69 @@ getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_SecureChannel *
+findSecureChannel(UA_Server *server, UA_UInt32 channelId) {
+    UA_SecureChannel *channel;
+    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
+        if(channel->securityToken.channelId == channelId)
+            return channel;
+    }
+    return NULL;
+}
+
+void
+shutdownSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                      UA_ShutdownReason reason) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    switch(channel->transport) {
+    case UA_SECURECHANNEL_TRANSPORT_UACP:
+        UA_SecureChannel_shutdown(channel, reason);
+        break;
+    case UA_SECURECHANNEL_TRANSPORT_HTTP:
+        shutdownHttpSecureChannel(server, channel, reason);
+        break;
+    default:
+        UA_assert(false);
+    }
+}
+
 UA_StatusCode
 UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
                              UA_ShutdownReason reason) {
     lockServer(server);
-    UA_SecureChannel *channel;
-    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->securityToken.channelId != channelId)
-            continue;
-        if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
-           channel->state != UA_SECURECHANNELSTATE_CLOSING)
-            UA_SecureChannel_shutdown(channel, reason);
+    UA_SecureChannel *channel = findSecureChannel(server, channelId);
+    if(channel) {
+        shutdownSecureChannel(server, channel, reason);
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
     }
     unlockServer(server);
     return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+registerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_assert(channel->securityToken.channelId == 0);
+
+    /* ChannelIds share one namespace across all transports. Skip zero and
+     * identifiers that remain active after the counter wraps around. */
+    UA_UInt32 start = server->nextChannelId;
+    do {
+        UA_UInt32 channelId = server->nextChannelId++;
+        if(channelId != 0 && !findSecureChannel(server, channelId)) {
+            channel->securityToken.channelId = channelId;
+            TAILQ_INSERT_TAIL(&server->channels, channel, serverEntry);
+            return UA_STATUSCODE_GOOD;
+        }
+    } while(server->nextChannelId != start);
+    return UA_STATUSCODE_BADOUTOFMEMORY;
+}
+
+void
+unregisterSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    TAILQ_REMOVE(&server->channels, channel, serverEntry);
 }
 
 UA_StatusCode

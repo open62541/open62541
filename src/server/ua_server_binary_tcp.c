@@ -29,27 +29,7 @@ addTcpDiscoveryUrl(UA_BinaryProtocolManager *bpm,
     UA_String discoveryServerUrl = UA_STRING(urlstr);
     UA_Server *server = bpm->drv.server;
 
-    /* Check if the ServerUrl is already present in the DiscoveryUrl array.
-     * Add if not already there. */
-    for(size_t i = 0;
-        i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-        if(UA_String_equal(&discoveryServerUrl,
-                           &server->config.applicationDescription.discoveryUrls[i]))
-            return;
-    }
-
-    /* Add to the list of discovery urls */
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
-                            &server->config.applicationDescription.discoveryUrlsSize,
-                            &discoveryServerUrl, &UA_TYPES[UA_TYPES_STRING]);
-    if(res == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "New DiscoveryUrl added: %S", discoveryServerUrl);
-    } else {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Could not register DiscoveryUrl -- out of memory");
-    }
+    addServerDiscoveryUrl(server, &discoveryServerUrl);
 }
 
 static UA_StatusCode
@@ -179,21 +159,7 @@ startTcpTransport(UA_BinaryProtocolManager *bpm) {
         if(retVal != UA_STATUSCODE_GOOD || hostname.length == 0)
             continue;
 
-        /* Check if the ServerUrl is already present in the DiscoveryUrl array.
-         * Add if not already there. */
-        size_t j = 0;
-        for(; j < config->applicationDescription.discoveryUrlsSize; j++) {
-            if(UA_String_equal(&config->serverUrls[i],
-                               &config->applicationDescription.discoveryUrls[j]))
-                break;
-        }
-        if(j == config->applicationDescription.discoveryUrlsSize) {
-            retVal = UA_Array_appendCopy(
-                (void**)&config->applicationDescription.discoveryUrls,
-                &config->applicationDescription.discoveryUrlsSize,
-                &config->serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
-            (void)retVal;
-        }
+        addServerDiscoveryUrl(server, &config->serverUrls[i]);
     }
 
     return UA_STATUSCODE_GOOD;

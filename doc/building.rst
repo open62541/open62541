@@ -339,10 +339,35 @@ be visible in the cmake GUIs.
    Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
 
 **UA_ENABLE_LWS**
-   Includes the ``libwebsockets`` library to enable OPC UA over WebSockets transport protocols (``opc.ws://`` for unencrypted WebSockets and ``opc.wss://`` for WebSockets over TLS/SSL).
+   Enable the ``libwebsockets`` transport provider. It supplies the generic
+   HTTP client/server ConnectionManager, OPC UA services over HTTPS
+   (``opc.https://``), and OPC UA Binary over WebSockets (``opc.ws://`` and
+   ``opc.wss://``). The server transports remain opt-in through
+   ``httpEnabled`` and ``webSocketEnabled``. ``opc.https`` requires a TLS
+   certificate and private key. Binary and, when ``UA_ENABLE_JSON_ENCODING``
+   is enabled, JSON service bodies can coexist on the same endpoint URL and
+   are exposed as separate Binary and ``/json`` endpoint paths. Each logical
+   channel remains pinned to one encoding. Internally, Session routing contexts
+   isolate AuthenticationTokens and nonces between clients without creating a
+   new wire-level SecureChannel for every HTTP request.
+   HTTP content compression is optional in the OPC UA specification.
+
+   Session-less HTTPS ``Authorization`` and ``Accept-Language`` processing are
+   not implemented by this transport. Applications that require those optional
+   profile features must provide them above the generic HTTP ConnectionManager.
+
+**UA_ENABLE_HTTP_COMPRESSION**
+   Enable bounded ``gzip`` and ``deflate`` request/response content coding for
+   HTTP clients and servers. This option requires ``UA_ENABLE_LWS`` and zlib. Compressed
+   input is limited independently on the wire and after decompression. Unknown
+   request codings are rejected with HTTP status 415 and unacceptable response
+   coding negotiation with status 406.
 
 **UA_ENABLE_LWS_MQTT**
-   Enable the ``libwebsockets`` MQTT ConnectionManager implementation for PubSub MQTT transport protocols (``opc.mqtt://`` and ``opc.mqtts://``). Requires ``UA_ENABLE_LWS`` and ``libwebsockets`` compiled with MQTT support (``LWS_ROLE_MQTT=ON``).
+   Enable the MQTT part of the ``libwebsockets`` provider for PubSub MQTT
+   transport protocols (``opc.mqtt://`` and ``opc.mqtts://``). Requires
+   ``UA_ENABLE_LWS`` and libwebsockets compiled with MQTT support
+   (``LWS_ROLE_MQTT=ON``).
 
 PubSub Build Options
 ^^^^^^^^^^^^^^^^^^^^

@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3 valgrind
+          sudo apt-get install -y -qq build-essential check cmake libsubunit-dev python3 valgrind libwebsockets-dev zlib1g-dev
       - name: Build mbedTLS
         run: |
           cmake -S mbedtls-source -B mbedtls-build \
@@ -44,12 +44,14 @@ jobs:
             -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
             -DUA_ENABLE_ENCRYPTION=MBEDTLS \
             -DUA_ENABLE_JSON_ENCODING=ON \
+            -DUA_ENABLE_LWS=ON \
+            -DUA_ENABLE_HTTP_COMPRESSION=ON \
             -DUA_ENABLE_PUBSUB=ON \
             -DUA_FORCE_WERROR=ON \
             -DUA_NAMESPACE_ZERO=FULL
           cmake --build build-mbedtls --parallel
           ctest --test-dir build-mbedtls --output-on-failure \
-            -R "(encrypt|decrypt|cert|crypto|ecc|auth|json_config)"
+            -R "(encrypt|decrypt|cert|crypto|ecc|auth|json_config|http)"
       - name: Check mbedTLS 4 ownership with Valgrind
         if: matrix.mbedtls-version == '4.2.0'
         working-directory: build-mbedtls/tests
@@ -170,7 +172,7 @@ jobs:
             build:
               name: "Debug Build & Unit Tests with libwebsockets (gcc)"
               cmd_deps: |
-                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev libssl-dev
+                sudo apt-get install -y -qq build-essential cmake curl gcc git iproute2 libpcap-dev libssl-dev zlib1g-dev
                 git clone --branch v4.3.3 --depth 1 https://github.com/warmcat/libwebsockets.git /tmp/libwebsockets
                 cmake -S /tmp/libwebsockets -B /tmp/libwebsockets-build \
                   -DCMAKE_BUILD_TYPE=Release \
@@ -186,8 +188,14 @@ jobs:
           - os: ubuntu-26.04
             build:
               name: "Debug Build & Unit Tests with packaged libwebsockets (gcc)"
-              cmd_deps: sudo apt-get install -y -qq build-essential cmake gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev
+              cmd_deps: sudo apt-get install -y -qq build-essential cmake curl gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev zlib1g-dev
               cmd_action: LWS_MQTT=OFF unit_tests_libwebsockets
+
+          - os: ubuntu-24.04
+            build:
+              name: "HTTP server lifecycle with libwebsockets (ThreadSanitizer)"
+              cmd_deps: sudo apt-get install -y -qq build-essential cmake curl gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev zlib1g-dev
+              cmd_action: unit_tests_libwebsockets_tsan
 
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04

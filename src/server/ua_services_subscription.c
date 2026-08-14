@@ -309,8 +309,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
     const UA_PublishRequest *request = (const UA_PublishRequest*)request_;
     UA_PublishResponse *response = (UA_PublishResponse*)response_;
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                         "Processing PublishRequest with RequestId %u",
-                         server->asyncManager.currentRequestId);
+                         "Processing PublishRequest with response token %"
+                         PRIu64,
+                         server->asyncManager.currentResponseToken);
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Return an error if the session has no subscription */
@@ -351,7 +352,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* <--- Async response from here on ---> */
 
-    entry->requestId = server->asyncManager.currentRequestId;
+    entry->responseToken = server->asyncManager.currentResponseToken;
     entry_response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
     /* Delete Acknowledged Subscription Messages */

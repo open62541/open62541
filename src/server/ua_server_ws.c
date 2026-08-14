@@ -23,28 +23,6 @@ isSecureWebSocketUrl(const UA_String *url) {
 }
 
 static void
-appendDiscoveryUrl(UA_Server *server, const UA_String url) {
-    for(size_t i = 0;
-        i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-        if(UA_String_equal(&url,
-                           &server->config.applicationDescription.discoveryUrls[i]))
-            return;
-    }
-
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
-                            &server->config.applicationDescription.discoveryUrlsSize,
-                            &url, &UA_TYPES[UA_TYPES_STRING]);
-    if(res == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "New DiscoveryUrl added: %S", url);
-    } else {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Could not register DiscoveryUrl -- out of memory");
-    }
-}
-
-static void
 addWebSocketDiscoveryUrls(UA_BinaryProtocolManager *bpm,
                           const UA_KeyValueMap *params) {
     const UA_UInt16 *listenPort = (const UA_UInt16*)
@@ -83,7 +61,8 @@ addWebSocketDiscoveryUrls(UA_BinaryProtocolManager *bpm,
             mp_snprintf(urlstr, sizeof(urlstr), "%s://%S:%u",
                         scheme, advertisedHost, (unsigned)*listenPort);
         }
-        appendDiscoveryUrl(server, UA_STRING(urlstr));
+        UA_String url = UA_STRING(urlstr);
+        addServerDiscoveryUrl(server, &url);
     }
 }
 
@@ -271,7 +250,7 @@ startWebSocketTransport(UA_BinaryProtocolManager *bpm) {
         if(UA_parseEndpointUrl(serverUrl, &hostname, &port, NULL) ==
                UA_STATUSCODE_GOOD &&
            hostname.length > 0)
-            appendDiscoveryUrl(server, *serverUrl);
+            addServerDiscoveryUrl(server, serverUrl);
     }
 
     if(!haveWebSocketUrl) {

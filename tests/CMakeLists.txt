@@ -349,11 +349,22 @@ if(UA_ENABLE_LWS)
                    ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
     configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der
                    ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_cert.der
+                   ${CMAKE_BINARY_DIR}/tests/client_cert.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der
+                   ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
+    target_include_directories(check_eventloop_http PRIVATE
+                               ${PROJECT_SOURCE_DIR}/arch/posix)
+    ua_add_test(check_http_compression.c)
+    target_include_directories(check_http_compression PRIVATE
+                               ${PROJECT_SOURCE_DIR}/arch/posix)
     ua_add_test(check_eventloop_websocket_lws.c)
     target_include_directories(check_eventloop_websocket_lws PRIVATE
                                ${LIBWEBSOCKETS_INCLUDE_DIR})
+    ua_add_test(server/check_server_http.c WRAPPER ${Python3_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tools/lws/opcHttpClient.py --run-test)
 endif()
 
 # Test Server
@@ -368,6 +379,7 @@ ua_add_test(server/check_services_attributes.c)
 ua_add_test(server/check_services_nodemanagement.c)
 ua_add_test(server/check_discovery_coverage.c)
 ua_add_test(server/check_server_callbacks.c)
+ua_add_test(server/check_server_http_protocol.c)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     ua_add_test(server/check_server_password.c EXTRALIBS -lcrypt)

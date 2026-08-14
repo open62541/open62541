@@ -103,6 +103,8 @@ START_TEST(SecureChannel_initAndDelete) {
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
     ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_CLOSED,
                   "Expected state to be closed");
+    ck_assert_uint_eq(channel.transport, UA_SECURECHANNEL_TRANSPORT_UACP);
+    ck_assert_uint_eq(channel.encoding, UA_SECURECHANNEL_ENCODING_BINARY);
     ck_assert_msg(fCalled.newContext, "Expected newContext to have been called");
     ck_assert_msg(fCalled.makeCertificateThumbprint,
                   "Expected makeCertificateThumbprint to have been called");

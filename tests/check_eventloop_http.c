@@ -7,6 +7,7 @@
 #include "open62541/types.h"
 #include "open62541/types_generated.h"
 #include "open62541/util.h"
+#include "eventloop_posix_http_compression.h"
 
 #include "testing_clock.h"
 #include <stdio.h>
@@ -209,20 +210,21 @@ START_TEST(sendPostRequest) {
     sendParams[1].key = UA_QUALIFIEDNAME(0, "method");
     UA_Variant_setScalar(&sendParams[1].value, &method, &UA_TYPES[UA_TYPES_STRING]);
     UA_UInt32 requestHandle = 0;
-    sendParams[2].key = UA_QUALIFIEDNAME(0, "request-handle");
+    sendParams[2].key = UA_QUALIFIEDNAME(0, "handle");
     UA_Variant_setScalar(&sendParams[2].value, &requestHandle,
                          &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_KeyValueMap sendKvm = {sendParamsSize, sendParams};
 
-    uintptr_t requestId = 0;
-    UA_StatusCode res = cm->openConnection(cm, &kvm, NULL, &requestId, connectionCallback);
+    uintptr_t connectionId = 0;
+    UA_StatusCode res = cm->openConnection(cm, &kvm, NULL, &connectionId,
+                                           connectionCallback);
     ck_assert(res == UA_STATUSCODE_GOOD);
 
     for(int i = 0; i < COUNT; i++) {
         requestHandle = (UA_UInt32)i;
         UA_ByteString msg = UA_BYTESTRING_ALLOC("text=hallo&send=data");
-        res = cm->sendWithConnection(cm, requestId, &sendKvm, &msg);
+        res = cm->sendWithConnection(cm, connectionId, &sendKvm, &msg);
         ck_assert(res == UA_STATUSCODE_GOOD);
     }
     ck_assert_uint_eq(messageCount, 0);
@@ -231,7 +233,7 @@ START_TEST(sendPostRequest) {
     }
     ck_assert_uint_eq(messageCount, COUNT);
 
-    res = cm->closeConnection(cm, requestId);
+    res = cm->closeConnection(cm, connectionId);
     ck_assert(res == UA_STATUSCODE_GOOD);
 
     for(int i = 0; i < 20; i++) {
@@ -255,7 +257,7 @@ START_TEST(sendPostRequest) {
 typedef struct {
     uintptr_t listenerId;
     uintptr_t clientId;
-    uintptr_t requestId;
+    uintptr_t acceptedConnectionId;
     UA_UInt16 port;
     UA_Boolean requestReceived;
     UA_Boolean responseReceived;
@@ -315,7 +317,7 @@ serverConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             foundSecurityPolicy = true;
         }
         ck_assert(foundSecurityPolicy);
-        ctx->requestId = connectionId;
+        ctx->acceptedConnectionId = connectionId;
         ctx->requestReceived = true;
 
         UA_String contentType = UA_STRING("application/octet-stream");
@@ -460,18 +462,24 @@ typedef enum {
     HTTP_TEST_EMPTY_RESPONSE,
     HTTP_TEST_NO_RESPONSE,
     HTTP_TEST_DUPLICATE_RESPONSE,
-    HTTP_TEST_CLOSE_REQUEST,
-    HTTP_TEST_FIXED_RESPONSE
+    HTTP_TEST_CLOSE_CONNECTION,
+    HTTP_TEST_CLOSE_LISTENER,
+    HTTP_TEST_FIXED_RESPONSE,
+    HTTP_TEST_ONE_REQUEST_FAILS,
+    HTTP_TEST_ONE_REQUEST_STALLS,
+    HTTP_TEST_DUPLICATE_ENCODING_RESPONSE
 } HTTPTestMode;
 
 typedef struct {
     uintptr_t listenerId;
     uintptr_t clientId;
-    uintptr_t requestId;
+    uintptr_t acceptedConnectionId;
+    uintptr_t stalledConnectionId;
     UA_UInt16 port;
     HTTPTestMode mode;
     size_t requestCount;
-    size_t requestClosingCount;
+    size_t acceptedConnectionCount;
+    size_t acceptedClosingCount;
     size_t clientClosingCount;
     size_t responseCount;
     size_t responseCompleteCount;
@@ -486,6 +494,9 @@ typedef struct {
     UA_StatusCode secondSendStatus;
     UA_StatusCode sendAfterCloseStatus;
     UA_UInt16 responseStatus;
+    UA_StatusCode lastRequestStatus;
+    size_t goodRequestCompletions;
+    size_t badRequestCompletions;
 } HTTPTestContext;
 
 static void
@@ -516,23 +527,30 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(connectionId == ctx->clientId)
             ctx->clientClosingCount++;
         else if(connectionId != ctx->listenerId)
-            ctx->requestClosingCount++;
+            ctx->acceptedClosingCount++;
         return;
     }
 
     const UA_String *method = (const UA_String*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "method"), &UA_TYPES[UA_TYPES_STRING]);
-    if(method) {
+    if(!method && connectionId != ctx->clientId) {
         ck_assert_ptr_nonnull(connectionContext);
         ck_assert_ptr_null(*connectionContext);
+        ck_assert_uint_ne(connectionId, ctx->listenerId);
+        *connectionContext = ctx;
+        ctx->acceptedConnectionCount++;
+        return;
+    }
+    if(method) {
+        ck_assert_ptr_nonnull(connectionContext);
+        ck_assert_ptr_eq(*connectionContext, ctx);
         const UA_ByteString *requestRandom =
             (const UA_ByteString*)UA_KeyValueMap_getScalar(
                 params, UA_QUALIFIEDNAME(0, "request-random"),
                 &UA_TYPES[UA_TYPES_BYTESTRING]);
         ck_assert_ptr_nonnull(requestRandom);
         ck_assert_uint_eq(requestRandom->length, 32);
-        *connectionContext = ctx;
-        ctx->requestId = connectionId;
+        ctx->acceptedConnectionId = connectionId;
         ctx->requestCount++;
         for(size_t i = 0; i < msg.length; i++) {
             if(msg.data[i] != (UA_Byte)((ctx->serverBodyBytes + i) % 251))
@@ -540,9 +558,34 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
         ctx->serverBodyBytes += msg.length;
 
+        if(ctx->mode == HTTP_TEST_CLOSE_LISTENER) {
+            ck_assert_uint_eq(cm->closeConnection(cm, ctx->listenerId),
+                              UA_STATUSCODE_GOOD);
+            return;
+        }
+
+        const UA_String *path =
+            (const UA_String *)UA_KeyValueMap_getScalar(
+                params, UA_QUALIFIEDNAME(0, "path"),
+                &UA_TYPES[UA_TYPES_STRING]);
+        const UA_String failPath = UA_STRING_STATIC("/fail");
+        if(ctx->mode == HTTP_TEST_ONE_REQUEST_FAILS && path &&
+           UA_String_equal(path, &failPath)) {
+            ck_assert_uint_eq(cm->closeConnection(cm, connectionId),
+                              UA_STATUSCODE_GOOD);
+            return;
+        }
+
+        const UA_String slowPath = UA_STRING_STATIC("/slow");
+        if(ctx->mode == HTTP_TEST_ONE_REQUEST_STALLS && path &&
+           UA_String_equal(path, &slowPath)) {
+            ctx->stalledConnectionId = connectionId;
+            return;
+        }
+
         if(ctx->mode == HTTP_TEST_NO_RESPONSE)
             return;
-        if(ctx->mode == HTTP_TEST_CLOSE_REQUEST) {
+        if(ctx->mode == HTTP_TEST_CLOSE_CONNECTION) {
             ck_assert_uint_eq(cm->closeConnection(cm, connectionId),
                               UA_STATUSCODE_GOOD);
             UA_ByteString late = UA_BYTESTRING_ALLOC("late");
@@ -556,7 +599,8 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         size_t responseSize = msg.length;
         if(ctx->mode == HTTP_TEST_EMPTY_RESPONSE)
             responseSize = 0;
-        else if(ctx->mode == HTTP_TEST_FIXED_RESPONSE)
+        else if(ctx->mode == HTTP_TEST_FIXED_RESPONSE ||
+                ctx->mode == HTTP_TEST_ONE_REQUEST_FAILS)
             responseSize = ctx->fixedResponseSize;
         if(responseSize > 0) {
             ck_assert_uint_eq(UA_ByteString_allocBuffer(&response, responseSize),
@@ -566,16 +610,27 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         UA_UInt16 statusCode = 202;
         UA_String responseHeader = UA_STRING("present");
-        UA_KeyValuePair headers[1] = {0};
+        UA_String identityEncoding = UA_STRING("identity");
+        UA_KeyValuePair headers[3] = {0};
         headers[0].key = UA_QUALIFIEDNAME(0, "x-response");
         UA_Variant_setScalar(&headers[0].value, &responseHeader,
                              &UA_TYPES[UA_TYPES_STRING]);
+        size_t headersSize = 1;
+        if(ctx->mode == HTTP_TEST_DUPLICATE_ENCODING_RESPONSE) {
+            headers[1].key = UA_QUALIFIEDNAME(0, "content-encoding");
+            UA_Variant_setScalar(&headers[1].value, &identityEncoding,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+            headers[2].key = UA_QUALIFIEDNAME(0, "Content-Encoding");
+            UA_Variant_setScalar(&headers[2].value, &identityEncoding,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+            headersSize = 3;
+        }
         UA_KeyValuePair responseParams[2] = {0};
         responseParams[0].key = UA_QUALIFIEDNAME(0, "status-code");
         UA_Variant_setScalar(&responseParams[0].value, &statusCode,
                              &UA_TYPES[UA_TYPES_UINT16]);
         responseParams[1].key = UA_QUALIFIEDNAME(0, "headers");
-        UA_Variant_setArray(&responseParams[1].value, headers, 1,
+        UA_Variant_setArray(&responseParams[1].value, headers, headersSize,
                             &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
         UA_KeyValueMap responseMap = {2, responseParams};
         ctx->firstSendStatus = cm->sendWithConnection(
@@ -592,13 +647,14 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(connectionId != ctx->clientId)
         return;
     const UA_Variant *requestHandle = UA_KeyValueMap_get(
-        params, UA_QUALIFIEDNAME(0, "request-handle"));
+        params, UA_QUALIFIEDNAME(0, "handle"));
     if(requestHandle) {
         if(UA_Variant_hasScalarType(requestHandle,
                                     &UA_TYPES[UA_TYPES_UINT32])) {
             ck_assert_uint_eq(*(UA_UInt32*)requestHandle->data, 17);
             ctx->scalarHandleCallbacks++;
-        } else {
+        } else if(UA_Variant_hasArrayType(
+                      requestHandle, &UA_TYPES[UA_TYPES_UINT16])) {
             ck_assert(UA_Variant_hasArrayType(requestHandle,
                                               &UA_TYPES[UA_TYPES_UINT16]));
             ck_assert_uint_eq(requestHandle->arrayLength, 2);
@@ -606,7 +662,9 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             ck_assert_uint_eq(values[0], 23);
             ck_assert_uint_eq(values[1], 42);
             ctx->arrayHandleCallbacks++;
-        }
+        } else
+            ck_assert(UA_Variant_hasScalarType(
+                requestHandle, &UA_TYPES[UA_TYPES_UINT64]));
     }
     const UA_Boolean *responseComplete =
         (const UA_Boolean*)UA_KeyValueMap_getScalar(
@@ -615,6 +673,16 @@ advancedHTTPCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(responseComplete) {
         ck_assert(*responseComplete);
         ctx->responseCompleteCount++;
+        const UA_StatusCode *requestStatus =
+            (const UA_StatusCode *)UA_KeyValueMap_getScalar(
+                params, UA_QUALIFIEDNAME(0, "request-status"),
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        ck_assert_ptr_nonnull(requestStatus);
+        ctx->lastRequestStatus = *requestStatus;
+        if(*requestStatus == UA_STATUSCODE_GOOD)
+            ctx->goodRequestCompletions++;
+        else
+            ctx->badRequestCompletions++;
     }
     const UA_UInt16 *statusCode = (const UA_UInt16*)UA_KeyValueMap_getScalar(
         params, UA_QUALIFIEDNAME(0, "status-code"), &UA_TYPES[UA_TYPES_UINT16]);
@@ -647,6 +715,40 @@ runUntilCount(UA_EventLoop *eventLoop, const size_t *value,
         eventLoop->run(eventLoop, 20);
     ck_assert_uint_ge(*value, expected);
 }
+
+#ifndef _WIN32
+static void
+runUntilSocketReadable(UA_EventLoop *eventLoop, int fd, size_t iterations) {
+    for(size_t i = 0; i < iterations; i++) {
+        char byte;
+        ssize_t received = recv(fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
+        if(received >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK))
+            return;
+        eventLoop->run(eventLoop, 20);
+    }
+    ck_abort_msg("HTTP socket did not become readable");
+}
+
+static ssize_t
+readSocketUntilClosed(UA_EventLoop *eventLoop, int fd, UA_Byte *buffer,
+                      size_t capacity, size_t iterations) {
+    size_t total = 0;
+    for(size_t i = 0; i < iterations && total < capacity; i++) {
+        ssize_t received = recv(fd, &buffer[total], capacity - total,
+                                MSG_DONTWAIT);
+        if(received > 0) {
+            total += (size_t)received;
+            continue;
+        }
+        if(received == 0)
+            return (ssize_t)total;
+        if(errno != EAGAIN && errno != EWOULDBLOCK)
+            return total > 0 ? (ssize_t)total : -1;
+        eventLoop->run(eventLoop, 20);
+    }
+    return (ssize_t)total;
+}
+#endif
 
 static void
 closeHTTPConnectionIfPresent(UA_ConnectionManager *cm, uintptr_t connectionId) {
@@ -763,6 +865,44 @@ openHTTPClient(UA_ConnectionManager *cm, HTTPTestContext *ctx,
 }
 
 static void
+openHTTPClientWithTimeout(UA_ConnectionManager *cm, HTTPTestContext *ctx,
+                          UA_UInt16 timeout) {
+    UA_String address = UA_STRING("127.0.0.1");
+    UA_KeyValuePair parameters[3] = {0};
+    parameters[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&parameters[0].value, &address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    parameters[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&parameters[1].value, &ctx->port,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    parameters[2].key = UA_QUALIFIEDNAME(0, "timeout");
+    UA_Variant_setScalar(&parameters[2].value, &timeout,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap map = {3, parameters};
+    ck_assert_uint_eq(cm->openConnection(cm, &map, ctx, NULL,
+                                         advancedHTTPCallback),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(ctx->clientId, 0);
+}
+
+static void
+openHTTPClientAt(UA_ConnectionManager *cm, HTTPTestContext *ctx,
+                 UA_String *address, UA_UInt16 port) {
+    UA_KeyValuePair parameters[2] = {0};
+    parameters[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&parameters[0].value, address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    parameters[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&parameters[1].value, &port,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap map = {2, parameters};
+    ck_assert_uint_eq(cm->openConnection(cm, &map, ctx, NULL,
+                                         advancedHTTPCallback),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(ctx->clientId, 0);
+}
+
+static void
 sendPatternRequest(UA_ConnectionManager *cm, HTTPTestContext *ctx,
                    size_t size) {
     UA_String method = UA_STRING("POST");
@@ -784,6 +924,41 @@ sendPatternRequest(UA_ConnectionManager *cm, HTTPTestContext *ctx,
     ck_assert_uint_eq(cm->sendWithConnection(cm, ctx->clientId, &map,
                                              size ? &body : NULL),
                       UA_STATUSCODE_GOOD);
+}
+
+static void
+sendHandledRequestWithTimeout(UA_ConnectionManager *cm, HTTPTestContext *ctx,
+                              const char *pathValue, UA_UInt16 timeout) {
+    UA_String method = UA_STRING("POST");
+    UA_String path = UA_STRING((char *)(uintptr_t)pathValue);
+    UA_UInt64 requestHandle = 5381;
+    for(const char *pos = pathValue; *pos; pos++)
+        requestHandle = requestHandle * 33u + (UA_Byte)*pos;
+    UA_KeyValuePair parameters[4] = {0};
+    parameters[0].key = UA_QUALIFIEDNAME(0, "method");
+    UA_Variant_setScalar(&parameters[0].value, &method,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    parameters[1].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&parameters[1].value, &path,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    parameters[2].key = UA_QUALIFIEDNAME(0, "handle");
+    UA_Variant_setScalar(&parameters[2].value, &requestHandle,
+                         &UA_TYPES[UA_TYPES_UINT64]);
+    size_t parametersSize = 3;
+    if(timeout > 0) {
+        parameters[parametersSize].key = UA_QUALIFIEDNAME(0, "timeout");
+        UA_Variant_setScalar(&parameters[parametersSize++].value, &timeout,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    }
+    UA_KeyValueMap map = {parametersSize, parameters};
+    ck_assert_uint_eq(cm->sendWithConnection(cm, ctx->clientId, &map, NULL),
+                      UA_STATUSCODE_GOOD);
+}
+
+static void
+sendHandledRequest(UA_ConnectionManager *cm, HTTPTestContext *ctx,
+                   const char *pathValue) {
+    sendHandledRequestWithTimeout(cm, ctx, pathValue, 0);
 }
 
 START_TEST(serverLargeAndEmptyBodies) {
@@ -839,19 +1014,21 @@ START_TEST(clientRequestHandles) {
     scalarParams[1].key = UA_QUALIFIEDNAME(0, "path");
     UA_Variant_setScalar(&scalarParams[1].value, &path,
                          &UA_TYPES[UA_TYPES_STRING]);
-    scalarParams[2].key = UA_QUALIFIEDNAME(0, "request-handle");
+    scalarParams[2].key = UA_QUALIFIEDNAME(0, "handle");
     UA_Variant_setScalar(&scalarParams[2].value, &scalarHandle,
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_KeyValueMap scalarMap = {3, scalarParams};
     ck_assert_uint_eq(cm->sendWithConnection(cm, ctx.clientId, &scalarMap, NULL),
                       UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cm->sendWithConnection(cm, ctx.clientId, &scalarMap, NULL),
+                      UA_STATUSCODE_BADINVALIDSTATE);
     scalarHandle = 99; /* The request retained a deep copy. */
 
     UA_UInt16 arrayHandle[2] = {23, 42};
     UA_KeyValuePair arrayParams[3] = {0};
     arrayParams[0] = scalarParams[0];
     arrayParams[1] = scalarParams[1];
-    arrayParams[2].key = UA_QUALIFIEDNAME(0, "request-handle");
+    arrayParams[2].key = UA_QUALIFIEDNAME(0, "handle");
     UA_Variant_setArray(&arrayParams[2].value, arrayHandle, 2,
                         &UA_TYPES[UA_TYPES_UINT16]);
     UA_KeyValueMap arrayMap = {3, arrayParams};
@@ -892,16 +1069,17 @@ START_TEST(serverRequestLifecycle) {
     openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
     openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
     sendPatternRequest(cm, &ctx, 4);
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 1, 200);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 200);
     ck_assert_uint_eq(ctx.firstSendStatus, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(ctx.secondSendStatus, UA_STATUSCODE_BADINVALIDSTATE);
-    ck_assert_uint_eq(ctx.requestClosingCount, 1);
+    ck_assert_uint_eq(ctx.acceptedClosingCount, 0);
 
-    ctx.mode = HTTP_TEST_CLOSE_REQUEST;
+    ctx.mode = HTTP_TEST_CLOSE_CONNECTION;
     sendPatternRequest(cm, &ctx, 4);
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 2, 200);
-    ck_assert_uint_eq(ctx.sendAfterCloseStatus, UA_STATUSCODE_BADNOTFOUND);
-    ck_assert_uint_eq(ctx.requestClosingCount, 2);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 200);
+    ck_assert(ctx.sendAfterCloseStatus == UA_STATUSCODE_BADINVALIDSTATE ||
+              ctx.sendAfterCloseStatus == UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(ctx.acceptedClosingCount, 1);
 
     closeHTTPConnectionIfPresent(cm, ctx.clientId);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
@@ -929,7 +1107,7 @@ START_TEST(serverBrokenCarrierIsolation) {
     openHTTPClient(cm, &sibling, 0, 0, false, NULL, NULL, NULL);
     ck_assert_uint_eq(cm->closeConnection(cm, first.clientId),
                       UA_STATUSCODE_GOOD);
-    runUntilCount(eventLoop, &first.requestClosingCount, 1, 100);
+    runUntilCount(eventLoop, &first.acceptedClosingCount, 1, 100);
     runUntilCount(eventLoop, &first.clientClosingCount, 1, 100);
 
     /* The sibling uses the same listener and must remain fully usable. */
@@ -937,15 +1115,166 @@ START_TEST(serverBrokenCarrierIsolation) {
     first.fixedResponseSize = 2;
     sendPatternRequest(cm, &sibling, 0);
     runUntilCount(eventLoop, &sibling.responseCompleteCount, 1, 100);
-    runUntilCount(eventLoop, &first.requestClosingCount, 2, 100);
     ck_assert_uint_eq(first.requestCount, 2);
     ck_assert_uint_eq(sibling.clientBodyBytes, 2);
-    ck_assert_uint_eq(first.requestClosingCount, 2);
+    ck_assert_uint_eq(first.acceptedClosingCount, 1);
 
     closeHTTPConnectionIfPresent(cm, sibling.clientId);
     ck_assert_uint_eq(cm->closeConnection(cm, first.listenerId),
                       UA_STATUSCODE_GOOD);
+    runUntilCount(eventLoop, &first.acceptedClosingCount, 2, 100);
     stopEventLoop(eventLoop);
+} END_TEST
+
+START_TEST(clientRequestFailureIsolation) {
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_ONE_REQUEST_FAILS;
+    ctx.fixedResponseSize = 2;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+
+    sendHandledRequest(cm, &ctx, "/fail");
+    sendHandledRequest(cm, &ctx, "/ok");
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 2, 200);
+    ck_assert_uint_eq(ctx.goodRequestCompletions, 1);
+    ck_assert_uint_eq(ctx.badRequestCompletions, 1);
+    ck_assert_uint_eq(ctx.clientBodyBytes, 2);
+    ck_assert_uint_eq(ctx.clientClosingCount, 0);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    closeHTTPConnectionIfPresent(cm, ctx.listenerId);
+    stopEventLoop(eventLoop);
+} END_TEST
+
+START_TEST(clientSynchronousConnectionFailure) {
+    HTTPTestContext ctx = {0};
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+
+    /* Some libwebsockets resolvers report a DNS failure from inside
+     * lws_client_connect_via_info. The callback must see an already-linked
+     * request and cleanup must defer freeing it until the connect call
+     * returns. */
+    UA_String address = UA_STRING("open62541.invalid");
+    openHTTPClientAt(cm, &ctx, &address, 80);
+    sendHandledRequest(cm, &ctx, "/dns-failure");
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 100);
+    ck_assert_uint_eq(ctx.badRequestCompletions, 1);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    stopEventLoop(eventLoop);
+} END_TEST
+
+START_TEST(clientRequestTimeoutIsolation) {
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_ONE_REQUEST_STALLS;
+    ctx.fixedResponseSize = 2;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+
+    /* The slow request overrides the binding timeout. Its sibling must finish
+     * normally and the shared client binding must remain usable. */
+    sendHandledRequestWithTimeout(cm, &ctx, "/slow", 1);
+    sendHandledRequest(cm, &ctx, "/ok");
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 2, 200);
+    ck_assert_uint_eq(ctx.goodRequestCompletions, 1);
+    ck_assert_uint_eq(ctx.badRequestCompletions, 1);
+    ck_assert_uint_eq(ctx.clientClosingCount, 0);
+    ck_assert_uint_ne(ctx.stalledConnectionId, 0);
+
+    /* A response attempted after the timed-out carrier was destroyed cannot
+     * generate a second callback or become associated with another request. */
+    UA_UInt16 statusCode = 200;
+    UA_KeyValuePair responseParam = {
+        UA_QUALIFIEDNAME(0, "status-code"), {0}};
+    UA_Variant_setScalar(&responseParam.value, &statusCode,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap responseMap = {1, &responseParam};
+    UA_ByteString late = UA_BYTESTRING_ALLOC("late");
+    UA_StatusCode lateStatus = cm->sendWithConnection(
+        cm, ctx.stalledConnectionId, &responseMap, &late);
+    ck_assert(lateStatus == UA_STATUSCODE_GOOD ||
+              lateStatus == UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_ptr_null(late.data);
+    for(size_t i = 0; i < 20; i++)
+        eventLoop->run(eventLoop, 10);
+    ck_assert_uint_eq(ctx.responseCompleteCount, 2);
+
+    sendHandledRequest(cm, &ctx, "/ok");
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 3, 100);
+    ck_assert_uint_eq(ctx.goodRequestCompletions, 2);
+    ck_assert_uint_eq(ctx.badRequestCompletions, 1);
+    ck_assert_uint_eq(ctx.clientClosingCount, 0);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    closeHTTPConnectionIfPresent(cm, ctx.listenerId);
+    stopEventLoop(eventLoop);
+} END_TEST
+
+START_TEST(serverResponseFailureIsolation) {
+#ifndef _WIN32
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_FIXED_RESPONSE;
+    ctx.fixedResponseSize = 8 * 1024 * 1024;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+
+    struct sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(ctx.port);
+    ck_assert_int_eq(inet_pton(AF_INET, "127.0.0.1",
+                               &serverAddress.sin_addr), 1);
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    ck_assert_int_ge(fd, 0);
+    ck_assert_int_eq(connect(fd, (struct sockaddr*)&serverAddress,
+                             sizeof(serverAddress)), 0);
+    const char request[] =
+        "POST /large HTTP/1.1\r\nHost: localhost\r\n"
+        "Content-Length: 0\r\nConnection: keep-alive\r\n\r\n";
+    ck_assert_int_eq(send(fd, request, sizeof(request) - 1, 0),
+                     (ssize_t)(sizeof(request) - 1));
+    runUntilCount(eventLoop, &ctx.requestCount, 1, 100);
+    struct linger reset = {1, 0};
+    ck_assert_int_eq(setsockopt(fd, SOL_SOCKET, SO_LINGER, &reset,
+                               sizeof(reset)), 0);
+    close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 200);
+
+    /* A failed response carrier does not affect a new sibling carrier. */
+    ctx.fixedResponseSize = 2;
+    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    sendPatternRequest(cm, &ctx, 0);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 100);
+    ck_assert_uint_eq(ctx.requestCount, 2);
+    ck_assert_uint_eq(ctx.clientBodyBytes, 2);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId),
+                      UA_STATUSCODE_GOOD);
+    stopEventLoop(eventLoop);
+#endif
 } END_TEST
 
 START_TEST(serverListenerCloseWithIdleCarrier) {
@@ -982,6 +1311,251 @@ START_TEST(serverListenerCloseWithIdleCarrier) {
 #endif
 } END_TEST
 
+START_TEST(serverListenerCloseFromRequestCallback) {
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_CLOSE_LISTENER;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm);
+    ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop,
+                                                     &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+
+    /* Listener teardown is requested from inside the accepted connection's
+     * request callback. Destruction is deferred until the callback has fully
+     * returned, then the accepted carrier and client request complete once. */
+    sendPatternRequest(cm, &ctx, 0);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 100);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 100);
+    ck_assert_uint_eq(ctx.requestCount, 1);
+    ck_assert_uint_eq(ctx.acceptedClosingCount, 1);
+    ck_assert_uint_eq(ctx.responseCompleteCount, 1);
+    ck_assert_uint_ne(ctx.lastRequestStatus, UA_STATUSCODE_GOOD);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    stopEventLoop(eventLoop);
+} END_TEST
+
+#ifdef UA_ENABLE_HTTP_COMPRESSION
+static int
+connectRawHttp(UA_UInt16 port) {
+    struct sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(port);
+    ck_assert_int_eq(inet_pton(AF_INET, "127.0.0.1",
+                               &serverAddress.sin_addr), 1);
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    ck_assert_int_ge(fd, 0);
+    ck_assert_int_eq(connect(fd, (struct sockaddr*)&serverAddress,
+                             sizeof(serverAddress)), 0);
+    return fd;
+}
+
+static size_t
+findHeaderEnd(const UA_Byte *response, size_t length) {
+    for(size_t i = 0; i + 3 < length; i++) {
+        if(memcmp(&response[i], "\r\n\r\n", 4) == 0)
+            return i + 4;
+    }
+    return 0;
+}
+
+START_TEST(serverContentEncodingAndExpansionLimit) {
+#ifndef _WIN32
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_ECHO;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0;
+    UA_UInt16 timeout = 30;
+    UA_UInt32 wireLimit = 1024;
+    UA_UInt32 expandedLimit = 8192;
+    UA_Boolean listen = true;
+    UA_KeyValuePair parameters[5] = {0};
+    parameters[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&parameters[0].value, &port,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    parameters[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&parameters[1].value, &listen,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    parameters[2].key = UA_QUALIFIEDNAME(0, "timeout");
+    UA_Variant_setScalar(&parameters[2].value, &timeout,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    parameters[3].key = UA_QUALIFIEDNAME(0, "recv-max-message-size");
+    UA_Variant_setScalar(&parameters[3].value, &wireLimit,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    parameters[4].key = UA_QUALIFIEDNAME(
+        0, "recv-max-decompressed-message-size");
+    UA_Variant_setScalar(&parameters[4].value, &expandedLimit,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap map = {5, parameters};
+    ck_assert_uint_eq(cm->openConnection(cm, &map, &ctx, NULL,
+                                         advancedHTTPCallback),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ByteString input = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&input, 4096),
+                      UA_STATUSCODE_GOOD);
+    fillPattern(input.data, input.length, 0);
+    UA_ByteString compressed = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_HTTP_compress(UA_HTTP_CONTENT_ENCODING_GZIP,
+                                       &input, &compressed),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_lt(compressed.length, wireLimit);
+
+    int fd = connectRawHttp(ctx.port);
+    char header[512];
+    int headerLength = snprintf(
+        header, sizeof(header),
+        "POST /compressed HTTP/1.1\r\nHost: localhost\r\n"
+        "Content-Encoding: gzip\r\nAccept-Encoding: gzip\r\n"
+        "Content-Length: %zu\r\nConnection: close\r\n\r\n",
+        compressed.length);
+    ck_assert_int_gt(headerLength, 0);
+    ck_assert_int_eq(send(fd, header, (size_t)headerLength, 0), headerLength);
+    ck_assert_int_eq(send(fd, compressed.data, compressed.length, 0),
+                     (ssize_t)compressed.length);
+    runUntilCount(eventLoop, &ctx.requestCount, 1, 200);
+    runUntilSocketReadable(eventLoop, fd, 100);
+    UA_Byte response[16384];
+    ssize_t received = readSocketUntilClosed(
+        eventLoop, fd, response, sizeof(response) - 1, 100);
+    ck_assert_int_gt(received, 0);
+    close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 200);
+    response[received] = 0;
+    ck_assert_ptr_nonnull(strstr((char*)response, "HTTP/1.1 202"));
+    ck_assert_ptr_nonnull(strstr((char*)response, "Content-Encoding: gzip"));
+    size_t bodyOffset = findHeaderEnd(response, (size_t)received);
+    ck_assert_uint_gt(bodyOffset, 0);
+    UA_ByteString encodedResponse = {
+        (size_t)received - bodyOffset, &response[bodyOffset]
+    };
+    UA_ByteString decodedResponse = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_HTTP_decompress(UA_HTTP_CONTENT_ENCODING_GZIP,
+                                         &encodedResponse, 8192,
+                                         &decodedResponse),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(&input, &decodedResponse));
+    UA_ByteString_clear(&decodedResponse);
+    UA_ByteString_clear(&compressed);
+    UA_ByteString_clear(&input);
+
+    /* A small wire body that expands past the independent limit gets 413 and
+     * is never delivered to the application. */
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&input, expandedLimit + 1),
+                      UA_STATUSCODE_GOOD);
+    memset(input.data, 0, input.length);
+    ck_assert_uint_eq(UA_HTTP_compress(UA_HTTP_CONTENT_ENCODING_GZIP,
+                                       &input, &compressed),
+                      UA_STATUSCODE_GOOD);
+    fd = connectRawHttp(ctx.port);
+    headerLength = snprintf(
+        header, sizeof(header),
+        "POST /bomb HTTP/1.1\r\nHost: localhost\r\n"
+        "Content-Encoding: gzip\r\nContent-Length: %zu\r\n"
+        "Connection: close\r\n\r\n", compressed.length);
+    ck_assert_int_eq(send(fd, header, (size_t)headerLength, 0), headerLength);
+    ck_assert_int_eq(send(fd, compressed.data, compressed.length, 0),
+                     (ssize_t)compressed.length);
+    runUntilSocketReadable(eventLoop, fd, 100);
+    received = readSocketUntilClosed(
+        eventLoop, fd, response, sizeof(response) - 1, 100);
+    ck_assert_int_gt(received, 0);
+    close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 2, 200);
+    response[received] = 0;
+    ck_assert_ptr_nonnull(strstr((char*)response, "HTTP/1.1 413"));
+    ck_assert_uint_eq(ctx.requestCount, 1);
+    UA_ByteString_clear(&compressed);
+    UA_ByteString_clear(&input);
+
+    ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId),
+                      UA_STATUSCODE_GOOD);
+    stopEventLoop(eventLoop);
+#endif
+} END_TEST
+
+START_TEST(clientCompressedResponse) {
+#ifndef _WIN32
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_FIXED_RESPONSE;
+    ctx.fixedResponseSize = 4096;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+
+    UA_String address = UA_STRING("127.0.0.1");
+    UA_UInt32 wireLimit = 1024;
+    UA_UInt32 expandedLimit = 8192;
+    UA_KeyValuePair parameters[4] = {0};
+    parameters[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&parameters[0].value, &address,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    parameters[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&parameters[1].value, &ctx.port,
+                         &UA_TYPES[UA_TYPES_UINT16]);
+    parameters[2].key = UA_QUALIFIEDNAME(0, "recv-max-message-size");
+    UA_Variant_setScalar(&parameters[2].value, &wireLimit,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    parameters[3].key = UA_QUALIFIEDNAME(
+        0, "recv-max-decompressed-message-size");
+    UA_Variant_setScalar(&parameters[3].value, &expandedLimit,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap map = {4, parameters};
+    ck_assert_uint_eq(cm->openConnection(cm, &map, &ctx, NULL,
+                                         advancedHTTPCallback),
+                      UA_STATUSCODE_GOOD);
+
+    sendPatternRequest(cm, &ctx, 0);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 200);
+    ck_assert_uint_eq(ctx.clientBodyBytes, ctx.fixedResponseSize);
+    ck_assert(!ctx.bodyMismatch);
+    ck_assert_uint_eq(ctx.responseStatus, 202);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    closeHTTPConnectionIfPresent(cm, ctx.listenerId);
+    stopEventLoop(eventLoop);
+#endif
+} END_TEST
+#endif
+
+START_TEST(clientRejectsDuplicateContentEncoding) {
+    HTTPTestContext ctx = {0};
+    ctx.mode = HTTP_TEST_DUPLICATE_ENCODING_RESPONSE;
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_HTTP(UA_STRING("http"));
+    UA_EventLoop *eventLoop = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    ck_assert_ptr_nonnull(cm); ck_assert_ptr_nonnull(eventLoop);
+    ck_assert_uint_eq(eventLoop->registerEventSource(eventLoop, &cm->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventLoop->start(eventLoop), UA_STATUSCODE_GOOD);
+    openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
+    openHTTPClientWithTimeout(cm, &ctx, 1);
+
+    sendPatternRequest(cm, &ctx, 0);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 200);
+    ck_assert_uint_eq(ctx.responseCompleteCount, 1);
+    ck_assert_uint_ne(ctx.lastRequestStatus, UA_STATUSCODE_GOOD);
+
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    closeHTTPConnectionIfPresent(cm, ctx.listenerId);
+    stopEventLoop(eventLoop);
+} END_TEST
+
 START_TEST(serverTimeoutAndListenerClose) {
     HTTPTestContext ctx = {0};
     ctx.mode = HTTP_TEST_NO_RESPONSE;
@@ -994,17 +1568,18 @@ START_TEST(serverTimeoutAndListenerClose) {
     openHTTPListener(cm, &ctx, 1, 0, 0, false, NULL, NULL, NULL);
     openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
     sendPatternRequest(cm, &ctx, 0);
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 1, 150);
-    ck_assert_uint_eq(ctx.requestClosingCount, 1);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 150);
+    ck_assert_uint_eq(ctx.acceptedClosingCount, 1);
 
-    runUntilCount(eventLoop, &ctx.clientClosingCount, 1, 100);
-    openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 100);
+    ck_assert_uint_ne(ctx.lastRequestStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ctx.clientClosingCount, 0);
     sendPatternRequest(cm, &ctx, 0);
     runUntilCount(eventLoop, &ctx.requestCount, 2, 100);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId),
                       UA_STATUSCODE_GOOD);
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 2, 100);
-    ck_assert_uint_eq(ctx.requestClosingCount, 2);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 2, 100);
+    ck_assert_uint_eq(ctx.acceptedClosingCount, 2);
     closeHTTPConnectionIfPresent(cm, ctx.clientId);
     stopEventLoop(eventLoop);
 } END_TEST
@@ -1045,9 +1620,10 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
               (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK));
     ck_assert_uint_eq(ctx.requestCount, 0);
     close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 100);
 
-    /* Complete headers create a logical request. An incomplete body times out
-     * with one balanced closing callback and no application delivery. */
+    /* An incomplete request body times out the accepted connection without
+     * delivering a request to the application. */
     fd = socket(AF_INET, SOCK_STREAM, 0);
     ck_assert_int_ge(fd, 0);
     ck_assert_int_eq(connect(fd, (struct sockaddr*)&serverAddress,
@@ -1059,7 +1635,7 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
         "x";
     ck_assert_int_eq(send(fd, partialBody, sizeof(partialBody) - 1, 0),
                      (ssize_t)(sizeof(partialBody) - 1));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 1, 100);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 2, 100);
     ck_assert_uint_eq(ctx.requestCount, 0);
     close(fd);
 
@@ -1083,17 +1659,25 @@ START_TEST(serverReceiveAndKeepAliveTimeouts) {
                 eventLoop->run(eventLoop, 20);
         }
     }
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 2, 100);
+    runUntilCount(eventLoop, &ctx.requestCount, 1, 100);
     ck_assert_uint_eq(ctx.requestCount, 1);
     char response[1024];
+    runUntilSocketReadable(eventLoop, fd, 100);
     received = recv(fd, response, sizeof(response), 0);
     ck_assert_int_gt(received, 0);
+    /* LWS can write the header and body in separate callbacks. Drain both
+     * before checking that the later keep-alive timeout closed the socket. */
+    for(size_t i = 0; i < 10; i++) {
+        eventLoop->run(eventLoop, 10);
+        while(recv(fd, response, sizeof(response), MSG_DONTWAIT) > 0) {}
+    }
     for(size_t i = 0; i < 75; i++)
         eventLoop->run(eventLoop, 20);
     received = recv(fd, &byte, 1, MSG_DONTWAIT);
     ck_assert(received == 0 ||
               (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK));
     close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 3, 100);
 
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
     stopEventLoop(eventLoop);
@@ -1130,8 +1714,11 @@ START_TEST(clientServerMutualTls) {
     /* The listener CA makes a client certificate mandatory. */
     openHTTPClient(cm, &ctx, 0, 0, true, NULL, NULL, &certificate);
     sendPatternRequest(cm, &ctx, 0);
-    runUntilCount(eventLoop, &ctx.clientClosingCount, 2, 200);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 2, 200);
+    ck_assert_uint_ne(ctx.lastRequestStatus, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(ctx.requestCount, 1);
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
+    runUntilCount(eventLoop, &ctx.clientClosingCount, 2, 100);
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
@@ -1165,7 +1752,7 @@ START_TEST(messageSizeLimits) {
     runUntilCount(eventLoop, &ctx.clientClosingCount, 1, 100);
     openHTTPClient(cm, &ctx, 0, 0, false, NULL, NULL, NULL);
     sendPatternRequest(cm, &ctx, 5);
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 2, 200);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 2, 200);
     ck_assert_uint_eq(ctx.requestCount, 1);
     closeHTTPConnectionIfPresent(cm, ctx.clientId);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
@@ -1186,9 +1773,9 @@ START_TEST(messageSizeLimits) {
     sendPatternRequest(cm, &ctx, 0);
     runUntilCount(eventLoop, &ctx.requestCount, 1, 100);
     ck_assert_uint_eq(ctx.firstSendStatus, UA_STATUSCODE_BADRESPONSETOOLARGE);
-    ck_assert_uint_eq(cm->closeConnection(cm, ctx.requestId),
+    ck_assert_uint_eq(cm->closeConnection(cm, ctx.acceptedConnectionId),
                       UA_STATUSCODE_GOOD);
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 1, 100);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 100);
     closeHTTPConnectionIfPresent(cm, ctx.clientId);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
     stopEventLoop(eventLoop);
@@ -1205,8 +1792,11 @@ START_TEST(messageSizeLimits) {
     openHTTPListener(cm, &ctx, 30, 0, 0, false, NULL, NULL, NULL);
     openHTTPClient(cm, &ctx, 4, 0, false, NULL, NULL, NULL);
     sendPatternRequest(cm, &ctx, 0);
-    runUntilCount(eventLoop, &ctx.clientClosingCount, 1, 200);
+    runUntilCount(eventLoop, &ctx.responseCompleteCount, 1, 200);
+    ck_assert_uint_eq(ctx.lastRequestStatus,
+                      UA_STATUSCODE_BADRESPONSETOOLARGE);
     ck_assert_uint_eq(ctx.clientBodyBytes, 0);
+    closeHTTPConnectionIfPresent(cm, ctx.clientId);
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
     stopEventLoop(eventLoop);
 } END_TEST
@@ -1384,24 +1974,29 @@ START_TEST(chunkedRequestAndKeepAlive) {
                      (ssize_t)sizeof(firstChunk2));
     ck_assert_int_eq(send(fd, secondChunk, sizeof(secondChunk), 0),
                      (ssize_t)sizeof(secondChunk));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 1, 200);
+    runUntilCount(eventLoop, &ctx.requestCount, 1, 200);
     ck_assert_uint_eq(ctx.requestCount, 1);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 2);
     ck_assert_uint_eq(ctx.serverBodyBytes, 5);
     ck_assert(!ctx.bodyMismatch);
     char response[2048];
+    runUntilSocketReadable(eventLoop, fd, 100);
     ssize_t received = recv(fd, response, sizeof(response), 0);
     ck_assert_int_gt(received, 0);
     close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 1, 200);
 
     ck_assert_int_eq(send(fd2, secondChunk2, sizeof(secondChunk2), 0),
                      (ssize_t)sizeof(secondChunk2));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 2, 200);
+    runUntilCount(eventLoop, &ctx.requestCount, 2, 200);
     ck_assert_uint_eq(ctx.requestCount, 2);
     ck_assert_uint_eq(ctx.serverBodyBytes, 10);
     ck_assert(!ctx.bodyMismatch);
+    runUntilSocketReadable(eventLoop, fd2, 100);
     received = recv(fd2, response, sizeof(response), 0);
     ck_assert_int_gt(received, 0);
     close(fd2);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 2, 200);
 
     /* Two requests over one HTTP/1.1 connection exercise keep-alive reuse. */
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1414,8 +2009,11 @@ START_TEST(chunkedRequestAndKeepAlive) {
         "Connection: keep-alive\r\n\r\n";
     ck_assert_int_eq(send(fd, firstRequest, sizeof(firstRequest) - 1, 0),
                      (ssize_t)(sizeof(firstRequest) - 1));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 3, 200);
+    runUntilCount(eventLoop, &ctx.requestCount, 3, 200);
     ck_assert_uint_eq(ctx.requestCount, 3);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 3);
+    uintptr_t keepAliveConnectionId = ctx.acceptedConnectionId;
+    runUntilSocketReadable(eventLoop, fd, 100);
     received = recv(fd, response, sizeof(response), 0);
     ck_assert_int_gt(received, 0);
 
@@ -1425,11 +2023,15 @@ START_TEST(chunkedRequestAndKeepAlive) {
         "Connection: close\r\n\r\n";
     ck_assert_int_eq(send(fd, secondRequest, sizeof(secondRequest) - 1, 0),
                      (ssize_t)(sizeof(secondRequest) - 1));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 4, 200);
+    runUntilCount(eventLoop, &ctx.requestCount, 4, 200);
     ck_assert_uint_eq(ctx.requestCount, 4);
+    ck_assert_uint_eq(ctx.acceptedConnectionId, keepAliveConnectionId);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 3);
+    runUntilSocketReadable(eventLoop, fd, 100);
     received = recv(fd, response, sizeof(response), 0);
     ck_assert_int_gt(received, 0);
     close(fd);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 3, 200);
 
     /* Ambiguous framing is rejected before delivery. */
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -1443,8 +2045,9 @@ START_TEST(chunkedRequestAndKeepAlive) {
         "Transfer-Encoding: chunked\r\n\r\n";
     ck_assert_int_eq(send(fd, ambiguousRequest, sizeof(ambiguousRequest) - 1, 0),
                      (ssize_t)(sizeof(ambiguousRequest) - 1));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 5, 200);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 4, 200);
     ck_assert_uint_eq(ctx.requestCount, 4);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 4);
     close(fd);
 
     /* Malformed chunk framing is rejected by the vendored parser. */
@@ -1459,8 +2062,48 @@ START_TEST(chunkedRequestAndKeepAlive) {
         "z\r\n";
     ck_assert_int_eq(send(fd, malformedChunk, sizeof(malformedChunk) - 1, 0),
                      (ssize_t)(sizeof(malformedChunk) - 1));
-    runUntilCount(eventLoop, &ctx.requestClosingCount, 6, 200);
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 5, 200);
     ck_assert_uint_eq(ctx.requestCount, 4);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 5);
+    close(fd);
+
+    /* A second request must not enter while the first request on the same
+     * accepted connection is still waiting for its response. */
+    ctx.mode = HTTP_TEST_NO_RESPONSE;
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    ck_assert_int_ge(fd, 0);
+    ck_assert_int_eq(connect(fd, (struct sockaddr*)&serverAddress,
+                             sizeof(serverAddress)), 0);
+    ck_assert_int_eq(send(fd, firstRequest, sizeof(firstRequest) - 1, 0),
+                     (ssize_t)(sizeof(firstRequest) - 1));
+    runUntilCount(eventLoop, &ctx.requestCount, 5, 200);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 6);
+    ck_assert_int_eq(send(fd, secondRequest, sizeof(secondRequest) - 1, 0),
+                     (ssize_t)(sizeof(secondRequest) - 1));
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 6, 200);
+    ck_assert_uint_eq(ctx.requestCount, 5);
+    close(fd);
+
+    /* The same invariant applies when two requests arrive in one read. The
+     * parser delivers the first request only and rejects the pipelined tail. */
+    ctx.mode = HTTP_TEST_FIXED_RESPONSE;
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    ck_assert_int_ge(fd, 0);
+    ck_assert_int_eq(connect(fd, (struct sockaddr*)&serverAddress,
+                             sizeof(serverAddress)), 0);
+    const char pipelinedRequests[] =
+        "GET /pipeline-first HTTP/1.1\r\n"
+        "Host: 127.0.0.1\r\n"
+        "Connection: keep-alive\r\n\r\n"
+        "GET /pipeline-second HTTP/1.1\r\n"
+        "Host: 127.0.0.1\r\n"
+        "Connection: close\r\n\r\n";
+    ck_assert_int_eq(send(fd, pipelinedRequests,
+                          sizeof(pipelinedRequests) - 1, 0),
+                     (ssize_t)(sizeof(pipelinedRequests) - 1));
+    runUntilCount(eventLoop, &ctx.acceptedClosingCount, 7, 200);
+    ck_assert_uint_eq(ctx.requestCount, 6);
+    ck_assert_uint_eq(ctx.acceptedConnectionCount, 7);
     close(fd);
 
     ck_assert_uint_eq(cm->closeConnection(cm, ctx.listenerId), UA_STATUSCODE_GOOD);
@@ -1483,7 +2126,12 @@ int main(void) {
     TCase *lifecycle = tcase_create("request-lifecycle");
     tcase_add_test(lifecycle, serverRequestLifecycle);
     tcase_add_test(lifecycle, serverBrokenCarrierIsolation);
+    tcase_add_test(lifecycle, clientRequestFailureIsolation);
+    tcase_add_test(lifecycle, clientSynchronousConnectionFailure);
+    tcase_add_test(lifecycle, clientRequestTimeoutIsolation);
+    tcase_add_test(lifecycle, serverResponseFailureIsolation);
     tcase_add_test(lifecycle, serverListenerCloseWithIdleCarrier);
+    tcase_add_test(lifecycle, serverListenerCloseFromRequestCallback);
     suite_add_tcase(s, lifecycle);
     TCase *timeouts = tcase_create("timeouts-and-listener-close");
     tcase_add_test(timeouts, serverTimeoutAndListenerClose);
@@ -1495,11 +2143,18 @@ int main(void) {
     TCase *limits = tcase_create("message-size-limits");
     tcase_add_test(limits, messageSizeLimits);
     suite_add_tcase(s, limits);
+#ifdef UA_ENABLE_HTTP_COMPRESSION
+    TCase *compression = tcase_create("content-encoding");
+    tcase_add_test(compression, serverContentEncodingAndExpansionLimit);
+    tcase_add_test(compression, clientCompressedResponse);
+    suite_add_tcase(s, compression);
+#endif
     TCase *validation = tcase_create("parameter-validation");
     tcase_add_test(validation, parameterValidation);
     suite_add_tcase(s, validation);
     TCase *handles = tcase_create("client-request-handles");
     tcase_add_test(handles, clientRequestHandles);
+    tcase_add_test(handles, clientRejectsDuplicateContentEncoding);
     suite_add_tcase(s, handles);
     TCase *http11 = tcase_create("chunked-and-keep-alive");
     tcase_add_test(http11, chunkedRequestAndKeepAlive);

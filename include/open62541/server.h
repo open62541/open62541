@@ -2273,7 +2273,9 @@ struct UA_ServerConfig {
     /* Networking
      * ~~~~~~~~~~
      * The `serverUrls` array contains the server URLs like
-     * `opc.tcp://my-server:4840` or `opc.wss://localhost:443`. The URLs are
+     * `opc.tcp://my-server:4840`, `opc.wss://localhost:443` or
+     * `opc.https://localhost:443/ua`. The non-standard `opc.ws` and
+     * `opc.http` schemes can be enabled explicitly for testing. The URLs are
      * used both for discovery and to set up the server sockets based on the
      * defined hostnames, ports and WebSocket paths.
      *
@@ -2293,7 +2295,6 @@ struct UA_ServerConfig {
                               * (default: 0 -> unbounded) */
     UA_Boolean tcpReuseAddr;
 
-
     /* The following settings are specific to OPC UA Binary over WebSockets.
      * The transport is opt-in and controlled via webSocketEnabled (default: false).
      * TLS credentials protect opc.wss:// endpoints independently of OPC UA SecurityPolicies. */
@@ -2311,6 +2312,28 @@ struct UA_ServerConfig {
     UA_ByteString webSocketCertificate; /* TLS certificate, DER or PEM */
     UA_ByteString webSocketPrivateKey;  /* TLS private key, DER or PEM */
     UA_String webSocketPrivateKeyPassword;
+
+    UA_Boolean httpEnabled; /* Default: false */
+    /* Allow the non-standard, unencrypted opc.http scheme. This removes
+     * transport confidentiality and is intended for testing only. Passwords
+     * still require an encrypted UserTokenPolicy unless
+     * allowNonePolicyPassword is enabled separately. */
+    UA_Boolean httpAllowUnencrypted; /* Default: false */
+
+    /* OPC UA services over HTTP(S) (Part 6, 7.4 defines HTTPS). Unlike
+     * opc.wss, service structures are encoded directly in the request and
+     * response body. The opc.http scheme is an open62541 extension. */
+    UA_UInt32 httpMaxMsgSize;       /* Default: 0 -> unbounded */
+    UA_UInt32 httpMaxDecompressedMsgSize; /* Expanded request-body limit.
+                                           * Default: 0 -> 64 MiB */
+    UA_UInt16 httpTimeout;          /* Request timeout in seconds (default: 60) */
+    /* Bind address for HTTP(S) listeners. A null String uses the hostname from
+     * the corresponding ServerUrl. An explicitly set empty String
+     * listens on all interfaces without changing the advertised hostname. */
+    UA_String httpListenAddress;
+    UA_ByteString httpCertificate;  /* TLS certificate, DER or PEM */
+    UA_ByteString httpPrivateKey;   /* TLS private key, DER or PEM */
+    UA_String httpPrivateKeyPassword;
 
     /* Security and Encryption
      * ~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -2951,9 +2974,10 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
  * ``examples/server_json_config.c`` document the intended workflow and the
  * currently supported keys. They cover the common runtime limits as well as
  * optional blocks for discovery, subscriptions, historizing, PubSub and
- * security policy configuration. TCP is enabled by default. WebSockets are
- * disabled by default and can be configured with ``webSocketEnabled`` and the
- * ``webSocket`` block when ``UA_ENABLE_LWS`` is compiled in.
+ * security policy configuration. TCP is enabled by default. WebSockets and
+ * OPC UA services over HTTPS are disabled by default. When ``UA_ENABLE_LWS``
+ * is compiled in, configure them with ``webSocketEnabled`` / ``webSocket`` and
+ * ``httpEnabled`` / ``http`` respectively.
  *
  * The following functions require JSON encoding support
  * (``UA_ENABLE_JSON_ENCODING``). */
