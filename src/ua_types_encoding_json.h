@@ -26,7 +26,6 @@ typedef struct {
 
     uint16_t depth; /* How often did we en-/decoding recurse? */
     UA_Boolean commaNeeded[UA_JSON_ENCODING_MAX_RECURSION];
-    UA_Boolean useReversible;
     UA_Boolean calcOnly; /* Only compute the length of the decoding */
 
     UA_NamespaceMapping *namespaceMapping;

@@ -235,7 +235,6 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
     if(eo)
         ctx.eo = *eo;
     if(jo) {
-        ctx.ctx.useReversible = jo->useReversible;
         ctx.ctx.namespaceMapping = jo->namespaceMapping;
         ctx.ctx.serverUrisSize = jo->serverUrisSize;
         ctx.ctx.serverUris = jo->serverUris;
@@ -268,7 +267,6 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
     if(eo)
         ctx.eo = *eo;
     if(jo) {
-        ctx.ctx.useReversible = jo->useReversible;
         ctx.ctx.namespaceMapping = jo->namespaceMapping;
         ctx.ctx.serverUrisSize = jo->serverUrisSize;
         ctx.ctx.serverUris = jo->serverUris;

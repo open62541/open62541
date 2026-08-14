@@ -963,29 +963,6 @@ START_TEST(json_encode_applicationdescription) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
-/* === Reversible encoding with namespace mapping === */
-START_TEST(json_encode_reversible) {
-    UA_EncodeJsonOptions opts;
-    memset(&opts, 0, sizeof(opts));
-    opts.useReversible = true;
-
-    UA_NodeId val = UA_NODEID_NUMERIC(0, 2255);
-    UA_ByteString buf = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_NODEID], &buf, &opts);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_ByteString_clear(&buf);
-
-    /* Variant with reversible encoding */
-    UA_Variant v;
-    UA_Variant_init(&v);
-    UA_Double d = 1.5;
-    UA_Variant_setScalar(&v, &d, &UA_TYPES[UA_TYPES_DOUBLE]);
-    buf = UA_BYTESTRING_NULL;
-    res = UA_encodeJson(&v, &UA_TYPES[UA_TYPES_VARIANT], &buf, &opts);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_ByteString_clear(&buf);
-} END_TEST
-
 /* === endpointdescription === */
 START_TEST(json_encode_endpointdescription) {
     UA_EndpointDescription val;
@@ -1100,7 +1077,6 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_options, json_encode_prettyprint_array);
     tcase_add_test(tc_options, json_encode_unquoted_keys);
     tcase_add_test(tc_options, json_encode_string_nodeids);
-    tcase_add_test(tc_options, json_encode_reversible);
     tcase_add_test(tc_options, json_calcsize);
 
     TCase *tc_struct = tcase_create("StructJsonEncoding");

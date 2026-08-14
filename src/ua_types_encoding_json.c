@@ -1007,12 +1007,10 @@ UA_encodeJson(const void *src, const UA_DataType *type,
     ctx.end = &outBuf->data[outBuf->length];
     ctx.depth = 0;
     ctx.calcOnly = false;
-    ctx.useReversible = true; /* default */
     if(options) {
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
-        ctx.useReversible = options->useReversible;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
         ctx.stringNodeIds = options->stringNodeIds;
@@ -1036,7 +1034,6 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
 
     UA_EncodeJsonOptions options;
     memset(&options, 0, sizeof(UA_EncodeJsonOptions));
-    options.useReversible = true;
     options.prettyPrint = true;
     options.unquotedKeys = true;
     options.stringNodeIds = true;
@@ -1062,12 +1059,10 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
     ctx.pos = (UA_Byte*)0x01;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
-    ctx.useReversible = true; /* default */
     if(options) {
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
-        ctx.useReversible = options->useReversible;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
         ctx.stringNodeIds = options->stringNodeIds;
