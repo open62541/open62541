@@ -320,6 +320,17 @@ START_TEST(loadClientConfig) {
     ck_assert_uint_gt(clientConfig.webSocketCaCertificate.length, 0);
     ck_assert_uint_eq(clientConfig.webSocketMaxQueueSize, 2000000);
 #endif
+    ck_assert(clientConfig.httpAllowUnencrypted);
+    ck_assert_uint_gt(clientConfig.httpCaCertificate.length, 0);
+    ck_assert_uint_gt(clientConfig.httpClientCertificate.length, 0);
+    ck_assert_uint_gt(clientConfig.httpClientPrivateKey.length, 0);
+    const UA_String expectedHttpKeyPassword =
+        UA_STRING_STATIC("client-key-password");
+    ck_assert(UA_String_equal(&clientConfig.httpClientPrivateKeyPassword,
+                              &expectedHttpKeyPassword));
+    ck_assert_uint_eq(clientConfig.httpTimeout, 17);
+    ck_assert_uint_eq(clientConfig.httpMaxMsgSize, 123456);
+    ck_assert_uint_eq(clientConfig.httpMaxDecompressedMsgSize, 654321);
 
     /* test security/filtering fields */
     ck_assert(UA_String_equal(&clientConfig.applicationUri,
@@ -479,6 +490,20 @@ START_TEST(loadClientAndClientConfigAndCompare) {
     ck_assert(UA_ByteString_equal(&cc2->webSocketCaCertificate,
                                   &clientConfig.webSocketCaCertificate));
 #endif
+    ck_assert_uint_eq(cc2->httpAllowUnencrypted,
+                      clientConfig.httpAllowUnencrypted);
+    ck_assert(UA_ByteString_equal(&cc2->httpCaCertificate,
+                                  &clientConfig.httpCaCertificate));
+    ck_assert(UA_ByteString_equal(&cc2->httpClientCertificate,
+                                  &clientConfig.httpClientCertificate));
+    ck_assert(UA_ByteString_equal(&cc2->httpClientPrivateKey,
+                                  &clientConfig.httpClientPrivateKey));
+    ck_assert(UA_String_equal(&cc2->httpClientPrivateKeyPassword,
+                              &clientConfig.httpClientPrivateKeyPassword));
+    ck_assert_uint_eq(cc2->httpTimeout, clientConfig.httpTimeout);
+    ck_assert_uint_eq(cc2->httpMaxMsgSize, clientConfig.httpMaxMsgSize);
+    ck_assert_uint_eq(cc2->httpMaxDecompressedMsgSize,
+                      clientConfig.httpMaxDecompressedMsgSize);
 
     /* test security/filtering fields */
     ck_assert(UA_String_equal(&cc2->applicationUri,

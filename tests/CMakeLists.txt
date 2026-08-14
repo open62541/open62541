@@ -344,15 +344,16 @@ if(UA_ENABLE_LWS_MQTT)
                 ${PROJECT_SOURCE_DIR}/tools/lws/mqttBroker.py --run-test)
 endif()
 
+configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der
+               ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der
+               ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_cert.der
+               ${CMAKE_BINARY_DIR}/tests/client_cert.der COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der
+               ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
+
 if(UA_ENABLE_LWS)
-    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der
-                   ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
-    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der
-                   ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
-    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_cert.der
-                   ${CMAKE_BINARY_DIR}/tests/client_cert.der COPYONLY)
-    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der
-                   ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
     target_include_directories(check_eventloop_http PRIVATE
@@ -365,6 +366,7 @@ if(UA_ENABLE_LWS)
                                ${LIBWEBSOCKETS_INCLUDE_DIR})
     ua_add_test(server/check_server_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/opcHttpClient.py --run-test)
+    ua_add_test(client/check_client_http.c)
 endif()
 
 # Test Server
@@ -536,6 +538,7 @@ ua_add_test(server/check_server_reverseconnect.c)
 # Test Client
 
 ua_add_test(client/check_client.c)
+ua_add_test(client/check_client_http_protocol.c)
 ua_add_test(client/check_client_config_coverage.c)
 ua_add_test(client/check_client_lifecycle_coverage.c)
 ua_add_test(client/check_client_discovery.c)
@@ -715,6 +718,27 @@ if(UA_BUILD_INTEROP_TESTS)
             $<TARGET_OBJECTS:open62541-plugins>)
         target_link_libraries(interop_server_wss ${LIBS})
         set_target_properties(interop_server_wss PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+    if(UA_ENABLE_LWS AND NOT TARGET interop_server_https)
+        add_executable(interop_server_https
+            interop/http/interop_server_https.c
+            interop/common/interop_server_common.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(interop_server_https ${LIBS})
+        set_target_properties(interop_server_https PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+    if(UA_ENABLE_LWS AND NOT TARGET check_interop_client_https)
+        add_executable(check_interop_client_https
+            interop/http/check_interop_client_https.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_interop_client_https ${LIBS})
+        set_target_properties(check_interop_client_https PROPERTIES
             FOLDER "tests"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
     endif()

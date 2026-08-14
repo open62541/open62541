@@ -16,7 +16,7 @@ The server under test **must** provide:
 
 | Item | Details |
 |------|---------|
-| Endpoint | `opc.tcp://<host>:<port>`; optionally `opc.wss://<host>:<port>/<path>` |
+| Endpoint | `opc.tcp://<host>:<port>`; optionally `opc.wss://<host>:<port>/<path>` or `opc.https://<host>:<port>/<path>` |
 | SecurityPolicies | `None`, `Basic256Sha256`, `Aes128_Sha256_RsaOaep`, `Aes256_Sha256_RsaPss` |
 | SecurityModes | `None` (only with policy None), `Sign`, `SignAndEncrypt` |
 | Anonymous access | Enabled |
@@ -105,6 +105,24 @@ The server under test **must** provide:
 | 2 | Read `Server_ServerStatus_State` | `Good` |
 | 3 | Disconnect | Clean close |
 
+### H-1: .NET Client to open62541 HTTPS Server
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Connect over `opc.https`, anonymous; read `CurrentTime` | `Good`, `DateTime` value |
+| 2 | Create a subscription and monitored item for `ns=1;s=the.answer` | Initial value and two written data changes arrive; Publish requests are replenished |
+| 3 | Repeat with `user1` / `password` | Session, read, and subscription succeed |
+| 4 | Connect with `user1` / `wrong-password` | Authentication-specific rejection |
+
+### H-2: open62541 Client to .NET HTTPS Server
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Connect over the server's advertised `opc.https` URL, anonymous; read `CurrentTime` | `Good`, `DateTime` value |
+| 2 | Subscribe to `CurrentTime` | At least three notifications arrive, proving repeated long-running Publish requests work |
+| 3 | Repeat with `user1` / `password` | Session, read, and subscription succeed |
+| 4 | Connect with `user1` / `wrong-password` | Authentication-specific rejection; transport/DNS failures do not count as a pass |
+
 ## Certificate Setup
 
 The test infrastructure generates these RSA-2048 certificate/key pairs:
@@ -131,6 +149,8 @@ The orchestration script `tools/ci/cross-sdk/interop_test.sh` runs:
 - **Scenario A**: C server ↔ C / .NET / node-opcua clients (all tests T-1 through T-9)
 - **Scenario B**: .NET server ↔ C client (all tests T-1 through T-9)
 - **Scenario C**: node-opcua server ↔ C client (all tests T-1 through T-9)
+- **Scenario H1**: C HTTPS server ↔ .NET HTTPS client (H-1)
+- **Scenario H2**: .NET HTTPS server ↔ C HTTPS client (H-2)
 
 The CI workflow (`.github/workflows/interop_tests.yml`) runs all scenarios
 with OpenSSL and mbedTLS encryption backends.
@@ -161,6 +181,7 @@ workflow. The node-opcua server direction remains TCP-only.
 |----------|-------------|---------|
 | `OPCUA_INTEROP_SERVER_URL` | Target server endpoint | `opc.tcp://localhost:4840` |
 | `OPCUA_INTEROP_WSS_SERVER_URL` | Target endpoint for the experimental .NET WSS fixture | — |
+| `OPCUA_INTEROP_HTTPS_SERVER_URL` | Target C HTTPS endpoint for the .NET HTTPS fixture | — |
 | `OPCUA_INTEROP_CERT_DIR` | Directory with generated certificates | — |
 | `INTEROP_ENABLE_WSS` | Repeat the existing interop suites over WSS | `0` |
 | `INTEROP_ENABLE_NODE_WSS` | Run the node-opcua client suite against the C WSS server | `0` |

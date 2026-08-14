@@ -24,5 +24,6 @@
     <!-- WSS fixtures stay Explicit until released packages support opc.wss. -->
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="1.5.378.134" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration" Version="1.5.378.134" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Bindings.Https" Version="1.5.378.134" />
   </ItemGroup>
 </Project>

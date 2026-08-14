@@ -203,7 +203,7 @@ writeVariable(UA_Server *server) {
 /* ------------------------------------------------------------------ */
 
 int
-interopServerMain(int argc, char *argv[], UA_Boolean webSocket) {
+interopServerMain(int argc, char *argv[], UA_InteropTransport transport) {
     UA_StatusCode retval = 0;
 
     UA_Server *server = UA_Server_new();
@@ -247,7 +247,8 @@ interopServerMain(int argc, char *argv[], UA_Boolean webSocket) {
                                                        revocationListSize);
 
 #ifdef UA_ENABLE_LWS
-    if(retval == UA_STATUSCODE_GOOD && webSocket) {
+    if(retval == UA_STATUSCODE_GOOD &&
+       transport == UA_INTEROP_TRANSPORT_WEBSOCKET) {
         config->webSocketEnabled = true;
         config->tcpEnabled = false;
         retval = UA_ByteString_copy(&certificate,
@@ -269,10 +270,37 @@ interopServerMain(int argc, char *argv[], UA_Boolean webSocket) {
                 &url, &UA_TYPES[UA_TYPES_STRING]);
         }
     }
+    if(retval == UA_STATUSCODE_GOOD &&
+       transport == UA_INTEROP_TRANSPORT_HTTP) {
+        config->httpEnabled = true;
+        config->tcpEnabled = false;
+        UA_String_clear(&config->httpListenAddress);
+        config->httpListenAddress = UA_STRING_ALLOC("");
+        if(!config->httpListenAddress.data)
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_ByteString_copy(&certificate,
+                                        &config->httpCertificate);
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_ByteString_copy(&privateKey, &config->httpPrivateKey);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
+            config->serverUrls = NULL;
+            config->serverUrlsSize = 0;
+            char urlBuffer[128];
+            snprintf(urlBuffer, sizeof(urlBuffer),
+                     "opc.https://localhost:%u/interop", (unsigned)port);
+            UA_String url = UA_STRING(urlBuffer);
+            retval = UA_Array_appendCopy(
+                (void **)&config->serverUrls, &config->serverUrlsSize,
+                &url, &UA_TYPES[UA_TYPES_STRING]);
+        }
+    }
 #else
-    if(webSocket) {
+    if(transport != UA_INTEROP_TRANSPORT_TCP) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                     "WebSocket interop requested, but UA_ENABLE_LWS is disabled");
+                     "HTTP/WebSocket interop requested, but UA_ENABLE_LWS is disabled");
         retval = UA_STATUSCODE_BADNOTSUPPORTED;
     }
 #endif

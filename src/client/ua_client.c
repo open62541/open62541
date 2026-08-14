@@ -24,6 +24,9 @@
 
 #include "ua_client_internal.h"
 #include "../ua_types_encoding_binary.h"
+#ifdef UA_ENABLE_JSON_ENCODING
+# include "../ua_types_encoding_json.h"
+#endif
 
 static void
 clientHouseKeeping(void *client, void *_);
@@ -63,6 +66,26 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
         goto cleanup;
     dst->webSocketMaxQueueSize = src->webSocketMaxQueueSize;
 #endif
+    retval = UA_ByteString_copy(&src->httpCaCertificate,
+                                &dst->httpCaCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    retval = UA_ByteString_copy(&src->httpClientCertificate,
+                                &dst->httpClientCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    retval = UA_ByteString_copy(&src->httpClientPrivateKey,
+                                &dst->httpClientPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    retval = UA_String_copy(&src->httpClientPrivateKeyPassword,
+                            &dst->httpClientPrivateKeyPassword);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    dst->httpAllowUnencrypted = src->httpAllowUnencrypted;
+    dst->httpTimeout = src->httpTimeout;
+    dst->httpMaxMsgSize = src->httpMaxMsgSize;
+    dst->httpMaxDecompressedMsgSize = src->httpMaxDecompressedMsgSize;
 
     retval = UA_Array_copy(src->sessionLocaleIds, src->sessionLocaleIdsSize,
                            (void **)&dst->sessionLocaleIds, &UA_TYPES[UA_TYPES_LOCALEID]);
@@ -179,6 +202,10 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
 #ifdef UA_ENABLE_LWS
     UA_ByteString_clear(&config->webSocketCaCertificate);
 #endif
+    UA_ByteString_clear(&config->httpCaCertificate);
+    UA_ByteString_clear(&config->httpClientCertificate);
+    UA_ByteString_clear(&config->httpClientPrivateKey);
+    UA_String_clear(&config->httpClientPrivateKeyPassword);
 
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);
@@ -256,7 +283,6 @@ UA_Client_clear(UA_Client *client) {
 
     UA_ByteString_clear(&client->serverSessionNonce);
     UA_ByteString_clear(&client->clientSessionNonce);
-
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     __Client_Subscriptions_clear(client);
@@ -383,10 +409,23 @@ notifyClientState(UA_Client *client) {
 /* Raw Services */
 /****************/
 
+static void
+removeAsyncServiceCall(UA_Client *client, AsyncServiceCall *ac);
+
+UA_UInt32
+__Client_nextRequestId(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+    do {
+        if(++client->requestId == 0)
+            client->requestId++;
+    } while(__Client_AsyncService_find(client, client->requestId));
+    return client->requestId;
+}
+
 /* For both synchronous and asynchronous service calls */
 static UA_StatusCode
 sendRequest(UA_Client *client, const void *request,
-            const UA_DataType *requestType, UA_UInt32 *requestId) {
+            const UA_DataType *requestType, AsyncServiceCall *ac) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
     /* Renew SecureChannel if necessary */
@@ -422,7 +461,20 @@ sendRequest(UA_Client *client, const void *request,
         rr->timeoutHint = client->config.timeout;
 
     /* Generate the request id */
-    UA_UInt32 rqId = ++client->requestId;
+    UA_UInt32 rqId = __Client_nextRequestId(client);
+
+    /* Register before sending. This makes the service-call record the single
+     * correlation point for TCP and direct HTTP, even if a ConnectionManager
+     * reports a request failure without another EventLoop iteration. */
+    ac->requestId = rqId;
+    ac->requestHandle = rr->requestHandle;
+    ac->start = el->dateTime_nowMonotonic(el);
+    ac->timeout = rr->timeoutHint;
+    if(ac->timeout == 0)
+        ac->timeout = UA_UINT32_MAX; /* 0 -> unlimited */
+    LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
+    if(ac->applicationCall)
+        client->outstandingAsyncServiceCalls++;
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     UA_LOG_DEBUG_CHANNEL(client->config.logging, &client->channel,
@@ -440,14 +492,15 @@ sendRequest(UA_Client *client, const void *request,
 
     rr->authenticationToken = oldToken; /* Set back to the original token */
 
-    /* Sending failed. The SecureChannel cannot recover from that. Call
-     * closeSecureChannel to a) close from our end and b) set the session to
-     * non-activated. */
-    if(retval != UA_STATUSCODE_GOOD)
+    /* A stream write failure invalidates the transport framing. An HTTP POST
+     * is request-local and does not invalidate sibling requests or the logical
+     * SecureChannel. */
+    if(retval != UA_STATUSCODE_GOOD &&
+       client->channel.transport != UA_SECURECHANNEL_TRANSPORT_HTTP)
         closeSecureChannel(client);
 
-    /* Return the request id */
-    *requestId = rqId;
+    if(retval != UA_STATUSCODE_GOOD)
+        removeAsyncServiceCall(client, ac);
     return retval;
 }
 
@@ -463,18 +516,135 @@ removeAsyncServiceCall(UA_Client *client, AsyncServiceCall *ac) {
     }
 }
 
-/* Look for the async callback in the linked list, execute and delete it */
-static UA_StatusCode
-processMSGResponse(UA_Client *client, UA_UInt32 requestId,
-                   const UA_ByteString *msg) {
-    UA_ClientConfig *config = &client->config;
-
-    /* Find the callback */
+AsyncServiceCall *
+__Client_AsyncService_find(UA_Client *client, UA_UInt32 requestId) {
     AsyncServiceCall *ac;
     LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
         if(ac->requestId == requestId)
-            break;
+            return ac;
     }
+    return NULL;
+}
+
+static UA_StatusCode
+decodeBinaryServiceResponse(UA_Client *client, const UA_ByteString *msg,
+                            const UA_DataType *expectedType,
+                            UA_Response *response,
+                            const UA_DataType **responseType) {
+    size_t offset = 0;
+    UA_NodeId responseTypeId;
+    UA_NodeId_init(&responseTypeId);
+    UA_StatusCode res = UA_NodeId_decodeBinary(msg, &offset, &responseTypeId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&responseTypeId);
+        return res;
+    }
+
+    if(!UA_NodeId_equal(&responseTypeId, &expectedType->binaryEncodingId)) {
+        if(UA_NodeId_equal(&responseTypeId, &serviceFaultId)) {
+            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Received a ServiceFault response");
+            *responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
+        } else {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Service response type does not match");
+            UA_NodeId_clear(&responseTypeId);
+            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+    }
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                 "Decode a message of type %s", (*responseType)->typeName);
+#else
+    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                 "Decode a message of type %" PRIu32,
+                 responseTypeId.identifier.numeric);
+#endif
+
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(opt));
+    opt.customTypes = client->config.customDataTypes;
+    opt.namespaceMapping = client->channel.namespaceMapping;
+    res = UA_decodeBinaryInternal(msg, &offset, response, *responseType, &opt);
+    if(res == UA_STATUSCODE_GOOD && offset != msg->length)
+        res = UA_STATUSCODE_BADDECODINGERROR;
+    UA_NodeId_clear(&responseTypeId);
+    return res;
+}
+
+#ifdef UA_ENABLE_JSON_ENCODING
+static UA_StatusCode
+decodeJsonServiceResponse(UA_Client *client, const UA_ByteString *msg,
+                          const UA_DataType *expectedType,
+                          UA_Response *response,
+                          const UA_DataType **responseType) {
+    UA_ExtensionObject envelope;
+    UA_ExtensionObject_init(&envelope);
+    UA_DecodeJsonOptions opt;
+    memset(&opt, 0, sizeof(opt));
+    opt.customTypes = client->config.customDataTypes;
+    opt.namespaceMapping = client->channel.namespaceMapping;
+    UA_StatusCode res = UA_decodeJson(
+        msg, &envelope, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &opt);
+    if(res == UA_STATUSCODE_GOOD &&
+       (envelope.encoding != UA_EXTENSIONOBJECT_DECODED ||
+        !envelope.content.decoded.type || !envelope.content.decoded.data))
+        res = UA_STATUSCODE_BADDECODINGERROR;
+
+    if(res == UA_STATUSCODE_GOOD) {
+        const UA_DataType *actualType = envelope.content.decoded.type;
+        if(actualType == expectedType) {
+            res = UA_copy(envelope.content.decoded.data, response,
+                          expectedType);
+        } else if(actualType == &UA_TYPES[UA_TYPES_SERVICEFAULT]) {
+            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Received a ServiceFault response");
+            *responseType = actualType;
+            const UA_ServiceFault *fault =
+                (const UA_ServiceFault *)envelope.content.decoded.data;
+            res = UA_ResponseHeader_copy(&fault->responseHeader,
+                                         &response->responseHeader);
+        } else {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Service response type does not match");
+            res = UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+    }
+
+    UA_ExtensionObject_clear(&envelope);
+    return res;
+}
+#endif
+
+static UA_StatusCode
+decodeServiceResponse(UA_Client *client, const UA_ByteString *msg,
+                      UA_SecureChannelEncoding encoding,
+                      const UA_DataType *expectedType, UA_Response *response,
+                      const UA_DataType **responseType) {
+    switch(encoding) {
+    case UA_SECURECHANNEL_ENCODING_BINARY:
+        return decodeBinaryServiceResponse(client, msg, expectedType, response,
+                                           responseType);
+#ifdef UA_ENABLE_JSON_ENCODING
+    case UA_SECURECHANNEL_ENCODING_JSON:
+        return decodeJsonServiceResponse(client, msg, expectedType, response,
+                                         responseType);
+#endif
+    default:
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+}
+
+/* Look for the async callback in the linked list, execute and delete it */
+UA_StatusCode
+__Client_processServiceResponsePayload(UA_Client *client, UA_UInt32 requestId,
+                                       const UA_ByteString *msg,
+                                       UA_SecureChannelEncoding encoding) {
+    UA_ClientConfig *config = &client->config;
+
+    /* Find the callback */
+    AsyncServiceCall *ac = __Client_AsyncService_find(client, requestId);
 
     /* Part 6, 6.7.6: After the security validation is complete the receiver
      * shall verify the RequestId and the SequenceNumber. If these checks fail a
@@ -496,53 +666,17 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     UA_Response asyncResponse;
     UA_Response *response = (ac->syncResponse) ? ac->syncResponse : &asyncResponse;
     const UA_DataType *responseType = ac->responseType;
+    if(!ac->syncResponse)
+        UA_init(response, ac->responseType);
 
     /* Dequeue ac. We might disconnect the client (remove all ac) in the callback. */
     removeAsyncServiceCall(client, ac);
 
-    /* Decode the response type */
-    size_t offset = 0;
-    UA_NodeId responseTypeId;
-    UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &responseTypeId);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto process;
-
-    /* Verify the type of the response */
-    if(!UA_NodeId_equal(&responseTypeId, &ac->responseType->binaryEncodingId)) {
-        /* Initialize before switching the responseType to ServiceFault.
-         * Otherwise the decoding will leave fields from the original response
-         * type uninitialized. */
-        UA_init(response, ac->responseType);
-        if(UA_NodeId_equal(&responseTypeId, &serviceFaultId)) {
-            /* Decode as a ServiceFault, i.e. only the response header */
-            UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,
-                         "Received a ServiceFault response");
-            responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
-        } else {
-            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_CLIENT,
-                         "Service response type does not match");
-            retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
-            goto process; /* Do not decode */
-        }
-    }
-
     /* Decode the response */
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,
-                 "Decode a message of type %s", responseType->typeName);
-#else
-    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,
-                 "Decode a message of type %" PRIu32,
-                 responseTypeId.identifier.numeric);
-#endif
+    UA_StatusCode retval = decodeServiceResponse(
+        client, msg, encoding, ac->responseType, response,
+        &responseType);
 
-    UA_DecodeBinaryOptions opt;
-    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
-    opt.customTypes = config->customDataTypes;
-    opt.namespaceMapping = client->channel.namespaceMapping;
-    retval = UA_decodeBinaryInternal(msg, &offset, response, responseType, &opt);
-
- process:
     /* Process the received MSG response */
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_CLIENT,
@@ -620,13 +754,14 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         config->globalNotificationCallback(client, nt, notifyPayloadMap);
 
     /* Clean up */
-    UA_NodeId_clear(&responseTypeId);
+    UA_ByteString_clear(&ac->httpResponseBody);
     if(!ac->syncResponse) {
         UA_clear(response, ac->responseType);
         UA_free(ac);
     } else {
-        /* Return a special status code after processing a synchronous message.
-         * This makes the client return control immediately. */
+        /* Mark every consumed synchronous response as complete, including a
+         * malformed one. Otherwise the caller keeps waiting with an entry that
+         * has already been removed from the request list. */
         ac->syncResponse = NULL; /* Indicate that response was received */
         if(retval == UA_STATUSCODE_GOOD)
             retval = UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
@@ -670,7 +805,8 @@ processServiceResponse(UA_Client *client, UA_SecureChannel *channel,
     case UA_MESSAGETYPE_MSG:
         UA_LOG_DEBUG_CHANNEL(client->config.logging, channel, "Process MSG message "
                              "with RequestId %u", requestId);
-        return processMSGResponse(client, requestId, message);
+        return __Client_processServiceResponsePayload(
+            client, requestId, message, UA_SECURECHANNEL_ENCODING_BINARY);
     default:
         UA_LOG_TRACE_CHANNEL(client->config.logging, channel,
                              "Invalid message type");
@@ -711,13 +847,18 @@ __Client_Service(UA_Client *client, const void *request,
      * reconnection within the EventLoop run method. */
     UA_UInt32 channelId = client->channel.securityToken.channelId;
 
-    /* Send the request */
-    UA_UInt32 requestId = 0;
-    UA_StatusCode retval = sendRequest(client, request, requestType, &requestId);
+    /* Set up and register the synchronous service call before sending. */
+    AsyncServiceCall ac;
+    memset(&ac, 0, sizeof(ac));
+    ac.responseType = responseType;
+    ac.syncResponse = (UA_Response*)response;
+    ac.applicationCall = false;
+    UA_StatusCode retval = sendRequest(client, request, requestType, &ac);
     if(retval != UA_STATUSCODE_GOOD) {
         /* If sending failed, the status is set to closing. The SecureChannel is
          * the actually closed in the next iteration of the EventLoop. */
-        UA_assert(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
+        UA_assert(client->channel.transport == UA_SECURECHANNEL_TRANSPORT_HTTP ||
+                  client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
                   client->channel.state == UA_SECURECHANNELSTATE_CLOSED);
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Sending the request failed with status %s",
@@ -726,23 +867,6 @@ __Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
         return;
     }
-
-    /* Temporarily insert an AsyncServiceCall */
-    const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
-    AsyncServiceCall ac;
-    ac.callback = NULL;
-    ac.userdata = NULL;
-    ac.responseType = responseType;
-    ac.syncResponse = (UA_Response*)response;
-    ac.requestId = requestId;
-    ac.start = el->dateTime_nowMonotonic(el); /* Start timeout after sending */
-    ac.timeout = rh->timeoutHint;
-    ac.applicationCall = false;
-    ac.requestHandle = rh->requestHandle;
-    if(ac.timeout == 0)
-        ac.timeout = UA_UINT32_MAX; /* 0 -> unlimited */
-
-    LIST_INSERT_HEAD(&client->asyncServiceCalls, &ac, pointers);
 
     /* Time until which the request has to be answered */
     UA_DateTime maxDate = ac.start + ((UA_DateTime)ac.timeout * UA_DATETIME_MSEC);
@@ -789,6 +913,7 @@ __Client_Service(UA_Client *client, const void *request,
 
     /* Detach from the internal async service list */
     LIST_REMOVE(&ac, pointers);
+    UA_ByteString_clear(&ac.httpResponseBody);
 
     /* Return the status code */
     respHeader->serviceResult = retval;
@@ -801,6 +926,7 @@ __Client_Service(UA_Client *client, const void *request,
 static void
 __Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                              UA_StatusCode statusCode) {
+    UA_ByteString_clear(&ac->httpResponseBody);
     /* Set the status for the synchronous service call. Don't free the ac. */
     if(ac->syncResponse) {
         ac->syncResponse->responseHeader.serviceResult = statusCode;
@@ -821,6 +947,20 @@ __Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
     }
 
     UA_free(ac);
+}
+
+void
+__Client_AsyncService_fail(UA_Client *client, UA_UInt32 requestId,
+                           UA_StatusCode statusCode) {
+    AsyncServiceCall *ac = __Client_AsyncService_find(client, requestId);
+    if(ac) {
+        removeAsyncServiceCall(client, ac);
+        __Client_AsyncService_cancel(client, ac, statusCode);
+        return;
+    }
+    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                 "Ignoring failure for unknown RequestId %u",
+                 (unsigned)requestId);
 }
 
 void
@@ -912,25 +1052,11 @@ asyncServiceWithContext(UA_Client *client, const void *request,
     }
 
     /* Prepare the entry for the linked list */
-    AsyncServiceCall *ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
+    AsyncServiceCall *ac = (AsyncServiceCall*)UA_calloc(1, sizeof(AsyncServiceCall));
     if(!ac)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Call the service and set the requestId */
-    UA_StatusCode retval = sendRequest(client, request, requestType, &ac->requestId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* If sending failed, the status is set to closing. The SecureChannel is
-         * the actually closed in the next iteration of the EventLoop. */
-        UA_assert(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
-                  client->channel.state == UA_SECURECHANNELSTATE_CLOSED);
-        UA_free(ac);
-        notifyClientState(client);
-        return retval;
-    }
-
-    /* Set up the AsyncServiceCall for processing the response */
-    UA_EventLoop *el = client->config.eventLoop;
-    const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
+    /* Set up the canonical service-call record before sending. */
     ac->callback = callback;
     ac->responseType = responseType;
     if(context) {
@@ -940,16 +1066,18 @@ asyncServiceWithContext(UA_Client *client, const void *request,
         ac->userdata = userdata;
     }
     ac->syncResponse = NULL;
-    ac->start = el->dateTime_nowMonotonic(el);
-    ac->timeout = rh->timeoutHint;
     ac->applicationCall = applicationCall;
-    ac->requestHandle = rh->requestHandle;
-    if(ac->timeout == 0)
-        ac->timeout = UA_UINT32_MAX; /* 0 -> unlimited */
-
-    LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-    if(applicationCall)
-        client->outstandingAsyncServiceCalls++;
+    UA_StatusCode retval = sendRequest(client, request, requestType, ac);
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* If sending failed, the status is set to closing. The SecureChannel is
+         * actually closed in the next iteration of the EventLoop. */
+        UA_assert(client->channel.transport == UA_SECURECHANNEL_TRANSPORT_HTTP ||
+                  client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
+                  client->channel.state == UA_SECURECHANNELSTATE_CLOSED);
+        UA_free(ac);
+        notifyClientState(client);
+        return retval;
+    }
 
     /* Return the generated request id */
     if(requestId)

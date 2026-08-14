@@ -83,6 +83,21 @@
   // Maximum bytes queued while a WebSocket peer is not writable.
   webSocketMaxQueueSize: 1048576,
 
+  // opc.https uses the system TLS trust store by default. Configure an
+  // independent CA and mutual-TLS identity here when required. Encrypted
+  // client private keys additionally use httpClientPrivateKeyPassword.
+  // httpCaCertificate: "./certs/http_ca.pem",
+  // httpClientCertificate: "./certs/http_client_cert.pem",
+  // httpClientPrivateKey: "./certs/http_client_key.pem",
+  // httpClientPrivateKeyPassword: "secret",
+  httpTimeout: 60,
+  httpMaxMsgSize: 16777216,
+  httpMaxDecompressedMsgSize: 16777216,
+
+  // opc.http is a non-standard testing extension and remains disabled unless
+  // explicitly allowed.
+  httpAllowUnencrypted: false,
+
   // Optional explicit EndpointDescription. Use this when endpoint settings are
   // already known and should be pinned.
   //endpoint: {

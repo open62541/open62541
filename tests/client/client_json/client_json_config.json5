@@ -32,6 +32,14 @@
   tcpReuseAddr: true,
   webSocketCaCertificate: "server_cert.der",
   webSocketMaxQueueSize: 2000000,
+  httpAllowUnencrypted: true,
+  httpCaCertificate: "server_cert.der",
+  httpClientCertificate: "client_cert.der",
+  httpClientPrivateKey: "client_key.der",
+  httpClientPrivateKeyPassword: "client-key-password",
+  httpTimeout: 17,
+  httpMaxMsgSize: 123456,
+  httpMaxDecompressedMsgSize: 654321,
 
   endpoint: {
     endpointUrl: "opc.tcp://localhost:4840",
