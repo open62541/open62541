@@ -25,3 +25,4 @@ The following third party libraries may be included -- depending on the activate
 | tr_dirent       | MIT              | Dirent interface for Microsoft Visual Studio    |
 | yxml            | MIT              | Small XML parser (https://dev.yorhel.nl/yxml)   |
 | musl_inet_pton  | MIT              | A musl implementation of the inet_pton function |
+| picohttpparser  | MIT              | HTTP/1 request and chunked-body parser           |
