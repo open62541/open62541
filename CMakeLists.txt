@@ -173,10 +173,18 @@ option(UA_ENABLE_LWS
 mark_as_advanced(UA_ENABLE_LWS)
 option(UA_ENABLE_LWS_MQTT "Enable the libwebsockets MQTT ConnectionManager" OFF)
 mark_as_advanced(UA_ENABLE_LWS_MQTT)
+option(UA_ENABLE_HTTP_COMPRESSION
+       "Enable bounded gzip/deflate support for the HTTP server (requires zlib)"
+       OFF)
+mark_as_advanced(UA_ENABLE_HTTP_COMPRESSION)
 
 
 if(UA_ENABLE_LWS_MQTT AND NOT UA_ENABLE_LWS)
     message(FATAL_ERROR "UA_ENABLE_LWS_MQTT requires UA_ENABLE_LWS")
+endif()
+
+if(UA_ENABLE_HTTP_COMPRESSION AND NOT UA_ENABLE_LWS)
+    message(FATAL_ERROR "UA_ENABLE_HTTP_COMPRESSION requires UA_ENABLE_LWS")
 endif()
 
 if(UA_ENABLE_LWS)
@@ -559,6 +567,11 @@ endif()
 if(UA_ENABLE_LWS)
     find_package(libwebsockets 4.3 REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
+    if(UA_ENABLE_HTTP_COMPRESSION)
+        find_package(ZLIB REQUIRED)
+        list(APPEND open62541_LIBRARIES ZLIB::ZLIB)
+        list(APPEND pkgcfg_requiresprivate "zlib")
+    endif()
 
     # libwebsockets 5.x conditionally adds trailing ABI padding to
     # lws_context_creation_info when __STRICT_ANSI__ is not defined. Binary
@@ -1342,10 +1355,24 @@ endif()
 
 if(UA_ENABLE_LWS)
     list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_websocket_lws.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_internal.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_client.c
+         ${PROJECT_SOURCE_DIR}/deps/picohttpparser.h
+         ${PROJECT_SOURCE_DIR}/deps/picohttpparser.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_parser.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_parser.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_compression.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_compression.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http_server.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_websocket_lws.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c)
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+        set_source_files_properties(
+            ${PROJECT_SOURCE_DIR}/deps/picohttpparser.c
+            PROPERTIES COMPILE_OPTIONS "-Wno-undef")
+    endif()
     if(UA_ENABLE_LWS_MQTT)
         list(APPEND plugin_sources
              ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_mqtt_lws.c)

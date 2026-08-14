@@ -62,11 +62,7 @@ int main(int argc, const char **argv) {
     UA_Boolean useSSL = false;
     UA_String path = UA_STRING("");
     UA_String method = UA_STRING("GET");
-    /*
-    UA_String user = UA_STRING("user");
-    UA_String password = UA_STRING("123");
-    */
-    size_t configParamsSize = 5;
+    size_t configParamsSize = 3;
     UA_KeyValuePair configParams[configParamsSize];
     configParams[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&configParams[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
@@ -74,24 +70,22 @@ int main(int argc, const char **argv) {
     UA_Variant_setScalar(&configParams[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     configParams[2].key = UA_QUALIFIEDNAME(0, "useSSL");
     UA_Variant_setScalar(&configParams[2].value, &useSSL, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    configParams[3].key = UA_QUALIFIEDNAME(0, "path");
-    UA_Variant_setScalar(&configParams[3].value, &path, &UA_TYPES[UA_TYPES_STRING]);
-    configParams[4].key = UA_QUALIFIEDNAME(0, "method");
-    UA_Variant_setScalar(&configParams[4].value, &method, &UA_TYPES[UA_TYPES_STRING]);
-    /*
-    configParams[6].key = UA_QUALIFIEDNAME(0, "username");
-    UA_Variant_setScalar(&configParams[6].value, &user, &UA_TYPES[UA_TYPES_STRING]);
-    configParams[7].key = UA_QUALIFIEDNAME(0, "password");
-    UA_Variant_setScalar(&configParams[7].value, &password, &UA_TYPES[UA_TYPES_STRING]);
-    */
-
     UA_KeyValueMap configMap = {configParamsSize, configParams};
-
-
+    UA_KeyValuePair sendParams[3];
+    sendParams[0].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&sendParams[0].value, &path, &UA_TYPES[UA_TYPES_STRING]);
+    sendParams[1].key = UA_QUALIFIEDNAME(0, "method");
+    UA_Variant_setScalar(&sendParams[1].value, &method, &UA_TYPES[UA_TYPES_STRING]);
+    UA_UInt32 requestHandle = 0;
+    sendParams[2].key = UA_QUALIFIEDNAME(0, "request-handle");
+    UA_Variant_setScalar(&sendParams[2].value, &requestHandle,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_KeyValueMap sendMap = {3, sendParams};
     uintptr_t requestId = 0;
     cm->openConnection(cm, &configMap, NULL, &requestId, connectionCallback);
     for(int i = 0; i < COUNT; i++) {
-        cm->sendWithConnection(cm, requestId, &UA_KEYVALUEMAP_NULL, NULL);
+        requestHandle = (UA_UInt32)i;
+        cm->sendWithConnection(cm, requestId, &sendMap, NULL);
     }
 
     for(int i = 0; i < 20; i++) {

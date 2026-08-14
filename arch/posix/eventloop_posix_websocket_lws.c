@@ -132,21 +132,21 @@ static void destroyConnection(WSConnection *c) {
     UA_free(c);
 }
 
-static void removeConnectionDelayed(void *application, void *context) {
+static void removeWSConnectionDelayed(void *application, void *context) {
     (void)application;
     WSConnection *c = (WSConnection*)context;
     notify(c, UA_CONNECTIONSTATE_CLOSING, UA_BYTESTRING_NULL, false);
     destroyConnection(c);
 }
 
-static void removeConnection(WSConnection *c) {
+static void removeWSConnection(WSConnection *c) {
     if(c->state == WS_STATE_REMOVED)
         return;
     WSManager *m = c->manager;
     LIST_REMOVE(c, next);
     c->state = WS_STATE_REMOVED;
     c->wsi = NULL;
-    c->removeCallback.callback = removeConnectionDelayed;
+    c->removeCallback.callback = removeWSConnectionDelayed;
     c->removeCallback.context = c;
     m->cm.eventSource.eventLoop->addDelayedCallback(m->cm.eventSource.eventLoop,
                                                      &c->removeCallback);
@@ -358,11 +358,11 @@ static int wsCallback(struct lws *wsi, enum lws_callback_reasons reason,
                        "WebSocket %lu\t| Connection failed%s%s",
                        (unsigned long)c->id, in ? ": " : "",
                        in ? (const char*)in : "");
-        removeConnection(c);
+        removeWSConnection(c);
         return 0;
     case LWS_CALLBACK_CLOSED:
     case LWS_CALLBACK_CLIENT_CLOSED:
-        removeConnection(c);
+        removeWSConnection(c);
         return 0;
     default:
         return lws_callback_http_dummy(wsi, reason, user, in, len);
@@ -680,7 +680,7 @@ static UA_StatusCode closeConnection(UA_ConnectionManager *cm, uintptr_t id) {
         lws_vhost_destroy(c->vhost);
         c->vhost = NULL;
         c->ownsVhost = false;
-        removeConnection(c);
+        removeWSConnection(c);
     } else {
         lws_set_timeout(c->wsi, PENDING_TIMEOUT_CLOSE_SEND, LWS_TO_KILL_ASYNC);
         UA_LWS_requestWritable(c->wsi);
