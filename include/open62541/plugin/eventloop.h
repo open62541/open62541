@@ -772,42 +772,68 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * HTTP Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~
  *
- * The HTTP ConnectionManager uses the libwebsockets library to send HTTP requests.
+ * The HTTP ConnectionManager uses libwebsockets for HTTP client and server
+ * connections. A server listener announces each accepted peer connection
+ * with its own connection id and context. Request bodies are reassembled and
+ * delivered in a callback on that accepted connection. Send the response with
+ * ``sendWithConnection`` and the accepted connection id. Sequential HTTP/1.1
+ * keep-alive requests reuse the same id and context.
  *
  * **Open Connection Parameters:**
  *
  * 0:address [string]
- *    Hostname or IPv4/IPv6 address of the target (required).
+ *    Remote hostname or IPv4/IPv6 address for clients (required), or local
+ *    interface for listeners. Listeners default to all interfaces.
  *
  * 0:port [uint16]
- *    Port of the target host (required).
+ *    Remote or listening port (required; zero selects a dynamic server port).
+ *
+ * 0:content-coding-policy [string]
+ *    Server responses only. ``identity`` forces an uncompressed response;
+ *    ``gzip`` restricts negotiation to gzip or identity. This lets an
+ *    application protocol narrow the generic HTTP coding set.
  *
  * 0:timeout [uint16]
- *    Connection timeout in seconds (default: 30).
+ *    Connection or request timeout in seconds (default: 30).
+ *
+ * 0:listen [boolean]
+ *    Create a listening connection (default: false).
  *
  * 0:useSSL [bool]
  *    Encrypt the connection with TLS (default: false).
  *
- * 0:username [string]
- *    Username for HTTP Basic authentication. The authorization header is added
- *    only if both ``username`` and ``password`` are set.
+ * 0:certificate [bytestring]
+ *    DER or PEM encoded local certificate. For listeners this is the server
+ *    certificate. For clients it enables mutual TLS.
  *
- * 0:password [string]
- *    Password for HTTP Basic authentication. The authorization header is added
- *    only if both ``username`` and ``password`` are set.
+ * 0:private-key [bytestring]
+ *    DER or PEM encoded private key for ``certificate``.
  *
- * 0:ca-cert [bytestring]
- *    DER or PEM encoded CA certificate or certificate bundle used to verify
- *    the server. If unset, the operating system trust store is used.
+ * 0:private-key-password [string]
+ *    Password for an encrypted private key.
  *
- * 0:client-cert [bytestring]
- *    DER or PEM encoded client certificate for mutual TLS.
+ * 0:ca-certificate [bytestring]
+ *    DER or PEM encoded CA certificate used to validate the TLS peer. For a
+ *    listener, setting this requires clients to present a trusted certificate.
+ *    A client uses the system trust store when this parameter is omitted.
  *
- * 0:client-key [bytestring]
- *    DER or PEM encoded private key for the client certificate.
+ * 0:recv-max-message-size [uint32]
+ *    Maximum size of a reassembled response body for clients or request body
+ *    on the wire for listeners. Zero or omission means unlimited.
  *
- * 0:client-key-password [string]
- *    Password for an encrypted client private key.
+ * 0:recv-max-decompressed-message-size [uint32]
+ *    Maximum request body size after HTTP Content-Encoding decompression for
+ *    listeners, or response body size after decompression for clients. It
+ *    defaults to ``recv-max-message-size`` when that limit is set, otherwise
+ *    to 64 MiB for listeners. A client only advertises supported compression
+ *    when this limit is non-zero.
+ *
+ * 0:send-max-message-size [uint32]
+ *    Maximum request body size for clients or response body size for listeners.
+ *    Zero or omission means unlimited.
+ *
+ * 0:validate [boolean]
+ *    Validate parameters without opening a connection.
  *
  * **Send Parameters:**
  *
@@ -817,14 +843,55 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * 0:method [string]
  *    HTTP request method (default: ``GET``).
  *
- * 0:header [string]
- *    Additional request headers encoded as ampersand-separated key-value
- *    pairs, for example ``Accept=application/json&X-Trace=yes``. Header names
- *    and values therefore cannot contain unescaped ``&`` or ``=`` characters.
+ * 0:status-code [uint16]
+ *    HTTP response status for server requests (default: 200). Not valid for
+ *    client requests.
+ *
+ * 0:headers [KeyValuePair array]
+ *    Additional request or response headers. Every pair uses the header name as
+ *    its QualifiedName with namespace index zero and a scalar String value.
+ *    Header names are case-insensitive. Content-Length, Transfer-Encoding and
+ *    Connection are managed internally and cannot be supplied.
+ *
+ * 0:request-handle [Variant]
+ *    Opaque caller-defined metadata for an HTTP client request. Scalar, array
+ *    and custom DataTypes are accepted. The value is copied when sending,
+ *    returned unchanged in every response callback and never transmitted as
+ *    an HTTP header. Concurrent client requests require handles; callers are
+ *    responsible for choosing values that distinguish their requests. Without
+ *    a handle only one request may be outstanding.
+ *
+ * 0:timeout [uint16]
+ *    Timeout in seconds for this request. Zero or omission uses the timeout
+ *    configured when opening the client binding.
  *
  * The ``buf`` argument passed to ``sendWithConnection`` is used as the request
  * body. It may be ``NULL`` for an empty body and, like all ConnectionManager
- * send buffers, is released internally even if sending fails. */
+ * send buffers, is released internally even if sending fails.
+ *
+ * Listener callbacks provide ``listen-address`` and ``listen-port``. An
+ * accepted connection is first announced with ``remote-address`` and an empty
+ * body. Its subsequent request callbacks provide ``method``, ``path``,
+ * ``headers``, ``remote-address`` and ``request-random``. The latter is a
+ * 32-byte ByteString filled by the libwebsockets platform random source. Client
+ * response callbacks provide ``status-code`` and ``headers`` when the response
+ * is established. Identity response-body fragments also provide
+ * ``content-length``. Decompressed fragments omit it because the wire length
+ * no longer describes the delivered body. A final callback contains
+ * ``response-complete`` set to true and an
+ * empty body. It also contains ``request-status`` with the terminal transport
+ * StatusCode. All callbacks contain ``request-handle`` when it was supplied
+ * by the caller. A failed client request does not close sibling requests or
+ * the client binding.
+ *
+ * Every accepted peer connection has an independent connection context and
+ * produces exactly one final ``UA_CONNECTIONSTATE_CLOSING`` callback. Its
+ * connection id remains valid across sequential requests until it is
+ * explicitly closed, the peer disconnects or the configured inactivity
+ * timeout expires. Only one request is active at a time on an HTTP/1.1
+ * connection. Closing a listener also closes all of its accepted connections
+ * before the ConnectionManager reaches the stopped state. Incoming chunked
+ * request bodies are decoded and delivered as one reassembled message. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
 

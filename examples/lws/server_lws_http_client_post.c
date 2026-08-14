@@ -73,22 +73,22 @@ int main(int argc, const char **argv) {
 
     UA_String path = UA_STRING("/post");
     UA_String method = UA_STRING("POST");
-    // UA_String header = UA_STRING("API-Key=234234sdfsf34&API-Host=api-server.com");
-
-    size_t sendConfigParamsSize = 2;
+    size_t sendConfigParamsSize = 3;
     UA_KeyValuePair sendConfigParams[sendConfigParamsSize];
     sendConfigParams[0].key = UA_QUALIFIEDNAME(0, "path");
     UA_Variant_setScalar(&sendConfigParams[0].value, &path, &UA_TYPES[UA_TYPES_STRING]);
     sendConfigParams[1].key = UA_QUALIFIEDNAME(0, "method");
     UA_Variant_setScalar(&sendConfigParams[1].value, &method, &UA_TYPES[UA_TYPES_STRING]);
-    // sendConfigParams[2].key = UA_QUALIFIEDNAME(0, "header");
-    // UA_Variant_setScalar(&sendConfigParams[2].value, &header, &UA_TYPES[UA_TYPES_STRING]);
-
+    UA_UInt32 requestHandle = 0;
+    sendConfigParams[2].key = UA_QUALIFIEDNAME(0, "request-handle");
+    UA_Variant_setScalar(&sendConfigParams[2].value, &requestHandle,
+                         &UA_TYPES[UA_TYPES_UINT32]);
     UA_KeyValueMap sendConfigMap = {sendConfigParamsSize, sendConfigParams};
 
     uintptr_t requestId = 0;
     cm->openConnection(cm, &configMap, NULL, &requestId, connectionCallback);
     for(int i = 0; i < COUNT; i++) {
+        requestHandle = (UA_UInt32)i;
         UA_ByteString msg = UA_BYTESTRING_ALLOC("text=hallo&send=data");
         cm->sendWithConnection(cm, requestId, &sendConfigMap, &msg);
     }

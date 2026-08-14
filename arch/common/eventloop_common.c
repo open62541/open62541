@@ -27,8 +27,8 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
             continue;
         }
 
-        /* Type matches */
-        if(val->type != r->type) {
+        /* A NULL restriction type accepts an opaque Variant of any type. */
+        if(r->type && val->type != r->type) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_EVENTLOOP,
                            "%s\t| Parameter %.*s has the wrong type",
                            logprefix, (int)r->name.name.length, (char*)r->name.name.data);

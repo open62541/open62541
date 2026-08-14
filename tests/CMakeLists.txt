@@ -345,6 +345,10 @@ if(UA_ENABLE_LWS_MQTT)
 endif()
 
 if(UA_ENABLE_LWS)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der
+                   ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der
+                   ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
     ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
                 ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
     ua_add_test(check_eventloop_websocket_lws.c)
