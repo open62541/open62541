@@ -1009,6 +1009,10 @@ endif()
 
 list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ws.c)
 
+if(UA_ENABLE_LWS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_securechannel_http.c)
+endif()
+
 # Dependencies
 set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c

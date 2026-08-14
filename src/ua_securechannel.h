@@ -131,6 +131,12 @@ typedef enum {
     UA_SECURECHANNEL_ENCODING_JSON = 1
 } UA_SecureChannelEncoding;
 
+static UA_INLINE UA_MessageSecurityMode
+UA_SecureChannel_httpSecurityMode(UA_Boolean useTls) {
+    return useTls ? UA_MESSAGESECURITYMODE_SIGNANDENCRYPT
+                  : UA_MESSAGESECURITYMODE_NONE;
+}
+
 struct UA_SecureChannel {
     UA_SecureChannelState state;
     UA_SecureChannelRenewState renewState;
@@ -237,6 +243,17 @@ struct UA_SecureChannel {
     UA_StatusCode (*processOPNHeader)(void *application, UA_SecureChannel *channel,
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 };
+
+/* Transport confidentiality and OPC UA application signatures are separate
+ * for direct transports. HTTPS is represented as SignAndEncrypt, but
+ * SecurityPolicy None still has no application signature algorithm. */
+static UA_INLINE UA_Boolean
+UA_SecureChannel_hasApplicationSecurity(const UA_SecureChannel *channel) {
+    return channel->securityPolicy &&
+        channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+        (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+         channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+}
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
@@ -362,6 +379,47 @@ UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
 UA_StatusCode
 UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
                          UA_CloseSecureChannelRequest *req);
+
+/* HTTP implementation of the common SecureChannel message send operation.
+ * Implemented in ua_securechannel_http.c. */
+UA_StatusCode
+UA_SecureChannel_sendMSGHttp(UA_SecureChannel *channel, UA_UInt32 requestId,
+                             void *payload, const UA_DataType *payloadType);
+
+UA_StatusCode
+UA_SecureChannel_sendHttpResponse(UA_SecureChannel *channel,
+                                  uintptr_t connectionId, void *payload,
+                                  const UA_DataType *payloadType);
+
+UA_StatusCode
+UA_Http_sendResponse(UA_ConnectionManager *cm, uintptr_t connectionId,
+                     UA_UInt16 status, const UA_String *contentType,
+                     const UA_String *contentCodingPolicy,
+                     UA_ByteString *body);
+
+const UA_String *
+UA_Http_getHeader(const UA_KeyValueMap *params, const char *name,
+                  UA_Boolean *duplicate, UA_Boolean *invalid);
+
+UA_Boolean
+UA_Http_mediaTypeEquals(const UA_String *header, const UA_String *mediaType);
+
+UA_Boolean
+UA_Http_headerValueEquals(const UA_String *header, const char *value);
+
+UA_Boolean
+UA_Http_contentTypeMatchesEncoding(const UA_String *contentType,
+                                   UA_SecureChannelEncoding encoding);
+
+extern const UA_String UA_HTTP_CONTENTTYPE_BINARY;
+extern const UA_String UA_HTTP_CONTENTTYPE_BINARY_LEGACY;
+extern const UA_String UA_HTTP_PROFILE_HTTPS_BINARY;
+extern const UA_String UA_HTTP_PROFILE_HTTP_BINARY;
+#ifdef UA_ENABLE_JSON_ENCODING
+extern const UA_String UA_HTTP_CONTENTTYPE_JSON;
+extern const UA_String UA_HTTP_PROFILE_HTTPS_JSON;
+extern const UA_String UA_HTTP_PROFILE_HTTP_JSON;
+#endif
 
 /* The MessageContext is forwarded into the encoding layer so that we can send
  * chunks before continuing to encode. This lets us reuse a fixed chunk-sized

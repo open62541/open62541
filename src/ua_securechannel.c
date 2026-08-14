@@ -158,6 +158,9 @@ void
 UA_SecureChannel_sendERR(UA_SecureChannel *channel, UA_TcpErrorMessage *error) {
     if(!UA_SecureChannel_isConnected(channel))
         return;
+    /* HTTP has status codes and service faults, but no UACP ERR frame. */
+    if(channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP)
+        return;
 
     hideErrors(error);
 
@@ -664,6 +667,9 @@ sendSymmetric(UA_SecureChannel *channel, UA_UInt32 requestId,
 UA_StatusCode
 UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
                          void *payload, const UA_DataType *payloadType) {
+    if(channel && channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP)
+        return UA_SecureChannel_sendMSGHttp(channel, requestId, payload,
+                                            payloadType);
     return sendSymmetric(channel, requestId, UA_MESSAGETYPE_MSG,
                          payload, payloadType);
 }
@@ -671,6 +677,9 @@ UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
 UA_StatusCode
 UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
                          UA_CloseSecureChannelRequest *req) {
+    /* Direct HTTP service transport has no UACP CLO frame. */
+    if(channel && channel->transport == UA_SECURECHANNEL_TRANSPORT_HTTP)
+        return UA_STATUSCODE_GOOD;
     return sendSymmetric(channel, requestId, UA_MESSAGETYPE_CLO, req,
                          &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
 }
