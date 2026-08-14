@@ -537,6 +537,31 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
     return found;
 }
 
+#define UA_MAX_NODE_INSTANTIATION_DEPTH 64
+
+static UA_StatusCode
+beginChildInstantiation(UA_Server *server, UA_Session *session,
+                        const UA_NodeId *destinationNodeId) {
+    if(server->nodeInstantiationDepth >= UA_MAX_NODE_INSTANTIATION_DEPTH) {
+        UA_LOG_NODEID_WARNING(destinationNodeId,
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "AddNode (%.*s): Recursive child instantiation "
+                                   "exceeded the maximum depth %u",
+                                   (int)nodeIdStr.length, nodeIdStr.data,
+                                   UA_MAX_NODE_INSTANTIATION_DEPTH));
+        return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+    }
+
+    server->nodeInstantiationDepth++;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+endChildInstantiation(UA_Server *server) {
+    UA_assert(server->nodeInstantiationDepth > 0);
+    server->nodeInstantiationDepth--;
+}
+
 static UA_StatusCode
 copyAllChildren(UA_Server *server, UA_Session *session,
                 const UA_NodeId *source, const UA_NodeId *destination);
@@ -622,8 +647,14 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Have a child with that browseName. Deep-copy missing members. */
     if(!UA_NodeId_isNull(&existingChild)) {
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
-           rd->nodeClass == UA_NODECLASS_OBJECT)
-            retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
+           rd->nodeClass == UA_NODECLASS_OBJECT) {
+            retval = beginChildInstantiation(server, session, destinationNodeId);
+            if(retval == UA_STATUSCODE_GOOD) {
+                retval = copyAllChildren(server, session, &rd->nodeId.nodeId,
+                                         &existingChild);
+                endChildInstantiation(server);
+            }
+        }
         UA_NodeId_clear(&existingChild);
         return retval;
     }
@@ -740,11 +771,18 @@ copyChild(UA_Server *server, UA_Session *session,
             }
         }
 
+        retval = beginChildInstantiation(server, session, destinationNodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteNode(server, newNodeId, true);
+            return retval;
+        }
+
         /* For the new child, recursively copy the members of the original. No
          * typechecking is performed here. Assuming that the original is
          * consistent. */
         retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
         if(retval != UA_STATUSCODE_GOOD) {
+            endChildInstantiation(server);
             deleteNode(server, newNodeId, true);
             return retval;
         }
@@ -752,6 +790,7 @@ copyChild(UA_Server *server, UA_Session *session,
         /* Check if its a dynamic variable, add all type and/or interface
          * children and call the constructor */
         retval = addNode_finish(server, session, &newNodeId);
+        endChildInstantiation(server);
         if(retval != UA_STATUSCODE_GOOD) {
             deleteNode(server, newNodeId, true);
             return retval;
