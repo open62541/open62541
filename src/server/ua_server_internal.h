@@ -152,6 +152,9 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+    /* Current depth while recursively instantiating node children */
+    size_t nodeInstantiationDepth;
+
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     size_t subscriptionsSize;  /* Number of active subscriptions */

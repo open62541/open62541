@@ -591,6 +591,69 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(RecursiveMandatoryChildDepthIsLimited) {
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 80901);
+    UA_VariableTypeAttributes typeAttr = UA_VariableTypeAttributes_default;
+    typeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "RecursiveType");
+    typeAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    typeAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Int32 value = 0;
+    UA_Variant_setScalar(&typeAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode retval =
+        UA_Server_addVariableTypeNode(server, typeId,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                      UA_QUALIFIEDNAME(1, "RecursiveType"),
+                                      UA_NODEID_NULL, typeAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add a child with the recursive type. It becomes dangerous only after
+     * the Mandatory modelling rule is attached. */
+    UA_NodeId childId = UA_NODEID_NUMERIC(1, 80902);
+    UA_VariableAttributes childAttr = UA_VariableAttributes_default;
+    childAttr.displayName = UA_LOCALIZEDTEXT("en-US", "RecursiveChild");
+    childAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    childAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&childAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    retval =
+        UA_Server_addVariableNode(server, childId, typeId,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "RecursiveChild"), typeId,
+                                  childAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval =
+        UA_Server_addReference(server, childId,
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                               UA_EXPANDEDNODEID_NUMERIC(
+                                   0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                               true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeId instanceId = UA_NODEID_NUMERIC(1, 80903);
+    UA_VariableAttributes instanceAttr = UA_VariableAttributes_default;
+    instanceAttr.displayName = UA_LOCALIZEDTEXT("en-US", "RecursiveInstance");
+    instanceAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    instanceAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&instanceAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    retval =
+        UA_Server_addVariableNode(server, instanceId,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "RecursiveInstance"), typeId,
+                                  instanceAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
+    ck_assert_uint_eq(server->nodeInstantiationDepth, 0);
+
+    /* The failed top-level node and its recursively copied children are
+     * removed while the error unwinds. */
+    UA_NodeClass nodeClass;
+    retval = UA_Server_readNodeClass(server, instanceId, &nodeClass);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+#endif
+} END_TEST
+
 START_TEST(ObjectWithDynamicVariableChild) {
     /* Add a ServerRedundancyType object */
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
@@ -753,6 +816,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
+    tcase_add_test(tc_addnodes, RecursiveMandatoryChildDepthIsLimited);
     tcase_add_test(tc_addnodes, ObjectWithDynamicVariableChild);
     suite_add_tcase(s, tc_addnodes);
 
