@@ -344,6 +344,7 @@ UA_Server_delete(UA_Server *server) {
         UA_assert(top->state == UA_LIFECYCLESTATE_STOPPED);
         top->free(top);
     }
+    UA_assert(TAILQ_EMPTY(&server->channels));
 
     unlockServer(server); /* The timer has its own mutex */
 
@@ -471,7 +472,7 @@ UA_Server_init(UA_Server *server) {
     /* Initialize SecureChannel */
     TAILQ_INIT(&server->channels);
     /* TODO: use an ID that is likely to be unique after a restart */
-    server->lastChannelId = STARTCHANNELID;
+    server->nextChannelId = STARTCHANNELID;
     server->lastTokenId = STARTTOKENID;
 
 #if UA_MULTITHREADING >= 100
@@ -511,6 +512,10 @@ UA_Server_init(UA_Server *server) {
     /* Initialize OPC UA Binary over WebSockets */
     server->webSocketDriver = UA_WebSocketProtocolManager_new();
     res = addDriver(server, server->webSocketDriver);
+    UA_CHECK_STATUS(res, goto cleanup);
+
+    server->httpDriver = UA_HttpProtocolManager_new();
+    res = addDriver(server, server->httpDriver);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialize the reverse connect binary protocol support */
@@ -703,21 +708,21 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_DelayedCallback *dc = (UA_DelayedCallback*)context;
     UA_Server *server = (UA_Server*)application;
 
+    lockServer(server);
     UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
-    UA_SecureChannel *channel;
-    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
-           channel->state != UA_SECURECHANNELSTATE_CLOSING)
+    UA_SecureChannel *channel, *next;
+    TAILQ_FOREACH_SAFE(channel, &server->channels, serverEntry, next) {
+        if(channel->state != UA_SECURECHANNELSTATE_OPEN ||
+           !channel->securityPolicy || channel->remoteCertificate.length == 0)
             continue;
-        if(channel->remoteCertificate.length == 0)
-            continue; /* SecureChannels w/o security */
         UA_StatusCode res =
             validateCertificate(server, certGroup, channel->securityPolicy,
                                 channel, channel->sessions,
                                 "RenewTrustList", NULL, channel->remoteCertificate);
         if(res != UA_STATUSCODE_GOOD)
-            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+            shutdownSecureChannel(server, channel, UA_SHUTDOWNREASON_CLOSE);
     }
+    unlockServer(server);
     UA_free(dc);
 }
 
@@ -1029,6 +1034,11 @@ UA_Server_run_startup(UA_Server *server) {
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
     }
+
+    UA_StatusCode httpValidation =
+        UA_HttpProtocolManager_validateConfig(server->httpDriver);
+    if(httpValidation != UA_STATUSCODE_GOOD)
+        return httpValidation;
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Prominently warn user that fuzzing build is enabled. This will tamper

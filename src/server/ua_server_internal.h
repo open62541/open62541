@@ -140,6 +140,7 @@ struct UA_Server {
     UA_Driver *drivers; /* linked-list of all SC */
     UA_Driver *binaryDriver;
     UA_Driver *webSocketDriver;
+    UA_Driver *httpDriver;
     UA_Driver *reverseBinaryDriver;
     UA_Driver *discoveryDriver;
     UA_Driver *pubSubDriver;
@@ -161,9 +162,10 @@ struct UA_Server {
      * equipped with all possible access rights (Session Id: 1). */
     UA_Session adminSession;
 
-    /* SecureChannels */
+    /* All server-side SecureChannels. Direct transports remain outside the
+     * hard UASC token lifecycle and statistics. */
     TAILQ_HEAD(, UA_SecureChannel) channels;
-    UA_UInt32 lastChannelId;
+    UA_UInt32 nextChannelId;
     UA_UInt32 lastTokenId;
 
     /* Namespaces */
@@ -257,6 +259,18 @@ struct UA_Server {
 const UA_DataTypeArray *
 serverCustomTypes(UA_Server *server);
 
+/* Add a DiscoveryUrl if it is not already configured. Returns true only if
+ * this call added the URL, so temporary transports can remove what they own. */
+UA_Boolean
+addServerDiscoveryUrl(UA_Server *server, const UA_String *url);
+
+void
+removeServerDiscoveryUrl(UA_Server *server, const UA_String *url);
+
+/* Whether the URL uses opc.http or opc.https. */
+UA_Boolean
+getHttpUrlSecurity(const UA_String *url, UA_Boolean *secure);
+
 UA_ConnectionManager *
 findConnectionManager(UA_EventLoop *eventLoop, const UA_String *protocol);
 
@@ -303,8 +317,9 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString msg);
 
 UA_StatusCode
-sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-                 UA_UInt32 requestHandle, UA_StatusCode statusCode);
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
+                 UA_UInt64 responseToken, UA_UInt32 requestHandle,
+                 UA_StatusCode statusCode);
 
 /* Validate the remote certificate received in the OPN message and create the
  * SecureChannel context. This is needed before OPN is decrypted. */
@@ -360,6 +375,10 @@ cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
 
 UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token);
+
+/* Lookup without applying lifetime or channel-binding checks. */
+UA_Session *
+findSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
 getSessionById(UA_Server *server, const UA_NodeId *sessionId);
@@ -574,12 +593,28 @@ getNodeType(UA_Server *server, const UA_NodeHead *nodeHead,
 /* Returns whether the response is done (async call or not) */
 UA_Boolean
 processRequest(UA_Server *server, UA_SecureChannel *channel,
-               UA_UInt32 requestId, UA_ServiceDescription *sd,
+               UA_UInt64 responseToken, UA_ServiceDescription *sd,
                const UA_Request *request, UA_Response *response);
 
+/* Initialize and process an already decoded service request. The caller owns
+ * the response storage, may amend a synchronous response, and is responsible
+ * for sending and clearing it. The server must be locked. */
+UA_Boolean
+processDecodedServiceRequest(UA_Server *server, UA_SecureChannel *channel,
+                             UA_UInt64 responseToken,
+                             UA_ServiceDescription *sd,
+                             const UA_Request *request, UA_Response *response);
+
+/* Abandon service state after its transport can no longer deliver a response.
+ * The server must be locked. */
+void
+abandonServiceRequest(UA_Server *server, UA_SecureChannel *channel,
+                      UA_UInt64 responseToken);
+
 UA_StatusCode
-sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-             UA_Response *response, const UA_DataType *responseType);
+sendResponse(UA_Server *server, UA_SecureChannel *channel,
+             UA_UInt64 responseToken, UA_Response *response,
+             const UA_DataType *responseType);
 
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
                                     const void *context,
@@ -834,6 +869,21 @@ UA_BinaryConnectionConfig_set(UA_ConnectionConfig *connectionConfig,
 UA_Driver * UA_BinaryProtocolManager_new(void);
 
 UA_Driver * UA_WebSocketProtocolManager_new(void);
+UA_Driver * UA_HttpProtocolManager_new(void);
+UA_StatusCode UA_HttpProtocolManager_validateConfig(UA_Driver *drv);
+
+UA_StatusCode registerSecureChannel(UA_Server *server,
+                                    UA_SecureChannel *channel);
+void unregisterSecureChannel(UA_Server *server, UA_SecureChannel *channel);
+void shutdownSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                           UA_ShutdownReason reason);
+
+void shutdownHttpSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                               UA_ShutdownReason reason);
+UA_StatusCode sendHttpServiceResponse(UA_Server *server,
+                                      UA_SecureChannel *channel,
+                                      UA_UInt64 responseToken, void *payload,
+                                      const UA_DataType *payloadType);
 
 UA_Driver * UA_ReverseBinaryProtocolManager_new(void);
 

@@ -311,7 +311,8 @@ typedef uint64_t UA_ApplicationNotificationType;
  *    This is the ns=0;i=0 NodeId if no Session is bound to the receiving
  *    SecureChannel.
  * 0:request-id [UInt32]
- *    Identifier of the RequestId for the Request/Response pair.
+ *    Request/Response correlation identifier. On the server this is zero for
+ *    transports that do not carry a RequestId.
  * 0:service-type [NodeId]
  *    DataType identifier for the Request (server) or Response (client). */
 #define UA_APPLICATIONNOTIFICATIONTYPE_SERVICE       \

@@ -224,12 +224,13 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     if(UA_SecureChannel_isConnected(channel)) {
-        /* Shutdown - takes effect in the next EventLoop iteration */
-        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+        UA_assert(channel->transport == UA_SECURECHANNEL_TRANSPORT_UACP);
 
 #ifdef UA_ENABLE_AUDITING
         auditCloseSecureChannelEvent(server, channel);
 #endif
+
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
 }
 

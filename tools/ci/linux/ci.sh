@@ -268,6 +268,7 @@ function unit_tests_libwebsockets {
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_HTTP_COMPRESSION=ON \
           -DUA_ENABLE_LWS_MQTT=${LWS_MQTT:-ON} \
           -DUA_ENABLE_PUBSUB=OFF \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
@@ -276,6 +277,36 @@ function unit_tests_libwebsockets {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+}
+
+function unit_tests_libwebsockets_tsan {
+    set -euo pipefail
+
+    rm -rf build-tsan
+    cmake -S . -B build-tsan \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+          -DUA_BUILD_EXAMPLES=OFF \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DEBUG_SANITIZER=OFF \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_HTTP_COMPRESSION=ON \
+          -DUA_ENABLE_LWS_MQTT=OFF \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_FORCE_WERROR=ON
+    cmake --build build-tsan --parallel --target \
+          check_eventloop_http check_http_compression check_server_http \
+          check_client_http
+    # The EventLoop mutex is the common outer lock for the LWS lifecycle and
+    # server timer callbacks. TSan does not account for that outer
+    # serialization when checking the order of the recursive inner locks.
+    # Disable only its deadlock heuristic; data-race detection remains active.
+    TSAN_OPTIONS="detect_deadlocks=0" ctest --test-dir build-tsan \
+          -R '^check_(eventloop_http|http_compression|server_http|client_http)$' \
+          --output-on-failure
 }
 
 function unit_tests_lwip {

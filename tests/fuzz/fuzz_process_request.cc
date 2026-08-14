@@ -54,7 +54,7 @@ extern "C" UA_NodeId unsafe_fuzz_authenticationToken;
 #define MAX_MESSAGES 32
 
 /* Decode the request type NodeId + request body from a payload and run it
- * through processRequest(). Mirrors processMSG() (src/server/ua_server_binary.c). */
+ * through the shared decoded-service gate used by the transports. */
 static void
 processOnePayload(UA_Server *server, UA_SecureChannel *channel,
                   UA_UInt32 requestId, const UA_ByteString *msg) {
@@ -92,13 +92,10 @@ processOnePayload(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Initialise the response and dispatch through the gate */
     UA_Response response;
-    UA_init(&response, sd->responseType);
-    response.responseHeader.requestHandle = request.requestHeader.requestHandle;
-
     UA_LOCK(&server->serviceMutex);
-    processRequest(server, channel, requestId, sd, &request, &response);
+    processDecodedServiceRequest(server, channel, requestId, sd, &request,
+                                 &response);
     UA_UNLOCK(&server->serviceMutex);
 
     UA_clear(&request, sd->requestType);

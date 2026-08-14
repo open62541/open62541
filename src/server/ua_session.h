@@ -33,7 +33,7 @@ typedef struct UA_Subscription UA_Subscription;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 typedef struct UA_PublishResponseEntry {
     SIMPLEQ_ENTRY(UA_PublishResponseEntry) listEntry;
-    UA_UInt32 requestId;
+    UA_UInt64 responseToken;
     UA_DateTime maxTime; /* Based on the TimeoutHint of the request */
     UA_PublishResponse response;
 } UA_PublishResponseEntry;

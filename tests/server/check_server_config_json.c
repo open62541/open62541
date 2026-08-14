@@ -75,6 +75,31 @@ START_TEST(LoadFromFile_ValidBuildInfo_StillWorks) {
     UA_ServerConfig_clear(&config);
 } END_TEST
 
+#ifdef UA_ENABLE_LWS
+START_TEST(LoadFromFile_HttpListenAddress) {
+    const char *json =
+        "{\"httpEnabled\":true,\"httpAllowUnencrypted\":true,"
+        "\"http\":{\"listenAddress\":\"\","
+        "\"maxMsgSize\":4096,\"maxDecompressedMsgSize\":8192,"
+        "\"timeout\":15}}";
+    UA_ByteString jsonConfig = UA_STRING((char *)(uintptr_t)json);
+    jsonConfig.length = strlen(json);
+
+    UA_ServerConfig config;
+    UA_StatusCode retval = UA_ServerConfig_loadFromFile(&config, jsonConfig);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(config.httpEnabled);
+    ck_assert(config.httpAllowUnencrypted);
+    ck_assert_ptr_nonnull(config.httpListenAddress.data);
+    ck_assert_uint_eq(config.httpListenAddress.length, 0);
+    ck_assert_uint_eq(config.httpMaxMsgSize, 4096);
+    ck_assert_uint_eq(config.httpMaxDecompressedMsgSize, 8192);
+    ck_assert_uint_eq(config.httpTimeout, 15);
+
+    UA_ServerConfig_clear(&config);
+} END_TEST
+#endif
+
 static Suite *testSuite_ServerConfigJson(void) {
     Suite *s = suite_create("Server config from JSON5 file");
 
@@ -82,6 +107,9 @@ static Suite *testSuite_ServerConfigJson(void) {
     tcase_add_test(tc, LoadFromFile_MalformedNestedFieldName_NoCrash);
     tcase_add_test(tc, NewFromFile_MalformedNestedFieldName_NoCrash);
     tcase_add_test(tc, LoadFromFile_ValidBuildInfo_StillWorks);
+#ifdef UA_ENABLE_LWS
+    tcase_add_test(tc, LoadFromFile_HttpListenAddress);
+#endif
     suite_add_tcase(s, tc);
 
     return s;

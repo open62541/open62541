@@ -42,6 +42,13 @@ typedef struct {
 /* Returns NULL if none found */
 UA_ServiceDescription * getServiceDescription(UA_UInt32 requestTypeId);
 
+/* Decode a complete Binary service request including its type identifier. */
+UA_StatusCode
+decodeBinaryServiceRequest(UA_Server *server, const UA_ByteString *message,
+                           UA_ServiceDescription **description,
+                           UA_Request *request, size_t *requestOffset,
+                           UA_UInt32 *requestTypeId);
+
 /** Discovery Service Set **/
 UA_Boolean
 Service_FindServers(UA_Server *server, UA_Session *session,

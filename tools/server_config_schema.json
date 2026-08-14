@@ -31,7 +31,7 @@
       "items": {
         "type": "string"
       },
-      "description": "List of opc.tcp and opc.wss server URLs"
+      "description": "List of opc.tcp, opc.ws, opc.wss, opc.http and opc.https server URLs"
     },
     "tcpEnabled": {
       "type": "boolean",
@@ -50,6 +50,20 @@
     "webSocket": {
       "$ref": "#/definitions/WebSocketConfiguration",
       "description": "WebSocket transport configuration"
+    },
+    "httpEnabled": {
+      "type": "boolean",
+      "description": "Enable OPC UA services over HTTP(S)",
+      "default": false
+    },
+    "httpAllowUnencrypted": {
+      "type": "boolean",
+      "description": "Explicitly allow the non-standard unencrypted opc.http scheme for testing. Passwords remain protected unless allowNonePolicyPassword is also enabled",
+      "default": false
+    },
+    "http": {
+      "$ref": "#/definitions/HttpConfiguration",
+      "description": "HTTPS transport configuration"
     },
     "securityPolicyNoneDiscoveryOnly": {
       "type": "boolean",
@@ -352,6 +366,43 @@
         "privateKeyPassword": {
           "type": "string",
           "description": "Optional password for the WebSocket TLS private key"
+        }
+      }
+    },
+    "HttpConfiguration": {
+      "type": "object",
+      "properties": {
+        "maxMsgSize": {
+          "type": "integer",
+          "description": "Maximum OPC UA HTTP message size on the wire in bytes; zero is unbounded",
+          "minimum": 0
+        },
+        "maxDecompressedMsgSize": {
+          "type": "integer",
+          "description": "Maximum request body size after HTTP content decompression; zero uses the secure 64 MiB default",
+          "minimum": 0
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "HTTP request timeout in seconds",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "listenAddress": {
+          "type": "string",
+          "description": "HTTPS bind address; an empty string listens on all interfaces while the ServerUrl remains the advertised endpoint"
+        },
+        "certificate": {
+          "type": "string",
+          "description": "Path to the HTTPS TLS certificate in DER or PEM format"
+        },
+        "privateKey": {
+          "type": "string",
+          "description": "Path to the HTTPS TLS private key in DER or PEM format"
+        },
+        "privateKeyPassword": {
+          "type": "string",
+          "description": "Optional password for the HTTPS TLS private key"
         }
       }
     },

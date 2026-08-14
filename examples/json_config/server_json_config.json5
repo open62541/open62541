@@ -67,6 +67,25 @@
     // privateKeyPassword: "secret",
   },
 
+  // OPC UA services over HTTP(S) are opt-in. Part 6 defines opc.https;
+  // opc.http is a non-standard testing extension and additionally requires
+  // httpAllowUnencrypted. The ServerUrl is the advertised endpoint;
+  // listenAddress only controls the local bind. Binary
+  // and JSON service bodies may coexist on the same URL via Content-Type. JSON
+  // needs UA_ENABLE_JSON_ENCODING. gzip/deflate needs
+  // UA_ENABLE_HTTP_COMPRESSION.
+  httpEnabled: false,
+  httpAllowUnencrypted: false,
+  http: {
+    maxMsgSize: 0,
+    maxDecompressedMsgSize: 0, // 0 uses the 64 MiB safety default
+    timeout: 60,
+    // listenAddress: "", // Bind all interfaces
+    // certificate: "./certs/server_cert.der",
+    // privateKey: "./certs/server_key.pem",
+    // privateKeyPassword: "secret",
+  },
+
   // Endpoint definitions exposed to clients. Match the client configuration.
   // endpoints: [
   //   {
