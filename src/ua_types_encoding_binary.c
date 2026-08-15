@@ -894,6 +894,11 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
     dst->content.decoded.data = UA_new(type);
     UA_CHECK_MEM(dst->content.decoded.data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
+    /* Set the decoded state before any further operation can fail so the
+     * caller's error cleanup releases the allocated content. */
+    dst->encoding = UA_EXTENSIONOBJECT_DECODED;
+    dst->content.decoded.type = type;
+
     /* Read the length field and validate that the inner decoder consumes exactly
      * that many bytes, closing a decoder-vs-IDS split-view channel. */
     u32 member_length = 0;
@@ -903,8 +908,6 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
     const u8 *expected_end = ctx->pos + member_length;
 
     /* Decode */
-    dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->content.decoded.type = type;
     ret = decodeBinaryJumpTable[type->typeKind](dst->content.decoded.data, type, ctx);
     if(ret == UA_STATUSCODE_GOOD && ctx->pos != expected_end)
         return UA_STATUSCODE_BADDECODINGERROR;
