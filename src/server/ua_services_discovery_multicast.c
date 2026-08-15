@@ -385,6 +385,8 @@ UA_Discovery_multicastQuery(UA_Server* server) {
     return UA_STATUSCODE_GOOD;
 }
 
+#define UA_DISCOVERYURL_PATH_CAPACITY 1024
+
 UA_StatusCode
 UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *hostname, UA_UInt16 port,
@@ -398,6 +400,11 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
 
     if(capabilitiesSize > 0 && !capabilites)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Reject oversized paths before they reach a stack allocation or any
+     * discovery state is modified. */
+    if(path->length >= UA_DISCOVERYURL_PATH_CAPACITY)
+        return UA_STATUSCODE_BADOUTOFRANGE;
 
     size_t hostnameLen = hostname->length;
     size_t servernameLen = servername->length;
@@ -508,9 +515,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     mdns_set_address_record(server, fullServiceDomain, localDomain);
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
-    char pathChars[1024];
-    if(path->length >= sizeof(pathChars))
-        return UA_STATUSCODE_BADOUTOFRANGE;
+    char pathChars[UA_DISCOVERYURL_PATH_CAPACITY];
     if(createTxt) {
         if(path->length > 0)
             memcpy(pathChars, path->data, path->length);
