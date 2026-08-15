@@ -904,7 +904,8 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
     u32 member_length = 0;
     status ret = DECODE_DIRECT(&member_length, UInt32);
     UA_CHECK_STATUS(ret, return ret);
-    UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+    UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+             return UA_STATUSCODE_BADDECODINGERROR);
     const u8 *expected_end = ctx->pos + member_length;
 
     /* Decode */
@@ -1076,7 +1077,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, UA_NodeId_clear(&typeId); return ret);
-        UA_CHECK(ctx->pos + member_length <= ctx->end,
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
                  UA_NodeId_clear(&typeId); return UA_STATUSCODE_BADDECODINGERROR);
         expected_end = ctx->pos + member_length;
     } else {
