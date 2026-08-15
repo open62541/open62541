@@ -488,14 +488,21 @@ START_TEST(binary_extensionobject_decoded) {
     UA_ExtensionObject_init(&src);
     UA_ExtensionObject_init(&dst);
 
-    UA_Int32 *val = UA_Int32_new();
-    *val = 999;
+    UA_Range *val = UA_Range_new();
+    val->low = 1.5;
+    val->high = 999.0;
     src.encoding = UA_EXTENSIONOBJECT_DECODED;
-    src.content.decoded.type = &UA_TYPES[UA_TYPES_INT32];
+    src.content.decoded.type = &UA_TYPES[UA_TYPES_RANGE];
     src.content.decoded.data = val;
 
     ck_assert_uint_eq(roundtripBinary(&src, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &dst),
                       UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dst.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(dst.content.decoded.type, &UA_TYPES[UA_TYPES_RANGE]);
+    UA_Range *decoded = (UA_Range*)dst.content.decoded.data;
+    ck_assert(decoded != NULL);
+    ck_assert(decoded->low == 1.5);
+    ck_assert(decoded->high == 999.0);
     UA_ExtensionObject_clear(&src);
     UA_ExtensionObject_clear(&dst);
 } END_TEST
