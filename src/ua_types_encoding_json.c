@@ -47,6 +47,9 @@ encodeJsonUnionContent(CtxJson *ctx, const void *src,
                        const UA_DataType *type);
 
 static status
+writeJsonStringContent(CtxJson *ctx, const UA_String *src);
+
+static status
 decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type);
 
 static status
@@ -339,10 +342,21 @@ ENCODE_JSON(Enum) {
     if(ctx->useCompactEncoding)
         return Int32_encodeJson(ctx, p, type);
 
-    /* UA_DataType does not contain the optional literal-name metadata. The
-     * VerboseEncoding permits the numeric value as a JSON string when the
-     * literal is unknown. */
     status ret = writeJsonQuote(ctx);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    const UA_Int32 value = *(const UA_Int32*)p;
+    for(size_t i = 0; i < type->membersSize; i++) {
+        const UA_DataTypeMember *member = &type->members[i];
+        if((UA_Int32)(intptr_t)member->memberType != value ||
+           !member->memberName)
+            continue;
+
+        UA_String name = UA_STRING((char*)(uintptr_t)member->memberName);
+        ret |= writeJsonStringContent(ctx, &name);
+        ret |= writeChar(ctx, '_');
+        break;
+    }
+#endif
     ret |= Int32_encodeJson(ctx, p, type);
     return ret | writeJsonQuote(ctx);
 }
@@ -442,20 +456,9 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
 static const char hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-ENCODE_JSON(String) {
-    const UA_String *src = (const UA_String*)p;
-    if(!src->data)
-        return writeChars(ctx, "null", 4);
-
+static status
+writeJsonStringContent(CtxJson *ctx, const UA_String *src) {
     status ret = UA_STATUSCODE_GOOD;
-    if(src->length == 0) {
-        ret |= writeJsonQuote(ctx);
-        ret |= writeJsonQuote(ctx);
-        return ret;
-    }
-
-    ret |= writeJsonQuote(ctx);
-
     const unsigned char *end = src->data + src->length;
     for(const unsigned char *pos = src->data; pos < end; pos++) {
         /* Skip to the first character that needs escaping */
@@ -515,6 +518,16 @@ ENCODE_JSON(String) {
         ctx->pos += escape_len;
     }
 
+    return ret;
+}
+
+ENCODE_JSON(String) {
+    const UA_String *src = (const UA_String*)p;
+    if(!src->data)
+        return writeChars(ctx, "null", 4);
+
+    status ret = writeJsonQuote(ctx);
+    ret |= writeJsonStringContent(ctx, src);
     return ret | writeJsonQuote(ctx);
 }
 

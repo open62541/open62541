@@ -291,10 +291,10 @@ class CGenerator:
         size = len(datatype.elements) if isEnum else len(datatype.members)
         if isEnum:
             # Print all enumerators as UA_DataTypeMember
-            for i, name in enumerate(datatype.elements):
+            for i, (name, value) in enumerate(datatype.elements.items()):
                 m = "\n{\n"
                 m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % name
-                m += "    (const UA_DataType *){}, /* .memberType */\n".format(i)
+                m += "    (const UA_DataType *)(uintptr_t)({}), /* .memberType */\n".format(value)
                 m += "    0, /* .padding */\n"
                 m += "    false, /* .isArray */\n"
                 m += "    false /* .isOptional */\n}"

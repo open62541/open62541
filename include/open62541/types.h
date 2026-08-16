@@ -973,8 +973,9 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 /* UA_DataTypeMember describes the fields of structures/unions/etc. In addition
- * it is used to describe the possible values of enums. For enums, the
- * memberType value is cast to an integer to represent the enum value. */
+ * it can describe the possible values of enums. Enum members are optional; if
+ * present, the memberType value is cast to an integer to represent the enum
+ * value. */
 typedef struct UA_DataTypeMember {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *memberName;       /* Human-readable member name */
