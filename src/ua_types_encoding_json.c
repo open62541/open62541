@@ -43,7 +43,19 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src,
                            const UA_DataType *type);
 
 static status
+encodeJsonUnionContent(CtxJson *ctx, const void *src,
+                       const UA_DataType *type);
+
+static status
 decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type);
+
+static status
+decodeJsonStructureExtensionObject(ParseCtx *ctx, void *dst,
+                                   const UA_DataType *type);
+
+static status
+decodeJsonUnionExtensionObject(ParseCtx *ctx, void *dst,
+                               const UA_DataType *type);
 
 #define ENCODE_JSON(TYPE) static status \
     TYPE##_encodeJson(CtxJson *ctx, const void *p, const UA_DataType *type)
@@ -187,6 +199,10 @@ static const char* UA_JSONKEY_SERVERPICOSECONDS = "ServerPicoseconds";
 static const char* UA_JSONKEY_ENCODING = "UaEncoding";
 static const char* UA_JSONKEY_TYPEID = "UaTypeId";
 static const char* UA_JSONKEY_BODY = "UaBody";
+
+/* Structures and Unions */
+static const char* UA_JSONKEY_ENCODINGMASK = "EncodingMask";
+static const char* UA_JSONKEY_SWITCHFIELD = "SwitchField";
 
 /* StatusCode */
 static const char* UA_JSONKEY_CODE = "Code";
@@ -633,10 +649,12 @@ ENCODE_JSON(ExtensionObject) {
     }
 
     const UA_DataType *t = src->content.decoded.type;
-    if(t->typeKind == UA_DATATYPEKIND_STRUCTURE) {
-        /* Write structures in-situ.
-         * TODO: Structures with optional fields and unions */
+    if(t->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+       t->typeKind == UA_DATATYPEKIND_OPTSTRUCT) {
+        /* Write structures in-situ. */
         ret |= encodeJsonStructureContent(ctx, src->content.decoded.data, t);
+    } else if(t->typeKind == UA_DATATYPEKIND_UNION) {
+        ret |= encodeJsonUnionContent(ctx, src->content.decoded.data, t);
     } else {
         /* NON-STANDARD: The standard 1.05 doesn't let us print non-structure
          * types in ExtensionObjects (e.g. enums). Print them in the body. */
@@ -854,21 +872,58 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src,
         const UA_DataType *mt = m->memberType;
         if(m->memberName == NULL)
             return UA_STATUSCODE_BADENCODINGERROR;
-        ret |= writeJsonKey(ctx, m->memberName);
-        if(!m->isArray) {
-            ptr += m->padding;
-            size_t memSize = mt->memSize;
-            ret |= encodeJsonJumpTable[mt->typeKind](ctx, (const void*) ptr, mt);
-            ptr += memSize;
-        } else {
-            ptr += m->padding;
-            const size_t length = *((const size_t*) ptr);
-            ptr += sizeof (size_t);
-            ret |= encodeJsonArray(ctx, *(void * const *)ptr, length, mt);
-            ptr += sizeof (void*);
+        ptr += m->padding;
+
+        if(m->isArray) {
+            const size_t length = *(const size_t*)ptr;
+            ptr += sizeof(size_t);
+            const void *data = *(void *const *)ptr;
+            ptr += sizeof(void*);
+            if(m->isOptional && !data)
+                continue;
+            ret |= writeJsonKey(ctx, m->memberName);
+            ret |= encodeJsonArray(ctx, data, length, mt);
+            continue;
         }
+
+        if(m->isOptional) {
+            const void *data = *(void *const *)ptr;
+            ptr += sizeof(void*);
+            if(!data)
+                continue;
+            ret |= writeJsonKey(ctx, m->memberName);
+            ret |= encodeJsonJumpTable[mt->typeKind](ctx, data, mt);
+            continue;
+        }
+
+        ret |= writeJsonKey(ctx, m->memberName);
+        ret |= encodeJsonJumpTable[mt->typeKind](ctx, (const void*)ptr, mt);
+        ptr += mt->memSize;
     }
     return ret;
+}
+
+static status
+encodeJsonUnionContent(CtxJson *ctx, const void *src,
+                       const UA_DataType *type) {
+    const UA_UInt32 selection = *(const UA_UInt32*)src;
+    if(selection == 0)
+        return UA_STATUSCODE_GOOD;
+    if(selection > type->membersSize)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    const UA_DataTypeMember *m = &type->members[selection - 1];
+    if(!m->memberName)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    const UA_DataType *mt = m->memberType;
+    uintptr_t ptr = (uintptr_t)src + m->padding;
+    status ret = writeJsonKey(ctx, m->memberName);
+    if(!m->isArray)
+        return ret | encodeJsonJumpTable[mt->typeKind](ctx, (const void*)ptr, mt);
+
+    const size_t length = *(const size_t*)ptr;
+    ptr += sizeof(size_t);
+    return ret | encodeJsonArray(ctx, *(void *const *)ptr, length, mt);
 }
 
 static status
@@ -878,6 +933,13 @@ encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
     res |= encodeJsonStructureContent(ctx, src, type);
     res |= writeJsonObjEnd(ctx);
     return res;
+}
+
+static status
+encodeJsonUnion(CtxJson *ctx, const void *src, const UA_DataType *type) {
+    status ret = writeJsonObjStart(ctx);
+    ret |= encodeJsonUnionContent(ctx, src, type);
+    return ret | writeJsonObjEnd(ctx);
 }
 
 static status
@@ -915,8 +977,8 @@ const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
     encodeJsonNotImplemented, /* Decimal */
     Int32_encodeJson, /* Enum */
     encodeJsonStructure,
-    encodeJsonNotImplemented, /* Structure with optional fields */
-    encodeJsonNotImplemented, /* Union */
+    encodeJsonStructure, /* Structure with optional fields */
+    encodeJsonUnion,
     encodeJsonNotImplemented /* BitfieldCluster */
 };
 
@@ -1075,6 +1137,34 @@ skipObject(ParseCtx *ctx) {
         ctx->index++;
     } while(ctx->index < ctx->tokensSize &&
             ctx->tokens[ctx->index].start < end);
+}
+
+/* Reject duplicate names in the current object. The JSON mapping requires
+ * this explicitly for ExtensionObjects, including metadata fields that are
+ * inspected before the regular field decoder runs. */
+static status
+validateObjectKeysUnique(ParseCtx *ctx) {
+    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
+    size_t keyCount = (size_t)ctx->tokens[ctx->index].size / 2;
+    UA_STACKARRAY(size_t, keys, keyCount);
+    ParseCtx scan = *ctx;
+    scan.index++;
+    for(size_t i = 0; i < keyCount; i++) {
+        UA_assert(currentTokenType(&scan) == CJ5_TOKEN_STRING);
+        const cj5_token *key = &scan.tokens[scan.index];
+        size_t keyLength = getTokenLength(key);
+        for(size_t j = 0; j < i; j++) {
+            const cj5_token *previous = &scan.tokens[keys[j]];
+            if(keyLength == getTokenLength(previous) &&
+               memcmp(&scan.json5[key->start], &scan.json5[previous->start],
+                      keyLength) == 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
+        }
+        keys[i] = scan.index;
+        scan.index++;
+        skipObject(&scan);
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 static status
@@ -1763,9 +1853,13 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst,
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; i++) {
         UA_assert(ctx->tokens[ctx->index].type == CJ5_TOKEN_OBJECT);
-        if(type->typeKind == UA_DATATYPEKIND_STRUCTURE) {
+        if(type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+           type->typeKind == UA_DATATYPEKIND_OPTSTRUCT) {
             /* Decode structure in-situ in the ExtensionObject */
-            ret = decodeJsonStructure(ctx, (void*)ptr, type);
+            ret = decodeJsonStructureExtensionObject(ctx, (void*)ptr, type);
+        } else if(type->typeKind == UA_DATATYPEKIND_UNION) {
+            /* Decode union in-situ in the ExtensionObject */
+            ret = decodeJsonUnionExtensionObject(ctx, (void*)ptr, type);
         } else {
             /* Get the body field and decode it */
             DecodeEntry entries[3] = {
@@ -2036,13 +2130,17 @@ DECODE_JSON(ExtensionObject) {
         return UA_STATUSCODE_GOOD;
     }
 
+    status ret = validateObjectKeysUnique(ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
     /* Store the index where the ExtensionObject begins */
     size_t beginIndex = ctx->index;
 
     /* Search for non-JSON encoding */
     UA_UInt64 encoding = 0;
     size_t encIndex = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
+    ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
     if(ret == UA_STATUSCODE_GOOD) {
         const char *extObjEncoding = &ctx->json5[ctx->tokens[encIndex].start];
         size_t len = parseUInt64(extObjEncoding,
@@ -2150,6 +2248,17 @@ DECODE_JSON(ExtensionObject) {
         return ret;
     }
 
+    /* Only JSON structures without an explicit encoding can be in-situ. */
+    if(encoding != 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    if(type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+       type->typeKind == UA_DATATYPEKIND_OPTSTRUCT)
+        return decodeJsonStructureExtensionObject(
+            ctx, dst->content.decoded.data, type);
+    if(type->typeKind == UA_DATATYPEKIND_UNION)
+        return decodeJsonUnionExtensionObject(
+            ctx, dst->content.decoded.data, type);
     return decodeType(ctx, dst->content.decoded.data, type);
 }
 
@@ -2387,7 +2496,35 @@ Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type) {
 }
 
 static status
-decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type) {
+OptionalScalar_decodeJson(ParseCtx *ctx, void *dst,
+                          const UA_DataType *type) {
+    void *value = UA_calloc(1, type->memSize);
+    if(!value)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *(void**)dst = value;
+    if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
+        ctx->index++;
+        return UA_STATUSCODE_GOOD;
+    }
+    return decodeJsonJumpTable[type->typeKind](ctx, value, type);
+}
+
+static status
+OptionalArray_decodeJson(ParseCtx *ctx, void *dst,
+                         const UA_DataType *type) {
+    if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
+        size_t *length = (size_t*)dst - 1;
+        *length = 0;
+        *(void**)dst = UA_EMPTY_ARRAY_SENTINEL;
+        ctx->index++;
+        return UA_STATUSCODE_GOOD;
+    }
+    return Array_decodeJson(ctx, dst, type);
+}
+
+static status
+decodeJsonStructureInternal(ParseCtx *ctx, void *dst, const UA_DataType *type,
+                            UA_Boolean extensionObject) {
     /* Check the recursion limit */
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -2395,34 +2532,193 @@ decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type) {
 
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
-    u8 membersSize = type->membersSize;
+    const UA_Boolean optional = (type->typeKind == UA_DATATYPEKIND_OPTSTRUCT);
+    size_t offset = (extensionObject ? 1 : 0) + (optional ? 1 : 0);
+    size_t membersSize = type->membersSize + offset;
     UA_STACKARRAY(DecodeEntry, entries, membersSize);
-    for(size_t i = 0; i < membersSize; ++i) {
+    memset(entries, 0, sizeof(DecodeEntry) * membersSize);
+    size_t entryIndex = 0;
+    if(extensionObject) {
+        entries[entryIndex++] =
+            (DecodeEntry){UA_JSONKEY_TYPEID, NULL, NULL, false, NULL};
+    }
+    UA_UInt32 encodingMask = 0;
+    size_t encodingMaskIndex = SIZE_MAX;
+    if(optional) {
+        encodingMaskIndex = entryIndex;
+        entries[entryIndex++] =
+            (DecodeEntry){UA_JSONKEY_ENCODINGMASK, &encodingMask, NULL, false,
+                          &UA_TYPES[UA_TYPES_UINT32]};
+    }
+    for(size_t i = 0; i < type->membersSize; ++i, ++entryIndex) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = m->memberType;
-        entries[i].type = mt;
-        entries[i].fieldName = m->memberName;
-        entries[i].found = false;
+        entries[entryIndex].type = mt;
+        entries[entryIndex].fieldName = m->memberName;
         if(!m->isArray) {
             ptr += m->padding;
-            entries[i].fieldPointer = (void*)ptr;
-            entries[i].function = NULL;
-            ptr += mt->memSize;
+            entries[entryIndex].fieldPointer = (void*)ptr;
+            if(m->isOptional)
+                entries[entryIndex].function = OptionalScalar_decodeJson;
+            ptr += m->isOptional ? sizeof(void*) : mt->memSize;
         } else {
             ptr += m->padding;
             ptr += sizeof(size_t);
-            entries[i].fieldPointer = (void*)ptr;
-            entries[i].function = Array_decodeJson;
+            entries[entryIndex].fieldPointer = (void*)ptr;
+            entries[entryIndex].function = m->isOptional ?
+                OptionalArray_decodeJson : Array_decodeJson;
             ptr += sizeof(void*);
         }
     }
 
     ret = decodeFields(ctx, entries, membersSize);
 
+    /* Compact JSON uses EncodingMask. Materialize optional fields whose bit is
+     * set even when their default value was omitted from the object. */
+    if(ret == UA_STATUSCODE_GOOD && optional &&
+       entries[encodingMaskIndex].found) {
+        size_t optionalIndex = 0;
+        entryIndex = offset;
+        for(size_t i = 0; i < type->membersSize; i++, entryIndex++) {
+            const UA_DataTypeMember *m = &type->members[i];
+            if(!m->isOptional)
+                continue;
+            if(optionalIndex >= 32) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                break;
+            }
+            UA_Boolean inMask =
+                (encodingMask & ((UA_UInt32)1 << optionalIndex)) != 0;
+            if(entries[entryIndex].found != inMask) {
+                if(entries[entryIndex].found) {
+                    ret = UA_STATUSCODE_BADDECODINGERROR;
+                    break;
+                }
+                if(m->isArray) {
+                    *(void**)entries[entryIndex].fieldPointer =
+                        UA_EMPTY_ARRAY_SENTINEL;
+                } else {
+                    void *value = UA_calloc(1, m->memberType->memSize);
+                    if(!value) {
+                        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+                        break;
+                    }
+                    *(void**)entries[entryIndex].fieldPointer = value;
+                }
+            }
+            optionalIndex++;
+        }
+        if(optionalIndex < 32 &&
+           (encodingMask >> optionalIndex) != 0)
+            ret = UA_STATUSCODE_BADDECODINGERROR;
+    }
+
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
     return ret;
+}
+
+static status
+decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type) {
+    return decodeJsonStructureInternal(ctx, dst, type, false);
+}
+
+static status
+decodeJsonStructureExtensionObject(ParseCtx *ctx, void *dst,
+                                   const UA_DataType *type) {
+    return decodeJsonStructureInternal(ctx, dst, type, true);
+}
+
+static status
+decodeJsonUnionInternal(ParseCtx *ctx, void *dst, const UA_DataType *type,
+                        UA_Boolean extensionObject) {
+    CHECK_OBJECT;
+
+    /* Determine the selected member before decoding. This prevents two member
+     * fields from being decoded into the same union storage on malformed input. */
+    ParseCtx scan = *ctx;
+    size_t keyCount = (size_t)scan.tokens[scan.index].size / 2;
+    scan.index++;
+    UA_UInt32 selection = 0;
+    UA_UInt32 switchField = 0;
+    UA_Boolean switchFound = false;
+    UA_Boolean typeIdFound = false;
+    for(size_t key = 0; key < keyCount; key++) {
+        UA_assert(currentTokenType(&scan) == CJ5_TOKEN_STRING);
+        const cj5_token *keyToken = &scan.tokens[scan.index++];
+        size_t valueIndex = scan.index;
+
+        if(jsoneq(scan.json5, keyToken, UA_JSONKEY_TYPEID) == 0) {
+            if(!extensionObject || typeIdFound)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            typeIdFound = true;
+        } else if(jsoneq(scan.json5, keyToken, UA_JSONKEY_SWITCHFIELD) == 0) {
+            if(switchFound)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            switchFound = true;
+            status ret = UInt32_decodeJson(&scan, &switchField,
+                                           &UA_TYPES[UA_TYPES_UINT32]);
+            if(ret != UA_STATUSCODE_GOOD)
+                return ret;
+        } else {
+            UA_UInt32 memberSelection = 0;
+            for(size_t i = 0; i < type->membersSize; i++) {
+                if(jsoneq(scan.json5, keyToken,
+                          type->members[i].memberName) == 0) {
+                    memberSelection = (UA_UInt32)i + 1;
+                    break;
+                }
+            }
+            if(memberSelection == 0 || selection != 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            selection = memberSelection;
+        }
+
+        scan.index = valueIndex;
+        skipObject(&scan);
+    }
+
+    if(switchField > type->membersSize ||
+       (selection != 0 && switchFound && switchField != selection))
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(selection == 0)
+        selection = switchField;
+
+    DecodeEntry entries[3];
+    memset(entries, 0, sizeof(entries));
+    size_t entriesSize = 0;
+    if(extensionObject)
+        entries[entriesSize++] =
+            (DecodeEntry){UA_JSONKEY_TYPEID, NULL, NULL, false, NULL};
+    entries[entriesSize++] =
+        (DecodeEntry){UA_JSONKEY_SWITCHFIELD, NULL, NULL, false, NULL};
+    if(selection != 0) {
+        const UA_DataTypeMember *m = &type->members[selection - 1];
+        entries[entriesSize].fieldName = m->memberName;
+        entries[entriesSize].type = m->memberType;
+        uintptr_t ptr = (uintptr_t)dst + m->padding;
+        if(m->isArray) {
+            ptr += sizeof(size_t);
+            entries[entriesSize].function = Array_decodeJson;
+        }
+        entries[entriesSize].fieldPointer = (void*)ptr;
+        entriesSize++;
+    }
+
+    *(UA_UInt32*)dst = selection;
+    return decodeFields(ctx, entries, entriesSize);
+}
+
+static status
+decodeJsonUnion(ParseCtx *ctx, void *dst, const UA_DataType *type) {
+    return decodeJsonUnionInternal(ctx, dst, type, false);
+}
+
+static status
+decodeJsonUnionExtensionObject(ParseCtx *ctx, void *dst,
+                               const UA_DataType *type) {
+    return decodeJsonUnionInternal(ctx, dst, type, true);
 }
 
 static status
@@ -2460,8 +2756,8 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
     decodeJsonNotImplemented, /* Decimal */
     Int32_decodeJson, /* Enum */
     decodeJsonStructure,
-    decodeJsonNotImplemented, /* Structure with optional fields */
-    decodeJsonNotImplemented, /* Union */
+    decodeJsonStructure, /* Structure with optional fields */
+    decodeJsonUnion,
     decodeJsonNotImplemented /* BitfieldCluster */
 };
 

@@ -22,6 +22,72 @@
 # define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " is NULL")
 #endif
 
+typedef struct {
+    UA_Int16 required;
+    UA_Float *optional;
+    size_t optionalValuesSize;
+    UA_Int32 *optionalValues;
+} JsonOptionalStructure;
+
+static UA_DataTypeMember jsonOptionalStructureMembers[3] = {
+    {UA_TYPENAME("Required") &UA_TYPES[UA_TYPES_INT16], 0, false, false},
+    {UA_TYPENAME("Optional") &UA_TYPES[UA_TYPES_FLOAT],
+     offsetof(JsonOptionalStructure, optional) -
+         offsetof(JsonOptionalStructure, required) - sizeof(UA_Int16),
+     false, true},
+    {UA_TYPENAME("OptionalValues") &UA_TYPES[UA_TYPES_INT32],
+     offsetof(JsonOptionalStructure, optionalValuesSize) -
+         offsetof(JsonOptionalStructure, optional) - sizeof(void*),
+     true, true}
+};
+
+typedef struct {
+    UA_UInt32 switchField;
+    union {
+        UA_Double number;
+        UA_String text;
+        struct {
+            size_t valuesSize;
+            UA_Int16 *values;
+        } values;
+    } fields;
+} JsonUnion;
+
+static UA_DataTypeMember jsonUnionMembers[3] = {
+    {UA_TYPENAME("Number") &UA_TYPES[UA_TYPES_DOUBLE],
+     offsetof(JsonUnion, fields.number), false, false},
+    {UA_TYPENAME("Text") &UA_TYPES[UA_TYPES_STRING],
+     offsetof(JsonUnion, fields.text), false, false},
+    {UA_TYPENAME("Values") &UA_TYPES[UA_TYPES_INT16],
+     offsetof(JsonUnion, fields.values), true, false}
+};
+
+static UA_DataType jsonCustomTypes[2] = {
+    {UA_TYPENAME("JsonOptionalStructure")
+     {1, UA_NODEIDTYPE_NUMERIC, {5001}},
+     {1, UA_NODEIDTYPE_NUMERIC, {6001}},
+     {1, UA_NODEIDTYPE_NUMERIC, {7001}},
+     sizeof(JsonOptionalStructure), UA_DATATYPEKIND_OPTSTRUCT,
+     false, false, 3, jsonOptionalStructureMembers},
+    {UA_TYPENAME("JsonUnion")
+     {1, UA_NODEIDTYPE_NUMERIC, {5002}},
+     {1, UA_NODEIDTYPE_NUMERIC, {6002}},
+     {1, UA_NODEIDTYPE_NUMERIC, {7002}},
+     sizeof(JsonUnion), UA_DATATYPEKIND_UNION,
+     false, false, 3, jsonUnionMembers}
+};
+
+static UA_DataTypeArray jsonCustomTypeArray = {
+    NULL, 2, jsonCustomTypes, false
+};
+
+static void
+assertJsonEqual(const UA_ByteString *encoded, const char *expected) {
+    size_t expectedLength = strlen(expected);
+    ck_assert_uint_eq(encoded->length, expectedLength);
+    ck_assert(memcmp(encoded->data, expected, expectedLength) == 0);
+}
+
 /* === Boolean JSON encoding === */
 START_TEST(json_encode_boolean_true) {
     UA_Boolean val = true;
@@ -413,6 +479,302 @@ START_TEST(json_encode_extensionobject_decoded) {
     UA_ExtensionObject_clear(&val);
 } END_TEST
 
+START_TEST(json_extensionobject_exact_wire_roundtrip) {
+    UA_ReadValueId value;
+    UA_ReadValueId_init(&value);
+    value.nodeId = UA_NODEID_NUMERIC(0, 2255);
+    value.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_ExtensionObject source;
+    UA_ExtensionObject_init(&source);
+    source.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    source.content.decoded.type = &UA_TYPES[UA_TYPES_READVALUEID];
+    source.content.decoded.data = &value;
+
+    const char *expected =
+        "{\"UaTypeId\":\"i=626\",\"NodeId\":\"i=2255\","
+        "\"AttributeId\":13,\"IndexRange\":null,\"DataEncoding\":null}";
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(
+        &source, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, expected);
+
+    UA_ExtensionObject decoded;
+    UA_ExtensionObject_init(&decoded);
+    res = UA_decodeJson(&encoded, &decoded,
+                        &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(decoded.content.decoded.type,
+                     &UA_TYPES[UA_TYPES_READVALUEID]);
+    UA_ReadValueId *decodedValue =
+        (UA_ReadValueId*)decoded.content.decoded.data;
+    ck_assert(UA_NodeId_equal(&decodedValue->nodeId, &value.nodeId));
+    ck_assert_uint_eq(decodedValue->attributeId, UA_ATTRIBUTEID_VALUE);
+
+    UA_ByteString reencoded = UA_BYTESTRING_NULL;
+    res = UA_encodeJson(&decoded, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT],
+                        &reencoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&reencoded, expected);
+
+    UA_ByteString_clear(&reencoded);
+    UA_ExtensionObject_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(json_optional_structure_roundtrip) {
+    UA_Float optional = 1.5f;
+    UA_Int32 optionalValues[2] = {3, 4};
+    JsonOptionalStructure source = {
+        7, &optional, 2, optionalValues
+    };
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&source, &jsonCustomTypes[0],
+                                      &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded,
+                    "{\"Required\":7,\"Optional\":1.5,"
+                    "\"OptionalValues\":[3,4]}");
+
+    JsonOptionalStructure decoded;
+    UA_DecodeJsonOptions options = {0};
+    options.customTypes = &jsonCustomTypeArray;
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[0], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(decoded.required, 7);
+    ck_assert_ptr_nonnull(decoded.optional);
+    ck_assert_float_eq(*decoded.optional, 1.5f);
+    ck_assert_uint_eq(decoded.optionalValuesSize, 2);
+    ck_assert_int_eq(decoded.optionalValues[0], 3);
+    ck_assert_int_eq(decoded.optionalValues[1], 4);
+    UA_clear(&decoded, &jsonCustomTypes[0]);
+    UA_ByteString_clear(&encoded);
+
+    source.optional = NULL;
+    source.optionalValuesSize = 0;
+    source.optionalValues = NULL;
+    res = UA_encodeJson(&source, &jsonCustomTypes[0], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, "{\"Required\":7}");
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(json_optional_structure_compact_decode) {
+    UA_ByteString encoded = UA_BYTESTRING(
+        "{\"OptionalValues\":[3,4],\"Required\":7,"
+        "\"EncodingMask\":3,\"Optional\":1.5}");
+    JsonOptionalStructure decoded;
+    UA_StatusCode res = UA_decodeJson(&encoded, &decoded,
+                                      &jsonCustomTypes[0], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(decoded.optional);
+    ck_assert_float_eq(*decoded.optional, 1.5f);
+    ck_assert_uint_eq(decoded.optionalValuesSize, 2);
+    UA_clear(&decoded, &jsonCustomTypes[0]);
+
+    encoded = UA_BYTESTRING("{\"EncodingMask\":1,\"Required\":7}");
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[0], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(decoded.optional);
+    ck_assert_float_eq(*decoded.optional, 0.0f);
+    ck_assert_ptr_null(decoded.optionalValues);
+    UA_clear(&decoded, &jsonCustomTypes[0]);
+} END_TEST
+
+START_TEST(json_optional_structure_rejects_bad_mask) {
+    UA_ByteString encoded = UA_BYTESTRING(
+        "{\"EncodingMask\":0,\"Required\":7,\"Optional\":1.5}");
+    JsonOptionalStructure decoded;
+    UA_StatusCode res = UA_decodeJson(&encoded, &decoded,
+                                      &jsonCustomTypes[0], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+
+    encoded = UA_BYTESTRING("{\"EncodingMask\":4,\"Required\":7}");
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[0], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(json_union_roundtrip) {
+    JsonUnion source;
+    memset(&source, 0, sizeof(source));
+    source.switchField = 2;
+    source.fields.text = UA_STRING("hello");
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&source, &jsonCustomTypes[1],
+                                      &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, "{\"Text\":\"hello\"}");
+
+    JsonUnion decoded;
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[1], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.switchField, 2);
+    const UA_String expected = UA_STRING_STATIC("hello");
+    ck_assert(UA_String_equal(&decoded.fields.text, &expected));
+    UA_clear(&decoded, &jsonCustomTypes[1]);
+    UA_ByteString_clear(&encoded);
+
+    encoded = UA_BYTESTRING("{\"Text\":\"hello\",\"SwitchField\":2}");
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[1], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.switchField, 2);
+    UA_clear(&decoded, &jsonCustomTypes[1]);
+
+    UA_Int16 values[2] = {5, 6};
+    memset(&source, 0, sizeof(source));
+    source.switchField = 3;
+    source.fields.values.valuesSize = 2;
+    source.fields.values.values = values;
+    encoded = UA_BYTESTRING_NULL;
+    res = UA_encodeJson(&source, &jsonCustomTypes[1], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, "{\"Values\":[5,6]}");
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[1], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.switchField, 3);
+    ck_assert_uint_eq(decoded.fields.values.valuesSize, 2);
+    ck_assert_int_eq(decoded.fields.values.values[0], 5);
+    ck_assert_int_eq(decoded.fields.values.values[1], 6);
+    UA_clear(&decoded, &jsonCustomTypes[1]);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(json_union_rejects_ambiguous_selection) {
+    JsonUnion decoded;
+    UA_ByteString encoded = UA_BYTESTRING(
+        "{\"Number\":3.5,\"Text\":\"ambiguous\"}");
+    UA_StatusCode res = UA_decodeJson(&encoded, &decoded,
+                                      &jsonCustomTypes[1], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+
+    encoded = UA_BYTESTRING("{\"SwitchField\":1,\"Text\":\"wrong\"}");
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[1], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+
+    encoded = UA_BYTESTRING("{\"SwitchField\":4}");
+    res = UA_decodeJson(&encoded, &decoded, &jsonCustomTypes[1], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(json_structured_extensionobjects_roundtrip) {
+    UA_Float optional = 2.5f;
+    JsonOptionalStructure optionalSource = {9, &optional, 0, NULL};
+    UA_ExtensionObject source;
+    UA_ExtensionObject_init(&source);
+    source.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    source.content.decoded.type = &jsonCustomTypes[0];
+    source.content.decoded.data = &optionalSource;
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(
+        &source, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded,
+                    "{\"UaTypeId\":\"ns=1;i=5001\","
+                    "\"Required\":9,\"Optional\":2.5}");
+
+    UA_DecodeJsonOptions options = {0};
+    options.customTypes = &jsonCustomTypeArray;
+    UA_ExtensionObject decoded;
+    UA_ExtensionObject_init(&decoded);
+    res = UA_decodeJson(&encoded, &decoded,
+                        &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(decoded.content.decoded.type, &jsonCustomTypes[0]);
+    UA_ExtensionObject_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+
+    JsonUnion unionSource;
+    memset(&unionSource, 0, sizeof(unionSource));
+    unionSource.switchField = 1;
+    unionSource.fields.number = 3.5;
+    source.content.decoded.type = &jsonCustomTypes[1];
+    source.content.decoded.data = &unionSource;
+    res = UA_encodeJson(&source, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT],
+                        &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded,
+                    "{\"UaTypeId\":\"ns=1;i=5002\",\"Number\":3.5}");
+    res = UA_decodeJson(&encoded, &decoded,
+                        &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    JsonUnion *decodedUnion = (JsonUnion*)decoded.content.decoded.data;
+    ck_assert_uint_eq(decodedUnion->switchField, 1);
+    ck_assert_double_eq(decodedUnion->fields.number, 3.5);
+    UA_ExtensionObject_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+START_TEST(json_structured_variant_arrays_roundtrip) {
+    UA_DecodeJsonOptions options = {0};
+    options.customTypes = &jsonCustomTypeArray;
+
+    UA_Float optional = 1.25f;
+    UA_Int32 optionalValuesData[2] = {10, 11};
+    JsonOptionalStructure optionalValues[2] = {
+        {1, &optional, 0, NULL},
+        {2, NULL, 2, optionalValuesData}
+    };
+    UA_Variant source;
+    UA_Variant_init(&source);
+    UA_Variant_setArray(&source, optionalValues, 2, &jsonCustomTypes[0]);
+
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&source, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant decoded;
+    UA_Variant_init(&decoded);
+    res = UA_decodeJson(&encoded, &decoded, &UA_TYPES[UA_TYPES_VARIANT],
+                        &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(decoded.type, &jsonCustomTypes[0]);
+    ck_assert_uint_eq(decoded.arrayLength, 2);
+    JsonOptionalStructure *decodedOptional =
+        (JsonOptionalStructure*)decoded.data;
+    ck_assert_int_eq(decodedOptional[0].required, 1);
+    ck_assert_ptr_nonnull(decodedOptional[0].optional);
+    ck_assert_float_eq(*decodedOptional[0].optional, 1.25f);
+    ck_assert_ptr_null(decodedOptional[0].optionalValues);
+    ck_assert_int_eq(decodedOptional[1].required, 2);
+    ck_assert_ptr_null(decodedOptional[1].optional);
+    ck_assert_uint_eq(decodedOptional[1].optionalValuesSize, 2);
+    ck_assert_int_eq(decodedOptional[1].optionalValues[0], 10);
+    ck_assert_int_eq(decodedOptional[1].optionalValues[1], 11);
+    UA_Variant_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+
+    JsonUnion unionValues[2];
+    memset(unionValues, 0, sizeof(unionValues));
+    unionValues[0].switchField = 1;
+    unionValues[0].fields.number = 4.5;
+    unionValues[1].switchField = 2;
+    unionValues[1].fields.text = UA_STRING("array");
+    UA_Variant_setArray(&source, unionValues, 2, &jsonCustomTypes[1]);
+    res = UA_encodeJson(&source, &UA_TYPES[UA_TYPES_VARIANT], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant_init(&decoded);
+    res = UA_decodeJson(&encoded, &decoded, &UA_TYPES[UA_TYPES_VARIANT],
+                        &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(decoded.type, &jsonCustomTypes[1]);
+    ck_assert_uint_eq(decoded.arrayLength, 2);
+    JsonUnion *decodedUnion = (JsonUnion*)decoded.data;
+    ck_assert_uint_eq(decodedUnion[0].switchField, 1);
+    ck_assert_double_eq(decodedUnion[0].fields.number, 4.5);
+    ck_assert_uint_eq(decodedUnion[1].switchField, 2);
+    const UA_String expected = UA_STRING_STATIC("array");
+    ck_assert(UA_String_equal(&decodedUnion[1].fields.text, &expected));
+    UA_Variant_clear(&decoded);
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
 START_TEST(json_encode_extensionobject_bytestring) {
     UA_ExtensionObject val;
     UA_ExtensionObject_init(&val);
@@ -722,8 +1084,16 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_complex, json_encode_datavalue);
     tcase_add_test(tc_complex, json_encode_diagnosticinfo);
     tcase_add_test(tc_complex, json_encode_extensionobject_decoded);
+    tcase_add_test(tc_complex, json_extensionobject_exact_wire_roundtrip);
     tcase_add_test(tc_complex, json_encode_extensionobject_bytestring);
     tcase_add_test(tc_complex, json_encode_variant_2d_array);
+    tcase_add_test(tc_complex, json_optional_structure_roundtrip);
+    tcase_add_test(tc_complex, json_optional_structure_compact_decode);
+    tcase_add_test(tc_complex, json_optional_structure_rejects_bad_mask);
+    tcase_add_test(tc_complex, json_union_roundtrip);
+    tcase_add_test(tc_complex, json_union_rejects_ambiguous_selection);
+    tcase_add_test(tc_complex, json_structured_extensionobjects_roundtrip);
+    tcase_add_test(tc_complex, json_structured_variant_arrays_roundtrip);
 
     TCase *tc_options = tcase_create("JsonEncodingOptions");
     tcase_add_test(tc_options, json_encode_prettyprint);
