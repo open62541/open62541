@@ -40,6 +40,7 @@ typedef struct {
     size_t certificateInfosSize;
     UA_GDSCertificateInfo *certificateInfos;
     UA_DelayedCallback dc;
+    UA_Boolean applyChangesQueued;
 } UA_GDSTransaction;
 
 typedef struct UA_FileContext {
@@ -127,6 +128,7 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server,
     transaction->state = UA_GDSTRANSACTIONSTATE_PENDING;
     transaction->server = server;
     transaction->localCsrCertificate = csr;
+    transaction->applyChangesQueued = false;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -384,7 +386,7 @@ checkSessionActive(UA_Server *server, void *data) {
         UA_StatusCode res =
             UA_Server_getSessionAttribute(server, &transaction->sessionId,
                                           UA_QUALIFIEDNAME(0, "sessionName"), &tmp);
-        if(res != UA_STATUSCODE_GOOD) {
+        if(res != UA_STATUSCODE_GOOD && !transaction->applyChangesQueued) {
             UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
                 "Session with an open transaction has ended. "
                 "The transaction has been discarded.");
@@ -1217,6 +1219,7 @@ secureChannel_delayedClose(void *application, void *context) {
     }
 
     UA_free(changes);
+    ctx->transaction.applyChangesQueued = false;
     UA_GDSTransaction_clear(&ctx->transaction);
     UA_assert(ctx->pendingDelayedCallbacks > 0);
     ctx->pendingDelayedCallbacks--;
@@ -1526,6 +1529,8 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* Check if a TrustList is still open */
     for(size_t i = 0; i < transaction->certGroupSize; i++) {
@@ -1627,6 +1632,7 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     dc->context = ctx;
 
     UA_EventLoop *el = sc->eventLoop;
+    transaction->applyChangesQueued = true;
     ctx->pendingDelayedCallbacks++;
     el->addDelayedCallback(el, dc);
     for(size_t i = 0; i < groupsSize; i++) {

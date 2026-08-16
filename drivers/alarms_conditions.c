@@ -1586,6 +1586,19 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* InputArguments metadata is resolved from the mutable node graph. Validate
+ * the runtime argument types before reinterpreting their data. */
+static UA_StatusCode
+checkEventIdCommentArguments(size_t inputSize, const UA_Variant *input) {
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *sessionContext, const UA_NodeId *methodId,
@@ -1593,6 +1606,10 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *objectContext, size_t inputSize,
                          const UA_Variant *input, size_t outputSize,
                          UA_Variant *output) {
+    UA_StatusCode res = checkEventIdCommentArguments(inputSize, input);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1617,8 +1634,7 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
      * in current implementation, methods are only being referenced from their ObjectType Node.
      * Because of that, the correct instance (Condition) will be found through
      * its last EventId */
-    UA_StatusCode res =
-        getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &triggerEvent);
+    res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &triggerEvent);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
     /* Check if enabled */
@@ -1681,6 +1697,10 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                           void *objectContext, size_t inputSize,
                           const UA_Variant *input, size_t outputSize,
                           UA_Variant *output) {
+    UA_StatusCode res = checkEventIdCommentArguments(inputSize, input);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1697,8 +1717,7 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Get condition branch to trigger the correct event */
     UA_NodeId conditionNode;
-    UA_StatusCode res =
-        getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
+    res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
     /* Check if retained */
@@ -1758,6 +1777,10 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_StatusCode res = checkEventIdCommentArguments(inputSize, input);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1774,7 +1797,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Get condition branch to trigger the correct event */
     UA_NodeId conditionNode;
-    UA_StatusCode res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
+    res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
     /* Check if retained */

@@ -701,6 +701,10 @@ announceRecord(MdnsdDriver *md, const ServerOnNetworkRecord *entry) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* Reject oversized TXT paths before publishing any records. */
+    if(path.length >= 254)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+
     /* Create the service name [servername]._opcua-tcp._tcp.local. */
     char serviceDomainBuf[63+25];
     UA_String serviceDomain = {63+24, (UA_Byte*)serviceDomainBuf};

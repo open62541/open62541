@@ -793,8 +793,8 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
     }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(UA_Bstrstr(subjectURI.data, subjectURI.length,
-                  applicationURI->data, applicationURI->length) == NULL)
+    if(subjectURI.length != applicationURI->length ||
+       memcmp(subjectURI.data, applicationURI->data, applicationURI->length) != 0)
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 
     X509_free(certificateX509);

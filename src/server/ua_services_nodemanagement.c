@@ -2563,7 +2563,8 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
         return;
     }
 
-    /* Add the first direction */
+    /* Add the first direction. Use hash 0 for non-local targets where
+     * targetNode is NULL (their browse name is not available locally). */
     UA_UInt32 targetNameHash = targetNode ?
         UA_QualifiedName_hash(&targetNode->head.browseName) : 0;
     *retval = UA_Node_addReference(sourceNode, refTypeIndex, item->isForward,
