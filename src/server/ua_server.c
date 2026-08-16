@@ -989,21 +989,8 @@ UA_Server_run_startup(UA_Server *server) {
         }
 
         /* Check that a "websocket" protocol-provider (ConnectionManager) is registered in the EventLoop */
-        UA_Boolean foundWebSocketManager = false;
-        if(config->eventLoop) {
-            UA_String websocketStr = UA_STRING_STATIC("websocket");
-            for(UA_EventSource *es = config->eventLoop->eventSources;
-                es != NULL; es = es->next) {
-                if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
-                    continue;
-                UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-                if(UA_String_equal(&cm->protocol, &websocketStr)) {
-                    foundWebSocketManager = true;
-                    break;
-                }
-            }
-        }
-        if(!foundWebSocketManager) {
+        const UA_String websocket = UA_STRING_STATIC("websocket");
+        if(!findConnectionManager(config->eventLoop, &websocket)) {
             UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                          "WebSocket transport is enabled (webSocketEnabled=true), "
                          "but no 'websocket' protocol-provider (ConnectionManager) was found in the EventLoop");
