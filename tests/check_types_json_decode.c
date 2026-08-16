@@ -132,9 +132,63 @@ START_TEST(json_decode_eo_known_type_no_body_field) {
     UA_ExtensionObject eo;
     UA_ExtensionObject_init(&eo);
     UA_StatusCode res = decode(json, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    if(res == UA_STATUSCODE_GOOD) {
-        ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_DECODED);
-    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(eo.content.decoded.type, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    UA_Argument *argument = (UA_Argument *)eo.content.decoded.data;
+    const UA_String expectedName = UA_STRING_STATIC("arg2");
+    ck_assert(UA_String_equal(&argument->name, &expectedName));
+    ck_assert_uint_eq(argument->valueRank, -1);
+    UA_ExtensionObject_clear(&eo);
+} END_TEST
+
+START_TEST(json_decode_eo_typeid_in_middle) {
+    const char *json =
+        "{\"Name\":\"middle\",\"UaTypeId\":\"i=296\","
+        "\"DataType\":\"i=1\",\"ValueRank\":-1}";
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_init(&eo);
+    UA_StatusCode res = decode(json, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Argument *argument = (UA_Argument*)eo.content.decoded.data;
+    const UA_String expected = UA_STRING_STATIC("middle");
+    ck_assert(UA_String_equal(&argument->name, &expected));
+    UA_ExtensionObject_clear(&eo);
+} END_TEST
+
+START_TEST(json_decode_eo_typeid_last) {
+    const char *json =
+        "{\"Name\":\"last\",\"DataType\":\"i=1\","
+        "\"ValueRank\":-1,\"UaTypeId\":\"i=296\"}";
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_init(&eo);
+    UA_StatusCode res = decode(json, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Argument *argument = (UA_Argument*)eo.content.decoded.data;
+    const UA_String expected = UA_STRING_STATIC("last");
+    ck_assert(UA_String_equal(&argument->name, &expected));
+    UA_ExtensionObject_clear(&eo);
+} END_TEST
+
+START_TEST(json_decode_eo_duplicate_typeid) {
+    const char *json =
+        "{\"UaTypeId\":\"i=296\",\"Name\":\"duplicate\","
+        "\"UaTypeId\":\"i=296\",\"DataType\":\"i=1\","
+        "\"ValueRank\":-1}";
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_init(&eo);
+    UA_StatusCode res = decode(json, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_ExtensionObject_clear(&eo);
+} END_TEST
+
+START_TEST(json_decode_eo_known_type_encoding_without_body) {
+    const char *json =
+        "{\"UaTypeId\":\"i=296\",\"UaEncoding\":1,\"Name\":\"arg2\"}";
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_init(&eo);
+    UA_StatusCode res = decode(json, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
     UA_ExtensionObject_clear(&eo);
 } END_TEST
 
@@ -985,6 +1039,10 @@ int main(void) {
     tcase_add_test(tc_eo, json_decode_eo_unknown_type_no_body);
     tcase_add_test(tc_eo, json_decode_eo_known_type_with_body);
     tcase_add_test(tc_eo, json_decode_eo_known_type_no_body_field);
+    tcase_add_test(tc_eo, json_decode_eo_typeid_in_middle);
+    tcase_add_test(tc_eo, json_decode_eo_typeid_last);
+    tcase_add_test(tc_eo, json_decode_eo_duplicate_typeid);
+    tcase_add_test(tc_eo, json_decode_eo_known_type_encoding_without_body);
     tcase_add_test(tc_eo, json_decode_eo_empty_object);
     tcase_add_test(tc_eo, json_decode_eo_null);
     tcase_add_test(tc_eo, json_decode_eo_bytestring_encoding);
