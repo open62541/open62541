@@ -449,7 +449,7 @@ UA_DataType_toEnumDescription(const UA_DataType *type,
     for(size_t i = 0; i < type->membersSize; i++) {
         const UA_DataTypeMember *dtm = &type->members[i];
         UA_EnumField *ef = &descr->enumDefinition.fields[i];
-        ef->value = (UA_Int64)(uintptr_t)dtm->memberType;
+        ef->value = (UA_Int64)(intptr_t)dtm->memberType;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         ef->name = UA_STRING_ALLOC(dtm->memberName);
         ef->displayName = UA_LOCALIZEDTEXT_ALLOC("", dtm->memberName);

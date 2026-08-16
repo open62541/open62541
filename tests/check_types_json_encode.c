@@ -410,6 +410,80 @@ START_TEST(json_encode_enum_modes) {
     UA_ByteString_clear(&encoded);
 } END_TEST
 
+START_TEST(json_encode_enum_description) {
+    UA_NamingRuleType value = UA_NAMINGRULETYPE_MANDATORY;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(
+        &value, &UA_TYPES[UA_TYPES_NAMINGRULETYPE], &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    assertJsonEqual(&encoded, "\"Mandatory_1\"");
+#else
+    assertJsonEqual(&encoded, "\"1\"");
+#endif
+    UA_ByteString_clear(&encoded);
+
+    /* A value without a matching EnumField uses the numeric-string form. */
+    value = (UA_NamingRuleType)99;
+    res = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_NAMINGRULETYPE],
+                        &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, "\"99\"");
+    UA_ByteString_clear(&encoded);
+} END_TEST
+
+#ifdef UA_TYPES_ENUMDESCRIPTION
+START_TEST(json_encode_enum_from_description) {
+    UA_EnumField fields[2];
+    UA_EnumField_init(&fields[0]);
+    fields[0].value = 42;
+    fields[0].name = UA_STRING("Answer");
+    UA_EnumField_init(&fields[1]);
+    fields[1].value = -7;
+    fields[1].name = UA_STRING("Negative");
+
+    UA_EnumDescription description;
+    UA_EnumDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 5004);
+    description.name = UA_QUALIFIEDNAME(1, "DescribedEnum");
+    description.builtInType = UA_DATATYPEKIND_INT32 + 1;
+    description.enumDefinition.fieldsSize = 2;
+    description.enumDefinition.fields = fields;
+
+    UA_ExtensionObject descriptionObject;
+    UA_ExtensionObject_setValueNoDelete(
+        &descriptionObject, &description, &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]);
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+    UA_StatusCode res =
+        UA_DataType_fromDescription(&type, &descriptionObject, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Int32 value = 42;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    res = UA_encodeJson(&value, &type, &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, "\"Answer_42\"");
+    UA_ByteString_clear(&encoded);
+
+    value = -7;
+    res = UA_encodeJson(&value, &type, &encoded, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&encoded, "\"Negative_-7\"");
+    UA_ByteString_clear(&encoded);
+
+    UA_ExtensionObject regeneratedDescription;
+    res = UA_DataType_toDescription(&type, &regeneratedDescription);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_EnumDescription *regenerated =
+        (UA_EnumDescription*)regeneratedDescription.content.decoded.data;
+    ck_assert_int_eq(regenerated->enumDefinition.fields[0].value, 42);
+    ck_assert_int_eq(regenerated->enumDefinition.fields[1].value, -7);
+    UA_ExtensionObject_clear(&regeneratedDescription);
+    UA_DataType_clear(&type);
+} END_TEST
+#endif
+
 /* === QualifiedName JSON encoding === */
 START_TEST(json_encode_qualifiedname) {
     UA_QualifiedName val = UA_QUALIFIEDNAME(1, "TestName");
@@ -1479,6 +1553,10 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_nodeid, json_encode_expandednodeid);
     tcase_add_test(tc_nodeid, json_encode_statuscode);
     tcase_add_test(tc_nodeid, json_encode_enum_modes);
+    tcase_add_test(tc_nodeid, json_encode_enum_description);
+#ifdef UA_TYPES_ENUMDESCRIPTION
+    tcase_add_test(tc_nodeid, json_encode_enum_from_description);
+#endif
     tcase_add_test(tc_nodeid, json_encode_qualifiedname);
     tcase_add_test(tc_nodeid, json_encode_localizedtext);
 
