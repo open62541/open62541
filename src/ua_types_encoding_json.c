@@ -751,6 +751,22 @@ encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
     return ret | writeJsonArrEnd(ctx, type);
 }
 
+static UA_Boolean
+variantDimensionsValid(size_t arrayLength, size_t dimensionsSize,
+                       const UA_UInt32 *dimensions) {
+    if(dimensionsSize == 0 || !dimensions)
+        return false;
+
+    size_t total = 1;
+    for(size_t i = 0; i < dimensionsSize; i++) {
+        UA_UInt32 dimension = dimensions[i];
+        if(dimension == 0 || total > SIZE_MAX / dimension)
+            return false;
+        total *= dimension;
+    }
+    return total == arrayLength;
+}
+
 static UA_StatusCode
 encodeVariantInner(CtxJson *ctx, const UA_Variant *src,
                    UA_Boolean insideDataValue) {
@@ -769,6 +785,12 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src,
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const bool hasDimensions = isArray && src->arrayDimensionsSize > 1;
     if(src->type->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    if(!isArray && src->arrayDimensionsSize > 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    if(hasDimensions &&
+       !variantDimensionsValid(src->arrayLength, src->arrayDimensionsSize,
+                               src->arrayDimensions))
         return UA_STATUSCODE_BADENCODINGERROR;
 
     /* Enumerations lose their concrete type in a Variant and are represented
@@ -2038,17 +2060,11 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst,
             UA_assert(dst->arrayDimensionsSize == 0 || dst->arrayDimensions);
 
             /* Validate the dimensions */
-            size_t total = 1;
-            for(size_t i = 0; i < dst->arrayDimensionsSize; i++) {
-                UA_UInt32 dimension = dst->arrayDimensions[i];
-                if(dimension != 0 && total > SIZE_MAX / dimension) {
-                    res |= UA_STATUSCODE_BADDECODINGERROR;
-                    break;
-                }
-                total *= dimension;
-            }
-            if(total != dst->arrayLength)
-                res |= UA_STATUSCODE_BADDECODINGERROR;
+            if(res == UA_STATUSCODE_GOOD &&
+               !variantDimensionsValid(dst->arrayLength,
+                                       dst->arrayDimensionsSize,
+                                       dst->arrayDimensions))
+                res = UA_STATUSCODE_BADDECODINGERROR;
 
             /* Only keep >= 2 dimensions */
             if(dst->arrayDimensionsSize == 1) {
