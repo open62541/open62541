@@ -12,6 +12,20 @@
 
 #include "ua_server_internal.h"
 
+UA_ConnectionManager *
+findConnectionManager(UA_EventLoop *eventLoop, const UA_String *protocol) {
+    if(!eventLoop)
+        return NULL;
+    for(UA_EventSource *es = eventLoop->eventSources; es; es = es->next) {
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager *)es;
+        if(UA_String_equal(&cm->protocol, protocol))
+            return cm;
+    }
+    return NULL;
+}
+
 /****************************/
 /* Custom DataType Handling */
 /****************************/

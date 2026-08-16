@@ -257,6 +257,9 @@ struct UA_Server {
 const UA_DataTypeArray *
 serverCustomTypes(UA_Server *server);
 
+UA_ConnectionManager *
+findConnectionManager(UA_EventLoop *eventLoop, const UA_String *protocol);
+
 /***********************/
 /* References Handling */
 /***********************/
