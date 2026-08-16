@@ -1030,6 +1030,27 @@ START_TEST(json_decode_datetime_not_string) {
     ck_assert(res != UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(json_decode_datetime_bounds_and_validation) {
+    UA_DateTime value = 42;
+    UA_StatusCode res = decode("\"0001-01-01T00:00:00Z\"", &value,
+                               &UA_TYPES[UA_TYPES_DATETIME]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, 0);
+
+    const char *invalid[] = {
+        "\"2024-02-30T00:00:00Z\"",
+        "\"2024-01-01X00:00:00Z\"",
+        "\"2024-01-01T24:00:00Z\"",
+        "\"2024-01-01T00:00:00.Z\"",
+        "\"2024-1\""
+    };
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        value = 0;
+        res = decode(invalid[i], &value, &UA_TYPES[UA_TYPES_DATETIME]);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    }
+} END_TEST
+
 /* ============================================================
  * Extra: DataValue, DiagnosticInfo, round-trip, malformed JSON
  * ============================================================ */
@@ -1269,6 +1290,7 @@ int main(void) {
     tcase_add_test(tc_datetime, json_decode_datetime_negative_year);
     tcase_add_test(tc_datetime, json_decode_datetime_plus_year);
     tcase_add_test(tc_datetime, json_decode_datetime_not_string);
+    tcase_add_test(tc_datetime, json_decode_datetime_bounds_and_validation);
     suite_add_tcase(s, tc_datetime);
 
     TCase *tc_extra = tcase_create("Extra");

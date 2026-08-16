@@ -1100,7 +1100,7 @@ START_TEST(UA_DateTime_json_encode_null) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "\"1601-01-01T00:00:00Z\"";
+    char* result = "\"0001-01-01T00:00:00Z\"";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -4146,17 +4146,7 @@ START_TEST(UA_DateTime_json_decode_large) {
     // when
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
     // then
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_DateTimeStruct dts = UA_DateTime_toStruct(out);
-    ck_assert_int_eq(dts.year, 10970);
-    ck_assert_int_eq(dts.month, 1);
-    ck_assert_int_eq(dts.day, 2);
-    ck_assert_int_eq(dts.hour, 1);
-    ck_assert_int_eq(dts.min, 2);
-    ck_assert_int_eq(dts.sec, 3);
-    ck_assert_int_eq(dts.milliSec, 5);
-    ck_assert_int_eq(dts.microSec, 0);
-    ck_assert_int_eq(dts.nanoSec, 0);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
     UA_DateTime_clear(&out);
 }
 END_TEST
@@ -4170,17 +4160,7 @@ START_TEST(UA_DateTime_json_decode_negative) {
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
     // then
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_DateTimeStruct dts = UA_DateTime_toStruct(out);
-    ck_assert_int_eq(dts.year, -50);
-    ck_assert_int_eq(dts.month, 1);
-    ck_assert_int_eq(dts.day, 2);
-    ck_assert_int_eq(dts.hour, 1);
-    ck_assert_int_eq(dts.min, 2);
-    ck_assert_int_eq(dts.sec, 3);
-    ck_assert_int_eq(dts.milliSec, 5);
-    ck_assert_int_eq(dts.microSec, 0);
-    ck_assert_int_eq(dts.nanoSec, 0);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
 
     UA_DateTime_clear(&out);
 }
@@ -4202,19 +4182,7 @@ START_TEST(UA_DateTime_json_decode_min) {
     s = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(dt_min, out);
-
-    // then
-    UA_DateTimeStruct dts = UA_DateTime_toStruct(out);
-    ck_assert_int_eq(dts.year, -27627);
-    ck_assert_int_eq(dts.month, 4);
-    ck_assert_int_eq(dts.day, 19);
-    ck_assert_int_eq(dts.hour, 21);
-    ck_assert_int_eq(dts.min, 11);
-    ck_assert_int_eq(dts.sec, 54);
-    ck_assert_int_eq(dts.milliSec, 522);
-    ck_assert_int_eq(dts.microSec, 419);
-    ck_assert_int_eq(dts.nanoSec, 200);
+    ck_assert_int_eq(out, 0);
 }
 END_TEST
 
@@ -4233,19 +4201,17 @@ START_TEST(UA_DateTime_json_decode_max) {
     UA_DateTime out;
     s = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(dt_max, out);
-
-    // then
+    // Values beyond the JSON range are clamped to the maximum value.
     UA_DateTimeStruct dts = UA_DateTime_toStruct(out);
-    ck_assert_int_eq(dts.year, 30828);
-    ck_assert_int_eq(dts.month, 9);
-    ck_assert_int_eq(dts.day, 14);
-    ck_assert_int_eq(dts.hour, 2);
-    ck_assert_int_eq(dts.min, 48);
-    ck_assert_int_eq(dts.sec, 5);
-    ck_assert_int_eq(dts.milliSec, 477);
-    ck_assert_int_eq(dts.microSec, 580);
-    ck_assert_int_eq(dts.nanoSec, 700);
+    ck_assert_int_eq(dts.year, 9999);
+    ck_assert_int_eq(dts.month, 12);
+    ck_assert_int_eq(dts.day, 31);
+    ck_assert_int_eq(dts.hour, 23);
+    ck_assert_int_eq(dts.min, 59);
+    ck_assert_int_eq(dts.sec, 59);
+    ck_assert_int_eq(dts.milliSec, 999);
+    ck_assert_int_eq(dts.microSec, 999);
+    ck_assert_int_eq(dts.nanoSec, 900);
 }
 END_TEST
 

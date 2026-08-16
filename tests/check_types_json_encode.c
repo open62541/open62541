@@ -259,6 +259,28 @@ START_TEST(json_encode_datetime) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
+START_TEST(json_encode_datetime_bounds) {
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_DateTime val = 0;
+    UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_DATETIME],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "\"0001-01-01T00:00:00Z\"");
+    UA_ByteString_clear(&buf);
+
+    val = UA_INT64_MIN;
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_DATETIME], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "\"0001-01-01T00:00:00Z\"");
+    UA_ByteString_clear(&buf);
+
+    val = UA_INT64_MAX;
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_DATETIME], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "\"9999-12-31T23:59:59.9999999Z\"");
+    UA_ByteString_clear(&buf);
+} END_TEST
+
 /* === Guid JSON encoding === */
 START_TEST(json_encode_guid) {
     UA_Guid val = UA_GUID("09087e75-8e5e-499b-954f-f2a9603db28a");
@@ -1199,6 +1221,7 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_string, json_encode_string_null);
     tcase_add_test(tc_string, json_encode_string_escape);
     tcase_add_test(tc_string, json_encode_datetime);
+    tcase_add_test(tc_string, json_encode_datetime_bounds);
     tcase_add_test(tc_string, json_encode_guid);
     tcase_add_test(tc_string, json_encode_bytestring);
     tcase_add_test(tc_string, json_encode_bytestring_null);
