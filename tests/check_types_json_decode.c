@@ -26,6 +26,64 @@ appendRepeated(UA_ByteString *dst, const UA_String fragment, size_t count) {
         ck_assert_uint_eq(UA_String_append(dst, fragment), UA_STATUSCODE_GOOD);
 }
 
+START_TEST(json_decode_enum_compact_and_verbose) {
+    UA_Int32 value = UA_APPLICATIONTYPE_SERVER;
+
+    UA_StatusCode res = decode("1", &value,
+                               &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, UA_APPLICATIONTYPE_CLIENT);
+
+    res = decode("\"Client_1\"", &value,
+                 &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, UA_APPLICATIONTYPE_CLIENT);
+
+    /* Unknown literals are encoded as a numeric string in Verbose mode. */
+    res = decode("\"17\"", &value, &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, 17);
+
+    /* Enumeration names can contain underscores and values can be negative. */
+    res = decode("\"A_Name_-3\"", &value,
+                 &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, -3);
+
+    /* Apply JSON string unescaping before splitting name and value. */
+    res = decode("\"Client\\u005f1\"", &value,
+                 &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, UA_APPLICATIONTYPE_CLIENT);
+} END_TEST
+
+START_TEST(json_decode_enum_rejects_invalid_verbose_values) {
+    const char *invalid[] = {
+        "\"Client\"", "\"_1\"", "\"Client_\"", "\"Client_1x\"",
+        "\"Client_2147483648\"", "null", "{}"
+    };
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        UA_ApplicationType value = UA_APPLICATIONTYPE_SERVER;
+        UA_StatusCode res = decode(invalid[i], &value,
+                                   &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+        ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    }
+} END_TEST
+
+START_TEST(json_decode_mixed_compact_and_verbose) {
+    /* SecurityMode is Compact while the nested ApplicationType is Verbose.
+     * Other Structure fields are omitted with their default values. */
+    const char *json =
+        "{\"Server\":{\"ApplicationType\":\"Client_1\"},"
+        "\"SecurityMode\":1}";
+    UA_EndpointDescription value;
+    UA_StatusCode res = decode(json, &value,
+                               &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value.server.applicationType, UA_APPLICATIONTYPE_CLIENT);
+    ck_assert_int_eq(value.securityMode, UA_MESSAGESECURITYMODE_NONE);
+    UA_EndpointDescription_clear(&value);
+} END_TEST
 /* ============================================================
  * 1. Variant_decodeJsonUnwrapExtensionObject
  * ============================================================ */
@@ -1222,6 +1280,12 @@ START_TEST(json_decode_qualifiedname_null) {
  * ============================================================ */
 int main(void) {
     Suite *s = suite_create("JSON Decode Ext");
+
+    TCase *tc_modes = tcase_create("CompactAndVerbose");
+    tcase_add_test(tc_modes, json_decode_enum_compact_and_verbose);
+    tcase_add_test(tc_modes, json_decode_enum_rejects_invalid_verbose_values);
+    tcase_add_test(tc_modes, json_decode_mixed_compact_and_verbose);
+    suite_add_tcase(s, tc_modes);
 
     TCase *tc_variant_eo = tcase_create("VariantEO");
     tcase_add_test(tc_variant_eo, json_decode_variant_unwrap_eo_known_type);

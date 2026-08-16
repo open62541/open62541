@@ -1585,6 +1585,55 @@ DECODE_JSON(String) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Compact Enumerations are JSON numbers. Verbose Enumerations are strings in
+ * the form <name>_<value>, or just <value> if the literal is unknown. The
+ * numeric suffix is sufficient for decoding; UA_DataType intentionally does
+ * not carry the optional literal-name metadata. */
+DECODE_JSON(Enum) {
+    if(currentTokenType(ctx) == CJ5_TOKEN_NUMBER)
+        return Int32_decodeJson(ctx, p, type);
+    if(currentTokenType(ctx) != CJ5_TOKEN_STRING)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    UA_String encoded = UA_STRING_NULL;
+    status ret = String_decodeJson(ctx, &encoded, &UA_TYPES[UA_TYPES_STRING]);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    /* Use the suffix after the final underscore, if present. Enumeration
+     * names can themselves contain underscores. */
+    size_t numberStart = 0;
+    for(size_t i = encoded.length; i > 0; i--) {
+        if(encoded.data[i - 1] != '_')
+            continue;
+        if(i == 1 || i == encoded.length) {
+            ret = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
+        numberStart = i;
+        break;
+    }
+
+    size_t numberLength = encoded.length - numberStart;
+    if(numberLength == 0) {
+        ret = UA_STATUSCODE_BADDECODINGERROR;
+        goto cleanup;
+    }
+
+    UA_Int64 value = 0;
+    size_t parsed = parseInt64((const char*)&encoded.data[numberStart],
+                               numberLength, &value);
+    if(parsed != numberLength || value < UA_INT32_MIN || value > UA_INT32_MAX) {
+        ret = UA_STATUSCODE_BADDECODINGERROR;
+        goto cleanup;
+    }
+    *(UA_Int32*)p = (UA_Int32)value;
+
+ cleanup:
+    UA_String_clear(&encoded);
+    return ret;
+}
+
 DECODE_JSON(ByteString) {
     UA_ByteString *dst = (UA_ByteString*)p;
     CHECK_TOKEN_BOUNDS;
@@ -2748,7 +2797,7 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
     Variant_decodeJson,
     DiagnosticInfo_decodeJson,
     decodeJsonNotImplemented, /* Decimal */
-    Int32_decodeJson, /* Enum */
+    Enum_decodeJson,
     decodeJsonStructure,
     decodeJsonStructure, /* Structure with optional fields */
     decodeJsonUnion,
