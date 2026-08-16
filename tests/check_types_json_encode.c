@@ -1033,15 +1033,13 @@ START_TEST(json_encode_unquoted_keys) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
-START_TEST(json_encode_string_nodeids) {
-    UA_EncodeJsonOptions opts;
-    memset(&opts, 0, sizeof(opts));
-    opts.stringNodeIds = true;
-
+START_TEST(json_encode_nodeids_as_strings) {
     UA_NodeId val = UA_NODEID_NUMERIC(0, 2255);
     UA_ByteString buf = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_NODEID], &buf, &opts);
+    UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_NODEID],
+                                      &buf, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "\"i=2255\"");
     UA_ByteString_clear(&buf);
 } END_TEST
 
@@ -1268,7 +1266,7 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_options, json_encode_prettyprint);
     tcase_add_test(tc_options, json_encode_prettyprint_array);
     tcase_add_test(tc_options, json_encode_unquoted_keys);
-    tcase_add_test(tc_options, json_encode_string_nodeids);
+    tcase_add_test(tc_options, json_encode_nodeids_as_strings);
     tcase_add_test(tc_options, json_calcsize);
 
     TCase *tc_struct = tcase_create("StructJsonEncoding");
