@@ -84,6 +84,8 @@ typedef struct {
     /* Callback to close all SecureChannels after calling applyChanges
      * and freeing the transaction. */
     UA_DelayedCallback dc;
+    /* Prevent duplicate enqueue of the embedded dc (use-after-free). */
+    UA_Boolean applyChangesQueued;
 } UA_GDSTransaction;
 
 UA_StatusCode
@@ -234,6 +236,9 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
+
+    /* Current depth while recursively instantiating node children */
+    size_t nodeInstantiationDepth;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS

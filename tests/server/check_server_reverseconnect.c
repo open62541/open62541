@@ -121,7 +121,10 @@ iterateClient(UA_UInt32 fakeSleep) {
 static void
 iterateClientServer(UA_UInt32 fakeSleep) {
     UA_Server_run_iterate(server, false);
-    UA_Client_run_iterate(client, 0);
+    /* Give the socket event loop time to make progress. A fully non-blocking
+     * loop can exhaust REVERSECONNECT_MAX_ITERATIONS before the operating
+     * system schedules the peer, making the callback assertions flaky. */
+    UA_Client_run_iterate(client, 1);
     UA_fakeSleep(fakeSleep);
 }
 

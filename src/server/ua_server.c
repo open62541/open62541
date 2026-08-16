@@ -193,6 +193,7 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server, const 
     UA_NodeId_copy(&sessionId, &transaction->sessionId);
     transaction->server = server;
     transaction->localCsrCertificate = csr;
+    transaction->applyChangesQueued = false;
 
     return UA_STATUSCODE_GOOD;
 }
