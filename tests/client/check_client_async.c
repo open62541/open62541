@@ -320,8 +320,10 @@ START_TEST(Client_read_async_timed) {
                                           &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        /* Process async responses during 1s */
-        retval = UA_Client_run_iterate(client, 999 + 1);
+        /* Process event batches for up to 1s. A send-completion batch may
+         * legally make the EventLoop return before the response arrives. */
+        for(size_t i = 0; i < 100 && asyncCounter == 0; i++)
+            retval |= UA_Client_run_iterate(client, 10);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(asyncCounter, 1);
 
