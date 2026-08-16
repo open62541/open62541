@@ -1178,6 +1178,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT ds
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, return ret);
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+                 return UA_STATUSCODE_BADDECODINGERROR);
         ctx->pos += member_length;
     }
 
@@ -1198,7 +1200,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT ds
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, return ret);
-        UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+                 return UA_STATUSCODE_BADDECODINGERROR);
         const u8 *expected_end = ctx->pos + member_length;
         ret = decodeBinaryJumpTable[contentType->typeKind]
             ((void*)array_pos, contentType, ctx);
