@@ -496,6 +496,16 @@ START_TEST(json_decode_variant_dimension_mismatch) {
     UA_Variant_clear(&v);
 } END_TEST
 
+START_TEST(json_decode_variant_zero_dimension) {
+    const char *json =
+        "{\"UaType\":6,\"Value\":[],\"Dimensions\":[2,0]}";
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_Variant_clear(&v);
+} END_TEST
+
 /* Variant with 3D array */
 START_TEST(json_decode_variant_3d_array) {
     const char *json =
@@ -1256,6 +1266,7 @@ int main(void) {
     tcase_add_test(tc_variant, json_decode_variant_2d_array);
     tcase_add_test(tc_variant, json_decode_variant_1d_dimension);
     tcase_add_test(tc_variant, json_decode_variant_dimension_mismatch);
+    tcase_add_test(tc_variant, json_decode_variant_zero_dimension);
     tcase_add_test(tc_variant, json_decode_variant_3d_array);
     tcase_add_test(tc_variant, json_decode_variant_array_of_variants);
     tcase_add_test(tc_variant,

@@ -1123,9 +1123,58 @@ START_TEST(json_encode_variant_2d_array) {
     UA_ByteString buf = UA_BYTESTRING_NULL;
     UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_VARIANT], &buf, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf,
+                    "{\"UaType\":6,\"Value\":[1,2,3,4,5,6],"
+                    "\"Dimensions\":[2,3]}");
+
+    UA_Variant decoded;
+    UA_Variant_init(&decoded);
+    res = UA_decodeJson(&buf, &decoded, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(decoded.type, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(decoded.arrayLength, 6);
+    ck_assert_uint_eq(decoded.arrayDimensionsSize, 2);
+    ck_assert_uint_eq(decoded.arrayDimensions[0], 2);
+    ck_assert_uint_eq(decoded.arrayDimensions[1], 3);
+    ck_assert_mem_eq(decoded.data, matrix, sizeof(matrix));
+
+    UA_Variant_clear(&decoded);
     UA_ByteString_clear(&buf);
 
     /* Don't clear val - we used stack arrays */
+} END_TEST
+
+START_TEST(json_encode_variant_rejects_invalid_matrix) {
+    UA_Int32 value = 1;
+    UA_UInt32 dimensions[2] = {2, 0};
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_Variant_setArray(&val, &value, 1, &UA_TYPES[UA_TYPES_INT32]);
+    val.arrayDimensionsSize = 2;
+    val.arrayDimensions = dimensions;
+
+    UA_ByteString buf;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&buf, 128),
+                      UA_STATUSCODE_GOOD);
+    UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+
+    dimensions[0] = 1;
+    dimensions[1] = 2;
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_VARIANT], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+
+    val.arrayDimensions = NULL;
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_VARIANT], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+
+    UA_Variant_setScalar(&val, &value, &UA_TYPES[UA_TYPES_INT32]);
+    val.arrayDimensionsSize = 2;
+    val.arrayDimensions = dimensions;
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_VARIANT], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+    UA_ByteString_clear(&buf);
 } END_TEST
 
 /* === ApplicationDescription JSON encoding (many fields) === */
@@ -1254,6 +1303,7 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_complex, json_encode_extensionobject_bytestring);
     tcase_add_test(tc_complex, json_encode_extensionobject_empty_object);
     tcase_add_test(tc_complex, json_encode_variant_2d_array);
+    tcase_add_test(tc_complex, json_encode_variant_rejects_invalid_matrix);
     tcase_add_test(tc_complex, json_optional_structure_roundtrip);
     tcase_add_test(tc_complex, json_optional_structure_compact_decode);
     tcase_add_test(tc_complex, json_optional_structure_rejects_bad_mask);
