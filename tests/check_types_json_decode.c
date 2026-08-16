@@ -1094,6 +1094,34 @@ START_TEST(json_decode_invalid_json) {
     UA_Variant_clear(&v);
 } END_TEST
 
+START_TEST(json_decode_initializes_destination_on_tokenizer_error) {
+    UA_String value;
+    memset(&value, 0xa5, sizeof(value));
+    UA_StatusCode res = decode("[", &value, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_eq(value.length, 0);
+    ck_assert(value.data == NULL);
+} END_TEST
+
+START_TEST(json_decode_reports_boundary_with_trailing_input) {
+    const char *json = "42 trailing";
+    UA_ByteString src = UA_BYTESTRING((char*)(uintptr_t)json);
+    UA_Int32 value = 0;
+    size_t decodedLength = 0;
+    UA_DecodeJsonOptions options;
+    memset(&options, 0, sizeof(options));
+    options.decodedLength = &decodedLength;
+    UA_StatusCode res = UA_decodeJson(&src, &value, &UA_TYPES[UA_TYPES_INT32],
+                                      &options);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(value, 42);
+    ck_assert_uint_eq(decodedLength, 2);
+
+    value = 0;
+    res = UA_decodeJson(&src, &value, &UA_TYPES[UA_TYPES_INT32], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
 /* Truncated JSON */
 START_TEST(json_decode_truncated_json) {
     const char *json = "{\"UaType\":6,\"Val";
@@ -1297,6 +1325,10 @@ int main(void) {
     tcase_add_test(tc_extra, json_decode_datavalue_with_timestamps);
     tcase_add_test(tc_extra, json_decode_datavalue_null);
     tcase_add_test(tc_extra, json_decode_invalid_json);
+    tcase_add_test(tc_extra,
+                   json_decode_initializes_destination_on_tokenizer_error);
+    tcase_add_test(tc_extra,
+                   json_decode_reports_boundary_with_trailing_input);
     tcase_add_test(tc_extra, json_decode_truncated_json);
     tcase_add_test(tc_extra, json_decode_null_arguments);
     tcase_add_test(tc_extra, json_decode_roundtrip_int32);

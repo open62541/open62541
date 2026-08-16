@@ -2783,6 +2783,9 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     if(!dst || !src || !type)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
+    /* The destination is always initialized, including tokenizer failures. */
+    memset(dst, 0, type->memSize);
+
     /* Set up the context */
     cj5_token tokens[UA_JSON_MAXTOKENCOUNT];
     ParseCtx ctx;
@@ -2802,12 +2805,11 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    memset(dst, 0, type->memSize); /* Initialize the value */
     ret = decodeJsonJumpTable[type->typeKind](&ctx, dst, type);
 
-    /* Sanity check if all tokens were processed */
-    if(ctx.index != ctx.tokensSize &&
-       ctx.index != ctx.tokensSize - 1)
+    /* Boundary decoding intentionally stops after the first JSON value. */
+    if((!options || !options->decodedLength) &&
+       ctx.index != ctx.tokensSize)
         ret = UA_STATUSCODE_BADDECODINGERROR;
 
  cleanup:
