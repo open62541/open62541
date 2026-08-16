@@ -894,17 +894,21 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
     dst->content.decoded.data = UA_new(type);
     UA_CHECK_MEM(dst->content.decoded.data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
+    /* Set the decoded state before any further operation can fail so the
+     * caller's error cleanup releases the allocated content. */
+    dst->encoding = UA_EXTENSIONOBJECT_DECODED;
+    dst->content.decoded.type = type;
+
     /* Read the length field and validate that the inner decoder consumes exactly
      * that many bytes, closing a decoder-vs-IDS split-view channel. */
     u32 member_length = 0;
     status ret = DECODE_DIRECT(&member_length, UInt32);
     UA_CHECK_STATUS(ret, return ret);
-    UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+    UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+             return UA_STATUSCODE_BADDECODINGERROR);
     const u8 *expected_end = ctx->pos + member_length;
 
     /* Decode */
-    dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->content.decoded.type = type;
     ret = decodeBinaryJumpTable[type->typeKind](dst->content.decoded.data, type, ctx);
     if(ret == UA_STATUSCODE_GOOD && ctx->pos != expected_end)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1075,7 +1079,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, UA_NodeId_clear(&typeId); return ret);
-        UA_CHECK(ctx->pos + member_length <= ctx->end,
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
                  UA_NodeId_clear(&typeId); return UA_STATUSCODE_BADDECODINGERROR);
         expected_end = ctx->pos + member_length;
     } else {
@@ -1174,6 +1178,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT ds
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, return ret);
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+                 return UA_STATUSCODE_BADDECODINGERROR);
         ctx->pos += member_length;
     }
 
@@ -1194,7 +1200,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT ds
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, return ret);
-        UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+                 return UA_STATUSCODE_BADDECODINGERROR);
         const u8 *expected_end = ctx->pos + member_length;
         ret = decodeBinaryJumpTable[contentType->typeKind]
             ((void*)array_pos, contentType, ctx);
