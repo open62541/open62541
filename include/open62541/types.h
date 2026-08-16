@@ -1283,7 +1283,10 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  *
  * The JSON encoding follows OPC UA 1.05 and represents NodeIds and
  * ExpandedNodeIds with their standard string syntax (for example
- * ``"ns=1;i=42"``). The decoder further allows the following extensions:
+ * ``"ns=1;i=42"``). The decoder accepts Compact and Verbose values without an
+ * a priori mode setting. The encoding is detected independently for nested
+ * values, so mixed input is supported. The decoder further allows the
+ * following extensions:
  *
  * - The strict JSON format is relaxed to also allow the JSON5 extensions
  *   (https://json5.org/). This allows for more human-readable encoding and adds
