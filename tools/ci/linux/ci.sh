@@ -94,6 +94,7 @@ function build_amalgamation {
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           ..
     make open62541-amalgamation ${MAKEOPTS}

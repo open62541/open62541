@@ -105,6 +105,19 @@ createCertName(const UA_ByteString *certificate, char *fileNameBuf, size_t fileN
         subName = subjectNameBuffer;
     }
 
+    /* The subject name is fully attacker-controlled (it comes from the
+     * certificate presented to ServerConfiguration.UpdateCertificate) and
+     * is used verbatim as part of a filename below. Replace path
+     * separators and control characters so the subject cannot break out
+     * of the certificate / private-key directories the filename is
+     * written into. This is independent of how a given crypto backend
+     * renders the subject string, e.g. mbedTLS preserves '/' in the CN
+     * while OpenSSL escapes it. */
+    for(char *p = subName; *p != '\0'; p++) {
+        if(*p == '/' || *p == '\\' || (unsigned char)*p < 0x20)
+            *p = '_';
+    }
+
     if(mp_snprintf(fileNameBuf, fileNameLen, "%s[%s]", subName, thumbprintBuffer) < 0)
         retval = UA_STATUSCODE_BADINTERNALERROR;
 

@@ -289,7 +289,7 @@ getFieldMetaData(const UA_DataSetMessage_EncodingMetaData *emd,
                  size_t index) {
     if(!emd)
         return NULL;
-    if(index > emd->fieldsSize)
+    if(index >= emd->fieldsSize)
         return NULL;
     return &emd->fields[index];
 }

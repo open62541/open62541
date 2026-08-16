@@ -803,14 +803,31 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
 
     UA_ReadResponse *resp = (UA_ReadResponse *)response;
 
-    /* Add received namespaces to the local array. */
-    if(!resp->results || !resp->results[0].value.data) {
+    /* Validate the response before dereferencing results[0]. An
+     * empty-array encoding yields UA_EMPTY_ARRAY_SENTINEL (0x1, non-NULL),
+     * bypassing a bare "!resp->results" check. */
+    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD ||
+       resp->resultsSize < 1 ||
+       !resp->results ||
+       !resp->results[0].hasValue ||
+       !resp->results[0].value.data ||
+       resp->results[0].value.data == UA_EMPTY_ARRAY_SENTINEL) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "No result in the read namespace array response");
         return;
     }
+    if(!UA_Variant_hasArrayType(&resp->results[0].value, &UA_TYPES[UA_TYPES_STRING])) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Read NamespaceArray returned an unexpected type");
+        return;
+    }
     UA_String *ns = (UA_String *)resp->results[0].value.data;
     size_t nsSize = resp->results[0].value.arrayLength;
+    if(nsSize < 2) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Read NamespaceArray returned too few entries");
+        return;
+    }
     UA_String_copy(&ns[1], &client->namespaces[1]);
     for(size_t i = 2; i < nsSize; ++i) {
         UA_UInt16 nsIndex = 0;

@@ -34,9 +34,22 @@ deleteNodeIdEntry(void *context, NodeIdTreeEntry *elm) {
     return NULL;
 }
 
+/* Hard limits on the depth and size of the remote DataType subtype
+ * tree traversed below. */
+#define UA_MAX_REMOTE_DATATYPE_DEPTH 64u
+#define UA_MAX_REMOTE_DATATYPE_NODES 4096u
+
 static UA_StatusCode
 browseDataTypesRecursive(UA_Client *client, NodeIdTree *tree,
-                         size_t *treeSize, UA_NodeId typeNode) {
+                         size_t *treeSize, UA_NodeId typeNode, size_t depth) {
+    /* Abort once the traversal exceeds the depth or node count limit */
+    if(depth > UA_MAX_REMOTE_DATATYPE_DEPTH ||
+       *treeSize > UA_MAX_REMOTE_DATATYPE_NODES) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "Remote DataType tree exceeds traversal limits");
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    }
+
     /* Set up the browse request */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -81,7 +94,8 @@ browseDataTypesRecursive(UA_Client *client, NodeIdTree *tree,
         (*treeSize)++;
 
         /* Recurse */
-        res = browseDataTypesRecursive(client, tree, treeSize, rd->nodeId.nodeId);
+        res = browseDataTypesRecursive(client, tree, treeSize,
+                                       rd->nodeId.nodeId, depth + 1);
 
         /* Don't double-free */
         UA_NodeId_init(&rd->nodeId.nodeId);
@@ -205,7 +219,7 @@ UA_Client_getRemoteDataTypes(UA_Client *client,
         NodeIdTree tree;
         ZIP_INIT(&tree);
         size_t treeSize = 0;
-        res = browseDataTypesRecursive(client, &tree, &treeSize, UA_NS0ID(STRUCTURE));
+        res = browseDataTypesRecursive(client, &tree, &treeSize, UA_NS0ID(STRUCTURE), 0);
         if(res != UA_STATUSCODE_GOOD) {
             ZIP_ITER(NodeIdTree, &tree, deleteNodeIdEntry, NULL);
             return res;

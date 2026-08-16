@@ -865,14 +865,23 @@ __Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
     } else if(attributeId == UA_ATTRIBUTEID_NODECLASS) {
-        memcpy(out, (UA_NodeClass*)res->value.data, sizeof(UA_NodeClass));
+        /* NodeClass is an enum and is encoded as Int32 on the wire, so the
+         * generic branch below does not match it. */
+        if(!UA_Variant_isScalar(&res->value) || !res->value.data ||
+           !res->value.type ||
+           res->value.type->memSize != sizeof(UA_NodeClass)) {
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+        } else {
+            memcpy(out, res->value.data, sizeof(UA_NodeClass));
+        }
     } else if(UA_Variant_isScalar(&res->value) &&
-              res->value.type == outDataType) {
+              res->value.type == outDataType &&
+              res->value.data) {
         memcpy(out, res->value.data, res->value.type->memSize);
         UA_free(res->value.data);
         res->value.data = NULL;
     } else {
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     UA_ReadResponse_clear(&response);
