@@ -785,6 +785,21 @@ START_TEST(json_encode_extensionobject_bytestring) {
     UA_ByteString buf = UA_BYTESTRING_NULL;
     UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &buf, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf,
+                    "{\"UaTypeId\":\"i=999\",\"UaEncoding\":1,"
+                    "\"UaBody\":\"dGVzdA==\"}");
+    UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(json_encode_extensionobject_empty_object) {
+    UA_ExtensionObject value;
+    UA_ExtensionObject_init(&value);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&value,
+                                      &UA_TYPES[UA_TYPES_EXTENSIONOBJECT],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{}");
     UA_ByteString_clear(&buf);
 } END_TEST
 
@@ -1063,6 +1078,7 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_complex, json_encode_extensionobject_decoded);
     tcase_add_test(tc_complex, json_extensionobject_exact_wire_roundtrip);
     tcase_add_test(tc_complex, json_encode_extensionobject_bytestring);
+    tcase_add_test(tc_complex, json_encode_extensionobject_empty_object);
     tcase_add_test(tc_complex, json_encode_variant_2d_array);
     tcase_add_test(tc_complex, json_optional_structure_roundtrip);
     tcase_add_test(tc_complex, json_optional_structure_compact_decode);

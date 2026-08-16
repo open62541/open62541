@@ -615,7 +615,17 @@ ENCODE_JSON(StatusCode) {
 ENCODE_JSON(ExtensionObject) {
     const UA_ExtensionObject *src = (const UA_ExtensionObject*)p;
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-        return writeChars(ctx, "null", 4);
+        return writeChars(ctx, "{}", 2);
+
+    /* Unknown JSON datatypes retain their complete wire representation. */
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_JSON) {
+        if(src->content.encoded.body.length < 2 ||
+           src->content.encoded.body.data[0] != '{' ||
+           src->content.encoded.body.data[src->content.encoded.body.length - 1] != '}')
+            return UA_STATUSCODE_BADENCODINGERROR;
+        return writeChars(ctx, (const char*)src->content.encoded.body.data,
+                          src->content.encoded.body.length);
+    }
 
     /* Must have a type set if data is decoded */
     if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
@@ -644,7 +654,7 @@ ENCODE_JSON(ExtensionObject) {
             ret |= writeChar(ctx, '2');
         }
         ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= String_encodeJson(ctx, &src->content.encoded.body, NULL);
+        ret |= ByteString_encodeJson(ctx, &src->content.encoded.body, NULL);
         return ret | writeJsonObjEnd(ctx);
     }
 
@@ -1134,34 +1144,6 @@ skipObject(ParseCtx *ctx) {
             ctx->tokens[ctx->index].start < end);
 }
 
-/* Reject duplicate names in the current object. The JSON mapping requires
- * this explicitly for ExtensionObjects, including metadata fields that are
- * inspected before the regular field decoder runs. */
-static status
-validateObjectKeysUnique(ParseCtx *ctx) {
-    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
-    size_t keyCount = (size_t)ctx->tokens[ctx->index].size / 2;
-    UA_STACKARRAY(size_t, keys, keyCount);
-    ParseCtx scan = *ctx;
-    scan.index++;
-    for(size_t i = 0; i < keyCount; i++) {
-        UA_assert(currentTokenType(&scan) == CJ5_TOKEN_STRING);
-        const cj5_token *key = &scan.tokens[scan.index];
-        size_t keyLength = getTokenLength(key);
-        for(size_t j = 0; j < i; j++) {
-            const cj5_token *previous = &scan.tokens[keys[j]];
-            if(keyLength == getTokenLength(previous) &&
-               memcmp(&scan.json5[key->start], &scan.json5[previous->start],
-                      keyLength) == 0)
-                return UA_STATUSCODE_BADDECODINGERROR;
-        }
-        keys[i] = scan.index;
-        scan.index++;
-        skipObject(&scan);
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
 static status
 Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type);
 
@@ -1185,6 +1167,54 @@ jsoneq(const char *json, const cj5_token *tok, const char *searchKey) {
         return 0;
 
     return -1;
+}
+
+/* Fields whose value position is collected while walking an object once in
+ * forward direction. Decoding can then jump directly to the value, independent
+ * of the order in which the fields appeared. */
+typedef struct {
+    const char *fieldName;
+    size_t valueIndex;
+} JsonFieldIndex;
+
+/* Scan the current object once, reject duplicate names and collect the value
+ * positions for the requested fields. The context is advanced past the object. */
+static status
+scanObjectFields(ParseCtx *ctx, JsonFieldIndex *fields, size_t fieldsSize) {
+    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
+    size_t keyCount = (size_t)ctx->tokens[ctx->index].size / 2;
+    UA_STACKARRAY(size_t, keys, keyCount);
+    ctx->index++;
+
+    for(size_t i = 0; i < keyCount; i++) {
+        UA_assert(currentTokenType(ctx) == CJ5_TOKEN_STRING);
+        const cj5_token *key = &ctx->tokens[ctx->index];
+        size_t keyLength = getTokenLength(key);
+
+        /* Duplicate names are invalid, including unknown in-situ Structure
+         * fields of an ExtensionObject. */
+        for(size_t j = 0; j < i; j++) {
+            const cj5_token *previous = &ctx->tokens[keys[j]];
+            if(keyLength == getTokenLength(previous) &&
+               memcmp(&ctx->json5[key->start], &ctx->json5[previous->start],
+                      keyLength) == 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
+        }
+        keys[i] = ctx->index;
+
+        /* Record the value position of interesting fields. */
+        ctx->index++;
+        UA_assert(ctx->index < ctx->tokensSize);
+        for(size_t j = 0; j < fieldsSize; j++) {
+            if(jsoneq(ctx->json5, key, fields[j].fieldName) == 0) {
+                fields[j].valueIndex = ctx->index;
+                break;
+            }
+        }
+
+        skipObject(ctx);
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(Boolean) {
@@ -2057,63 +2087,6 @@ tokenToByteString(ParseCtx *ctx, UA_ByteString *p) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Remove an unwanted field from an object. The original data is in ctx->json5.
- * ctx->index points to the beginning of the object. That object was copied
- * verbatim into the encoding ByteString. tokenIndex points to the field (after
- * the field name) that shall be removed. */
-static void
-removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding,
-                        size_t parentIndex, size_t tokenIndex) {
-    /* Which part of the encoding to cut out */
-    unsigned objStart = ctx->tokens[parentIndex].start;
-    unsigned objEnd = ctx->tokens[parentIndex].end;
-    unsigned start = ctx->tokens[tokenIndex-1].start;
-    unsigned end = ctx->tokens[tokenIndex].end + 1; /* One char after */
-
-    UA_Boolean haveBefore = (parentIndex < tokenIndex - 2);
-    if(haveBefore) {
-        /* Find where the previous token ended. This also removes the comma
-         * between the previous and the current element. */
-        for(size_t i = parentIndex + 2; i < tokenIndex - 1; i++) {
-            if(ctx->tokens[i].end + 1 > start)
-                start = ctx->tokens[i].end + 1;
-        }
-        if(ctx->json5[start] == '"' || ctx->json5[start] == '\'')
-            start++;
-    } else {
-        /* No previous element. Remove the quoation marks of the field name. */
-        start = ctx->tokens[tokenIndex-1].start;
-        if(start > 0 && (ctx->json5[start-1] == '"' || ctx->json5[start-1] == '\''))
-            start--;
-
-        /* Find the beginning of the next field in the object.
-         * This removes the comma after the current field. */
-        size_t oldIndex = ctx->index;
-        ctx->index = tokenIndex;
-        skipObject(ctx);
-        if(ctx->index < ctx->tokensSize && ctx->tokens[ctx->index].start < objEnd) {
-            end = ctx->tokens[ctx->index].start;
-            if(ctx->json5[end-1] == '"' || ctx->json5[end-1] == '\'')
-                end--;
-        }
-        ctx->index = oldIndex;
-    }
-
-    UA_assert(end > start);
-    UA_assert(start > objStart);
-
-    /* Move the offset from ctx->json5 to encoding->data */
-    start -= objStart;
-    end -= objStart;
-
-    UA_assert(end <= encoding->length);
-
-    /* Cut out the field we want to remove */
-    size_t after_len = encoding->length - end;
-    memmove(encoding->data + start, encoding->data + end, after_len);
-    encoding->length -= (end - start);
-}
-
 DECODE_JSON(ExtensionObject) {
     UA_ExtensionObject *dst = (UA_ExtensionObject*)p;
     CHECK_NULL_SKIP; /* Treat a null value as an empty DataValue */
@@ -2125,18 +2098,21 @@ DECODE_JSON(ExtensionObject) {
         return UA_STATUSCODE_GOOD;
     }
 
-    status ret = validateObjectKeysUnique(ctx);
+    /* Scan the object once for metadata and duplicate keys. */
+    size_t beginIndex = ctx->index;
+    JsonFieldIndex fields[3] = {
+        {UA_JSONKEY_TYPEID, SIZE_MAX},
+        {UA_JSONKEY_ENCODING, SIZE_MAX},
+        {UA_JSONKEY_BODY, SIZE_MAX}
+    };
+    status ret = scanObjectFields(ctx, fields, 3);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
-    /* Store the index where the ExtensionObject begins */
-    size_t beginIndex = ctx->index;
-
-    /* Search for non-JSON encoding */
+    /* Decode the optional non-JSON encoding. */
     UA_UInt64 encoding = 0;
-    size_t encIndex = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
-    if(ret == UA_STATUSCODE_GOOD) {
+    size_t encIndex = fields[1].valueIndex;
+    if(encIndex != SIZE_MAX) {
         const char *extObjEncoding = &ctx->json5[ctx->tokens[encIndex].start];
         size_t len = parseUInt64(extObjEncoding,
                                  getTokenLength(&ctx->tokens[encIndex]),
@@ -2145,76 +2121,43 @@ DECODE_JSON(ExtensionObject) {
             return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    /* Get the type NodeId index */
-    size_t typeIdIndex = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
-    if(ret != UA_STATUSCODE_GOOD)
+    /* Decode the type NodeId. */
+    size_t typeIdIndex = fields[0].valueIndex;
+    if(typeIdIndex == SIZE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Decode the type NodeId */
     UA_NodeId typeId;
     UA_NodeId_init(&typeId);
-    ctx->index = (UA_UInt16)typeIdIndex;
-    ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-    ctx->index = beginIndex;
+    ParseCtx decodeCtx = *ctx;
+    decodeCtx.index = typeIdIndex;
+    ret = NodeId_decodeJson(&decodeCtx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(ret != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&typeId); /* We don't have the global cleanup */
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    /* Lookup the type */
-    type = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
+    size_t bodyIndex = fields[2].valueIndex;
 
-    /* Unknown body type */
-    if(!type) {
-        /* FIXME: We need UA_EXTENSIONOBJECT_ENCODED_JSON when we parse an
-         * unknown type in JSON. But it is not defined in the standard. */
-        dst->encoding = (encoding != 2) ?
+    /* Binary and XML bodies stay encoded even if the datatype is known. */
+    if(encoding != 0) {
+        dst->encoding = (encoding == 1) ?
             UA_EXTENSIONOBJECT_ENCODED_BYTESTRING :
             UA_EXTENSIONOBJECT_ENCODED_XML;
         dst->content.encoded.typeId = typeId;
+        if(bodyIndex == SIZE_MAX)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        decodeCtx.index = bodyIndex;
+        return ByteString_decodeJson(&decodeCtx,
+                                     &dst->content.encoded.body, NULL);
+    }
 
-        /* Get the body field index */
-        size_t bodyIndex = 0;
-        ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &bodyIndex);
-        if(ret != UA_STATUSCODE_GOOD) {
-            /* Only JSON structures can be encoded in-situ */
-            if(encoding != 0)
-                return UA_STATUSCODE_BADDECODINGERROR;
-
-            /* Extract the entire ExtensionObject object as the body */
-            size_t parentIndex = ctx->index;
-            ret = tokenToByteString(ctx, &dst->content.encoded.body);
-            if(ret != UA_STATUSCODE_GOOD)
-                return ret;
-
-            /* Remove the UaEncoding and UaTypeId field from the encoding.
-             * Remove the later field first. */
-            if(encIndex != 0 && encIndex > typeIdIndex)
-                removeFieldFromEncoding(ctx, &dst->content.encoded.body,
-                                        parentIndex, encIndex);
-
-            removeFieldFromEncoding(ctx, &dst->content.encoded.body,
-                                    parentIndex, typeIdIndex);
-
-            if(encIndex != 0 && encIndex < typeIdIndex)
-                removeFieldFromEncoding(ctx, &dst->content.encoded.body,
-                                        parentIndex, encIndex);
-
-            return UA_STATUSCODE_GOOD;
-        }
-
-        ctx->index = bodyIndex;
-        if(encoding != 0) {
-            /* Decode the body as a ByteString */
-            ret = ByteString_decodeJson(ctx, &dst->content.encoded.body, NULL);
-        } else {
-            /* Use the JSON encoding directly */
-            ret = tokenToByteString(ctx, &dst->content.encoded.body);
-        }
-        ctx->index = beginIndex;
-        skipObject(ctx);
-        return ret;
+    /* Lookup the JSON datatype. */
+    type = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
+    if(!type) {
+        dst->encoding = UA_EXTENSIONOBJECT_ENCODED_JSON;
+        dst->content.encoded.typeId = typeId;
+        decodeCtx.index = beginIndex;
+        return tokenToByteString(&decodeCtx, &dst->content.encoded.body);
     }
 
     /* No need to keep the TypeId */
@@ -2231,30 +2174,25 @@ DECODE_JSON(ExtensionObject) {
     dst->content.decoded.type = type;
     dst->encoding = UA_EXTENSIONOBJECT_DECODED;
 
-    /* Get the body field index */
     decodeJsonSignature decodeType = decodeJsonJumpTable[type->typeKind];
-    size_t bodyIndex = ctx->index;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &bodyIndex); /* Can fail */
-    if(ret == UA_STATUSCODE_GOOD) {
-        ctx->index = bodyIndex;
-        ret = decodeType(ctx, dst->content.decoded.data, type);
-        ctx->index = beginIndex;
-        skipObject(ctx);
-        return ret;
+    if(bodyIndex != SIZE_MAX) {
+        decodeCtx.index = bodyIndex;
+        return decodeType(&decodeCtx, dst->content.decoded.data, type);
     }
 
     /* Only JSON structures without an explicit encoding can be in-situ. */
     if(encoding != 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    decodeCtx.index = beginIndex;
     if(type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
        type->typeKind == UA_DATATYPEKIND_OPTSTRUCT)
         return decodeJsonStructureExtensionObject(
-            ctx, dst->content.decoded.data, type);
+            &decodeCtx, dst->content.decoded.data, type);
     if(type->typeKind == UA_DATATYPEKIND_UNION)
         return decodeJsonUnionExtensionObject(
-            ctx, dst->content.decoded.data, type);
-    return decodeType(ctx, dst->content.decoded.data, type);
+            &decodeCtx, dst->content.decoded.data, type);
+    return decodeType(&decodeCtx, dst->content.decoded.data, type);
 }
 
 static status

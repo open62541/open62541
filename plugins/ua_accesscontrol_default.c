@@ -65,7 +65,8 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
     }
 
     /* Could the token be decoded? */
-    if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
+    if(userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED &&
+       userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
     const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
@@ -724,4 +725,3 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
 
     return UA_STATUSCODE_GOOD;
 }
-
