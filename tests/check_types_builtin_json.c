@@ -4691,8 +4691,7 @@ START_TEST(UA_DiagnosticInfo_null_json_decode) {
     UA_Variant_init(&out);
     UA_ByteString buf = UA_STRING("{\"UaType\":25,\"Value\":null}");
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_DIAGNOSTICINFO);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -4893,7 +4892,7 @@ START_TEST(UA_VariantBoolNull_json_decode) {
 
     // when
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
 
     // then
     UA_Variant_clear(&out);
@@ -4905,7 +4904,7 @@ START_TEST(UA_VariantNull_json_decode) {
     UA_Variant_init(&out);
     UA_ByteString buf = UA_STRING("{\"UaType\":1}");
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
     UA_Variant_clear(&out);
 }
 END_TEST

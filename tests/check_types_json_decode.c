@@ -20,6 +20,12 @@ decode(const char *json, void *dst, const UA_DataType *type) {
     return UA_decodeJson(&src, dst, type, NULL);
 }
 
+static void
+appendRepeated(UA_ByteString *dst, const UA_String fragment, size_t count) {
+    for(size_t i = 0; i < count; i++)
+        ck_assert_uint_eq(UA_String_append(dst, fragment), UA_STATUSCODE_GOOD);
+}
+
 /* ============================================================
  * 1. Variant_decodeJsonUnwrapExtensionObject
  * ============================================================ */
@@ -402,11 +408,39 @@ START_TEST(json_decode_variant_null_value) {
     UA_Variant v;
     UA_Variant_init(&v);
     UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
-    /* Allocates memory for the type but leaves it zero-initialized */
-    if(res == UA_STATUSCODE_GOOD) {
-        ck_assert(v.type != NULL);
-    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
     UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(json_decode_variant_nullable_value_omitted) {
+    const char *json = "{\"UaType\":12}";
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert(v.data != NULL);
+    UA_String *value = (UA_String*)v.data;
+    ck_assert(value->data == NULL);
+    UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(json_decode_variant_rejects_diagnosticinfo) {
+    const char *json = "{\"UaType\":25,\"Value\":{}}";
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(json_decode_datavalue_rejects_nested_datavalue) {
+    const char *json = "{\"UaType\":23,\"Value\":{}}";
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    UA_StatusCode res = decode(json, &value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_DataValue_clear(&value);
 } END_TEST
 
 /* Variant Int32 array */
@@ -486,12 +520,56 @@ START_TEST(json_decode_variant_array_of_variants) {
     UA_Variant v;
     UA_Variant_init(&v);
     UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
-    /* Array of variants is allowed (scalar variant in variant is not) */
-    if(res == UA_STATUSCODE_GOOD) {
-        ck_assert(v.type == &UA_TYPES[UA_TYPES_VARIANT]);
-        ck_assert_uint_eq(v.arrayLength, 2);
-    }
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(v.type == &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(v.arrayLength, 2);
     UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(json_decode_variant_rejects_null_nonnullable_array_element) {
+    const char *json = "{\"UaType\":6,\"Value\":[null]}";
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(json_decode_variant_dimensions_overflow) {
+    const char *json =
+        "{\"UaType\":6,\"Value\":[1],"
+        "\"Dimensions\":[4294967295,4294967295,2]}";
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res = decode(json, &v, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(json_decode_variant_nesting_limit) {
+    UA_ByteString json = UA_BYTESTRING_NULL;
+    appendRepeated(&json, UA_STRING("{\"UaType\":24,\"Value\":["), 99);
+    ck_assert_uint_eq(UA_String_append(
+        &json, UA_STRING("{\"UaType\":6,\"Value\":1}")), UA_STATUSCODE_GOOD);
+    appendRepeated(&json, UA_STRING("]}"), 99);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res = UA_decodeJson(&json, &value,
+                                      &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_ByteString_clear(&json);
+    appendRepeated(&json, UA_STRING("{\"UaType\":24,\"Value\":["), 100);
+    ck_assert_uint_eq(UA_String_append(
+        &json, UA_STRING("{\"UaType\":6,\"Value\":1}")), UA_STATUSCODE_GOOD);
+    appendRepeated(&json, UA_STRING("]}"), 100);
+    UA_Variant_init(&value);
+    res = UA_decodeJson(&json, &value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_Variant_clear(&value);
+    UA_ByteString_clear(&json);
 } END_TEST
 
 /* ============================================================
@@ -629,6 +707,20 @@ START_TEST(json_decode_variant_eo_empty_array) {
  * 6. decodeJsonStructure – bad encoding errors
  * ============================================================ */
 
+START_TEST(json_decode_structure_null_array) {
+    UA_FindServersRequest request;
+    UA_FindServersRequest_init(&request);
+    UA_StatusCode res =
+        decode("{\"LocaleIds\":null,\"ServerUris\":null}", &request,
+               &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(request.localeIdsSize, 0);
+    ck_assert_ptr_null(request.localeIds);
+    ck_assert_uint_eq(request.serverUrisSize, 0);
+    ck_assert_ptr_null(request.serverUris);
+    UA_FindServersRequest_clear(&request);
+} END_TEST
+
 /* Structure with missing required field name – exercises decodeFields error */
 START_TEST(json_decode_structure_bad_field) {
     /* ReadRequest expects specific fields; giving garbage */
@@ -643,28 +735,29 @@ START_TEST(json_decode_structure_bad_field) {
 
 /* Deeply nested structure to test depth limit */
 START_TEST(json_decode_structure_deep_nesting) {
-    /* DiagnosticInfo with deeply nested InnerDiagnosticInfo */
-    /* Build a deeply nested JSON string */
-    char buf[4096];
-    int pos = 0;
-    int depth = 50;
-    for(int i = 0; i < depth; i++) {
-        if((size_t)pos >= sizeof(buf)) break;
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos,
-                        "{\"SymbolicId\":%d,\"InnerDiagnosticInfo\":", i);
-    }
-    if((size_t)pos < sizeof(buf))
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "null");
-    for(int i = 0; i < depth; i++) {
-        if((size_t)pos >= sizeof(buf)) break;
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "}");
-    }
+    UA_ByteString json = UA_BYTESTRING_NULL;
+    appendRepeated(&json, UA_STRING("{\"InnerDiagnosticInfo\":"), 99);
+    ck_assert_uint_eq(UA_String_append(&json, UA_STRING("{}")),
+                      UA_STATUSCODE_GOOD);
+    appendRepeated(&json, UA_STRING("}"), 99);
+
     UA_DiagnosticInfo di;
     UA_DiagnosticInfo_init(&di);
-    UA_StatusCode res = decode(buf, &di, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
-    /* Should hit depth limit and return error */
-    (void)res;
+    UA_StatusCode res = UA_decodeJson(&json, &di,
+                                      &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_DiagnosticInfo_clear(&di);
+
+    UA_ByteString_clear(&json);
+    appendRepeated(&json, UA_STRING("{\"InnerDiagnosticInfo\":"), 100);
+    ck_assert_uint_eq(UA_String_append(&json, UA_STRING("{}")),
+                      UA_STATUSCODE_GOOD);
+    appendRepeated(&json, UA_STRING("}"), 100);
+    UA_DiagnosticInfo_init(&di);
+    res = UA_decodeJson(&json, &di, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_DiagnosticInfo_clear(&di);
+    UA_ByteString_clear(&json);
 } END_TEST
 
 /* ============================================================
@@ -1107,12 +1200,19 @@ int main(void) {
     tcase_add_test(tc_variant, json_decode_variant_scalar_with_dimensions);
     tcase_add_test(tc_variant, json_decode_variant_containing_variant);
     tcase_add_test(tc_variant, json_decode_variant_null_value);
+    tcase_add_test(tc_variant, json_decode_variant_nullable_value_omitted);
+    tcase_add_test(tc_variant, json_decode_variant_rejects_diagnosticinfo);
+    tcase_add_test(tc_variant, json_decode_datavalue_rejects_nested_datavalue);
     tcase_add_test(tc_variant, json_decode_variant_int_array);
     tcase_add_test(tc_variant, json_decode_variant_2d_array);
     tcase_add_test(tc_variant, json_decode_variant_1d_dimension);
     tcase_add_test(tc_variant, json_decode_variant_dimension_mismatch);
     tcase_add_test(tc_variant, json_decode_variant_3d_array);
     tcase_add_test(tc_variant, json_decode_variant_array_of_variants);
+    tcase_add_test(tc_variant,
+                   json_decode_variant_rejects_null_nonnullable_array_element);
+    tcase_add_test(tc_variant, json_decode_variant_dimensions_overflow);
+    tcase_add_test(tc_variant, json_decode_variant_nesting_limit);
     suite_add_tcase(s, tc_variant);
 
     TCase *tc_preserve = tcase_create("PreserveUnknownExtensionObject");
@@ -1130,6 +1230,7 @@ int main(void) {
     suite_add_tcase(s, tc_unwrap);
 
     TCase *tc_struct = tcase_create("Structure");
+    tcase_add_test(tc_struct, json_decode_structure_null_array);
     tcase_add_test(tc_struct, json_decode_structure_bad_field);
     tcase_add_test(tc_struct, json_decode_structure_deep_nesting);
     suite_add_tcase(s, tc_struct);
