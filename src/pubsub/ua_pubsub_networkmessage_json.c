@@ -238,6 +238,7 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
         ctx.ctx.namespaceMapping = jo->namespaceMapping;
         ctx.ctx.serverUrisSize = jo->serverUrisSize;
         ctx.ctx.serverUris = jo->serverUris;
+        ctx.ctx.useCompactEncoding = jo->useCompactEncoding;
         ctx.ctx.prettyPrint = jo->prettyPrint;
         ctx.ctx.unquotedKeys = jo->unquotedKeys;
     }
@@ -261,6 +262,7 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
     /* Set up the context */
     PubSubEncodeJsonCtx ctx;
     memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = (UA_Byte*)0x01;
     ctx.ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.ctx.calcOnly = true;
     if(eo)
@@ -269,6 +271,7 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
         ctx.ctx.namespaceMapping = jo->namespaceMapping;
         ctx.ctx.serverUrisSize = jo->serverUrisSize;
         ctx.ctx.serverUris = jo->serverUris;
+        ctx.ctx.useCompactEncoding = jo->useCompactEncoding;
         ctx.ctx.prettyPrint = jo->prettyPrint;
         ctx.ctx.unquotedKeys = jo->unquotedKeys;
     }
@@ -277,7 +280,7 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
 
-    return (size_t)ctx.ctx.pos;
+    return (size_t)ctx.ctx.pos - 1u;
 }
 
 /* decode json */

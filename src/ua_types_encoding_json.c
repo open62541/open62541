@@ -241,12 +241,15 @@ isJsonNullable(const UA_DataType *type) {
 }
 
 static bool
-isNull(const void *p, const UA_DataType *type) {
-    if(!isJsonNullable(type))
-        return false;
+isJsonDefaultValue(const void *p, const UA_DataType *type) {
     UA_STACKARRAY(char, buf, type->memSize);
     memset(buf, 0, type->memSize);
     return UA_equal(buf, p, type);
+}
+
+static bool
+isNull(const void *p, const UA_DataType *type) {
+    return isJsonNullable(type) && isJsonDefaultValue(p, type);
 }
 
 ENCODE_JSON(Boolean) {
@@ -330,6 +333,18 @@ ENCODE_JSON(Int32) {
         memcpy(ctx->pos, buf, digits);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
+}
+
+ENCODE_JSON(Enum) {
+    if(ctx->useCompactEncoding)
+        return Int32_encodeJson(ctx, p, type);
+
+    /* UA_DataType does not contain the optional literal-name metadata. The
+     * VerboseEncoding permits the numeric value as a JSON string when the
+     * literal is unknown. */
+    status ret = writeJsonQuote(ctx);
+    ret |= Int32_encodeJson(ctx, p, type);
+    return ret | writeJsonQuote(ctx);
 }
 
 ENCODE_JSON(UInt64) {
@@ -615,14 +630,17 @@ ENCODE_JSON(QualifiedName) {
 
 ENCODE_JSON(StatusCode) {
     const UA_StatusCode *src = (const UA_StatusCode*)p;
-    const char *codename = UA_StatusCode_name(*src);
-    UA_String statusDescription = UA_STRING((char*)(uintptr_t)codename);
     status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
     if(*src > UA_STATUSCODE_GOOD) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_CODE);
         ret |= UInt32_encodeJson(ctx, src, NULL);
+        const char *codename = NULL;
+        if(!ctx->useCompactEncoding)
+            codename = UA_StatusCode_name(*src);
         if(codename && codename[0] != '\0') {
+            UA_String statusDescription =
+                UA_STRING((char*)(uintptr_t)codename);
             ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOL);
             ret |= String_encodeJson(ctx, &statusDescription, NULL);
         }
@@ -957,11 +975,56 @@ ENCODE_JSON(DiagnosticInfo) {
 }
 
 static status
+getJsonEncodingMask(const void *src, const UA_DataType *type,
+                    UA_UInt32 *encodingMask) {
+    uintptr_t ptr = (uintptr_t)src;
+    size_t optionalIndex = 0;
+    *encodingMask = 0;
+
+    for(size_t i = 0; i < type->membersSize; i++) {
+        const UA_DataTypeMember *m = &type->members[i];
+        ptr += m->padding;
+
+        const void *data = NULL;
+        if(m->isArray) {
+            ptr += sizeof(size_t);
+            data = *(void *const *)ptr;
+            ptr += sizeof(void*);
+        } else if(m->isOptional) {
+            data = *(void *const *)ptr;
+            ptr += sizeof(void*);
+        } else {
+            ptr += m->memberType->memSize;
+        }
+
+        if(!m->isOptional)
+            continue;
+        if(optionalIndex >= 32)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        if(data)
+            *encodingMask |= (UA_UInt32)1 << optionalIndex;
+        optionalIndex++;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static status
 encodeJsonStructureContent(CtxJson *ctx, const void *src,
                            const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t) src;
     u8 membersSize = type->membersSize;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    if(ctx->useCompactEncoding &&
+       type->typeKind == UA_DATATYPEKIND_OPTSTRUCT) {
+        UA_UInt32 encodingMask = 0;
+        ret = getJsonEncodingMask(src, type, &encodingMask);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
+        ret |= writeJsonKey(ctx, UA_JSONKEY_ENCODINGMASK);
+        ret |= UInt32_encodeJson(ctx, &encodingMask, NULL);
+    }
+
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = m->memberType;
@@ -976,8 +1039,13 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src,
             ptr += sizeof(void*);
             if(m->isOptional && !data)
                 continue;
+            if(ctx->useCompactEncoding && (!data || length == 0))
+                continue;
             ret |= writeJsonKey(ctx, m->memberName);
-            ret |= encodeJsonArray(ctx, data, length, mt);
+            if(data)
+                ret |= encodeJsonArray(ctx, data, length, mt);
+            else
+                ret |= writeChars(ctx, "null", 4);
             continue;
         }
 
@@ -986,13 +1054,20 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src,
             ptr += sizeof(void*);
             if(!data)
                 continue;
+            if(ctx->useCompactEncoding && isJsonDefaultValue(data, mt))
+                continue;
             ret |= writeJsonKey(ctx, m->memberName);
             ret |= encodeJsonJumpTable[mt->typeKind](ctx, data, mt);
             continue;
         }
 
+        const void *data = (const void*)ptr;
+        if(ctx->useCompactEncoding && isJsonDefaultValue(data, mt)) {
+            ptr += mt->memSize;
+            continue;
+        }
         ret |= writeJsonKey(ctx, m->memberName);
-        ret |= encodeJsonJumpTable[mt->typeKind](ctx, (const void*)ptr, mt);
+        ret |= encodeJsonJumpTable[mt->typeKind](ctx, data, mt);
         ptr += mt->memSize;
     }
     return ret;
@@ -1012,13 +1087,27 @@ encodeJsonUnionContent(CtxJson *ctx, const void *src,
         return UA_STATUSCODE_BADENCODINGERROR;
     const UA_DataType *mt = m->memberType;
     uintptr_t ptr = (uintptr_t)src + m->padding;
-    status ret = writeJsonKey(ctx, m->memberName);
-    if(!m->isArray)
+    status ret = UA_STATUSCODE_GOOD;
+    if(ctx->useCompactEncoding) {
+        ret |= writeJsonKey(ctx, UA_JSONKEY_SWITCHFIELD);
+        ret |= UInt32_encodeJson(ctx, &selection, NULL);
+    }
+    if(!m->isArray) {
+        if(ctx->useCompactEncoding && isJsonDefaultValue((const void*)ptr, mt))
+            return ret;
+        ret |= writeJsonKey(ctx, m->memberName);
         return ret | encodeJsonJumpTable[mt->typeKind](ctx, (const void*)ptr, mt);
+    }
 
     const size_t length = *(const size_t*)ptr;
     ptr += sizeof(size_t);
-    return ret | encodeJsonArray(ctx, *(void *const *)ptr, length, mt);
+    const void *data = *(void *const *)ptr;
+    if(ctx->useCompactEncoding && (!data || length == 0))
+        return ret;
+    ret |= writeJsonKey(ctx, m->memberName);
+    if(!data)
+        return ret | writeChars(ctx, "null", 4);
+    return ret | encodeJsonArray(ctx, data, length, mt);
 }
 
 static status
@@ -1070,7 +1159,7 @@ const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
     Variant_encodeJson,
     DiagnosticInfo_encodeJson,
     encodeJsonNotImplemented, /* Decimal */
-    Int32_encodeJson, /* Enum */
+    Enum_encodeJson,
     encodeJsonStructure,
     encodeJsonStructure, /* Structure with optional fields */
     encodeJsonUnion,
@@ -1106,6 +1195,7 @@ UA_encodeJson(const void *src, const UA_DataType *type,
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
+        ctx.useCompactEncoding = options->useCompactEncoding;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
     }
@@ -1156,6 +1246,7 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
+        ctx.useCompactEncoding = options->useCompactEncoding;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
     }

@@ -1309,11 +1309,15 @@ typedef struct UA_EncodeJsonOptions {
 
     UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
 
-    /* Enabling the following options leads to non-standard compatible JSON5
+    /* Enabling unquotedKeys leads to non-standard compatible JSON5
      * encoding! Use it for pretty-printing, but not for sending messages over
      * the network. (Our own decoding can still parse it.) */
 
     UA_Boolean unquotedKeys;  /* Don't print quotes around object element keys */
+
+    /* Use the OPC UA CompactEncoding. The zero-initialized default is the
+     * VerboseEncoding. */
+    UA_Boolean useCompactEncoding;
 } UA_EncodeJsonOptions;
 
 /* Returns the number of bytes the value src takes in JSON encoding. Returns

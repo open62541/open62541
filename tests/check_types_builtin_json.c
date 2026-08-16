@@ -2897,7 +2897,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":{},\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":[],\"AdditionalHeader\":{\"UaTypeId\":\"i=1\",\"UaBody\":false}},\"Results\":[{\"UaType\":1,\"Value\":true,\"Status\":{\"Code\":2153250816,\"Symbol\":\"BadApplicationSignatureInvalid\"},\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
+    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":{},\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":null,\"AdditionalHeader\":{\"UaTypeId\":\"i=1\",\"UaBody\":false}},\"Results\":[{\"UaType\":1,\"Value\":true,\"Status\":{\"Code\":2153250816,\"Symbol\":\"BadApplicationSignatureInvalid\"},\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -3077,7 +3077,7 @@ START_TEST(UA_VariableAttributes_json_encode) {
                    "\"WriteMask\":0,\"UserWriteMask\":0,"
                    "\"Value\":{\"UaType\":6,\"Value\":42},"
                    "\"DataType\":\"i=6\",\"ValueRank\":-2,"
-                   "\"ArrayDimensions\":[],"
+                   "\"ArrayDimensions\":null,"
                    "\"IsAbstract\":true}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
@@ -5725,4 +5725,3 @@ int main(void) {
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
