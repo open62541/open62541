@@ -1086,7 +1086,6 @@ UA_encodeJson(const void *src, const UA_DataType *type,
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
-        ctx.stringNodeIds = options->stringNodeIds;
     }
 
     /* Encode */
@@ -1109,7 +1108,6 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
     memset(&options, 0, sizeof(UA_EncodeJsonOptions));
     options.prettyPrint = true;
     options.unquotedKeys = true;
-    options.stringNodeIds = true;
     return UA_encodeJson(p, type, output, &options);
 }
 
@@ -1138,7 +1136,6 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
-        ctx.stringNodeIds = options->stringNodeIds;
     }
 
     ctx.calcOnly = true;

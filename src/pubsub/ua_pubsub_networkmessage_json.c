@@ -240,7 +240,6 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
         ctx.ctx.serverUris = jo->serverUris;
         ctx.ctx.prettyPrint = jo->prettyPrint;
         ctx.ctx.unquotedKeys = jo->unquotedKeys;
-        ctx.ctx.stringNodeIds = jo->stringNodeIds;
     }
 
     ret = UA_NetworkMessage_encodeJsonInternal(&ctx, src);
@@ -272,7 +271,6 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
         ctx.ctx.serverUris = jo->serverUris;
         ctx.ctx.prettyPrint = jo->prettyPrint;
         ctx.ctx.unquotedKeys = jo->unquotedKeys;
-        ctx.ctx.stringNodeIds = jo->stringNodeIds;
     }
 
     status ret = UA_NetworkMessage_encodeJsonInternal(&ctx, src);

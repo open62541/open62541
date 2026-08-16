@@ -1281,18 +1281,15 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  * JSON En/Decoding
  * ----------------
  *
- * The JSON decoding can parse the official encoding from the OPC UA
- * specification. It further allows the following extensions:
+ * The JSON encoding follows OPC UA 1.05 and represents NodeIds and
+ * ExpandedNodeIds with their standard string syntax (for example
+ * ``"ns=1;i=42"``). The decoder further allows the following extensions:
  *
  * - The strict JSON format is relaxed to also allow the JSON5 extensions
  *   (https://json5.org/). This allows for more human-readable encoding and adds
  *   convenience features such as trailing commas in arrays and comments within
  *   JSON documents.
  * - Int64/UInt64 don't necessarily have to be wrapped into a string.
- * - NodeIds and ExpandedNodeIds can be given in the string encoding (e.g.
- *   "ns=1;i=42", see `UA_NodeId_parse`). The standard encoding is to express
- *   NodeIds as JSON objects.
- *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
  * formats that also include data in the OPC UA type system. */
@@ -1314,7 +1311,6 @@ typedef struct UA_EncodeJsonOptions {
      * the network. (Our own decoding can still parse it.) */
 
     UA_Boolean unquotedKeys;  /* Don't print quotes around object element keys */
-    UA_Boolean stringNodeIds; /* String encoding for NodeIds, like "ns=1;i=42" */
 } UA_EncodeJsonOptions;
 
 /* Returns the number of bytes the value src takes in JSON encoding. Returns
