@@ -33,6 +33,7 @@ typedef struct {
     size_t serverUrisSize;
     const UA_String *serverUris;
 
+    UA_Boolean useCompactEncoding;
     UA_Boolean prettyPrint;
     UA_Boolean unquotedKeys;
 } CtxJson;

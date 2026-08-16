@@ -1842,6 +1842,15 @@ endif()
 # Build the interop targets standalone (no Check framework, no full examples)
 # when only interop tests are needed.
 if(UA_BUILD_INTEROP_TESTS AND NOT UA_BUILD_UNIT_TESTS)
+    if(UA_ENABLE_JSON_ENCODING)
+        add_executable(check_interop_json
+            tests/interop/json/check_interop_json.c)
+        target_link_libraries(check_interop_json open62541::open62541)
+        set_target_properties(check_interop_json PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
+
     add_executable(interop_server
         tests/interop/interop_server.c
         tests/interop/common/interop_server_common.c)

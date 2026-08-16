@@ -13,6 +13,68 @@
 #include <check.h>
 #include <stdlib.h>
 
+START_TEST(UA_PubSub_CompactJsonOptions) {
+    UA_FieldMetaData field = {0};
+    field.name = UA_STRING("Field");
+    UA_DataSetMessage_EncodingMetaData metadata = {0};
+    metadata.dataSetWriterId = 1;
+    metadata.fieldsSize = 1;
+    metadata.fields = &field;
+    UA_NetworkMessage_EncodingOptions encodingOptions = {0};
+    encodingOptions.metaDataSize = 1;
+    encodingOptions.metaData = &metadata;
+
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    message.version = 1;
+    message.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    message.payloadHeaderEnabled = true;
+    message.messageCount = 1;
+    message.dataSetWriterIds[0] = 1;
+    message.payload.dataSetMessages = (UA_DataSetMessage*)
+        UA_calloc(1, sizeof(UA_DataSetMessage));
+    ck_assert_ptr_nonnull(message.payload.dataSetMessages);
+
+    UA_DataSetMessage *dataSetMessage = message.payload.dataSetMessages;
+    dataSetMessage->header.dataSetMessageValid = true;
+    dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+    dataSetMessage->header.dataSetMessageType =
+        UA_DATASETMESSAGE_DATAKEYFRAME;
+    dataSetMessage->fieldCount = 1;
+    dataSetMessage->data.keyFrameFields = UA_DataValue_new();
+    ck_assert_ptr_nonnull(dataSetMessage->data.keyFrameFields);
+
+    UA_ReadValueId value;
+    UA_ReadValueId_init(&value);
+    ck_assert_uint_eq(
+        UA_Variant_setScalarCopy(&dataSetMessage->data.keyFrameFields[0].value,
+                                 &value, &UA_TYPES[UA_TYPES_READVALUEID]),
+        UA_STATUSCODE_GOOD);
+    dataSetMessage->data.keyFrameFields[0].hasValue = true;
+
+    UA_EncodeJsonOptions jsonOptions = {0};
+    jsonOptions.useCompactEncoding = true;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    UA_StatusCode result = UA_NetworkMessage_encodeJson(
+        &message, &encoded, &encodingOptions, &jsonOptions);
+    ck_assert_uint_eq(result, UA_STATUSCODE_GOOD);
+    const char *expected =
+        "{\"MessageId\":null,\"MessageType\":\"ua-data\",\"Messages\":[{"
+        "\"DataSetWriterId\":1,\"MessageType\":\"ua-keyframe\","
+        "\"Payload\":{\"Field\":{\"UaType\":22,\"Value\":{"
+        "\"UaTypeId\":\"i=626\"}}}}]}";
+    ck_assert_msg(encoded.length == strlen(expected) &&
+                  memcmp(encoded.data, expected, encoded.length) == 0,
+                  "Unexpected JSON: %.*s", (int)encoded.length,
+                  (char*)encoded.data);
+    ck_assert_uint_eq(UA_NetworkMessage_calcSizeJson(
+                          &message, &encodingOptions, &jsonOptions),
+                      encoded.length);
+
+    UA_ByteString_clear(&encoded);
+    UA_NetworkMessage_clear(&message);
+} END_TEST
+
 START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     UA_UInt16 dsWriter1 = 12345;
 
@@ -443,6 +505,7 @@ static Suite *testSuite_networkmessage(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Json");
     TCase *tc_json_networkmessage = tcase_create("networkmessage_json");
 
+    tcase_add_test(tc_json_networkmessage, UA_PubSub_CompactJsonOptions);
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EncodeAllOptionalFields);
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EnDecode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_oneMessage_twoFields_json_decode);

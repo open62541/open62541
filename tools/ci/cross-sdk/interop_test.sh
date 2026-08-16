@@ -37,6 +37,7 @@ CI_WSS_SERVER="$C_BUILD_DIR/bin/tests/interop_server_wss"
 INTEROP_WSS_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client_wss"
 CI_HTTPS_SERVER="$C_BUILD_DIR/bin/tests/interop_server_https"
 INTEROP_HTTPS_CLIENT="$C_BUILD_DIR/bin/tests/check_interop_client_https"
+INTEROP_JSON="$C_BUILD_DIR/bin/tests/check_interop_json"
 DOTNET_INTEROP_PROJECT="$REPO_ROOT/tests/interop/dotnet/Opc.Ua.Interop.Tests.csproj"
 DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
 if [[ ! -f "$DOTNET_SERVER_PROJECT" ]]; then
@@ -145,7 +146,7 @@ echo "  .NET SDK dir:   $DOTNET_SDK_DIR"
 echo "  Cert dir:       $CERT_DIR"
 echo ""
 
-for f in "$CI_SERVER" "$INTEROP_CLIENT" \
+for f in "$CI_SERVER" "$INTEROP_CLIENT" "$INTEROP_JSON" \
          "$CI_HTTPS_SERVER" "$INTEROP_HTTPS_CLIENT"; do
     if [[ ! -x "$f" ]]; then
         echo "ERROR: Missing executable: $f"
@@ -183,6 +184,34 @@ for f in "${REQUIRED_CERTS[@]}"; do
         exit 1
     fi
 done
+
+# ============================================================
+# Compact JSON ExtensionObject wire interoperability
+# ============================================================
+
+echo ""
+echo "=========================================="
+echo "  Compact JSON ExtensionObject interop"
+echo "=========================================="
+echo ""
+
+JSON_INTEROP_DIR="$(mktemp -d)"
+export OPCUA_INTEROP_JSON_C_ENCODED="$JSON_INTEROP_DIR/open62541.json"
+export OPCUA_INTEROP_JSON_DOTNET_ENCODED="$JSON_INTEROP_DIR/dotnet.json"
+
+if "$INTEROP_JSON" encode "$OPCUA_INTEROP_JSON_C_ENCODED" &&
+   dotnet test "$DOTNET_INTEROP_PROJECT" --no-build --verbosity normal \
+     --configuration "${DOTNET_CONFIG:-Debug}" \
+     --filter "Category=JsonInterop" &&
+   "$INTEROP_JSON" decode "$OPCUA_INTEROP_JSON_DOTNET_ENCODED"; then
+    echo "PASS: Compact JSON ExtensionObjects are interoperable in both directions"
+else
+    echo "FAIL: Compact JSON ExtensionObject interoperability"
+    RESULT=1
+fi
+unset OPCUA_INTEROP_JSON_C_ENCODED
+unset OPCUA_INTEROP_JSON_DOTNET_ENCODED
+rm -rf "$JSON_INTEROP_DIR"
 
 # Export ECC certificate directory for C server & client (both read this env var)
 if [[ -d "$CERT_DIR/ecc" ]]; then

@@ -155,6 +155,10 @@ The orchestration script `tools/ci/cross-sdk/interop_test.sh` runs:
 The CI workflow (`.github/workflows/interop_tests.yml`) runs all scenarios
 with OpenSSL and mbedTLS encryption backends.
 
+Before the transport scenarios, a bidirectional Compact JSON wire test checks
+scalar ExtensionObjects, ExtensionObjects in Variants, and ExtensionObject
+arrays between open62541 and the OPC Foundation .NET Standard SDK.
+
 The same C and .NET client tests can be repeated over secure WebSockets by
 setting `INTEROP_ENABLE_WSS=1`. This path remains experimental and is not
 enabled by the CI workflow until WSS support is available in a released

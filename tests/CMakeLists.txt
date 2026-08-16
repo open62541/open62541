@@ -688,6 +688,16 @@ endif()
 
 # Cross-SDK interoperability test binaries (standalone, no check framework)
 if(UA_BUILD_INTEROP_TESTS)
+    if(UA_ENABLE_JSON_ENCODING AND NOT TARGET check_interop_json)
+        add_executable(check_interop_json
+            interop/json/check_interop_json.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_interop_json ${LIBS})
+        set_target_properties(check_interop_json PROPERTIES
+            FOLDER "tests"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+    endif()
     if(NOT TARGET interop_server)
         add_executable(interop_server
             interop/interop_server.c

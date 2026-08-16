@@ -102,7 +102,7 @@ jobs:
                 -DUA_FORCE_WERROR=ON \
                 ..
           make -j$(nproc) interop_server check_interop_client \
-            interop_server_https check_interop_client_https
+            interop_server_https check_interop_client_https check_interop_json
 
       - name: Build .NET interop tests
         run: |
