@@ -989,7 +989,8 @@ ExtensionObject_decodeBinaryContent(Ctx *ctx, UA_ExtensionObject *dst,
     u32 member_length = 0;
     status ret = DECODE_DIRECT(&member_length, UInt32);
     UA_CHECK_STATUS(ret, return ret);
-    UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+    UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+             return UA_STATUSCODE_BADDECODINGERROR);
     const u8 *expected_end = ctx->pos + member_length;
 
     /* Decode */
@@ -1166,7 +1167,7 @@ Variant_decodeBinaryUnwrapExtensionObject(Ctx *ctx, UA_Variant *dst) {
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &typeId); return ret);
-        UA_CHECK(ctx->pos + member_length <= ctx->end,
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
                  ctxClearNodeId(ctx, &typeId); return UA_STATUSCODE_BADDECODINGERROR);
         expected_end = ctx->pos + member_length;
     } else {
@@ -1264,6 +1265,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, return ret);
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+                 return UA_STATUSCODE_BADDECODINGERROR);
         ctx->pos += member_length;
     }
 
@@ -1284,7 +1287,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
         u32 member_length = 0;
         ret = DECODE_DIRECT(&member_length, UInt32);
         UA_CHECK_STATUS(ret, return ret);
-        UA_CHECK(ctx->pos + member_length <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
+        UA_CHECK(member_length <= (size_t)(ctx->end - ctx->pos),
+                 return UA_STATUSCODE_BADDECODINGERROR);
         const u8 *expected_end = ctx->pos + member_length;
         ret = decodeBinaryJumpTable[contentType->typeKind]
             (ctx, (void*)array_pos, contentType);

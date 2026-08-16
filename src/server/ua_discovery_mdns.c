@@ -762,6 +762,8 @@ typedef enum {
     UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
 } UA_DiscoveryProtocol;
 
+#define UA_DISCOVERYURL_PATH_CAPACITY 1024
+
 /* Create a mDNS Record for the given server info and adds it to the mDNS output
  * queue.
  *
@@ -1307,6 +1309,11 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     if(capabilitiesSize > 0 && !capabilites)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* Reject oversized paths before they reach a stack allocation or any
+     * discovery state is modified. */
+    if(path.length >= UA_DISCOVERYURL_PATH_CAPACITY)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+
     if(hostname.length == 0 || servername.length == 0)
         return UA_STATUSCODE_BADOUTOFRANGE;
 
@@ -1426,9 +1433,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     mdns_set_address_record(dm, fullServiceDomainBuf, localDomain);
 
     /* TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,... */
-    char pathChars[1024];
-    if(path.length >= sizeof(pathChars))
-        return UA_STATUSCODE_BADOUTOFRANGE;
+    char pathChars[UA_DISCOVERYURL_PATH_CAPACITY];
     if(createTxt) {
         if(path.length > 0)
             memcpy(pathChars, path.data, path.length);
