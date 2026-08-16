@@ -483,6 +483,8 @@ ENCODE_XML(ExtensionObject) {
     const UA_ExtensionObject *src = (const UA_ExtensionObject*)src_;
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_JSON)
+        return UA_STATUSCODE_BADENCODINGERROR;
 
     /* The body of the ExtensionObject contains a single element
      * which is either a ByteString or XML encoded Structure:

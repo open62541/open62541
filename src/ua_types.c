@@ -1248,6 +1248,7 @@ ExtensionObject_clear(void *p, const UA_DataType *_) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
+    case UA_EXTENSIONOBJECT_ENCODED_JSON:
         NodeId_clear(&eo->content.encoded.typeId, NULL);
         String_clear(&eo->content.encoded.body, NULL);
         break;
@@ -1269,6 +1270,7 @@ ExtensionObject_copy(const void *src, void *dst, const UA_DataType *_) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
+    case UA_EXTENSIONOBJECT_ENCODED_JSON:
         dstE->encoding = srcE->encoding;
         retval = NodeId_copy(&srcE->content.encoded.typeId,
                              &dstE->content.encoded.typeId, NULL);
@@ -2350,9 +2352,9 @@ extensionObjectOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
     const UA_ExtensionObject *p2 = (const UA_ExtensionObject*)p2_;
     UA_ExtensionObjectEncoding enc1 = p1->encoding;
     UA_ExtensionObjectEncoding enc2 = p2->encoding;
-    if(enc1 > UA_EXTENSIONOBJECT_DECODED)
+    if(enc1 == UA_EXTENSIONOBJECT_DECODED_NODELETE)
         enc1 = UA_EXTENSIONOBJECT_DECODED;
-    if(enc2 > UA_EXTENSIONOBJECT_DECODED)
+    if(enc2 == UA_EXTENSIONOBJECT_DECODED_NODELETE)
         enc2 = UA_EXTENSIONOBJECT_DECODED;
     if(enc1 != enc2)
         return (enc1 < enc2) ? UA_ORDER_LESS : UA_ORDER_MORE;
@@ -2362,7 +2364,8 @@ extensionObjectOrder(const void *p1_, const void *p2_, const UA_DataType *_) {
         return UA_ORDER_EQ;
 
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
-    case UA_EXTENSIONOBJECT_ENCODED_XML: {
+    case UA_EXTENSIONOBJECT_ENCODED_XML:
+    case UA_EXTENSIONOBJECT_ENCODED_JSON: {
             UA_Order o = nodeIdOrder(&p1->content.encoded.typeId,
                                      &p2->content.encoded.typeId, NULL);
             if(o != UA_ORDER_EQ)

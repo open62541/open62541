@@ -899,6 +899,8 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId) {
 /* ExtensionObject */
 FUNC_ENCODE_BINARY(ExtensionObject) {
     const UA_ExtensionObject *src = (const UA_ExtensionObject*)_src;
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_JSON)
+        return UA_STATUSCODE_BADENCODINGERROR;
     u8 encoding = (u8)src->encoding;
 
     /* No content or already encoded content. */

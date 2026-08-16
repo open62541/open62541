@@ -845,9 +845,11 @@ typedef enum {
     UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
     UA_EXTENSIONOBJECT_ENCODED_XML        = 2,
     UA_EXTENSIONOBJECT_DECODED            = 3,
-    UA_EXTENSIONOBJECT_DECODED_NODELETE   = 4 /* Don't delete the content
-                                                 together with the
-                                                 ExtensionObject */
+    UA_EXTENSIONOBJECT_DECODED_NODELETE   = 4, /* Don't delete the content
+                                                  together with the
+                                                  ExtensionObject */
+    UA_EXTENSIONOBJECT_ENCODED_JSON       = 5  /* Internal JSON representation
+                                                 for an unknown datatype */
 } UA_ExtensionObjectEncoding;
 
 typedef struct UA_ExtensionObject {

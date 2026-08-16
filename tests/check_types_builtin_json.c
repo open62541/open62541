@@ -2519,7 +2519,8 @@ START_TEST(UA_ExtensionObject_xml_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"UaTypeId\":\"ns=2;i=1234\",\"UaEncoding\":2,\"UaBody\":\"<Elemement></Element>\"}";
+    char* result = "{\"UaTypeId\":\"ns=2;i=1234\",\"UaEncoding\":2,"
+                   "\"UaBody\":\"PEVsZW1lbWVudD48L0VsZW1lbnQ+\"}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -2547,7 +2548,8 @@ START_TEST(UA_ExtensionObject_byteString_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"UaTypeId\":\"ns=2;i=1234\",\"UaEncoding\":1,\"UaBody\":\"123456789012345678901234567890\"}";
+    char* result = "{\"UaTypeId\":\"ns=2;i=1234\",\"UaEncoding\":1,"
+                   "\"UaBody\":\"MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw\"}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -4834,19 +4836,11 @@ START_TEST(UA_ExtensionObject_Unkown_json_decode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
-    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_JSON);
     ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 4711);
 
-    //{"unknown":"body","saveas":"Bytestring"}Q
-    ck_assert_uint_eq(out.content.encoded.body.length, 40);
-    ck_assert_int_eq(out.content.encoded.body.data[0], '{');
-    ck_assert_int_eq(out.content.encoded.body.data[1], '\"');
-    ck_assert_int_eq(out.content.encoded.body.data[2], 'u');
-    ck_assert_int_eq(out.content.encoded.body.data[3], 'n');
-    ck_assert_int_eq(out.content.encoded.body.data[4], 'k');
-    ck_assert_int_eq(out.content.encoded.body.data[5], 'n');
-    ck_assert_int_eq(out.content.encoded.body.data[6], 'o');
-    ck_assert_int_eq(out.content.encoded.body.data[7], 'w');
+    ck_assert_uint_eq(out.content.encoded.body.length, buf.length);
+    ck_assert(memcmp(out.content.encoded.body.data, buf.data, buf.length) == 0);
     UA_ExtensionObject_clear(&out);
 }
 END_TEST
@@ -4864,19 +4858,11 @@ START_TEST(UA_ExtensionObject_Unkown_Nobody_json_decode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
-    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_JSON);
     ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 4711);
 
-    //{"unknown":"body","saveas":"Bytestring"}Q
-    ck_assert_uint_eq(out.content.encoded.body.length, 40);
-    ck_assert_int_eq(out.content.encoded.body.data[0], '{');
-    ck_assert_int_eq(out.content.encoded.body.data[1], '\"');
-    ck_assert_int_eq(out.content.encoded.body.data[2], 'u');
-    ck_assert_int_eq(out.content.encoded.body.data[3], 'n');
-    ck_assert_int_eq(out.content.encoded.body.data[4], 'k');
-    ck_assert_int_eq(out.content.encoded.body.data[5], 'n');
-    ck_assert_int_eq(out.content.encoded.body.data[6], 'o');
-    ck_assert_int_eq(out.content.encoded.body.data[7], 'w');
+    ck_assert_uint_eq(out.content.encoded.body.length, buf.length);
+    ck_assert(memcmp(out.content.encoded.body.data, buf.data, buf.length) == 0);
     UA_ExtensionObject_clear(&out);
 }
 END_TEST
