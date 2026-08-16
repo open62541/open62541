@@ -551,6 +551,15 @@ ENCODE_JSON(Guid) {
 
 ENCODE_JSON(DateTime) {
     const UA_DateTime *src = (const UA_DateTime*)p;
+    if(*src == 0)
+        return writeChars(ctx, "\"0001-01-01T00:00:00Z\"", 22);
+
+    UA_DateTimeStruct date = UA_DateTime_toStruct(*src);
+    if(date.year < 1)
+        return writeChars(ctx, "\"0001-01-01T00:00:00Z\"", 22);
+    if(date.year > 9999)
+        return writeChars(ctx, "\"9999-12-31T23:59:59.9999999Z\"", 30);
+
     UA_Byte buffer[40];
     UA_String str = {40, buffer};
     encodeDateTime(*src, &str);
@@ -1664,132 +1673,86 @@ DECODE_JSON(ExpandedNodeId) {
 DECODE_JSON(DateTime) {
     UA_DateTime *dst = (UA_DateTime*)p;
     CHECK_TOKEN_BOUNDS;
+    CHECK_NULL_SKIP;
     CHECK_STRING;
     GET_TOKEN;
 
-    /* The last character has to be 'Z'. We can omit some length checks later on
-     * because we know the atoi functions stop before the 'Z'. */
-    if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
+    /* YYYY-MM-DDTHH:MM:SS[.fffffff]Z */
+    if(tokenSize < 20 || tokenData[tokenSize-1] != 'Z' ||
+       tokenData[4] != '-' || tokenData[7] != '-' ||
+       tokenData[10] != 'T' || tokenData[13] != ':' ||
+       tokenData[16] != ':')
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    struct musl_tm dts;
-    memset(&dts, 0, sizeof(dts));
+    const size_t positions[6] = {0, 5, 8, 11, 14, 17};
+    UA_UInt16 values[6];
+    for(size_t i = 0; i < 6; i++) {
+        UA_UInt64 value = 0;
+        size_t digits = (i == 0) ? 4 : 2;
+        if(parseUInt64(&tokenData[positions[i]], digits, &value) != digits)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        values[i] = (UA_UInt16)value;
+    }
 
-    size_t pos = 0;
-    size_t len;
-
-    /* Parse the year. The ISO standard asks for four digits. But we accept up
-     * to five with an optional plus or minus in front due to the range of the
-     * DateTime 64bit integer. But in that case we require the year and the
-     * month to be separated by a '-'. Otherwise we cannot know where the month
-     * starts. */
-    if(tokenData[0] == '-' || tokenData[0] == '+')
-        pos++;
-    UA_Int64 year = 0;
-    len = parseInt64(&tokenData[pos], 5, &year);
-    pos += len;
-    if(len != 4 && tokenData[pos] != '-')
-        return UA_STATUSCODE_BADDECODINGERROR;
-    if(tokenData[0] == '-')
-        year = -year;
-    dts.tm_year = (UA_Int16)year - 1900;
-    if(tokenData[pos] == '-')
-        pos++;
-
-    /* Parse the month */
-    UA_UInt64 month = 0;
-    len = parseUInt64(&tokenData[pos], 2, &month);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_mon = (UA_UInt16)month - 1;
-    if(tokenData[pos] == '-')
-        pos++;
-
-    /* Parse the day and check the T between date and time */
-    UA_UInt64 day = 0;
-    len = parseUInt64(&tokenData[pos], 2, &day);
-    pos += len;
-    UA_CHECK(len == 2 || tokenData[pos] != 'T',
-             return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_mday = (UA_UInt16)day;
-    pos++;
-
-    /* Parse the hour */
-    UA_UInt64 hour = 0;
-    len = parseUInt64(&tokenData[pos], 2, &hour);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_hour = (UA_UInt16)hour;
-    if(tokenData[pos] == ':')
-        pos++;
-
-    /* Parse the minute */
-    UA_UInt64 min = 0;
-    len = parseUInt64(&tokenData[pos], 2, &min);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_min = (UA_UInt16)min;
-    if(tokenData[pos] == ':')
-        pos++;
-
-    /* Parse the second */
-    UA_UInt64 sec = 0;
-    len = parseUInt64(&tokenData[pos], 2, &sec);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_sec = (UA_UInt16)sec;
-
-    /* Compute the seconds since the Unix epoch */
-    long long sinceunix = musl_tm_to_secs(&dts);
-
-    /* Are we within the range that can be represented? */
-    long long sinceunix_min =
-        (long long)(UA_INT64_MIN / UA_DATETIME_SEC) -
-        (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC) -
-        (long long)1; /* manual correction due to rounding */
-    long long sinceunix_max = (long long)
-        ((UA_INT64_MAX - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
-    if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
+    UA_UInt16 daysInMonth = 31;
+    switch(values[1]) {
+    case 2:
+        daysInMonth = (UA_UInt16)
+            (((values[0] % 4 == 0 && values[0] % 100 != 0) ||
+              values[0] % 400 == 0) ? 29 : 28);
+        break;
+    case 4: case 6: case 9: case 11:
+        daysInMonth = 30;
+        break;
+    default:
+        break;
+    }
+    if(values[0] < 1 || values[1] < 1 || values[1] > 12 ||
+       values[2] < 1 || values[2] > daysInMonth || values[3] > 23 ||
+       values[4] > 59 || values[5] > 59)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Convert to DateTime. Add or subtract one extra second here to prevent
-     * underflow/overflow. This is reverted once the fractional part has been
-     * added. */
-    sinceunix -= (sinceunix > 0) ? 1 : -1;
-    UA_DateTime dt = (UA_DateTime)
-        (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
-
-    /* Parse the fraction of the second if defined */
-    if(tokenData[pos] == ',' || tokenData[pos] == '.') {
+    size_t pos = 19;
+    UA_UInt32 fraction = 0;
+    size_t fractionDigits = 0;
+    if(pos < tokenSize - 1 &&
+       (tokenData[pos] == '.' || tokenData[pos] == ',')) {
         pos++;
-        double frac = 0.0;
-        double denom = 0.1;
-        while(pos < tokenSize &&
-              tokenData[pos] >= '0' && tokenData[pos] <= '9') {
-            frac += denom * (tokenData[pos] - '0');
-            denom *= 0.1;
+        while(pos < tokenSize - 1 && tokenData[pos] >= '0' &&
+              tokenData[pos] <= '9') {
+            if(fractionDigits < 7)
+                fraction = fraction * 10 + (UA_UInt32)(tokenData[pos] - '0');
+            fractionDigits++;
             pos++;
         }
-        frac += 0.00000005; /* Correct rounding when converting to integer */
-        dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
-    }
-
-    /* Remove the underflow/overflow protection (see above) */
-    if(sinceunix > 0) {
-        if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
+        if(fractionDigits == 0)
             return UA_STATUSCODE_BADDECODINGERROR;
-        dt += UA_DATETIME_SEC;
-    } else {
-        if(dt < UA_INT64_MIN + UA_DATETIME_SEC)
-            return UA_STATUSCODE_BADDECODINGERROR;
-        dt -= UA_DATETIME_SEC;
+        while(fractionDigits < 7) {
+            fraction *= 10;
+            fractionDigits++;
+        }
     }
-
-    /* We must be at the end of the string (ending with 'Z' as checked above) */
     if(pos != tokenSize - 1)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    *dst = dt;
+    /* The minimum JSON DateTime is the null value. */
+    if(values[0] == 1 && values[1] == 1 && values[2] == 1 &&
+       values[3] == 0 && values[4] == 0 && values[5] == 0 && fraction == 0) {
+        *dst = 0;
+    } else {
+        UA_DateTimeStruct date;
+        memset(&date, 0, sizeof(date));
+        date.year = (UA_Int16)values[0];
+        date.month = values[1];
+        date.day = values[2];
+        date.hour = values[3];
+        date.min = values[4];
+        date.sec = values[5];
+        date.milliSec = (UA_UInt16)(fraction / 10000);
+        date.microSec = (UA_UInt16)((fraction % 10000) / 10);
+        date.nanoSec = (UA_UInt16)((fraction % 10) * 100);
+        *dst = UA_DateTime_fromStruct(date);
+    }
 
     ctx->index++;
     return UA_STATUSCODE_GOOD;
