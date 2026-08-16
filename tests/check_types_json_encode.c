@@ -62,7 +62,7 @@ static UA_DataTypeMember jsonUnionMembers[3] = {
      offsetof(JsonUnion, fields.values), true, false}
 };
 
-static UA_DataType jsonCustomTypes[2] = {
+static UA_DataType jsonCustomTypes[3] = {
     {UA_TYPENAME("JsonOptionalStructure")
      {1, UA_NODEIDTYPE_NUMERIC, {5001}},
      {1, UA_NODEIDTYPE_NUMERIC, {6001}},
@@ -74,11 +74,17 @@ static UA_DataType jsonCustomTypes[2] = {
      {1, UA_NODEIDTYPE_NUMERIC, {6002}},
      {1, UA_NODEIDTYPE_NUMERIC, {7002}},
      sizeof(JsonUnion), UA_DATATYPEKIND_UNION,
-     false, false, 3, jsonUnionMembers}
+     false, false, 3, jsonUnionMembers},
+    {UA_TYPENAME("JsonEnum")
+     {1, UA_NODEIDTYPE_NUMERIC, {5003}},
+     {1, UA_NODEIDTYPE_NUMERIC, {6003}},
+     {1, UA_NODEIDTYPE_NUMERIC, {7003}},
+     sizeof(UA_Int32), UA_DATATYPEKIND_ENUM,
+     true, true, 0, NULL}
 };
 
 static UA_DataTypeArray jsonCustomTypeArray = {
-    NULL, 2, jsonCustomTypes, false
+    NULL, 3, jsonCustomTypes, false
 };
 
 static void
@@ -367,6 +373,13 @@ START_TEST(json_encode_localizedtext) {
     UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &buf, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&buf);
+
+    val.locale = UA_STRING_NULL;
+    buf = UA_BYTESTRING_NULL;
+    res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{\"Text\":\"Hello World\"}");
+    UA_ByteString_clear(&buf);
 } END_TEST
 
 /* === Variant JSON encoding === */
@@ -412,6 +425,86 @@ START_TEST(json_encode_variant_empty) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
+START_TEST(json_encode_variant_enum_as_int32) {
+    UA_Int32 value = 7;
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_Variant_setScalar(&variant, &value, &jsonCustomTypes[2]);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&variant, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{\"UaType\":6,\"Value\":7}");
+    UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(json_encode_variant_nullable_value_omitted) {
+    UA_String value = UA_STRING_NULL;
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_STRING]);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&variant, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{\"UaType\":12}");
+    UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(json_encode_variant_rejects_prohibited_types) {
+    UA_Variant inner;
+    UA_Variant_init(&inner);
+    UA_Variant outer;
+    UA_Variant_init(&outer);
+    UA_Variant_setScalar(&outer, &inner, &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&outer, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &buf, NULL);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+
+    UA_DiagnosticInfo diagnostic;
+    UA_DiagnosticInfo_init(&diagnostic);
+    UA_Variant_setScalar(&outer, &diagnostic,
+                         &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+    res = UA_encodeJson(&outer, &UA_TYPES[UA_TYPES_VARIANT], &buf, NULL);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(json_encode_variant_array_of_variants) {
+    UA_Int32 numbers[2] = {1, 2};
+    UA_Variant elements[2];
+    UA_Variant_init(&elements[0]);
+    UA_Variant_init(&elements[1]);
+    UA_Variant_setScalar(&elements[0], &numbers[0], &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&elements[1], &numbers[1], &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_Variant outer;
+    UA_Variant_init(&outer);
+    UA_Variant_setArray(&outer, elements, 2, &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&outer, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf,
+                    "{\"UaType\":24,\"Value\":["
+                    "{\"UaType\":6,\"Value\":1},"
+                    "{\"UaType\":6,\"Value\":2}]}");
+    UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(json_encode_nonnullable_array_defaults) {
+    UA_StatusCode values[2] = {UA_STATUSCODE_GOOD, UA_STATUSCODE_GOOD};
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_Variant_setArray(&variant, values, 2, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&variant, &UA_TYPES[UA_TYPES_VARIANT],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{\"UaType\":19,\"Value\":[{},{}]}");
+    UA_ByteString_clear(&buf);
+} END_TEST
+
 /* === DataValue JSON encoding === */
 START_TEST(json_encode_datavalue) {
     UA_DataValue val;
@@ -436,6 +529,30 @@ START_TEST(json_encode_datavalue) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
+START_TEST(json_encode_datavalue_omits_defaults_and_rejects_nesting) {
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasStatus = true;
+    value.hasSourceTimestamp = true;
+    value.hasSourcePicoseconds = true;
+    value.hasServerTimestamp = true;
+    value.hasServerPicoseconds = true;
+
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{}");
+    UA_ByteString_clear(&buf);
+
+    UA_DataValue inner;
+    UA_DataValue_init(&inner);
+    value.hasValue = true;
+    UA_Variant_setScalar(&value.value, &inner, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    res = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_DATAVALUE], &buf, NULL);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
 /* === DiagnosticInfo JSON encoding === */
 START_TEST(json_encode_diagnosticinfo) {
     UA_DiagnosticInfo val;
@@ -456,6 +573,34 @@ START_TEST(json_encode_diagnosticinfo) {
     UA_ByteString buf = UA_BYTESTRING_NULL;
     UA_StatusCode res = UA_encodeJson(&val, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], &buf, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(json_encode_diagnosticinfo_omits_defaults) {
+    UA_DiagnosticInfo value;
+    UA_DiagnosticInfo_init(&value);
+    value.hasSymbolicId = true;
+    value.symbolicId = -1;
+    value.hasNamespaceUri = true;
+    value.namespaceUri = -1;
+    value.hasLocalizedText = true;
+    value.localizedText = -1;
+    value.hasLocale = true;
+    value.locale = -1;
+    value.hasAdditionalInfo = true;
+    value.hasInnerStatusCode = true;
+
+    UA_DiagnosticInfo inner;
+    UA_DiagnosticInfo_init(&inner);
+    value.hasInnerDiagnosticInfo = true;
+    value.innerDiagnosticInfo = &inner;
+
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_encodeJson(&value,
+                                      &UA_TYPES[UA_TYPES_DIAGNOSTICINFO],
+                                      &buf, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertJsonEqual(&buf, "{}");
     UA_ByteString_clear(&buf);
 } END_TEST
 
@@ -1073,8 +1218,16 @@ static Suite *testSuite_jsonEncoding(void) {
     tcase_add_test(tc_complex, json_encode_variant_array_int);
     tcase_add_test(tc_complex, json_encode_variant_string);
     tcase_add_test(tc_complex, json_encode_variant_empty);
+    tcase_add_test(tc_complex, json_encode_variant_enum_as_int32);
+    tcase_add_test(tc_complex, json_encode_variant_nullable_value_omitted);
+    tcase_add_test(tc_complex, json_encode_variant_rejects_prohibited_types);
+    tcase_add_test(tc_complex, json_encode_variant_array_of_variants);
+    tcase_add_test(tc_complex, json_encode_nonnullable_array_defaults);
     tcase_add_test(tc_complex, json_encode_datavalue);
+    tcase_add_test(tc_complex,
+                   json_encode_datavalue_omits_defaults_and_rejects_nesting);
     tcase_add_test(tc_complex, json_encode_diagnosticinfo);
+    tcase_add_test(tc_complex, json_encode_diagnosticinfo_omits_defaults);
     tcase_add_test(tc_complex, json_encode_extensionobject_decoded);
     tcase_add_test(tc_complex, json_extensionobject_exact_wire_roundtrip);
     tcase_add_test(tc_complex, json_encode_extensionobject_bytestring);

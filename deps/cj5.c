@@ -49,7 +49,7 @@
 #endif
 
 /* Max nesting depth of objects and arrays */
-#define CJ5_MAX_NESTING 32
+#define CJ5_MAX_NESTING 256
 
 #define CJ5__FOURCC(_a, _b, _c, _d)                         \
     (((uint32_t)(_a) | ((uint32_t)(_b) << 8) |              \

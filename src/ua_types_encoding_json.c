@@ -110,7 +110,7 @@ writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
 
 WRITE_JSON_ELEMENT(ObjStart) {
     /* Increase depth, save: before first key-value no comma needed. */
-    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
     ctx->commaNeeded[ctx->depth] = false;
@@ -136,7 +136,7 @@ WRITE_JSON_ELEMENT(ObjEnd) {
 
 WRITE_JSON_ELEMENT(ArrStart) {
     /* Increase depth, save: before first array entry no comma needed. */
-    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
     ctx->commaNeeded[ctx->depth] = false;
@@ -233,10 +233,16 @@ writeJsonKey(CtxJson *ctx, const char* key) {
     return ret;
 }
 
+static UA_Boolean
+isJsonNullable(const UA_DataType *type) {
+    return (type->typeKind >= UA_DATATYPEKIND_STRING &&
+            type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO &&
+            type->typeKind != UA_DATATYPEKIND_STATUSCODE);
+}
+
 static bool
 isNull(const void *p, const UA_DataType *type) {
-    if(UA_DataType_isNumeric(type) ||
-       type->typeKind == UA_DATATYPEKIND_BOOLEAN)
+    if(!isJsonNullable(type))
         return false;
     UA_STACKARRAY(char, buf, type->memSize);
     memset(buf, 0, type->memSize);
@@ -575,10 +581,14 @@ ENCODE_JSON(ExpandedNodeId) {
 ENCODE_JSON(LocalizedText) {
     const UA_LocalizedText *src = (const UA_LocalizedText*)p;
     status ret = writeJsonObjStart(ctx);
-    ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
-    ret |= String_encodeJson(ctx, &src->locale, NULL);
-    ret |= writeJsonKey(ctx, UA_JSONKEY_TEXT);
-    ret |= String_encodeJson(ctx, &src->text, NULL);
+    if(src->locale.length > 0) {
+        ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
+        ret |= String_encodeJson(ctx, &src->locale, NULL);
+    }
+    if(src->text.length > 0) {
+        ret |= writeJsonKey(ctx, UA_JSONKEY_TEXT);
+        ret |= String_encodeJson(ctx, &src->text, NULL);
+    }
     return ret | writeJsonObjEnd(ctx);
 }
 
@@ -603,7 +613,7 @@ ENCODE_JSON(StatusCode) {
     if(*src > UA_STATUSCODE_GOOD) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_CODE);
         ret |= UInt32_encodeJson(ctx, src, NULL);
-        if(codename) {
+        if(codename && codename[0] != '\0') {
             ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOL);
             ret |= String_encodeJson(ctx, &statusDescription, NULL);
         }
@@ -733,39 +743,61 @@ encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
 }
 
 static UA_StatusCode
-encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
+encodeVariantInner(CtxJson *ctx, const UA_Variant *src,
+                   UA_Boolean insideDataValue) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
     if(!src->type)
         return UA_STATUSCODE_GOOD;
 
+    /* These combinations are excluded by the Variant definition. */
+    if(src->type->typeKind == UA_DATATYPEKIND_DIAGNOSTICINFO ||
+       (insideDataValue && src->type->typeKind == UA_DATATYPEKIND_DATAVALUE))
+        return UA_STATUSCODE_BADENCODINGERROR;
+
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const bool hasDimensions = isArray && src->arrayDimensionsSize > 1;
+    if(src->type->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
+        return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Wrap the value in an ExtensionObject if not builtin. We cannot directly
-     * encode a variant inside a variant (but arrays of variant are possible) */
-    UA_Boolean wrapEO = (src->type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO);
-    if(src->type == &UA_TYPES[UA_TYPES_VARIANT] && !isArray)
-        wrapEO = true;
+    /* Enumerations lose their concrete type in a Variant and are represented
+     * as Int32 in both the Compact and Verbose encodings. */
+    const UA_DataType *valueType = src->type;
+    if(valueType->typeKind == UA_DATATYPEKIND_ENUM)
+        valueType = &UA_TYPES[UA_TYPES_INT32];
+
+    /* Non-builtin values are wrapped in ExtensionObjects. */
+    UA_Boolean wrapEO =
+        (valueType->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO);
 
     status ret = UA_STATUSCODE_GOOD;
 
     /* Write the type number */
-    UA_UInt32 typeId = src->type->typeKind + 1;
+    UA_UInt32 typeId = valueType->typeKind + 1;
     if(wrapEO)
         typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeKind + 1;
     ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
     ret |= UInt32_encodeJson(ctx, &typeId, NULL);
 
-    /* Write the value */
-    ret |= writeJsonKey(ctx, UA_JSONKEY_VALUE);
-    if(!isArray) {
-        ret |= encodeScalarJsonWrapExtensionObject(ctx, src);
-    } else {
-        ret |= encodeArrayJsonWrapExtensionObject(ctx, src->data,
-                                                  src->arrayLength, src->type);
+    /* A nullable scalar with its default value has no Value field. */
+    UA_Boolean nullValue = false;
+    if(!isArray && isJsonNullable(valueType))
+        nullValue = (!src->data || isNull(src->data, valueType));
+
+    if(!nullValue) {
+        if(!src->data && !isArray)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        ret |= writeJsonKey(ctx, UA_JSONKEY_VALUE);
+        if(!isArray) {
+            UA_Variant value = *src;
+            value.type = valueType;
+            ret |= encodeScalarJsonWrapExtensionObject(ctx, &value);
+        } else {
+            ret |= encodeArrayJsonWrapExtensionObject(ctx, src->data,
+                                                      src->arrayLength, valueType);
+        }
     }
 
     /* Write the dimensions */
@@ -782,24 +814,28 @@ ENCODE_JSON(Variant) {
     const UA_Variant *src = (const UA_Variant*)p;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= writeJsonObjStart(ctx);
-    res |= encodeVariantInner(ctx, src);
+    res |= encodeVariantInner(ctx, src, false);
     res |= writeJsonObjEnd(ctx);
     return res;
 }
 
 ENCODE_JSON(DataValue) {
     const UA_DataValue *src = (const UA_DataValue*)p;
-    UA_Boolean hasValue = src->hasValue;
-    UA_Boolean hasStatus = src->hasStatus;
-    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp;
-    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds;
-    UA_Boolean hasServerTimestamp = src->hasServerTimestamp;
-    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds;
+    UA_Boolean hasValue = src->hasValue && src->value.type;
+    UA_Boolean hasStatus = src->hasStatus && src->status != UA_STATUSCODE_GOOD;
+    UA_Boolean hasSourceTimestamp =
+        src->hasSourceTimestamp && src->sourceTimestamp != 0;
+    UA_Boolean hasSourcePicoseconds =
+        src->hasSourcePicoseconds && src->sourcePicoseconds != 0;
+    UA_Boolean hasServerTimestamp =
+        src->hasServerTimestamp && src->serverTimestamp != 0;
+    UA_Boolean hasServerPicoseconds =
+        src->hasServerPicoseconds && src->serverPicoseconds != 0;
 
     status ret = writeJsonObjStart(ctx);
 
     if(hasValue)
-        ret |= encodeVariantInner(ctx, &src->value);
+        ret |= encodeVariantInner(ctx, &src->value, true);
 
     if(hasStatus) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_STATUS);
@@ -829,41 +865,59 @@ ENCODE_JSON(DataValue) {
     return ret | writeJsonObjEnd(ctx);
 }
 
+static UA_Boolean
+diagnosticInfoHasContent(const UA_DiagnosticInfo *src, size_t depth) {
+    if((src->hasSymbolicId && src->symbolicId != -1) ||
+       (src->hasNamespaceUri && src->namespaceUri != -1) ||
+       (src->hasLocalizedText && src->localizedText != -1) ||
+       (src->hasLocale && src->locale != -1) ||
+       (src->hasAdditionalInfo && src->additionalInfo.length > 0) ||
+       (src->hasInnerStatusCode &&
+        src->innerStatusCode != UA_STATUSCODE_GOOD))
+        return true;
+    if(depth >= UA_JSON_ENCODING_MAX_RECURSION)
+        return true;
+    return (src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo &&
+            diagnosticInfoHasContent(src->innerDiagnosticInfo, depth + 1));
+}
+
 ENCODE_JSON(DiagnosticInfo) {
     const UA_DiagnosticInfo *src = (const UA_DiagnosticInfo*)p;
     status ret = writeJsonObjStart(ctx);
 
-    if(src->hasSymbolicId) {
+    if(src->hasSymbolicId && src->symbolicId != -1) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOLICID);
         ret |= Int32_encodeJson(ctx, &src->symbolicId, NULL);
     }
 
-    if(src->hasNamespaceUri) {
+    if(src->hasNamespaceUri && src->namespaceUri != -1) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACEURI);
         ret |= Int32_encodeJson(ctx, &src->namespaceUri, NULL);
     }
 
-    if(src->hasLocalizedText) {
+    if(src->hasLocalizedText && src->localizedText != -1) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALIZEDTEXT);
         ret |= Int32_encodeJson(ctx, &src->localizedText, NULL);
     }
 
-    if(src->hasLocale) {
+    if(src->hasLocale && src->locale != -1) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
         ret |= Int32_encodeJson(ctx, &src->locale, NULL);
     }
 
-    if(src->hasAdditionalInfo) {
+    if(src->hasAdditionalInfo && src->additionalInfo.length > 0) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_ADDITIONALINFO);
         ret |= String_encodeJson(ctx, &src->additionalInfo, NULL);
     }
 
-    if(src->hasInnerStatusCode) {
+    if(src->hasInnerStatusCode &&
+       src->innerStatusCode != UA_STATUSCODE_GOOD) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERSTATUSCODE);
         ret |= StatusCode_encodeJson(ctx, &src->innerStatusCode, NULL);
     }
 
-    if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
+    if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo &&
+       diagnosticInfoHasContent(src->innerDiagnosticInfo, 0)) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERDIAGNOSTICINFO);
         ret |= DiagnosticInfo_encodeJson(ctx, src->innerDiagnosticInfo, NULL);
     }
@@ -1460,6 +1514,7 @@ DECODE_JSON(Guid) {
 DECODE_JSON(String) {
     UA_String *dst = (UA_String*)p;
     CHECK_TOKEN_BOUNDS;
+    CHECK_NULL_SKIP;
     CHECK_STRING;
     GET_TOKEN;
     (void)tokenData;
@@ -1505,6 +1560,7 @@ DECODE_JSON(String) {
 DECODE_JSON(ByteString) {
     UA_ByteString *dst = (UA_ByteString*)p;
     CHECK_TOKEN_BOUNDS;
+    CHECK_NULL_SKIP;
     CHECK_STRING;
     GET_TOKEN;
 
@@ -1907,7 +1963,8 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst,
 }
 
 static status
-decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
+decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst,
+                  UA_Boolean insideDataValue) {
     /* Empty variant == null */
     if(ctx->tokens[ctx->index].size == 0) {
         ctx->index++;
@@ -1940,12 +1997,19 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
         return UA_STATUSCODE_BADDECODINGERROR;
     const UA_DataType *type = &UA_TYPES[typeKind];
 
+    /* These combinations are excluded by the Variant definition. */
+    if(type->typeKind == UA_DATATYPEKIND_DIAGNOSTICINFO ||
+       (insideDataValue && type->typeKind == UA_DATATYPEKIND_DATAVALUE))
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Value is an array? */
     UA_Boolean isArray =
         (valueIndex > 0 && ctx->tokens[valueIndex].type == CJ5_TOKEN_ARRAY);
+    if(type->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Adjust the depth and set the value index as current */
-    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADDECODINGERROR;
     size_t beginIndex = ctx->index;
     ctx->index = valueIndex;
@@ -1960,9 +2024,15 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
             goto out;
         }
 
-        /* A variant cannot contain a variant. But it can contain an array of
-         * variants */
-        if(type->typeKind == UA_DATATYPEKIND_VARIANT) {
+        /* Missing values are only valid for nullable types. */
+        if(valueIndex == 0 && !isJsonNullable(type)) {
+            res = UA_STATUSCODE_BADDECODINGERROR;
+            goto out;
+        }
+
+        /* JSON null is only valid for nullable types. */
+        if(valueIndex > 0 && ctx->tokens[valueIndex].type == CJ5_TOKEN_NULL &&
+           !isJsonNullable(type)) {
             res = UA_STATUSCODE_BADDECODINGERROR;
             goto out;
         }
@@ -2009,8 +2079,14 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
 
             /* Validate the dimensions */
             size_t total = 1;
-            for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
-                total *= dst->arrayDimensions[i];
+            for(size_t i = 0; i < dst->arrayDimensionsSize; i++) {
+                UA_UInt32 dimension = dst->arrayDimensions[i];
+                if(dimension != 0 && total > SIZE_MAX / dimension) {
+                    res |= UA_STATUSCODE_BADDECODINGERROR;
+                    break;
+                }
+                total *= dimension;
+            }
             if(total != dst->arrayLength)
                 res |= UA_STATUSCODE_BADDECODINGERROR;
 
@@ -2034,7 +2110,7 @@ DECODE_JSON(Variant) {
     UA_Variant *dst = (UA_Variant*)p;
     CHECK_NULL_SKIP; /* Treat null as an empty variant */
     CHECK_OBJECT;
-    return decodeJSONVariant(ctx, dst);
+    return decodeJSONVariant(ctx, dst, false);
 }
 
 DECODE_JSON(DataValue) {
@@ -2044,7 +2120,7 @@ DECODE_JSON(DataValue) {
 
     /* Decode the Variant in-situ */
     size_t beginIndex = ctx->index;
-    status ret = decodeJSONVariant(ctx, &dst->value);
+    status ret = decodeJSONVariant(ctx, &dst->value, true);
     ctx->index = beginIndex;
     dst->hasValue = (dst->value.type != NULL);
     if(ret != UA_STATUSCODE_GOOD)
@@ -2299,8 +2375,8 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NULL_SKIP; /* null is treated like an empty object */
 
-    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
-        return UA_STATUSCODE_BADENCODINGERROR;
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Keys and values are counted separately */
     CHECK_OBJECT;
@@ -2359,8 +2435,12 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
             continue;
         }
 
-        /* A null-value, skip the decoding (the value is already initialized) */
+        /* A null-value is only valid for nullable fields. */
         if(currentTokenType(ctx) == CJ5_TOKEN_NULL && !entry->function) {
+            if(!entry->type || !isJsonNullable(entry->type)) {
+                ctx->depth--;
+                return UA_STATUSCODE_BADDECODINGERROR;
+            }
             ctx->index++; /* skip null value */
             continue;
         }
@@ -2384,6 +2464,14 @@ Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type) {
 
     /* Save the length of the array */
     size_t *size_ptr = (size_t*) dst - 1;
+
+    /* A null JSON array represents a null OPC UA array. */
+    if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
+        *size_ptr = 0;
+        *dst = NULL;
+        ctx->index++;
+        return UA_STATUSCODE_GOOD;
+    }
 
     if(currentTokenType(ctx) != CJ5_TOKEN_ARRAY)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -2410,6 +2498,11 @@ Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; ++i) {
         if(ctx->tokens[ctx->index].type == CJ5_TOKEN_NULL) {
+            if(!isJsonNullable(type)) {
+                UA_Array_delete(*dst, i, type);
+                *dst = NULL;
+                return UA_STATUSCODE_BADDECODINGERROR;
+            }
             ptr += type->memSize;
             ctx->index++;
             continue;
@@ -2458,11 +2551,6 @@ OptionalArray_decodeJson(ParseCtx *ctx, void *dst,
 static status
 decodeJsonStructureInternal(ParseCtx *ctx, void *dst, const UA_DataType *type,
                             UA_Boolean extensionObject) {
-    /* Check the recursion limit */
-    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
-        return UA_STATUSCODE_BADENCODINGERROR;
-    ctx->depth++;
-
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
     const UA_Boolean optional = (type->typeKind == UA_DATATYPEKIND_OPTSTRUCT);
@@ -2546,9 +2634,6 @@ decodeJsonStructureInternal(ParseCtx *ctx, void *dst, const UA_DataType *type,
             ret = UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    if(ctx->depth == 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
-    ctx->depth--;
     return ret;
 }
 
