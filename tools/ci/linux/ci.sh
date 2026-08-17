@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
 
 # Exit immediately if a command exits with a non-zero status
 set -e

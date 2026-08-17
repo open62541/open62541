@@ -1,5 +1,7 @@
 /* ========================================================================
  * OPC UA .NET HTTPS client interoperability tests against open62541.
+ *
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  * ======================================================================*/
 
 using System.Collections.Concurrent;

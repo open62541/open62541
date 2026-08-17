@@ -4,6 +4,7 @@
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_TYPES_ENCODING_JSON_H_

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+
 # Cross-SDK interoperability test orchestration script.
 #
 # Every scenario involves the C (open62541) SDK as server or client.

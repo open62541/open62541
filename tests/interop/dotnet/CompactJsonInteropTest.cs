@@ -1,5 +1,7 @@
 /* ========================================================================
  * Compact JSON ExtensionObject interoperability with open62541.
+ *
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  * ======================================================================*/
 
 using NUnit.Framework;

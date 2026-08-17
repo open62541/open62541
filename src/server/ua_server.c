@@ -18,6 +18,7 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  *    Copyright 2022-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"

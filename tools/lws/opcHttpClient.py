@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
 
 import argparse
 import gzip

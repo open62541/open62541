@@ -5,6 +5,7 @@
  *    Copyright 2014, 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014 (c) Florian Palm
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 /* If UA_ENABLE_INLINABLE_EXPORT is enabled, then this file is the compilation

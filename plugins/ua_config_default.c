@@ -13,6 +13,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/plugin/accesscontrol_default.h>

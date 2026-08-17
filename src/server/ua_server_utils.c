@@ -8,6 +8,7 @@
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"

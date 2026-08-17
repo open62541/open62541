@@ -15,6 +15,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_CLIENT_H_
