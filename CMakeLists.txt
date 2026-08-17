@@ -974,8 +974,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary_tcp.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary_tcp_reverse.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp_reverse.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_auditing.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
@@ -1011,9 +1011,9 @@ if(UA_ENABLE_RBAC)
 endif()
 
 list(APPEND lib_sources
-     ${PROJECT_SOURCE_DIR}/src/server/ua_server_ws.c
+     ${PROJECT_SOURCE_DIR}/src/server/ua_transport_ws.c
      ${PROJECT_SOURCE_DIR}/src/ua_securechannel_http.c
-     ${PROJECT_SOURCE_DIR}/src/server/ua_server_http.c)
+     ${PROJECT_SOURCE_DIR}/src/server/ua_transport_http.c)
 
 # Dependencies
 set(lib_sources ${lib_sources}
