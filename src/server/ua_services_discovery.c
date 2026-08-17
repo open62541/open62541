@@ -351,6 +351,12 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Bound the records queued for mDNS probing by one registration. */
+    if(requestServer->discoveryUrlsSize > 16) {
+        responseHeader->serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         char* filePath = (char*)
