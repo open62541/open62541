@@ -18,7 +18,6 @@
 #include <open62541/server_config_default.h>
 
 #include "server/ua_server_internal.h"
-#include "server/ua_discovery.h"
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
 #include "src_generated/mdnsd/mdnsd.h"
 #include "src_generated/mdnsd/sdtxt.h"
@@ -1912,8 +1911,7 @@ START_TEST(MdnsShutdownSendsSelfGoodbyeAndDrainsQueue) {
 END_TEST
 
 START_TEST(MdnsUpdateOnlineOfflineTriggersSendPath) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoveryDriver;
-    ck_assert_ptr_ne(dm, NULL);
+    ck_assert_ptr_ne(server->discoveryDriver, NULL);
     TestUdpIntercept *intercepts[] = {testUdpIntercept};
     size_t previousSendCount = globalInterceptedMdnsMessages;
     MdnsMessageExpectation onlineExpectation =
