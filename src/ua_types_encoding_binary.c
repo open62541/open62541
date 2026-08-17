@@ -15,6 +15,7 @@
  *    Copyright 2016 (c) Lorenz Haas
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>

@@ -4,6 +4,7 @@
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Noel Graf)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Moritz Bruder)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/plugin/log.h>

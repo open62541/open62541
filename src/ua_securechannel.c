@@ -12,6 +12,7 @@
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>

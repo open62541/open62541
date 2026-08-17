@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_TYPES_H_

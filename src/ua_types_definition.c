@@ -4,6 +4,7 @@
  *
  *    Copyright 2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>

@@ -6,6 +6,7 @@
  *    Copyright 2017-2019 (c) Fraunhofer IOSB (Author: Mark Giraud)
  *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>

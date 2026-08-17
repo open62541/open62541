@@ -15,6 +15,7 @@
  * implementation shallow-copies logging/eventLoop and requires the
  * caller to not free both source and destination. The integration
  * tests already cover copy indirectly through UA_Client_newWithConfig.
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/client.h>

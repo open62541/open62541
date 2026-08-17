@@ -14,6 +14,7 @@
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2021-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_SERVER_INTERNAL_H_

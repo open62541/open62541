@@ -12,6 +12,7 @@
  *   Set env INTEROP_ECC_CERT_DIR to a directory containing ECC certificates
  *   named  server_c_<curve>.cert.der / server_c_<curve>.key.der  to expose
  *   ECC security policies.
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/server.h>

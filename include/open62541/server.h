@@ -14,6 +14,7 @@
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *    Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_SERVER_H_
