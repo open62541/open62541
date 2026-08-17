@@ -84,7 +84,7 @@ static void emptyCorpusDir(void) {
 
 /*************************************************
  * The following list of client requests is based
- * on ua_server_binary.c:getServicePointers to
+ * on ua_transport_tcp.c:getServicePointers to
  * cover all possible services and their inputs
  ************************************************/
 

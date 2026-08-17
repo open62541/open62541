@@ -68,7 +68,7 @@ UA_EventLoopCommon_allocStaticBuffer(UA_KeyValueMap *params,
         bufSize = *configBufSize;
     else
         /* Write the resolved default back into the params so the
-         * SecureChannel constraint logic in ua_server_binary.c caps the
+         * SecureChannel constraint logic in ua_transport_tcp.c caps the
          * channel to the actual static-buffer size. */
         res = UA_KeyValueMap_setScalar(params, name, &bufSize,
                                        &UA_TYPES[UA_TYPES_UINT32]);

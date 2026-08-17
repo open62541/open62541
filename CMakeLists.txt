@@ -973,7 +973,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_transport_tcp_reverse.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
