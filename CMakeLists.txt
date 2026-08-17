@@ -968,7 +968,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
@@ -1477,7 +1477,7 @@ if(UA_ENABLE_TPM2_SECURITY)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)

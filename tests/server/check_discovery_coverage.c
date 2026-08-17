@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Coverage tests for src/server/ua_discovery.c.
+ * Coverage tests for src/server/ua_server_discovery.c.
  *
  * Focus: the early-return guards in UA_Server_registerDiscovery and
  * UA_Server_deregisterDiscovery when the discovery manager is not
@@ -52,7 +52,7 @@ static void teardown(void) {
 }
 
 START_TEST(Server_registerDiscovery_serverNotStarted_rejected) {
-    /* src/server/ua_discovery.c:433-438 (UA_Server_register guard):
+    /* src/server/ua_server_discovery.c:433-438 (UA_Server_register guard):
      *   if(dm->sc.state != UA_LIFECYCLESTATE_STARTED) {
      *     ... return UA_STATUSCODE_BADINTERNALERROR;
      *   }
