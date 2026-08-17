@@ -17,9 +17,65 @@
 #include <open62541/client.h>
 #include <open62541/client_highlevel_async.h>
 
-#include "ua_discovery.h"
+#include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY
+
+typedef struct UA_DiscoveryManager UA_DiscoveryManager;
+
+/* Store asynchronous register service calls so outstanding requests can be
+ * cancelled during shutdown. */
+typedef struct {
+    UA_DelayedCallback cleanupCallback;
+    UA_Server *server;
+    UA_DiscoveryManager *dm;
+    UA_Client *client;
+    UA_String semaphoreFilePath;
+    UA_Boolean unregister;
+
+    UA_Boolean register2;
+    UA_Boolean shutdown;
+    UA_Boolean connectSuccess;
+} asyncRegisterRequest;
+
+#define UA_MAXREGISTERREQUESTS 4
+
+struct UA_DiscoveryManager {
+    UA_Driver drv;
+    asyncRegisterRequest registerRequests[UA_MAXREGISTERREQUESTS];
+};
+
+static asyncRegisterRequest *
+getPendingRegisterRequest(UA_Server *server) {
+    if(!server || !server->discoveryDriver)
+        return NULL;
+
+    UA_DiscoveryManager *dm =
+        (UA_DiscoveryManager*)server->discoveryDriver;
+    for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
+        if(dm->registerRequests[i].client)
+            return &dm->registerRequests[i];
+    }
+    return NULL;
+}
+
+UA_Client *
+UA_DiscoveryManager_getPendingRegistration(UA_Server *server,
+                                           UA_Boolean *register2) {
+    asyncRegisterRequest *ar = getPendingRegisterRequest(server);
+    if(register2)
+        *register2 = ar ? ar->register2 : false;
+    return ar ? ar->client : NULL;
+}
+
+UA_StatusCode
+UA_DiscoveryManager_cancelPendingRegistration(UA_Server *server) {
+    asyncRegisterRequest *ar = getPendingRegisterRequest(server);
+    if(!ar)
+        return UA_STATUSCODE_BADNOTFOUND;
+    ar->shutdown = true;
+    return UA_Client_disconnectSecureChannelAsync(ar->client);
+}
 
 static void
 UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,

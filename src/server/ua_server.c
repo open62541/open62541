@@ -23,10 +23,6 @@
 
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_DISCOVERY
-#include "ua_discovery.h"
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif

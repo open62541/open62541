@@ -816,6 +816,13 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 #ifdef UA_ENABLE_DISCOVERY
 UA_Driver * UA_DiscoveryManager_new(void);
+
+/* Narrow registration-state access for white-box tests. */
+UA_Client *
+UA_DiscoveryManager_getPendingRegistration(UA_Server *server,
+                                           UA_Boolean *register2);
+UA_StatusCode
+UA_DiscoveryManager_cancelPendingRegistration(UA_Server *server);
 void cleanupRegisteredServers(UA_Server *server);
 #endif
 

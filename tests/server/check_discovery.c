@@ -8,7 +8,6 @@
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "server/ua_server_internal.h"
-#include "server/ua_discovery.h"
 #include "client/ua_client_internal.h"
 #include "../encryption/certificates.h"
 
@@ -190,16 +189,8 @@ waitForRegisterRequestCompletion(void) {
     *running_register = false;
     THREAD_JOIN(server_thread_register);
 
-    UA_DiscoveryManager *dm =
-        (UA_DiscoveryManager*)server_register->discoveryDriver;
-    for(;;) {
-        UA_Boolean pending = false;
-        for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++)
-            pending |= (dm->registerRequests[i].client != NULL);
-        if(!pending)
-            break;
+    while(UA_DiscoveryManager_getPendingRegistration(server_register, NULL))
         UA_Server_run_iterate(server_register, true);
-    }
 
     *running_register = true;
     THREAD_CREATE(server_thread_register, serverloop_register);
@@ -609,23 +600,12 @@ Client_find_registered(void) {
     return FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 
-static asyncRegisterRequest *
-getPendingRegisterRequest(void) {
-    UA_DiscoveryManager *dm =
-        (UA_DiscoveryManager*)server_register->discoveryDriver;
-    for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
-        if(dm->registerRequests[i].client)
-            return &dm->registerRequests[i];
-    }
-    return NULL;
-}
-
 static UA_Boolean
-hasAsyncResponseType(asyncRegisterRequest *ar, const UA_DataType *responseType) {
-    if(!ar || !ar->client)
+hasAsyncResponseType(UA_Client *client, const UA_DataType *responseType) {
+    if(!client)
         return false;
     AsyncServiceCall *ac;
-    LIST_FOREACH(ac, &ar->client->asyncServiceCalls, pointers) {
+    LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
         if(ac->responseType == responseType)
             return true;
     }
@@ -635,16 +615,17 @@ hasAsyncResponseType(asyncRegisterRequest *ar, const UA_DataType *responseType) 
 /* Stop immediately after the LDS has handled RegisterServer2. Its response can
  * already be queued in IOCP, but has not been dispatched by the registering
  * server's event loop. */
-static asyncRegisterRequest *
+static UA_Client *
 driveToPendingRegisterResponse(void) {
     for(size_t i = 0; i < 1000; i++) {
         UA_Server_run_iterate(server_register, true);
-        asyncRegisterRequest *ar = getPendingRegisterRequest();
+        UA_Client *client = UA_DiscoveryManager_getPendingRegistration(
+            server_register, NULL);
         if(!hasAsyncResponseType(
-               ar, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]))
+               client, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]))
             continue;
         if(Client_find_registered())
-            return ar;
+            return client;
     }
     return NULL;
 }
@@ -652,7 +633,7 @@ driveToPendingRegisterResponse(void) {
 static UA_Boolean
 drainRegisterRequestsStopped(void) {
     for(size_t i = 0; i < 2000; i++) {
-        if(!getPendingRegisterRequest())
+        if(!UA_DiscoveryManager_getPendingRegistration(server_register, NULL))
             return true;
         UA_Server_run_iterate(server_register, true);
     }
@@ -661,10 +642,10 @@ drainRegisterRequestsStopped(void) {
 
 START_TEST(Server_registerInFlightTimeoutCleanup) {
     UA_StatusCode beginResult = beginRegisterServerStopped();
-    asyncRegisterRequest *ar = NULL;
+    UA_Client *client = NULL;
     if(beginResult == UA_STATUSCODE_GOOD)
-        ar = driveToPendingRegisterResponse();
-    UA_Boolean reachedPendingResponse = (ar != NULL);
+        client = driveToPendingRegisterResponse();
+    UA_Boolean reachedPendingResponse = (client != NULL);
 
     /* Keep the already-queued RegisterServer2 response pending. The first
      * clock jump expires RegisterServer2 and starts the RegisterServer
@@ -675,10 +656,12 @@ START_TEST(Server_registerInFlightTimeoutCleanup) {
     if(reachedPendingResponse) {
         UA_fakeSleep(10001);
         UA_Server_run_iterate(server_register, false);
-        ar = getPendingRegisterRequest();
-        register2TimedOut = (ar && !ar->register2);
+        UA_Boolean register2 = true;
+        client = UA_DiscoveryManager_getPendingRegistration(server_register,
+                                                            &register2);
+        register2TimedOut = (client && !register2);
         if(hasAsyncResponseType(
-               ar, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]))
+               client, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]))
             UA_fakeSleep(10001);
     }
     UA_Boolean drained =
@@ -701,16 +684,16 @@ END_TEST
 
 START_TEST(Server_registerInFlightCancelCleanup) {
     UA_StatusCode beginResult = beginRegisterServerStopped();
-    asyncRegisterRequest *ar = NULL;
+    UA_Client *client = NULL;
     if(beginResult == UA_STATUSCODE_GOOD)
-        ar = driveToPendingRegisterResponse();
-    UA_Boolean reachedPendingResponse = (ar != NULL);
+        client = driveToPendingRegisterResponse();
+    UA_Boolean reachedPendingResponse = (client != NULL);
     UA_StatusCode cancelResult = UA_STATUSCODE_BADINTERNALERROR;
     if(reachedPendingResponse) {
         /* This is the state used after the registration response callback has
          * requested asynchronous SecureChannel shutdown. */
-        ar->shutdown = true;
-        cancelResult = UA_Client_disconnectSecureChannelAsync(ar->client);
+        cancelResult =
+            UA_DiscoveryManager_cancelPendingRegistration(server_register);
     }
     UA_Boolean drained =
         reachedPendingResponse && drainRegisterRequestsStopped();

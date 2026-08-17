@@ -1477,7 +1477,6 @@ if(UA_ENABLE_TPM2_SECURITY)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.c)
 endif()
 
