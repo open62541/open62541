@@ -11,95 +11,99 @@ import copy
 from collections import OrderedDict
 import argparse
 
-from nodeset_compiler.type_parser import *
+from nodeset_compiler.type_parser import (BuiltinType, CSVBSDTypeParser,
+                                          EnumerationType, OpaqueType,
+                                          StructType)
 
 ###############################
 # Parse the Command Line Input#
 ###############################
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--type-csv',
-                    metavar="<typeDescriptions>",
-                    type=argparse.FileType('r'),
-                    dest="type_csv",
-                    action='append',
-                    default=[],
-                    help='csv file with type descriptions')
+def build_argument_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--type-csv',
+                        metavar="<typeDescriptions>",
+                        type=argparse.FileType('r'),
+                        dest="type_csv",
+                        action='append',
+                        default=[],
+                        help='csv file with type descriptions')
 
-parser.add_argument('-x', '--xml',
-                    metavar="<nodeSetXML>",
-                    type=argparse.FileType('rb'),
-                    action='append',
-                    dest="type_xml",
-                    default=[],
-                    help='NodeSet XML file.')
+    parser.add_argument('-x', '--xml',
+                        metavar="<nodeSetXML>",
+                        type=argparse.FileType('rb'),
+                        action='append',
+                        dest="type_xml",
+                        default=[],
+                        help='NodeSet XML file.')
 
-parser.add_argument('--namespaceMap',
-                    metavar="<namespaceMap>",
-                    type=str,
-                    dest="namespace_map",
-                    action='append',
-                    default=["0:http://opcfoundation.org/UA/"],
-                    help='Mapping of namespace uri to the resulting namespace index in the server. Default only contains Namespace 0: "0:http://opcfoundation.org/UA/". '
-                         'Parameter can be used multiple times to define multiple mappings.')
+    parser.add_argument('--namespaceMap',
+                        metavar="<namespaceMap>",
+                        type=str,
+                        dest="namespace_map",
+                        action='append',
+                        default=["0:http://opcfoundation.org/UA/"],
+                        help='Mapping of namespace uri to the resulting namespace index in the server. Default only contains Namespace 0: "0:http://opcfoundation.org/UA/". '
+                             'Parameter can be used multiple times to define multiple mappings.')
 
-parser.add_argument('-s', '--selected-types',
-                    metavar="<selectedTypes>",
-                    type=argparse.FileType('r'),
-                    dest="selected_types",
-                    action='append',
-                    default=[],
-                    help='file with list of types (among those parsed) to be generated. If not given, all types are generated')
+    parser.add_argument('-s', '--selected-types',
+                        metavar="<selectedTypes>",
+                        type=argparse.FileType('r'),
+                        dest="selected_types",
+                        action='append',
+                        default=[],
+                        help='file with list of types (among those parsed) to be generated. If not given, all types are generated')
 
-parser.add_argument('--no-builtin',
-                    action='store_true',
-                    dest="no_builtin",
-                    help='Do not generate builtin types')
+    parser.add_argument('--no-builtin',
+                        action='store_true',
+                        dest="no_builtin",
+                        help='Do not generate builtin types')
 
-parser.add_argument('--opaque-map',
-                    metavar="<opaqueTypeMap>",
-                    type=argparse.FileType('r'),
-                    dest="opaque_map",
-                    action='append',
-                    default=[],
-                    help='JSON file with opaque type mapping: { \'typename\': { \'ns\': 0,  \'id\': 7, \'name\': \'UInt32\' }, ... }')
+    parser.add_argument('--opaque-map',
+                        metavar="<opaqueTypeMap>",
+                        type=argparse.FileType('r'),
+                        dest="opaque_map",
+                        action='append',
+                        default=[],
+                        help='JSON file with opaque type mapping: { \'typename\': { \'ns\': 0,  \'id\': 7, \'name\': \'UInt32\' }, ... }')
 
-parser.add_argument('--internal',
-                    action='store_true',
-                    dest="internal",
-                    help='Given bsd are internal types which do not have any .csv file')
+    parser.add_argument('--internal',
+                        action='store_true',
+                        dest="internal",
+                        help='Given bsd are internal types which do not have any .csv file')
 
-parser.add_argument('--gen-doc',
-                    action='store_true',
-                    dest="gen_doc",
-                    help='Generate a .rst documentation version of the type definition')
+    parser.add_argument('--gen-doc',
+                        action='store_true',
+                        dest="gen_doc",
+                        help='Generate a .rst documentation version of the type definition')
 
-parser.add_argument('-t', '--type-bsd',
-                    metavar="<typeBsds>",
-                    type=argparse.FileType('r'),
-                    dest="type_bsd",
-                    action='append',
-                    default=[],
-                    help='bsd file with type definitions')
+    parser.add_argument('-t', '--type-bsd',
+                        metavar="<typeBsds>",
+                        type=argparse.FileType('r'),
+                        dest="type_bsd",
+                        action='append',
+                        default=[],
+                        help='bsd file with type definitions')
 
-parser.add_argument('-i', '--import',
-                    metavar="<importBsds>",
-                    type=str,
-                    dest="import_bsd",
-                    action='append',
-                    default=[],
-                    help='combination of TYPE_ARRAY#filepath.bsd with type definitions which should be loaded but not exported/generated')
+    parser.add_argument('-i', '--import',
+                        metavar="<importBsds>",
+                        type=str,
+                        dest="import_bsd",
+                        action='append',
+                        default=[],
+                        help='combination of TYPE_ARRAY#filepath.bsd with type definitions which should be loaded but not exported/generated')
 
-parser.add_argument('--export-macro',
-                    metavar="<exportMacro>",
-                    type=str,
-                    dest="export_macro",
-                    default="",
-                    help='macro to use in front of extern declarations (default: UA_EXPORT)')
+    parser.add_argument('--export-macro',
+                        metavar="<exportMacro>",
+                        type=str,
+                        dest="export_macro",
+                        default="",
+                        help='macro to use in front of extern declarations (default: UA_EXPORT)')
 
-parser.add_argument('outfile',
-                    metavar='<outputFile>',
-                    help='output file w/o extension')
+    parser.add_argument('outfile',
+                        metavar='<outputFile>',
+                        help='output file w/o extension')
+    return parser
 
 ###################
 # Code Generation #
@@ -671,21 +675,28 @@ _UA_END_DECLS
 # Execute with the command line arguments #
 ###########################################
 
-args = parser.parse_args()
+def main(argv=None):
+    parser = build_argument_parser()
+    args = parser.parse_args(argv)
 
-outname = args.outfile.split("/")[-1]
-inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
+    outname = args.outfile.split("/")[-1]
+    inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
 
-namespaceMap = {"http://opcfoundation.org/UA/": 0}
-for m in args.namespace_map:
-    [idx, ns] = m.split(':', 1)
-    namespaceMap[ns] = int(idx)
+    namespaceMap = {"http://opcfoundation.org/UA/": 0}
+    for m in args.namespace_map:
+        [idx, ns] = m.split(':', 1)
+        namespaceMap[ns] = int(idx)
 
-parser = CSVBSDTypeParser(args.opaque_map, args.selected_types,
-                          args.no_builtin, outname, args.import_bsd,
-                          args.type_bsd, args.type_csv, args.type_xml,
-                          namespaceMap)
-parser.create_types()
+    typeParser = CSVBSDTypeParser(args.opaque_map, args.selected_types,
+                                  args.no_builtin, outname, args.import_bsd,
+                                  args.type_bsd, args.type_csv, args.type_xml,
+                                  namespaceMap)
+    typeParser.create_types()
 
-generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap, args.export_macro)
-generator.write_definitions()
+    generator = CGenerator(typeParser, inname, args.outfile, args.internal,
+                           args.gen_doc, namespaceMap, args.export_macro)
+    generator.write_definitions()
+
+
+if __name__ == "__main__":
+    main()
