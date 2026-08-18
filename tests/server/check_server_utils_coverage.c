@@ -139,6 +139,33 @@ START_TEST(Utils_addDataType_multiple) {
     ck_assert_ptr_ne(UA_Server_findDataType(server, &t2.typeId), NULL);
 } END_TEST
 
+START_TEST(Utils_addDataType_preservesSelfReference) {
+    UA_DataType recursiveType;
+    UA_DataTypeMember recursiveMember;
+    memset(&recursiveMember, 0, sizeof(recursiveMember));
+    initCustomType(&recursiveType, 1, 99300);
+    recursiveType.memSize = sizeof(size_t) + sizeof(void *);
+    recursiveType.pointerFree = false;
+    recursiveType.members = &recursiveMember;
+    recursiveMember.memberName = "children";
+    recursiveMember.memberType = &recursiveType;
+    recursiveMember.isArray = true;
+
+    UA_DataType copy;
+    UA_StatusCode rv = UA_DataType_copy(&recursiveType, &copy);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(copy.members[0].memberType, &copy);
+    UA_DataType_clear(&copy);
+
+    UA_NodeId base = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    rv = UA_Server_addDataType(server, base, &recursiveType);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    const UA_DataType *found =
+        UA_Server_findDataType(server, &recursiveType.typeId);
+    ck_assert_ptr_nonnull(found);
+    ck_assert_ptr_eq(found->members[0].memberType, found);
+} END_TEST
+
 /* Adding TYPES_LIST_SIZE (64) datatypes fills the first internal
  * array. Adding one more exercises the realloc/next-pointer chain in
  * addDataType that the existing 5 tests do not hit. */
@@ -202,6 +229,7 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_findDataType_unknown);
     tcase_add_test(tc, Utils_getDataTypes_returnsList);
     tcase_add_test(tc, Utils_addDataType_multiple);
+    tcase_add_test(tc, Utils_addDataType_preservesSelfReference);
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
     suite_add_tcase(s, tc);
