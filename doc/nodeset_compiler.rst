@@ -6,6 +6,21 @@ using GUI tools. Most tools can export data according the OPC UA Nodeset XML
 schema. open62541 contains a Python based nodeset compiler that transforms
 Nodeset XML files into code for the open62541 SDK.
 
+Custom DataTypes
+^^^^^^^^^^^^^^^^
+
+When a ``UADataType`` contains a NodeSet2 ``Definition`` element, the compiler
+generates the matching C enum, structure, optional structure, or union in a
+static ``UA_TYPES_<NAME>`` array. Loading the generated namespace registers that
+array with the server. The ``DataTypeDefinition`` attribute is reconstructed
+from the static layout when it is read. Definitions can refer to custom
+datatypes declared later in the same NodeSet2 file; the compiler resolves those
+dependencies before code generation.
+
+A separate BSD type dictionary is still supported. It is only required when
+the NodeSet2 file does not contain complete ``Definition`` elements for its
+custom datatypes.
+
 We take the following information model snippet as the starting point of the
 following tutorial. A more detailed tutorial on how to create your own
 information model and NodeSet2.xml can be found in this blog post:
@@ -226,9 +241,10 @@ adding a custom nodeset may fail.
 
 If you also want to generate custom DataTypes for the nodeset, use the CMake
 function ``ua_generate_nodeset_and_datatypes``. It uses some best practice
-settings and you only need to pass a name and the nodeset files. Passing the
-.csv and .bsd files with the datatype information is optional. If not given,
-generating datatypes for that nodeset will be skipped. You can also define
+settings and you only need to pass a name and the NodeSet2 file. Inline
+``Definition`` elements generate datatypes automatically. ``FILE_CSV``
+optionally generates symbolic NodeId constants. ``FILE_BSD`` selects the legacy
+dictionary path when the XML definitions are incomplete. You can also define
 dependencies between nodesets using the ``DEPENDS`` argument. Here are some
 examples for the ``DI`` and ``PLCOpen`` nodesets::
 
@@ -236,7 +252,6 @@ examples for the ``DI`` and ``PLCOpen`` nodesets::
     ua_generate_nodeset_and_datatypes(
         NAME "di"
         FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
-        FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
     )
 
@@ -257,7 +272,10 @@ be called directly. The call looks like this:
 
 .. code-block:: bash
 
-    $ python ./nodeset_compiler.py --types-array=UA_TYPES --existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml --xml myNS.xml myNS
+    $ python ./nodeset_compiler.py --types-array=UA_TYPES \
+        --types-output=types_myNS \
+        --existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml \
+        --xml myNS.xml myNS
 
 The output of the command is:
 
@@ -283,7 +301,10 @@ submodule to get the ``deps/ua-nodeset`` folder (``git submodule update
 myNS.xml`` points to the user-defined information model, whose nodes will be
 added to the abstract syntax tree. The script will then create the files
 ``myNS.c`` and ``myNS.h`` (indicated by the last argument ``myNS``) containing
-the C code necessary to instantiate those namespaces.
+the C code necessary to instantiate those namespaces. ``--types-output`` also
+creates ``types_myNS_generated.c`` and ``types_myNS_generated.h`` for inline
+datatype definitions. Omit that option when only namespace nodes are required
+or when the datatype array is generated separately from a BSD dictionary.
 
 The help command show which additional options are available:
 
@@ -394,13 +415,11 @@ nodeset. The PLCopen nodeset ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml`` depends on
 the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This
 example is also shown in ``examples/nodeset/CMakeLists.txt``.
 
-This DI nodeset makes use of some additional data types in
-``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types
-within the generated code, we first need to compile the types into C code. The
-generated code is mainly a definition of the binary representation of the types
-required for encoding and decoding. The generation can be done using the
-``ua_generate_datatypes`` CMake function, which uses the
-``tools/generate_datatypes.py`` script::
+For legacy NodeSets whose XML does not contain complete definitions, a BSD
+dictionary can still be compiled separately. The generated code describes the
+binary representation required for encoding and decoding. Use the
+``ua_generate_datatypes`` CMake function, which calls
+``tools/generate_datatypes.py``::
 
     ua_generate_datatypes(
         NAME "ua_types_di"
