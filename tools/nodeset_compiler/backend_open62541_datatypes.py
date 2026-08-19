@@ -167,6 +167,8 @@ def getNodeidTypeAndId(nodeId):
 def splitNodeidNs(nodeId):
     """Split an optional 'ns=X;' prefix from a nodeId string.
     Returns (namespaceindex_str, bare_nodeId)."""
+    if nodeId is not None and not isinstance(nodeId, str):
+        nodeId = str(nodeId)
     if nodeId and nodeId.startswith("ns="):
         parts = nodeId.split(";", 1)
         return parts[0][3:], parts[1] if len(parts) > 1 else ""
