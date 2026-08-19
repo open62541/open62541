@@ -177,21 +177,32 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     res = UA_NodeId_copy(&sd->defaultEncodingId, &type->binaryEncodingId);
     UA_CHECK_STATUS(res, UA_DataType_clear(type); return res);
 
+    /* StructureDefinition contains only fields introduced by this subtype.
+     * Materialize the inherited fields as well so the resulting UA_DataType
+     * matches the flattened C structure layout. */
+    const UA_DataType *baseType =
+        UA_findDataTypeWithCustom(&sd->baseDataType, customTypes);
+    size_t inheritedMembersSize = 0;
+    if(baseType && (baseType->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+                    baseType->typeKind == UA_DATATYPEKIND_OPTSTRUCT))
+        inheritedMembersSize = baseType->membersSize;
+    const size_t membersSize = inheritedMembersSize + sd->fieldsSize;
+
     /* Reject definitions whose field count cannot be represented by the
      * 8-bit membersSize field instead of silently truncating it */
-    if(sd->fieldsSize > UA_BYTE_MAX) {
+    if(membersSize > UA_BYTE_MAX) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     }
 
     /* Allocate the members array */
     type->members = (UA_DataTypeMember *)
-        UA_calloc(sd->fieldsSize, sizeof(UA_DataTypeMember));
-    if((sd->fieldsSize > 0) && !type->members) {
+        UA_calloc(membersSize, sizeof(UA_DataTypeMember));
+    if((membersSize > 0) && !type->members) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    type->membersSize = (UA_Byte)sd->fieldsSize;
+    type->membersSize = (UA_Byte)membersSize;
 
     /* Try to get pointerFree and overlayable handling shortcuts.
      * Adjusted later for each member and end-padding. */
@@ -209,8 +220,12 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     size_t accSize = type->memSize;
 
     /* Populate the members array */
-    for(size_t i = 0; i < sd->fieldsSize; i++) {
-        const UA_StructureField *sf = &sd->fields[i];
+    for(size_t i = 0; i < membersSize; i++) {
+        const UA_Boolean inherited = (i < inheritedMembersSize);
+        const UA_DataTypeMember *baseMember =
+            inherited ? &baseType->members[i] : NULL;
+        const UA_StructureField *sf = inherited ? NULL :
+            &sd->fields[i - inheritedMembersSize];
         UA_DataTypeMember *dtm = &type->members[i];
 
         /* A datatype can contain itself only indirectly. Resolve a direct
@@ -218,15 +233,16 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
          * of requiring it in customTypes. An inline self-member would have an
          * infinitely large layout and is therefore not supported. */
         const UA_Boolean selfReference =
-            UA_NodeId_equal(&sf->dataType, &type->typeId);
-        if(selfReference && sf->valueRank != 1 && !sf->isOptional) {
+            !inherited && UA_NodeId_equal(&sf->dataType, &type->typeId);
+        if(selfReference && sf->valueRank < 0 && !sf->isOptional) {
             UA_DataType_clear(type);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
 
         /* Find the referenced type */
-        dtm->memberType = selfReference ? type :
-            UA_findDataTypeWithCustom(&sf->dataType, customTypes);
+        dtm->memberType = inherited ? baseMember->memberType :
+            (selfReference ? type :
+             UA_findDataTypeWithCustom(&sf->dataType, customTypes));
         if(!dtm->memberType) {
             UA_DataType_clear(type);
             return UA_STATUSCODE_BADNOTFOUND;
@@ -238,11 +254,15 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
 
         /* Copy the member name */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        dtm->memberName = (char*)UA_malloc(sf->name.length + 1);
+        const size_t memberNameLength = inherited ?
+            strlen(baseMember->memberName) : sf->name.length;
+        dtm->memberName = (char*)UA_malloc(memberNameLength + 1);
         UA_CHECK(dtm->memberName != NULL,
                  UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
-        memcpy((char*)(uintptr_t)dtm->memberName, sf->name.data, sf->name.length);
-        *(char*)(uintptr_t)&dtm->memberName[sf->name.length] = '\0';
+        const void *memberName = inherited ?
+            (const void*)baseMember->memberName : (const void*)sf->name.data;
+        memcpy((char*)(uintptr_t)dtm->memberName, memberName, memberNameLength);
+        *(char*)(uintptr_t)&dtm->memberName[memberNameLength] = '\0';
 #endif
 
         /* Memory size and padding for the scalar case. A supported
@@ -255,10 +275,14 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         }
 
         /* Handle valuerank and array dimensions */
-        if(sf->valueRank == 1) {
-            /* 1D-array */
-            if(sf->arrayDimensionsSize > 1 ||
-               (sf->arrayDimensionsSize == 1 && sf->arrayDimensions[0] != 0)) {
+        if((inherited && baseMember->isArray) ||
+           (!inherited && sf->valueRank >= 0)) {
+            /* All concrete and one-or-more-dimensional ranks share the same
+             * array memory layout. Preserve rank validation in the
+             * description while mapping the runtime representation to the
+             * size-plus-pointer layout. */
+            if(!inherited && sf->valueRank > 0 && sf->arrayDimensionsSize > 0 &&
+               sf->arrayDimensionsSize != (size_t)sf->valueRank) {
                 UA_DataType_clear(type);
                 return UA_STATUSCODE_BADINTERNALERROR;
             }
@@ -266,14 +290,16 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
             memSize = sizeof(void*) + sizeof(size_t);
             dtm->padding = PADDING(accSize, offsetof(struct _pad_size_t, x));
             type->pointerFree = false; /* array is not pointer-free */
-        } else if(sf->valueRank != UA_VALUERANK_SCALAR) {
-            /* Only 1D-arrays or scalars are allowed */
+        } else if(!inherited && sf->valueRank != UA_VALUERANK_SCALAR) {
+            /* Variable-rank fields cannot be represented by the fixed
+             * UA_DataTypeMember scalar/array layout. */
             UA_DataType_clear(type);
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADNOTSUPPORTED;
         }
 
         /* Handle isOptional */
-        if(sf->isOptional) {
+        if((inherited && baseMember->isOptional) ||
+           (!inherited && sf->isOptional)) {
             if(type->typeKind != UA_DATATYPEKIND_OPTSTRUCT) {
                 UA_DataType_clear(type);
                 return UA_STATUSCODE_BADINTERNALERROR;
@@ -383,8 +409,9 @@ UA_DataType_toStructureDescription(const UA_DataType *type,
         sf->name = UA_String_fromChars(dtm->memberName);
 #endif
         res |= UA_NodeId_copy(&dtm->memberType->typeId, &sf->dataType);
-        sf->valueRank = (dtm->isArray) ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
         sf->isOptional = dtm->isOptional;
+        sf->valueRank = (dtm->isArray) ?
+            UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
         if(dtm->isArray && (type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
                             type->typeKind == UA_DATATYPEKIND_OPTSTRUCT)) {
             sf->arrayDimensions = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32));
