@@ -84,15 +84,6 @@ def get_type_for_name(xml_type_name, types, xmlNamespaces):
         raise TypeNotDefinedException(f"Unknown type: '{member_type_name}'")
     return types[resultNs][member_type_name]
 
-def get_type_for_id(id, types):
-    strid = str(id)
-    for ns_url, ns_types in types.items():
-        for t in ns_types.values():
-            if str(t.nodeId) == strid:
-                return t
-    return None
-
-
 def get_definition_fields(definition):
     """Return the direct Field children of a NodeSet2 Definition."""
     return [child for child in definition.childNodes
@@ -100,71 +91,112 @@ def get_definition_fields(definition):
             child.localName == "Field"]
 
 
-# bsd is the xml definition from the .bsd file
-# td is the xml "type-definition" from the nodeset-xml file
 class Type:
-    def __init__(self, outname, namespaceUri, bsd=None, td=None, name=None):
+    def __init__(self, outname, namespaceUri, name, description=""):
         self.outname = outname
         self.namespaceUri = namespaceUri
+        self.name = name
         self.pointerfree = False
         self.members = []
-        self.description = ""
+        self.description = description
         self.nodeId = None
         self.binaryEncodingId = None
         self.xmlEncodingId = None
         self.baseTypeId = None
         self.isLocal = False
-        if bsd is not None:
-            self.name = bsd.get("Name")
-        if bsd is not None:
-            for child in bsd:
-                if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-                    self.description = child.text
-                    break
-        if td is not None:
-            self.name = QualifiedName(td.attributes["Name"].value).name
-        if name is not None:
-            self.name = name
+
+    @staticmethod
+    def bsd_description(bsd):
+        for child in bsd:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
+                return child.text or ""
+        return ""
 
 
 class BuiltinType(Type):
     def __init__(self, name):
-        Type.__init__(self, "types", "http://opcfoundation.org/UA/")
-        self.name = name
+        Type.__init__(self, "types", "http://opcfoundation.org/UA/", name)
         self.pointerfree = self.name in builtin_pointerfree
         idx = builtin_types.index(name)
         self.nodeId = NodeId(f"ns=0;i={idx+1}")
 
 
 class EnumerationType(Type):
-    def __init__(self, outname, namespace, bsd=None, td=None, name=None,
-                 base_type=None):
-        Type.__init__(self, outname, namespace, bsd=bsd, td=td, name=name)
+    def __init__(self, outname, namespace, name, description=""):
+        Type.__init__(self, outname, namespace, name, description)
         self.pointerfree = True
         self.elements = OrderedDict()
         self.isOptionSet = False
         self.lengthInBits = 32
-        if bsd is not None:
-            self.isOptionSet = bsd.get("IsOptionSet", "false") == "true"
-            self.lengthInBits = int(bsd.get("LengthInBits", "32"))
-        if td is not None:
-            self.isOptionSet = td.getAttribute("IsOptionSet").lower() == "true"
-            if self.isOptionSet and base_type is not None:
-                widths = {"Byte": 8, "UInt16": 16,
-                          "UInt32": 32, "UInt64": 64}
-                if base_type.name not in widths:
-                    raise RuntimeError(
-                        f"OptionSet {self.name} has unsupported base type "
-                        f"{base_type.name}")
-                self.lengthInBits = widths[base_type.name]
 
-        # default values for enumerations (encoded as int32):
+        # Default values for enumerations (encoded as Int32).
         self.strDataType = "UA_Int32"
         self.strTypeKind = "UA_DATATYPEKIND_ENUM"
         self.strTypeIndex = "UA_TYPES_INT32"
+        self.builtinTypeId = builtin_types.index("Int32") + 1
+        self.strBuiltinTypeKind = "UA_DATATYPEKIND_ENUM"
 
-        # special handling for OptionSet datatype (bitmask)
-        if self.isOptionSet is True:
+    @classmethod
+    def from_bsd(cls, outname, namespace, bsd):
+        """Construct an enumeration from a BinarySchema declaration."""
+        result = cls(outname, namespace, bsd.get("Name"),
+                     Type.bsd_description(bsd))
+        result.isOptionSet = bsd.get("IsOptionSet", "false") == "true"
+        result.lengthInBits = int(bsd.get("LengthInBits", "32"))
+        result._set_representation()
+        for child in bsd:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
+                result.elements[child.get("Name")] = child.get("Value")
+        return result
+
+    @classmethod
+    def from_nodeset_definition(cls, outname, namespace, definition,
+                                base_type=None):
+        """Construct and validate an enum or OptionSet NodeSet definition."""
+        name = QualifiedName(definition.attributes["Name"].value).name
+        result = cls(outname, namespace, name)
+        result.isOptionSet = \
+            definition.getAttribute("IsOptionSet").lower() == "true"
+        if result.isOptionSet and base_type is not None:
+            result.set_base_type(base_type)
+        else:
+            result._set_representation()
+
+        for field in get_definition_fields(definition):
+            if ("Name" not in field.attributes or
+                    not field.getAttribute("Name")):
+                raise RuntimeError(
+                    f"Type {result.name} has an enum field without a Name")
+            if "Value" not in field.attributes:
+                raise RuntimeError(
+                    f"Type {result.name} enum field {field.getAttribute('Name')} "
+                    "has no Value")
+            value_text = field.getAttribute("Value")
+            try:
+                value = int(value_text)
+            except ValueError as ex:
+                raise RuntimeError(
+                    f"Type {result.name} enum field {field.getAttribute('Name')} "
+                    f"has invalid Value {value_text}") from ex
+            if result.isOptionSet and not 0 <= value < result.lengthInBits:
+                raise RuntimeError(
+                    f"Type {result.name} option field {field.getAttribute('Name')} "
+                    f"Value {value_text} is outside the UInt{result.lengthInBits} "
+                    "bit range")
+            if not result.isOptionSet and not -(2 ** 31) <= value < 2 ** 31:
+                raise RuntimeError(
+                    f"Type {result.name} enum field {field.getAttribute('Name')} "
+                    f"Value {value_text} is outside the Int32 range")
+            # StructureDefinition encodes OptionSet values as bit positions.
+            # BinarySchema uses the resulting bit masks.
+            if result.isOptionSet:
+                value = 1 << value
+            result.elements[field.getAttribute("Name")] = str(value)
+        return result
+
+    def _set_representation(self):
+        """Select the builtin C representation for this enumeration."""
+        if self.isOptionSet:
             if self.lengthInBits <= 8:
                 self.strDataType = "UA_Byte"
                 self.strTypeKind = "UA_DATATYPEKIND_BYTE"
@@ -182,47 +214,11 @@ class EnumerationType(Type):
                 self.strTypeKind = "UA_DATATYPEKIND_UINT64"
                 self.strTypeIndex = "UA_TYPES_UINT64"
             else:
-                raise Exception("Error at EnumerationType() CTOR '" + self.name + "': 'LengthInBits' value '" +
-                    self.lengthInBits + "' is not supported")
+                raise RuntimeError(
+                    f"OptionSet {self.name} has unsupported LengthInBits "
+                    f"{self.lengthInBits}")
         self.builtinTypeId = builtin_types.index(self.strDataType[3:]) + 1
         self.strBuiltinTypeKind = "UA_DATATYPEKIND_" + self.strDataType[3:].upper()
-
-        # Get the defined values
-        if bsd is not None:
-            for child in bsd:
-                if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
-                    self.elements[child.get("Name")] = child.get("Value")
-        if td is not None:
-            for field in get_definition_fields(td):
-                if ("Name" not in field.attributes or
-                        not field.getAttribute("Name")):
-                    raise RuntimeError(
-                        f"Type {self.name} has an enum field without a Name")
-                if "Value" not in field.attributes:
-                    raise RuntimeError(
-                        f"Type {self.name} enum field {field.getAttribute('Name')} "
-                        "has no Value")
-                value_text = field.getAttribute("Value")
-                try:
-                    value = int(value_text)
-                except ValueError as ex:
-                    raise RuntimeError(
-                        f"Type {self.name} enum field {field.getAttribute('Name')} "
-                        f"has invalid Value {value_text}") from ex
-                if self.isOptionSet and not 0 <= value < self.lengthInBits:
-                    raise RuntimeError(
-                        f"Type {self.name} option field {field.getAttribute('Name')} "
-                        f"Value {value_text} is outside the UInt{self.lengthInBits} "
-                        "bit range")
-                if not self.isOptionSet and not -(2 ** 31) <= value < 2 ** 31:
-                    raise RuntimeError(
-                        f"Type {self.name} enum field {field.getAttribute('Name')} "
-                        f"Value {value_text} is outside the Int32 range")
-                # StructureDefinition encodes OptionSet values as bit
-                # positions. BinarySchema uses the resulting bit masks.
-                if self.isOptionSet:
-                    value = 1 << value
-                self.elements[field.getAttribute("Name")] = str(value)
 
     def set_base_type(self, base_type):
         """Use an OptionSet's unsigned-integer base type for its C width."""
@@ -234,62 +230,70 @@ class EnumerationType(Type):
                 f"OptionSet {self.name} has unsupported base type "
                 f"{base_type.name}")
         self.lengthInBits = widths[base_type.name]
-        self.strDataType = f"UA_{base_type.name}"
-        self.strTypeKind = f"UA_DATATYPEKIND_{base_type.name.upper()}"
-        self.strTypeIndex = f"UA_TYPES_{base_type.name.upper()}"
-        self.builtinTypeId = builtin_types.index(base_type.name) + 1
-        self.strBuiltinTypeKind = self.strTypeKind
+        self._set_representation()
 
 
 class OpaqueType(Type):
-    def __init__(self, outname, namespace, base_type, bsd=None):
-        Type.__init__(self, outname, namespace, bsd=bsd)
+    def __init__(self, outname, namespace, name, base_type, description=""):
+        Type.__init__(self, outname, namespace, name, description)
         self.base_type = base_type
+
+    @classmethod
+    def from_bsd(cls, outname, namespace, base_type, bsd):
+        """Construct an opaque datatype from a BinarySchema declaration."""
+        return cls(outname, namespace, bsd.get("Name"), base_type,
+                   Type.bsd_description(bsd))
 
 
 class StructMember:
     def __init__(self, name, member_type, is_array, is_optional,
-                 original_name=None, value_rank=None, array_dimensions=None,
-                 max_string_length=0, data_type_id=None):
+                 data_type_id=None):
         self.name = name
-        self.original_name = original_name if original_name is not None else name
         self.member_type = member_type
         self.is_array = is_array
         self.is_optional = is_optional
-        self.value_rank = value_rank if value_rank is not None else (1 if is_array else -1)
-        self.array_dimensions = array_dimensions if array_dimensions is not None else []
-        self.max_string_length = max_string_length
         self.data_type_id = (data_type_id if data_type_id is not None else
                              member_type.nodeId)
 
 
 class StructType(Type):
-    def __init__(self, outname, namespace, types, xmlNamespaces=None,
-                 bsd=None, td=None, name=None):
-        Type.__init__(self, outname, namespace, bsd=bsd, td=td, name=name)
+    def __init__(self, outname, namespace, name, description=""):
+        Type.__init__(self, outname, namespace, name, description)
         self.is_recursive = False
         self.is_union = False
         self.pointerfree = False
         self.own_members = []
 
-        if bsd is not None:
-            self._parse_bsd(bsd, types, xmlNamespaces)
-        if td is not None:
-            self._parse_td(td, types)
+    @classmethod
+    def from_bsd(cls, outname, namespace, types, xmlNamespaces, bsd):
+        """Construct and resolve a BinarySchema structure immediately."""
+        result = cls(outname, namespace, bsd.get("Name"),
+                     Type.bsd_description(bsd))
+        result._parse_bsd(bsd, types, xmlNamespaces)
+        result.update_pointerfree()
+        return result
 
-        self.update_pointerfree()
+    @classmethod
+    def from_nodeset_definition(cls, outname, namespace, definition):
+        """Create a shell; fields resolve after all NodeSet shells exist."""
+        name = QualifiedName(definition.attributes["Name"].value).name
+        return cls(outname, namespace, name)
 
     def update_pointerfree(self):
+        """Recompute whether the complete flattened layout owns pointers."""
         self.pointerfree = all(not m.is_array and not m.is_optional and
                                m.member_type.pointerfree for m in self.members)
 
-    def _parse_td(self, td, types, types_by_id=None):
-        if "IsUnion" in td.attributes and td.attributes["IsUnion"].value == "true":
+    def _parse_nodeset_definition(self, definition, types_by_id):
+        """Resolve and validate the fields declared by one NodeSet type."""
+        if ("IsUnion" in definition.attributes and
+                definition.attributes["IsUnion"].value == "true"):
             self.is_union = True
 
-        fields = get_definition_fields(td)
+        fields = get_definition_fields(definition)
         self.members = []
         for f in fields:
+            # Validate the field name and its scalar-versus-array shape.
             if "Name" not in f.attributes or not f.getAttribute("Name"):
                 raise RuntimeError(f"Type {self.name} has a field without a Name")
             original_name = f.attributes["Name"].value
@@ -339,10 +343,10 @@ class StructType(Type):
                     f"Type {self.name} field {original_name} has ValueRank "
                     f"{value_rank} but {len(dimensions)} ArrayDimensions")
 
-            max_string_length = 0
             if "MaxStringLength" in f.attributes:
                 try:
-                    max_string_length = int(f.attributes["MaxStringLength"].value)
+                    max_string_length = int(
+                        f.attributes["MaxStringLength"].value)
                 except ValueError as ex:
                     raise RuntimeError(
                         f"Type {self.name} field {original_name} has invalid "
@@ -359,14 +363,11 @@ class StructType(Type):
                     f"Type {self.name} is a union and cannot have optional "
                     f"field {original_name}")
 
-            # DataType
+            # Resolve the field datatype after all structure shells exist.
             memberid = NodeId("ns=0;i=24")
             if "DataType" in f.attributes:
                 memberid = NodeId(str(f.attributes["DataType"].value))
-            if types_by_id is not None:
-                member_type = types_by_id.get(str(memberid))
-            else:
-                member_type = get_type_for_id(memberid, types)
+            member_type = types_by_id.get(str(memberid))
             if member_type is None:
                 raise TypeNotDefinedException(
                     "Unknown member DataType %s in %s" %
@@ -380,15 +381,13 @@ class StructType(Type):
 
             self.members.append(StructMember(
                 name, member_type, is_array, is_optional,
-                original_name=original_name, value_rank=value_rank,
-                array_dimensions=dimensions,
-                max_string_length=max_string_length,
                 data_type_id=memberid))
 
         self.update_pointerfree()
         self.own_members = list(self.members)
 
     def _parse_bsd(self, bsd, types, xmlNamespaces):
+        """Resolve structure members encoded by a BinarySchema declaration."""
         length_fields = []
         optional_fields = []
         switch_fields = []
@@ -435,8 +434,7 @@ class StructType(Type):
                 member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
 
             self.members.append(StructMember(
-                member_name, member_type, is_array, member_is_optional,
-                original_name=child.get("Name")))
+                member_name, member_type, is_array, member_is_optional))
 
 
 class TypeParser():
@@ -472,8 +470,8 @@ class TypeParser():
         return result
 
     @staticmethod
-    def _definition_kind(td):
-        fields = get_definition_fields(td)
+    def _definition_kind(definition):
+        fields = get_definition_fields(definition)
         if len(fields) == 0:
             return None
         value_fields = ["Value" in field.attributes for field in fields]
@@ -481,34 +479,36 @@ class TypeParser():
             return "enum"
         if any(value_fields):
             raise RuntimeError(
-                f"DataType Definition {td.getAttribute('Name')} mixes enum "
-                "and structure fields")
+                f"DataType Definition {definition.getAttribute('Name')} "
+                "mixes enum and structure fields")
         return "struct"
 
     def addTypesFromDefinitions(self, definitions, aliases=None):
+        """Normalize NodeSet definitions into dependency-linked C layouts."""
+        # Create enums and structure shells before resolving structure fields.
         structs = []
         for definition in definitions:
-            td, targetNamespace, nodeId = definition[:3]
+            dataTypeDefinition, targetNamespace, nodeId = definition[:3]
             is_local = definition[3] if len(definition) > 3 else True
             base_id = definition[4] if len(definition) > 4 else None
-            kind = self._definition_kind(td)
+            outname = definition[5] if len(definition) > 5 else self.outname
+            kind = self._definition_kind(dataTypeDefinition)
             if kind is None:
                 continue
             if not is_local and str(nodeId) in self.types_by_id:
                 continue
-            if "Name" not in td.attributes:
+            if "Name" not in dataTypeDefinition.attributes:
                 raise RuntimeError(f"DataType {nodeId} has a Definition without a Name")
 
             if kind == "enum":
                 base_type = (self.types_by_id.get(str(base_id))
                              if base_id is not None else None)
-                t = EnumerationType(self.outname, targetNamespace, td=td,
-                                    base_type=base_type)
+                t = EnumerationType.from_nodeset_definition(
+                    outname, targetNamespace, dataTypeDefinition, base_type)
             else:
-                name = QualifiedName(td.attributes["Name"].value).name
-                t = StructType(self.outname, targetNamespace, self.types,
-                               name=name)
-                structs.append((t, td))
+                t = StructType.from_nodeset_definition(
+                    outname, targetNamespace, dataTypeDefinition)
+                structs.append((t, dataTypeDefinition))
             t.nodeId = nodeId
             t.baseTypeId = base_id
             t.isLocal = is_local
@@ -540,37 +540,49 @@ class TypeParser():
             for t in namespace_types.values():
                 if (isinstance(t, EnumerationType) and t.isOptionSet and
                         t.baseTypeId is not None):
-                    t.set_base_type(self.types_by_id.get(str(t.baseTypeId)))
+                    base_type = self.types_by_id.get(str(t.baseTypeId))
+                    # The abstract ns0 OptionSet DataType does not prescribe a
+                    # C layout. Companion specifications that derive directly
+                    # from it use the conventional UInt32 representation.
+                    if t.baseTypeId.ns == 0 and t.baseTypeId.i == 12755:
+                        base_type = self.types_by_id.get("ns=0;i=7")
+                    t.set_base_type(base_type)
 
         # All structure shells are now indexed. Resolve base structures before
         # derived structures, then flatten inherited fields for the generated
         # C ABI. Keep own_members separately for StructureDefinition metadata.
-        structs_by_type = {id(t): (t, td) for t, td in structs}
+        structs_by_type = {
+            id(datatype): (datatype, definition)
+            for datatype, definition in structs
+        }
         parsed = set()
         parsing = set()
 
-        def parse_struct(t, td):
-            key = id(t)
+        def parse_struct(datatype, definition):
+            key = id(datatype)
             if key in parsed:
                 return
             if key in parsing:
                 raise RuntimeError(
-                    f"DataType inheritance cycle involving {t.name}")
+                    f"DataType inheritance cycle involving {datatype.name}")
             parsing.add(key)
-            base = (self.types_by_id.get(str(t.baseTypeId))
-                    if t.baseTypeId is not None else None)
+            base = (self.types_by_id.get(str(datatype.baseTypeId))
+                    if datatype.baseTypeId is not None else None)
             base_definition = structs_by_type.get(id(base))
             if base_definition is not None:
                 parse_struct(*base_definition)
-            t._parse_td(td, self.types, self.types_by_id)
+            datatype._parse_nodeset_definition(
+                definition, self.types_by_id)
             if isinstance(base, StructType):
-                t.members = [copy.copy(member) for member in base.members] + t.members
-                t.update_pointerfree()
+                datatype.members = ([copy.copy(member)
+                                     for member in base.members] +
+                                    datatype.members)
+                datatype.update_pointerfree()
             parsing.remove(key)
             parsed.add(key)
 
-        for t, td in structs:
-            parse_struct(t, td)
+        for datatype, definition in structs:
+            parse_struct(datatype, definition)
 
         # Pointer-freeness can depend on a structure declared later. Iterate
         # to a fixed point after all member links have been resolved.
@@ -586,6 +598,8 @@ class TypeParser():
         return self.types_by_id.get(str(node_id))
 
     def parseTypeDefinitions(self, outname, xmlDescription):
+        """Load BinarySchema types in dependency order."""
+        # Determine when a declaration has all prerequisites available.
         def typeReady(element, types, xmlNamespaces):
             "Are all member types defined?"
             parentname = type_aliases.get(element.get("Name"), element.get("Name")) # If a type contains itself, declare that type as available
@@ -644,6 +658,7 @@ class TypeParser():
                     return True
             return False
 
+        # Collect declarations and their namespace prefixes.
         snippets = OrderedDict()
         xmlDoc = etree.iterparse(xmlDescription, events=['start-ns'])
         xmlNamespaces = dict([node for _, node in xmlDoc])
@@ -654,6 +669,7 @@ class TypeParser():
             name = typeXml.get("Name")
             snippets[name] = typeXml
 
+        # Revisit unresolved declarations until the dependency graph settles.
         detectLoop = len(snippets) + 1
         while len(snippets) > 0:
             if detectLoop == len(snippets):
@@ -677,14 +693,17 @@ class TypeParser():
                 if name in builtin_types:
                     new_type = BuiltinType(name)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                    new_type = EnumerationType(outname, targetNamespace, bsd=typeXml)
+                    new_type = EnumerationType.from_bsd(
+                        outname, targetNamespace, typeXml)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                    new_type = OpaqueType(outname, targetNamespace,
-                                          get_base_type_for_opaque(name)['name'],
-                                          bsd=typeXml)
+                    new_type = OpaqueType.from_bsd(
+                        outname, targetNamespace,
+                        get_base_type_for_opaque(name)['name'], typeXml)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
                     try:
-                        new_type = StructType(outname, targetNamespace, self.types, xmlNamespaces, bsd=typeXml)
+                        new_type = StructType.from_bsd(
+                            outname, targetNamespace, self.types,
+                            xmlNamespaces, typeXml)
                     except TypeNotDefinedException:
                         # Type is using other types which are not yet loaded, try later
                         continue
