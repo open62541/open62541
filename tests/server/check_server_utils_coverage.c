@@ -216,6 +216,54 @@ START_TEST(Utils_addDataTypeFromDescription_empty_rejected) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
 } END_TEST
 
+START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
+    /* Add a simple DataType alias without its own binary representation. */
+    UA_NodeId aliasId = UA_NODEID_NUMERIC(1, 99400);
+    UA_DataTypeAttributes aliasAttributes = UA_DataTypeAttributes_default;
+    aliasAttributes.displayName = UA_LOCALIZEDTEXT("", "AliasDateTime");
+    UA_StatusCode res = UA_Server_addDataTypeNode(
+        server, aliasId, UA_TYPES[UA_TYPES_DATETIME].typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "AliasDateTime"), aliasAttributes, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Use the alias as a structure member. Registration must resolve it to
+     * DateTime for the concrete memory layout without modifying the input. */
+    UA_StructureField field;
+    UA_StructureField_init(&field);
+    field.name = UA_STRING("Timestamp");
+    field.dataType = aliasId;
+    field.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 99401);
+    description.name = UA_QUALIFIEDNAME(1, "AliasHolder");
+    description.structureDefinition.defaultEncodingId =
+        UA_NODEID_NUMERIC(1, 99402);
+    description.structureDefinition.baseDataType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    description.structureDefinition.structureType =
+        UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fieldsSize = 1;
+    description.structureDefinition.fields = &field;
+
+    UA_ExtensionObject encodedDescription;
+    UA_ExtensionObject_setValueNoDelete(
+        &encodedDescription, &description,
+        &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    res = UA_Server_addDataTypeFromDescription(server, &encodedDescription);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    const UA_DataType *registered =
+        UA_Server_findDataType(server, &description.dataTypeId);
+    ck_assert_ptr_nonnull(registered);
+    ck_assert_uint_eq(registered->membersSize, 1);
+    ck_assert_ptr_eq(registered->members[0].memberType,
+                     &UA_TYPES[UA_TYPES_DATETIME]);
+    ck_assert(UA_NodeId_equal(&field.dataType, &aliasId));
+} END_TEST
+
 /* === Suite === */
 
 static Suite* testSuite_Utils(void) {
@@ -232,6 +280,7 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_addDataType_preservesSelfReference);
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
+    tcase_add_test(tc, Utils_addDataTypeFromDescription_resolvesAlias);
     suite_add_tcase(s, tc);
     return s;
 }
