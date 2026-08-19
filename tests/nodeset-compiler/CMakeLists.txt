@@ -4,9 +4,19 @@ include_directories("${PROJECT_BINARY_DIR}/src_generated/tests")
 # Test Companion Specs that need the full NS0 #
 ###############################################
 
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 
-    set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
+# Generate datatypes directly from NodeSet2 Definition elements
+ua_generate_nodeset_and_datatypes(
+    NAME "typedescriptions"
+    OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+    FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/typedescriptions.xml"
+)
+
+ua_add_test(check_nodeset_typedescriptions.c EXTRASOURCES ${UA_NODESET_TYPEDESCRIPTIONS_SOURCES})
+add_dependencies(check_nodeset_typedescriptions open62541-generator-ns-typedescriptions)
+
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # One const array containing two namespaces, used by nodesets with both
     # a matching name and an independently chosen name.
@@ -58,8 +68,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Generate types and namespace for ADI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-adi"
-        FILE_CSV "${UA_NODESET_DIR}/ADI/OpcUaAdiModel.csv"
-        FILE_BSD "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.Types.bsd"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.NodeSet2.xml"
         DEPENDS "tests-di"
@@ -107,8 +115,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
             NAME "tests-autoid"
-            FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
-            FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
             OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
             FILE_NS "${UA_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
             DEPENDS "tests-di"
@@ -123,28 +129,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
 endif()
 
-#[[ua_generate_datatypes(
-        NAME "optstruct-union"
-        TARGET_SUFFIX "types-optstruct-union"
-        NAMESPACE_IDX 2
-        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
-)
-
-ua_add_test(check_nodeset_compiler_optstructs_union.c EXTRASOURCES
-            ${UA_NODESET_TESTS_DI_SOURCES}
-            ${UA_NODESET_TESTS_PLC_SOURCES}
-            ${UA_TYPES_TESTS_DI_SOURCES}
-            ${UA_TYPES_TESTS_PLC_SOURCES})]]
-
 #generate testnodeset
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Generate types and namespace for ADI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-testnodeset"
-        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
-        FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
         DEPENDS "tests-di"
@@ -214,3 +204,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_XML_ENCODING AND UA_ENABLE_TY
     add_dependencies(check_nodeset_compiler_regressions open62541-generator-ns-compiler-fixes
                      open62541-generator-ns-compiler-negative open62541-generator-types-tests-compiler-fixes)
 endif()
+add_test(NAME test_nodeset_datatype_definitions
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_nodeset_datatype_definitions.py")
+add_test(NAME test_datatype_definition_parser
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_datatype_definition_parser.py")

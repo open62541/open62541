@@ -728,8 +728,10 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False,
         typeParser.no_builtin = True
         typeParser.existing_types = importedTypes
         typeParser.existing_types_array = set(typesArray)
+        # NodeSet namespace indexes are remapped at load time; they are not
+        # fixed server indexes supplied through --namespaceMap.
         generator = CGenerator(typeParser, "", typesOutput, internal_headers,
-                               False, nodeset.namespaceMapping)
+                               False, {"http://opcfoundation.org/UA/": 0})
         generator.write_definitions()
 
         localTypesArray = "UA_" + typesOutname.upper()

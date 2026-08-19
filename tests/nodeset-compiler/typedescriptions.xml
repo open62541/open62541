@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://model.o6-automation.com</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://model.o6-automation.com" Version="1.00">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.05.03"/>
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="Int64">i=8</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+  </Aliases>
+
+  <!-- Intentionally precedes its custom member type to test dependency sorting. -->
+  <UADataType NodeId="ns=1;i=3000" BrowseName="1:Person">
+    <DisplayName>Person</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:Person">
+      <Field DataType="String" Name="Name"/>
+      <Field DataType="ns=1;i=3002" Name="Address"/>
+      <Field DataType="String" ValueRank="1" ArrayDimensions="0" Name="Tags"/>
+      <Field DataType="String" IsOptional="true" Name="Note"/>
+    </Definition>
+  </UADataType>
+
+  <UADataType NodeId="ns=1;i=3001" BrowseName="1:O6Enum">
+    <DisplayName>O6Enum</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="1:O6Enum">
+      <!-- Negative, sparse and out-of-order values are intentional. -->
+      <Field Name="Negative" Value="-7"/>
+      <Field Name="High" Value="42"/>
+      <Field Name="Middle" Value="3"/>
+    </Definition>
+  </UADataType>
+
+  <UADataType NodeId="ns=1;i=3002" BrowseName="1:Address">
+    <DisplayName>Address</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:Address">
+      <Field DataType="String" Name="City"/>
+      <Field DataType="Int64" Name="Number"/>
+    </Definition>
+  </UADataType>
+
+  <UADataType NodeId="ns=1;i=3003" BrowseName="1:Measurement">
+    <DisplayName>Measurement</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:Measurement" IsUnion="true">
+      <Field DataType="Int64" Name="Integer"/>
+      <Field DataType="String" Name="Text"/>
+    </Definition>
+  </UADataType>
+
+  <UADataType NodeId="ns=1;i=3004" BrowseName="1:O6OptionSet">
+    <DisplayName>O6OptionSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">UInt32</Reference>
+    </References>
+    <Definition Name="1:O6OptionSet" IsOptionSet="true">
+      <Field Name="Read" Value="0"/>
+      <Field Name="Write" Value="1"/>
+    </Definition>
+  </UADataType>
+
+  <UADataType NodeId="ns=1;i=3005" BrowseName="1:RecursiveRecord">
+    <DisplayName>RecursiveRecord</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:RecursiveRecord">
+      <Field DataType="String" Name="Name"/>
+      <Field DataType="ns=1;i=3005" ValueRank="1" ArrayDimensions="0"
+             Name="Children"/>
+    </Definition>
+  </UADataType>
+
+  <UADataType NodeId="ns=1;i=3006" BrowseName="1:RankedRecord">
+    <DisplayName>RankedRecord</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:RankedRecord">
+      <Field DataType="String" ValueRank="0" ArrayDimensions="0"
+             MaxStringLength="64" Name="AnyRankStrings"/>
+      <Field DataType="Int64" ValueRank="2" ArrayDimensions="2,3"
+             Name="Matrix"/>
+    </Definition>
+  </UADataType>
+</UANodeSet>
