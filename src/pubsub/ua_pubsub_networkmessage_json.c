@@ -505,10 +505,12 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
     if(!isUaData)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    dst->payload.dataSetMessages = (UA_DataSetMessage*)
-        UA_calloc(messageCount, sizeof(UA_DataSetMessage));
-    if(!dst->payload.dataSetMessages)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(messageCount > 0) {
+        dst->payload.dataSetMessages = (UA_DataSetMessage*)
+            UA_calloc(messageCount, sizeof(UA_DataSetMessage));
+        if(!dst->payload.dataSetMessages)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     dst->messageCount = (UA_Byte)messageCount;
 
     /* Network Message */
