@@ -65,6 +65,29 @@ def is_const_array(outdir, outname):
         return "_IS_CONST 1" in f.read()
 
 
+def require_generated_legacy_output(outdir, outname):
+    """Check the public declarations that must survive backend refactoring."""
+    header_path = os.path.join(outdir, f"{outname}_generated.h")
+    source_path = os.path.join(outdir, f"{outname}_generated.c")
+    if not os.path.exists(header_path) or not os.path.exists(source_path):
+        return "legacy generator did not create both output files"
+    with open(header_path, encoding="utf-8") as f:
+        header = f.read()
+    with open(source_path, encoding="utf-8") as f:
+        source = f.read()
+    expected = [
+        ("UA_CROSS_NS_SAME_SHAREDENUM", header),
+        ("UA_DataType UA_CROSS_NS_SAME", source),
+        ('UA_TYPENAME("Val0")', source),
+        ('UA_TYPENAME("Val1")', source),
+        ("UA_DATATYPEKIND_ENUM", source),
+    ]
+    missing = [text for text, contents in expected if text not in contents]
+    if missing:
+        return "legacy BSD output changed; missing: " + ", ".join(missing)
+    return None
+
+
 def main():
     failures = 0
 
@@ -101,7 +124,13 @@ def main():
 
         # --- Test 1: same definition -> must succeed ---
         r = run_generator(tmpdir, "cross_ns_same", [SAME_BSD], SAME_CSV)
-        expect_ok("same-definition cross-namespace type accepted", r)
+        if expect_ok("same-definition cross-namespace type accepted", r):
+            error = require_generated_legacy_output(tmpdir, "cross_ns_same")
+            if error:
+                print(f"FAIL: {error}")
+                failures += 1
+            else:
+                print("PASS: complete legacy BSD output is compatible")
 
         # --- Test 2: different definition -> must fail ---
         r = run_generator(tmpdir, "cross_ns_diff", [DIFF_BSD], DIFF_CSV)
