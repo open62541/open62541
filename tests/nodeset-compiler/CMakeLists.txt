@@ -122,3 +122,6 @@ add_test(NAME test_nodeset_datatype_definitions
 add_test(NAME test_datatype_definition_parser
          COMMAND "${Python3_EXECUTABLE}"
                  "${CMAKE_CURRENT_SOURCE_DIR}/test_datatype_definition_parser.py")
+add_test(NAME test_nodeset_bsd_equivalence
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_nodeset_bsd_equivalence.py")
