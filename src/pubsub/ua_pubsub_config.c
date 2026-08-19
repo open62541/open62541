@@ -123,9 +123,12 @@ updatePubSubConfig(UA_PubSubManager *psm,
 
     /* Configuration of Published DataSets: */
     UA_UInt32 pdsCount = (UA_UInt32)configurationParameters->publishedDataSetsSize;
-    UA_NodeId *publishedDataSetIdent = (UA_NodeId*)UA_calloc(pdsCount, sizeof(UA_NodeId));
-    if(!publishedDataSetIdent)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_NodeId *publishedDataSetIdent = NULL;
+    if(pdsCount > 0) {
+        publishedDataSetIdent = (UA_NodeId*)UA_calloc(pdsCount, sizeof(UA_NodeId));
+        if(!publishedDataSetIdent)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     for(UA_UInt32 i = 0; i < pdsCount; i++) {
         res = createPublishedDataSet(psm,
@@ -153,10 +156,14 @@ updatePubSubConfig(UA_PubSubManager *psm,
                 "[UA_PubSubManager_updatePubSubConfig] START CONNECTIONS (Phase 1: Creation)");
 
     /* Store connection NodeIds for Phase 2 */
-    UA_NodeId *connectionIdents = (UA_NodeId*)UA_calloc(configurationParameters->connectionsSize, sizeof(UA_NodeId));
-    if(!connectionIdents) {
-        UA_free(publishedDataSetIdent);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_NodeId *connectionIdents = NULL;
+    if(configurationParameters->connectionsSize > 0) {
+        connectionIdents = (UA_NodeId*)
+            UA_calloc(configurationParameters->connectionsSize, sizeof(UA_NodeId));
+        if(!connectionIdents) {
+            UA_free(publishedDataSetIdent);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     for(size_t i = 0; i < configurationParameters->connectionsSize; i++) {
@@ -888,13 +895,15 @@ generateWriterGroupDataType(const UA_WriterGroup *src,
         UA_WriterGroupDataType_clear(dst);
         return res;
     }
-    dst->groupPropertiesSize = src->config.groupProperties.mapSize,
+    dst->groupPropertiesSize = src->config.groupProperties.mapSize;
 
-    dst->dataSetWriters = (UA_DataSetWriterDataType*)
-        UA_calloc(src->writersCount, sizeof(UA_DataSetWriterDataType));
-    if(!dst->dataSetWriters) {
-        UA_WriterGroupDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->writersCount > 0) {
+        dst->dataSetWriters = (UA_DataSetWriterDataType*)
+            UA_calloc(src->writersCount, sizeof(UA_DataSetWriterDataType));
+        if(!dst->dataSetWriters) {
+            UA_WriterGroupDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     dst->dataSetWritersSize = src->writersCount;
@@ -933,10 +942,12 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     const UA_TargetVariablesDataType *targets = &src->config.subscribedDataSet.target;
-    tmpTarget->targetVariables = (UA_FieldTargetDataType *)
-        UA_calloc(targets->targetVariablesSize, sizeof(UA_FieldTargetDataType));
-    if(!tmpTarget->targetVariables)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(targets->targetVariablesSize > 0) {
+        tmpTarget->targetVariables = (UA_FieldTargetDataType *)
+            UA_calloc(targets->targetVariablesSize, sizeof(UA_FieldTargetDataType));
+        if(!tmpTarget->targetVariables)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     tmpTarget->targetVariablesSize = targets->targetVariablesSize;
     for(size_t i = 0; i < tmpTarget->targetVariablesSize; i++) {
         res |= UA_FieldTargetDataType_copy(&targets->targetVariables[i],
@@ -955,10 +966,12 @@ generateReaderGroupDataType(const UA_ReaderGroup *src,
     memset(dst, 0, sizeof(UA_ReaderGroupDataType));
 
     UA_String_copy(&src->config.name, &dst->name);
-    dst->dataSetReaders = (UA_DataSetReaderDataType*)
-        UA_calloc(src->readersCount, sizeof(UA_DataSetReaderDataType));
-    if(dst->dataSetReaders == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->readersCount > 0) {
+        dst->dataSetReaders = (UA_DataSetReaderDataType*)
+            UA_calloc(src->readersCount, sizeof(UA_DataSetReaderDataType));
+        if(dst->dataSetReaders == NULL)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     dst->dataSetReadersSize = src->readersCount;
 
     size_t i = 0;
@@ -1048,11 +1061,13 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
         }
     }
 
-    dst->writerGroups = (UA_WriterGroupDataType*)
-        UA_calloc(src->writerGroupsSize, sizeof(UA_WriterGroupDataType));
-    if(!dst->writerGroups) {
-        UA_PubSubConnectionDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->writerGroupsSize > 0) {
+        dst->writerGroups = (UA_WriterGroupDataType*)
+            UA_calloc(src->writerGroupsSize, sizeof(UA_WriterGroupDataType));
+        if(!dst->writerGroups) {
+            UA_PubSubConnectionDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     dst->writerGroupsSize = src->writerGroupsSize;
@@ -1067,11 +1082,13 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
         wgIndex++;
     }
 
-    dst->readerGroups = (UA_ReaderGroupDataType*)
-        UA_calloc(src->readerGroupsSize, sizeof(UA_ReaderGroupDataType));
-    if(dst->readerGroups == NULL) {
-        UA_PubSubConnectionDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(src->readerGroupsSize > 0) {
+        dst->readerGroups = (UA_ReaderGroupDataType*)
+            UA_calloc(src->readerGroupsSize, sizeof(UA_ReaderGroupDataType));
+        if(dst->readerGroups == NULL) {
+            UA_PubSubConnectionDataType_clear(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     dst->readerGroupsSize = src->readerGroupsSize;

@@ -10,6 +10,7 @@
 #include "../common.h"
 
 #include "test_helpers.h"
+#include "pubsub_test_helpers.h"
 #include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
@@ -115,6 +116,66 @@ START_TEST(SaveEmptyConfiguration) {
                                                        &savedConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_uint_gt(savedConfiguration.length, 0);
+
+    /* A configuration without PublishedDataSets and Connections must also be
+     * loadable again. */
+    retVal = UA_Server_loadPubSubConfigFromByteString(server, savedConfiguration);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&savedConfiguration);
+} END_TEST
+
+START_TEST(SaveConfigurationWithEmptyComponents) {
+    /* A Connection without groups, a WriterGroup without DataSetWriters, a
+     * ReaderGroup without DataSetReaders and a DataSetReader without
+     * TargetVariables must be serializable. */
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+    /* The first Connection stays without any group */
+    UA_NodeId connection;
+    UA_StatusCode retVal =
+        UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name = UA_STRING("WriterGroup without writers");
+    writerGroupConfig.publishingInterval = 100;
+    retVal = UA_Server_addWriterGroup(server, connection, &writerGroupConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup without readers");
+    UA_NodeId readerGroup;
+    retVal = UA_Server_addReaderGroup(server, connection, &readerGroupConfig,
+                                      &readerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetReaderConfig readerConfig;
+    memset(&readerConfig, 0, sizeof(readerConfig));
+    readerConfig.name = UA_STRING("DataSetReader without target variables");
+    retVal = UA_Server_addDataSetReader(server, readerGroup, &readerConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_ByteString savedConfiguration = UA_BYTESTRING_NULL;
+    retVal = UA_Server_writePubSubConfigurationToByteString(server,
+                                                            &savedConfiguration);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(savedConfiguration.length, 0);
+
+    UA_Server_disableAllPubSubComponents(server);
+    retVal = UA_Server_loadPubSubConfigFromByteString(server, savedConfiguration);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&savedConfiguration);
 } END_TEST
 
@@ -124,6 +185,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_file_configuration, AddPublisherUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, AddSubscriberUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, SaveEmptyConfiguration);
+    tcase_add_test(tc_pubsub_file_configuration, SaveConfigurationWithEmptyComponents);
 
     Suite *s = suite_create("PubSub file configuration");
     suite_add_tcase(s, tc_pubsub_file_configuration);
