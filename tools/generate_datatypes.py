@@ -8,12 +8,18 @@
 
 import re
 import copy
+import ntpath
 from collections import OrderedDict
 import argparse
 
 from nodeset_compiler.type_parser import (BuiltinType, CSVBSDTypeParser,
                                           EnumerationType, OpaqueType,
                                           StructType)
+
+
+def portable_basename(path):
+    """Return the final component for native, POSIX, or Windows paths."""
+    return ntpath.basename(path)
 
 ###############################
 # Parse the Command Line Input#
@@ -679,8 +685,8 @@ def main(argv=None):
     parser = build_argument_parser()
     args = parser.parse_args(argv)
 
-    outname = args.outfile.split("/")[-1]
-    inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
+    outname = portable_basename(args.outfile)
+    inname = ', '.join(portable_basename(x.name) for x in args.type_bsd)
 
     namespaceMap = {"http://opcfoundation.org/UA/": 0}
     for m in args.namespace_map:

@@ -18,7 +18,11 @@ import subprocess
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GENERATOR = os.path.join(HERE, "..", "..", "tools", "generate_datatypes.py")
+TOOLS_DIR = os.path.join(HERE, "..", "..", "tools")
+GENERATOR = os.path.join(TOOLS_DIR, "generate_datatypes.py")
+sys.path.insert(0, TOOLS_DIR)
+
+from generate_datatypes import portable_basename
 
 BASE_BSD = os.path.join(HERE, "cross_ns_base.bsd")
 SAME_BSD = os.path.join(HERE, "cross_ns_same.bsd")
@@ -41,6 +45,12 @@ def run_generator(spec_bsd, spec_csv, outdir, outname):
 
 def main():
     failures = 0
+
+    # Output names must not inherit a Windows drive or parent directories.
+    windows_output = r"C:\Temp\generated\cross_ns_same"
+    if portable_basename(windows_output) != "cross_ns_same":
+        print("FAIL: generated output basename is not portable")
+        failures += 1
 
     with tempfile.TemporaryDirectory() as tmpdir:
 
