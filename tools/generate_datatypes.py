@@ -17,6 +17,11 @@ from nodeset_compiler.type_parser import (BuiltinType, CSVBSDTypeParser,
                                           EnumerationType, OpaqueType,
                                           StructType)
 
+
+def portable_basename(path):
+    """Return the final component for native, POSIX, or Windows paths."""
+    return ntpath.basename(path)
+
 ###############################
 # Parse the Command Line Input#
 ###############################
@@ -810,8 +815,8 @@ def main(argv=None):
     parser = build_argument_parser()
     args = parser.parse_args(argv)
 
-    outname = ntpath.basename(args.outfile)
-    inname = ', '.join(list(map(lambda x: ntpath.basename(x.name), args.type_bsd)))
+    outname = portable_basename(args.outfile)
+    inname = ', '.join(portable_basename(x.name) for x in args.type_bsd)
 
     namespaceMap = {OPC_UA_NAMESPACE: 0}
     for m in args.namespace_map:
