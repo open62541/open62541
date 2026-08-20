@@ -87,6 +87,71 @@ START_TEST(definition_fromStructure_unknownMember) {
     UA_ExtensionObject_clear(&descr);
 } END_TEST
 
+START_TEST(definition_fromStructure_inheritsBaseLayout) {
+    /* Describe a base layout that is already registered. The derived
+     * StructureDefinition contains only its newly introduced field. */
+    UA_DataTypeMember baseMember;
+    memset(&baseMember, 0, sizeof(baseMember));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    baseMember.memberName = "BaseValue";
+#endif
+    baseMember.memberType = &UA_TYPES[UA_TYPES_INT32];
+
+    UA_DataType baseType;
+    memset(&baseType, 0, sizeof(baseType));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    baseType.typeName = "BaseRecord";
+#endif
+    baseType.typeId = UA_NODEID_NUMERIC(1, 6001);
+    baseType.memSize = sizeof(UA_Int32);
+    baseType.typeKind = UA_DATATYPEKIND_STRUCTURE;
+    baseType.pointerFree = true;
+    baseType.overlayable = UA_TYPES[UA_TYPES_INT32].overlayable;
+    baseType.membersSize = 1;
+    baseType.members = &baseMember;
+    UA_DataTypeArray customTypes = {NULL, 1, &baseType, false};
+
+    UA_StructureField ownField;
+    UA_StructureField_init(&ownField);
+    ownField.name = UA_STRING("OwnValue");
+    ownField.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    ownField.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 6002);
+    description.name = UA_QUALIFIEDNAME(1, "DerivedRecord");
+    description.structureDefinition.defaultEncodingId =
+        UA_NODEID_NUMERIC(1, 5002);
+    description.structureDefinition.baseDataType = baseType.typeId;
+    description.structureDefinition.structureType =
+        UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fieldsSize = 1;
+    description.structureDefinition.fields = &ownField;
+
+    UA_ExtensionObject encodedDescription;
+    UA_ExtensionObject_setValueNoDelete(
+        &encodedDescription, &description,
+        &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+
+    UA_DataType derivedType;
+    UA_StatusCode res = UA_DataType_fromDescription(
+        &derivedType, &encodedDescription, &customTypes);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(derivedType.membersSize, 2);
+    ck_assert_ptr_eq(derivedType.members[0].memberType,
+                     &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(derivedType.members[1].memberType,
+                     &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_ge(derivedType.memSize,
+                      sizeof(UA_Int32) + sizeof(UA_String));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    ck_assert_str_eq(derivedType.members[0].memberName, "BaseValue");
+    ck_assert_str_eq(derivedType.members[1].memberName, "OwnValue");
+#endif
+    UA_DataType_clear(&derivedType);
+} END_TEST
+
 static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
     tcase_add_test(tc, definition_roundtrip_structure);
@@ -95,6 +160,7 @@ static Suite *testSuite_definition(void) {
     tcase_add_test(tc, definition_roundtrip_enum);
     tcase_add_test(tc, definition_fromDescription_invalidExtObj);
     tcase_add_test(tc, definition_fromStructure_unknownMember);
+    tcase_add_test(tc, definition_fromStructure_inheritsBaseLayout);
 
     Suite *s = suite_create("DataType Definition");
     suite_add_tcase(s, tc);

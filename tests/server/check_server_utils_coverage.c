@@ -139,6 +139,33 @@ START_TEST(Utils_addDataType_multiple) {
     ck_assert_ptr_ne(UA_Server_findDataType(server, &t2.typeId), NULL);
 } END_TEST
 
+START_TEST(Utils_addDataType_preservesSelfReference) {
+    UA_DataType recursiveType;
+    UA_DataTypeMember recursiveMember;
+    memset(&recursiveMember, 0, sizeof(recursiveMember));
+    initCustomType(&recursiveType, 1, 99300);
+    recursiveType.memSize = sizeof(size_t) + sizeof(void *);
+    recursiveType.pointerFree = false;
+    recursiveType.members = &recursiveMember;
+    recursiveMember.memberName = "children";
+    recursiveMember.memberType = &recursiveType;
+    recursiveMember.isArray = true;
+
+    UA_DataType copy;
+    UA_StatusCode rv = UA_DataType_copy(&recursiveType, &copy);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(copy.members[0].memberType, &copy);
+    UA_DataType_clear(&copy);
+
+    UA_NodeId base = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    rv = UA_Server_addDataType(server, base, &recursiveType);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    const UA_DataType *found =
+        UA_Server_findDataType(server, &recursiveType.typeId);
+    ck_assert_ptr_nonnull(found);
+    ck_assert_ptr_eq(found->members[0].memberType, found);
+} END_TEST
+
 /* Adding TYPES_LIST_SIZE (64) datatypes fills the first internal
  * array. Adding one more exercises the realloc/next-pointer chain in
  * addDataType that the existing 5 tests do not hit. */
@@ -189,6 +216,54 @@ START_TEST(Utils_addDataTypeFromDescription_empty_rejected) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
 } END_TEST
 
+START_TEST(Utils_addDataTypeFromDescription_resolvesAlias) {
+    /* Add a simple DataType alias without its own binary representation. */
+    UA_NodeId aliasId = UA_NODEID_NUMERIC(1, 99400);
+    UA_DataTypeAttributes aliasAttributes = UA_DataTypeAttributes_default;
+    aliasAttributes.displayName = UA_LOCALIZEDTEXT("", "AliasDateTime");
+    UA_StatusCode res = UA_Server_addDataTypeNode(
+        server, aliasId, UA_TYPES[UA_TYPES_DATETIME].typeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "AliasDateTime"), aliasAttributes, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Use the alias as a structure member. Registration must resolve it to
+     * DateTime for the concrete memory layout without modifying the input. */
+    UA_StructureField field;
+    UA_StructureField_init(&field);
+    field.name = UA_STRING("Timestamp");
+    field.dataType = aliasId;
+    field.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 99401);
+    description.name = UA_QUALIFIEDNAME(1, "AliasHolder");
+    description.structureDefinition.defaultEncodingId =
+        UA_NODEID_NUMERIC(1, 99402);
+    description.structureDefinition.baseDataType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    description.structureDefinition.structureType =
+        UA_STRUCTURETYPE_STRUCTURE;
+    description.structureDefinition.fieldsSize = 1;
+    description.structureDefinition.fields = &field;
+
+    UA_ExtensionObject encodedDescription;
+    UA_ExtensionObject_setValueNoDelete(
+        &encodedDescription, &description,
+        &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    res = UA_Server_addDataTypeFromDescription(server, &encodedDescription);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    const UA_DataType *registered =
+        UA_Server_findDataType(server, &description.dataTypeId);
+    ck_assert_ptr_nonnull(registered);
+    ck_assert_uint_eq(registered->membersSize, 1);
+    ck_assert_ptr_eq(registered->members[0].memberType,
+                     &UA_TYPES[UA_TYPES_DATETIME]);
+    ck_assert(UA_NodeId_equal(&field.dataType, &aliasId));
+} END_TEST
+
 /* === Suite === */
 
 static Suite* testSuite_Utils(void) {
@@ -202,8 +277,10 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_findDataType_unknown);
     tcase_add_test(tc, Utils_getDataTypes_returnsList);
     tcase_add_test(tc, Utils_addDataType_multiple);
+    tcase_add_test(tc, Utils_addDataType_preservesSelfReference);
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
+    tcase_add_test(tc, Utils_addDataTypeFromDescription_resolvesAlias);
     suite_add_tcase(s, tc);
     return s;
 }

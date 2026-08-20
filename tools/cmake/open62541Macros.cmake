@@ -31,8 +31,8 @@ function(export_target)
     cmake_parse_arguments(PARSE_ARGV 1 arg "${options}" "${oneValueArgs}" "${multiValueArgs}")
     string(TOUPPER ${ARGV0} arg_NAME)
     string(REPLACE "-" "_" arg_NAME ${arg_NAME})
-    set(${arg_NAME}_TARGET ${arg_TARGET} CACHE INTERNAL "")
-    set(${arg_NAME}_SOURCES ${arg_SOURCES} CACHE INTERNAL "")
+    set(${arg_NAME}_TARGET ${arg_TARGET} CACHE INTERNAL "" FORCE)
+    set(${arg_NAME}_SOURCES ${arg_SOURCES} CACHE INTERNAL "" FORCE)
 endfunction()
 
 # --------------- Generate NodeIds header ---------------------
@@ -257,6 +257,7 @@ function(ua_generate_datatypes)
                                ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
                        DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/type_parser.py
+                               ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
                                ${UA_GEN_DT_FILES_BSD}
                                ${UA_GEN_DT_FILE_XML}
                                ${UA_GEN_DT_FILE_CSV}
@@ -304,6 +305,8 @@ endfunction()
 #   [INTERNAL]      Optional argument. If given, then the generated node set code
 #                   will use internal headers.
 #   [AUTOLOAD]      Optional argument. If given, the nodeset is automatically attached to the server.
+#   [GENERATE_TYPES] Generate a static datatype array directly from inline
+#                    NodeSet2 Definition elements.
 #
 #   Arguments taking one value:
 #
@@ -334,7 +337,7 @@ endfunction()
 
 function(ua_generate_nodeset)
     find_package(Python3 REQUIRED)
-    set(options INTERNAL AUTOLOAD)
+    set(options INTERNAL AUTOLOAD GENERATE_TYPES)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -388,6 +391,18 @@ function(ua_generate_nodeset)
         set(FILE_SUFFIX "0_generated")
     endif()
 
+    string(TOUPPER ${UA_GEN_NS_NAME} UA_GEN_NS_NAME_UPPER)
+    string(REPLACE "-" "_" UA_GEN_NS_NAME_UPPER ${UA_GEN_NS_NAME_UPPER})
+    set(GEN_TYPES_OUTPUT "")
+    set(GENERATED_TYPES_SOURCES "")
+    if(UA_GEN_NS_GENERATE_TYPES)
+        string(REPLACE "-" "_" TYPES_OUTPUT_NAME "types_${UA_GEN_NS_NAME}")
+        set(GEN_TYPES_OUTPUT "--types-output=${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}")
+        set(GENERATED_TYPES_SOURCES
+            ${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}_generated.c
+            ${UA_GEN_NS_OUTPUT_DIR}/${TYPES_OUTPUT_NAME}_generated.h)
+    endif()
+
     set(GEN_IGNORE "")
     if(UA_GEN_NS_IGNORE)
         set(GEN_IGNORE "--ignore=${UA_GEN_NS_IGNORE}")
@@ -424,25 +439,32 @@ function(ua_generate_nodeset)
                                ${GEN_IGNORE}
                                ${GEN_BLACKLIST}
                                ${GEN_BSD}
+                               ${GEN_TYPES_OUTPUT}
                                ${TYPES_ARRAY_LIST}
                                ${DEPENDS_FILE_LIST}
                                ${FILE_LIST}
                                ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}
                        OUTPUT  ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                                ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
+                               ${GENERATED_TYPES_SOURCES}
                        DEPENDS ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/datatypes.py
                                ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541.py
                                ${UA_GEN_NS_FILE}
+                               ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
                                ${UA_GEN_NS_DEPENDS_NS}
                                ${GEN_BLACKLIST_DEPENDS}
                                ${GEN_BSD_DEPENDS})
 
+    set(TARGET_NAME ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX})
+    if(GENERATED_TYPES_SOURCES)
+        set(UA_TYPES_${UA_GEN_NS_NAME_UPPER}_TARGET ${TARGET_NAME} CACHE INTERNAL "" FORCE)
+        set(UA_TYPES_${UA_GEN_NS_NAME_UPPER}_SOURCES ${GENERATED_TYPES_SOURCES} CACHE INTERNAL "" FORCE)
+    endif()
+
     # Collect file names of type/nodeid sources
-    string(TOUPPER ${UA_GEN_NS_NAME} UA_GEN_NS_NAME_UPPER)
-    string(REPLACE "-" "_" UA_GEN_NS_NAME_UPPER ${UA_GEN_NS_NAME_UPPER})
     set(TARGET_SOURCES ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c;
                        ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
     if(DEFINED UA_NODEIDS_${UA_GEN_NS_NAME_UPPER}_SOURCES)
@@ -451,8 +473,8 @@ function(ua_generate_nodeset)
     if(DEFINED UA_TYPES_${UA_GEN_NS_NAME_UPPER}_SOURCES)
         list(APPEND TARGET_SOURCES ${UA_TYPES_${UA_GEN_NS_NAME_UPPER}_SOURCES})
     endif()
+    list(REMOVE_DUPLICATES TARGET_SOURCES)
 
-    set(TARGET_NAME ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX})
     if(NOT TARGET ${TARGET_NAME})
         # Generate the target
         add_custom_target(${TARGET_NAME} DEPENDS ${TARGET_SOURCES})
@@ -464,10 +486,15 @@ function(ua_generate_nodeset)
         # Export global variable for the nodeset xml files and types used for the target
         list(APPEND UA_GEN_NS_DEPENDS_NS ${UA_GEN_NS_FILE})
         list(REMOVE_DUPLICATES UA_GEN_NS_DEPENDS_NS)
-        set(UA_NODESET_${UA_GEN_NS_NAME_UPPER}_XML ${UA_GEN_NS_DEPENDS_NS} CACHE INTERNAL "")
+        set(UA_NODESET_${UA_GEN_NS_NAME_UPPER}_XML ${UA_GEN_NS_DEPENDS_NS}
+            CACHE INTERNAL "" FORCE)
         list(APPEND UA_GEN_NS_TYPES_ARRAY ${UA_GEN_NS_DEPENDS_TYPES})
+        if(GENERATED_TYPES_SOURCES)
+            list(APPEND UA_GEN_NS_TYPES_ARRAY "UA_TYPES_${UA_GEN_NS_NAME_UPPER}")
+        endif()
         list(REMOVE_DUPLICATES UA_GEN_NS_TYPES_ARRAY)
-        set(UA_NODESET_${UA_GEN_NS_NAME_UPPER}_TYPES ${UA_GEN_NS_TYPES_ARRAY} CACHE INTERNAL "")
+        set(UA_NODESET_${UA_GEN_NS_NAME_UPPER}_TYPES ${UA_GEN_NS_TYPES_ARRAY}
+            CACHE INTERNAL "" FORCE)
     endif()
 
     # Collect target dependencies
@@ -499,13 +526,14 @@ endfunction()
 
 # --------------- Generate Nodeset and Datatypes ---------------------
 #
-# Generates C code for the given NodeSet2.xml and Datatype file. This C code can
-# be used to initialize the server.
+# Generates C code for the given NodeSet2.xml, including static datatype arrays
+# generated directly from inline Definition elements. This C code can be used
+# to initialize the server.
 #
 # This is a combination of the ua_generate_datatypes, ua_generate_nodeset, and
-# ua_generate_nodeid_header macros. This function can also be used to just
-# create a nodeset without datatypes by omitting the CSV and BSD parameter. If
-# only one of the previous parameters is given, all of them are required.
+# ua_generate_nodeid_header macros. FILE_CSV is optional and independently
+# controls generation of the symbolic NodeId header. An explicit FILE_BSD keeps
+# the legacy BSD datatype input path and requires FILE_CSV.
 #
 # It is possible to define dependencies of nodesets by using the DEPENDS
 # argument. E.g. the PLCOpen nodeset depends on the 'di' nodeset. Thus it is
@@ -584,22 +612,22 @@ function(ua_generate_nodeset_and_datatypes)
         set(NODESET_AUTOLOAD "AUTOLOAD")
     endif()
 
-    # If the bsd file is not specified, extract the bsd from the xml file and
-    # create a file in the build directory.
-    if("${UA_GEN_FILE_BSD}" STREQUAL "" AND NOT "${UA_GEN_FILE_CSV}" STREQUAL "")
-        string(TOUPPER "${UA_GEN_NAME}" BSD_NAME)
-        file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/bsd_files_gen")
-        set(UA_GEN_FILE_BSD_TMP "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")
-        execute_process(COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_bsd.py
-                                --xml ${UA_GEN_FILE_NS} ${UA_GEN_FILE_BSD_TMP})
-        if(EXISTS "${UA_GEN_FILE_BSD_TMP}")
-            set(UA_GEN_FILE_BSD "${UA_GEN_FILE_BSD_TMP}")
-        endif()
-    endif()
-
-    set(NODESET_TYPES_ARRAY "UA_TYPES")
+    set(NODESET_TYPES_ARRAY "")
+    set(NODESET_GENERATE_TYPES "")
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
         set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
+    else()
+        if(UA_GEN_IMPORT_BSD)
+            message(FATAL_ERROR "IMPORT_BSD requires FILE_BSD")
+        endif()
+        file(STRINGS "${UA_GEN_FILE_NS}" INLINE_TYPE_DEFINITION
+             LIMIT_COUNT 1 REGEX "<([A-Za-z0-9_]+:)?Definition[ >]")
+        if(INLINE_TYPE_DEFINITION)
+            set(NODESET_GENERATE_TYPES "GENERATE_TYPES")
+        else()
+            unset(UA_TYPES_${GEN_NAME_UPPER}_TARGET CACHE)
+            unset(UA_TYPES_${GEN_NAME_UPPER}_SOURCES CACHE)
+        endif()
     endif()
 
     # All nodesets (besides ns0) depend on ns0
@@ -639,7 +667,11 @@ function(ua_generate_nodeset_and_datatypes)
                               IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
                               OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}")
 
-        # Generates target ${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}
+    endif()
+
+    if(NOT "${UA_GEN_FILE_CSV}" STREQUAL "")
+        # Generate the symbolic NodeId header independently of the datatype
+        # source. Inline XML datatypes retain the same public NodeId API.
         ua_generate_nodeid_header(NAME nodeids-${UA_GEN_NAME}
                                   ID_PREFIX "${GEN_NAME_UPPER}"
                                   FILE_CSV "${UA_GEN_FILE_CSV}"
@@ -647,6 +679,9 @@ function(ua_generate_nodeset_and_datatypes)
                                   TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
                                   TARGET_SUFFIX "ids-${UA_GEN_NAME}"
                                   ${NODESET_AUTOLOAD})
+    else()
+        unset(UA_NODEIDS_${GEN_NAME_UPPER}_TARGET CACHE)
+        unset(UA_NODEIDS_${GEN_NAME_UPPER}_SOURCES CACHE)
     endif()
 
     # Generates target ${UA_GEN_TARGET_PREFIX}-ns-${UA_GEN_NAME}
@@ -655,6 +690,7 @@ function(ua_generate_nodeset_and_datatypes)
                         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
                         BLACKLIST "${UA_GEN_BLACKLIST}"
                         FILES_BSD "${UA_GEN_FILE_BSD}"
+                        ${NODESET_GENERATE_TYPES}
                         ${NODESET_INTERNAL}
                         ${NODESET_AUTOLOAD}
                         DEPENDS_TYPES ${TYPES_DEPENDS}

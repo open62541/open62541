@@ -146,8 +146,15 @@ addDataType(UA_Server *server, UA_DataType *dt) {
         }
     }
 
-    /* Move the datatype into the stable location in the server */
-    current->types[current->typesSize] = *dt;
+    /* Move the datatype into the stable location in the server. Repair
+     * self-referential members because their source pointer is about to go
+     * out of scope. */
+    UA_DataType *target = &current->types[current->typesSize];
+    *target = *dt;
+    for(size_t i = 0; i < target->membersSize; i++) {
+        if(target->members[i].memberType == dt)
+            target->members[i].memberType = target;
+    }
     current->typesSize++;
     return UA_STATUSCODE_GOOD;
 }
@@ -173,15 +180,94 @@ UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
     return res;
 }
 
+/* Resolve a simple DataType alias such as UtcTime to the first supertype that
+ * has a concrete UA_DataType representation. */
+static const UA_DataType *
+findDataTypeRepresentation(UA_Server *server, const UA_NodeId *typeId) {
+    const UA_DataType *type = UA_Server_findDataType(server, typeId);
+    if(type)
+        return type;
+
+    const UA_Node *node = UA_NODESTORE_GET(server, typeId);
+    while(node) {
+        const UA_Node *parent =
+            getNodeType(server, &node->head, 0, UA_REFERENCETYPESET_NONE,
+                        UA_BROWSEDIRECTION_INVALID);
+        UA_NODESTORE_RELEASE(server, node);
+        if(!parent)
+            return NULL;
+        type = UA_Server_findDataType(server, &parent->head.nodeId);
+        if(type) {
+            UA_NODESTORE_RELEASE(server, parent);
+            return type;
+        }
+        node = parent;
+    }
+    return NULL;
+}
+
+/* Replace an alias NodeId with the concrete datatype that defines its layout. */
+static UA_StatusCode
+normalizeDataTypeId(UA_Server *server, UA_NodeId *typeId) {
+    if(UA_NodeId_isNull(typeId))
+        return UA_STATUSCODE_GOOD;
+    if(UA_Server_findDataType(server, typeId))
+        return UA_STATUSCODE_GOOD;
+    const UA_DataType *representation =
+        findDataTypeRepresentation(server, typeId);
+    if(!representation)
+        return UA_STATUSCODE_BADNOTFOUND;
+    UA_NodeId_clear(typeId);
+    return UA_NodeId_copy(&representation->typeId, typeId);
+}
+
 UA_StatusCode
 UA_Server_addDataTypeFromDescription(UA_Server *server,
                                      const UA_ExtensionObject *description) {
-    /* Translate into a new UA_DataType */
-    UA_DataType dt;
-    UA_StatusCode res =
-        UA_DataType_fromDescription(&dt, description, serverCustomTypes(server));
+    /* Normalize simple aliases in a temporary copy for memory-layout
+     * construction. */
+    UA_ExtensionObject layoutDescription;
+    UA_StatusCode res = UA_ExtensionObject_copy(description, &layoutDescription);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    if(UA_ExtensionObject_hasDecodedType(
+           &layoutDescription, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION])) {
+        UA_StructureDescription *structureDescription =
+            (UA_StructureDescription*)layoutDescription.content.decoded.data;
+        UA_StructureDefinition *definition =
+            &structureDescription->structureDefinition;
+        res = normalizeDataTypeId(server, &definition->baseDataType);
+        for(size_t i = 0; res == UA_STATUSCODE_GOOD &&
+                        i < definition->fieldsSize; i++) {
+            if(UA_NodeId_equal(&definition->fields[i].dataType,
+                               &structureDescription->dataTypeId))
+                continue;
+            res = normalizeDataTypeId(server, &definition->fields[i].dataType);
+        }
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_clear(&layoutDescription);
+        return res;
+    }
+
+    /* Translate into a new UA_DataType */
+    UA_DataType dt;
+    res = UA_DataType_fromDescription(&dt, &layoutDescription,
+                                      serverCustomTypes(server));
+    UA_ExtensionObject_clear(&layoutDescription);
+    if(res != UA_STATUSCODE_GOOD) {
+        if((description->encoding == UA_EXTENSIONOBJECT_DECODED ||
+            description->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+           description->content.decoded.data) {
+            const UA_DataTypeDescription *dataTypeDescription =
+                (const UA_DataTypeDescription*)description->content.decoded.data;
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not register DataType %N from its description: %s",
+                           dataTypeDescription->dataTypeId,
+                           UA_StatusCode_name(res));
+        }
+        return res;
+    }
 
     /* Check that the type does not already exist. We do not allow changes to
      * DataTypes once they are set. */

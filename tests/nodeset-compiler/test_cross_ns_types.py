@@ -18,7 +18,11 @@ import subprocess
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GENERATOR = os.path.join(HERE, "..", "..", "tools", "generate_datatypes.py")
+TOOLS_DIR = os.path.join(HERE, "..", "..", "tools")
+GENERATOR = os.path.join(TOOLS_DIR, "generate_datatypes.py")
+sys.path.insert(0, TOOLS_DIR)
+
+from nodeset_compiler.backend_open62541_datatypes import portable_basename
 
 BASE_BSD = os.path.join(HERE, "cross_ns_base.bsd")
 SAME_BSD = os.path.join(HERE, "cross_ns_same.bsd")
@@ -28,6 +32,7 @@ DIFF_CSV = os.path.join(HERE, "cross_ns_diff.csv")
 
 
 def run_generator(spec_bsd, spec_csv, outdir, outname):
+    """Run the public legacy generator for one cross-namespace fixture."""
     cmd = [
         sys.executable, GENERATOR,
         f"--import=CROSS_NS_BASE#{BASE_BSD}",
@@ -39,8 +44,37 @@ def run_generator(spec_bsd, spec_csv, outdir, outname):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
+def require_generated_legacy_output(outdir, outname):
+    """Check the public declarations that must survive backend refactoring."""
+    header_path = os.path.join(outdir, f"{outname}_generated.h")
+    source_path = os.path.join(outdir, f"{outname}_generated.c")
+    if not os.path.exists(header_path) or not os.path.exists(source_path):
+        return "legacy generator did not create both output files"
+    with open(header_path, encoding="utf-8") as f:
+        header = f.read()
+    with open(source_path, encoding="utf-8") as f:
+        source = f.read()
+    expected = [
+        ("UA_CROSS_NS_SAME_SHAREDENUM", header),
+        ("UA_DataType UA_CROSS_NS_SAME", source),
+        ('UA_TYPENAME("Val0")', source),
+        ('UA_TYPENAME("Val1")', source),
+        ("UA_DATATYPEKIND_ENUM", source),
+    ]
+    missing = [text for text, contents in expected if text not in contents]
+    if missing:
+        return "legacy BSD output changed; missing: " + ", ".join(missing)
+    return None
+
+
 def main():
     failures = 0
+
+    # Output names must not inherit a Windows drive or parent directories.
+    windows_output = r"C:\Temp\generated\cross_ns_same"
+    if portable_basename(windows_output) != "cross_ns_same":
+        print("FAIL: generated output basename is not portable")
+        failures += 1
 
     with tempfile.TemporaryDirectory() as tmpdir:
 
@@ -52,7 +86,13 @@ def main():
             print(r.stderr)
             failures += 1
         else:
-            print("PASS: same-definition cross-namespace type accepted")
+            error = require_generated_legacy_output(
+                tmpdir, "cross_ns_same")
+            if error:
+                print(f"FAIL: {error}")
+                failures += 1
+            else:
+                print("PASS: complete legacy BSD output is compatible")
 
         # --- Test 2: different definition → must fail ---
         r = run_generator(DIFF_BSD, DIFF_CSV, tmpdir, "cross_ns_diff")

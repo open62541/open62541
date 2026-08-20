@@ -81,6 +81,15 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used mutliple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
+parser.add_argument('--types-output',
+                    metavar='<outputFile>',
+                    type=str,
+                    dest='typesOutput',
+                    default=None,
+                    help='Generate a static datatype array from inline NodeSet '
+                         'Definitions. The value is the output file basename '
+                         'without the _generated suffix.')
+
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
@@ -132,15 +141,24 @@ def getTypesArray(nsIdx):
         return args.typesArray[nsIdx]
     return "UA_TYPES"
 
-def hasCustomDataType(xmlfile):
+def consumesTypesArray(xmlfile):
+    """Whether this NodeSet consumes the next positional datatype array."""
     tree = etree.parse(xmlfile)
     root = tree.getroot()
 
     for elem in root.iter():
-        if elem.tag.endswith('UADataType'):
+        if not elem.tag.endswith('UADataType'):
+            continue
+        if not args.typesOutput:
             xmlfile.seek(0)
             return True
-    # No custom data types found
+        for definition in elem:
+            if not definition.tag.endswith('Definition'):
+                continue
+            if any(field.tag.endswith('Field') for field in definition):
+                xmlfile.seek(0)
+                return True
+    # No generated datatype layout found
     xmlfile.seek(0)
     return False
 
@@ -150,7 +168,7 @@ for xmlfile in args.existing:
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) %s", xmlfile.name)
-    if hasCustomDataType(xmlfile):
+    if consumesTypesArray(xmlfile):
         ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
         nsCount += 1
         continue
@@ -162,7 +180,7 @@ for xmlfile in args.infiles:
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing %s", xmlfile.name)
-    if hasCustomDataType(xmlfile):
+    if consumesTypesArray(xmlfile):
         ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
         nsCount += 1
         continue
@@ -224,7 +242,8 @@ logger.info("Generating Code for Backend: %s (%i Nodes)", args.backend, len(ns.n
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
     from .backend_open62541 import generateOpen62541Code
-    generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray)
+    generateOpen62541Code(ns, args.outputFile, args.internal_headers,
+                          args.typesArray, args.typesOutput)
 elif args.backend == "graphviz":
     from .backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)

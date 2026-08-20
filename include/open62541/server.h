@@ -1175,6 +1175,9 @@ UA_Server_addDataTypeNode(UA_Server *server,
  * array of the server. Then the DataType is automatically decoded in messages
  * received by the server. Also the ``DataTypeDefinition`` attribute of the
  * corresponding DataTypeNode can then be read via the Read service.
+ * The returned definition is reconstructed from the UA_DataType memory layout;
+ * array ranks and dimensions are normalized to the representable one-dimensional
+ * layout.
  *
  * The memory layout of the internally generated ``UA_DataType`` corresponds to
  * the matching C-structure including padding.
