@@ -168,8 +168,11 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         type->typeKind = UA_DATATYPEKIND_UNION; break;
     case UA_STRUCTURETYPE_STRUCTUREWITHSUBTYPEDVALUES:
     case UA_STRUCTURETYPE_UNIONWITHSUBTYPEDVALUES:
+        UA_DataType_clear(type);
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    default: return UA_STATUSCODE_BADINTERNALERROR;
+    default:
+        UA_DataType_clear(type);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Copy NodeIds */

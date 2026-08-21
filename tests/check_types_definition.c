@@ -87,6 +87,30 @@ START_TEST(definition_fromStructure_unknownMember) {
     UA_ExtensionObject_clear(&descr);
 } END_TEST
 
+START_TEST(definition_fromStructure_unsupportedClearsOutput) {
+    UA_StructureDescription descr;
+    UA_StructureDescription_init(&descr);
+    descr.dataTypeId = UA_NODEID_STRING(1, "UnsupportedStructure");
+    descr.name = UA_QUALIFIEDNAME(1, "UnsupportedStructure");
+    descr.structureDefinition.structureType =
+        UA_STRUCTURETYPE_STRUCTUREWITHSUBTYPEDVALUES;
+
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_setValue(&eo, &descr,
+                                &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+
+    UA_DataType regen;
+    memset(&regen, 0, sizeof(regen));
+    UA_StatusCode res = UA_DataType_fromDescription(&regen, &eo, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+
+    /* On failure the partially copied string NodeId must have been released.
+     * Deliberately do not clear regen here: a missing internal cleanup is
+     * reported as a leak by the memcheck test configuration. */
+    ck_assert(UA_NodeId_isNull(&regen.typeId));
+    ck_assert_ptr_null(regen.members);
+} END_TEST
+
 static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
     tcase_add_test(tc, definition_roundtrip_structure);
@@ -95,6 +119,7 @@ static Suite *testSuite_definition(void) {
     tcase_add_test(tc, definition_roundtrip_enum);
     tcase_add_test(tc, definition_fromDescription_invalidExtObj);
     tcase_add_test(tc, definition_fromStructure_unknownMember);
+    tcase_add_test(tc, definition_fromStructure_unsupportedClearsOutput);
 
     Suite *s = suite_create("DataType Definition");
     suite_add_tcase(s, tc);
