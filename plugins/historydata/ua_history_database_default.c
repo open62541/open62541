@@ -482,9 +482,10 @@ readRaw_service_default(UA_Server *server,
     UA_HistoryDatabaseContext_default *ctx = (UA_HistoryDatabaseContext_default*)context;
     for (size_t i = 0; i < nodesToReadSize; ++i) {
         UA_Byte accessLevel = 0;
-        UA_Server_readAccessLevel(server,
-                                  nodesToRead[i].nodeId,
-                                  &accessLevel);
+        UA_Server_readUserAccessLevel(server,
+                                      *sessionId,
+                                      nodesToRead[i].nodeId,
+                                      &accessLevel);
         if (!(accessLevel & UA_ACCESSLEVELMASK_HISTORYREAD)) {
             response->results[i].statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
             continue;

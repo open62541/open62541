@@ -387,6 +387,10 @@ UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId,
                           UA_Byte *out);
 
 UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_readUserAccessLevel(UA_Server *server, const UA_NodeId sessionId,
+                              const UA_NodeId nodeId, UA_Byte *out);
+
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
                             UA_UInt32 *out);
 
