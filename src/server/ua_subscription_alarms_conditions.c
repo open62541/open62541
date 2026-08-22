@@ -2323,9 +2323,8 @@ setConditionVariableCallbacks(UA_Server *server, const UA_NodeId *condition,
 /* Set callbacks for Method Fields of a condition. The current implementation
  * references methods without copying them when creating objects. So the
  * callbacks will be attached to the methods of the conditionType. */
-static UA_StatusCode
-setConditionMethodCallbacks(UA_Server *server, const UA_NodeId* condition,
-                            const UA_NodeId* conditionType) {
+UA_StatusCode
+UA_setConditionMethodCallbacks(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NodeId methodId[7] = {
@@ -2364,12 +2363,6 @@ setStandardConditionCallbacks(UA_Server *server, const UA_NodeId* condition,
 
     retval = setConditionVariableCallbacks(server, condition, conditionType);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionVariable Callback failed",);
-
-    /* Set callbacks for Method Components (needs to be set only once!) */
-    if(LIST_EMPTY(&server->conditionSources)) {
-        retval = setConditionMethodCallbacks(server, condition, conditionType);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Method Callback failed",);
-    }
 
     return retval;
 }
