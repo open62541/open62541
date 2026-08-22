@@ -19,6 +19,21 @@ fi
 # Allow to reuse TIME-WAIT sockets for new connections
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
+# CTest arguments for the memcheck jobs. Running the full unit test suite under
+# Valgrind takes hours, so the CI splits it round-robin over several runners
+# (ctest -I <start>,,<stride>). CTEST_SHARDS is the number of runners and
+# CTEST_SHARD the 1-based index of this one. Both default to running the
+# complete suite, so a local "source ci.sh && unit_tests_valgrind MBEDTLS"
+# behaves as before.
+function ctest_args {
+    local args="--output-on-failure --no-tests=error"
+    local shards="${CTEST_SHARDS:-1}"
+    if [ "${shards}" -gt 1 ]; then
+        args="${args} -I ${CTEST_SHARD:-1},,${shards}"
+    fi
+    printf '%s' "${args}"
+}
+
 #####################################
 # Build Documentation including PDF #
 #####################################
@@ -360,7 +375,7 @@ function unit_tests_alarms_memcheck {
 
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "make test ARGS=\"-V\""
+    sudo -E bash -c "make test ARGS=\"$(ctest_args)\""
 }
 
 function unit_tests_encryption {
@@ -412,7 +427,7 @@ function unit_tests_pubsub_sks {
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
-    sudo -E bash -c "make test ARGS=\"-V -R sks\""
+    sudo -E bash -c "make test ARGS=\"$(ctest_args) -R sks\""
     make gcov
 }
 
@@ -437,7 +452,7 @@ function unit_tests_valgrind {
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "make test ARGS=\"-V\""
+    sudo -E bash -c "make test ARGS=\"$(ctest_args)\""
 }
 
 ##########################
