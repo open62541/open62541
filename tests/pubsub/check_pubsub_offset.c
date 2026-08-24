@@ -11,21 +11,46 @@
 #include "test_helpers.h"
 #include "testing_clock.h"
 
-#include <stdio.h>
 #include <check.h>
 
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
-#define PUBSUB_CONFIG_FIELD_COUNT 10
+#define PUBSUB_CONFIG_FIELD_COUNT 4
+#define PUBSUB_CONFIG_MAX_STRING_LENGTH 8
+#define PUBSUB_SUBSCRIBER_NODEID_BASE 61000
 
 UA_Server *server;
 UA_DataSetReaderConfig readerConfig;
-static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
+static UA_NodeId publishedDataSetIdent, writerGroupIdent, connectionIdentifier;
 static UA_NodeId readerGroupIdentifier, readerIdentifier;
 
 static UA_NetworkAddressUrlDataType networkAddressUrl =
     {{0, NULL}, UA_STRING_STATIC("opc.udp://224.0.0.22:4840/")};
 static UA_String transportProfile =
     UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+static void
+assertFixedStringOffsets(const UA_PubSubOffsetTable *ot,
+                         const UA_NodeId components[PUBSUB_CONFIG_FIELD_COUNT],
+                         size_t firstFieldSize) {
+    const UA_PubSubOffset *rawOffsets[PUBSUB_CONFIG_FIELD_COUNT];
+    size_t rawOffsetsSize = 0;
+    for(size_t i = 0; i < ot->offsetsSize; i++) {
+        if(ot->offsets[i].offsetType != UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW)
+            continue;
+        ck_assert_uint_lt(rawOffsetsSize, PUBSUB_CONFIG_FIELD_COUNT);
+        rawOffsets[rawOffsetsSize++] = &ot->offsets[i];
+    }
+
+    ck_assert_uint_eq(rawOffsetsSize, PUBSUB_CONFIG_FIELD_COUNT);
+    for(size_t i = 0; i < rawOffsetsSize; i++)
+        ck_assert(UA_NodeId_equal(&rawOffsets[i]->component, &components[i]));
+    ck_assert_uint_eq(rawOffsets[1]->offset - rawOffsets[0]->offset,
+                      firstFieldSize);
+    ck_assert_uint_eq(rawOffsets[2]->offset - rawOffsets[1]->offset,
+                      4 + PUBSUB_CONFIG_MAX_STRING_LENGTH);
+    ck_assert_uint_eq(rawOffsets[3]->offset - rawOffsets[2]->offset,
+                      4 + PUBSUB_CONFIG_MAX_STRING_LENGTH);
+}
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
@@ -60,12 +85,52 @@ START_TEST(PublisherOffsets) {
     publishedDataSetConfig.name = UA_STRING("Demo PDS");
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 
-    /* Add DataSetFields with static value source to PDS */
-    UA_DataSetFieldConfig dsfConfig;
+    /* Add a direct String field between two fixed-size numeric fields */
+    UA_NodeId stringNodeId = UA_NODEID_NUMERIC(1, 60000);
+    UA_String stringValue = UA_STRING("abc");
+    UA_VariableAttributes stringAttr = UA_VariableAttributes_default;
+    stringAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    stringAttr.valueRank = UA_VALUERANK_SCALAR;
+    stringAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&stringAttr.value, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode res = UA_Server_addVariableNode(
+        server, stringNodeId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "Offset String"), UA_NS0ID(BASEDATAVARIABLETYPE),
+        stringAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId byteStringNodeId = UA_NODEID_NUMERIC(1, 60001);
+    UA_ByteString byteStringValue = UA_BYTESTRING("xy");
+    UA_VariableAttributes byteStringAttr = UA_VariableAttributes_default;
+    byteStringAttr.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    byteStringAttr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&byteStringAttr.value, &byteStringValue,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    res = UA_Server_addVariableNode(
+        server, byteStringNodeId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "Offset ByteString"), UA_NS0ID(BASEDATAVARIABLETYPE),
+        byteStringAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId publishedVariables[PUBSUB_CONFIG_FIELD_COUNT] = {
+        UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME),
+        stringNodeId,
+        byteStringNodeId,
+        UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN)
+    };
+    UA_NodeId fieldIds[PUBSUB_CONFIG_FIELD_COUNT];
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        /* TODO: Point to a variable in the information model */
+        UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-        UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
+        dsfConfig.field.variable.publishParameters.publishedVariable = publishedVariables[i];
+        dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        if(i == 1 || i == 2)
+            dsfConfig.field.variable.maxStringLength =
+                PUBSUB_CONFIG_MAX_STRING_LENGTH;
+        UA_DataSetFieldResult result =
+            UA_Server_addDataSetField(server, publishedDataSetIdent,
+                                      &dsfConfig, &fieldIds[i]);
+        ck_assert_uint_eq(result.result, UA_STATUSCODE_GOOD);
     }
 
     /* Add a WriterGroup */
@@ -108,24 +173,15 @@ START_TEST(PublisherOffsets) {
                                 &uadpDataSetWriterMessageDataType,
                                 &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]);
 
-    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
-                               &dataSetWriterConfig, &dataSetWriterIdent);
+    res = UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
+                                     &dataSetWriterConfig, &dataSetWriterIdent);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
-                               &dataSetWriterConfig, &dataSetWriterIdent);
-
-    /* Print the Offset Table */
+    /* Compute the offsets with a short string */
     UA_PubSubOffsetTable ot;
-    UA_Server_computeWriterGroupOffsetTable(server, writerGroupIdent, &ot);
-    for(size_t i = 0; i < ot.offsetsSize; i++) {
-        UA_String out = UA_STRING_NULL;
-        UA_NodeId_print(&ot.offsets[i].component, &out);
-        printf("%u:\tOffset %u\tOffsetType %u\tComponent %.*s\n",
-               (unsigned)i, (unsigned)ot.offsets[i].offset,
-               (unsigned)ot.offsets[i].offsetType,
-               (int)out.length, out.data);
-        UA_String_clear(&out);
-    }
+    res = UA_Server_computeWriterGroupOffsetTable(server, writerGroupIdent, &ot);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    assertFixedStringOffsets(&ot, fieldIds, sizeof(UA_DateTime));
 
     /* Cleanup */
     UA_PubSubOffsetTable_clear(&ot);
@@ -147,12 +203,27 @@ fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
     for(size_t i = 0; i < pMetaData->fieldsSize; i++) {
-        /* UInt32 DataType */
         UA_FieldMetaData_init (&pMetaData->fields[i]);
-        UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId,
-                       &pMetaData->fields[i].dataType);
-        pMetaData->fields[i].builtInType = UA_NS0ID_UINT32;
-        pMetaData->fields[i].name =  UA_STRING ("UInt32 varibale");
+        if(i == 1) {
+            UA_NodeId_copy(&UA_TYPES[UA_TYPES_STRING].typeId,
+                           &pMetaData->fields[i].dataType);
+            pMetaData->fields[i].builtInType = UA_NS0ID_STRING;
+            pMetaData->fields[i].maxStringLength =
+                PUBSUB_CONFIG_MAX_STRING_LENGTH;
+            pMetaData->fields[i].name = UA_STRING("String variable");
+        } else if(i == 2) {
+            UA_NodeId_copy(&UA_TYPES[UA_TYPES_BYTESTRING].typeId,
+                           &pMetaData->fields[i].dataType);
+            pMetaData->fields[i].builtInType = UA_NS0ID_BYTESTRING;
+            pMetaData->fields[i].maxStringLength =
+                PUBSUB_CONFIG_MAX_STRING_LENGTH;
+            pMetaData->fields[i].name = UA_STRING("ByteString variable");
+        } else {
+            UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId,
+                           &pMetaData->fields[i].dataType);
+            pMetaData->fields[i].builtInType = UA_NS0ID_UINT32;
+            pMetaData->fields[i].name = UA_STRING("UInt32 variable");
+        }
         pMetaData->fields[i].valueRank = -1; /* scalar */
     }
 }
@@ -216,21 +287,37 @@ addSubscribedVariables (UA_Server *server) {
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-        vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
-        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
-        vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
+        vAttr.valueRank = UA_VALUERANK_SCALAR;
         // Initialize the values at first to create the buffered NetworkMessage
         // with correct size and offsets
-        UA_Variant value;
-        UA_Variant_init(&value);
         UA_UInt32 intValue = 0;
-        UA_Variant_setScalar(&value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
-        vAttr.value = value;
-        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                  folderId, UA_NS0ID(HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                  UA_NS0ID(BASEDATAVARIABLETYPE),
-                                  vAttr, NULL, &newnodeId);
+        UA_String stringValue = UA_STRING_NULL;
+        UA_ByteString byteStringValue = UA_BYTESTRING_NULL;
+        if(i == 1) {
+            vAttr.description = UA_LOCALIZEDTEXT("en-US", "Subscribed String");
+            vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Subscribed String");
+            vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+            UA_Variant_setScalar(&vAttr.value, &stringValue,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+        } else if(i == 2) {
+            vAttr.description = UA_LOCALIZEDTEXT("en-US", "Subscribed ByteString");
+            vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Subscribed ByteString");
+            vAttr.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+            UA_Variant_setScalar(&vAttr.value, &byteStringValue,
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+        } else {
+            vAttr.description = UA_LOCALIZEDTEXT("en-US", "Subscribed UInt32");
+            vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Subscribed UInt32");
+            vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+            UA_Variant_setScalar(&vAttr.value, &intValue,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+        }
+        UA_StatusCode res = UA_Server_addVariableNode(
+            server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + PUBSUB_SUBSCRIBER_NODEID_BASE),
+            folderId, UA_NS0ID(HASCOMPONENT),
+            UA_QUALIFIEDNAME(1, "Subscribed Variable"),
+            UA_NS0ID(BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
         UA_FieldTargetDataType *tv = &readerConfig.subscribedDataSet.target.targetVariables[i];
         tv->attributeId  = UA_ATTRIBUTEID_VALUE;
@@ -269,7 +356,10 @@ addDataSetReader(UA_Server *server) {
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
 
     addSubscribedVariables(server);
-    UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig, &readerIdentifier);
+    UA_StatusCode res =
+        UA_Server_addDataSetReader(server, readerGroupIdentifier,
+                                   &readerConfig, &readerIdentifier);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_free(readerConfig.subscribedDataSet.target.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
@@ -281,20 +371,17 @@ START_TEST(SubscriberOffsets) {
     addReaderGroup(server);
     addDataSetReader(server);
 
-    /* Print the Offset Table */
     UA_PubSubOffsetTable ot;
     UA_StatusCode res =
         UA_Server_computeDataSetReaderOffsetTable(server, readerIdentifier, &ot);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < ot.offsetsSize; i++) {
-        UA_String out = UA_STRING_NULL;
-        UA_NodeId_print(&ot.offsets[i].component, &out);
-        printf("%u:\tOffset %u\tOffsetType %u\tComponent %.*s\n",
-               (unsigned)i, (unsigned)ot.offsets[i].offset,
-               (unsigned)ot.offsets[i].offsetType,
-               (int)out.length, out.data);
-        UA_String_clear(&out);
-    }
+    UA_NodeId targetNodeIds[PUBSUB_CONFIG_FIELD_COUNT] = {
+        UA_NODEID_NUMERIC(1, PUBSUB_SUBSCRIBER_NODEID_BASE),
+        UA_NODEID_NUMERIC(1, PUBSUB_SUBSCRIBER_NODEID_BASE + 1),
+        UA_NODEID_NUMERIC(1, PUBSUB_SUBSCRIBER_NODEID_BASE + 2),
+        UA_NODEID_NUMERIC(1, PUBSUB_SUBSCRIBER_NODEID_BASE + 3)
+    };
+    assertFixedStringOffsets(&ot, targetNodeIds, sizeof(UA_UInt32));
 
     UA_PubSubOffsetTable_clear(&ot);
 } END_TEST
@@ -315,4 +402,3 @@ int main(void) {
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
