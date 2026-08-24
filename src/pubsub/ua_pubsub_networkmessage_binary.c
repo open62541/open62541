@@ -1324,6 +1324,9 @@ UA_DataSetMessage_keyFrame_rawScalar_encodeBinary(PubSubEncodeCtx *ctx,
         if(str->length > fmd->maxStringLength)
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         size_t padding = fmd->maxStringLength - str->length;
+        if(ctx->ctx.pos > ctx->ctx.end ||
+           padding > (size_t)(ctx->ctx.end - ctx->ctx.pos))
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         memset(ctx->ctx.pos, 0, padding);
         ctx->ctx.pos += padding;
     }
@@ -1478,6 +1481,31 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
 }
 
 static UA_StatusCode
+UA_DataSetMessage_keyFrame_rawScalar_decodeBinary(PubSubDecodeCtx *ctx,
+                                                  const UA_FieldMetaData *fmd,
+                                                  const UA_DataType *type,
+                                                  void *dst) {
+    UA_StatusCode rv = decodeBinaryJumpTable[type->typeKind](&ctx->ctx, dst, type);
+    UA_CHECK_STATUS(rv, return rv);
+
+    /* TODO: Padding not yet supported for strings inside structures */
+    if(fmd->maxStringLength != 0 &&
+       (type->typeKind == UA_DATATYPEKIND_STRING ||
+        type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+        const UA_String *str = (const UA_String *)dst;
+        if(str->length > fmd->maxStringLength)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        size_t padding = fmd->maxStringLength - str->length;
+        if(ctx->ctx.pos > ctx->ctx.end ||
+           padding > (size_t)(ctx->ctx.end - ctx->ctx.pos))
+            return UA_STATUSCODE_BADDECODINGERROR;
+        ctx->ctx.pos += padding;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 decodeRawField(PubSubDecodeCtx *ctx,
                const UA_FieldMetaData *fmd,
                UA_DataValue *value) {
@@ -1504,7 +1532,8 @@ decodeRawField(PubSubDecodeCtx *ctx,
         value->value.data = ctxCalloc(&ctx->ctx, 1, type->memSize);
         if(!value->value.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        return decodeBinaryJumpTable[type->typeKind](&ctx->ctx, value->value.data, type);
+        return UA_DataSetMessage_keyFrame_rawScalar_decodeBinary(ctx, fmd, type,
+                                                                 value->value.data);
     }
 
     /* Decode the ArrayDimensions */
@@ -1537,7 +1566,9 @@ decodeRawField(PubSubDecodeCtx *ctx,
     /* Decode the content */
     uintptr_t val = (uintptr_t)value->value.data;
     for(size_t i = 0; i < count; i++) {
-        rv |= decodeBinaryJumpTable[type->typeKind](&ctx->ctx, (void*)val, type);
+        rv = UA_DataSetMessage_keyFrame_rawScalar_decodeBinary(ctx, fmd, type,
+                                                               (void*)val);
+        UA_CHECK_STATUS(rv, return rv);
         val += type->memSize;
     }
 
@@ -1677,7 +1708,7 @@ UA_DataSetMessage_rawScalar_calcSizeBinary(void *p, const UA_DataType *type,
         type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
         UA_String *str = (UA_String *)p;
         if(str->length > fmd->maxStringLength)
-            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+            return 0;
         size_t padding = fmd->maxStringLength - str->length;
         size += padding;
     }
@@ -1832,6 +1863,8 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 const UA_FieldMetaData *fmd = getFieldMetaData(emd, i);
                 size = UA_DataSetMessage_raw_calcSizeBinary(&v->value, fmd, ot, size);
+                if(size == 0)
+                    return 0;
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
             } else {
