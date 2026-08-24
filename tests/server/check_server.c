@@ -22,10 +22,15 @@
 
 static UA_Server *server = NULL;
 
+#define MAX_NOTIFICATIONS 16
+static UA_ApplicationNotificationType receivedNotifications[MAX_NOTIFICATIONS];
+static size_t receivedNotificationsCount = 0;
+
 static void
 serverNotificationCallback(UA_Server *server, UA_ApplicationNotificationType type,
                            const UA_KeyValueMap payload) {
-
+    if(receivedNotificationsCount < MAX_NOTIFICATIONS)
+        receivedNotifications[receivedNotificationsCount++] = type;
 }
 
 static void setup(void) {
@@ -33,6 +38,7 @@ static void setup(void) {
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     cfg->globalNotificationCallback = serverNotificationCallback;
     ck_assert(server != NULL);
+    receivedNotificationsCount = 0;
 }
 
 static void teardown(void) {
@@ -491,8 +497,9 @@ START_TEST(checkMultipleNamespaces) {
 } END_TEST
 
 START_TEST(checkServerLifecycleCallbackNotification) {
-    /* Just verify that the notification callback is registered and
-     * doesn't crash during startup/shutdown */
+    /* Verify that the notification callback fires the distinct STARTED,
+     * STOPPING and STOPPED notifications -- not STOPPING twice -- during a
+     * normal startup/shutdown cycle. */
     UA_StatusCode ret = UA_Server_run_startup(server);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 
@@ -505,6 +512,11 @@ START_TEST(checkServerLifecycleCallbackNotification) {
 
     ret = UA_Server_run_shutdown(server);
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(receivedNotificationsCount, 3);
+    ck_assert_int_eq(receivedNotifications[0], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED);
+    ck_assert_int_eq(receivedNotifications[1], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING);
+    ck_assert_int_eq(receivedNotifications[2], UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED);
 } END_TEST
 
 START_TEST(checkServerAddVariableTypeNode) {
