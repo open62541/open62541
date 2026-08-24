@@ -36,7 +36,10 @@ static UA_Server *server;
 static UA_NodeId testObjectId;
 static UA_NodeId methodWithInt32In;
 static UA_NodeId methodNoArgs;
+static UA_NodeId methodWithOutput;
+static UA_NodeId outputArgumentsId;
 static UA_UInt32 lastMethodCalled = 0;
+static size_t lastOutputSize = 0;
 
 static UA_StatusCode
 testMethodCallback(UA_Server *s, const UA_NodeId *sessionId, void *sessionHandle,
@@ -46,8 +49,9 @@ testMethodCallback(UA_Server *s, const UA_NodeId *sessionId, void *sessionHandle
                    size_t outputSize, UA_Variant *output) {
     (void)s; (void)sessionId; (void)sessionHandle; (void)methodId;
     (void)methodContext; (void)objectId; (void)objectContext;
-    (void)input; (void)output; (void)inputSize; (void)outputSize;
+    (void)input; (void)output; (void)inputSize;
     lastMethodCalled = 1;
+    lastOutputSize = outputSize;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -56,6 +60,7 @@ static void setup(void) {
     ck_assert_ptr_ne(server, NULL);
     UA_Server_run_startup(server);
     lastMethodCalled = 0;
+    lastOutputSize = 0;
 
     /* Create a parent Object that will own our test methods. */
     UA_ObjectAttributes objAttr = UA_ObjectAttributes_default;
@@ -98,12 +103,31 @@ static void setup(void) {
         0, NULL, 0, NULL,
         NULL, &methodNoArgs);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Method #3: returns one String output argument. Keep the NodeId of the
+     * OutputArguments property so the tests can replace its value source. */
+    UA_Argument outArg;
+    UA_Argument_init(&outArg);
+    outArg.name = UA_STRING("result");
+    outArg.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    outArg.valueRank = UA_VALUERANK_SCALAR;
+    methAttr.displayName = UA_LOCALIZEDTEXT("en-US", "methodWithOutput");
+    res = UA_Server_addMethodNodeEx(
+        server, UA_NODEID_NULL, objId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "methodWithOutput"), methAttr,
+        testMethodCallback, 0, NULL, UA_NODEID_NULL, NULL,
+        1, &outArg, UA_NODEID_NULL, &outputArgumentsId,
+        NULL, &methodWithOutput);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 }
 
 static void teardown(void) {
     UA_NodeId_clear(&testObjectId);
     UA_NodeId_clear(&methodWithInt32In);
     UA_NodeId_clear(&methodNoArgs);
+    UA_NodeId_clear(&methodWithOutput);
+    UA_NodeId_clear(&outputArgumentsId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -220,6 +244,52 @@ START_TEST(Call_method_correctArgs_succeeds) {
     UA_Variant_clear(&correctArg);
 } END_TEST
 
+START_TEST(Call_nonInternalOutputArguments_rejected) {
+    UA_CallbackValueSource source = {NULL, NULL};
+    UA_StatusCode res = UA_Server_setVariableNode_callbackValueSource(
+        server, outputArgumentsId, source);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = testObjectId;
+    req.methodId = methodWithOutput;
+
+    UA_CallMethodResult result = UA_Server_call(server, &req);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(lastMethodCalled, 0);
+    UA_CallMethodResult_clear(&result);
+} END_TEST
+
+START_TEST(Call_scalarOutputArgument_countsAsOne) {
+    UA_Argument outArg;
+    UA_Argument_init(&outArg);
+    outArg.name = UA_STRING("scalar-result");
+    outArg.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    outArg.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.hasValue = true;
+    UA_Variant_setScalar(&value.value, &outArg, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    value.value.storageType = UA_VARIANT_DATA_NODELETE;
+    UA_StatusCode res = UA_Server_setVariableNode_internalValueSource(
+        server, outputArgumentsId, &value, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = testObjectId;
+    req.methodId = methodWithOutput;
+
+    UA_CallMethodResult result = UA_Server_call(server, &req);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(lastMethodCalled, 1);
+    ck_assert_uint_eq(lastOutputSize, 1);
+    ck_assert_uint_eq(result.outputArgumentsSize, 1);
+    UA_CallMethodResult_clear(&result);
+} END_TEST
+
 /* ==== UA_MAX_METHOD_ARGUMENTS guard ==== */
 
 START_TEST(Call_method_exceedsMaxArgs_rejected) {
@@ -287,6 +357,8 @@ testSuite(void) {
     tcase_add_test(tc, Call_method_missingArgs_rejected);
     tcase_add_test(tc, Call_method_typeMismatch_rejected);
     tcase_add_test(tc, Call_method_correctArgs_succeeds);
+    tcase_add_test(tc, Call_nonInternalOutputArguments_rejected);
+    tcase_add_test(tc, Call_scalarOutputArgument_countsAsOne);
     tcase_add_test(tc, Call_method_exceedsMaxArgs_rejected);
     tcase_add_test(tc, Call_methodNode_wrongNodeClass_rejected);
     suite_add_tcase(s, tc);
