@@ -115,7 +115,7 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
     }
 
     /* Check if the interface name matches */
-    if(strcmp(netif->name, netif_name) == 0) {
+    if(netif_find(netif_name) == netif) {
         netif_index = netif_get_index(netif);
     } else {
     /* Convert IP to string and compare */
@@ -141,13 +141,15 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
     }
 
 #else
+    struct netif *netif_by_name = netif_find(netif_name);
+
     /* Iterate over available network interfaces */
     NETIF_FOREACH(netif) {
         if(!netif || !netif_is_up(netif))
             continue;
 
         /* Check if the interface name matches */
-        if(strcmp(netif->name, netif_name) == 0) {
+        if(netif_by_name == netif) {
             netif_index = netif_get_index(netif);
             break;
         }
