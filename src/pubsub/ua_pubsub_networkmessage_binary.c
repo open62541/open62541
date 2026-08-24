@@ -1841,6 +1841,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                 return 0;
             UA_PubSubOffset *offset = NULL;
             const UA_DataValue *v = &p->data.keyFrameFields[i];
+            const UA_FieldMetaData *fmd = NULL;
+            if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA)
+                fmd = getFieldMetaData(emd, i);
             if(ot) {
                 size_t pos = ot->offsetsSize;
                 if(!incrOffsetTable(ot))
@@ -1850,8 +1853,14 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                 if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                     offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT;
                 } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                    if(!v->value.type || !v->value.type->pointerFree)
-                        return 0; /* only integer types for now */
+                    if(!v->value.type)
+                        return 0;
+                    UA_Boolean fixedSizeString =
+                        fmd && fmd->maxStringLength > 0 &&
+                        (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                         v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING);
+                    if(!v->value.type->pointerFree && !fixedSizeString)
+                        return 0;
                     offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
                 } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                     offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE;
@@ -1861,7 +1870,6 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                const UA_FieldMetaData *fmd = getFieldMetaData(emd, i);
                 size = UA_DataSetMessage_raw_calcSizeBinary(&v->value, fmd, ot, size);
                 if(size == 0)
                     return 0;
