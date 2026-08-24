@@ -545,12 +545,16 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                                    "on SecurityPolicy None (Part 4, 5.6.2.2)");
         }
     } else if(request->clientCertificate.length > 0) {
+        UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+        verSettings.allowUsageInstanceCert = true;
+        verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
         rh->serviceResult =
             validateCertificate(server, &server->config.secureChannelPKI,
                                 channel->securityPolicy,
                                 channel, NULL, "CreateSession",
                                 &request->clientDescription,
-                                request->clientCertificate);
+                                request->clientCertificate,
+                                verSettings);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
@@ -1002,9 +1006,12 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
     }
 
     /* Validate the certificate against the SessionPKI */
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageUserCert = true;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
     res = validateCertificate(server, &server->config.sessionPKI, tokenSp,
                               session->channel, session, "ActivateSession",
-                              NULL, token->certificateData);
+                              NULL, token->certificateData, verSettings);
     res = hideX509IdentityTokenValidationStatus(res);
 
  out:
