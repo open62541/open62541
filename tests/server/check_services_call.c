@@ -242,6 +242,42 @@ START_TEST(callMethodWithEmptyArgument) {
 #endif
 } END_TEST
 
+START_TEST(callMethodWithEmptyOutputArguments) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    /* Replace the two-element OutputArguments definition with an empty,
+     * correctly typed Argument array. The built-in callback must reject the
+     * resulting outputSize before writing output[0] and output[1]. */
+    UA_DataValue outputArguments;
+    UA_DataValue_init(&outputArguments);
+    outputArguments.hasValue = true;
+    UA_Variant_setArray(&outputArguments.value, UA_EMPTY_ARRAY_SENTINEL, 0,
+                        &UA_TYPES[UA_TYPES_ARGUMENT]);
+    UA_StatusCode res = UA_Server_setVariableNode_internalValueSource(
+        server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS),
+        &outputArguments, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 subscriptionId = 0;
+    UA_Variant inputArgument;
+    UA_Variant_init(&inputArgument);
+    UA_Variant_setScalar(&inputArgument, &subscriptionId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    req.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
+    req.inputArgumentsSize = 1;
+    req.inputArguments = &inputArgument;
+
+    UA_CallMethodResult result = UA_Server_call(server, &req);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADARGUMENTSMISSING);
+    UA_CallMethodResult_clear(&result);
+#endif
+} END_TEST
+
 START_TEST(callObjectTypeMethodOnInstance) {
 /* Minimal nodeset does not add any method nodes we may call here */
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
@@ -408,6 +444,7 @@ int main(void) {
     tcase_add_test(tc_call, callMethodWithTooManyArguments);
     tcase_add_test(tc_call, callMethodWithWronglyTypedArguments);
     tcase_add_test(tc_call, callMethodWithEmptyArgument);
+    tcase_add_test(tc_call, callMethodWithEmptyOutputArguments);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance2);
     tcase_add_test(tc_call, callObjectTypeMethod);

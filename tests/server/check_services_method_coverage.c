@@ -290,6 +290,15 @@ START_TEST(Call_scalarOutputArgument_countsAsOne) {
     UA_CallMethodResult_clear(&result);
 } END_TEST
 
+START_TEST(Check_methodOutputArgumentCount) {
+    ck_assert_uint_eq(checkMethodOutputArguments(0, 1),
+                      UA_STATUSCODE_BADARGUMENTSMISSING);
+    ck_assert_uint_eq(checkMethodOutputArguments(1, 1),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(checkMethodOutputArguments(2, 1),
+                      UA_STATUSCODE_BADTOOMANYARGUMENTS);
+} END_TEST
+
 /* ==== UA_MAX_METHOD_ARGUMENTS guard ==== */
 
 START_TEST(Call_method_exceedsMaxArgs_rejected) {
@@ -359,6 +368,7 @@ testSuite(void) {
     tcase_add_test(tc, Call_method_correctArgs_succeeds);
     tcase_add_test(tc, Call_nonInternalOutputArguments_rejected);
     tcase_add_test(tc, Call_scalarOutputArgument_countsAsOne);
+    tcase_add_test(tc, Check_methodOutputArgumentCount);
     tcase_add_test(tc, Call_method_exceedsMaxArgs_rejected);
     tcase_add_test(tc, Call_methodNode_wrongNodeClass_rejected);
     suite_add_tcase(s, tc);
