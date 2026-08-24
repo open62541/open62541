@@ -899,6 +899,11 @@ cleanup:
 UA_StatusCode
 UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
                               UA_Variant *output) {
+    if(outputSize < 1)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(outputSize > 1)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 

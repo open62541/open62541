@@ -1066,6 +1066,10 @@ addPubSubConnectionAction(UA_Server *server,
                           size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1275,6 +1279,10 @@ addDataSetReaderAction(UA_Server *server,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_NodeId dataSetReaderId;
     UA_DataSetReaderDataType *dataSetReader= (UA_DataSetReaderDataType *) input[0].data;
     UA_StatusCode retVal =
@@ -1311,6 +1319,10 @@ addDataSetFolderAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* defined in R 1.04 9.1.4.5.7 */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_String newFolderName = *((UA_String *) input[0].data);
@@ -1435,6 +1447,10 @@ addPublishedDataItemsAction(UA_Server *server,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output){
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 3);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     size_t fieldNameAliasesSize = input[1].arrayLength;
     UA_String * fieldNameAliases = (UA_String *) input[1].data;
@@ -1819,6 +1835,10 @@ addWriterGroupAction(UA_Server *server,
                      size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_NodeId writerGroupId;
     UA_WriterGroupDataType *writerGroup = (UA_WriterGroupDataType *)input->data;
     UA_StatusCode retVal = addWriterGroupConfig(server, *objectId, writerGroup, &writerGroupId);
@@ -1864,6 +1884,10 @@ addReserveIdsAction(UA_Server *server,
                     size_t inputSize, const UA_Variant *input,
                     size_t outputSize, UA_Variant *output){
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 3);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
@@ -1972,6 +1996,10 @@ addReaderGroupAction(UA_Server *server,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroupDataType *readerGroup = ((UA_ReaderGroupDataType *) input->data);
@@ -2106,6 +2134,10 @@ addDataSetWriterAction(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_NodeId dataSetWriterId;
     UA_DataSetWriterDataType *dataSetWriterData = (UA_DataSetWriterDataType *)input->data;
