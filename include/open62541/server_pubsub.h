@@ -1059,7 +1059,12 @@ UA_Server_setWriterGroupActivateKey(UA_Server *server,
  * When the content of a PubSub Networkmessage has a fixed length, then only a
  * few "content bytes" at known locations within the NetworkMessage change
  * between publish cycles. The so-called offset table exposes this to enable
- * fast-path implementations for realtime applications. */
+ * fast-path implementations for realtime applications.
+ *
+ * String and ByteString fields with RawData encoding have a fixed length when
+ * MaxStringLength is configured in the FieldMetaData. This is supported for
+ * direct fields, but not for String and ByteString members nested inside
+ * structures. */
 
 typedef enum {
     UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION,   /* UInt32 */

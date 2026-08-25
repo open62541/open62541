@@ -43,6 +43,9 @@ INTEROP_JSON="$C_BUILD_DIR/bin/tests/check_interop_json"
 DOTNET_INTEROP_PROJECT="$REPO_ROOT/tests/interop/dotnet/Opc.Ua.Interop.Tests.csproj"
 DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
 if [[ ! -f "$DOTNET_SERVER_PROJECT" ]]; then
+    DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/samples/Reference/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
+fi
+if [[ ! -f "$DOTNET_SERVER_PROJECT" ]]; then
     DOTNET_SERVER_PROJECT="$DOTNET_SDK_DIR/samples/ConsoleReferenceServer/ConsoleReferenceServer.csproj"
 fi
 NODEOPCUA_CLIENT_DIR="$REPO_ROOT/tests/interop/node-opcua"
