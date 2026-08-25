@@ -956,7 +956,8 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
     /* Allocate memory for the additional escaped string */
     size_t escapedLength = UA_String_escapedSize(s2, esc);
     UA_Byte *buf = (UA_Byte*)
-        UA_realloc(s->data, s->length + s2.length + escapedLength);
+        UA_realloc((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL),
+                   s->length + s2.length + escapedLength);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
