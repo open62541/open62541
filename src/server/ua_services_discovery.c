@@ -424,7 +424,9 @@ updateEndpointUserIdentityToken(UA_Server *server,
             postfix = securityPolicyUriPostfix(ed->securityPolicyUri);
         size_t newLen = utp->policyId.length + postfix.length +
             strlen(securityModeStrs[ed->securityMode]);
-        UA_Byte *newString = (UA_Byte*)UA_realloc(utp->policyId.data, newLen);
+        UA_Byte *newString = (UA_Byte*)
+            UA_realloc((void*)((uintptr_t)utp->policyId.data &
+                               ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL), newLen);
         if(!newString)
             continue;
         size_t pos = utp->policyId.length;
