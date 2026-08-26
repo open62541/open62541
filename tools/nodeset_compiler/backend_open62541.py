@@ -622,7 +622,12 @@ _UA_END_DECLS
         writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
         writec("    NULL,")
         writec("    " + arr + "_COUNT,")
-        writec("    " + arr + ",")
+        # The generated type array is const (read-only, possibly placed in
+        # flash/.rodata). It is never written through this pointer -- only
+        # the namespaceIndex-patch path below writes, and that path uses its
+        # own heap-allocated mutable copy instead. The cast is only to match
+        # the non-const UA_DataTypeArray::types pointer type.
+        writec("    (UA_DataType*)(uintptr_t)" + arr + ",")
         writec("    UA_FALSE\n};")
 
     writec("""
@@ -660,12 +665,24 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         # Build the name of the TypeArray to compare if the current nodeset defines data types.
         currentTypeArr = '_'.join(outfilebase.upper().split('_')[1:-1])
         if typeArr != "UA_TYPES" and typeArr != "ns0" and typeArr == "UA_TYPES_"+currentTypeArr:
-            writec("/* Change namespaceIndex from current namespace */")
+            writec("/* Change namespaceIndex from current namespace.")
+            writec(" * The generated type array is const, so the patched")
+            writec(" * namespaceIndex fields are written into a heap-allocated")
+            writec(" * mutable copy. custom" + typeArr + " takes ownership of it")
+            writec(" * (cleanup = true) instead of pointing at the static array. */")
             writec("#if " + typeArr + "_COUNT" + " > 0")
+            writec("UA_DataType *" + typeArr + "_mutable = (UA_DataType*)")
+            writec("    UA_malloc(" + typeArr + "_COUNT * sizeof(UA_DataType));")
+            writec("if(!" + typeArr + "_mutable)")
+            writec("    return UA_STATUSCODE_BADOUTOFMEMORY;")
+            writec("memcpy(" + typeArr + "_mutable, " + typeArr + ", " +
+                   typeArr + "_COUNT * sizeof(UA_DataType));")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
-            writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
-            writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
+            writec(typeArr + "_mutable[i]" + ".typeId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
+            writec(typeArr + "_mutable[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
             writec("}")
+            writec("custom" + typeArr + ".types = " + typeArr + "_mutable;")
+            writec("custom" + typeArr + ".cleanup = UA_TRUE;")
             writec("#endif")
 
     # Add generated types to the server

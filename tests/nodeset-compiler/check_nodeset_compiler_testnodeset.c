@@ -12,10 +12,14 @@
 #include "tests/namespace_tests_testnodeset_generated.h"
 #include "namespace_tests_di_generated.h"
 #include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 UA_Server *server = NULL;
-UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET, UA_FALSE};
+/* UA_TYPES_TESTS_TESTNODESET is const (never mutated here); the cast only
+ * matches the non-const UA_DataTypeArray::types pointer type. */
+UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT,
+    (UA_DataType*)(uintptr_t)UA_TYPES_TESTS_TESTNODESET, UA_FALSE};
 UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;
 
 static void setup(void) {
