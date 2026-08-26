@@ -163,7 +163,7 @@ endfunction()
 
 function(ua_generate_datatypes)
     find_package(Python3 REQUIRED)
-    set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC)
+    set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC MUTABLE_TYPES)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV EXPORT_MACRO)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -240,6 +240,11 @@ function(ua_generate_datatypes)
         set(EXPORT_MACRO_ARG "--export-macro=${UA_GEN_DT_EXPORT_MACRO}")
     endif()
 
+    set(MUTABLE_TYPES_ARG "")
+    if(UA_GEN_DT_MUTABLE_TYPES)
+        set(MUTABLE_TYPES_ARG "--mutable-types")
+    endif()
+
     # Command generating the DataType code files
     add_custom_command(COMMAND ${ARG_CONV_EXCL_ENV} ${Python3_EXECUTABLE}
                                ${open62541_TOOLS_DIR}/generate_datatypes.py
@@ -251,6 +256,7 @@ function(ua_generate_datatypes)
                                ${UA_GEN_DT_NO_BUILTIN}
                                ${UA_GEN_DT_INTERNAL_ARG}
                                ${EXPORT_MACRO_ARG}
+                               ${MUTABLE_TYPES_ARG}
                                ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
                                ${UA_GEN_DOC_ARG}
                        OUTPUT  ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
@@ -629,6 +635,12 @@ function(ua_generate_nodeset_and_datatypes)
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
         # Generates target ${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}
+        # MUTABLE_TYPES: the nodeset compiler patches the typeId/binaryEncodingId
+        # namespaceIndex of these types in place once the runtime namespace index
+        # is known (see namespace_${UA_GEN_NAME}_generated.c). That patch must be
+        # visible through every reference to these types, including the compile-time
+        # `&UA_..._TYPES[...]` member->memberType pointers baked into other members
+        # of this same array -- so, unlike UA_TYPES/UA_TYPES_TRANSPORT, it cannot be const.
         ua_generate_datatypes(NAME types-${UA_GEN_NAME}
                               TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
                               TARGET_SUFFIX "types-${UA_GEN_NAME}"
@@ -637,7 +649,8 @@ function(ua_generate_nodeset_and_datatypes)
                               FILES_BSD "${UA_GEN_FILE_BSD}"
                               ${NODESET_AUTOLOAD}
                               IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
-                              OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}")
+                              OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
+                              MUTABLE_TYPES)
 
         # Generates target ${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}
         ua_generate_nodeid_header(NAME nodeids-${UA_GEN_NAME}

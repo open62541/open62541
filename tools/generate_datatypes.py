@@ -97,6 +97,16 @@ parser.add_argument('--export-macro',
                     default="",
                     help='macro to use in front of extern declarations (default: UA_EXPORT)')
 
+parser.add_argument('--mutable-types',
+                    action='store_true',
+                    dest="mutable_types",
+                    help='Do not declare the generated UA_DataType array as const. '
+                         'Required e.g. for the nodeset-compiler-generated custom '
+                         'type arrays, whose typeId/binaryEncodingId namespaceIndex '
+                         'is patched in place once the runtime namespace index is '
+                         'known -- including through member->memberType pointers '
+                         'that point directly into this array.')
+
 parser.add_argument('outfile',
                     metavar='<outputFile>',
                     help='output file w/o extension')
@@ -188,7 +198,8 @@ def _types_definition_equal(t1, t2):
     return False
 
 class CGenerator:
-    def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap, export_macro=""):
+    def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap,
+                 export_macro="", mutable_types=False):
         self.parser = parser
         self.inname = inname
         self.outfile = outfile
@@ -197,6 +208,7 @@ class CGenerator:
         self.filtered_types = None
         self.namespaceMap = namespaceMap
         self.export_macro = export_macro if export_macro else "UA_EXPORT"
+        self.types_const = "" if mutable_types else "const "
         self.fh = None
         self.fc = None
         self.fd = None
@@ -596,7 +608,7 @@ _UA_BEGIN_DECLS
         if totalCount > 0:
 
             self.printh(
-                "extern " + self.export_macro + " const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+                "extern " + self.export_macro + " " + self.types_const + "UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -658,7 +670,7 @@ _UA_END_DECLS
 
         if totalCount > 0:
             self.printc(
-                "const UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
+                self.types_const + "UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
 
             for ns in self.filtered_types:
                 for _, t_name in enumerate(self.filtered_types[ns]):
@@ -687,5 +699,6 @@ parser = CSVBSDTypeParser(args.opaque_map, args.selected_types,
                           namespaceMap)
 parser.create_types()
 
-generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap, args.export_macro)
+generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap,
+                       args.export_macro, args.mutable_types)
 generator.write_definitions()
