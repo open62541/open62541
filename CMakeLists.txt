@@ -273,6 +273,16 @@ if(UA_ENABLE_TPM2_KEYSTORE)
     endif()
 endif()
 
+# Generated *_members arrays (UA_DataTypeMember[]) placement. Empty
+# (default): compile-time-initialized as always. Set to an attribute macro
+# name (e.g. EXT_RAM_BSS_ATTR on ESP-IDF, with
+# CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY enabled) to instead declare
+# them zero-initialized with that attribute and fill them in via a
+# generated __attribute__((constructor)) function -- lets embedded targets
+# place them in external RAM, since only zero-initialized (.bss) data can
+# be attribute-placed there. See tools/generate_datatypes.py.
+set(UA_TYPES_MEMBERS_EXTRAM_ATTR "" CACHE STRING "Attribute macro to zero-init-declare and runtime-populate generated *_members arrays with (e.g. EXT_RAM_BSS_ATTR); empty disables this and keeps them compile-time-initialized")
+
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (none/minimal/reduced/full)")
 SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "NONE" "MINIMAL" "REDUCED" "FULL")
@@ -1603,14 +1613,16 @@ include(open62541Macros)
 ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
                       FILE_CSV "${UA_NS0_NODEIDS}"
                       FILES_BSD "${UA_NS0_TYPES_BSD}"
-                      FILES_SELECTED ${UA_NS0_DATATYPES})
+                      FILES_SELECTED ${UA_NS0_DATATYPES}
+                      MEMBERS_EXTRAM_ATTR "${UA_TYPES_MEMBERS_EXTRAM_ATTR}")
 
 # transport data types
 ua_generate_datatypes(INTERNAL NAME "transport" TARGET_SUFFIX "transport" NAMESPACE_IDX 1
                       FILE_CSV "${UA_NS0_NODEIDS}"
                       IMPORT_BSD "TYPES#${UA_NS0_TYPES_BSD}"
                       FILES_BSD "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"
-                      FILES_SELECTED "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt")
+                      FILES_SELECTED "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt"
+                      MEMBERS_EXTRAM_ATTR "${UA_TYPES_MEMBERS_EXTRAM_ATTR}")
 
 # statuscode explanation
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h

@@ -97,6 +97,20 @@ parser.add_argument('--export-macro',
                     default="",
                     help='macro to use in front of extern declarations (default: UA_EXPORT)')
 
+parser.add_argument('--members-extram-attr',
+                    metavar="<attrMacro>",
+                    type=str,
+                    dest="members_extram_attr",
+                    default="",
+                    help='if set, declare the per-type *_members arrays (UA_DataTypeMember[]) '
+                         'zero-initialized with this attribute macro and fill them in via a '
+                         'generated __attribute__((constructor)) function instead of a '
+                         'compile-time initializer, so they can be attribute-placed in external '
+                         'RAM on targets where only zero-initialized (.bss) data can be (e.g. '
+                         'pass EXT_RAM_BSS_ATTR on ESP-IDF with '
+                         'CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY). Default: unset, arrays '
+                         'stay compile-time-initialized as before.')
+
 parser.add_argument('outfile',
                     metavar='<outputFile>',
                     help='output file w/o extension')
@@ -188,7 +202,7 @@ def _types_definition_equal(t1, t2):
     return False
 
 class CGenerator:
-    def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap, export_macro=""):
+    def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap, export_macro="", members_extram_attr=""):
         self.parser = parser
         self.inname = inname
         self.outfile = outfile
@@ -197,6 +211,15 @@ class CGenerator:
         self.filtered_types = None
         self.namespaceMap = namespaceMap
         self.export_macro = export_macro if export_macro else "UA_EXPORT"
+        # If set, the *_members arrays (UA_DataTypeMember[]) are declared
+        # zero-initialized with this attribute macro and filled in by a
+        # generated __attribute__((constructor)) function instead of a
+        # compile-time initializer -- see print_members(). Intended for
+        # e.g. "EXT_RAM_BSS_ATTR" on ESP-IDF, to place them in external
+        # PSRAM (only .bss/zero-initialized data can be attribute-placed
+        # in PSRAM there) instead of internal RAM. Empty/default: no
+        # change from the plain compile-time-initialized array.
+        self.members_extram_attr = members_extram_attr
         self.fh = None
         self.fc = None
         self.fd = None
@@ -280,33 +303,34 @@ class CGenerator:
                "    %s_members" % idName + "  /* .members */\n" + \
                "}"
 
-    @staticmethod
-    def print_members(datatype):
+    def print_members(self, datatype):
         idName = makeCIdentifier(datatype.name)
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
         isEnum = isinstance(datatype, EnumerationType) and not datatype.isOptionSet
         if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
-            return "#define %s_members NULL" % (idName)
+            return "#define %s_members NULL" % (idName), None
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
-        before = None
         size = len(datatype.elements) if isEnum else len(datatype.members)
+
+        # Build the per-element initializer bodies ("{ ... }", no trailing
+        # comma). Used verbatim both for the plain aggregate initializer
+        # (default) and, one element at a time, for the runtime init
+        # function (self.members_extram_attr set -- see below).
+        bodies = []
+        before = None
         if isEnum:
             # Print all enumerators as UA_DataTypeMember
-            for i, (name, value) in enumerate(datatype.elements.items()):
-                m = "\n{\n"
+            for name, value in datatype.elements.items():
+                m = "{\n"
                 m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % name
                 m += "    (const UA_DataType *)(uintptr_t)({}), /* .memberType */\n".format(value)
                 m += "    0, /* .padding */\n"
                 m += "    false, /* .isArray */\n"
                 m += "    false /* .isOptional */\n}"
-                # Don't add a trailing comma for the last entry
-                if i != size - 1:
-                    m += ","
-                members += m
+                bodies.append(m)
         else:
             # Print all structure fields as UA_DataTypeMember
-            for i, member in enumerate(datatype.members):
+            for member in datatype.members:
 
                 # Build the type name for the current field
                 if not member.member_type.members and isinstance(member.member_type, StructType):
@@ -326,7 +350,7 @@ class CGenerator:
                 member_name_capital = member_name
                 if len(member_name) > 0:
                     member_name_capital = member_name[0].upper() + member_name[1:]
-                m = "\n{\n"
+                m = "{\n"
                 m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
                 m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
                     member.member_type.outname.upper(), member.member_type.outname.upper(),
@@ -350,12 +374,34 @@ class CGenerator:
                 m += " /* .padding */\n"
                 m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
                 m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
-                # Don't add a trailing comma for the last entry
-                if i != size - 1:
-                    m += ","
-                members += m
+                bodies.append(m)
                 before = member
-        return members + "};"
+
+        if not self.members_extram_attr:
+            # Default: a single plain aggregate initializer, exactly as before.
+            members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, size)
+            members += ",".join("\n" + b for b in bodies)
+            return members + "};", None
+
+        # --members-extram-attr set: declare as a zero-initialized array
+        # tagged with the given attribute (e.g. EXT_RAM_BSS_ATTR on
+        # ESP-IDF, to place it in external PSRAM instead of internal RAM)
+        # and fill it in via a generated one-time init function instead of
+        # a compile-time initializer. Zero-initialized (.bss) placement is
+        # the only form ESP-IDF's EXT_RAM_BSS_ATTR supports; a regular
+        # non-zero initializer would stay internal (.data) regardless of
+        # the attribute. The values themselves are unchanged (still
+        # link-time constants -- pointers into the const UA_TYPES-style
+        # arrays and offsetof()/sizeof() expressions), just written via
+        # assignment instead of aggregate-initialized.
+        decl = "static {} UA_DataTypeMember {}_members[{}];".format(
+            self.members_extram_attr, idName, size)
+        init_fn_name = "{}_members_init".format(idName)
+        init_fn = "static void {}(void) {{\n".format(init_fn_name)
+        for i, b in enumerate(bodies):
+            init_fn += "    {}_members[{}] = (UA_DataTypeMember){};\n".format(idName, i, b)
+        init_fn += "}"
+        return decl + "\n" + init_fn, init_fn_name
 
     @staticmethod
     def print_datatype_ptr(datatype):
@@ -647,14 +693,30 @@ _UA_END_DECLS
 
 #include "''' + self.parser.outname + '''_generated.h"''')
 
+        if self.members_extram_attr:
+            # Portable fallback so this file compiles standalone even where
+            # the attribute macro isn't otherwise defined (e.g. non-ESP-IDF
+            # builds): downstream builds that actually want the placement
+            # define it (via their own config header included before this
+            # file, or a compiler -D flag) to something real, such as
+            # EXT_RAM_BSS_ATTR from ESP-IDF's esp_attr.h.
+            self.printc('''
+#ifndef ''' + self.members_extram_attr + '''
+#define ''' + self.members_extram_attr + '''
+#endif''')
+
         totalCount = 0
+        memberInitFns = []
         for ns in self.filtered_types:
             totalCount += len(self.filtered_types[ns])
             for _, t_name in enumerate(self.filtered_types[ns]):
                 t = self.filtered_types[ns][t_name]
                 self.printc("")
                 self.printc("/* " + t.name + " */")
-                self.printc(CGenerator.print_members(t))
+                code, initFnName = self.print_members(t)
+                self.printc(code)
+                if initFnName:
+                    memberInitFns.append(initFnName)
 
         if totalCount > 0:
             self.printc(
@@ -666,6 +728,22 @@ _UA_END_DECLS
                     self.printc("/* " + t.name + " */")
                     self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
+
+        if memberInitFns:
+            # Members arrays above were declared zero-initialized (see
+            # print_members()); populate them once, automatically, before
+            # anything in the program can run -- no explicit call required
+            # by servers, clients, or standalone type encode/decode users.
+            # Order between these doesn't matter: each function only
+            # writes to its own array, using values (pointers into the
+            # const UA_TYPES-style arrays, offsetof()/sizeof() constants)
+            # that don't depend on any other member array being populated
+            # yet.
+            self.printc("__attribute__((constructor))")
+            self.printc("static void UA_{}_members_init(void) {{".format(self.parser.outname.upper()))
+            for fn in memberInitFns:
+                self.printc("    {}();".format(fn))
+            self.printc("}\n")
 
 ###########################################
 # Execute with the command line arguments #
@@ -687,5 +765,5 @@ parser = CSVBSDTypeParser(args.opaque_map, args.selected_types,
                           namespaceMap)
 parser.create_types()
 
-generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap, args.export_macro)
+generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap, args.export_macro, args.members_extram_attr)
 generator.write_definitions()
