@@ -381,6 +381,30 @@ int main(int argc, char* argv[]) {
 #endif
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
+    /* Allow configuring log level dynamically via env variable */
+    const char *envLogLevel = getenv("UA_LOG_LEVEL");
+    UA_LogLevel minLogLevel = UA_LOGLEVEL_INFO;
+    if(envLogLevel) {
+        if(strcmp(envLogLevel, "TRACE") == 0) {
+            minLogLevel = UA_LOGLEVEL_TRACE;
+        } else if(strcmp(envLogLevel, "DEBUG") == 0) {
+            minLogLevel = UA_LOGLEVEL_DEBUG;
+        } else if(strcmp(envLogLevel, "INFO") == 0) {
+            minLogLevel = UA_LOGLEVEL_INFO;
+        } else if(strcmp(envLogLevel, "WARNING") == 0) {
+            minLogLevel = UA_LOGLEVEL_WARNING;
+        } else if(strcmp(envLogLevel, "ERROR") == 0) {
+            minLogLevel = UA_LOGLEVEL_ERROR;
+        } else if(strcmp(envLogLevel, "FATAL") == 0) {
+            minLogLevel = UA_LOGLEVEL_FATAL;
+        }
+    }
+    if(config->logging) {
+        UA_Logger logger = UA_Log_Stdout_withLevel(minLogLevel);
+        logger.clear = config->logging->clear;
+        *config->logging = logger;
+    }
+
 #ifdef UA_ENABLE_ENCRYPTION
     UA_ByteString certificate = UA_BYTESTRING_NULL;
     UA_ByteString privateKey = UA_BYTESTRING_NULL;
