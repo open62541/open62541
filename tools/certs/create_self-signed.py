@@ -56,6 +56,24 @@ parser.add_argument('--ecc-all',
                           "(plus an RSA certificate). Output names follow the "
                           "server_c_<curve> convention.")
 
+parser.add_argument('--hostname',
+                     type=str,
+                     default="",
+                     dest="hostname",
+                     help="Custom Hostname / DNS entry for the certificate SAN")
+
+parser.add_argument('--ipaddress1',
+                     type=str,
+                     default="",
+                     dest="ipaddress1",
+                     help="Custom IP address 1 for the certificate SAN")
+
+parser.add_argument('--ipaddress2',
+                     type=str,
+                     default="",
+                     dest="ipaddress2",
+                     help="Custom IP address 2 for the certificate SAN")
+
 args = parser.parse_args()
 
 if not os.path.exists(args.outdir):
@@ -117,6 +135,14 @@ if iteratorValue < 2:
     os.environ['IPADDRESS2'] = "127.0.0.1"
 
 os.environ['HOSTNAME'] = socket.gethostname()
+
+if args.hostname:
+    os.environ['HOSTNAME'] = args.hostname
+if args.ipaddress1:
+    os.environ['IPADDRESS1'] = args.ipaddress1
+if args.ipaddress2:
+    os.environ['IPADDRESS2'] = args.ipaddress2
+
 openssl_conf = os.path.join(certsdir, "localhost.cnf")
 
 os.chdir(os.path.abspath(args.outdir))
