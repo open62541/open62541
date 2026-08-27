@@ -1471,6 +1471,58 @@ START_TEST(confirmCallback_withRemoveBranch) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+/* Calling Acknowledge with an empty (data == NULL) EventId argument must be
+ * rejected instead of being dereferenced while matching it against the
+ * condition's branches. */
+START_TEST(acknowledgeMethodCallback_emptyEventId) {
+    UA_Server_getConfig(server_ac)->allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE),
+        "EmptyEventIdAckCond", source);
+
+    UA_Variant val;
+    UA_Boolean enabled = true;
+    UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(acDriver_ac, cond, &val,
+        UA_QUALIFIEDNAME(0, "EnabledState"),
+        UA_QUALIFIEDNAME(0, "Id"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean retain = true;
+    UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Retain"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString eventId = UA_BYTESTRING_NULL;
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&eventId);
+
+    /* EventId argument is left empty: data == NULL */
+    UA_Variant in[2];
+    UA_Variant_init(&in[0]);
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "ack");
+    UA_Variant_init(&in[1]);
+    UA_Variant_setScalar(&in[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = cond;
+    req.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE);
+    req.inputArguments = in;
+    req.inputArgumentsSize = 2;
+
+    UA_CallMethodResult result = UA_Server_call(server_ac, &req);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADEVENTIDUNKNOWN);
+    UA_CallMethodResult_clear(&result);
+
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 /* Test enable/disable with re-enable: cover the enteringEnabled callback path fully */
 START_TEST(enableDisable_reEnable) {
     UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
@@ -1817,6 +1869,7 @@ int main(void) {
     tcase_add_test(tc_state, activeState_triggerCycle);
     tcase_add_test(tc_state, ackCallback_withRemoveBranch);
     tcase_add_test(tc_state, confirmCallback_withRemoveBranch);
+    tcase_add_test(tc_state, acknowledgeMethodCallback_emptyEventId);
     tcase_add_test(tc_state, setCallback_outOfRange);
 #endif
     tcase_add_checked_fixture(tc_state, setup, teardown);
