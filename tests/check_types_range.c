@@ -116,6 +116,31 @@ START_TEST(copyArrayRangeUpperBoundOutOfRange) {
 }
 END_TEST
 
+START_TEST(setArrayRangeUpperBoundOutOfRange_rejected) {
+    UA_Byte arr[4] = {1, 2, 3, 4};
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_Variant_setArrayCopy(&v, arr, 4, &UA_TYPES[UA_TYPES_BYTE]);
+
+    UA_Byte newVals[100];
+    for(size_t i = 0; i < 100; ++i)
+        newVals[i] = 0x41;
+
+    UA_NumericRange r;
+    UA_String sr = UA_STRING("0:99");
+    UA_StatusCode retval = UA_NumericRange_parse(&r, sr);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Variant_setRangeCopy(&v, newVals, 100, r);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADINDEXRANGEINVALID);
+    ck_assert_int_eq(((UA_Byte*)v.data)[0], 1);
+    ck_assert_int_eq(((UA_Byte*)v.data)[3], 4);
+
+    UA_Variant_clear(&v);
+    UA_free(r.dimensions);
+}
+END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Variant Range Access");
     TCase *tc = tcase_create("test cases");
@@ -124,6 +149,7 @@ int main(void) {
     tcase_add_test(tc, copySimpleArrayRange);
     tcase_add_test(tc, copyIntoStringArrayRange);
     tcase_add_test(tc, copyArrayRangeUpperBoundOutOfRange);
+    tcase_add_test(tc, setArrayRangeUpperBoundOutOfRange_rejected);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
