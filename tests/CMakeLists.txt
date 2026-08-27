@@ -332,6 +332,7 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 ua_add_test(server/check_session.c)
+ua_add_test(server/check_session_authtoken_rng.c)
 ua_add_test(server/check_server.c)
 ua_add_test(server/check_server_jobs.c)
 ua_add_test(server/check_server_userspace.c)
