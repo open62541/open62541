@@ -317,6 +317,16 @@ typedef union {
 UA_Boolean UA_EXPORT
 UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
 
+/* Testing helper: seed the RNG with no real-time mixing, for reproducible
+ * test runs. */
+void UA_random_seed_deterministic(UA_UInt64 seed);
+
+/* A Guid drawn from a stronger random source than UA_Guid_random(), for
+ * identifiers that must not repeat across separate server processes (e.g.
+ * the Session authenticationToken). See UA_random_secureBytes() in
+ * ua_types.c for the source used. */
+UA_Guid UA_Guid_secureRandom(void);
+
 /********************/
 /* Encoding Helpers */
 /********************/
