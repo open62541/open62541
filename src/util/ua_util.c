@@ -27,6 +27,17 @@
 #if defined(UA_ARCHITECTURE_WIN32)
 #include <wtypes.h>
 #include <winbase.h>
+#include <bcrypt.h>
+#elif defined(UA_ARCHITECTURE_POSIX)
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#include <mbedtls/entropy.h>
+#include <mbedtls/ctr_drbg.h>
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#include <openssl/rand.h>
 #endif
 
 #include "../../deps/parse_num.h"
@@ -708,6 +719,68 @@ UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
 UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
 UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
 #endif
+
+/* Random bytes with a stronger distribution than UA_Guid_random /
+ * UA_UInt32_random above, for identifiers that must not repeat across
+ * separate server processes (e.g. the Session authenticationToken). Uses
+ * the linked crypto backend's DRBG when built with encryption support, and
+ * falls back to the operating system's random source otherwise. Returns
+ * UA_STATUSCODE_BADNOTSUPPORTED if no such source is available on this
+ * platform. */
+static UA_StatusCode
+UA_random_secureBytes(UA_Byte *buf, size_t length) {
+    if(length == 0)
+        return UA_STATUSCODE_GOOD;
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_context drbg;
+    mbedtls_ctr_drbg_init(&drbg);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, NULL, 0) != 0 ||
+       mbedtls_ctr_drbg_random(&drbg, buf, length) != 0)
+        res = UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ctr_drbg_free(&drbg);
+    mbedtls_entropy_free(&entropy);
+    return res;
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    if(RAND_bytes(buf, (int)length) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ARCHITECTURE_WIN32)
+    if(!BCRYPT_SUCCESS(BCryptGenRandom(NULL, buf, (ULONG)length,
+                                        BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+#elif defined(UA_ARCHITECTURE_POSIX)
+    int fd = open("/dev/urandom", O_RDONLY);
+    if(fd < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t total = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    while(total < length) {
+        ssize_t n = read(fd, buf + total, length - total);
+        if(n <= 0) {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+        }
+        total += (size_t)n;
+    }
+    close(fd);
+    return res;
+#else
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+}
+
+UA_Guid
+UA_Guid_secureRandom(void) {
+    UA_Guid result;
+    if(UA_random_secureBytes((UA_Byte*)&result, sizeof(UA_Guid)) != UA_STATUSCODE_GOOD)
+        return UA_Guid_random(); /* No stronger random source on this platform */
+    return result;
+}
 
 /************************/
 /* ReferenceType Lookup */

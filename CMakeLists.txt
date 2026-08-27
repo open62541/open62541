@@ -525,6 +525,9 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix")
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     list(APPEND open62541_LIBRARIES "ws2_32")
     list(APPEND open62541_LIBRARIES "iphlpapi")
+    # bcrypt provides BCryptGenRandom, used as a random source for
+    # identifiers that must not repeat across server processes
+    list(APPEND open62541_LIBRARIES "bcrypt")
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -533,10 +536,6 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
     list(APPEND pkgcfg_requiresprivate "openssl")
-    if(WIN32)
-        # Add bestcrypt for windows systems
-        list(APPEND open62541_LIBRARIES bcrypt)
-    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -545,8 +544,7 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
     list(APPEND pkgcfg_requiresprivate "openssl")
     if(WIN32)
-        # Add bestcrypt for random generator and ws2_32 for crypto
-        list(APPEND open62541_LIBRARIES ws2_32 bcrypt)
+        list(APPEND open62541_LIBRARIES ws2_32)
     endif()
 endif()
 
@@ -557,10 +555,6 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
     list(APPEND pkgcfg_requiresprivate "mbedtls")
-    if(WIN32)
-        # Add bestcrypt for windows systems
-        list(APPEND open62541_LIBRARIES bcrypt)
-    endif()
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
