@@ -361,6 +361,10 @@ add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-o
 target_link_libraries(check_session ${LIBS})
 add_test_valgrind(session ${TESTS_BINARY_DIR}/check_session)
 
+add_executable(check_session_authtoken_rng server/check_session_authtoken_rng.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_session_authtoken_rng ${LIBS})
+add_test_valgrind(session_authtoken_rng ${TESTS_BINARY_DIR}/check_session_authtoken_rng)
+
 add_executable(check_server server/check_server.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server ${LIBS})
 add_test_valgrind(server ${TESTS_BINARY_DIR}/check_server)
