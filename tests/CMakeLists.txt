@@ -595,8 +595,11 @@ endif()
 if(UA_ENABLE_DISCOVERY AND (UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OR
                             UA_ENABLE_DISCOVERY_MULTICAST_AVAHI))
     ua_add_test(server/check_discovery_mdnsd.c)
+    ua_add_test(server/check_discovery_mdnsd_coverage.c)
     if(NOT MSVC)
         target_compile_options(check_discovery_mdnsd PRIVATE
+            -Wno-variadic-macros)
+        target_compile_options(check_discovery_mdnsd_coverage PRIVATE
             -Wno-variadic-macros)
     endif()
 endif()
