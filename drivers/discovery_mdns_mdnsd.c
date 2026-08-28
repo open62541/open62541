@@ -1054,6 +1054,7 @@ createMulticastSocket(MdnsdDriver *md) {
     }
 
     /* Open the send connection */
+    listen = false;
     if((md->announce || md->queryPresence || md->queryDetails) &&
        md->mdnsSendConnection == 0) {
         res = md->cm->openConnection(md->cm, &kvm, md->mdns.drv.server, md,

@@ -195,6 +195,8 @@ static THREAD_HANDLE serverThreadLds;
 static THREAD_HANDLE serverThreadRegister;
 
 typedef struct {
+    size_t openedListenConnections;
+    size_t openedSendConnections;
     size_t sentMessages;
     size_t sentNonEmptyMessages;
     UA_ByteString lastMessage;
@@ -405,6 +407,35 @@ serverOnNetworkHasTxtData(const UA_ServerOnNetwork *serverOnNetwork) {
 }
 
 static UA_StatusCode
+interceptingOpen(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
+                 void *application, void *context,
+                 UA_ConnectionManager_connectionCallback callback) {
+    TestUdpIntercept *intercept =
+        (TestUdpIntercept*)TestConnectionManager_getContext(cm);
+    const UA_Boolean *listen = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "listen"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!intercept || !listen)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(*listen)
+        intercept->openedListenConnections++;
+    else
+        intercept->openedSendConnections++;
+
+    uintptr_t connectionId;
+    UA_StatusCode res =
+        TestConnectionManager_createConnection(cm, application, context,
+                                               callback, &connectionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    return TestConnectionManager_inject(cm, connectionId,
+                                        UA_CONNECTIONSTATE_ESTABLISHED,
+                                        NULL, NULL);
+}
+
+static UA_StatusCode
 interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
                  const UA_KeyValueMap *params, UA_ByteString *buf) {
     (void)connectionId;
@@ -449,7 +480,7 @@ interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static const TestConnectionManager_CallbackOverloads interceptingUdpOverloads = {
-    NULL, interceptingSend, NULL
+    interceptingOpen, interceptingSend, NULL
 };
 
 static void
@@ -1633,6 +1664,12 @@ START_TEST(MdnsStartupTriggersSendPath) {
 }
 END_TEST
 
+START_TEST(MdnsStartupOpensReceiveAndSendConnections) {
+    ck_assert_uint_eq(testUdpIntercept->openedListenConnections, 1);
+    ck_assert_uint_eq(testUdpIntercept->openedSendConnections, 1);
+}
+END_TEST
+
 static UA_Server *
 createMdnsQueryTestServer(UA_ConnectionManager **outCm,
                           TestUdpIntercept **outIntercept,
@@ -2391,6 +2428,7 @@ testSuite_DiscoveryMdnsd(void) {
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     TCase *tc = tcase_create("Send path scaffolding");
     tcase_add_unchecked_fixture(tc, setup_server, teardown_server);
+    tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);
     tcase_add_test(tc, MdnsStartupTriggersSendPath);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
