@@ -255,7 +255,7 @@ resetDiscoveryCounters(void) {
     memset(&discoveryCounters, 0, sizeof(discoveryCounters));
 }
 
-static void
+static UA_MdnsDriver *
 addMdnsDriverWithQueries(UA_Server *s, UA_Boolean listen, UA_Boolean announce,
                          UA_Boolean queryPresence, UA_Boolean queryDetails,
                          UA_UInt32 queryInterval) {
@@ -278,6 +278,7 @@ addMdnsDriverWithQueries(UA_Server *s, UA_Boolean listen, UA_Boolean announce,
     UA_MdnsDriver *mdns = UA_MdnsDriver_Mdnsd(paramsMap);
     ck_assert_ptr_ne(mdns, NULL);
     ck_assert_uint_eq(UA_Server_addDriver(s, &mdns->drv), UA_STATUSCODE_GOOD);
+    return mdns;
 }
 
 static void
@@ -1670,6 +1671,79 @@ START_TEST(MdnsStartupOpensReceiveAndSendConnections) {
 }
 END_TEST
 
+static UA_Server *realUdpReceiver, *realUdpSender;
+
+static void
+useLoopbackInterface(UA_MdnsDriver *mdns) {
+#ifdef __APPLE__
+    UA_String interface = UA_STRING("lo0");
+#else
+    UA_String interface = UA_STRING("lo");
+#endif
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(
+                          &mdns->drv.params, UA_QUALIFIEDNAME(0, "interface"),
+                          &interface, &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_Server *
+newRealUdpMdnsServer(UA_UInt16 port) {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(config));
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&config, port, NULL), UA_STATUSCODE_GOOD);
+    config.tcpReuseAddr = true;
+    config.serversOnNetworkEnabled = true;
+    return UA_Server_newWithConfig(&config);
+}
+
+static void
+setupRealUdpMdnsServers(void) {
+    realUdpReceiver = newRealUdpMdnsServer(4840);
+    ck_assert_ptr_ne(realUdpReceiver, NULL);
+    UA_MdnsDriver *receiverMdns =
+        addMdnsDriverWithQueries(realUdpReceiver, true, false, true, false, 0);
+    useLoopbackInterface(receiverMdns);
+    ck_assert_uint_eq(UA_Server_run_startup(realUdpReceiver), UA_STATUSCODE_GOOD);
+
+    realUdpSender = newRealUdpMdnsServer(16664);
+    ck_assert_ptr_ne(realUdpSender, NULL);
+    UA_MdnsDriver *senderMdns =
+        addMdnsDriverWithQueries(realUdpSender, false, true, false, false, 0);
+    useLoopbackInterface(senderMdns);
+    ck_assert_uint_eq(UA_Server_run_startup(realUdpSender), UA_STATUSCODE_GOOD);
+
+    const char *capabilities[] = {"E2E"};
+    registerServerOnNetwork(realUdpSender, "mdns-real-udp-e2e",
+                            "opc.tcp://mdns-e2e-host:16664/e2e", capabilities, 1);
+}
+
+static void
+teardownRealUdpMdnsServers(void) {
+    if(realUdpSender) {
+        UA_Server_run_shutdown(realUdpSender);
+        UA_Server_delete(realUdpSender);
+    }
+    if(realUdpReceiver) {
+        UA_Server_run_shutdown(realUdpReceiver);
+        UA_Server_delete(realUdpReceiver);
+    }
+}
+
+START_TEST(MdnsAnnouncementTraversesRealUdpMulticastLoopback) {
+    const char *expectedName = "mdns-real-udp-e2e";
+    for(size_t i = 0;
+        i < 2000 && countServersOnNetworkByName(realUdpReceiver, expectedName) == 0;
+        i++) {
+        UA_Server_run_iterate(realUdpSender, false);
+        UA_Server_run_iterate(realUdpReceiver, false);
+        struct timespec ts = {0, 1000000}; /* Let the kernel deliver multicast. */
+        nanosleep(&ts, NULL);
+    }
+
+    ck_assert_uint_eq(countServersOnNetworkByName(realUdpReceiver, expectedName), 1);
+}
+END_TEST
+
 static UA_Server *
 createMdnsQueryTestServer(UA_ConnectionManager **outCm,
                           TestUdpIntercept **outIntercept,
@@ -2435,6 +2509,11 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc, MdnsUpdateOnlineOfflineIsIdempotent);
     tcase_add_test(tc, PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath);
     suite_add_tcase(s, tc);
+
+    TCase *tc_real_udp = tcase_create("Real UDP integration");
+    tcase_add_checked_fixture(tc_real_udp, setupRealUdpMdnsServers, teardownRealUdpMdnsServers);
+    tcase_add_test(tc_real_udp, MdnsAnnouncementTraversesRealUdpMulticastLoopback);
+    suite_add_tcase(s, tc_real_udp);
 
     TCase *tc_query = tcase_create("Query behavior");
     tcase_add_test(tc_query, MdnsQueryPresenceSendsStartupPtrQuery);
