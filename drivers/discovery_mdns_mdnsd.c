@@ -1417,6 +1417,9 @@ MdnsdDriver_start(UA_Driver *drv) {
             MdnsdDriver_stop(&md->mdns.drv);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+        /* Co-located servers must remain discoverable. Own records are
+         * filtered by their LOCAL_OWNED origin in processRecord. */
+        mdnsd_set_local(md->mdnsDaemon, 1);
         mdnsd_register_receive_callback(md->mdnsDaemon, processRecord, md);
     }
 
