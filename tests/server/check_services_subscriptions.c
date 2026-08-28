@@ -1811,6 +1811,27 @@ START_TEST(Server_createSubscription_maxSubscriptionsPerSession) {
     UA_CreateSubscriptionResponse_clear(&resp);
 } END_TEST
 
+START_TEST(Server_createSession_unlimited) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt16 orig = cfg->maxSessions;
+    cfg->maxSessions = 0;
+
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    UA_Session *newSession = NULL;
+    lockServer(server);
+    UA_StatusCode retval =
+        UA_Session_create(server, NULL, &req, &newSession);
+    UA_Boolean created = (newSession != NULL);
+    if(newSession)
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_CLOSE);
+    unlockServer(server);
+
+    cfg->maxSessions = orig;
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(created);
+} END_TEST
+
 START_TEST(Server_createSession_maxSessions) {
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     UA_UInt16 orig = cfg->maxSessions;
@@ -2062,6 +2083,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
     tcase_add_test(tc_server, Server_republish_unknownSequenceNumber);
     tcase_add_test(tc_server, Server_createSubscription_maxSubscriptionsPerSession);
+    tcase_add_test(tc_server, Server_createSession_unlimited);
     tcase_add_test(tc_server, Server_createSession_maxSessions);
     tcase_add_test(tc_server, Server_createMonitoredItems_maxPerSubscription);
     tcase_add_test(tc_server, Server_createMonitoredItems_maxPerServer);

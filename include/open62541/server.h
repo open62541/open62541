@@ -2399,11 +2399,11 @@ struct UA_ServerConfig {
     /* Limits
      * ~~~~~~ */
     /* Limits for SecureChannels */
-    UA_UInt16 maxSecureChannels;
+    UA_UInt16 maxSecureChannels; /* 0 => unlimited */
     UA_UInt32 maxSecurityTokenLifetime; /* in ms */
 
     /* Limits for Sessions */
-    UA_UInt16 maxSessions;
+    UA_UInt16 maxSessions; /* 0 => unlimited */
     UA_Double maxSessionTimeout; /* in ms */
 
     /* Operation limits */
@@ -2473,8 +2473,8 @@ struct UA_ServerConfig {
     UA_Boolean subscriptionsEnabled;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
-    UA_UInt32 maxSubscriptions;
-    UA_UInt32 maxSubscriptionsPerSession;
+    UA_UInt32 maxSubscriptions; /* 0 => unlimited */
+    UA_UInt32 maxSubscriptionsPerSession; /* 0 => unlimited */
     UA_DurationRange publishingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
@@ -2486,8 +2486,8 @@ struct UA_ServerConfig {
 # endif
 
     /* Limits for MonitoredItems */
-    UA_UInt32 maxMonitoredItems;
-    UA_UInt32 maxMonitoredItemsPerSubscription;
+    UA_UInt32 maxMonitoredItems; /* 0 => unlimited */
+    UA_UInt32 maxMonitoredItemsPerSubscription; /* 0 => unlimited */
     UA_DurationRange samplingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 

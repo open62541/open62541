@@ -509,7 +509,8 @@ createServerSecureChannel(UA_Server *server,
     UA_ServerConfig *config = &server->config;
 
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
-    if(scs->currentChannelCount >= config->maxSecureChannels &&
+    if(config->maxSecureChannels != 0 &&
+       scs->currentChannelCount >= config->maxSecureChannels &&
        !purgeFirstUascChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
