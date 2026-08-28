@@ -125,10 +125,11 @@ removeAllFilesFromDir(const char *const path, bool removeSubDirs) {
 }
 
 static UA_StatusCode
-getCertFileName(const char *path, const UA_ByteString *certificate,
-                char *fileNameBuf, size_t fileNameLen) {
+getCertFileName(const char *path, const char *fileExt,
+                const UA_ByteString *certificate, char *fileNameBuf,
+                size_t fileNameLen) {
     /* Check parameter */
-    if(path == NULL || certificate == NULL || fileNameBuf == NULL)
+    if(path == NULL || fileExt == NULL || certificate == NULL || fileNameBuf == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -174,8 +175,8 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
             *c = '_';
     }
 
-    if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]", path, subName,
-                   thumbprintBuffer) < 0)
+    if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]%s", path, subName,
+                   thumbprintBuffer, fileExt) < 0)
         retval = UA_STATUSCODE_BADINTERNALERROR;
 
     UA_String_clear(&thumbprint);
@@ -338,9 +339,9 @@ reloadTrustStore(UA_CertificateGroup *certGroup) {
 
 static UA_StatusCode
 writeCertificates(UA_CertificateGroup *certGroup, const UA_ByteString *list,
-                  size_t listSize, const char *listPath) {
+                  size_t listSize, const char *listPath, const char *fileExt) {
     /* Check parameter */
-    if(listPath == NULL)
+    if(listPath == NULL || fileExt == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(listSize > 0 && list == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -349,7 +350,7 @@ writeCertificates(UA_CertificateGroup *certGroup, const UA_ByteString *list,
     for(size_t i = 0; i < listSize; i++) {
         /* Create filename to load */
         char filename[UA_PATH_MAX] = {0};
-        retval = getCertFileName(listPath, &list[i], filename, UA_PATH_MAX);
+        retval = getCertFileName(listPath, fileExt, &list[i], filename, UA_PATH_MAX);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -364,21 +365,23 @@ writeCertificates(UA_CertificateGroup *certGroup, const UA_ByteString *list,
 
 static UA_StatusCode
 writeTrustList(UA_CertificateGroup *certGroup, const UA_ByteString *list,
-               size_t listSize, const UA_String path) {
+               size_t listSize, const UA_String path, const UA_String fileExt) {
     /* Check parameter */
-    if(path.length == 0)
+    if(path.length == 0 || fileExt.length == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(listSize > 0 && list == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     char listPath[UA_PATH_MAX] = {0};
+    char fileExtStr[UA_FILENAME_MAX] = {0};
     mp_snprintf(listPath, UA_PATH_MAX, "%.*s", (int)path.length, (char *)path.data);
+    mp_snprintf(fileExtStr, UA_FILENAME_MAX, "%.*s", (int)fileExt.length, (char *)fileExt.data);
     /* remove existing files in directory */
     UA_StatusCode retval = removeAllFilesFromDir(listPath, false);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    return writeCertificates(certGroup, list, listSize, listPath);
+    return writeCertificates(certGroup, list, listSize, listPath, fileExtStr);
 }
 
 static UA_StatusCode
@@ -390,6 +393,8 @@ writeTrustStore(UA_CertificateGroup *certGroup, const UA_UInt32 trustListMask) {
     FileCertStore *context = (FileCertStore *)certGroup->context;
 
     UA_TrustListDataType trustList;
+    const UA_String fileExtCert = UA_STRING_STATIC(".der");
+    const UA_String fileExtCrls = UA_STRING_STATIC(".crl");
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = trustListMask;
 
@@ -398,25 +403,29 @@ writeTrustStore(UA_CertificateGroup *certGroup, const UA_UInt32 trustListMask) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
         retval = writeTrustList(certGroup, trustList.trustedCertificates,
-                                trustList.trustedCertificatesSize, context->trustedCertFolder);
+                                trustList.trustedCertificatesSize, context->trustedCertFolder,
+                                fileExtCert);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         retval = writeTrustList(certGroup, trustList.trustedCrls,
-                                trustList.trustedCrlsSize, context->trustedCrlFolder);
+                                trustList.trustedCrlsSize, context->trustedCrlFolder,
+                                fileExtCrls);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         retval = writeTrustList(certGroup, trustList.issuerCertificates,
-                                trustList.issuerCertificatesSize, context->issuerCertFolder);
+                                trustList.issuerCertificatesSize, context->issuerCertFolder,
+                                fileExtCert);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         retval = writeTrustList(certGroup, trustList.issuerCrls,
-                                trustList.issuerCrlsSize, context->issuerCrlFolder);
+                                trustList.issuerCrlsSize, context->issuerCrlFolder,
+                                fileExtCrls);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -673,8 +682,10 @@ FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteStr
         /* write rejectedList to filestore */
         UA_ByteString *rejectedList = NULL;
         size_t rejectedListSize = 0;
+        const UA_String fileExtCert = UA_STRING_STATIC(".der");
         context->store->getRejectedList(context->store, &rejectedList, &rejectedListSize);
-        writeTrustList(certGroup, rejectedList, rejectedListSize, context->rejectedCertFolder);
+        writeTrustList(certGroup, rejectedList, rejectedListSize, context->rejectedCertFolder,
+                       fileExtCert);
         UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     }
 
