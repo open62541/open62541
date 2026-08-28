@@ -136,6 +136,7 @@ async function createClient(securityPolicy, securityMode) {
 function isSkippableSecurityError(msg) {
     return (
         msg.includes("BadSecurityPolicyRejected") ||
+        msg.includes("invalid securityPolicy") ||
         msg.includes("Cannot find an Endpoint matching") ||
         msg.includes("getEndpoints")
     );
