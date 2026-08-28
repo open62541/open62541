@@ -439,8 +439,8 @@ class CSVBSDTypeParser(TypeParser):
         dataTypeNodes = nodeset.getElementsByTagName("UADataType")
         for nd in dataTypeNodes:
             if nd.hasAttribute("SymbolicName"):
-                # Remove any digit and the colon
-                result_string = re.sub(r'\d|:', '', nd.attributes["BrowseName"].nodeValue)
+                # Remove the optional namespace index prefix.
+                result_string = re.sub(r'^\d+:', '', nd.attributes["BrowseName"].nodeValue)
                 table[nd.attributes["SymbolicName"].nodeValue] = result_string
         return table
 
@@ -513,9 +513,10 @@ class CSVBSDTypeParser(TypeParser):
                 typeName = "ExtensionObject"
             if typeName in rename_types:
                 typeName = rename_types[typeName]
-            # check if typeName is a symbolicName and replace it with the browseName
-            if typeName in table:
-                typeName = table[typeName]
             ns, key = self._find_type_ns(typeName)
+            # If the CSV uses a SymbolicName that differs from the type name in
+            # the BSD, retry with the corresponding BrowseName.
+            if ns is None and typeName in table:
+                ns, key = self._find_type_ns(table[typeName])
             if ns is not None:
                 self.types[ns][key].nodeId = row[1]
