@@ -1671,6 +1671,8 @@ START_TEST(MdnsStartupOpensReceiveAndSendConnections) {
 }
 END_TEST
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+
 static UA_Server *realUdpReceiver, *realUdpSender;
 
 static void
@@ -1743,6 +1745,8 @@ START_TEST(MdnsAnnouncementTraversesRealUdpMulticastLoopback) {
     ck_assert_uint_eq(countServersOnNetworkByName(realUdpReceiver, expectedName), 1);
 }
 END_TEST
+
+#endif
 
 static UA_Server *
 createMdnsQueryTestServer(UA_ConnectionManager **outCm,
@@ -2510,10 +2514,13 @@ testSuite_DiscoveryMdnsd(void) {
     tcase_add_test(tc, PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath);
     suite_add_tcase(s, tc);
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
     TCase *tc_real_udp = tcase_create("Real UDP integration");
-    tcase_add_checked_fixture(tc_real_udp, setupRealUdpMdnsServers, teardownRealUdpMdnsServers);
+    tcase_add_checked_fixture(tc_real_udp, setupRealUdpMdnsServers,
+                             teardownRealUdpMdnsServers);
     tcase_add_test(tc_real_udp, MdnsAnnouncementTraversesRealUdpMulticastLoopback);
     suite_add_tcase(s, tc_real_udp);
+#endif
 
     TCase *tc_query = tcase_create("Query behavior");
     tcase_add_test(tc_query, MdnsQueryPresenceSendsStartupPtrQuery);
