@@ -430,9 +430,21 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->sessionCount >= server->config.maxSessions) {
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "CreateSession: Could not create a Session - "
-                             "Server limits reached");
+        if(channel) {
+            UA_LOG_WARNING_CHANNEL(
+                server->config.logging, channel,
+                "CreateSession: Rejecting Session creation because the configured "
+                "Session resource limit has been reached (%u active, limit %u)",
+                (unsigned)server->sessionCount,
+                (unsigned)server->config.maxSessions);
+        } else {
+            UA_LOG_WARNING(
+                server->config.logging, UA_LOGCATEGORY_SESSION,
+                "CreateSession: Rejecting Session creation because the configured "
+                "Session resource limit has been reached (%u active, limit %u)",
+                (unsigned)server->sessionCount,
+                (unsigned)server->config.maxSessions);
+        }
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
     }
 
