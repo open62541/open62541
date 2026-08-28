@@ -369,6 +369,15 @@ writeVariable(UA_Server *server) {
     UA_Server_write(server, &wv);
 }
 
+static void
+customLogCallback(void *logContext, UA_LogLevel level, UA_LogCategory category,
+                  const char *msg, va_list args) {
+    if(category == UA_LOGCATEGORY_EVENTLOOP) {
+        return;
+    }
+    UA_Log_Stdout->log(logContext, level, category, msg, args);
+}
+
 int main(int argc, char* argv[]) {
     UA_StatusCode retval = 0;
 
@@ -400,7 +409,9 @@ int main(int argc, char* argv[]) {
         }
     }
     if(config->logging) {
-        UA_Logger logger = UA_Log_Stdout_withLevel(minLogLevel);
+        UA_Logger logger;
+        logger.log = customLogCallback;
+        logger.context = (void*)(uintptr_t)minLogLevel;
         logger.clear = config->logging->clear;
         *config->logging = logger;
     }
@@ -460,7 +471,48 @@ int main(int argc, char* argv[]) {
                                                           issuerList, issuerListSize,
                                                           revocationList, revocationListSize);
     }
-                                                           UA_ByteString_clear(&certificate);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        /* Remove deprecated and insecure security policies (Basic128Rsa15, Basic256) */
+        size_t newPoliciesSize = 0;
+        for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+            UA_SecurityPolicy *policy = &config->securityPolicies[i];
+            const UA_String basic128Uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+            const UA_String basic256Uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+            if(UA_String_equal(&policy->policyUri, &basic128Uri) ||
+               UA_String_equal(&policy->policyUri, &basic256Uri)) {
+                if(policy->clear) {
+                    policy->clear(policy);
+                }
+            } else {
+                if(newPoliciesSize != i) {
+                    config->securityPolicies[newPoliciesSize] = *policy;
+                }
+                newPoliciesSize++;
+            }
+        }
+        config->securityPoliciesSize = newPoliciesSize;
+
+        /* Filter endpoints matching the removed security policies */
+        size_t newEndpointsSize = 0;
+        for(size_t i = 0; i < config->endpointsSize; i++) {
+            UA_EndpointDescription *endpoint = &config->endpoints[i];
+            const UA_String basic128Uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+            const UA_String basic256Uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+            if(UA_String_equal(&endpoint->securityPolicyUri, &basic128Uri) ||
+               UA_String_equal(&endpoint->securityPolicyUri, &basic256Uri)) {
+                UA_EndpointDescription_clear(endpoint);
+            } else {
+                if(newEndpointsSize != i) {
+                    config->endpoints[newEndpointsSize] = *endpoint;
+                }
+                newEndpointsSize++;
+            }
+        }
+        config->endpointsSize = newEndpointsSize;
+    }
+
+    UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);
