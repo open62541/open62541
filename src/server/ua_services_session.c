@@ -429,7 +429,8 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
                   const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    if(server->sessionCount >= server->config.maxSessions) {
+    if(server->config.maxSessions != 0 &&
+       server->sessionCount >= server->config.maxSessions) {
         if(channel) {
             UA_LOG_WARNING_CHANNEL(
                 server->config.logging, channel,
