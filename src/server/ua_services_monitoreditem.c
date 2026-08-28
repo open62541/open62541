@@ -439,11 +439,33 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check available capacity */
-    if(!cmc->localMon &&
-       (((server->config.maxMonitoredItems != 0) &&
-         (server->monitoredItemsSize >= server->config.maxMonitoredItems)) ||
-        ((server->config.maxMonitoredItemsPerSubscription != 0) &&
-         (cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription)))) {
+    UA_Boolean serverLimitReached =
+        (server->config.maxMonitoredItems != 0 &&
+         server->monitoredItemsSize >= server->config.maxMonitoredItems);
+    UA_Boolean subscriptionLimitReached =
+        (server->config.maxMonitoredItemsPerSubscription != 0 &&
+         cmc->sub->monitoredItemsSize >=
+             server->config.maxMonitoredItemsPerSubscription);
+    if(!cmc->localMon && (serverLimitReached || subscriptionLimitReached)) {
+        if(serverLimitReached) {
+            UA_LOG_WARNING_SESSION(
+                server->config.logging, session,
+                "CreateMonitoredItems: Rejecting MonitoredItem creation because "
+                "the configured server-wide MonitoredItem resource limit has been "
+                "reached (%lu active, limit %u)",
+                (unsigned long)server->monitoredItemsSize,
+                (unsigned)server->config.maxMonitoredItems);
+        } else {
+            UA_LOG_WARNING_SESSION(
+                server->config.logging, session,
+                "CreateMonitoredItems: Rejecting MonitoredItem creation for "
+                "Subscription %u because the configured per-Subscription "
+                "MonitoredItem resource limit has been reached (%u active, "
+                "limit %u)",
+                (unsigned)cmc->sub->subscriptionId,
+                (unsigned)cmc->sub->monitoredItemsSize,
+                (unsigned)server->config.maxMonitoredItemsPerSubscription);
+        }
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
