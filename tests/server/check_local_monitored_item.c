@@ -131,6 +131,47 @@ START_TEST(Server_LocalMonitoredItem) {
 }
 END_TEST
 
+static void
+deleteMonitoredItemCallback(UA_Server *thisServer,
+                            UA_UInt32 monitoredItemId,
+                            void *monitoredItemContext,
+                            const UA_NodeId *nodeId,
+                            void *nodeContext,
+                            UA_UInt32 attributeId,
+                            const UA_DataValue *value) {
+    UA_StatusCode *deleteStatus = (UA_StatusCode*)monitoredItemContext;
+    callbackCount++;
+    *deleteStatus = UA_Server_deleteMonitoredItem(thisServer, monitoredItemId);
+}
+
+START_TEST(Server_LocalMonitoredItem_deleteInCallback) {
+    callbackCount = 0;
+    UA_StatusCode deleteStatus = UA_STATUSCODE_BADINTERNALERROR;
+    UA_MonitoredItemCreateRequest request =
+        UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.requestedParameters.samplingInterval = 0.0;
+    request.requestedParameters.queueSize = 3;
+
+    UA_MonitoredItemCreateResult result =
+        UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_BOTH, request, &deleteStatus,
+            deleteMonitoredItemCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 newValue = 41;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &newValue, &UA_TYPES[UA_TYPES_UINT32]);
+    ASSERT_STATUSCODE(UA_Server_writeValue(server, outNodeId, value),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(callbackCount, 1);
+    ASSERT_STATUSCODE(deleteStatus, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_iterate(server, false);
+}
+END_TEST
+
 static UA_UInt32 staticUInt32 = 1337;
 
 static UA_StatusCode
@@ -423,6 +464,7 @@ static Suite * testSuite_Client(void) {
     TCase *tc_server = tcase_create("Local Monitored Item Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteInCallback);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_EventNotifierRejected);
