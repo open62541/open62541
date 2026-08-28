@@ -1804,6 +1804,9 @@ target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_NODESET_INJECTOR_NEEDS_ROLESET)
     target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_ROLESET)
 endif()
+if(UA_NODESET_INJECTOR_NEEDS_SERVERLOG)
+    target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_SERVERLOG)
+endif()
 
 # Prevent Wincrypt override warning.
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
