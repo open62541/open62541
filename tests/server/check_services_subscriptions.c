@@ -11,6 +11,7 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "test_helpers.h"
 #include "testing_clock.h"
@@ -27,6 +28,27 @@ static UA_ApplicationNotificationType subscriptionNotificationType;
 static UA_UInt32 subscriptionNotificationId = 0;
 static UA_Boolean subscriptionNotificationEnabled = false;
 static size_t subscriptionNotificationMapSize = 0;
+
+typedef struct {
+    UA_Boolean sessionLimit;
+    UA_Boolean serverMonitoredItemsLimit;
+    UA_Boolean subscriptionMonitoredItemsLimit;
+} LimitLogCapture;
+
+static void
+captureLimitLog(void *context, UA_LogLevel level, UA_LogCategory category,
+                const char *msg, va_list args) {
+    (void)args;
+    LimitLogCapture *capture = (LimitLogCapture*)context;
+    if(level != UA_LOGLEVEL_WARNING || category != UA_LOGCATEGORY_SESSION)
+        return;
+    if(strstr(msg, "Session resource limit"))
+        capture->sessionLimit = true;
+    if(strstr(msg, "server-wide MonitoredItem resource limit"))
+        capture->serverMonitoredItemsLimit = true;
+    if(strstr(msg, "per-Subscription MonitoredItem resource limit"))
+        capture->subscriptionMonitoredItemsLimit = true;
+}
 
 static void
 subscriptionNotificationCallback(UA_Server *server,
@@ -1789,6 +1811,33 @@ START_TEST(Server_createSubscription_maxSubscriptionsPerSession) {
     UA_CreateSubscriptionResponse_clear(&resp);
 } END_TEST
 
+START_TEST(Server_createSession_maxSessions) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt16 orig = cfg->maxSessions;
+    cfg->maxSessions = (UA_UInt16)server->sessionCount;
+
+    LimitLogCapture capture = {false, false, false};
+    UA_Logger logger = {captureLimitLog, &capture, NULL};
+    UA_Logger *origLogger = cfg->logging;
+    cfg->logging = &logger;
+
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    UA_Session *rejectedSession = NULL;
+    lockServer(server);
+    UA_StatusCode retval =
+        UA_Session_create(server, NULL, &req, &rejectedSession);
+    unlockServer(server);
+
+    cfg->logging = origLogger;
+    cfg->maxSessions = orig;
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTOOMANYSESSIONS);
+    ck_assert_ptr_null(rejectedSession);
+#if UA_LOGLEVEL <= 400
+    ck_assert(capture.sessionLimit);
+#endif
+} END_TEST
+
 START_TEST(Server_createMonitoredItems_maxPerSubscription) {
     /* src/server/ua_services_monitoreditem.c:444-452 (Operation_CreateMonitoredItem):
      *   if(!cmc->localMon &&
@@ -1803,6 +1852,10 @@ START_TEST(Server_createMonitoredItems_maxPerSubscription) {
     UA_ServerConfig *cfg = UA_Server_getConfig(server);
     UA_UInt32 orig = cfg->maxMonitoredItemsPerSubscription;
     cfg->maxMonitoredItemsPerSubscription = 1; /* already at the limit */
+    LimitLogCapture capture = {false, false, false};
+    UA_Logger logger = {captureLimitLog, &capture, NULL};
+    UA_Logger *origLogger = cfg->logging;
+    cfg->logging = &logger;
 
     UA_CreateMonitoredItemsRequest req;
     UA_CreateMonitoredItemsRequest_init(&req);
@@ -1821,13 +1874,62 @@ START_TEST(Server_createMonitoredItems_maxPerSubscription) {
     Service_CreateMonitoredItems(server, session, &req, &resp);
     unlockServer(server);
 
+    cfg->logging = origLogger;
     ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(resp.resultsSize, 1);
     ck_assert_uint_eq(resp.results[0].statusCode,
                       UA_STATUSCODE_BADTOOMANYMONITOREDITEMS);
+#if UA_LOGLEVEL <= 400
+    ck_assert(capture.subscriptionMonitoredItemsLimit);
+#endif
 
     cfg->maxMonitoredItemsPerSubscription = orig;
     UA_Array_delete(req.itemsToCreate, 1, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
+    UA_CreateMonitoredItemsResponse_clear(&resp);
+} END_TEST
+
+START_TEST(Server_createMonitoredItems_maxPerServer) {
+    createSubscription();
+    createMonitoredItem();
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 orig = cfg->maxMonitoredItems;
+    cfg->maxMonitoredItems = 1; /* already at the server-wide limit */
+    LimitLogCapture capture = {false, false, false};
+    UA_Logger logger = {captureLimitLog, &capture, NULL};
+    UA_Logger *origLogger = cfg->logging;
+    cfg->logging = &logger;
+
+    UA_CreateMonitoredItemsRequest req;
+    UA_CreateMonitoredItemsRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    req.itemsToCreateSize = 1;
+    req.itemsToCreate = (UA_MonitoredItemCreateRequest*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
+    UA_MonitoredItemCreateRequest_init(&req.itemsToCreate[0]);
+    req.itemsToCreate[0].itemToMonitor.nodeId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+
+    UA_CreateMonitoredItemsResponse resp;
+    UA_CreateMonitoredItemsResponse_init(&resp);
+
+    lockServer(server);
+    Service_CreateMonitoredItems(server, session, &req, &resp);
+    unlockServer(server);
+
+    cfg->logging = origLogger;
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.resultsSize, 1);
+    ck_assert_uint_eq(resp.results[0].statusCode,
+                      UA_STATUSCODE_BADTOOMANYMONITOREDITEMS);
+#if UA_LOGLEVEL <= 400
+    ck_assert(capture.serverMonitoredItemsLimit);
+#endif
+
+    cfg->maxMonitoredItems = orig;
+    UA_Array_delete(req.itemsToCreate, 1,
+                    &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST]);
     UA_CreateMonitoredItemsResponse_clear(&resp);
 } END_TEST
 
@@ -1960,7 +2062,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
     tcase_add_test(tc_server, Server_republish_unknownSequenceNumber);
     tcase_add_test(tc_server, Server_createSubscription_maxSubscriptionsPerSession);
+    tcase_add_test(tc_server, Server_createSession_maxSessions);
     tcase_add_test(tc_server, Server_createMonitoredItems_maxPerSubscription);
+    tcase_add_test(tc_server, Server_createMonitoredItems_maxPerServer);
     tcase_add_test(tc_server, Server_createMonitoredItems_maxMonitoredItemsPerCall);
     tcase_add_test(tc_server, Server_ModifyMonitoredItems_invalidTimestampsToReturn);
     tcase_add_test(tc_server, Server_SetMonitoringMode_maxMonitoredItemsPerCall);

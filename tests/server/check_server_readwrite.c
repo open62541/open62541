@@ -325,6 +325,12 @@ START_TEST(srv_getConfig) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert_ptr_ne(config, NULL);
     ck_assert_uint_gt(config->maxSecureChannels, 0);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    ck_assert_uint_eq(config->maxSubscriptions, 1024);
+    ck_assert_uint_eq(config->maxSubscriptionsPerSession, 64);
+    ck_assert_uint_eq(config->maxMonitoredItems, 1024 * 32);
+    ck_assert_uint_eq(config->maxMonitoredItemsPerSubscription, 1024 * 32);
+#endif
 } END_TEST
 
 START_TEST(srv_addNamespace) {
