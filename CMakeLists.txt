@@ -1504,6 +1504,7 @@ set(UA_NS0_NODESETS)
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
     set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
+    set(UA_NS0_TYPES_XML ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
 
     # Set the full ns0 nodeset
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.xml)
@@ -1602,6 +1603,7 @@ include(open62541Macros)
 # standard-defined data types
 ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
                       FILE_CSV "${UA_NS0_NODEIDS}"
+                      FILE_XML "${UA_NS0_TYPES_XML}"
                       FILES_BSD "${UA_NS0_TYPES_BSD}"
                       FILES_SELECTED ${UA_NS0_DATATYPES})
 
