@@ -311,7 +311,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        UA_MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon, false);
     }
     UA_assert(sub->monitoredItemsSize == 0);
 
@@ -1445,8 +1445,17 @@ delayedFreeMonitoredItem(void *application, void *context) {
 }
 
 void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
+                        UA_Boolean notify) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Application callbacks can reenter deletion. Queue the embedded delayed
+     * callback only once. */
+    if(UA_MonitoredItem_isDeleting(mon))
+        return;
+    mon->delayedFreePointers.callback = delayedFreeMonitoredItem;
+    mon->delayedFreePointers.application = server;
+    mon->delayedFreePointers.context = mon;
 
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampling(server, mon);
@@ -1475,6 +1484,12 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
         UA_Notification_delete(notification);
     }
 
+    /* Notify after logical removal. Recursive public deletion can no longer
+     * locate the MonitoredItem and cannot queue delayed cleanup a second time. */
+    if(notify)
+        notifyMonitoredItem(server, mon,
+                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
+
     /* No callback can still reference the MonitoredItem after shutdown. */
     if(server->state == UA_LIFECYCLESTATE_STOPPED) {
         clearMonitoredItem(server, mon);
@@ -1484,9 +1499,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
      * have completed. This is needed to allow that a local MonitoredItem can
      * remove itself in the callback. */
-    mon->delayedFreePointers.callback = delayedFreeMonitoredItem;
-    mon->delayedFreePointers.application = server;
-    mon->delayedFreePointers.context = mon;
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &mon->delayedFreePointers);
 }

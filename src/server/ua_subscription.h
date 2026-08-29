@@ -176,10 +176,20 @@ struct UA_MonitoredItem {
                             * the queue size */
 };
 
+static UA_INLINE UA_Boolean
+UA_MonitoredItem_isDeleting(const UA_MonitoredItem *mon) {
+    return mon->delayedFreePointers.callback != NULL;
+}
+
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
-void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
+                             UA_Boolean notify);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
 void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
+
+void
+notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                    UA_ApplicationNotificationType type);
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */

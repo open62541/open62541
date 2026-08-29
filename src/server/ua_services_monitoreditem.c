@@ -366,7 +366,7 @@ struct createMonContext {
     UA_LocalMonitoredItem *localMon; /* used if non-null */
 };
 
-static void
+void
 notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
                     UA_ApplicationNotificationType type) {
     /* Nothing to do? */
@@ -553,7 +553,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                  "Could not create a MonitoredItem "
                                  "with StatusCode %s",
                                  UA_StatusCode_name(result->statusCode));
-        UA_MonitoredItem_delete(server, newMon);
+        UA_MonitoredItem_delete(server, newMon, false);
         return;
     }
 
@@ -563,6 +563,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Register the Monitoreditem in the server and subscription */
     UA_MonitoredItem_register(server, newMon);
+
+    /* A register callback can reenter and delete the MonitoredItem. */
+    if(UA_MonitoredItem_isDeleting(newMon))
+        goto prepareResponse;
 
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
@@ -577,18 +581,21 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     notifyMonitoredItem(server, newMon,
                         UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
 
+    /* Deletion from the CREATED callback has already queued delayed cleanup.
+     * Do not reactivate or sample the logically removed MonitoredItem. */
+    if(UA_MonitoredItem_isDeleting(newMon))
+        goto prepareResponse;
+
     /* Activate the MonitoredItem */
     result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,
                                                             request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
-        /* Notify again if the MonitoringMode could not be set */
-        notifyMonitoredItem(server, newMon,
-                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
-        UA_MonitoredItem_delete(server, newMon);
+        UA_MonitoredItem_delete(server, newMon, true);
         return;
     }
 
     /* Prepare the response */
+prepareResponse:
     result->revisedSamplingInterval = newMon->parameters.samplingInterval;
     result->revisedQueueSize = newMon->parameters.queueSize;
     result->monitoredItemId = newMon->monitoredItemId;
@@ -982,9 +989,7 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    notifyMonitoredItem(server, mon,
-                        UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
-    UA_MonitoredItem_delete(server, mon);
+    UA_MonitoredItem_delete(server, mon, true);
 }
 
 UA_Boolean
@@ -1035,9 +1040,7 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
 
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {
-        notifyMonitoredItem(server, mon,
-                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
-        UA_MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon, true);
         res = UA_STATUSCODE_GOOD;
     }
 

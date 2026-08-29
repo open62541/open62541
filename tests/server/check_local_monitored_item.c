@@ -37,6 +37,10 @@
 UA_Server *server;
 size_t callbackCount = 0;
 UA_StatusCode expectedDataValueStatus;
+static UA_Boolean deleteAtMonitoredItemCreated;
+static UA_StatusCode deleteAtMonitoredItemCreatedResult;
+static UA_Boolean deleteAtMonitoredItemDelete;
+static UA_StatusCode deleteAtMonitoredItemDeleteResult;
 
 UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
@@ -98,6 +102,90 @@ dataChangeNotificationCallback(UA_Server *thisServer,
     lastValue = currentValue;
     callbackCount++;
 }
+
+static void
+monitoredItemLifecycleCallback(UA_Server *thisServer,
+                               UA_ApplicationNotificationType type,
+                               const UA_KeyValueMap payload) {
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE &&
+       deleteAtMonitoredItemDelete) {
+        deleteAtMonitoredItemDelete = false;
+        const UA_UInt32 *monitoredItemId =
+            (const UA_UInt32*)payload.map[2].value.data;
+        deleteAtMonitoredItemDeleteResult =
+            UA_Server_deleteMonitoredItem(thisServer, *monitoredItemId);
+        return;
+    }
+
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED ||
+       !deleteAtMonitoredItemCreated)
+        return;
+
+    deleteAtMonitoredItemCreated = false;
+    const UA_UInt32 *monitoredItemId =
+        (const UA_UInt32*)payload.map[2].value.data;
+    deleteAtMonitoredItemCreatedResult =
+        UA_Server_deleteMonitoredItem(thisServer, *monitoredItemId);
+}
+
+START_TEST(Server_LocalMonitoredItem_deleteFromCreatedNotification) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->subscriptionNotificationCallback = monitoredItemLifecycleCallback;
+    deleteAtMonitoredItemCreated = true;
+    deleteAtMonitoredItemCreatedResult = UA_STATUSCODE_BADINTERNALERROR;
+    callbackCount = 0;
+
+    UA_MonitoredItemCreateRequest request =
+        UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    request.requestedParameters.samplingInterval = 0.0;
+
+    UA_MonitoredItemCreateResult result =
+        UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_BOTH, request, NULL,
+            dataChangeNotificationCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(deleteAtMonitoredItemCreatedResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callbackCount, 0);
+
+    /* The outer create path must not reactivate a MonitoredItem that the
+     * notification callback already deleted. */
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(callbackCount, 0);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(
+        server, result.monitoredItemId),
+        UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+    config->subscriptionNotificationCallback = NULL;
+}
+END_TEST
+
+START_TEST(Server_LocalMonitoredItem_deleteFromDeleteNotification) {
+    UA_MonitoredItemCreateRequest request =
+        UA_MonitoredItemCreateRequest_default(outNodeId);
+    UA_MonitoredItemCreateResult result =
+        UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_BOTH, request, NULL,
+            dataChangeNotificationCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->subscriptionNotificationCallback = monitoredItemLifecycleCallback;
+    deleteAtMonitoredItemDelete = true;
+    deleteAtMonitoredItemDeleteResult = UA_STATUSCODE_BADINTERNALERROR;
+
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(
+        server, result.monitoredItemId), UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(deleteAtMonitoredItemDeleteResult,
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+
+    /* Recursive deletion must not enqueue the embedded delayed callback twice. */
+    UA_Server_run_iterate(server, false);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(
+        server, result.monitoredItemId),
+        UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+    config->subscriptionNotificationCallback = NULL;
+}
+END_TEST
 
 START_TEST(Server_LocalMonitoredItem) {
     callbackCount = 0;
@@ -464,6 +552,10 @@ static Suite * testSuite_Client(void) {
     TCase *tc_server = tcase_create("Local Monitored Item Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
+    tcase_add_test(tc_server,
+                   Server_LocalMonitoredItem_deleteFromCreatedNotification);
+    tcase_add_test(tc_server,
+                   Server_LocalMonitoredItem_deleteFromDeleteNotification);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteInCallback);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
