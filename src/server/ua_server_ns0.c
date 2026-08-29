@@ -700,26 +700,18 @@ resendData(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     return UA_STATUSCODE_GOOD;
 }
 
-static void *
-countMonitoredItemsVisitor(void *context, UA_MonitoredItem *monitoredItem) {
-    UA_UInt32 *sizeOfOutput = (UA_UInt32*)context;
-    (void)monitoredItem;
-    ++(*sizeOfOutput);
-    return NULL;
-}
-
 struct FillHandlesContext {
     UA_UInt32 *clientHandles;
     UA_UInt32 *serverHandles;
-    UA_UInt32 *i;
+    UA_UInt32 i;
 };
 
 static void *
 fillHandlesVisitor(void *context, UA_MonitoredItem *monitoredItem) {
     struct FillHandlesContext *ctx = (struct FillHandlesContext*)context;
-    ctx->clientHandles[*ctx->i] = monitoredItem->parameters.clientHandle;
-    ctx->serverHandles[*ctx->i] = monitoredItem->monitoredItemId;
-    ++(*ctx->i);
+    ctx->clientHandles[ctx->i] = monitoredItem->parameters.clientHandle;
+    ctx->serverHandles[ctx->i] = monitoredItem->monitoredItemId;
+    ctx->i++;
     return NULL;
 }
 
@@ -762,9 +754,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     }
 
     /* Count the MonitoredItems */
-    UA_UInt32 sizeOfOutput = 0;
-    ZIP_ITER(UA_MonitoredItemIdTree, &subscription->monitoredItemsById,
-             countMonitoredItemsVisitor, &sizeOfOutput);
+    UA_UInt32 sizeOfOutput = subscription->monitoredItemsSize;
     if(sizeOfOutput == 0) {
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
@@ -786,13 +776,10 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     }
 
     /* Fill the array */
-    UA_UInt32 i = 0;
-    struct FillHandlesContext ctx;
-    ctx.clientHandles = clientHandles;
-    ctx.serverHandles = serverHandles;
-    ctx.i = &i;
+    struct FillHandlesContext ctx = {clientHandles, serverHandles, 0};
     ZIP_ITER(UA_MonitoredItemIdTree, &subscription->monitoredItemsById,
              fillHandlesVisitor, &ctx);
+    UA_assert(ctx.i == sizeOfOutput);
     UA_Variant_setArray(&output[0], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
 
@@ -1434,4 +1421,3 @@ initNS0_dataSources(UA_Server *server) {
 
     return UA_STATUSCODE_GOOD;
 }
-
