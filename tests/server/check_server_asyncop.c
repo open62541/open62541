@@ -1049,6 +1049,69 @@ START_TEST(Async_cancelDirectOperation) {
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
+/* A network CancelRequest must ignore locally initiated direct async
+ * operations that share the async-manager queue. */
+START_TEST(Async_service_cancel_with_direct_operation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = UA_NODEID_STRING(1, "asyncVar");
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+    retval = UA_Server_read_async(server, &rvid,
+                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                  serverAsyncReadNoopCallback, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_UInt32 cancelCount = 0;
+    retval = UA_Client_cancelByRequestHandle(client, 0x12345678, &cancelCount);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cancelCount, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* The local direct-operation cancel API must ignore request-backed operations
+ * in the shared async-manager queue. */
+START_TEST(Async_direct_cancel_with_service_operation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    retval = UA_Client_readValueAttribute_async(
+        client, UA_NODEID_STRING(1, "asyncVar"),
+        clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+
+    UA_Server_cancelAsync(server, NULL,
+                          UA_STATUSCODE_BADOPERATIONABANDONED, true);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(Async_call_error_result) {
     /* Test async method call that returns an error status */
     UA_Client *client = UA_Client_newForUnitTest();
@@ -1258,6 +1321,8 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_direct_read_completed_synchronously);
     tcase_add_test(tc_manager, Async_call_multiple_outputs);
     tcase_add_test(tc_manager, Async_cancelDirectOperation);
+    tcase_add_test(tc_manager, Async_service_cancel_with_direct_operation);
+    tcase_add_test(tc_manager, Async_direct_cancel_with_service_operation);
     tcase_add_test(tc_manager, Async_call_error_result);
     tcase_add_test(tc_manager, Async_multiple_parallel_operations);
     suite_add_tcase(s, tc_manager);
