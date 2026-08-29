@@ -407,6 +407,7 @@ setupLogger(UA_ServerConfig *config) {
     *config->logging = logger;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
 static void
 removeDeprecatedSecurityPolicies(UA_ServerConfig *config) {
     if(!config) {
@@ -450,6 +451,7 @@ removeDeprecatedSecurityPolicies(UA_ServerConfig *config) {
     }
     config->endpointsSize = newEndpointsSize;
 }
+#endif
 
 int main(int argc, char* argv[]) {
     UA_StatusCode retval = 0;
