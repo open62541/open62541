@@ -1246,6 +1246,47 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_Array_allocationOverflowShallBeRejected) {
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
+    size_t overflowSize = SIZE_MAX / type->memSize + 1;
+
+    ck_assert_ptr_eq(UA_Array_new(overflowSize, type), NULL);
+
+    UA_String src = UA_STRING_STATIC("x");
+    void *dst = &src;
+    UA_StatusCode retval = UA_Array_copy(&src, overflowSize, &dst, type);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_eq(dst, &src);
+
+    void *array = UA_EMPTY_ARRAY_SENTINEL;
+    size_t arraySize = 0;
+    retval = UA_Array_resize(&array, &arraySize, overflowSize, type);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_eq(array, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(arraySize, 0);
+
+    arraySize = overflowSize;
+    retval = UA_Array_resize(&array, &arraySize, 0, type);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_eq(array, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(arraySize, overflowSize);
+}
+END_TEST
+
+START_TEST(UA_Array_appendSizeOverflowShallBeRejected) {
+    void *array = UA_EMPTY_ARRAY_SENTINEL;
+    size_t arraySize = SIZE_MAX;
+    UA_Byte value = 42;
+
+    UA_StatusCode retval = UA_Array_append(&array, &arraySize, &value,
+                                           &UA_TYPES[UA_TYPES_BYTE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_eq(array, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(arraySize, SIZE_MAX);
+    ck_assert_uint_eq(value, 42);
+}
+END_TEST
+
 START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
     //given
     UA_DiagnosticInfo value, innerValue, copiedValue;
@@ -1829,6 +1870,8 @@ static Suite *testSuite_builtin(void) {
     TCase *tc_copy = tcase_create("copy");
     tcase_add_test(tc_copy, UA_Array_copyByteArrayShallWorkOnExample);
     tcase_add_test(tc_copy, UA_Array_copyUA_StringShallWorkOnExample);
+    tcase_add_test(tc_copy, UA_Array_allocationOverflowShallBeRejected);
+    tcase_add_test(tc_copy, UA_Array_appendSizeOverflowShallBeRejected);
     tcase_add_test(tc_copy, UA_ExtensionObject_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnSingleValueExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
