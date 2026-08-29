@@ -543,6 +543,12 @@ setTransferredSequenceNumbers(const UA_Subscription *sub, UA_TransferResult *res
     return UA_STATUSCODE_GOOD;
 }
 
+static void *
+setMonitoredItemSubscriptionVisitor(void *context, UA_MonitoredItem *mon) {
+    mon->subscription = (UA_Subscription*)context;
+    return NULL;
+}
+
 static void
 Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                const UA_Boolean *sendInitialValues,
@@ -634,17 +640,11 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     sub->wasTransferred = true;
 
     /* Move over the MonitoredItems and adjust the backpointers */
-    ZIP_INIT(&newSub->monitoredItemsById);
-    while(sub->monitoredItemsSize > 0) {
-        UA_MonitoredItem *mon =
-            ZIP_MIN(UA_MonitoredItemIdTree, &sub->monitoredItemsById);
-        if(!mon)
-            break;
-        ZIP_REMOVE(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
-        mon->subscription = newSub;
-        ZIP_INSERT(UA_MonitoredItemIdTree, &newSub->monitoredItemsById, mon);
-        sub->monitoredItemsSize--;
-    }
+    newSub->monitoredItemsById = sub->monitoredItemsById;
+    ZIP_INIT(&sub->monitoredItemsById);
+    sub->monitoredItemsSize = 0;
+    ZIP_ITER(UA_MonitoredItemIdTree, &newSub->monitoredItemsById,
+             setMonitoredItemSubscriptionVisitor, newSub);
 
     /* Move over the samplingMonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->samplingMonitoredItems);
