@@ -1129,7 +1129,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT ds
      * ExtensionObject is at least 4 byte long (3 byte NodeId + 1 Byte encoding
      * field). */
     size_t length = (size_t)signed_length;
-    UA_CHECK(ctx->pos + ((4 * length) / 32) <= ctx->end,
+    size_t remaining = (size_t)(ctx->end - ctx->pos);
+    UA_CHECK(length <= remaining / 4,
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Decode the type NodeId of the first member */
