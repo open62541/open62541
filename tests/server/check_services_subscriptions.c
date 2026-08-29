@@ -28,6 +28,8 @@ static UA_ApplicationNotificationType subscriptionNotificationType;
 static UA_UInt32 subscriptionNotificationId = 0;
 static UA_Boolean subscriptionNotificationEnabled = false;
 static size_t subscriptionNotificationMapSize = 0;
+static UA_Boolean closeAtMonitoredItemDeleted = false;
+static UA_StatusCode closeAtMonitoredItemDeletedResult;
 
 typedef struct {
     UA_Boolean sessionLimit;
@@ -78,6 +80,19 @@ subscriptionNotificationCallback(UA_Server *server,
         ck_assert_ptr_ne(enabled->data, NULL);
         subscriptionNotificationEnabled = *(const UA_Boolean*)enabled->data;
     }
+}
+
+static void
+closeSessionFromMonitoredItemDeleted(UA_Server *server,
+                                    UA_ApplicationNotificationType type,
+                                    const UA_KeyValueMap data) {
+    (void)data;
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED ||
+       !closeAtMonitoredItemDeleted)
+        return;
+    closeAtMonitoredItemDeleted = false;
+    closeAtMonitoredItemDeletedResult =
+        UA_Server_closeSession(server, &session->sessionId);
 }
 
 static void
@@ -317,6 +332,38 @@ START_TEST(Server_deleteSubscription) {
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteSubscriptionsResponse_clear(&del_response);
+}
+END_TEST
+
+START_TEST(Server_deleteSubscription_closeSessionFromMonitoredItemCallback) {
+    createSubscription();
+    createMonitoredItem();
+    createMonitoredItem();
+
+    closeAtMonitoredItemDeleted = true;
+    closeAtMonitoredItemDeletedResult = UA_STATUSCODE_BADINTERNALERROR;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->globalNotificationCallback =
+        closeSessionFromMonitoredItemDeleted;
+
+    UA_DeleteSubscriptionsRequest request;
+    UA_DeleteSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+    UA_DeleteSubscriptionsResponse response;
+    UA_DeleteSubscriptionsResponse_init(&response);
+
+    lockServer(server);
+    Service_DeleteSubscriptions(server, session, &request, &response);
+    unlockServer(server);
+
+    ck_assert_uint_eq(closeAtMonitoredItemDeletedResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(server->subscriptionsSize, 0);
+    config->globalNotificationCallback = NULL;
+    UA_DeleteSubscriptionsResponse_clear(&response);
 }
 END_TEST
 
@@ -2101,6 +2148,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_republish);
     tcase_add_test(tc_server, Server_republish_invalid);
     tcase_add_test(tc_server, Server_deleteSubscription);
+    tcase_add_test(tc_server,
+                   Server_deleteSubscription_closeSessionFromMonitoredItemCallback);
     tcase_add_test(tc_server, Server_publishCallback);
     tcase_add_test(tc_server, Server_lifeTimeCount);
     tcase_add_test(tc_server, Server_invalidPublishingInterval);

@@ -281,6 +281,12 @@ void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notify) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* Removal is terminal. Callbacks during child cleanup can reenter Session
+     * closure and reach this Subscription again. */
+    if(sub->state == UA_SUBSCRIPTIONSTATE_REMOVING)
+        return;
+    Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_REMOVING);
+
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Delete monitored Items */
@@ -290,9 +296,6 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
         UA_MonitoredItem_delete(server, mon, true);
     }
     UA_assert(sub->monitoredItemsSize == 0);
-
-    /* Unregister the publish callback and possible delayed callback */
-    Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_REMOVING);
 
     /* Remove delayed callbacks for processing remaining notifications */
     if(sub->delayedCallbackRegistered) {
@@ -361,6 +364,8 @@ UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        if(UA_MonitoredItem_isDeleting(mon))
+            continue;
         if(mon->monitoredItemId == monitoredItemId)
             break;
     }
@@ -1041,6 +1046,10 @@ sampleAndPublishCallback(UA_Server *server,
 UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state) {
+    if(sub->state == UA_SUBSCRIPTIONSTATE_REMOVING)
+        return (state == UA_SUBSCRIPTIONSTATE_REMOVING) ?
+            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+
     if(state <= UA_SUBSCRIPTIONSTATE_REMOVING) {
         if(sub->publishCallbackId != 0) {
             removeCallback(server, sub->publishCallbackId);
@@ -1324,6 +1333,9 @@ unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode) {
+    if(UA_MonitoredItem_isDeleting(mon))
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+
     /* Check if the MonitoringMode is valid or not */
     if(monitoringMode > UA_MONITORINGMODE_REPORTING)
         return UA_STATUSCODE_BADMONITORINGMODEINVALID;
@@ -1393,6 +1405,14 @@ void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolean notify) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* Delayed deallocation keeps the pointer valid, but the cleanup itself
+     * must only be queued once. */
+    if(UA_MonitoredItem_isDeleting(mon))
+        return;
+    mon->delayedFreePointers.callback = delayedFreeMonitoredItem;
+    mon->delayedFreePointers.application = NULL;
+    mon->delayedFreePointers.context = mon;
+
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampling(server, mon);
 
@@ -1443,9 +1463,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolean not
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
      * have completed. This is needed to allow that a local MonitoredItem can
      * remove itself in the callback. */
-    mon->delayedFreePointers.callback = delayedFreeMonitoredItem;
-    mon->delayedFreePointers.application = NULL;
-    mon->delayedFreePointers.context = mon;
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &mon->delayedFreePointers);
 }
@@ -1588,6 +1605,9 @@ UA_MonitoredItem_lockAndSample(UA_Server *server,
 UA_StatusCode
 UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(UA_MonitoredItem_isDeleting(mon))
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     if(mon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_DELETED)
         return UA_STATUSCODE_BADINTERNALERROR;
