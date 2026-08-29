@@ -1076,6 +1076,8 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     UA_Subscription *sub = server->adminSubscription;
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        if(UA_MonitoredItem_isDeleting(mon))
+            continue;
         if(mon->monitoredItemId == monitoredItemId)
             break;
     }

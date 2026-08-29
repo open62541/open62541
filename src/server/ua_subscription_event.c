@@ -1429,6 +1429,9 @@ evaluateSelectClause(UA_FilterEvalContext *ctx, UA_EventFieldList *efl) {
  * mons notification queue */
 static UA_StatusCode
 UA_MonitoredItem_addEvent(UA_MonitoredItem *mon, UA_FilterEvalContext *ctx) {
+    if(UA_MonitoredItem_isDeleting(mon))
+        return UA_STATUSCODE_GOOD;
+
     /* Evaluate the where clause */
     UA_StatusCode res = evaluateWhereClause(ctx);
     if(res != UA_STATUSCODE_GOOD) {
@@ -1448,6 +1451,14 @@ UA_MonitoredItem_addEvent(UA_MonitoredItem *mon, UA_FilterEvalContext *ctx) {
         UA_EventFieldList_clear(&n->data.event);
         UA_free(n);
         return res;
+    }
+
+    /* Filter evaluation can invoke application-backed reads and delete the
+     * MonitoredItem before the notification is enqueued. */
+    if(UA_MonitoredItem_isDeleting(mon)) {
+        UA_EventFieldList_clear(&n->data.event);
+        UA_free(n);
+        return UA_STATUSCODE_GOOD;
     }
 
     /* Finalize and enqueue the notification */

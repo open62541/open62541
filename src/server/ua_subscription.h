@@ -174,6 +174,11 @@ struct UA_MonitoredItem {
                             * the queue size */
 };
 
+static UA_INLINE UA_Boolean
+UA_MonitoredItem_isDeleting(const UA_MonitoredItem *mon) {
+    return mon->delayedFreePointers.callback != NULL;
+}
+
 /* Mark the Value MonitoredItems on the affected node so their next
  * notification carries the SemanticsChanged StatusCode bit. */
 void
