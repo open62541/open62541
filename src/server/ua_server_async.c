@@ -265,6 +265,22 @@ UA_AsyncManager_processReady(void *application /* UA_Server */,
 }
 
 static void
+processReadyLater(UA_Server *server) {
+    UA_AsyncManager *am = &server->asyncManager;
+    /* UA_AsyncManager_clear drains ready work synchronously after stop. */
+    if(am->dc.callback != NULL ||
+       server->state == UA_LIFECYCLESTATE_STOPPED)
+        return;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    am->dc.callback = UA_AsyncManager_processReady;
+    am->dc.application = server;
+    am->dc.context = am;
+    el->addDelayedCallback(el, &am->dc);
+    el->cancel(el); /* Wake up the EventLoop if currently waiting in select() */
+}
+
+static void
 processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     UA_AsyncManager *am = &server->asyncManager;
     if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
@@ -287,14 +303,7 @@ processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     }
 
     /* Trigger the main server thread to handle ready operations and responses */
-    if(am->dc.callback == NULL) {
-        UA_EventLoop *el = server->config.eventLoop;
-        am->dc.callback = UA_AsyncManager_processReady;
-        am->dc.application = server;
-        am->dc.context = am;
-        el->addDelayedCallback(el, &am->dc);
-        el->cancel(el); /* Wake up the EventLoop if currently waiting in select() */
-    }
+    processReadyLater(server);
 }
 
 /* Check if any operations have timed out */
@@ -418,11 +427,15 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
         UA_AsyncOperation_cancel(server, op, status);
     }
 
+    UA_Boolean responseReady = false;
     while((ar = TAILQ_FIRST(&canceledResponses))) {
         TAILQ_REMOVE(&canceledResponses, ar, pointers);
         UA_assert(ar->opCountdown == 0);
-        UA_AsyncResponse_delete(ar);
+        TAILQ_INSERT_TAIL(&am->readyResponses, ar, pointers);
+        responseReady = true;
     }
+    if(responseReady)
+        processReadyLater(server);
 }
 
 UA_UInt32

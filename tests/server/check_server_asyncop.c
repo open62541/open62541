@@ -39,6 +39,8 @@ static UA_UInt64 lastTimedCallback;
 static UA_StatusCode closeFromReadResult;
 static UA_Boolean closeAtServiceAsync;
 static UA_StatusCode closeAtServiceAsyncResult;
+static size_t closeServiceAsyncCount;
+static size_t closeServiceEndCount;
 
 static const void *canceledCallRequest = NULL;
 static const void *expectedCanceledCallRequest = NULL;
@@ -67,8 +69,15 @@ static void
 closeFromAsyncServiceNotification(
     UA_Server *server, UA_ApplicationNotificationType type,
     const UA_KeyValueMap payload) {
-    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC ||
-       !closeAtServiceAsync)
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END) {
+        closeServiceEndCount++;
+        return;
+    }
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC)
+        return;
+
+    closeServiceAsyncCount++;
+    if(!closeAtServiceAsync)
         return;
     closeAtServiceAsync = false;
     const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[1].value.data;
@@ -199,6 +208,8 @@ static void setup(void) {
     clientCounter = 0;
     completeCanceledRead = false;
     closeAtServiceAsync = false;
+    closeServiceAsyncCount = 0;
+    closeServiceEndCount = 0;
     running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -434,11 +445,19 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
         UA_Client_run_iterate(client, 0);
     }
     ck_assert_uint_eq(closeAtServiceAsyncResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeServiceAsyncCount, 1);
     ck_assert_ptr_nonnull(canceledCallRequest);
     ck_assert_uint_eq(completeCanceledReadResult, UA_STATUSCODE_BADNOTFOUND);
 
+    /* Async service notifications are paired with an eventual SERVICE_END,
+     * even when closing the session cancels the pending operation. */
+    for(size_t i = 0; i < 20 && closeServiceEndCount == 0; i++)
+        UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(closeServiceEndCount, 1);
+
     lockServer(server);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.waitingResponses));
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.readyResponses));
     ck_assert(TAILQ_EMPTY(&server->asyncManager.waitingOps));
     unlockServer(server);
 
