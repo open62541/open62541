@@ -585,6 +585,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Register the Monitoreditem in the server and subscription */
     UA_MonitoredItem_register(server, newMon);
 
+    /* Snapshot the response before entering application code. Deletion clears
+     * the MonitoredItem settings while deallocation remains delayed. */
+    UA_Double revisedSamplingInterval = newMon->parameters.samplingInterval;
+    UA_UInt32 revisedQueueSize = newMon->parameters.queueSize;
+    UA_UInt32 monitoredItemId = newMon->monitoredItemId;
+
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
@@ -598,6 +604,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     notifyMonitoredItem(server, newMon,
                         UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
 
+    /* The callback can reenter and delete the new MonitoredItem. */
+    if(newMon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_DELETED)
+        goto prepareResponse;
+
     /* Activate the MonitoredItem */
     result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,
                                                             request->monitoringMode);
@@ -607,9 +617,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     }
 
     /* Prepare the response */
-    result->revisedSamplingInterval = newMon->parameters.samplingInterval;
-    result->revisedQueueSize = newMon->parameters.queueSize;
-    result->monitoredItemId = newMon->monitoredItemId;
+prepareResponse:
+    result->revisedSamplingInterval = revisedSamplingInterval;
+    result->revisedQueueSize = revisedQueueSize;
+    result->monitoredItemId = monitoredItemId;
 }
 
 UA_Boolean
