@@ -302,6 +302,16 @@ delayedFreeSubscription(void *app, void *context) {
     UA_free(context);
 }
 
+static void
+deleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                    UA_Boolean notify, UA_Boolean removeFromIndex);
+
+static void *
+deleteMonitoredItemVisitor(void *context, UA_MonitoredItem *mon) {
+    deleteMonitoredItem((UA_Server*)context, mon, false, false);
+    return NULL;
+}
+
 void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -309,15 +319,15 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Delete monitored Items */
-    UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
-    while(sub->monitoredItemsSize > 0) {
-        UA_MonitoredItem *mon =
-            ZIP_MIN(UA_MonitoredItemIdTree, &sub->monitoredItemsById);
-        if(!mon)
-            break;
-        UA_MonitoredItem_delete(server, mon, false);
-    }
-    UA_assert(sub->monitoredItemsSize == 0);
+    UA_UInt32 monitoredItemsSize = sub->monitoredItemsSize;
+    UA_assert(server->monitoredItemsSize >= monitoredItemsSize);
+    /* Detach the index so deletion does not rebalance a discarded tree. */
+    UA_MonitoredItemIdTree monitoredItems = sub->monitoredItemsById;
+    ZIP_INIT(&sub->monitoredItemsById);
+    sub->monitoredItemsSize = 0;
+    server->monitoredItemsSize -= monitoredItemsSize;
+    ZIP_ITER(UA_MonitoredItemIdTree, &monitoredItems,
+             deleteMonitoredItemVisitor, server);
 
     /* Unregister the publish callback and possible delayed callback */
     Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_REMOVING);
@@ -1327,7 +1337,8 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
 }
 
 static void
-unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                        UA_Boolean removeFromIndex) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(!mon->registered)
@@ -1352,10 +1363,13 @@ unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
                                                      mon->itemToMonitor.attributeId, true);
     }
 
-    /* Deregister in Subscription and server */
-    sub->monitoredItemsSize--;
-    ZIP_REMOVE(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
-    server->monitoredItemsSize--;
+    /* Deregister in Subscription and server. During Subscription teardown the
+     * index and counts are already cleared before invoking user callbacks. */
+    if(removeFromIndex) {
+        sub->monitoredItemsSize--;
+        ZIP_REMOVE(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
+        server->monitoredItemsSize--;
+    }
 }
 
 UA_StatusCode
@@ -1450,9 +1464,9 @@ delayedFreeMonitoredItem(void *application, void *context) {
     unlockServer(server);
 }
 
-void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
-                        UA_Boolean notify) {
+static void
+deleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                    UA_Boolean notify, UA_Boolean removeFromIndex) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Application callbacks can reenter deletion. Queue the embedded delayed
@@ -1468,7 +1482,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
 
     /* Deregister in Server and Subscription */
     if(mon->registered)
-        unregisterMonitoredItem(server, mon);
+        unregisterMonitoredItem(server, mon, removeFromIndex);
 
     /* Cancel outstanding async reads. The status code avoids the sample being
      * processed. Call _processReady to ensure that the callbacks have been
@@ -1507,6 +1521,12 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
      * remove itself in the callback. */
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &mon->delayedFreePointers);
+}
+
+void
+UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
+                        UA_Boolean notify) {
+    deleteMonitoredItem(server, mon, notify, true);
 }
 
 void
