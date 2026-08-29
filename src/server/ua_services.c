@@ -194,6 +194,8 @@ allocProcessServiceOperations(UA_Server *server, UA_Session *session,
     uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
     for(size_t i = 0; i < ops; i++) {
         operationCallback(server, session, context, (void*)reqOp, (void*)respOp);
+        if(session && session->state == UA_SESSIONSTATE_CLOSED)
+            return UA_STATUSCODE_BADSESSIONCLOSED;
         reqOp += requestOperationsType->memSize;
         respOp += responseOperationsType->memSize;
     }
@@ -205,6 +207,12 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                        UA_UInt32 requestId, UA_ServiceDescription *sd,
                        const UA_Request *request, UA_Response *response) {
     UA_ResponseHeader *rh = &response->responseHeader;
+
+    /* A callback before service execution can close the resolved Session. */
+    if(session && session->state == UA_SESSIONSTATE_CLOSED) {
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+        return true;
+    }
 
     /* Check timestamp in the request header */
     if(request->requestHeader.timestamp == 0 &&
@@ -260,7 +268,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     }
 
     /* Trying to use a non-activated session? */
-    if(sd->sessionRequired && !session->activated) {
+    if(sd->sessionRequired && session->state != UA_SESSIONSTATE_ACTIVATED) {
         UA_assert(session != &anonymousSession); /* because sd->sessionRequired */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_WARNING_SESSION(server->config.logging, session,
@@ -286,8 +294,13 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     server->asyncManager.currentRequestId = requestId;
     server->asyncManager.currentRequestHandle = request->requestHeader.requestHandle;
 
-    /* Execute the service */
-    return sd->serviceCallback(server, session, request, response);
+    /* Execute the service. A user callback inside the service can close the
+     * Session. For synchronous services, do not return a successful response
+     * for a Session that became closed during the operation. */
+    UA_Boolean done = sd->serviceCallback(server, session, request, response);
+    if(done && session->state == UA_SESSIONSTATE_CLOSED)
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+    return done;
 }
 
 UA_Boolean

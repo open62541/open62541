@@ -188,6 +188,7 @@ getServerComponentByName(UA_Server *server, UA_String name);
 
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
+    UA_ShutdownReason shutdownReason;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;

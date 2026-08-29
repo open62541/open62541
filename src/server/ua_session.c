@@ -16,6 +16,7 @@
 
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
+    session->state = UA_SESSIONSTATE_CREATED;
     TAILQ_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
