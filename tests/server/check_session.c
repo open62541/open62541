@@ -37,6 +37,8 @@ static void setup(void) {
 }
 
 static void teardown(void) {
+    if(!server)
+        return;
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
@@ -134,6 +136,39 @@ START_TEST(Session_init_ShallWork) {
     ck_assert_ptr_eq(session.sessionName.data, NULL);
     ck_assert_int_eq((int)session.timeout, 0);
     ck_assert_int_eq(session.validTill, tmpDateTime);
+}
+END_TEST
+
+static void (*originalDeleteCloseSession)(
+    UA_Server*, UA_AccessControl*, const UA_NodeId*, void*);
+static size_t deleteCloseSessionCalls;
+
+static void
+observeDeleteCloseSession(UA_Server *server_, UA_AccessControl *ac,
+                          const UA_NodeId *sessionId, void *sessionContext) {
+    deleteCloseSessionCalls++;
+    originalDeleteCloseSession(server_, ac, sessionId, sessionContext);
+}
+
+START_TEST(Session_deleteStoppedServerCleansSessionSynchronously) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    originalDeleteCloseSession = cfg->accessControl.closeSession;
+    cfg->accessControl.closeSession = observeDeleteCloseSession;
+    deleteCloseSessionCalls = 0;
+
+    running = false;
+    THREAD_JOIN(server_thread);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteCloseSessionCalls, 0);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    server = NULL;
+    ck_assert_uint_eq(deleteCloseSessionCalls, 1);
+
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -937,6 +972,8 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
     tcase_add_test(tc_session, Session_notificationCallback);
+    tcase_add_test(tc_session,
+                   Session_deleteStoppedServerCleansSessionSynchronously);
     tcase_add_test(tc_session, Session_serviceBeginCallbackClosesCurrentSession);
     tcase_add_test(tc_session, Session_accessControlCloseSessionIsReentrant);
     tcase_add_test(tc_session, Session_createdNotificationCloseReturnsSessionClosed);
