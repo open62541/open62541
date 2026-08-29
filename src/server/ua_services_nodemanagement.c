@@ -118,12 +118,23 @@ callEarlyConstructors(UA_Server *server, UA_Session *session,
         node = UA_NODESTORE_GET(server, nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        if(node->head.nodeClass != nodeClass) {
+            UA_NODESTORE_RELEASE(server, node);
+            return UA_STATUSCODE_BADNODECLASSINVALID;
+        }
         const UA_Node *type =
             getNodeType(server, &node->head, ~(UA_UInt32)0,
                         UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
         UA_NODESTORE_RELEASE(server, node);
 
         if(type) {
+            UA_NodeClass expectedTypeClass =
+                (nodeClass == UA_NODECLASS_OBJECT) ?
+                UA_NODECLASS_OBJECTTYPE : UA_NODECLASS_VARIABLETYPE;
+            if(type->head.nodeClass != expectedTypeClass) {
+                UA_NODESTORE_RELEASE(server, type);
+                return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            }
             const UA_NodeTypeLifecycle *lifecycle =
                 (nodeClass == UA_NODECLASS_OBJECT) ?
                 &type->objectTypeNode.lifecycle :
@@ -144,6 +155,16 @@ callEarlyConstructors(UA_Server *server, UA_Session *session,
 
     if(!called)
         return UA_STATUSCODE_GOOD;
+
+    /* A lifecycle callback may re-enter the server. Do not apply the context to
+     * a replacement node of a different class. */
+    node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_Boolean sameNodeClass = (node->head.nodeClass == nodeClass);
+    UA_NODESTORE_RELEASE(server, node);
+    if(!sameNodeClass)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
     return setNodeContext(server, *nodeId, context);
 }
 

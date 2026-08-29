@@ -38,6 +38,7 @@ static UA_UInt32 typeConstructorSequence;
 static void *lateConstructorContext;
 static UA_Boolean earlyChildWasAbsent;
 static UA_Boolean constructorSawChild;
+static UA_Boolean earlyConstructorReplacesNodeClass;
 
 static UA_Boolean
 nodeHasBrowseName(UA_Server *server_, const UA_NodeId *nodeId,
@@ -178,6 +179,30 @@ globalInstantiationMethod(UA_Server *server_,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+replaceVariableWithObjectEarly(UA_Server *server_,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_NodeId *nodeId, void **nodeContext) {
+    (void)sessionId;
+    (void)sessionContext;
+    (void)nodeContext;
+    if(!earlyConstructorReplacesNodeClass ||
+       !UA_NodeId_equal(nodeId, &earlyTargetId))
+        return UA_STATUSCODE_GOOD;
+
+    earlyConstructorReplacesNodeClass = false;
+    UA_StatusCode res = UA_Server_deleteNode(server_, *nodeId, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "replacement object");
+    return UA_Server_addObjectNode(
+        server_, *nodeId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "replacement object"), UA_NS0ID(BASEOBJECTTYPE),
+        attr, NULL, NULL);
+}
+
 static UA_GlobalNodeLifecycle lifecycle;
 
 static void setup(void) {
@@ -205,6 +230,7 @@ static void setup(void) {
     lateConstructorContext = NULL;
     earlyChildWasAbsent = false;
     constructorSawChild = false;
+    earlyConstructorReplacesNodeClass = false;
 
     UA_Server_setAdminSessionContext(server, (void *)0x3);
 }
@@ -234,6 +260,20 @@ START_TEST(AddVariableNode) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
     ck_assert_ptr_eq(sessionCalled, (void *)3);
     ck_assert_ptr_eq(nodeCalled, (void *)4);
+} END_TEST
+
+START_TEST(EarlyConstructorReplacesVariableWithObject) {
+    earlyTargetId = UA_NODEID_STRING(1, "early-replaces-class");
+    earlyConstructorReplacesNodeClass = true;
+    lifecycle.earlyConstructor = replaceVariableWithObjectEarly;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "original variable");
+    UA_StatusCode res = UA_Server_addVariableNode(
+        server, earlyTargetId, UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+        UA_QUALIFIEDNAME(1, "original variable"), UA_NS0ID(BASEDATAVARIABLETYPE),
+        attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
 
 START_TEST(ValueRankConstraintAcceptsEquality) {
@@ -1948,6 +1988,7 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, EarlyConstructorReplacesVariableWithObject);
     tcase_add_test(tc_addnodes, ValueRankConstraintAcceptsEquality);
     tcase_add_test(tc_addnodes, AddVariableNode_ValueRankZero);
     tcase_add_test(tc_addnodes, AddVariableNode_EmptyValueWithNonZeroValueRank);
