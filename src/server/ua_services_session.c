@@ -142,8 +142,8 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
 
 #if UA_MULTITHREADING >= 100
     /* Pending service responses cannot be delivered after the Session has
-     * been removed. Release them and tell the application to stop producing
-     * their asynchronous results. */
+     * been removed. Cancel their operations and finish the response lifecycle
+     * without sending them on the closed Session. */
     UA_AsyncManager_cancelSession(server, &session->sessionId,
                                   UA_STATUSCODE_BADSESSIONCLOSED);
 #endif
