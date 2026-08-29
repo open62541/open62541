@@ -1818,7 +1818,6 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 struct RefreshMethodContext {
     UA_Server *server;
     UA_Session *session;
-    UA_Subscription *subscription;
     UA_StatusCode retval;
 };
 
@@ -1829,7 +1828,7 @@ refreshMethodVisitor(void *context, UA_MonitoredItem *item) {
     if(item->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         return NULL;
 
-    ctx->retval = refreshLogic(ctx->server, ctx->session, ctx->subscription, item);
+    ctx->retval = refreshLogic(ctx->server, ctx->session, item->subscription, item);
     if(ctx->retval != UA_STATUSCODE_GOOD)
         return item;
 
@@ -1861,7 +1860,6 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     struct RefreshMethodContext ctx;
     ctx.server = server;
     ctx.session = session;
-    ctx.subscription = subscription;
     ctx.retval = UA_STATUSCODE_GOOD;
 
     ZIP_ITER(UA_MonitoredItemIdTree, &subscription->monitoredItemsById,
