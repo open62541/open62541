@@ -63,6 +63,10 @@ typedef struct UA_Client_Subscription {
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
     MonitorItemsTree monitoredItems;
+    size_t pendingRekeys; /* MonitoredItems with a pending clientHandle
+                           * re-key (pendingParameters.clientHandle != 0).
+                           * Gates the O(n) fallback scan in the
+                           * notification dispatch. */
 } UA_Client_Subscription;
 
 void

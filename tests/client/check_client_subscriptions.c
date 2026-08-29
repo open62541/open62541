@@ -835,6 +835,13 @@ START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
     UA_UInt32 oldHandle =
         mon->parameters.clientHandle;
     UA_Double oldSamplingInterval = mon->parameters.samplingInterval;
+    ck_assert_uint_eq(sub->pendingRekeys, 0);
+    /* A notification with an unknown clientHandle while nothing is pending
+     * must be dropped without scanning the tree (the O(N*n) guard). */
+    notificationReceived = false;
+    injectDataChangeNotification(client, sub, 0xDEADBEEFu);
+    ck_assert(!notificationReceived);
+    ck_assert_uint_eq(sub->pendingRekeys, 0);
 
     UA_MonitoredItemModifyRequest item;
     UA_MonitoredItemModifyRequest_init(&item);
@@ -864,6 +871,7 @@ START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
     UA_UInt32 newHandle =
         mon->pendingParameters.clientHandle;
     ck_assert_uint_ne(oldHandle, newHandle);
+    ck_assert_uint_eq(sub->pendingRekeys, 1);
 
     notificationReceived = false;
     countNotificationReceived = 0;
@@ -878,6 +886,7 @@ START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
     ck_assert_uint_eq(mon->parameters.clientHandle, newHandle);
     ck_assert(!mon->pendingParameters.clientHandle);
     ck_assert(mon->parameters.samplingInterval == 1000.0);
+    ck_assert_uint_eq(sub->pendingRekeys, 0);
 
     /* Now deliver the new handle before the asynchronous modify response. */
     pauseServer();

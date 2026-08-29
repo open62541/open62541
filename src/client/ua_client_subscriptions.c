@@ -75,6 +75,7 @@ Subscription_create(UA_Client *client, UA_Client_Subscription *newSub,
     newSub->publishingInterval = response->revisedPublishingInterval;
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
     ZIP_INIT(&newSub->monitoredItems);
+    newSub->pendingRekeys = 0;
     LIST_INSERT_HEAD(&client->subscriptions, newSub, listEntry);
 
     /* Immediately send the first publish requests if there are none
@@ -517,6 +518,8 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                             mon->monitoredItemId, mon->context);
     EventFields_clear(&mon->eventFields);
     UA_MonitoringParameters_clear(&mon->parameters);
+    if(mon->pendingParameters.clientHandle != 0)
+        sub->pendingRekeys--;
     UA_MonitoringParameters_clear(&mon->pendingParameters);
     UA_free(mon);
 }
@@ -1189,6 +1192,10 @@ MonitoredItems_prepareModify(UA_Client *client, UA_Client_Subscription *sub,
         UA_Client_MonitoredItem *mon = mons[i];
         if(!mon)
             continue;
+        /* Newly entering the pending re-key state (a fresh handle is
+         * always non-zero); a supersede keeps it pending, no double count. */
+        if(mon->pendingParameters.clientHandle == 0)
+            sub->pendingRekeys++;
         UA_MonitoringParameters_clear(&mon->pendingParameters);
         mon->pendingParameters = preparedParameters[i];
         memset(&preparedParameters[i], 0, sizeof(UA_MonitoringParameters));
@@ -1214,8 +1221,10 @@ MonitoredItems_reconcileModify(UA_Client_Subscription *sub,
         UA_Client_MonitoredItem *mon =
             findMonitoredItemById(sub, mimr->monitoredItemId);
         if(mon && mon->pendingParameters.clientHandle ==
-                  mimr->requestedParameters.clientHandle)
+                  mimr->requestedParameters.clientHandle) {
             UA_MonitoringParameters_clear(&mon->pendingParameters);
+            sub->pendingRekeys--;
+        }
     }
 }
 
@@ -1457,6 +1466,11 @@ findMonitoredItemForNotification(UA_Client_Subscription *sub,
     /* A notification is the authoritative signal that the server has started
      * to use the modified settings. Promote the embedded pending slot and
      * re-key the existing tree node. */
+    /* Skip the O(n) scan entirely when no re-key is pending: stops a
+     * malicious server from burning CPU on the single client thread by
+     * flooding notifications with unknown clientHandles (O(N*n)). */
+    if(sub->pendingRekeys == 0)
+        return NULL;
     mon = (UA_Client_MonitoredItem*)
         ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
                  MonitoredItem_findPendingByHandle, &clientHandle);
@@ -1467,6 +1481,7 @@ findMonitoredItemForNotification(UA_Client_Subscription *sub,
     UA_MonitoringParameters_clear(&mon->parameters);
     mon->parameters = mon->pendingParameters;
     UA_MonitoringParameters_init(&mon->pendingParameters);
+    sub->pendingRekeys--;
     EventFields_clear(&mon->eventFields);
     ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, mon);
     return mon;
