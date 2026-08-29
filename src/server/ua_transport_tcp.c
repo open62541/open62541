@@ -50,7 +50,9 @@ deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
      * channel. Non-activated sessions are deleted (Part 4, §5.6.3). */
     while(channel->sessions) {
         UA_Session *session = channel->sessions;
-        if(!session->activated)
+        if(session->state == UA_SESSIONSTATE_CLOSED)
+            UA_Session_detachFromSecureChannel(server, session);
+        else if(session->state != UA_SESSIONSTATE_ACTIVATED)
             UA_Session_remove(server, session, UA_SHUTDOWNREASON_PURGE);
         else
             UA_Session_detachFromSecureChannel(server, session);
@@ -337,6 +339,9 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
     for(UA_Session *s = channel->sessions; s; s = s->next) {
         if(!UA_NodeId_equal(token, &s->authenticationToken))
             continue;
+
+        if(s->state == UA_SESSIONSTATE_CLOSED)
+            return UA_STATUSCODE_BADSESSIONCLOSED;
 
         /* Has the session timed out? */
         if(s->validTill < nowMonotonic)

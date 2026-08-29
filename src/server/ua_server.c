@@ -436,6 +436,7 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
+    server->adminSession.state = UA_SESSIONSTATE_ACTIVATED;
     server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;

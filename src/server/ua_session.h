@@ -47,7 +47,7 @@ struct UA_Session {
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
     UA_String sessionName;
-    UA_Boolean activated;
+    UA_SessionState state;
 
     /* For ECC, client and server exchange ephemeral keys used for the
      * EccEncryptedSecret. The ephemeral keys have to be attached to the session
