@@ -43,6 +43,41 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+/* Opening a new SecureChannel drives the server EventLoop through another
+ * iteration and therefore processes callbacks delayed by the preceding
+ * request. */
+static void
+processDelayedServerCallbacks(void) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(
+        client, "opc.tcp://localhost:4840"), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+
+static UA_StatusCode
+createSessionRaw(UA_Client *client, UA_CreateSessionResponse *response) {
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    UA_CreateSessionResponse_init(response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    return response->responseHeader.serviceResult;
+}
+
+static UA_StatusCode
+activateSessionRaw(UA_Client *client) {
+    UA_ActivateSessionRequest request;
+    UA_ActivateSessionRequest_init(&request);
+    UA_ActivateSessionResponse response;
+    UA_ActivateSessionResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    UA_StatusCode result = response.responseHeader.serviceResult;
+    UA_ActivateSessionResponse_clear(&response);
+    return result;
+}
+
 START_TEST(Session_close_before_activate) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
@@ -87,7 +122,7 @@ START_TEST(Session_init_ShallWork) {
     UA_ApplicationDescription tmpAppDescription;
     UA_ApplicationDescription_init(&tmpAppDescription);
     UA_DateTime tmpDateTime = 0;
-    ck_assert_int_eq(session.activated, false);
+    ck_assert_int_eq(session.state, UA_SESSIONSTATE_CREATED);
     ck_assert_int_eq(session.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
     ck_assert_uint_eq(session.continuationPointsSize, 0);
     ck_assert_ptr_eq(session.channel, NULL);
@@ -139,6 +174,312 @@ START_TEST(Session_notificationCallback) {
     UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static UA_Boolean closeSessionAtServiceBegin;
+static UA_StatusCode closeSessionAtServiceBeginResult;
+
+static void
+closeSessionServiceNotification(UA_Server *server_,
+                                UA_ApplicationNotificationType type,
+                                const UA_KeyValueMap payload) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN ||
+       !closeSessionAtServiceBegin)
+        return;
+
+    closeSessionAtServiceBegin = false;
+    const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[1].value.data;
+    closeSessionAtServiceBeginResult = UA_Server_closeSession(server_, sessionId);
+}
+
+START_TEST(Session_serviceBeginCallbackClosesCurrentSession) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->serviceNotificationCallback = closeSessionServiceNotification;
+    closeSessionAtServiceBeginResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    closeSessionAtServiceBegin = true;
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode result = UA_Client_readValueAttribute(
+        client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
+    UA_Variant_clear(&value);
+
+    ck_assert_uint_eq(closeSessionAtServiceBeginResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result, UA_STATUSCODE_BADSESSIONCLOSED);
+
+    cfg->serviceNotificationCallback = NULL;
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static void (*originalAccessControlCloseSession)(
+    UA_Server*, UA_AccessControl*, const UA_NodeId*, void*);
+static UA_StatusCode reentrantAccessControlCloseResult;
+
+static void
+reentrantAccessControlCloseSession(UA_Server *server_, UA_AccessControl *ac,
+                                   const UA_NodeId *sessionId,
+                                   void *sessionContext) {
+    reentrantAccessControlCloseResult =
+        UA_Server_closeSession(server_, sessionId);
+    originalAccessControlCloseSession(server_, ac, sessionId, sessionContext);
+}
+
+START_TEST(Session_accessControlCloseSessionIsReentrant) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    originalAccessControlCloseSession = cfg->accessControl.closeSession;
+    cfg->accessControl.closeSession = reentrantAccessControlCloseSession;
+    reentrantAccessControlCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    UA_Client_disconnect(client);
+    processDelayedServerCallbacks();
+
+    ck_assert_uint_eq(reentrantAccessControlCloseResult,
+                      UA_STATUSCODE_BADSESSIONIDINVALID);
+    cfg->accessControl.closeSession = originalAccessControlCloseSession;
+    UA_Client_delete(client);
+}
+END_TEST
+
+static UA_Boolean closeAtSessionNotification;
+static UA_ApplicationNotificationType sessionNotificationToClose;
+static UA_StatusCode sessionNotificationCloseResult;
+
+static void
+closeFromSessionNotification(UA_Server *server_,
+                             UA_ApplicationNotificationType type,
+                             const UA_KeyValueMap payload) {
+    if(!closeAtSessionNotification || type != sessionNotificationToClose)
+        return;
+    closeAtSessionNotification = false;
+    const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[0].value.data;
+    sessionNotificationCloseResult =
+        UA_Server_closeSession(server_, sessionId);
+}
+
+START_TEST(Session_createdNotificationCloseReturnsSessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(
+        client, "opc.tcp://localhost:4840"), UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->sessionNotificationCallback = closeFromSessionNotification;
+    closeAtSessionNotification = true;
+    sessionNotificationToClose = UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED;
+    sessionNotificationCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    UA_CreateSessionResponse response;
+    UA_StatusCode result = createSessionRaw(client, &response);
+    ck_assert_uint_eq(sessionNotificationCloseResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result, UA_STATUSCODE_BADSESSIONCLOSED);
+
+    cfg->sessionNotificationCallback = NULL;
+    UA_CreateSessionResponse_clear(&response);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Session_activatedNotificationCloseReturnsSessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(
+        client, "opc.tcp://localhost:4840"), UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse createResponse;
+    ck_assert_uint_eq(createSessionRaw(client, &createResponse),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_copy(&createResponse.authenticationToken,
+                   &client->authenticationToken);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->sessionNotificationCallback = closeFromSessionNotification;
+    closeAtSessionNotification = true;
+    sessionNotificationToClose = UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED;
+    sessionNotificationCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    ck_assert_uint_eq(activateSessionRaw(client),
+                      UA_STATUSCODE_BADSESSIONCLOSED);
+    ck_assert_uint_eq(sessionNotificationCloseResult, UA_STATUSCODE_GOOD);
+
+    cfg->sessionNotificationCallback = NULL;
+    UA_CreateSessionResponse_clear(&createResponse);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static UA_StatusCode (*originalAccessControlActivateSession)(
+    UA_Server*, UA_AccessControl*, const UA_EndpointDescription*,
+    const UA_ByteString*, const UA_NodeId*, const UA_ExtensionObject*, void**);
+static UA_StatusCode accessControlActivateCloseResult;
+
+static UA_StatusCode
+closeFromAccessControlActivateSession(
+    UA_Server *server_, UA_AccessControl *ac,
+    const UA_EndpointDescription *endpoint,
+    const UA_ByteString *remoteCertificate, const UA_NodeId *sessionId,
+    const UA_ExtensionObject *identityToken, void **sessionContext) {
+    UA_StatusCode result = originalAccessControlActivateSession(
+        server_, ac, endpoint, remoteCertificate, sessionId, identityToken,
+        sessionContext);
+    if(result == UA_STATUSCODE_GOOD)
+        accessControlActivateCloseResult =
+            UA_Server_closeSession(server_, sessionId);
+    return result;
+}
+
+START_TEST(Session_accessControlActivateCloseReturnsSessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(
+        client, "opc.tcp://localhost:4840"), UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse createResponse;
+    ck_assert_uint_eq(createSessionRaw(client, &createResponse),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_copy(&createResponse.authenticationToken,
+                   &client->authenticationToken);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    originalAccessControlActivateSession = cfg->accessControl.activateSession;
+    cfg->accessControl.activateSession = closeFromAccessControlActivateSession;
+    accessControlActivateCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    ck_assert_uint_eq(activateSessionRaw(client),
+                      UA_STATUSCODE_BADSESSIONCLOSED);
+    ck_assert_uint_eq(accessControlActivateCloseResult, UA_STATUSCODE_GOOD);
+
+    cfg->accessControl.activateSession = originalAccessControlActivateSession;
+    UA_CreateSessionResponse_clear(&createResponse);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static UA_Byte (*originalAccessControlGetUserAccessLevel)(
+    UA_Server*, UA_AccessControl*, const UA_NodeId*, void*,
+    const UA_NodeId*, void*);
+static void (*originalDeferredAccessControlCloseSession)(
+    UA_Server*, UA_AccessControl*, const UA_NodeId*, void*);
+static UA_Boolean closeAtUserAccessLevel;
+static UA_Boolean accessControlCloseWasDeferred;
+static size_t userAccessLevelCalls;
+static size_t deferredAccessControlCloseCalls;
+static UA_StatusCode userAccessLevelCloseResult;
+
+static void
+observeDeferredAccessControlClose(UA_Server *server_, UA_AccessControl *ac,
+                                  const UA_NodeId *sessionId,
+                                  void *sessionContext) {
+    deferredAccessControlCloseCalls++;
+    originalDeferredAccessControlCloseSession(server_, ac, sessionId,
+                                              sessionContext);
+}
+
+static UA_Byte
+closeFromGetUserAccessLevel(UA_Server *server_, UA_AccessControl *ac,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext) {
+    userAccessLevelCalls++;
+    if(closeAtUserAccessLevel) {
+        closeAtUserAccessLevel = false;
+        userAccessLevelCloseResult =
+            UA_Server_closeSession(server_, sessionId);
+        accessControlCloseWasDeferred =
+            (deferredAccessControlCloseCalls == 0);
+    }
+    return originalAccessControlGetUserAccessLevel(
+        server_, ac, sessionId, sessionContext, nodeId, nodeContext);
+}
+
+START_TEST(Session_accessControlCloseStopsMultiReadAndDefersContextClose) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    originalAccessControlGetUserAccessLevel =
+        cfg->accessControl.getUserAccessLevel;
+    originalDeferredAccessControlCloseSession =
+        cfg->accessControl.closeSession;
+    cfg->accessControl.getUserAccessLevel = closeFromGetUserAccessLevel;
+    cfg->accessControl.closeSession = observeDeferredAccessControlClose;
+    closeAtUserAccessLevel = true;
+    accessControlCloseWasDeferred = false;
+    userAccessLevelCalls = 0;
+    deferredAccessControlCloseCalls = 0;
+    userAccessLevelCloseResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    UA_ReadValueId items[2];
+    UA_ReadValueId_init(&items[0]);
+    UA_ReadValueId_init(&items[1]);
+    items[0].nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
+    items[1].nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
+    items[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    items[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    request.nodesToRead = items;
+    request.nodesToReadSize = 2;
+
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    ck_assert_uint_eq(userAccessLevelCloseResult, UA_STATUSCODE_GOOD);
+    ck_assert(accessControlCloseWasDeferred);
+    ck_assert_uint_eq(userAccessLevelCalls, 1);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSESSIONCLOSED);
+
+    processDelayedServerCallbacks();
+    ck_assert_uint_eq(deferredAccessControlCloseCalls, 1);
+
+    cfg->accessControl.getUserAccessLevel =
+        originalAccessControlGetUserAccessLevel;
+    cfg->accessControl.closeSession =
+        originalDeferredAccessControlCloseSession;
+    request.nodesToRead = NULL;
+    request.nodesToReadSize = 0;
+    UA_ReadResponse_clear(&response);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* TCP and WebSocket both use the UACP SecureChannel teardown below. */
+START_TEST(Session_closedAttachedSessionDoesNotStallUacpTeardown) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(
+        client, "opc.tcp://localhost:4840"), UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse createResponse;
+    ck_assert_uint_eq(createSessionRaw(client, &createResponse),
+                      UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_Session *session = getSessionById(server, &createResponse.sessionId);
+    ck_assert_ptr_nonnull(session);
+    session->state = UA_SESSIONSTATE_CLOSED;
+    unlockServer(server);
+
+    UA_Client_disconnect(client);
+
+    lockServer(server);
+    ck_assert_ptr_null(session->channel);
+    session->state = UA_SESSIONSTATE_CREATED;
+    unlockServer(server);
+    ck_assert_uint_eq(UA_Server_closeSession(server, &createResponse.sessionId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse_clear(&createResponse);
     UA_Client_delete(client);
 }
 END_TEST
@@ -596,6 +937,14 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
     tcase_add_test(tc_session, Session_notificationCallback);
+    tcase_add_test(tc_session, Session_serviceBeginCallbackClosesCurrentSession);
+    tcase_add_test(tc_session, Session_accessControlCloseSessionIsReentrant);
+    tcase_add_test(tc_session, Session_createdNotificationCloseReturnsSessionClosed);
+    tcase_add_test(tc_session, Session_activatedNotificationCloseReturnsSessionClosed);
+    tcase_add_test(tc_session, Session_accessControlActivateCloseReturnsSessionClosed);
+    tcase_add_test(tc_session, Session_accessControlCloseStopsMultiReadAndDefersContextClose);
+    tcase_add_test(tc_session,
+                   Session_closedAttachedSessionDoesNotStallUacpTeardown);
     tcase_add_test(tc_session, Session_setSessionAttribute_ShallWork);
 
     TCase *tc_session_ext = tcase_create("Extended");

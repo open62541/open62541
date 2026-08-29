@@ -621,6 +621,10 @@ Service_Read(UA_Server *server, UA_Session *session, const void *request_, void 
             persistAsyncResponseOperation(server, &aopArray[i],
                                           UA_ASYNCOPERATIONTYPE_READ_REQUEST,
                                           ar, &response->results[i]);
+        if(session->state == UA_SESSIONSTATE_CLOSED) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+            break;
+        }
     }
 
     /* If async operations are pending, persist them and signal the service is
@@ -771,6 +775,10 @@ Service_Write(UA_Server *server, UA_Session *session,
         if(!done)
             persistAsyncResponseOperation(server, aop, UA_ASYNCOPERATIONTYPE_WRITE_REQUEST,
                                           ar, &response->results[i]);
+        if(session->state == UA_SESSIONSTATE_CLOSED) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+            break;
+        }
     }
 
     /* If async operations are pending, persist them and signal the service is
@@ -922,6 +930,10 @@ Service_Call(UA_Server *server, UA_Session *session,
             persistAsyncResponseOperation(server, &aopArray[i],
                                           UA_ASYNCOPERATIONTYPE_CALL_REQUEST,
                                           ar, &response->results[i]);
+        if(session->state == UA_SESSIONSTATE_CLOSED) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+            break;
+        }
     }
 
     /* If async operations are pending, persist them and signal the service is

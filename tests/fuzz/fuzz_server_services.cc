@@ -56,7 +56,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     UA_Session session;
     UA_Session_init(&session);
-    session.activated = true;
+    session.state = UA_SESSIONSTATE_ACTIVATED;
     UA_NodeId_init(&session.sessionId);
     session.sessionId.identifierType = UA_NODEIDTYPE_NUMERIC;
     session.sessionId.identifier.numeric = 1;
