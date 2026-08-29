@@ -52,10 +52,25 @@ typedef enum {
     UA_ASYNCOPERATIONTYPE_WRITE_DIRECT  = (2 + 4)
 } UA_AsyncOperationType;
 
+typedef enum {
+    UA_ASYNCOPERATIONSTATUS_PENDING = 0,
+    UA_ASYNCOPERATIONSTATUS_FINISHED = 1,
+
+    /* The operation was force-completed (timeout, cancel, shutdown) and the
+     * result (response / direct callback) has already been delivered. But
+     * the worker that owns the output memory has not yet acknowledged via
+     * UA_Server_setAsync*Result. The memory must stay alive (and findable)
+     * until that late acknowledgement arrives -- otherwise a worker that is
+     * still writing into the output pointer would race with the memory
+     * being freed. */
+    UA_ASYNCOPERATIONSTATUS_CANCELED_WAITING_FOR_WORKER = 2,
+} UA_AsyncOperationStatus;
+
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
     UA_AsyncOperationType asyncOperationType;
+    UA_AsyncOperationStatus status;
 
     union {
         /* The operation is part of a service request */
@@ -101,8 +116,15 @@ struct UA_AsyncResponse {
     UA_UInt32 requestHandle;
     UA_DateTime timeout;
     UA_NodeId sessionId;
-    UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
-                            * only be deleted when all have returned. */
+    UA_UInt32 opCountdown; /* Counter for outstanding operations. The
+                            * response can only be sent when all have
+                            * returned. */
+    UA_UInt32 zombieCount; /* Counter for operations that were force-completed
+                            * (timeout/cancel) but not yet acknowledged by
+                            * the worker. The backing memory of this
+                            * UA_AsyncResponse (shared by all its operations)
+                            * can only be freed once this reaches zero *and*
+                            * the response has been sent. */
     UA_Boolean abandoned;  /* The transport carrier closed before completion */
 
     const UA_DataType *responseType;
@@ -124,10 +146,22 @@ typedef struct {
     TAILQ_HEAD(, UA_AsyncResponse) waitingResponses;
     TAILQ_HEAD(, UA_AsyncResponse) readyResponses;
 
+    /* Responses that have already been sent, but are still waiting for a
+     * late worker acknowledgement of one or more force-completed (timed
+     * out / cancelled) operations before their memory can be freed. */
+    TAILQ_HEAD(, UA_AsyncResponse) zombieResponses;
+
     /* Async operations (some direct, some part of an async response) */
     TAILQ_HEAD(, UA_AsyncOperation) waitingOps;
     TAILQ_HEAD(, UA_AsyncOperation) readyOps;
     size_t opsCount; /* Both waiting and ready */
+
+    /* Direct operations that were force-completed (timed out / cancelled)
+     * and already reported to the original caller, but are still waiting
+     * for a late worker acknowledgement before their memory can be freed.
+     * Also holds request operations for lookup purposes -- their memory is
+     * only actually freed together with their (zombie) UA_AsyncResponse. */
+    TAILQ_HEAD(, UA_AsyncOperation) zombieOps;
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
 

@@ -7,6 +7,7 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
+#include "ua_server_async.h"
 #include "ua_server_internal.h"
 
 /* The layout of the results array is:
@@ -84,6 +85,14 @@ UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
     /* Notify the application that it must no longer set the async result */
     if(sc->asyncOperationCancelCallback)
         sc->asyncOperationCancelCallback(server, cancelPtr);
+
+    /* The operation is force-completed. The result is delivered right away
+     * (see processOperationResult / UA_AsyncManager_processReady). But the
+     * worker that owns the output memory may not have noticed the
+     * cancellation yet and could still be writing into it. So the memory
+     * itself is kept alive until the worker's belated call to
+     * UA_Server_setAsync*Result is caught and does the actual cleanup. */
+    op->status = UA_ASYNCOPERATIONSTATUS_CANCELED_WAITING_FOR_WORKER;
 }
 
 static void
@@ -254,21 +263,35 @@ UA_AsyncManager_processReady(void *application /* UA_Server */,
     /* Reset the delayed callback */
     UA_atomic_store((UA_atomic(void*)*)&am->dc.callback, NULL);
 
-    /* Process ready direct operations and free them */
+    /* Process ready direct operations. Always notify the original caller
+     * right away. Only free the memory if the worker already acknowledged
+     * the result (status == FINISHED). Otherwise the operation was
+     * force-completed (timeout/cancel) and the worker may still be writing
+     * into the output memory -- park it as a zombie until the worker's
+     * belated UA_Server_setAsync*Result call frees it. */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
     TAILQ_FOREACH_SAFE(op, &am->readyOps, pointers, op_tmp) {
         TAILQ_REMOVE(&am->readyOps, op, pointers);
-        am->opsCount--;
         directOpCallback(server, op);
-        UA_AsyncOperation_delete(op);
+        if(op->status == UA_ASYNCOPERATIONSTATUS_FINISHED) {
+            am->opsCount--;
+            UA_AsyncOperation_delete(op);
+        } else {
+            TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
+        }
     }
 
-    /* Send out ready responses */
+    /* Send out ready responses. Only free the response memory right away if
+     * none of its operations are still waiting for a late worker
+     * acknowledgement -- otherwise park it as a zombie. */
     UA_AsyncResponse *ar, *temp;
     TAILQ_FOREACH_SAFE(ar, &am->readyResponses, pointers, temp) {
         TAILQ_REMOVE(&am->readyResponses, ar, pointers);
         sendAsyncResponse(server, ar);
-        UA_AsyncResponse_delete(ar);
+        if(ar->zombieCount == 0)
+            UA_AsyncResponse_delete(ar);
+        else
+            TAILQ_INSERT_TAIL(&am->zombieResponses, ar, pointers);
     }
 
     unlockServer(server);
@@ -303,6 +326,17 @@ processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
         am->opsCount--;
 
         UA_AsyncResponse *ar = op->handling.response;
+
+        /* This operation was force-completed and is still awaiting a late
+         * worker acknowledgement. Its memory is shared with (part of) the
+         * UA_AsyncResponse, so it cannot be freed on its own. Keep it
+         * findable in zombieOps and mark the response so it is not freed
+         * once sent until this operation was acknowledged. */
+        if(op->status == UA_ASYNCOPERATIONSTATUS_CANCELED_WAITING_FOR_WORKER) {
+            ar->zombieCount++;
+            TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
+        }
+
         ar->opCountdown -= 1;
         if(ar->opCountdown > 0)
             return;
@@ -357,8 +391,10 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     memset(am, 0, sizeof(UA_AsyncManager));
     TAILQ_INIT(&am->waitingResponses);
     TAILQ_INIT(&am->readyResponses);
+    TAILQ_INIT(&am->zombieResponses);
     TAILQ_INIT(&am->waitingOps);
     TAILQ_INIT(&am->readyOps);
+    TAILQ_INIT(&am->zombieOps);
 }
 
 void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
@@ -397,6 +433,31 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
 
     /* This sends out/notifies and removes all direct operations and async requests */
     UA_AsyncManager_processReady(server, am);
+
+    /* Force-free any zombies left over -- both those just created above and
+     * any older ones still waiting for a worker that never acknowledged
+     * them. The server is being torn down, so there is no "later" left to
+     * wait for a late acknowledgement. A worker that still calls
+     * UA_Server_setAsync*Result afterwards simply won't find the operation
+     * any more and gets UA_STATUSCODE_BADNOTFOUND -- safe, as long as the
+     * UA_Server itself is not also already freed by then. The application
+     * is responsible for stopping/joining any worker threads that could
+     * call UA_Server_setAsync*Result before UA_Server_delete completes. */
+    TAILQ_FOREACH_SAFE(op, &am->zombieOps, pointers, op_tmp) {
+        TAILQ_REMOVE(&am->zombieOps, op, pointers);
+        /* Request-type operations share memory with their UA_AsyncResponse
+         * and are freed together with it below. */
+        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+            am->opsCount--;
+            UA_AsyncOperation_delete(op);
+        }
+    }
+    UA_AsyncResponse *ar, *ar_tmp;
+    TAILQ_FOREACH_SAFE(ar, &am->zombieResponses, pointers, ar_tmp) {
+        TAILQ_REMOVE(&am->zombieResponses, ar, pointers);
+        UA_AsyncResponse_delete(ar);
+    }
+
     UA_assert(am->opsCount == 0);
 }
 
@@ -681,6 +742,44 @@ UA_Server_cancelAsync(UA_Server *server, void *context, UA_StatusCode opstatus,
     unlockServer(server);
 }
 
+/* A late UA_Server_setAsync*Result call for an operation that was already
+ * force-completed (timeout/cancel). The result was already delivered to the
+ * original caller/client. This call is only the worker's signal that it is
+ * now done touching the output memory -- so it is now safe to free it. */
+static void
+finalizeZombieOp(UA_Server *server, UA_AsyncOperation *op) {
+    UA_AsyncManager *am = &server->asyncManager;
+    TAILQ_REMOVE(&am->zombieOps, op, pointers);
+
+    if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+        am->opsCount--;
+        UA_AsyncOperation_delete(op);
+        return;
+    }
+
+    /* Part of a service request. Only the whole UA_AsyncResponse (shared
+     * memory) can be freed -- and only once it has actually been sent. */
+    UA_AsyncResponse *ar = op->handling.response;
+    UA_assert(ar->zombieCount > 0);
+    ar->zombieCount--;
+    if(ar->zombieCount > 0)
+        return;
+
+    UA_AsyncResponse *ar2 = NULL;
+    TAILQ_FOREACH(ar2, &am->zombieResponses, pointers) {
+        if(ar2 != ar)
+            continue;
+        TAILQ_REMOVE(&am->zombieResponses, ar, pointers);
+        UA_AsyncResponse_delete(ar);
+        break;
+    }
+    /* If ar is not (yet) in zombieResponses, it has not been sent yet
+     * (siblings still pending, or it is queued in readyResponses waiting
+     * for the delayed callback). UA_AsyncManager_processReady will send it
+     * and free it right away once it processes it, since zombieCount is
+     * now 0. */
+}
+
 /********/
 /* Read */
 /********/
@@ -836,8 +935,19 @@ UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result) {
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
         if(op->output.read == result || &op->output.directRead == result) {
+            op->status = UA_ASYNCOPERATIONSTATUS_FINISHED;
             processOperationResult(server, op);
             break;
+        }
+    }
+    if(!op) {
+        /* Late acknowledgement of an operation that already timed out/was
+         * cancelled -- finalize (free) it now instead of BADNOTFOUND. */
+        TAILQ_FOREACH(op, &am->zombieOps, pointers) {
+            if(op->output.read == result || &op->output.directRead == result) {
+                finalizeZombieOp(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);
@@ -998,8 +1108,21 @@ UA_Server_setAsyncWriteResult(UA_Server *server,
                 *op->output.write = result;
             else
                 op->output.directWrite = result;
+            op->status = UA_ASYNCOPERATIONSTATUS_FINISHED;
             processOperationResult(server, op);
             break;
+        }
+    }
+    if(!op) {
+        /* Late acknowledgement of an operation that already timed out/was
+         * cancelled -- finalize (free) it now instead of BADNOTFOUND. The
+         * result was already set (e.g. to BADTIMEOUT) when it was
+         * force-completed, so it is not overwritten here. */
+        TAILQ_FOREACH(op, &am->zombieOps, pointers) {
+            if(&op->context.writeValue.value == value) {
+                finalizeZombieOp(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);
@@ -1125,15 +1248,34 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
         if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
             if(op->output.call->outputArguments == output) {
+                op->status = UA_ASYNCOPERATIONSTATUS_FINISHED;
                 op->output.call->statusCode = result;
                 processOperationResult(server, op);
                 break;
             }
         } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
             if(op->output.directCall.outputArguments == output) {
+                op->status = UA_ASYNCOPERATIONSTATUS_FINISHED;
                 op->output.directCall.statusCode = result;
                 processOperationResult(server, op);
                 break;
+            }
+        }
+    }
+    if(!op) {
+        /* Late acknowledgement of an operation that already timed out/was
+         * cancelled -- finalize (free) it now instead of BADNOTFOUND. */
+        TAILQ_FOREACH(op, &am->zombieOps, pointers) {
+            if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+                if(op->output.call->outputArguments == output) {
+                    finalizeZombieOp(server, op);
+                    break;
+                }
+            } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+                if(op->output.directCall.outputArguments == output) {
+                    finalizeZombieOp(server, op);
+                    break;
+                }
             }
         }
     }
