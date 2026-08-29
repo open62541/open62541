@@ -140,6 +140,11 @@ void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
 
+/* Cancel and discard pending service responses for a closed Session. */
+void
+UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
+                              UA_StatusCode status);
+
 /* Cancel all outstanding operations for matching session+requestHandle.
  * Then sends out the responses with a StatusCode. */
 UA_UInt32

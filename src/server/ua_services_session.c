@@ -59,16 +59,9 @@ notifySession(UA_Server *server, UA_Session *session,
     notifyApplication(server, type, payloadMap);
 }
 
-/* Delayed callback for destructive session teardown. Logical closure and
- * detachment happen synchronously in UA_Session_remove. Keeping the Session
- * resources alive until the current jobs have completed lets callbacks safely
- * close the Session they are currently using. */
 static void
-removeSessionCallback(void *application /* UA_Server */,
-                      void *context /* session_list_entry */) {
-    UA_Server *server = (UA_Server*)application;
-    session_list_entry *entry = (session_list_entry*)context;
-    lockServer(server);
+cleanupSession(UA_Server *server, session_list_entry *entry) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Session *session = &entry->session;
 
     /* When the session times out, detach subscriptions so they can be
@@ -101,8 +94,21 @@ removeSessionCallback(void *application /* UA_Server */,
     }
 
     UA_Session_clear(session, server);
-    unlockServer(server);
     UA_free(entry);
+}
+
+/* Delayed callback for destructive session teardown. Logical closure and
+ * detachment happen synchronously in UA_Session_remove. Keeping the Session
+ * resources alive until the current jobs have completed lets callbacks safely
+ * close the Session they are currently using. */
+static void
+cleanupSessionCallback(void *application /* UA_Server */,
+                       void *context /* session_list_entry */) {
+    UA_Server *server = (UA_Server*)application;
+    session_list_entry *entry = (session_list_entry*)context;
+    lockServer(server);
+    cleanupSession(server, entry);
+    unlockServer(server);
 }
 
 void
@@ -134,6 +140,14 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     server->sessionCount--;
     sentry->shutdownReason = shutdownReason;
 
+#if UA_MULTITHREADING >= 100
+    /* Pending service responses cannot be delivered after the Session has
+     * been removed. Release them and tell the application to stop producing
+     * their asynchronous results. */
+    UA_AsyncManager_cancelSession(server, &session->sessionId,
+                                  UA_STATUSCODE_BADSESSIONCLOSED);
+#endif
+
     switch(shutdownReason) {
     case UA_SHUTDOWNREASON_CLOSE:
     case UA_SHUTDOWNREASON_PURGE:
@@ -164,9 +178,17 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     /* Notify the application */
     notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
 
+    /* There cannot be callbacks still using the Session once the Server is
+     * stopped. In particular, UA_Server_delete should not enqueue work into an
+     * EventLoop that it is about to delete. */
+    if(server->state == UA_LIFECYCLESTATE_STOPPED) {
+        cleanupSession(server, sentry);
+        return;
+    }
+
     /* Destructively tear down and free the Session after the currently
      * scheduled jobs have completed. */
-    sentry->cleanupCallback.callback = removeSessionCallback;
+    sentry->cleanupCallback.callback = cleanupSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
