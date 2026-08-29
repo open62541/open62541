@@ -390,6 +390,9 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_AsyncOperation *op, *op_tmp;
     UA_AsyncManager *am = &server->asyncManager;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        /* Only request operations own a handling.response. */
+        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+            continue;
         UA_AsyncResponse *ar = op->handling.response;
         if(ar->requestHandle != requestHandle ||
            !UA_NodeId_equal(&session->sessionId, &ar->sessionId))
@@ -499,6 +502,9 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
 
     /* Cancel operations that are still waiting for the result */
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        /* Only direct operations own a handling.callback. */
+        if(op->asyncOperationType < UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+            continue;
         if(op->handling.callback.context != context)
             continue;
 
