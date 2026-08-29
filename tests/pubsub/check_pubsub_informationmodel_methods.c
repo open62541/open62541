@@ -10,6 +10,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "pubsub_test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
@@ -46,6 +47,15 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+}
+
+static size_t
+getPubSubConnectionsSize(void) {
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    size_t connectionsSize = psm ? psm->connectionsSize : 0;
+    unlockServer(server);
+    return connectionsSize;
 }
 
 static UA_NodeId
@@ -134,6 +144,105 @@ static UA_NodeId addPubSubConnection(void){
     UA_CallMethodResult_clear(&result);
     return connectionId;
 }
+
+START_TEST(AddConnectionRollsBackOnChildFailure) {
+    UA_Variant publisherId;
+    UA_UInt32 publisherIdValue = 100;
+    UA_Variant_init(&publisherId);
+    UA_Variant_setScalar(&publisherId, &publisherIdValue,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_NetworkAddressUrlDataType networkAddress =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_PubSubConnectionDataType connection;
+    UA_PubSubConnectionDataType_init(&connection);
+    connection.name = UA_STRING("Connection with invalid child");
+    connection.publisherId = publisherId;
+    connection.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connection.address.encoding = UA_EXTENSIONOBJECT_DECODED;
+    connection.address.content.decoded.type =
+        &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE];
+    connection.address.content.decoded.data = &networkAddress;
+
+    UA_UadpWriterGroupMessageDataType messageSettings;
+    UA_UadpWriterGroupMessageDataType_init(&messageSettings);
+    UA_DataSetWriterDataType dataSetWriter;
+    UA_DataSetWriterDataType_init(&dataSetWriter);
+    dataSetWriter.name = UA_STRING("DataSetWriter with missing DataSet");
+    dataSetWriter.dataSetName = UA_STRING("Missing DataSet");
+
+    UA_WriterGroupDataType writerGroup;
+    UA_WriterGroupDataType_init(&writerGroup);
+    writerGroup.name = UA_STRING("WriterGroup");
+    writerGroup.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    writerGroup.messageSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    writerGroup.messageSettings.content.decoded.data = &messageSettings;
+    writerGroup.dataSetWritersSize = 1;
+    writerGroup.dataSetWriters = &dataSetWriter;
+    connection.writerGroupsSize = 1;
+    connection.writerGroups = &writerGroup;
+
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &connection,
+                         &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
+    request.methodId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+
+    ck_assert_uint_eq(getPubSubConnectionsSize(), 0);
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADPARENTNODEIDINVALID);
+    ck_assert_uint_eq(getPubSubConnectionsSize(), 0);
+
+    UA_CallMethodResult_clear(&result);
+} END_TEST
+
+START_TEST(AddConnectionRejectsInvalidPublisherIdWithoutSideEffects) {
+    UA_Boolean publisherIdValue = false;
+    UA_Variant publisherId;
+    UA_Variant_init(&publisherId);
+    UA_Variant_setScalar(&publisherId, &publisherIdValue,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_NetworkAddressUrlDataType networkAddress =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_PubSubConnectionDataType connection;
+    UA_PubSubConnectionDataType_init(&connection);
+    connection.name = UA_STRING("Connection with invalid PublisherId");
+    connection.publisherId = publisherId;
+    connection.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connection.address.encoding = UA_EXTENSIONOBJECT_DECODED;
+    connection.address.content.decoded.type =
+        &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE];
+    connection.address.content.decoded.data = &networkAddress;
+
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &connection,
+                         &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
+    request.methodId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+
+    ck_assert_uint_eq(getPubSubConnectionsSize(), 0);
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(getPubSubConnectionsSize(), 0);
+
+    UA_CallMethodResult_clear(&result);
+} END_TEST
 
 static void addPublishedDataSets(void){
     UA_Variant *inputArguments = (UA_Variant *) UA_calloc(4, (sizeof(UA_Variant)));
@@ -1830,6 +1939,8 @@ int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionUsingTheInformationModelMethod);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRollsBackOnChildFailure);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRejectsInvalidPublisherIdWithoutSideEffects);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetFoldersUsingServer);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetFoldersUsingClient);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetItemsUsingServer);

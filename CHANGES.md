@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub AddConnection rolls back incomplete configurations
+
+The `PublishSubscribe.AddConnection` information model method now removes the
+new connection and its children if any part of the supplied configuration
+cannot be created. Invalid PublisherIds are rejected before creating a
+connection.
+
 ### Event API uses string-encoded of BrowsePaths
 
 The select-clause of EventFilters defines the fields to be returned in
