@@ -497,6 +497,9 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
      * sizeof(UA_DataValue) == 80 and an empty DataValue is encoded with just
      * one byte. We use 128 as the smallest power of 2 larger than 80. */
     size_t length = (size_t)signed_length;
+    UA_CHECK(length <= SIZE_MAX / type->memSize,
+             return UA_STATUSCODE_BADDECODINGERROR);
+    size_t arraySize = length * type->memSize;
     size_t remaining = (size_t)(ctx->end - ctx->pos);
     UA_CHECK(length / 128 <= remaining / type->memSize,
              return UA_STATUSCODE_BADDECODINGERROR);
@@ -507,10 +510,10 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
 
     if(type->overlayable) {
         /* memcpy overlayable array */
-        UA_CHECK(ctx->pos + (type->memSize * length) <= ctx->end,
+        UA_CHECK(arraySize <= remaining,
                  UA_free(*dst); *dst = NULL; return UA_STATUSCODE_BADDECODINGERROR);
-        memcpy(*dst, ctx->pos, type->memSize * length);
-        ctx->pos += type->memSize * length;
+        memcpy(*dst, ctx->pos, arraySize);
+        ctx->pos += arraySize;
     } else {
         /* Decode array members */
         uintptr_t ptr = (uintptr_t)*dst;
@@ -1158,6 +1161,10 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT ds
         ctx->pos = orig_pos;
         return Array_decodeBinary(dst, out_length, *type, ctx);
     }
+
+    /* The decoded representation must fit into size_t. */
+    UA_CHECK(length <= SIZE_MAX / contentType->memSize,
+             return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Compare the header of all array members if the array can be unwrapped */
     UA_ByteString header = {(uintptr_t)ctx->pos - (uintptr_t)orig_pos - 4, &orig_pos[4]};
