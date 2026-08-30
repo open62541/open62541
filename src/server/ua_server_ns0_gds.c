@@ -321,9 +321,16 @@ updateCertificate(UA_Server *server,
     UA_String *privateKeyFormat = (UA_String *)input[4].data;
     UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
 
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certGroupId = *certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId)) {
+        /* Use default value if argument is empty */
+        certGroupId = defaultApplicationGroup;
+    }
+
     /* The server currently only supports the DefaultApplicationGroup */
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* The server currently only supports the following certificate type */
@@ -362,8 +369,8 @@ updateCertificate(UA_Server *server,
     if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    retval = UA_GDSTransaction_addCertificateInfo(transaction, *certificateGroupId,
-                                                  *certificateTypeId, certificate, privateKey);
+    retval = UA_GDSTransaction_addCertificateInfo(
+        transaction, certGroupId, *certificateTypeId, certificate, privateKey);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
