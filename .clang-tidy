@@ -1,0 +1,10 @@
+---
+Checks: '-*,cert-*,-cert-*-cpp,-cert-dcl37-c'
+WarningsAsErrors: 'cert-*'
+HeaderFilterRegex: '(^|/)(arch|deps|include|plugins|src)/'
+SystemHeaders: false
+FormatStyle: none
+CheckOptions:
+  # UA_SByte is a signed numeric type; conversions intentionally preserve its sign.
+  cert-str34-c.CharTypedefsToIgnore: 'UA_SByte'
+...
