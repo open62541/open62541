@@ -16,6 +16,7 @@
 #include "thread_wrapper.h"
 
 #include "ua_server_internal.h"
+#include "ua_services.h"
 
 #include <check.h>
 
@@ -757,6 +758,37 @@ START_TEST(Async_service_read_validation_paths) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_service_read_allocation_size_overflow) {
+    UA_ReadValueId node;
+    UA_ReadValueId_init(&node);
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    request.nodesToRead = &node;
+    request.nodesToReadSize =
+        SIZE_MAX / UA_TYPES[UA_TYPES_DATAVALUE].memSize + 1;
+
+    UA_ReadResponse response;
+    UA_ReadResponse_init(&response);
+
+    lockServer(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UInt32 oldMaxNodesPerRead = config->maxNodesPerRead;
+    config->maxNodesPerRead = 0;
+    UA_Boolean done = Service_Read(server, &server->adminSession,
+                                   &request, &response);
+    config->maxNodesPerRead = oldMaxNodesPerRead;
+    unlockServer(server);
+
+    ck_assert(done);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_null(response.results);
+    ck_assert_uint_eq(response.resultsSize, 0);
+    UA_ReadResponse_clear(&response);
+} END_TEST
+
 START_TEST(Async_service_read_toomanyoperations) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -1305,6 +1337,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_sync_method_call);
     tcase_add_test(tc_manager, Async_read_sync_variable);
     tcase_add_test(tc_manager, Async_service_read_validation_paths);
+    tcase_add_test(tc_manager, Async_service_read_allocation_size_overflow);
     tcase_add_test(tc_manager, Async_service_read_toomanyoperations);
     tcase_add_test(tc_manager, Async_service_write_validation_paths);
     tcase_add_test(tc_manager, Async_service_write_toomanyoperations);
