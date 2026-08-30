@@ -974,6 +974,7 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
 
     /* Compute the message size */
     size_t messageSize = chunk.bytes.length;
+    size_t messageChunks = 1; /* Include the final chunk */
     UA_Chunk *first = NULL;
     TAILQ_FOREACH(pchunk, &channel->chunks, pointers) {
         if(chunk.requestId != pchunk->requestId)
@@ -985,12 +986,16 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
         }
         if(!first)
             first = pchunk;
+        messageChunks++;
         messageSize += pchunk->bytes.length;
     }
 
-    /* Validate the assembled message size */
-    if(channel->config.localMaxMessageSize != 0 &&
-       messageSize > channel->config.localMaxMessageSize) {
+    /* Validate the assembled message limits. The final chunk also counts
+     * towards localMaxChunkCount. */
+    if((channel->config.localMaxChunkCount != 0 &&
+        messageChunks > channel->config.localMaxChunkCount) ||
+       (channel->config.localMaxMessageSize != 0 &&
+        messageSize > channel->config.localMaxMessageSize)) {
         if(chunk.copied)
             UA_ByteString_clear(&chunk.bytes);
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
