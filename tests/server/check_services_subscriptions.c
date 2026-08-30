@@ -115,6 +115,15 @@ static UA_ApplicationNotificationType subscriptionNotificationType;
 static UA_UInt32 subscriptionNotificationId = 0;
 static UA_Boolean subscriptionNotificationEnabled = false;
 static size_t subscriptionNotificationMapSize = 0;
+static UA_Boolean closeSessionAtMonitoredItemCreated;
+static UA_StatusCode closeSessionAtMonitoredItemCreatedResult;
+
+typedef struct {
+    UA_Callback callback;
+    void *application;
+    void *context;
+    size_t count;
+} ObservedCleanup;
 
 static const UA_Variant *
 findNotificationValue(const UA_KeyValueMap *map, const char *key) {
@@ -130,6 +139,29 @@ findNotificationValue(const UA_KeyValueMap *map, const char *key) {
     }
 
     return NULL;
+}
+
+static void
+closeSessionFromMonitoredItemCreated(UA_Server *s,
+                                    UA_ApplicationNotificationType type,
+                                    UA_KeyValueMap data) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED ||
+       !closeSessionAtMonitoredItemCreated)
+        return;
+
+    closeSessionAtMonitoredItemCreated = false;
+    const UA_Variant *sessionId = findNotificationValue(&data, "session-id");
+    ck_assert_ptr_ne(sessionId, NULL);
+    ck_assert_ptr_ne(sessionId->data, NULL);
+    closeSessionAtMonitoredItemCreatedResult =
+        UA_Server_closeSession(s, (const UA_NodeId*)sessionId->data);
+}
+
+static void
+observeCleanup(void *application, void *context) {
+    ObservedCleanup *observed = (ObservedCleanup*)application;
+    observed->count++;
+    observed->callback(observed->application, observed->context);
 }
 
 static void
@@ -1480,6 +1512,58 @@ START_TEST(Server_createSubscription_notificationCallback) {
     UA_CreateSubscriptionResponse_clear(&response);
 } END_TEST
 
+START_TEST(Server_closeSessionFromMonitoredItemCreated) {
+    createSubscription();
+    UA_Subscription *closedSubscription = getSubscriptionById(server,
+                                                              subscriptionId);
+    ck_assert_ptr_ne(closedSubscription, NULL);
+    UA_Session *closedSession = session;
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->subscriptionNotificationCallback =
+        closeSessionFromMonitoredItemCreated;
+    closeSessionAtMonitoredItemCreated = true;
+    closeSessionAtMonitoredItemCreatedResult = UA_STATUSCODE_BADINTERNALERROR;
+
+    createMonitoredItem();
+    ck_assert_uint_eq(closeSessionAtMonitoredItemCreatedResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 0);
+    ck_assert_uint_eq(server->subscriptionsSize, 0);
+    ck_assert_uint_eq(server->monitoredItemsSize, 0);
+
+    /* Drain the MonitoredItem, Subscription and Session cleanup callbacks.
+     * The create path must not enqueue the MonitoredItem callback again and
+     * overwrite its link to the later cleanup nodes. */
+    ObservedCleanup subscriptionCleanup = {
+        closedSubscription->delayedFreePointers.callback,
+        closedSubscription->delayedFreePointers.application,
+        closedSubscription->delayedFreePointers.context, 0
+    };
+    ck_assert(subscriptionCleanup.callback != NULL);
+    closedSubscription->delayedFreePointers.callback = observeCleanup;
+    closedSubscription->delayedFreePointers.application = &subscriptionCleanup;
+
+    session_list_entry *closedSessionEntry =
+        container_of(closedSession, session_list_entry, session);
+    ObservedCleanup sessionCleanup = {
+        closedSessionEntry->cleanupCallback.callback,
+        closedSessionEntry->cleanupCallback.application,
+        closedSessionEntry->cleanupCallback.context, 0
+    };
+    ck_assert(sessionCleanup.callback != NULL);
+    closedSessionEntry->cleanupCallback.callback = observeCleanup;
+    closedSessionEntry->cleanupCallback.application = &sessionCleanup;
+
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(subscriptionCleanup.count, 1);
+    ck_assert_uint_eq(sessionCleanup.count, 1);
+
+    config->subscriptionNotificationCallback = NULL;
+    session = NULL;
+} END_TEST
+
 /* Override hook: allow transfer of a detached subscription only when the new
  * session authenticates as the expected user. */
 static const char *recoverOverrideExpectedUser = NULL;
@@ -2210,6 +2294,7 @@ static Suite* testSuite_Client(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_createSubscription);
     tcase_add_test(tc_server, Server_createSubscription_notificationCallback);
+    tcase_add_test(tc_server, Server_closeSessionFromMonitoredItemCreated);
     tcase_add_test(tc_server, Server_republish_unknownSequenceNumber);
     tcase_add_test(tc_server, Server_createSubscription_maxSubscriptionsPerSession);
     tcase_add_test(tc_server, Server_createMonitoredItems_maxPerSubscription);
