@@ -1,7 +1,7 @@
 ---
 Checks: '-*,cert-*,-cert-*-cpp'
 WarningsAsErrors: 'cert-*'
-HeaderFilterRegex: '(^|/)(arch|include|plugins|src)/'
+HeaderFilterRegex: '(^|/)(arch|deps|include|plugins|src)/'
 SystemHeaders: false
 FormatStyle: none
 ...
