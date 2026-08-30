@@ -1,0 +1,58 @@
+name: CERT C clang-tidy
+
+on:
+  push:
+    branches: [ 'master' ]
+    paths:
+      - '.clang-tidy'
+      - '.github/workflows/clang-tidy.yml'
+      - 'tools/ci.sh'
+      - 'arch/**/*.c'
+      - 'arch/**/*.h'
+      - 'deps/**/*.c'
+      - 'deps/**/*.h'
+      - 'include/**/*.h'
+      - 'plugins/**/*.c'
+      - 'plugins/**/*.h'
+      - 'src/**/*.c'
+      - 'src/**/*.h'
+  pull_request:
+    branches: [ 'master' ]
+    paths:
+      - '.clang-tidy'
+      - '.github/workflows/clang-tidy.yml'
+      - 'tools/ci.sh'
+      - 'arch/**/*.c'
+      - 'arch/**/*.h'
+      - 'deps/**/*.c'
+      - 'deps/**/*.h'
+      - 'include/**/*.h'
+      - 'plugins/**/*.c'
+      - 'plugins/**/*.h'
+      - 'src/**/*.c'
+      - 'src/**/*.h'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clang-tidy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clang-tidy:
+    name: Production code
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout open62541
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Show clang-tidy version
+        run: clang-tidy-22 --version
+
+      - name: Check production code
+        run: source tools/ci.sh && clang_tidy_all
