@@ -282,7 +282,7 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
 
 /* Internal methods in ua_securechannel_crypto.h */
 
-void
+UA_StatusCode
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end);
 
