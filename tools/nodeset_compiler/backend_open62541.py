@@ -190,79 +190,10 @@ def setNodeDatatypeRecursive(node, nodeset):
         setNodeDatatypeRecursive(node.parent, nodeset)
         node.dataType = node.parent.dataType
 
-def setNodeValueRankRecursive(node, nodeset):
-
-    if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        raise RuntimeError(f"Node {str(node.id)}: ValueRank can only be set for VariableNode and VariableTypeNode")
-
-    if node.valueRank is not None:
-        return
-
-    # If BaseVariableType
-    if node.id == NodeId("ns=0;i=62"):
-        if node.valueRank is None:
-            # BaseVariableType always has -2
-            node.valueRank = -2
-        return
-
-    if isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        typeDefNode = nodeset.getNodeTypeDefinition(node)
-        if typeDefNode is None:
-            # Use the parent type.
-            raise RuntimeError("Cannot get node for HasTypeDefinition of VariableNode " + node.browseName.name + " " + str(node.id))
-        if not isinstance(typeDefNode, VariableTypeNode):
-            raise RuntimeError("Node {} ({}) has an invalid type definition. {} is not a VariableType node.".format(
-                str(node.id), node.browseName.name, str(typeDefNode.id)))
-
-
-        setNodeValueRankRecursive(typeDefNode, nodeset)
-
-        if typeDefNode.valueRank is not None:
-            node.valueRank = typeDefNode.valueRank
-        else:
-            # TypeDefinition has no ValueRank, apply XSD schema default for scalar nodes
-            # UANodeSet.xsd: <xs:attribute name="ValueRank" type="ValueRank" default="-1"/>
-            if len(node.arrayDimensions) == 0:
-                node.valueRank = -1
-            else:
-                raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
-    else:
-        if node.parent is None:
-            raise RuntimeError(f"Node {str(node.id)}: does not have a parent. Probably the parent node was blacklisted?")
-
-        # Check if parent node limits the value rank
-        setNodeValueRankRecursive(node.parent, nodeset)
-
-
-        if node.parent.valueRank is not None:
-            node.valueRank = node.parent.valueRank
-        else:
-            # Parent has no ValueRank, apply XSD schema default for scalar nodes
-            # UANodeSet.xsd: <xs:attribute name="ValueRank" type="ValueRank" default="-1"/>
-            if len(node.arrayDimensions) == 0:
-                node.valueRank = -1
-            else:
-                raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
-
-
 def generateCommonVariableCode(node, nodeset):
     code = []
     codeCleanup = []
     codeGlobal = []
-
-    rank_omitted = node.valueRank is None
-    if rank_omitted:
-        if isinstance(node, VariableTypeNode):
-            setNodeValueRankRecursive(node, nodeset)
-        else:
-            # NodeSet XML defaults instances to scalar. Only a decoded array
-            # without an explicit rank uses the VariableType's legacy rank.
-            node.valueRank = -1
-            type_definition = nodeset.getNodeTypeDefinition(node)
-            if type_definition is not None:
-                setNodeValueRankRecursive(type_definition, nodeset)
-                if type_definition.valueRank >= 0:
-                    node.valueRank = type_definition.valueRank
 
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
@@ -429,12 +360,6 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
             code.append("   attr.arrayDimensions[0] > 0 && attr.value.arrayLength > attr.arrayDimensions[0])")
             code.append("    attr.arrayDimensions[0] = attr.value.arrayLength <= UA_UINT32_MAX ?")
             code.append("        (UA_UInt32)attr.value.arrayLength : 0;")
-        if rank_omitted and not isinstance(node, VariableTypeNode):
-            type_definition = nodeset.getNodeTypeDefinition(node)
-            if type_definition is not None:
-                code.append("if(attr.value.type && !UA_Variant_isScalar(&attr.value))")
-                code.append("    (void)UA_Server_readValueRank(server, %s, &attr.valueRank);" %
-                            generateNodeIdCode(type_definition.id))
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
