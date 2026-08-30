@@ -424,6 +424,10 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
 
     while((op = TAILQ_FIRST(&canceledOps))) {
         TAILQ_REMOVE(&canceledOps, op, pointers);
+        /* TAILQ_REMOVE does not clear the links in release builds. Avoid
+         * retaining the stack-local queue head across the callback. */
+        op->pointers.tqe_next = NULL;
+        op->pointers.tqe_prev = NULL;
         UA_AsyncOperation_cancel(server, op, status);
     }
 
@@ -575,6 +579,10 @@ cancelAsyncResponseOperations(UA_Server *server, UA_AsyncResponse *ar,
      * cancellation callback may reenter and mutate the waiting queue. */
     while((op = TAILQ_FIRST(&canceledOps))) {
         TAILQ_REMOVE(&canceledOps, op, pointers);
+        /* TAILQ_REMOVE does not clear the links in release builds. Avoid
+         * retaining the stack-local queue head across the callback. */
+        op->pointers.tqe_next = NULL;
+        op->pointers.tqe_prev = NULL;
         UA_AsyncOperation_cancel(server, op, status);
     }
 }
