@@ -202,7 +202,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Restrict buffer to the available space for the payload */
     UA_Byte *buf_pos = buf.data;
     const UA_Byte *buf_end = &buf.data[buf.length];
-    hideBytesAsym(channel, &buf_pos, &buf_end);
+    res = hideBytesAsym(channel, &buf_pos, &buf_end);
+    UA_CHECK_STATUS(res, conn->releaseSendBuffer(conn, &buf); return res);
 
     /* Encode the message type and content */
     res |= UA_NodeId_encodeBinary(&contentType->binaryEncodingId, &buf_pos, buf_end);
