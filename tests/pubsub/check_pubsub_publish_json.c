@@ -29,7 +29,7 @@ static void setup(void) {
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+        UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4840;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
@@ -61,7 +61,7 @@ START_TEST(SinglePublishDataSetField){
     UA_DatagramWriterGroupTransport2DataType udpTransportSettings;
     memset(&udpTransportSettings, 0, sizeof(UA_DatagramWriterGroupTransport2DataType));
     UA_NetworkAddressUrlDataType writerGroupAddress =
-        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+        UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4840;
     UA_ExtensionObject_setValue(&udpTransportSettings.address, &writerGroupAddress,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 

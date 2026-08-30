@@ -18,9 +18,6 @@
 #include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
-#define MULTICAST_URL UA_PUBSUB_TEST_UDP_MULTICAST_URL_4801
-//#define MULTICAST_URL "opc.udp://[ff01::100]:4801/"
-
 #define UA_SUBSCRIBER_PORT       4801    /* Port for Subscriber*/
 #define PUBLISH_INTERVAL         5       /* Publish interval*/
 #define PUBLISHER_ID             2234    /* Publisher Id*/
@@ -110,7 +107,8 @@ static void setup(void) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Test Connection");
-    UA_NetworkAddressUrlDataType networkAddressUrl = UA_PUBSUB_TEST_NETWORKADDRESSURL(MULTICAST_URL);
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        UA_PUBSUB_TEST_SEMANTIC_NETWORKADDRESSURL_4801;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
