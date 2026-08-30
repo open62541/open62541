@@ -132,17 +132,15 @@ START_TEST(Client_activateSession_async) {
 
     ck_assert_uint_eq(server->sessionCount, 1);
 
-    /* Drive both EventLoops until the asynchronous activation completes. */
-    UA_SessionState sessionState;
-    UA_Client_getState(client, NULL, &sessionState, NULL);
-    for(size_t i = 0; i < 100 &&
-        sessionState != UA_SESSIONSTATE_ACTIVATED; i++) {
-        UA_Server_run_iterate(server, false);
-        retval = UA_Client_run_iterate(client, 0);
+    /* Drive both EventLoops until the asynchronous activation completes. The
+     * client iteration waits briefly so the lwIP timers can make progress. */
+    UA_SessionState sessionState = UA_SESSIONSTATE_CLOSED;
+    do {
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_run_iterate(server, false);
         UA_Client_getState(client, NULL, &sessionState, NULL);
-    }
-    ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_ACTIVATED);
+    } while(sessionState != UA_SESSIONSTATE_ACTIVATED);
 
     loc = LIST_FIRST(&server->sessions)->session.localeIds[0];
     convert = (char *)UA_malloc(sizeof(char) * loc.length + 1);
