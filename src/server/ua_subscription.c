@@ -293,12 +293,23 @@ UA_Subscription_new(void) {
 
     TAILQ_INIT(&newSub->retransmissionQueue);
     TAILQ_INIT(&newSub->notificationQueue);
+    ZIP_INIT(&newSub->monitoredItemsById);
     return newSub;
 }
 
 static void
 delayedFreeSubscription(void *app, void *context) {
     UA_free(context);
+}
+
+static void
+deleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                    UA_Boolean notify, UA_Boolean removeFromIndex);
+
+static void *
+deleteMonitoredItemVisitor(void *context, UA_MonitoredItem *mon) {
+    deleteMonitoredItem((UA_Server*)context, mon, false, false);
+    return NULL;
 }
 
 void
@@ -308,12 +319,15 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Delete monitored Items */
-    UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
-    UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        UA_MonitoredItem_delete(server, mon, false);
-    }
-    UA_assert(sub->monitoredItemsSize == 0);
+    UA_UInt32 monitoredItemsSize = sub->monitoredItemsSize;
+    UA_assert(server->monitoredItemsSize >= monitoredItemsSize);
+    /* Detach the index so deletion does not rebalance a discarded tree. */
+    UA_MonitoredItemIdTree monitoredItems = sub->monitoredItemsById;
+    ZIP_INIT(&sub->monitoredItemsById);
+    sub->monitoredItemsSize = 0;
+    server->monitoredItemsSize -= monitoredItemsSize;
+    ZIP_ITER(UA_MonitoredItemIdTree, &monitoredItems,
+             deleteMonitoredItemVisitor, server);
 
     /* Unregister the publish callback and possible delayed callback */
     Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_REMOVING);
@@ -378,12 +392,8 @@ Subscription_resetLifetime(UA_Subscription *sub) {
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId) {
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
-    return mon;
+    return ZIP_FIND(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                    &monitoredItemId);
 }
 
 static void
@@ -960,6 +970,28 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 }
 
+static void *
+resendDataMonitoredItemVisitor(void *context, UA_MonitoredItem *mon) {
+    UA_Server *server = (UA_Server*)context;
+
+    /* Create only DataChange notifications */
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+        return NULL;
+
+    /* Only if the mode is monitoring */
+    if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
+        return NULL;
+
+    /* If a value is queued for a data MonitoredItem, the next value in
+     * the queue is sent in the Publish response. */
+    if(mon->queueSize > 0)
+        return NULL;
+
+    /* Create a notification with the last sampled value */
+    UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
+    return NULL;
+}
+
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -972,24 +1004,8 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
      * queued for a data MonitoredItem, the next value in the queue is sent in
      * the Publish response. If no value is queued for a data MonitoredItem, the
      * last value sent is repeated in the Publish response. */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        /* Create only DataChange notifications */
-        if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
-            continue;
-
-        /* Only if the mode is monitoring */
-        if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
-            continue;
-
-        /* If a value is queued for a data MonitoredItem, the next value in
-         * the queue is sent in the Publish response. */
-        if(mon->queueSize > 0)
-            continue;
-
-        /* Create a notification with the last sampled value */
-        UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
-    }
+    ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+             resendDataMonitoredItemVisitor, server);
 }
 
 void
@@ -1302,7 +1318,7 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Subscription *sub = mon->subscription;
     mon->monitoredItemId = ++sub->lastMonitoredItemId;
     mon->subscription = sub;
-    LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
+    ZIP_INSERT(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
     sub->monitoredItemsSize++;
     server->monitoredItemsSize++;
 
@@ -1321,7 +1337,8 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
 }
 
 static void
-unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                        UA_Boolean removeFromIndex) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(!mon->registered)
@@ -1346,10 +1363,13 @@ unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
                                                      mon->itemToMonitor.attributeId, true);
     }
 
-    /* Deregister in Subscription and server */
-    sub->monitoredItemsSize--;
-    LIST_REMOVE(mon, listEntry);
-    server->monitoredItemsSize--;
+    /* Deregister in Subscription and server. During Subscription teardown the
+     * index and counts are already cleared before invoking user callbacks. */
+    if(removeFromIndex) {
+        sub->monitoredItemsSize--;
+        ZIP_REMOVE(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
+        server->monitoredItemsSize--;
+    }
 }
 
 UA_StatusCode
@@ -1444,9 +1464,9 @@ delayedFreeMonitoredItem(void *application, void *context) {
     unlockServer(server);
 }
 
-void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
-                        UA_Boolean notify) {
+static void
+deleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
+                    UA_Boolean notify, UA_Boolean removeFromIndex) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Application callbacks can reenter deletion. Queue the embedded delayed
@@ -1462,7 +1482,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
 
     /* Deregister in Server and Subscription */
     if(mon->registered)
-        unregisterMonitoredItem(server, mon);
+        unregisterMonitoredItem(server, mon, removeFromIndex);
 
     /* Cancel outstanding async reads. The status code avoids the sample being
      * processed. Call _processReady to ensure that the callbacks have been
@@ -1501,6 +1521,12 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
      * remove itself in the callback. */
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &mon->delayedFreePointers);
+}
+
+void
+UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon,
+                        UA_Boolean notify) {
+    deleteMonitoredItem(server, mon, notify, true);
 }
 
 void

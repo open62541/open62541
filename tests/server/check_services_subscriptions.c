@@ -12,6 +12,8 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "ziptree.h"
+
 #include "test_helpers.h"
 #include "testing_clock.h"
 
@@ -19,6 +21,8 @@ static UA_Server *server = NULL;
 static UA_Session *session = NULL;
 static UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
 static UA_Double defaultRequestedPublishingInterval = 100;  /* in ms */
+static UA_Subscription *deletingSubscription = NULL;
+static size_t monitoredItemsAfterDelete = 0;
 
 static void
 monitoredRegisterCallback(UA_Server *s,
@@ -27,8 +31,23 @@ monitoredRegisterCallback(UA_Server *s,
                           const UA_UInt32 attrId, const UA_Boolean removed) {
     if(!removed)
         monitored++;
-    else
+    else {
         monitored--;
+        if(deletingSubscription) {
+            ck_assert_ptr_eq(ZIP_ROOT(&deletingSubscription->monitoredItemsById),
+                             NULL);
+            ck_assert_uint_eq(deletingSubscription->monitoredItemsSize, 0);
+            ck_assert_uint_eq(s->monitoredItemsSize, monitoredItemsAfterDelete);
+
+            /* Public server APIs can be called from registration callbacks. */
+            UA_QualifiedName browseName;
+            UA_QualifiedName_init(&browseName);
+            UA_StatusCode res = UA_Server_readBrowseName(
+                s, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
+            ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+            UA_QualifiedName_clear(&browseName);
+        }
+    }
 }
 
 static void
@@ -71,6 +90,8 @@ createAuthenticatedSession(const char *userId) {
 }
 
 static void setup(void) {
+    deletingSubscription = NULL;
+    monitoredItemsAfterDelete = 0;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -317,6 +338,39 @@ START_TEST(Server_deleteSubscription) {
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteSubscriptionsResponse_clear(&del_response);
+}
+END_TEST
+
+START_TEST(Server_deleteSubscription_callbackSeesConsistentIndex) {
+    createSubscription();
+    createMonitoredItem();
+    createMonitoredItem();
+    createMonitoredItem();
+
+    lockServer(server);
+    deletingSubscription =
+        UA_Session_getSubscriptionById(session, subscriptionId);
+    ck_assert_ptr_ne(deletingSubscription, NULL);
+    ck_assert_uint_eq(deletingSubscription->monitoredItemsSize, 3);
+    ck_assert_uint_ge(server->monitoredItemsSize, 3);
+    monitoredItemsAfterDelete =
+        server->monitoredItemsSize - deletingSubscription->monitoredItemsSize;
+
+    UA_DeleteSubscriptionsRequest request;
+    UA_DeleteSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+
+    UA_DeleteSubscriptionsResponse response;
+    UA_DeleteSubscriptionsResponse_init(&response);
+    Service_DeleteSubscriptions(server, session, &request, &response);
+    deletingSubscription = NULL;
+    unlockServer(server);
+
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(monitored, 0);
+    UA_DeleteSubscriptionsResponse_clear(&response);
 }
 END_TEST
 
@@ -1976,6 +2030,177 @@ START_TEST(Server_SetMonitoringMode_maxMonitoredItemsPerCall) {
     UA_SetMonitoringModeResponse_clear(&resp);
 } END_TEST
 
+START_TEST(Server_transferSubscription_keepsMonitoredItemsTree) {
+    createSubscription();
+
+    UA_UInt32 ids[3];
+    createMonitoredItem();
+    ids[0] = monitoredItemId;
+    createMonitoredItem();
+    ids[1] = monitoredItemId;
+    createMonitoredItem();
+    ids[2] = monitoredItemId;
+
+    /* Also authenticate the first session */
+    lockServer(server);
+    UA_Subscription *oldSub =
+        UA_Session_getSubscriptionById(session, subscriptionId);
+    ck_assert_ptr_ne(oldSub, NULL);
+    ck_assert_uint_eq(oldSub->monitoredItemsSize, 3);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("user1");
+    unlockServer(server);
+
+    /* Create a second authenticated session */
+    UA_Session *session2 = createAuthenticatedSession("user1");
+
+    UA_TransferSubscriptionsRequest transferRequest;
+    UA_TransferSubscriptionsRequest_init(&transferRequest);
+    transferRequest.subscriptionIdsSize = 1;
+    transferRequest.subscriptionIds = &subscriptionId;
+    transferRequest.sendInitialValues = false;
+
+    UA_TransferSubscriptionsResponse transferResponse;
+    UA_TransferSubscriptionsResponse_init(&transferResponse);
+
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2,
+                                  &transferRequest, &transferResponse);
+    ck_assert_uint_eq(transferResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(transferResponse.resultsSize, 1);
+    ck_assert_uint_eq(transferResponse.results[0].statusCode,
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(oldSub->monitoredItemsSize, 0);
+    ck_assert_ptr_eq(
+        ZIP_ROOT(&oldSub->monitoredItemsById), NULL);
+
+    UA_Subscription *newSub =
+        UA_Session_getSubscriptionById(session2, subscriptionId);
+    ck_assert_ptr_ne(newSub, NULL);
+    ck_assert_uint_eq(newSub->monitoredItemsSize, 3);
+    ck_assert_ptr_ne(
+        ZIP_ROOT(&newSub->monitoredItemsById),
+        NULL);
+
+    for(size_t i = 0; i < 3; i++) {
+        UA_MonitoredItem *mon =
+            ZIP_FIND(UA_MonitoredItemIdTree, &newSub->monitoredItemsById, &ids[i]);
+        ck_assert_ptr_ne(mon, NULL);
+        ck_assert_ptr_eq(mon->subscription, newSub);
+    }
+    unlockServer(server);
+
+    /* Verify that the transferred tree is fully functional by deleting one
+     * monitored item from the new subscription */
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subscriptionId;
+    deleteRequest.monitoredItemIdsSize = 1;
+    deleteRequest.monitoredItemIds = &ids[0];
+
+    UA_DeleteMonitoredItemsResponse deleteResponse;
+    UA_DeleteMonitoredItemsResponse_init(&deleteResponse);
+
+    lockServer(server);
+    Service_DeleteMonitoredItems(server, session2, &deleteRequest, &deleteResponse);
+    unlockServer(server);
+
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    ck_assert_uint_eq(newSub->monitoredItemsSize, 2);
+    ck_assert_ptr_eq(
+        ZIP_FIND(UA_MonitoredItemIdTree, &newSub->monitoredItemsById, &ids[0]),
+        NULL);
+    ck_assert_ptr_ne(
+        ZIP_FIND(UA_MonitoredItemIdTree, &newSub->monitoredItemsById, &ids[1]),
+        NULL);
+    ck_assert_ptr_ne(
+        ZIP_FIND(UA_MonitoredItemIdTree, &newSub->monitoredItemsById, &ids[2]),
+        NULL);
+    unlockServer(server);
+
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+
+    UA_TransferSubscriptionsResponse_clear(&transferResponse);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+} END_TEST
+
+START_TEST(Server_deleteMonitoredItems_partial_keepsTreeConsistent) {
+    createSubscription();
+
+    UA_UInt32 ids[3];
+    createMonitoredItem();
+    ids[0] = monitoredItemId;
+    createMonitoredItem();
+    ids[1] = monitoredItemId;
+    createMonitoredItem();
+    ids[2] = monitoredItemId;
+
+    lockServer(server);
+    UA_Subscription *sub =
+        UA_Session_getSubscriptionById(session, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_uint_eq(sub->monitoredItemsSize, 3);
+    unlockServer(server);
+
+    UA_DeleteMonitoredItemsRequest request;
+    UA_DeleteMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subscriptionId;
+    request.monitoredItemIdsSize = 1;
+    request.monitoredItemIds = &ids[1];
+
+    UA_DeleteMonitoredItemsResponse response;
+    UA_DeleteMonitoredItemsResponse_init(&response);
+
+    lockServer(server);
+    Service_DeleteMonitoredItems(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    ck_assert_uint_eq(sub->monitoredItemsSize, 2);
+    ck_assert_ptr_eq(
+        ZIP_FIND(UA_MonitoredItemIdTree, &sub->monitoredItemsById, &ids[1]),
+        NULL);
+    ck_assert_ptr_ne(
+        ZIP_FIND(UA_MonitoredItemIdTree, &sub->monitoredItemsById, &ids[0]),
+        NULL);
+    ck_assert_ptr_ne(
+        ZIP_FIND(UA_MonitoredItemIdTree, &sub->monitoredItemsById, &ids[2]),
+        NULL);
+    unlockServer(server);
+
+    UA_UInt32 remainingIds[2];
+    remainingIds[0] = ids[0];
+    remainingIds[1] = ids[2];
+    request.monitoredItemIdsSize = 2;
+    request.monitoredItemIds = remainingIds;
+
+    UA_DeleteMonitoredItemsResponse_clear(&response);
+    UA_DeleteMonitoredItemsResponse_init(&response);
+
+    lockServer(server);
+    Service_DeleteMonitoredItems(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 2);
+    ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.results[1], UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsResponse_clear(&response);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -2002,6 +2227,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_republish);
     tcase_add_test(tc_server, Server_republish_invalid);
     tcase_add_test(tc_server, Server_deleteSubscription);
+    tcase_add_test(tc_server, Server_deleteSubscription_callbackSeesConsistentIndex);
     tcase_add_test(tc_server, Server_publishCallback);
     tcase_add_test(tc_server, Server_lifeTimeCount);
     tcase_add_test(tc_server, Server_invalidPublishingInterval);
@@ -2018,6 +2244,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_modifyMonitoredItems_invalidSubscription);
     tcase_add_test(tc_server, Server_deleteMonitoredItems_invalidSubscription);
     tcase_add_test(tc_server, Server_transferSubscription_sendInitialValues);
+    tcase_add_test(tc_server, Server_transferSubscription_keepsMonitoredItemsTree);
+    tcase_add_test(tc_server, Server_deleteMonitoredItems_partial_keepsTreeConsistent);
     tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable);
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);

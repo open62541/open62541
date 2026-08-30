@@ -27,6 +27,17 @@ static const UA_NodeId subDiagArray = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVE
 /* Subscription Diagnostics */
 /****************************/
 
+static void *
+countDisabledMonitoredItemsVisitor(void *context, UA_MonitoredItem *mon) {
+    UA_SubscriptionDiagnosticsDataType *diag =
+        (UA_SubscriptionDiagnosticsDataType*)context;
+
+    if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED)
+        diag->disabledMonitoredItemCount++;
+
+    return NULL;
+}
+
 static void
 fillSubscriptionDiagnostics(UA_Subscription *sub,
                             UA_SubscriptionDiagnosticsDataType *diag) {
@@ -63,11 +74,8 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     diag->eventQueueOverflowCount = sub->eventQueueOverflowCount;
 
     /* Count the disabled MonitoredItems */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED)
-            diag->disabledMonitoredItemCount++;
-    }
+    ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+             countDisabledMonitoredItemsVisitor, diag);
 }
 
 /* The node context points to the subscription */
