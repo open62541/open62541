@@ -59,6 +59,7 @@ static void setup(void) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_UInt32 myUint32 = 40;
     UA_Variant_setScalar(&attr.value, &myUint32, &UA_TYPES[UA_TYPES_UINT32]);
+    attr.valueRank = UA_VALUERANK_ANY;
     attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
     attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
     //attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
@@ -404,6 +405,10 @@ static void setupIndexRange(void) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_UInt32 myUint32Array[3] = {40, 41, 42};
     UA_Variant_setArray(&attr.value, &myUint32Array, 3, &UA_TYPES[UA_TYPES_UINT32]);
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = 3;
+    attr.arrayDimensions = &arrayDimension;
+    attr.arrayDimensionsSize = 1;
     attr.description = UA_LOCALIZEDTEXT("en-US","UInt32 Array");
     attr.displayName = UA_LOCALIZEDTEXT("en-US","UInt32 Array");
     //attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;

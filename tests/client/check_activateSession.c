@@ -32,6 +32,10 @@ addVariable(size_t size) {
     for(size_t i = 0; i < size; i++)
         array[i] = (UA_Int32)i;
     UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = (UA_UInt32)size;
+    attr.arrayDimensions = &arrayDimension;
+    attr.arrayDimensionsSize = 1;
 
     char name[] = "my.variable";
     attr.description = UA_LOCALIZEDTEXT("en-US", name);
