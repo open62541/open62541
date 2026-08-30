@@ -1,0 +1,84 @@
+name: CERT C clang-tidy
+
+on:
+  push:
+    branches: [ '1.5' ]
+    paths:
+      - '.clang-tidy'
+      - '.github/workflows/clang-tidy.yml'
+      - 'arch/**/*.c'
+      - 'arch/**/*.h'
+      - 'include/**/*.h'
+      - 'plugins/**/*.c'
+      - 'plugins/**/*.h'
+      - 'src/**/*.c'
+      - 'src/**/*.h'
+  pull_request:
+    branches: [ '1.5' ]
+    paths:
+      - '.clang-tidy'
+      - '.github/workflows/clang-tidy.yml'
+      - 'arch/**/*.c'
+      - 'arch/**/*.h'
+      - 'include/**/*.h'
+      - 'plugins/**/*.c'
+      - 'plugins/**/*.h'
+      - 'src/**/*.c'
+      - 'src/**/*.h'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clang-tidy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clang-tidy:
+    name: Changed production code
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout open62541
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq clang-18 clang-tidy-18
+
+      - name: Validate configuration
+        run: clang-tidy-18 --verify-config
+
+      - name: Create compilation database
+        run: |
+          cmake -S . -B build-clang-tidy \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DUA_BUILD_EXAMPLES=OFF \
+            -DUA_BUILD_UNIT_TESTS=OFF
+          cmake --build build-clang-tidy \
+            --target open62541-code-generation \
+            --parallel 2
+
+      - name: Check changed lines
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "${BASE_SHA}" ] || printf '%s' "${BASE_SHA}" | grep -Eq '^0+$'; then
+            BASE_SHA="$(git rev-parse "${HEAD_SHA}^")"
+          fi
+
+          git diff --unified=0 --no-color "${BASE_SHA}" "${HEAD_SHA}" -- \
+            arch include plugins src | \
+            clang-tidy-diff-18.py \
+              -p1 \
+              -path build-clang-tidy \
+              -clang-tidy-binary clang-tidy-18 \
+              -regex '^(arch|include|plugins|src)/.*\.(c|h)$' \
+              -j 2 \
+              -extra-arg-before=-xc

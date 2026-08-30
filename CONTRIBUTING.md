@@ -185,6 +185,13 @@ the place to reference GitHub issues that this commit **Closes**.
 
 ## Code Style
 
+C changes should follow the [SEI CERT C Coding
+Standard](https://wiki.sei.cmu.edu/confluence/display/c/SEI+CERT+C+Coding+Standard).
+CI runs the C-applicable CERT checks provided by clang-tidy on changed
+production code. Fix each reported issue or, when a rule does not apply,
+suppress only that check at the narrowest location with a
+`NOLINT(cert-check-name)` comment that briefly states the reason.
+
 ###  General
 
 1. Avoid the use of [Magic Numbers](https://en.wikipedia.org/wiki/Magic_number_(programming)#Unnamed_numerical_constants).
