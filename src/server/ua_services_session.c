@@ -60,30 +60,9 @@ notifySession(UA_Server *server, UA_Session *session,
 }
 
 static void
-cleanupSession(UA_Server *server, session_list_entry *entry) {
+cleanupSessionEntry(UA_Server *server, session_list_entry *entry) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Session *session = &entry->session;
-
-    /* When the session times out, detach subscriptions so they can be
-     * recovered via TransferSubscriptions. Otherwise delete them. */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Subscription *sub, *tempsub;
-    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        if(entry->shutdownReason == UA_SHUTDOWNREASON_TIMEOUT) {
-            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
-                                     "Detaching the Subscription from the timed-out Session");
-            UA_Session_detachSubscription(server, session, sub, true);
-        } else {
-            UA_Subscription_delete(server, sub, true);
-        }
-    }
-
-    UA_PublishResponseEntry *pre;
-    while((pre = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse_clear(&pre->response);
-        UA_free(pre);
-    }
-#endif
 
     /* Callback into userland access control. The session context remains valid
      * until this delayed teardown runs. */
@@ -102,12 +81,12 @@ cleanupSession(UA_Server *server, session_list_entry *entry) {
  * resources alive until the current jobs have completed lets callbacks safely
  * close the Session they are currently using. */
 static void
-cleanupSessionCallback(void *application /* UA_Server */,
-                       void *context /* session_list_entry */) {
+cleanupSessionEntryCallback(void *application /* UA_Server */,
+                            void *context /* session_list_entry */) {
     UA_Server *server = (UA_Server*)application;
     session_list_entry *entry = (session_list_entry*)context;
     lockServer(server);
-    cleanupSession(server, entry);
+    cleanupSessionEntry(server, entry);
     unlockServer(server);
 }
 
@@ -138,7 +117,6 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     session_list_entry *sentry = container_of(session, session_list_entry, session);
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
-    sentry->shutdownReason = shutdownReason;
 
 #if UA_MULTITHREADING >= 100
     /* Pending service responses cannot be delivered after the Session has
@@ -146,6 +124,30 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
      * without sending them on the closed Session. */
     UA_AsyncManager_cancelSession(server, &session->sessionId,
                                   UA_STATUSCODE_BADSESSIONCLOSED);
+#endif
+
+    /* Detach recoverable Subscriptions immediately when the Session times out.
+     * Otherwise remove them now. The Session is already closed and absent from
+     * lookup, so callbacks during Subscription teardown cannot remove it again.
+     * Keeping this synchronous also makes the Subscription state consistent
+     * as soon as UA_Session_remove returns. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Subscription *sub, *tempsub;
+    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT) {
+            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
+                                     "Detaching the Subscription from the timed-out Session");
+            UA_Session_detachSubscription(server, session, sub, true);
+        } else {
+            UA_Subscription_delete(server, sub, true);
+        }
+    }
+
+    UA_PublishResponseEntry *pre;
+    while((pre = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse_clear(&pre->response);
+        UA_free(pre);
+    }
 #endif
 
     switch(shutdownReason) {
@@ -182,13 +184,13 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
      * stopped. In particular, UA_Server_delete should not enqueue work into an
      * EventLoop that it is about to delete. */
     if(server->state == UA_LIFECYCLESTATE_STOPPED) {
-        cleanupSession(server, sentry);
+        cleanupSessionEntry(server, sentry);
         return;
     }
 
     /* Destructively tear down and free the Session after the currently
      * scheduled jobs have completed. */
-    sentry->cleanupCallback.callback = cleanupSessionCallback;
+    sentry->cleanupCallback.callback = cleanupSessionEntryCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
