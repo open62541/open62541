@@ -707,6 +707,9 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
 
     lockServer(server);
     UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageInstanceCert = true;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
     UA_SecureChannel *channel, *next;
     TAILQ_FOREACH_SAFE(channel, &server->channels, serverEntry, next) {
         if(channel->state != UA_SECURECHANNELSTATE_OPEN ||
@@ -715,7 +718,7 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
         UA_StatusCode res =
             validateCertificate(server, certGroup, channel->securityPolicy,
                                 channel, channel->sessions,
-                                "RenewTrustList", NULL, channel->remoteCertificate);
+                                "RenewTrustList", NULL, channel->remoteCertificate, verSettings);
         if(res != UA_STATUSCODE_GOOD)
             shutdownSecureChannel(server, channel, UA_SHUTDOWNREASON_CLOSE);
     }
