@@ -1490,6 +1490,350 @@ START_TEST(Async_setAsyncMethodResult_null_returnsError) {
 } END_TEST
 #endif
 
+/* ==== Zombie-tracking coverage ====
+ *
+ * A force-completed (canceled/timed-out) operation delivers its result to
+ * the original caller right away, but the memory backing it must stay alive
+ * -- and findable -- until the worker that owns it eventually calls
+ * UA_Server_setAsync*Result. These callbacks deliberately do *not* check
+ * for cancellation before completing: they simulate exactly that "worker
+ * hasn't noticed yet" scenario. */
+
+static UA_DataValue *zombieReadPtr = NULL;
+
+static UA_StatusCode
+zombieReadCallback_async(UA_Server *s, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *nodeId,
+                         void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                         const UA_NumericRange *range, UA_DataValue *value) {
+    zombieReadPtr = value;
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static const UA_DataValue *zombieWritePtr = NULL;
+
+static UA_StatusCode
+zombieWriteCallback_async(UA_Server *s, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, const UA_NumericRange *range,
+                          const UA_DataValue *value) {
+    zombieWritePtr = value;
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+#ifdef UA_ENABLE_METHODCALLS
+static UA_Variant *zombieCallOutputPtr = NULL;
+
+static UA_StatusCode
+zombieMethodCallback_async(UA_Server *s,
+                           const UA_NodeId *sessionId, void *sessionHandle,
+                           const UA_NodeId *methodId, void *methodContext,
+                           const UA_NodeId *objectId, void *objectContext,
+                           size_t inputSize, const UA_Variant *input,
+                           size_t outputSize, UA_Variant *output) {
+    zombieCallOutputPtr = output;
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+#endif
+
+static void
+zombieReadNoopCb(UA_Server *s, void *ctx, const UA_DataValue *result) {
+    (void)s; (void)ctx; (void)result;
+}
+static void
+zombieWriteNoopCb(UA_Server *s, void *ctx, UA_StatusCode result) {
+    (void)s; (void)ctx; (void)result;
+}
+#ifdef UA_ENABLE_METHODCALLS
+static void
+zombieCallNoopCb(UA_Server *s, void *ctx, const UA_CallMethodResult *result) {
+    (void)s; (void)ctx; (void)result;
+}
+#endif
+
+START_TEST(Async_zombie_direct_read_lateAck) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_NodeId zombieVar = UA_NODEID_STRING(1, "zombieVarRead");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Server_addVariableNode(server, zombieVar,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "zombieVarRead"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              attr, NULL, NULL);
+    UA_CallbackValueSource evs = {zombieReadCallback_async, NULL};
+    UA_Server_setVariableNode_callbackValueSource(server, zombieVar, evs);
+
+    zombieReadPtr = NULL;
+    int ctx = 0;
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = zombieVar;
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_StatusCode retval =
+        UA_Server_read_async(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH,
+                             zombieReadNoopCb, &ctx, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(zombieReadPtr);
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+
+    /* Force-complete (cancel) the operation. The result is delivered right
+     * away; the operation must stay alive as a zombie since the "worker"
+     * (this test, below) hasn't reported yet. */
+    UA_Server_cancelAsync(server, &ctx, UA_STATUSCODE_BADOPERATIONABANDONED, false);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1); /* still allocated */
+
+    /* Late worker report -- must be accepted and finally free the memory. */
+    retval = UA_Server_setAsyncReadResult(server, zombieReadPtr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+START_TEST(Async_zombie_direct_write_lateAck) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_NodeId zombieVar = UA_NODEID_STRING(1, "zombieVarWrite");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel |= UA_ACCESSLEVELMASK_WRITE;
+    UA_Server_addVariableNode(server, zombieVar,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "zombieVarWrite"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              attr, NULL, NULL);
+    UA_CallbackValueSource evs = {NULL, zombieWriteCallback_async};
+    UA_Server_setVariableNode_callbackValueSource(server, zombieVar, evs);
+
+    zombieWritePtr = NULL;
+    int ctx = 0;
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = zombieVar;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_UInt32 val = 7;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    wv.value.hasValue = true;
+
+    UA_StatusCode retval =
+        UA_Server_write_async(server, &wv, zombieWriteNoopCb, &ctx, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(zombieWritePtr);
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+
+    UA_Server_cancelAsync(server, &ctx, UA_STATUSCODE_BADOPERATIONABANDONED, false);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+
+    retval = UA_Server_setAsyncWriteResult(server, zombieWritePtr, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+#ifdef UA_ENABLE_METHODCALLS
+START_TEST(Async_zombie_direct_call_lateAck) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+    UA_StatusCode res =
+        UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "zombieMethod"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                UA_QUALIFIEDNAME(1, "zombieMethod"),
+                                methodAttr, &zombieMethodCallback_async,
+                                0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    zombieCallOutputPtr = NULL;
+    int ctx = 0;
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    req.methodId = UA_NODEID_STRING(1, "zombieMethod");
+
+    UA_StatusCode retval =
+        UA_Server_call_async(server, &req, zombieCallNoopCb, &ctx, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(zombieCallOutputPtr);
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+
+    UA_Server_cancelAsync(server, &ctx, UA_STATUSCODE_BADOPERATIONABANDONED, false);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+
+    retval = UA_Server_setAsyncCallMethodResult(server, zombieCallOutputPtr,
+                                                UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+#endif
+
+START_TEST(Async_zombie_direct_leftover_at_shutdown) {
+    /* Leave a zombie operation unacknowledged. teardown()'s UA_Server_delete
+     * must force-free it via UA_AsyncManager_clear without leaking or
+     * crashing, even though no late worker report ever arrives. */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_NodeId zombieVar = UA_NODEID_STRING(1, "zombieVarShutdown");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Server_addVariableNode(server, zombieVar,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "zombieVarShutdown"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              attr, NULL, NULL);
+    UA_CallbackValueSource evs = {zombieReadCallback_async, NULL};
+    UA_Server_setVariableNode_callbackValueSource(server, zombieVar, evs);
+
+    zombieReadPtr = NULL;
+    int ctx = 0;
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = zombieVar;
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_Server_read_async(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH,
+                         zombieReadNoopCb, &ctx, 5000);
+    UA_Server_cancelAsync(server, &ctx, UA_STATUSCODE_BADOPERATIONABANDONED, false);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieOps));
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+#ifdef UA_ENABLE_METHODCALLS
+START_TEST(Async_zombie_request_sent_then_lateAck) {
+    /* A canceled service-request operation: the response is sent out right
+     * away (with an outstanding zombie), and only later does the worker
+     * report -- by then the AsyncResponse is parked in zombieResponses and
+     * finalizeZombieOp must find and free it there.
+     *
+     * UA_Client_cancelByRequestId is a synchronous service call -- it
+     * blocks until the server answers -- so the server thread must keep
+     * running in the background for it (as in the existing Async_cancel
+     * test above). Only once the cancelled response has been received do
+     * we stop it, so the asyncManager internals can be inspected here
+     * without racing that background thread. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 reqId = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, &reqId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* methodCallback_async schedules asyncCall a fake-second in the future;
+     * it never checks for cancellation, simulating a worker that hasn't
+     * noticed yet. */
+    UA_UInt32 cancelCount = 0;
+    UA_Client_cancelByRequestId(client, reqId, &cancelCount);
+    ck_assert_uint_eq(cancelCount, 1);
+
+    clientCounter = 0;
+    while(clientCounter == 0)
+        UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieResponses));
+
+    /* Grab the zombie op's output pointer -- this is what a real worker
+     * would still hold on to -- and report it late. */
+    UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.zombieOps);
+    UA_Variant *output = op->output.call->outputArguments;
+    retval = UA_Server_setAsyncCallMethodResult(server, output, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.zombieResponses));
+
+    /* The real scheduled asyncCall depends on the fake clock, which nothing
+     * here advances, so it never fires on its own -- but remove it for
+     * cleanliness, since it would otherwise reference now-freed memory. */
+    UA_Server_removeCallback(server, lastTimedCallback);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_zombie_request_leftover_at_shutdown) {
+    /* Cancel a service-request operation and shut down before any late
+     * worker report ever arrives. UA_AsyncManager_clear must force-free
+     * both the zombie operation and its parked AsyncResponse. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 reqId = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, &reqId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 cancelCount = 0;
+    UA_Client_cancelByRequestId(client, reqId, &cancelCount);
+    ck_assert_uint_eq(cancelCount, 1);
+
+    clientCounter = 0;
+    while(clientCounter == 0)
+        UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieOps));
+    ck_assert(!TAILQ_EMPTY(&server->asyncManager.zombieResponses));
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+#endif /* UA_ENABLE_METHODCALLS */
+
 /* --- Suite registration --- */
 
 static Suite* method_async_suite(void) {
@@ -1537,6 +1881,15 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_direct_cancel_with_service_operation);
     tcase_add_test(tc_manager, Async_call_error_result);
     tcase_add_test(tc_manager, Async_multiple_parallel_operations);
+    /* Zombie-tracking coverage (deferred free of force-completed ops) */
+    tcase_add_test(tc_manager, Async_zombie_direct_read_lateAck);
+    tcase_add_test(tc_manager, Async_zombie_direct_write_lateAck);
+    tcase_add_test(tc_manager, Async_zombie_direct_leftover_at_shutdown);
+#ifdef UA_ENABLE_METHODCALLS
+    tcase_add_test(tc_manager, Async_zombie_direct_call_lateAck);
+    tcase_add_test(tc_manager, Async_zombie_request_sent_then_lateAck);
+    tcase_add_test(tc_manager, Async_zombie_request_leftover_at_shutdown);
+#endif
     suite_add_tcase(s, tc_manager);
 
     return s;
