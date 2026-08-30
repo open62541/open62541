@@ -387,6 +387,15 @@ if(UA_ENABLE_DISCOVERY)
     add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_discovery ${LIBS})
     add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
+    if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
+        add_executable(check_findservers_on_network
+                       server/check_findservers_on_network.c
+                       $<TARGET_OBJECTS:open62541-object>
+                       $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_findservers_on_network ${LIBS})
+        add_test_valgrind(findservers_on_network
+                         ${TESTS_BINARY_DIR}/check_findservers_on_network)
+    endif()
 endif()
 
 if(UA_ENABLE_PUBSUB)
