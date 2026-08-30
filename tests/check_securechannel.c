@@ -497,6 +497,39 @@ START_TEST(SecureChannel_assemblePartialChunks) {
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST
 
+START_TEST(SecureChannel_countFinalChunkAgainstLimit) {
+    /* Queue one earlier chunk for the same request. This is the maximum number
+     * of intermediate chunks that the old check permits for a limit of one. */
+    UA_Chunk *intermediate = (UA_Chunk*)UA_calloc(1, sizeof(UA_Chunk));
+    ck_assert_ptr_ne(intermediate, NULL);
+    intermediate->messageType = UA_MESSAGETYPE_HEL;
+    intermediate->chunkType = UA_CHUNKTYPE_INTERMEDIATE;
+    intermediate->requestId = 0;
+    UA_ByteString intermediateBytes = UA_BYTESTRING_STATIC("x");
+    intermediate->bytes = intermediateBytes;
+    TAILQ_INSERT_TAIL(&testChannel.chunks, intermediate, pointers);
+    testChannel.chunksCount = 1;
+    testChannel.chunksLength = 1;
+    testChannel.config.localMaxChunkCount = 1;
+
+    /* A final HEL chunk would make this a two-chunk message. */
+    UA_ByteString buffer =
+        UA_BYTESTRING_STATIC("HELF\x10\x00\x00\x00\x00\x00\x00\x00"
+                             "\x00\x00\x00\x00");
+    ck_assert_uint_eq(UA_SecureChannel_loadBuffer(&testChannel, buffer),
+                      UA_STATUSCODE_GOOD);
+
+    UA_MessageType messageType;
+    UA_UInt32 requestId = 0;
+    UA_ByteString payload = UA_BYTESTRING_NULL;
+    UA_Boolean copied = false;
+    UA_StatusCode retval =
+        UA_SecureChannel_getCompleteMessage(&testChannel, &messageType, &requestId,
+                                            &payload, &copied,
+                                            UA_DateTime_nowMonotonic());
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPMESSAGETOOLARGE);
+} END_TEST
+
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
 /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining on
  * SecureChannel renewal. This exercises the OpenSSL helper directly
@@ -680,6 +713,7 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_processBuffer, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
+    tcase_add_test(tc_processBuffer, SecureChannel_countFinalChunkAgainstLimit);
     suite_add_tcase(s, tc_processBuffer);
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
