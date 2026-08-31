@@ -1,0 +1,111 @@
+name: Valgrind
+
+# Running the unit tests under Valgrind takes hours. The suite is therefore
+# split round-robin over several runners via CTEST_SHARDS/CTEST_SHARD, which
+# tools/ci/linux/ci.sh turns into "ctest -I <shard>,,<shards>". Every test is
+# still executed, just spread over parallel jobs.
+
+on:
+  push:
+    branches:
+      - 'master'
+      - '[0-9]+.[0-9]+'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Only supersede runs of the same pull request. Pushes to master/1.x must not
+  # cancel each other, otherwise a quick series of merges leaves release
+  # branches without a completed Valgrind run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit-tests:
+    name: "Valgrind ${{ matrix.config.os }}-${{ matrix.config.name }} (shard ${{ matrix.shard }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/open62541/open62541-ci:${{ matrix.config.os }}
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep this list in sync with CTEST_SHARDS below: it has to contain
+        # exactly the values 1..CTEST_SHARDS, otherwise tests are skipped.
+        shard: [1, 2, 3, 4, 5, 6]
+        # The Ubuntu version is part of the config instead of a separate matrix
+        # dimension, so that the coverage matches what build_linux.yml ran
+        # before: MbedTLS and OpenSSL on ubuntu-24.04 only, Alarms&Conditions
+        # on every supported version. GitHub Actions has no YAML anchors, so
+        # the repeated entry has to be spelled out.
+        config:
+          - os: ubuntu-24.04
+            name: "Unit Tests with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: unit_tests_valgrind MBEDTLS
+
+          - os: ubuntu-24.04
+            name: "Unit Tests with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_action: unit_tests_valgrind OPENSSL
+
+          - os: ubuntu-20.04
+            name: "Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind
+            cmd_action: unit_tests_alarms_memcheck
+
+          - os: ubuntu-22.04
+            name: "Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind
+            cmd_action: unit_tests_alarms_memcheck
+
+          - os: ubuntu-24.04
+            name: "Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind
+            cmd_action: unit_tests_alarms_memcheck
+    env:
+      CTEST_SHARDS: 6
+      CTEST_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: ./.github/actions/linux-ci-setup
+        with:
+          extra-deps: ${{ matrix.config.cmd_deps }}
+      - name: ${{ matrix.config.name }}
+        shell: bash
+        run: source tools/ci/linux/ci.sh && ${{ matrix.config.cmd_action }}
+        env:
+          ETHERNET_INTERFACE: eth0
+
+  examples:
+    name: "Valgrind ${{ matrix.config.name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/open62541/open62541-ci:ubuntu-24.04
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "Examples with MbedTLS and mDNSD (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+            cmd_action: examples_valgrind MBEDTLS MDNSD
+
+          - name: "Examples with OpenSSL and avahi-mdns (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+            cmd_action: examples_valgrind OPENSSL AVAHI
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: ./.github/actions/linux-ci-setup
+        with:
+          extra-deps: ${{ matrix.config.cmd_deps }}
+      - name: ${{ matrix.config.name }}
+        shell: bash
+        run: source tools/ci/linux/ci.sh && ${{ matrix.config.cmd_action }}
+        env:
+          ETHERNET_INTERFACE: eth0
