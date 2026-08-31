@@ -149,6 +149,9 @@ int main(void) {
     cc->stateCallback = stateCallback;
     cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
 
+    /* Connect. The subscription is created from the stateCallback on activation. */
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+
     /* Run the client until ctrl-c */
     UA_Client_runUntilInterrupt(client);
 
