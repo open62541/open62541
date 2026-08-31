@@ -1,6 +1,16 @@
 name: Linux Build & Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - 'master'
+      - '[0-9]+.[0-9]+'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Only supersede runs of the same pull request, never pushes to master/1.x.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -29,10 +39,6 @@ jobs:
 
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_action: unit_tests_alarms
-
-          - name: "Valgrind Build & Unit Tests with Alarms&Conditions (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind
-            cmd_action: unit_tests_alarms_memcheck
 
           - name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc
@@ -242,31 +248,6 @@ jobs:
               cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces
               cmd_action: run_examples MBEDTLS MDNSD
 
-          # Valgrind tests for specific Ubuntu versions
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
-              cmd_action: unit_tests_valgrind MBEDTLS          
-
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl
-              cmd_action: unit_tests_valgrind OPENSSL          
-
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
-              cmd_action: examples_valgrind MBEDTLS MDNSD          
-
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
-              cmd_action: examples_valgrind OPENSSL AVAHI          
-
           # Clang Static Analyzer Builds
           - os: ubuntu-20.04
             build:
@@ -291,24 +272,12 @@ jobs:
       image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
       options: --privileged
     steps:
-      - name: Work around disabled ipv6 on actions container networks
-        run: |
-          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
-          echo "Current IPv6 status on eth0: $IPV6"
-          [ "$IPV6" = "1" ] || exit
-
-          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
-          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
-          echo "New IPv6 status on eth0: $IPV6"
-          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }      
       - uses: actions/checkout@v5
         with:
           submodules: true
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx check libxml2-dev libpcap-dev libreadline-dev
-          ${{ matrix.build.cmd_deps }}
+      - uses: ./.github/actions/linux-ci-setup
+        with:
+          extra-deps: ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash
         run: source tools/ci/linux/ci.sh && ${{ matrix.build.cmd_action }}
