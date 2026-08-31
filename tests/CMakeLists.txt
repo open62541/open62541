@@ -454,6 +454,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(client/check_client_subscriptions.c)
     ua_add_test(client/check_client_subscriptions_datachange.c)
     ua_add_test(client/check_subscriptionWithactivateSession.c)
+    ua_add_test(client/check_client_reconnect.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
