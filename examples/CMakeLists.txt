@@ -111,6 +111,7 @@ add_example(server_instantiation server_instantiation.c)
 add_example(server_repeated_job server_repeated_job.c)
 add_example(server_inheritance server_inheritance.c)
 add_example(server_loglevel server_loglevel.c)
+add_example(server_untrusted_message_limit server_untrusted_message_limit.c)
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)
 add_example(custom_datatype_server custom_datatype/server_types_custom.c)
 
