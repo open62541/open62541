@@ -1672,8 +1672,9 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 static void
 triggerImmediateDataChange(UA_Server *server, UA_Session *session,
                            UA_Node *node, const UA_WriteValue *wvalue) {
-    UA_MonitoredItem *mon = node->head.monitoredItems;
-    for(; mon != NULL; mon = mon->sampling.nodeListNext) {
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, (UA_MonitoredItemList*)&node->head.monitoredItems,
+                 sampling.nodeListEntry) {
         if(mon->itemToMonitor.attributeId != wvalue->attributeId)
             continue;
         /* TODO: Allow async read for datachanges */

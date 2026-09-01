@@ -1276,8 +1276,8 @@ addMonitoredItemBackpointer(UA_Server *server, UA_Session *session,
                             UA_Node *node, void *data) {
     UA_MonitoredItem *mon = (UA_MonitoredItem*)data;
     UA_assert(mon != (UA_MonitoredItem*)~0);
-    mon->sampling.nodeListNext = node->head.monitoredItems;
-    node->head.monitoredItems = mon;
+    LIST_INSERT_HEAD((UA_MonitoredItemList*)&node->head.monitoredItems,
+                     mon, sampling.nodeListEntry);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1287,22 +1287,8 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
     if(!node->head.monitoredItems)
         return UA_STATUSCODE_GOOD;
 
-    /* Edge case that it's the first element */
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
-    if(node->head.monitoredItems == remove) {
-        node->head.monitoredItems = remove->sampling.nodeListNext;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_MonitoredItem *prev = node->head.monitoredItems;
-    UA_MonitoredItem *entry = prev->sampling.nodeListNext;
-    for(; entry != NULL; prev = entry, entry = entry->sampling.nodeListNext) {
-        if(entry == remove) {
-            prev->sampling.nodeListNext = entry->sampling.nodeListNext;
-            break;
-        }
-    }
-
+    LIST_REMOVE(remove, sampling.nodeListEntry);
     return UA_STATUSCODE_GOOD;
 }
 

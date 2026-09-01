@@ -2285,6 +2285,95 @@ START_TEST(Server_deleteMonitoredItems_partial_keepsTreeConsistent) {
     UA_DeleteMonitoredItemsResponse_clear(&response);
 } END_TEST
 
+/* Coverage for the per-node MonitoredItem list (samplingInterval == 0 "on
+ * write" sampling). Exercises the O(1) unlink (head, interior and tail) and
+ * the on-write iterator, asserting the LIST back-pointer invariant
+ * (*le_prev == element) on every element throughout. */
+
+static void
+nodeBpSampleCallback(UA_Server *s, UA_UInt32 monId, void *monCtx,
+                     const UA_NodeId *nid, void *nodeCtx, UA_UInt32 attrId,
+                     const UA_DataValue *value) {
+    (void)s; (void)monId; (void)monCtx; (void)nid;
+    (void)nodeCtx; (void)attrId; (void)value;
+}
+
+/* Walk the node's MonitoredItem list, assert the LIST back-pointer invariant
+ * (*le_prev == element) for every element and return the length. The invariant
+ * also catches a stale le_prev after the copy-on-write of a Node. */
+static size_t
+nodeBackpointerCount(UA_NodeId nodeId) {
+    lockServer(server);
+    const UA_Node *n = UA_NODESTORE_GET(server, &nodeId);
+    ck_assert(n != NULL);
+    size_t cnt = 0;
+    for(UA_MonitoredItem *m = n->head.monitoredItems; m;
+        m = m->sampling.nodeListEntry.le_next) {
+        ck_assert_ptr_eq(*(m->sampling.nodeListEntry.le_prev), m);
+        cnt++;
+    }
+    UA_NODESTORE_RELEASE(server, n);
+    unlockServer(server);
+    return cnt;
+}
+
+START_TEST(Server_monitoredItems_sameNode_backpointer) {
+    /* A regular, writable variable node. */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 val = 1;
+    UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "node.backpointer");
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, nodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "bp"), UA_NODEID_NULL, attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    /* Five local MonitoredItems with samplingInterval == 0 on the SAME node:
+     * they all land on the per-node "on write" list. */
+    const size_t K = 5;
+    UA_UInt32 ids[5];
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = nodeId;
+    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    item.requestedParameters.samplingInterval = 0.0;
+    for(size_t i = 0; i < K; i++) {
+        UA_MonitoredItemCreateResult r = UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_NEITHER, item, NULL, nodeBpSampleCallback);
+        ck_assert_uint_eq(r.statusCode, UA_STATUSCODE_GOOD);
+        ids[i] = r.monitoredItemId;
+    }
+    ck_assert_uint_eq(nodeBackpointerCount(nodeId), K);
+
+    /* Write the node: runs the on-write iterator over the whole list. The
+     * list and its back-pointers must survive intact. */
+    UA_Int32 nv = 2;
+    UA_Variant v;
+    UA_Variant_setScalar(&v, &nv, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, nodeId, v), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeBackpointerCount(nodeId), K);
+
+    /* Remove an interior element, then the head-of-list and the tail-of-list
+     * elements: exercises every branch of the O(1) unlink. */
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[2]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeBackpointerCount(nodeId), K - 1);
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[4]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeBackpointerCount(nodeId), K - 2);
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[0]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeBackpointerCount(nodeId), K - 3);
+
+    /* Write again with the shortened list, then remove the remainder. */
+    nv = 3;
+    UA_Variant_setScalar(&v, &nv, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, nodeId, v), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[1]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[3]), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodeBackpointerCount(nodeId), 0);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -2334,6 +2423,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable);
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);
+    tcase_add_test(tc_server, Server_monitoredItems_sameNode_backpointer);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 

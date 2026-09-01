@@ -681,6 +681,10 @@ UA_Node_moveMonitoredItems(UA_Node *src, UA_Node *dst) {
     UA_assert(dst->head.monitoredItems == NULL);
     dst->head.monitoredItems = src->head.monitoredItems;
     src->head.monitoredItems = NULL;
+    if(dst->head.monitoredItems) {
+        dst->head.monitoredItems->sampling.nodeListEntry.le_prev =
+            &dst->head.monitoredItems;
+    }
 #else
     (void)src;
     (void)dst;
