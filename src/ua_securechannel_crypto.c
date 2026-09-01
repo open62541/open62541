@@ -134,13 +134,19 @@ calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
 
-    size_t asymHeaderLength = UA_SECURECHANNEL_ASYMMETRIC_SECURITYHEADER_FIXED_LENGTH +
-                              sp->policyUri.length;
+    size_t asymHeaderLength = UA_SECURECHANNEL_ASYMMETRIC_SECURITYHEADER_FIXED_LENGTH;
+    if(sp->policyUri.length > SIZE_MAX - asymHeaderLength)
+        return SIZE_MAX;
+    asymHeaderLength += sp->policyUri.length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return asymHeaderLength;
 
     /* OPN is always encrypted even if the mode is sign only */
+    if(asymHeaderLength > SIZE_MAX - 20)
+        return SIZE_MAX;
     asymHeaderLength += 20; /* Thumbprints are always 20 byte long */
+    if(sp->localCertificate.length > SIZE_MAX - asymHeaderLength)
+        return SIZE_MAX;
     asymHeaderLength += sp->localCertificate.length;
     return asymHeaderLength;
 }
@@ -205,41 +211,74 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     return retval;
 }
 
-void
+UA_StatusCode
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end) {
-    /* Set buf_start to the beginning of the payload body */
-    *buf_start += UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
-    *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
-    *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
+    UA_Byte *const bufferStart = *buf_start;
+    const size_t bufferLength = (size_t)(*buf_end - bufferStart);
+
+    /* Check the complete unencrypted header before constructing pointers into
+     * the payload. The certificate is already constrained by the negotiated
+     * send-buffer size; it does not need a separate policy limit. */
+    const size_t asymHeaderLength = calculateAsymAlgSecurityHeaderLength(channel);
+    if(asymHeaderLength > bufferLength ||
+       UA_SECURECHANNEL_CHANNELHEADER_LENGTH > bufferLength - asymHeaderLength)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    const size_t headerLength =
+        UA_SECURECHANNEL_CHANNELHEADER_LENGTH + asymHeaderLength;
+    if(UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH > bufferLength - headerLength)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+
+    const size_t payloadOffset =
+        headerLength + UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
 
 #ifdef UA_ENABLE_ENCRYPTION
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
-        return;
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+        *buf_start = bufferStart + payloadOffset;
+        return UA_STATUSCODE_GOOD;
+    }
 
-    /* Make space for the certificate */
+    /* Reserve the signature before determining how many complete encrypted
+     * blocks fit into the chunk. */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    *buf_end -= sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-        getLocalSignatureSize(channel->channelContext);
+    const size_t signatureSize = sp->asymmetricModule.cryptoModule.
+        signatureAlgorithm.getLocalSignatureSize(channel->channelContext);
+    if(signatureSize > bufferLength - headerLength)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
     /* Block sizes depend on the remote key (certificate) */
-    size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
+    const size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemotePlainTextBlockSize(channel->channelContext);
-    size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
+    const size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemoteBlockSize(channel->channelContext);
-    UA_Boolean extraPadding = (sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-                               getRemoteKeyLength(channel->channelContext) > 2048);
+    if(plainTextBlockSize == 0 || encryptedBlockSize == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const UA_Boolean extraPadding =
+        (sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
+         getRemoteKeyLength(channel->channelContext) > 2048);
 
     /* Compute the maximum number of encrypted blocks that can fit entirely
      * before the signature. From that compute the maximum usable plaintext
      * size. */
-    size_t maxEncrypted = (size_t)(*buf_end - *buf_start) +
-        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
-    size_t max_blocks = maxEncrypted / encryptedBlockSize;
-    size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
-    *buf_end = *buf_start + (max_blocks * plainTextBlockSize) -
-        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH - paddingBytes;
+    const size_t maxEncrypted = bufferLength - headerLength - signatureSize;
+    const size_t maxBlocks = maxEncrypted / encryptedBlockSize;
+    if(maxBlocks > SIZE_MAX / plainTextBlockSize)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    const size_t maxPlaintext = maxBlocks * plainTextBlockSize;
+    const size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
+    const size_t payloadOverhead =
+        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH + paddingBytes;
+    if(maxPlaintext < payloadOverhead)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+
+    const size_t payloadCapacity = maxPlaintext - payloadOverhead;
+    if(payloadCapacity > bufferLength - payloadOffset)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    *buf_end = bufferStart + payloadOffset + payloadCapacity;
 #endif
+
+    *buf_start = bufferStart + payloadOffset;
+    return UA_STATUSCODE_GOOD;
 }
 
 #ifdef UA_ENABLE_ENCRYPTION
