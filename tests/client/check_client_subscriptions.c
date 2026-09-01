@@ -94,7 +94,9 @@ iterateUntilNotification(UA_Client *client, UA_UInt32 maxIterations) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(UA_UInt32 i = 0; i < maxIterations && !notificationReceived; ++i) {
         UA_Server_run_iterate(server, false);
-        retval = UA_Client_run_iterate(client, 0);
+        /* Wait 1ms per iteration. A zero timeout makes this a busy-poll that
+         * can return before the PublishResponse is readable on the socket. */
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         UA_fakeSleep(1);
     }
