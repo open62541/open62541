@@ -555,6 +555,24 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* No Session backs RegisterServer(2), so only the channel can
+     * authenticate the caller. A local call without a channel is exempt. */
+    if(session->header.channel && session->header.channel->remoteCertificate.length == 0) {
+        responseHeader->serviceResult = UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+        return;
+    }
+
+    /* The certificate must also match the claimed serverUri, otherwise a
+     * differently-identified peer could still overwrite another entry. */
+    if(session->header.channel && session->header.channel->remoteCertificate.length > 0 &&
+       server->config.secureChannelPKI.verifyApplicationURI(
+           &server->config.secureChannelPKI,
+           &session->header.channel->remoteCertificate,
+           &requestServer->serverUri) != UA_STATUSCODE_GOOD) {
+        responseHeader->serviceResult = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+        return;
+    }
+
     /* Find the server from the request in the registered list */
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;
