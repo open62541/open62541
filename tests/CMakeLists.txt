@@ -337,6 +337,12 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_local_monitored_item.c)
 endif()
 
+if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
+    ua_add_test(server/check_findservers_on_network.c)
+    target_include_directories(check_findservers_on_network PRIVATE
+                               "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
+endif()
+
 if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
     ua_add_test(pubsub/check_pubsub_encoding_custom.c)
