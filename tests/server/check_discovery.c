@@ -5,8 +5,12 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/create_certificate.h>
 
 #include "server/ua_server_internal.h"
+#include "../encryption/certificates.h"
 
 #include <fcntl.h>
 
@@ -40,7 +44,19 @@ THREAD_CALLBACK(serverloop_lds) {
 static void configure_lds_server(UA_Server *pServer)
 {
     UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
-    UA_ServerConfig_setDefault(config_lds);
+
+    /* Load certificate and private key so that RegisterServer(2) can be
+     * exercised over an authenticated SecureChannel, as it now requires. */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config_lds, 4840,
+                                                   &certificate, &privateKey,
+                                                   NULL, 0, NULL, 0, NULL, 0);
+    UA_CertificateVerification_AcceptAll(&config_lds->certificateVerification);
 
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config_lds->applicationDescription.applicationUri);
@@ -91,6 +107,28 @@ THREAD_HANDLE server_thread_register;
 
 UA_UInt64 periodicRegisterCallbackId;
 
+/* Certificate for the client that registers server_register at the LDS. Its
+ * ApplicationUri must match server_register's own applicationUri, since that
+ * is the serverUri the LDS checks the certificate against. */
+static UA_ByteString registerCert;
+static UA_ByteString registerKey;
+
+static void
+createRegisterCertificate(void) {
+    UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=SampleOrganization"),
+                            UA_STRING_STATIC("CN=Open62541Server@localhost")};
+    UA_String subjectAltName[2] = {
+        UA_STRING_STATIC("DNS:localhost"),
+        UA_STRING_STATIC("URI:urn:open62541.test.server_register")
+    };
+    UA_StatusCode certGenRes =
+        UA_CreateCertificate(UA_Log_Stdout, subject, 3, subjectAltName, 2,
+                             0, UA_CERTIFICATEFORMAT_DER,
+                             &registerKey, &registerCert);
+    ck_assert_uint_eq(certGenRes, UA_STATUSCODE_GOOD);
+}
+
 THREAD_CALLBACK(serverloop_register) {
     while(*running_register)
         UA_Server_run_iterate(server_register, true);
@@ -101,6 +139,8 @@ static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
     *running_register = true;
+
+    createRegisterCertificate();
 
     server_register = UA_Server_new();
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
@@ -126,6 +166,8 @@ static void teardown_register(void) {
     UA_Server_run_shutdown(server_register);
     UA_Boolean_delete(running_register);
     UA_Server_delete(server_register);
+    UA_ByteString_clear(&registerCert);
+    UA_ByteString_clear(&registerKey);
 }
 
 START_TEST(Server_new_delete) {
@@ -144,11 +186,46 @@ START_TEST(Server_new_shutdown_delete) {
 }
 END_TEST
 
-START_TEST(Server_register) {
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+/* RegisterServer(2) requires the SecureChannel to authenticate the caller
+ * with a certificate, so the register-test client needs one too. */
+static UA_Client *
+newEncryptedClient(void) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, registerCert, registerKey,
+                                         NULL, 0, NULL, 0);
+    cc->certificateVerification.clear(&cc->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    /* Force an authenticated endpoint -- otherwise the client would happily
+     * pick the unauthenticated SecurityPolicy#None endpoint the LDS also
+     * offers. */
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    return client;
+}
 
-    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
+/* Same as newEncryptedClient(), but for use with
+ * UA_Client_connectSecureChannel() (as used by the periodic re-registration
+ * timer). That connect variant never runs a GetEndpoints handshake of its
+ * own, so the target endpoint has to be pre-selected here or the channel
+ * would silently open with SecurityPolicy#None. */
+static UA_Client *
+newEncryptedClientForSecureChannelOnly(void) {
+    UA_Client *client = newEncryptedClient();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->endpoint.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->endpoint.securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+    UA_ByteString_copy(&certificate, &cc->endpoint.serverCertificate);
+    return client;
+}
+
+START_TEST(Server_register) {
+    UA_Client *clientRegister = newEncryptedClient();
+
+    UA_StatusCode retval = UA_Client_connect(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -158,10 +235,9 @@ START_TEST(Server_register) {
 END_TEST
 
 START_TEST(Server_unregister) {
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_Client *clientRegister = newEncryptedClient();
 
-    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connect(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_unregister_discovery(server_register, clientRegister);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -191,10 +267,9 @@ START_TEST(Server_register_semaphore) {
     fclose(fp);
 #endif
 
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_Client *clientRegister = newEncryptedClient();
 
-    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connect(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -214,8 +289,7 @@ END_TEST
 START_TEST(Server_register_periodic) {
     ck_assert(clientRegisterRepeated == NULL);
 
-    clientRegisterRepeated = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegisterRepeated));
+    clientRegisterRepeated = newEncryptedClientForSecureChannelOnly();
 
     ck_assert(clientRegisterRepeated != NULL);
     // periodic register every minute, first register immediately
@@ -538,6 +612,59 @@ START_TEST(Client_find_registered) {
 }
 END_TEST
 
+/* RegisterServer(2) must not accept a registration that arrives over a
+ * SecureChannel without a client certificate. Send the request directly (no
+ * Session, SecurityPolicy#None) and confirm both that the service call is
+ * rejected and that no entry is created for the claimed serverUri. */
+START_TEST(Server_registerServer2_withoutCertificate_rejected) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String uninvitedUri =
+        UA_STRING("urn:open62541.test.uninvited_register_attempt");
+    UA_String uninvitedDiscoveryUrl =
+        UA_STRING("opc.tcp://uninvited.example:4842");
+
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+    request.server.isOnline = true;
+    request.server.serverUri = uninvitedUri;
+    request.server.discoveryUrlsSize = 1;
+    request.server.discoveryUrls = &uninvitedDiscoveryUrl;
+
+    UA_RegisterServer2Response response;
+    UA_RegisterServer2Response_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_RegisterServer2Response_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* No entry must have been created for the rejected request */
+    UA_Client *checkClient = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(checkClient));
+    UA_ApplicationDescription *foundServers = NULL;
+    size_t foundServersSize = 0;
+    UA_String filterUri = uninvitedUri;
+    retval = UA_Client_findServers(checkClient, "opc.tcp://localhost:4840",
+                                   1, &filterUri, 0, NULL,
+                                   &foundServersSize, &foundServers);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(foundServersSize, 0);
+    UA_Array_delete(foundServers, foundServersSize,
+                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    UA_Client_disconnect(checkClient);
+    UA_Client_delete(checkClient);
+}
+END_TEST
+
 START_TEST(Util_start_lds) {
     setup_lds();
 }
@@ -594,6 +721,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register, Server_register_periodic);
     tcase_add_test(tc_register, Server_unregister_periodic);
     suite_add_tcase(s,tc_register);
+
+    TCase *tc_register_noauth = tcase_create("RegisterServer without authentication");
+    tcase_add_unchecked_fixture(tc_register_noauth, setup_lds, teardown_lds);
+    tcase_add_test(tc_register_noauth, Server_registerServer2_withoutCertificate_rejected);
+    suite_add_tcase(s, tc_register_noauth);
 
     TCase *tc_register_retry = tcase_create("RegisterServer Retry");
     //tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
