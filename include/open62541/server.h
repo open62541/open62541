@@ -2296,6 +2296,27 @@ struct UA_ServerConfig {
                               * (default: 0 -> unbounded) */
     UA_Boolean tcpReuseAddr;
 
+    /* Optional hook to dynamically cap the size of an in-flight message
+     * before it is fully received, based on the deployment's own definition
+     * of "trusted". Invoked once per accepted chunk, so it must be cheap and
+     * non-blocking. securityMode and sessionActivated (true if any Session on
+     * this SecureChannel has already completed ActivateSession) are the only
+     * trust signals available this early -- the message itself has not been
+     * decoded yet, so its Session and Service are unknown. defaultMaxMessageSize
+     * is the channel's static tcpMaxMsgSize-derived ceiling.
+     *
+     * Return 0 to apply no additional restriction (defaultMaxMessageSize
+     * still applies). Return any other value -- smaller or larger than
+     * defaultMaxMessageSize -- to override it for this channel. Leave NULL
+     * (default) to keep a single static tcpMaxMsgSize limit for every
+     * channel regardless of security mode or session state. */
+    void *messageSizeLimitContext;
+    UA_UInt32 (*messageSizeLimitCallback)(UA_Server *server, void *context,
+                                          UA_UInt32 secureChannelId,
+                                          UA_MessageSecurityMode securityMode,
+                                          UA_Boolean sessionActivated,
+                                          UA_UInt32 defaultMaxMessageSize);
+
     /* The following settings are specific to OPC UA Binary over WebSockets.
      * The transport is opt-in and controlled via webSocketEnabled (default: false).
      * TLS credentials protect opc.wss:// endpoints independently of OPC UA SecurityPolicies. */

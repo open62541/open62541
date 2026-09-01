@@ -243,6 +243,17 @@ struct UA_SecureChannel {
     void *processOPNHeaderApplication;
     UA_StatusCode (*processOPNHeader)(void *application, UA_SecureChannel *channel,
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
+    /* Optional application-supplied hook (only used in the server) that
+     * dynamically overrides config.localMaxMessageSize for the message
+     * currently being received. Sibling to processOPNHeader/Application:
+     * this keeps the generic SecureChannel code free of UA_Server/UA_Session
+     * knowledge while still letting the server recompute the limit per
+     * channel, e.g. based on channel->securityMode or on whether a Session
+     * has been activated on this channel. See UA_ServerConfig.
+     * messageSizeLimitCallback for the public-facing policy hook. */
+    void *messageSizeLimitApplication;
+    UA_UInt32 (*messageSizeLimitCallback)(void *application, const UA_SecureChannel *channel);
 };
 
 /* Transport confidentiality and OPC UA application signatures are separate

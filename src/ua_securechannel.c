@@ -970,6 +970,22 @@ UA_SecureChannel_loadBuffer(UA_SecureChannel *channel, const UA_ByteString buffe
     return UA_STATUSCODE_GOOD;
 }
 
+/* The effective message-size limit for the message currently being
+ * received. Defers to the application's messageSizeLimitCallback (server
+ * only) if one is configured and returns a non-zero override; otherwise
+ * falls back to the channel's static config.localMaxMessageSize (which
+ * itself may be 0 for "unbounded"). */
+static UA_UInt32
+getEffectiveMaxMessageSize(const UA_SecureChannel *channel) {
+    if(channel->messageSizeLimitCallback) {
+        UA_UInt32 dynamicMax = channel->messageSizeLimitCallback(
+            channel->messageSizeLimitApplication, channel);
+        if(dynamicMax != 0)
+            return dynamicMax;
+    }
+    return channel->config.localMaxMessageSize;
+}
+
 UA_StatusCode
 UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
                                     UA_MessageType *messageType, UA_UInt32 *requestId,
@@ -994,12 +1010,13 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
             UA_ByteString_clear(&chunk.bytes);
         goto extract_chunk;
 
-    case UA_CHUNKTYPE_INTERMEDIATE:
+    case UA_CHUNKTYPE_INTERMEDIATE: {
         /* Validate the resource limits */
+        UA_UInt32 maxMessageSize = getEffectiveMaxMessageSize(channel);
         if((channel->config.localMaxChunkCount != 0 &&
             channel->chunksCount >= channel->config.localMaxChunkCount) ||
-           (channel->config.localMaxMessageSize != 0 &&
-            channel->chunksLength + chunk.bytes.length > channel->config.localMaxMessageSize)) {
+           (maxMessageSize != 0 &&
+            channel->chunksLength + chunk.bytes.length > maxMessageSize)) {
             if(chunk.copied)
                 UA_ByteString_clear(&chunk.bytes);
             return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
@@ -1017,6 +1034,7 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
         channel->chunksCount++;
         channel->chunksLength += pchunk->bytes.length;
         goto extract_chunk;
+    }
 
     case UA_CHUNKTYPE_FINAL:
     default:
@@ -1041,8 +1059,8 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
     }
 
     /* Validate the assembled message size */
-    if(channel->config.localMaxMessageSize != 0 &&
-       messageSize > channel->config.localMaxMessageSize) {
+    UA_UInt32 maxMessageSize = getEffectiveMaxMessageSize(channel);
+    if(maxMessageSize != 0 && messageSize > maxMessageSize) {
         if(chunk.copied)
             UA_ByteString_clear(&chunk.bytes);
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;

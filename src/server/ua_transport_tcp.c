@@ -504,6 +504,27 @@ purgeFirstUascChannelWithoutSession(UA_Server *server) {
     return false;
 }
 
+/* Adapter for UA_SecureChannel.messageSizeLimitCallback: translates the
+ * generic per-chunk hook into a call of the public, policy-carrying
+ * UA_ServerConfig.messageSizeLimitCallback. Kept here (rather than in
+ * ua_securechannel.c) so the shared SecureChannel code stays free of
+ * UA_Server/UA_Session knowledge. */
+static UA_UInt32
+serverMessageSizeLimit(void *application, const UA_SecureChannel *channel) {
+    UA_Server *server = (UA_Server*)application;
+    UA_Boolean sessionActivated = false;
+    for(UA_Session *s = channel->sessions; s; s = s->next) {
+        if(s->state == UA_SESSIONSTATE_ACTIVATED) {
+            sessionActivated = true;
+            break;
+        }
+    }
+    return server->config.messageSizeLimitCallback(
+        server, server->config.messageSizeLimitContext,
+        channel->securityToken.channelId, channel->securityMode,
+        sessionActivated, channel->config.localMaxMessageSize);
+}
+
 UA_StatusCode
 createServerSecureChannel(UA_Server *server,
                           const UA_ConnectionConfig *connectionConfig,
@@ -567,6 +588,10 @@ createServerSecureChannel(UA_Server *server,
     channel->config = connConfig;
     channel->processOPNHeader = processOPN_AsymHeader;
     channel->processOPNHeaderApplication = server;
+    if(config->messageSizeLimitCallback) {
+        channel->messageSizeLimitCallback = serverMessageSizeLimit;
+        channel->messageSizeLimitApplication = server;
+    }
     channel->connectionManager = cm;
     channel->connectionId = connectionId;
 
