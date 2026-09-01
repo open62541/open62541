@@ -723,6 +723,137 @@ START_TEST(uascZeroLimitIsUnlimited) {
 }
 END_TEST
 
+typedef struct {
+    UA_Boolean called;
+    UA_UInt32 secureChannelId;
+    UA_MessageSecurityMode securityMode;
+    UA_Boolean sessionActivated;
+    UA_UInt32 defaultMaxMessageSize;
+} MessageSizeLimitCallInfo;
+
+static UA_UInt32
+recordingMessageSizeLimitCallback(UA_Server *server, void *context,
+                                  UA_UInt32 secureChannelId,
+                                  UA_MessageSecurityMode securityMode,
+                                  UA_Boolean sessionActivated,
+                                  UA_UInt32 defaultMaxMessageSize) {
+    (void)server;
+    MessageSizeLimitCallInfo *info = (MessageSizeLimitCallInfo*)context;
+    info->called = true;
+    info->secureChannelId = secureChannelId;
+    info->securityMode = securityMode;
+    info->sessionActivated = sessionActivated;
+    info->defaultMaxMessageSize = defaultMaxMessageSize;
+    return 4242;
+}
+
+START_TEST(messageSizeLimitCallback_wiredWhenConfigured) {
+    /* createServerSecureChannel wires config->messageSizeLimitCallback into
+     * an internal per-channel adapter that forwards to it with the
+     * channel's securityMode/channelId/localMaxMessageSize and whether any
+     * Session on the channel has completed ActivateSession. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    MessageSizeLimitCallInfo info;
+    memset(&info, 0, sizeof(info));
+    server->config.messageSizeLimitCallback = recordingMessageSizeLimitCallback;
+    server->config.messageSizeLimitContext = &info;
+
+    UA_ConnectionManager cm;
+    memset(&cm, 0, sizeof(cm));
+    UA_ConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    UA_SecureChannel *created = NULL;
+
+    lockServer(server);
+    UA_StatusCode res = createServerSecureChannel(
+        server, &connectionConfig, &cm, 1, NULL, &created);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(created);
+    ck_assert(created->messageSizeLimitCallback != NULL);
+    ck_assert_ptr_eq(created->messageSizeLimitApplication, server);
+
+    created->securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    created->securityToken.channelId = 77;
+    created->config.localMaxMessageSize = 999;
+
+    /* No Session attached yet: sessionActivated must be reported false. */
+    UA_UInt32 result = created->messageSizeLimitCallback(
+        created->messageSizeLimitApplication, created);
+    ck_assert_uint_eq(result, 4242);
+    ck_assert(info.called);
+    ck_assert_uint_eq(info.secureChannelId, 77);
+    ck_assert_uint_eq(info.securityMode, UA_MESSAGESECURITYMODE_SIGN);
+    ck_assert(!info.sessionActivated);
+    ck_assert_uint_eq(info.defaultMaxMessageSize, 999);
+
+    /* An inactive Session on the channel still reports false ... */
+    UA_Session inactiveSession, activeSession;
+    memset(&inactiveSession, 0, sizeof(inactiveSession));
+    memset(&activeSession, 0, sizeof(activeSession));
+    activeSession.state = UA_SESSIONSTATE_ACTIVATED;
+    created->sessions = &inactiveSession;
+
+    info.called = false;
+    result = created->messageSizeLimitCallback(
+        created->messageSizeLimitApplication, created);
+    ck_assert(info.called);
+    ck_assert(!info.sessionActivated);
+
+    /* ... but any activated Session on the channel flips it to true. */
+    inactiveSession.next = &activeSession;
+
+    info.called = false;
+    result = created->messageSizeLimitCallback(
+        created->messageSizeLimitApplication, created);
+    ck_assert(info.called);
+    ck_assert(info.sessionActivated);
+
+    /* UA_SecureChannel_clear asserts that no Sessions remain attached. */
+    created->sessions = NULL;
+
+    unregisterSecureChannel(server, created);
+    server->secureChannelStatistics.currentChannelCount--;
+    UA_SecureChannel_clear(created);
+    UA_free(created);
+    unlockServer(server);
+
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(messageSizeLimitCallback_notWiredByDefault) {
+    /* Leaving UA_ServerConfig.messageSizeLimitCallback NULL (the default)
+     * must not attach anything to the channel, preserving today's behavior
+     * of a single static tcpMaxMsgSize for every channel. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_ConnectionManager cm;
+    memset(&cm, 0, sizeof(cm));
+    UA_ConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    UA_SecureChannel *created = NULL;
+
+    lockServer(server);
+    UA_StatusCode res = createServerSecureChannel(
+        server, &connectionConfig, &cm, 1, NULL, &created);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(created);
+    ck_assert(created->messageSizeLimitCallback == NULL);
+    ck_assert_ptr_null(created->messageSizeLimitApplication);
+
+    unregisterSecureChannel(server, created);
+    server->secureChannelStatistics.currentChannelCount--;
+    UA_SecureChannel_clear(created);
+    UA_free(created);
+    unlockServer(server);
+
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 START_TEST(mixedTransportChannelIdsAreUnique) {
     UA_Server *server = UA_Server_new();
     ck_assert_ptr_nonnull(server);
@@ -868,6 +999,8 @@ testSuite(void) {
     tcase_add_test(tc, trustUpdateClosesOpenUascChannel);
     tcase_add_test(tc, uascLimitDoesNotPurgeDirectChannel);
     tcase_add_test(tc, uascZeroLimitIsUnlimited);
+    tcase_add_test(tc, messageSizeLimitCallback_wiredWhenConfigured);
+    tcase_add_test(tc, messageSizeLimitCallback_notWiredByDefault);
     tcase_add_test(tc, mixedTransportChannelIdsAreUnique);
     tcase_add_test(tc, closingHttpChannelDrainsUntilCarrierCloses);
     tcase_add_test(tc, httpRequestTimeoutAndEncodingMetadata);

@@ -502,6 +502,103 @@ START_TEST(SecureChannel_assemblePartialChunks) {
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST
 
+/* ==== UA_SecureChannel.messageSizeLimitCallback ====
+ *
+ * These reuse the single-chunk "HELF"/"HELC" fixture above: a full 32-byte
+ * chunk (8-byte header + 24-byte body) whose declared MessageSize (bytes
+ * 4-7, little-endian) is 32. Only the IsFinal byte (offset 3) differs
+ * between a FINAL chunk (exercises the assembled-message-size check) and an
+ * INTERMEDIATE/continuation chunk (exercises the chunk-accumulation check). */
+
+typedef struct {
+    UA_UInt32 limit;
+    unsigned callCount;
+    const UA_SecureChannel *lastChannel;
+} MessageSizeLimitTestContext;
+
+static UA_UInt32
+testMessageSizeLimitCallback(void *application, const UA_SecureChannel *channel) {
+    MessageSizeLimitTestContext *ctx = (MessageSizeLimitTestContext*)application;
+    ctx->callCount++;
+    ctx->lastChannel = channel;
+    return ctx->limit;
+}
+
+START_TEST(SecureChannel_messageSizeLimitCallback_capsBelowStaticLimit) {
+    /* The static localMaxMessageSize (from UA_ConnectionConfig_default) is
+     * generous enough to admit the 32-byte test message on its own. A
+     * callback that caps below the message size must still reject it. */
+    int chunks_processed = 0;
+    MessageSizeLimitTestContext ctx = {16, 0, NULL};
+    testChannel.messageSizeLimitCallback = testMessageSizeLimitCallback;
+    testChannel.messageSizeLimitApplication = &ctx;
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval =
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPMESSAGETOOLARGE);
+    ck_assert_int_eq(chunks_processed, 0);
+    ck_assert_uint_gt(ctx.callCount, 0);
+    ck_assert_ptr_eq(ctx.lastChannel, &testChannel);
+} END_TEST
+
+START_TEST(SecureChannel_messageSizeLimitCallback_zeroFallsBackToStaticLimit) {
+    /* Returning 0 from the callback means "no override" -- the static
+     * localMaxMessageSize (large enough here) still applies and the
+     * 32-byte message is accepted. */
+    int chunks_processed = 0;
+    MessageSizeLimitTestContext ctx = {0, 0, NULL};
+    testChannel.messageSizeLimitCallback = testMessageSizeLimitCallback;
+    testChannel.messageSizeLimitApplication = &ctx;
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval =
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(chunks_processed, 1);
+    ck_assert_uint_gt(ctx.callCount, 0);
+} END_TEST
+
+START_TEST(SecureChannel_messageSizeLimitCallback_overridesAboveStaticLimit) {
+    /* A deployment that wants no strict limit for a channel/session it
+     * considers trusted can override upward, past a tight static
+     * localMaxMessageSize. */
+    int chunks_processed = 0;
+    testChannel.config.localMaxMessageSize = 8; /* smaller than the 32-byte message */
+    MessageSizeLimitTestContext ctx = {1000, 0, NULL};
+    testChannel.messageSizeLimitCallback = testMessageSizeLimitCallback;
+    testChannel.messageSizeLimitApplication = &ctx;
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval =
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(chunks_processed, 1);
+} END_TEST
+
+/* The chunk-accumulation check (UA_CHUNKTYPE_INTERMEDIATE, hit while a
+ * multi-chunk message is still arriving) calls the exact same
+ * getEffectiveMaxMessageSize() helper as the assembled-message check above,
+ * with an identical "!= 0 && length > max" guard. It is not covered by a
+ * dedicated test here: HEL-type frames (the only ones this file can
+ * hand-craft without a full symmetric-security roundtrip) are required by
+ * the wire format to always be FINAL, and building a legitimate
+ * intermediate MSG/CLO chunk needs a real SecureChannel token, sequence
+ * numbers and decrypt/verify -- machinery this file does not otherwise
+ * exercise on the receive path. */
+
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
 /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining on
  * SecureChannel renewal. This exercises the OpenSSL helper directly
@@ -685,6 +782,9 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_processBuffer, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
+    tcase_add_test(tc_processBuffer, SecureChannel_messageSizeLimitCallback_capsBelowStaticLimit);
+    tcase_add_test(tc_processBuffer, SecureChannel_messageSizeLimitCallback_zeroFallsBackToStaticLimit);
+    tcase_add_test(tc_processBuffer, SecureChannel_messageSizeLimitCallback_overridesAboveStaticLimit);
     suite_add_tcase(s, tc_processBuffer);
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
