@@ -517,8 +517,10 @@ struct UA_Nodestore {
      * ``getNodeFromPtr``. */
     void (*releaseNode)(UA_Nodestore *ns, const UA_Node *node);
 
-    /* Returns an editable copy of a node (needs to be deleted with the
-     * deleteNode function or inserted / replaced into the nodestore). */
+    /* Returns an editable copy of the same logical node (needs to be deleted
+     * with the deleteNode function or inserted / replaced into the nodestore).
+     * After replacing the node, MonitoredItems registered for its NodeId must
+     * remain attached to the replacement. */
     UA_StatusCode (*getNodeCopy)(UA_Nodestore *ns, const UA_NodeId *nodeId,
                                  UA_Node **outNode);
 
@@ -568,9 +570,15 @@ UA_EXPORT UA_StatusCode
 UA_Node_insertOrUpdateDescription(UA_Node *node,
                                   const UA_LocalizedText *description);
 
-/* Reset the destination node and copy the content of the source */
+/* Reset the destination node and copy the content of the source. Runtime
+ * MonitoredItem associations are not copied. */
 UA_StatusCode UA_EXPORT
 UA_Node_copy(const UA_Node *src, UA_Node *dst);
+
+/* Copy a node for an editable replacement of the same logical node. In
+ * addition to the node content, attached MonitoredItems are preserved. */
+UA_StatusCode UA_EXPORT
+UA_Node_copyForEdit(const UA_Node *src, UA_Node *dst);
 
 /* Allocate new node and copy the values from src */
 UA_EXPORT UA_Node *
