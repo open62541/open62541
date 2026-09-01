@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) SICK AG (Author: Joerg Fischer)
  */
 
 /* Test case for all standardized companion nodesets. You can
@@ -10,35 +11,6 @@
  *      - branch: latest
  *      - commit: 54e3513
  * 
- * Currently this test case is missing the following UA-Nodesets:
- *    * NodesetLoader related issues:
- *      - ${OPEN62541_NODESET_DIR}AML/Opc.Ua.AMLLibraries.NodeSet2.xml
- *      - ${OPEN62541_NODESET_DIR}ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.nodeset2.xml
- *      - ${OPEN62541_NODESET_DIR}TMC/Opc.Ua.TMC.NodeSet2.xml
- *
- *    * Memory leak issues (libXML2 library related):
- *      - ${OPEN62541_NODESET_DIR}CNC/Opc.Ua.CNC.NodeSet.xml
- *      - ${OPEN62541_NODESET_DIR}IJT/Tightening/Opc.Ua.Ijt.Tightening.NodeSet2.xml
- *      - $(OPEN62541_NODESET_DIR)MachineVision/Opc.Ua.MachineVision.NodeSet2.xml
- *      - $(OPEN62541_NODESET_DIR)Mining/General/1.0.0/Opc.Ua.Mining.General.NodeSet2.xml
- *          - Dependent Nodesets:
- *              * $(OPEN62541_NODESET_DIR)Mining/DevelopmentSupport/Dozer/1.0.0/Opc.Ua.Mining.DevelopmentSupport.Dozer.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/DevelopmentSupport/RoofSupportSystem/1.0.0/Opc.Ua.Mining.DevelopmentSupport.RoofSupportSystem.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/Extraction/ShearerLoader/1.0.0/Opc.Ua.Mining.Extraction.ShearerLoader.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/Loading/General/1.0.0/Opc.Ua.Mining.Loading.General.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/Loading/HydraulicExcavator/1.0.0/Opc.Ua.Mining.Loading.HydraulicExcavator.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/MineralProcessing/RockCrusher/1.0.0/Opc.Ua.Mining.MineralProcessing.RockCrusher.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/PELOServices/FaceAlignmentSystem/1.0.0/Opc.Ua.Mining.PELOServices.FaceAlignmentSystem.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/PELOServices/General/1.0.0/Opc.Ua.Mining.PELOServices.General.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/TransportDumping/ArmouredFaceConveyor/1.0.0/Opc.Ua.Mining.TransportDumping.ArmouredFaceConveyor.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/TransportDumping/General/1.0.0/Opc.Ua.Mining.TransportDumping.General.NodeSet2.xml
- *              * $(OPEN62541_NODESET_DIR)Mining/TransportDumping/RearDumpTruck/1.0.0/Opc.Ua.Mining.TransportDumping.RearDumpTruck.NodeSet2.xml
- *      - $(OPEN62541_NODESET_DIR)PADIM/Opc.Ua.IRDI.NodeSet2.xml
- *          - Dependent Nodesets:
- *              * $(OPEN62541_NODESET_DIR)PADIM/Opc.Ua.PADIM.NodeSet2.xml
- *      - $(OPEN62541_NODESET_DIR)POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml
- *      - $(OPEN62541_NODESET_DIR)Pumps/Opc.Ua.Pumps.NodeSet2.xml
- *      - $(OPEN62541_NODESET_DIR)Scales/Opc.Ua.Scales.NodeSet2.xml
  */
 
 #include <open62541/server.h>
@@ -232,12 +204,12 @@ START_TEST(Server_loadMachineToolNodeset) {
 }
 END_TEST
 
-// START_TEST(Server_loadMDISNodeset) {
-//     UA_StatusCode retVal = UA_Server_loadNodeset(server,
-//         OPEN62541_NODESET_DIR "MDIS/Opc.MDIS.NodeSet2.xml", NULL);
-//     ck_assert(UA_StatusCode_isGood(retVal));
-// }
-// END_TEST
+START_TEST(Server_loadMDISNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "MDIS/Opc.MDIS.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
 
 START_TEST(Server_loadMiningDevelopmentSupportGeneralNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
@@ -662,6 +634,190 @@ END_TEST
 START_TEST(Server_loadWoodworkingNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Woodworking/Opc.Ua.Woodworking.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadAMLLibrariesNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "AML/Opc.Ua.AMLLibraries.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadISA95JobControlNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.nodeset2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadTMCNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "TMC/Opc.Ua.TMC.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadCNCNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "CNC/Opc.Ua.CNC.NodeSet.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadIJTBaseNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "IJT/Base/Opc.Ua.Ijt.Base.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadIJTTighteningNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "IJT/Tightening/Opc.Ua.Ijt.Tightening.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMachineryResultNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Machinery/Result/Opc.Ua.Machinery_Result.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMachineVisionNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "MachineVision/Opc.Ua.MachineVision.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningGeneralNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/General/1.0.0/Opc.Ua.Mining.General.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningDevelopmentSupportDozerNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/DevelopmentSupport/Dozer/1.0.0/Opc.Ua.Mining.DevelopmentSupport.Dozer.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningDevelopmentSupportRoofSupportSystemNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/DevelopmentSupport/RoofSupportSystem/1.0.0/Opc.Ua.Mining.DevelopmentSupport.RoofSupportSystem.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningExtractionShearerLoaderNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/Extraction/ShearerLoader/1.0.0/Opc.Ua.Mining.Extraction.ShearerLoader.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningLoadingGeneralNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/Loading/General/1.0.0/Opc.Ua.Mining.Loading.General.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningLoadingHydraulicExcavatorNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/Loading/HydraulicExcavator/1.0.0/Opc.Ua.Mining.Loading.HydraulicExcavator.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningMineralProcessingRockCrusherNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/MineralProcessing/RockCrusher/1.0.0/Opc.Ua.Mining.MineralProcessing.RockCrusher.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningPELOServicesFaceAlignmentSystemNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/PELOServices/FaceAlignmentSystem/1.0.0/Opc.Ua.Mining.PELOServices.FaceAlignmentSystem.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningPELOServicesGeneralNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/PELOServices/General/1.0.0/Opc.Ua.Mining.PELOServices.General.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningTransportDumpingArmouredFaceConveyorNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/TransportDumping/ArmouredFaceConveyor/1.0.0/Opc.Ua.Mining.TransportDumping.ArmouredFaceConveyor.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningTransportDumpingGeneralNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/TransportDumping/General/1.0.0/Opc.Ua.Mining.TransportDumping.General.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadMiningTransportDumpingRearDumpTruckNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
+        "Mining/TransportDumping/RearDumpTruck/1.0.0/Opc.Ua.Mining.TransportDumping.RearDumpTruck.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadPADIMNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "PADIM/Opc.Ua.PADIM.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadPOWERLINKNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadPumpsNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "Pumps/Opc.Ua.Pumps.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadScalesNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "Scales/Opc.Ua.Scales.NodeSet2.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
@@ -1266,6 +1422,213 @@ static Suite* testSuite_Client(void) {
         tcase_add_test(tc_server, Server_loadDINodeset);
         tcase_add_test(tc_server, Server_loadMachineryNodeset);
         tcase_add_test(tc_server, Server_loadWoodworkingNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load AMLLibraries nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadAMLBaseTypesNodeset);
+        tcase_add_test(tc_server, Server_loadAMLLibrariesNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load ISA95 JobControl nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadISA95JobControlNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load TMC nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadPackMLNodeset);
+        tcase_add_test(tc_server, Server_loadTMCNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load CNC nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadCNCNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load IJT Tightening nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadAMBNodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMachineryResultNodeset);
+        tcase_add_test(tc_server, Server_loadIJTBaseNodeset);
+        tcase_add_test(tc_server, Server_loadIJTTighteningNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load MachineVision nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadMachineVisionNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining General nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining DevelopmentSupport Dozer nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningDevelopmentSupportDozerNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining DevelopmentSupport RoofSupportSystem nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningDevelopmentSupportRoofSupportSystemNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining Extraction ShearerLoader nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningExtractionShearerLoaderNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining Loading General nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningLoadingGeneralNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining Loading HydraulicExcavator nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningLoadingGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningLoadingHydraulicExcavatorNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining MineralProcessing RockCrusher nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningMineralProcessingRockCrusherNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining PELOServices FaceAlignmentSystem nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningPELOServicesFaceAlignmentSystemNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining PELOServices General nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadMiningPELOServicesGeneralNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining TransportDumping ArmouredFaceConveyor nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningTransportDumpingArmouredFaceConveyorNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining TransportDumping General nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningTransportDumpingGeneralNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Mining TransportDumping RearDumpTruck nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadMiningGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningTransportDumpingGeneralNodeset);
+        tcase_add_test(tc_server, Server_loadMiningTransportDumpingRearDumpTruckNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load IRDI nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadIrdiNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load PADIM nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIrdiNodeset);
+        tcase_add_test(tc_server, Server_loadPADIMNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load POWERLINK nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadPOWERLINKNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Pumps nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadPumpsNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Scales nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadPackMLNodeset);
+        tcase_add_test(tc_server, Server_loadScalesNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load MDIS nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadMDISNodeset);
         suite_add_tcase(s, tc_server);
     }
     return s;
