@@ -7,6 +7,9 @@
 #include <open62541/plugin/nodestore_default.h>
 #include "open62541/plugin/nodestore.h"
 #include "open62541/types_generated.h"
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "server/ua_subscription.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -335,7 +338,10 @@ START_TEST(moveMonitoredItems_sameNodeIsNoop) {
 
 START_TEST(replaceNode_movesMonitoredItems) {
     UA_Node *source = createNode(0, 7002);
-    source->head.monitoredItems = (UA_MonitoredItem*)(uintptr_t)0x01;
+    UA_MonitoredItem monitoredItem;
+    memset(&monitoredItem, 0, sizeof(monitoredItem));
+    LIST_INSERT_HEAD((UA_MonitoredItemList*)&source->head.monitoredItems,
+                     &monitoredItem, sampling.nodeListEntry);
     UA_StatusCode retval = ns->insertNode(ns, source, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -352,7 +358,9 @@ START_TEST(replaceNode_movesMonitoredItems) {
                                           UA_BROWSEDIRECTION_BOTH);
     ck_assert_ptr_ne(replaced, NULL);
     ck_assert_ptr_eq(replaced->head.monitoredItems,
-                     (UA_MonitoredItem*)(uintptr_t)0x01);
+                     &monitoredItem);
+    ck_assert_ptr_eq(monitoredItem.sampling.nodeListEntry.le_prev,
+                     &replaced->head.monitoredItems);
     ns->releaseNode(ns, replaced);
 } END_TEST
 
