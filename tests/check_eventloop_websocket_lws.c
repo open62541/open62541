@@ -1017,6 +1017,23 @@ START_TEST(serverWebSocketEncryptionMode) {
 }
 END_TEST
 
+START_TEST(defaultConfigCapsWebSocketReceiveBuffer) {
+    /* UA_Server_new goes through UA_ServerConfig_setMinimalCustomBuffer. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+    ck_assert_uint_ne(server->config.webSocketBufSize, 0);
+    UA_Server_delete(server);
+
+    /* UA_ServerConfig_setBasics only goes through the shared config helper
+     * and never touches webSocketBufSize itself. */
+    UA_ServerConfig config = {0};
+    UA_StatusCode res = UA_ServerConfig_setBasics(&config);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(config.webSocketBufSize, 0);
+    UA_ServerConfig_clear(&config);
+}
+END_TEST
+
 int main(void) {
     Suite *s = suite_create("LWS WebSocket ConnectionManager");
     TCase *tc = tcase_create("integration");
@@ -1037,6 +1054,7 @@ int main(void) {
     tcase_add_test(tc, clientServerTlsCaCertificate);
     tcase_add_test(tc, serverStartupWithoutWebSocketProvider);
     tcase_add_test(tc, serverWebSocketEncryptionMode);
+    tcase_add_test(tc, defaultConfigCapsWebSocketReceiveBuffer);
     suite_add_tcase(s, tc);
     SRunner *sr = srunner_create(s); srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL); int failed = srunner_ntests_failed(sr);
