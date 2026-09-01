@@ -305,6 +305,49 @@ START_TEST(getNodeCopy_modifyAndReplace) {
     ns->releaseNode(ns, nr);
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
+START_TEST(nodeCopy_doesNotCopyMonitoredItems) {
+    UA_Node *source = createNode(0, 7001);
+    source->head.monitoredItems = (UA_MonitoredItem*)(uintptr_t)0x01;
+
+    UA_Node *copy = ns->newNode(ns, UA_NODECLASS_VARIABLE);
+    UA_StatusCode retval = UA_Node_copy(source, copy);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(copy->head.monitoredItems, NULL);
+    ck_assert_ptr_eq(source->head.monitoredItems,
+                     (UA_MonitoredItem*)(uintptr_t)0x01);
+
+    ns->deleteNode(ns, copy);
+    ns->deleteNode(ns, source);
+} END_TEST
+
+START_TEST(getNodeCopy_preservesMonitoredItems) {
+    UA_Node *source = createNode(0, 7002);
+    source->head.monitoredItems = (UA_MonitoredItem*)(uintptr_t)0x01;
+    UA_StatusCode retval = ns->insertNode(ns, source, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeId id = UA_NODEID_NUMERIC(0, 7002);
+    UA_Node *copy = NULL;
+    retval = ns->getNodeCopy(ns, &id, &copy);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(copy->head.monitoredItems,
+                     (UA_MonitoredItem*)(uintptr_t)0x01);
+
+    retval = ns->replaceNode(ns, copy);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    const UA_Node *replaced = ns->getNode(ns, &id, ~(UA_UInt32)0,
+                                          UA_REFERENCETYPESET_ALL,
+                                          UA_BROWSEDIRECTION_BOTH);
+    ck_assert_ptr_ne(replaced, NULL);
+    ck_assert_ptr_eq(replaced->head.monitoredItems,
+                     (UA_MonitoredItem*)(uintptr_t)0x01);
+    ns->releaseNode(ns, replaced);
+} END_TEST
+
+#endif
+
 START_TEST(getNodeCopy_nonExistent) {
     UA_NodeId id = UA_NODEID_NUMERIC(0, 99999);
     UA_Node *copy;
@@ -421,6 +464,10 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_ext, insertAndDeleteNode);
     tcase_add_test (tc_ext, insertDuplicateNode);
     tcase_add_test (tc_ext, getNodeCopy_modifyAndReplace);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test (tc_ext, nodeCopy_doesNotCopyMonitoredItems);
+    tcase_add_test (tc_ext, getNodeCopy_preservesMonitoredItems);
+#endif
     tcase_add_test (tc_ext, getNodeCopy_nonExistent);
     tcase_add_test (tc_ext, newNodeAllClasses);
     tcase_add_test (tc_ext, insertNodeWithOutNodeId);

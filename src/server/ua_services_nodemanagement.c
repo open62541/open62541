@@ -698,18 +698,29 @@ static UA_StatusCode
 copyObjectVariableChild(UA_Server *server, UA_Session *session,
                         const UA_NodeId *destinationNodeId,
                         const UA_ReferenceDescription *rd) {
-    /* Make a copy of the node */
-    UA_Node *node;
-    UA_StatusCode res = UA_NODESTORE_GETCOPY(server, &rd->nodeId.nodeId, &node);
-    if(res != UA_STATUSCODE_GOOD)
+    /* This creates a new logical node from an instance declaration. It is not
+     * an editable replacement of the source node, so runtime associations such
+     * as attached MonitoredItems must not be copied. */
+    const UA_Node *source = UA_NODESTORE_GET(server, &rd->nodeId.nodeId);
+    if(!source)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    UA_Node *node = UA_NODESTORE_NEW(server, source->head.nodeClass);
+    if(!node) {
+        UA_NODESTORE_RELEASE(server, source);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode res = UA_Node_copy(source, node);
+    UA_NODESTORE_RELEASE(server, source);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_DELETE(server, node);
         return res;
+    }
 
     /* Remove the context of the copied node */
     node->head.context = NULL;
     node->head.constructed = false;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    node->head.monitoredItems = NULL;
-#endif
 
     /* The value source callbacks are copied by default. But we don't want
      * to keep it here. */

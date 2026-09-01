@@ -532,8 +532,8 @@ copyTarget(void *context, UA_ReferenceTargetTreeElem *elm) {
                                  elm->target.targetNameHash);
 }
 
-UA_StatusCode
-UA_Node_copy(const UA_Node *src, UA_Node *dst) {
+static UA_StatusCode
+copyNode(const UA_Node *src, UA_Node *dst, UA_Boolean copyMonitoredItems) {
     const UA_NodeHead *srchead = &src->head;
     UA_NodeHead *dsthead = &dst->head;
     if(srchead->nodeClass != dsthead->nodeClass)
@@ -577,7 +577,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    dsthead->monitoredItems = srchead->monitoredItems;
+    dsthead->monitoredItems = copyMonitoredItems ? srchead->monitoredItems : NULL;
+#else
+    (void)copyMonitoredItems;
 #endif
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_clear(dst);
@@ -671,6 +673,16 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
         UA_Node_clear(dst);
 
     return retval;
+}
+
+UA_StatusCode
+UA_Node_copy(const UA_Node *src, UA_Node *dst) {
+    return copyNode(src, dst, false);
+}
+
+UA_StatusCode
+UA_Node_copyForEdit(const UA_Node *src, UA_Node *dst) {
+    return copyNode(src, dst, true);
 }
 
 UA_Node *

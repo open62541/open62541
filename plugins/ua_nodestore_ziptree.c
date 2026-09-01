@@ -201,7 +201,7 @@ zipNsGetNodeCopy(UA_Nodestore *ns, const UA_NodeId *nodeId,
 
     /* Copy the node content */
     UA_Node *nnode = (UA_Node*)&ne->nodeId;
-    UA_StatusCode retval = UA_Node_copy(node, nnode);
+    UA_StatusCode retval = UA_Node_copyForEdit(node, nnode);
     zipNsReleaseNode(NULL, node);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteEntry(ne);
