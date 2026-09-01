@@ -569,6 +569,18 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->allPermissionsForAnonymous = true;
 #endif
 
+#ifdef UA_ENABLE_LWS
+    /* A webSocketBufSize of 0 is forwarded to the WebSocket ConnectionManager
+     * as "no limit" on the fragment reassembly buffer. Callers that never
+     * touched this field (e.g. via setDefaultWithSecurityPolicies) get the
+     * same buffer size as the TCP transport instead. */
+    if(conf->webSocketBufSize == 0)
+        conf->webSocketBufSize = UA_ConnectionConfig_default.recvBufferSize;
+    if(conf->webSocketMaxQueueSize == 0)
+        conf->webSocketMaxQueueSize = conf->webSocketBufSize > UINT32_MAX / 16 ?
+            UINT32_MAX : conf->webSocketBufSize * 16;
+#endif
+
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;
@@ -706,11 +718,16 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
      * intentionally ignored (see the doxygen note on the declaration). */
     (void)sendBufferSize;
     config->tcpBufSize = recvBufferSize;
-    config->webSocketBufSize = recvBufferSize;
+    /* A recvBufferSize of 0 falls through to the same default used for the
+     * TCP buffers, instead of leaving the WebSocket fragment reassembly
+     * buffer without any cap. */
+    config->webSocketBufSize = recvBufferSize ? recvBufferSize :
+        UA_ConnectionConfig_default.recvBufferSize;
     config->webSocketAllowUnencrypted = false;
     config->webSocketEncryptionMode = UA_WEBSOCKET_ENCRYPTION_OPTIONAL;
     config->webSocketMaxQueueSize =
-        recvBufferSize > UINT32_MAX / 16 ? UINT32_MAX : recvBufferSize * 16;
+        config->webSocketBufSize > UINT32_MAX / 16 ?
+        UINT32_MAX : config->webSocketBufSize * 16;
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
