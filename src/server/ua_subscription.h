@@ -158,7 +158,9 @@ struct UA_MonitoredItem {
     UA_MonitoredItemSamplingType samplingType;
     union {
         UA_UInt64 callbackId;
-        UA_MonitoredItem *nodeListNext; /* Event-Based: Attached to Node */
+        LIST_ENTRY(UA_MonitoredItem) nodeListEntry; /* Event-Based: linked into
+                                                     * the Node's MonitoredItem
+                                                     * list */
         LIST_ENTRY(UA_MonitoredItem) subscriptionSampling; /* Linked to publish
                                                             * interval */
     } sampling;
@@ -206,6 +208,12 @@ UA_MonitoredItemIdTree_cmp(const UA_UInt32 *a,
 
 ZIP_FUNCTIONS(UA_MonitoredItemIdTree, UA_MonitoredItem, idTreeEntry,
               UA_UInt32, monitoredItemId, UA_MonitoredItemIdTree_cmp)
+
+/* UA_NodeHead.monitoredItems is a bare UA_MonitoredItem* in the public
+ * nodestore.h, which is layout-compatible with this LIST_HEAD. The server runs
+ * the LIST_* macros over the per-node MonitoredItem list by casting the field's
+ * address to UA_MonitoredItemList*. */
+typedef LIST_HEAD(UA_MonitoredItemList, UA_MonitoredItem) UA_MonitoredItemList;
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */

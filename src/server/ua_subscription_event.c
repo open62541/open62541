@@ -1671,8 +1671,9 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
         }
 
         /* Iterate over all MonitoredItems registered in the node  */
-        for(UA_MonitoredItem *mon = node->head.monitoredItems;
-            mon != NULL; mon = mon->sampling.nodeListNext) {
+        UA_MonitoredItem *mon;
+        LIST_FOREACH(mon, (const UA_MonitoredItemList*)&node->head.monitoredItems,
+                     sampling.nodeListEntry) {
             /* Is this an Event-MonitoredItem? */
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;

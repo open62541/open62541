@@ -577,6 +577,13 @@ copyNode(const UA_Node *src, UA_Node *dst, UA_Boolean copyMonitoredItems) {
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The MonitoredItem list head is opaque here: an actual copy (new NodeId)
+     * owns none, an editable replacement keeps the very same head by value.
+     * The intrusive list anchors the first element's le_prev in the node that
+     * holds the head. Nothing has to be re-anchored here because the server
+     * edits nodes in place (getEditNode), so a live node never moves. A
+     * nodestore that instead relocates a node must re-anchor le_prev onto the
+     * replacement after a successful replaceNode. */
     dsthead->monitoredItems = copyMonitoredItems ? srchead->monitoredItems : NULL;
 #else
     (void)copyMonitoredItems;
