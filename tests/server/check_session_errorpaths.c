@@ -62,6 +62,18 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+static void setup_channelLimit(void) {
+    running = true;
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+    /* Cap the number of SecureChannels so the purge path is reachable
+     * deterministically without exhausting system resources. */
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->maxSecureChannels = 2;
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
 /* ==== Helpers ==== */
 
 static UA_StatusCode
@@ -511,6 +523,53 @@ START_TEST(Session_activate_withLocaleIds_succeeds) {
     UA_Client_delete(client);
 } END_TEST
 
+/* maxSecureChannels = 2: two clients open a channel and CreateSession
+ * without ever calling ActivateSession. A third client must still be able
+ * to open a channel -- the channel-table purge has to reclaim a channel
+ * that only carries an un-activated session instead of treating it as
+ * pinned (createServerSecureChannel / purgeFirstUascChannelWithoutSession). */
+START_TEST(Session_unactivated_doesNotPinChannel) {
+    UA_Client *c1 = UA_Client_newForUnitTest();
+    UA_Client *c2 = UA_Client_newForUnitTest();
+    /* c3 uses a real (non-fake) clock and a short timeout: without the fix
+     * the server never accepts a third channel, and a client on the fake
+     * unit-test clock would retry forever since its timeout deadline is
+     * computed from a clock that never advances on its own. */
+    UA_Client *c3 = UA_Client_new();
+    ck_assert(c3 != NULL);
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(UA_Client_getConfig(c3)),
+                     UA_STATUSCODE_GOOD);
+    UA_Client_getConfig(c3)->timeout = 1000;
+
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(c1, "opc.tcp://localhost:4840"),
+                     UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(c2, "opc.tcp://localhost:4840"),
+                     UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse r1, r2, r3;
+    UA_CreateSessionResponse_init(&r1);
+    UA_CreateSessionResponse_init(&r2);
+    UA_CreateSessionResponse_init(&r3);
+
+    /* Both channels now carry an un-activated session */
+    ck_assert_uint_eq(createSession(c1, &r1), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createSession(c2, &r2), UA_STATUSCODE_GOOD);
+
+    /* maxSecureChannels is reached. A new channel must still be obtainable
+     * by purging one of the two above, since neither session was
+     * activated. */
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(c3, "opc.tcp://localhost:4840"),
+                     UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createSession(c3, &r3), UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse_clear(&r3);
+    UA_CreateSessionResponse_clear(&r2);
+    UA_CreateSessionResponse_clear(&r1);
+    UA_Client_disconnect(c1); UA_Client_delete(c1);
+    UA_Client_disconnect(c2); UA_Client_delete(c2);
+    UA_Client_disconnect(c3); UA_Client_delete(c3);
+} END_TEST
+
 /* ==== Suite ==== */
 
 static Suite* testSuite_SessionErrorPaths(void) {
@@ -535,6 +594,13 @@ static Suite* testSuite_SessionErrorPaths(void) {
     tcase_add_test(tc, Server_closeSession_helper);
     tcase_add_test(tc, Session_activate_withLocaleIds_succeeds);
     suite_add_tcase(s, tc);
+
+    TCase *tc_channelLimit = tcase_create("channel purge");
+    tcase_set_timeout(tc_channelLimit, 60);
+    tcase_add_checked_fixture(tc_channelLimit, setup_channelLimit, teardown);
+    tcase_add_test(tc_channelLimit, Session_unactivated_doesNotPinChannel);
+    suite_add_tcase(s, tc_channelLimit);
+
     return s;
 }
 
