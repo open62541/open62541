@@ -41,6 +41,18 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+static void setup_channelLimit(void) {
+    running = true;
+    server = UA_Server_new();
+    ck_assert(server != NULL);
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    /* Cap the number of SecureChannels so the purge path is reachable
+     * deterministically without exhausting system resources. */
+    UA_Server_getConfig(server)->maxSecureChannels = 2;
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
 START_TEST(Session_close_before_activate) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -113,6 +125,68 @@ START_TEST(Session_updateLifetime_ShallWork) {
 }
 END_TEST
 
+/* maxSecureChannels = 2: two clients open a channel and CreateSession
+ * without ever calling ActivateSession. A third client must still be able
+ * to open a channel -- the channel-table purge has to reclaim a channel
+ * that only carries an un-activated session instead of treating it as
+ * pinned (purgeFirstChannelWithoutSession). */
+START_TEST(Session_unactivated_doesNotPinChannel) {
+    UA_Client *c1 = UA_Client_new();
+    UA_Client *c2 = UA_Client_new();
+    UA_Client *c3 = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(c1));
+    UA_ClientConfig_setDefault(UA_Client_getConfig(c2));
+    UA_ClientConfig_setDefault(UA_Client_getConfig(c3));
+
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(c1, "opc.tcp://localhost:4840"),
+                     UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_connectSecureChannel(c2, "opc.tcp://localhost:4840"),
+                     UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    UA_CreateSessionResponse r1, r2, r3;
+    UA_CreateSessionResponse_init(&r1);
+    UA_CreateSessionResponse_init(&r2);
+    UA_CreateSessionResponse_init(&r3);
+
+    /* Both channels now carry an un-activated session */
+    __UA_Client_Service(c1, &req, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &r1, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(r1.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    __UA_Client_Service(c2, &req, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &r2, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(r2.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* maxSecureChannels is reached. A new channel must still be obtainable
+     * by purging one of the two above, since neither session was
+     * activated. Drive the async connect by hand with a bounded number of
+     * iterations: without the fix, the server never accepts the channel
+     * and each rejected TCP connection is immediately retried, so the
+     * synchronous connect call would otherwise not return within its
+     * configured timeout. */
+    ck_assert_uint_eq(UA_Client_connectAsync(c3, "opc.tcp://localhost:4840"),
+                     UA_STATUSCODE_GOOD);
+    UA_SecureChannelState channelState = UA_SECURECHANNELSTATE_CLOSED;
+    for(size_t i = 0; i < 40; i++) {
+        UA_Client_run_iterate(c3, 50);
+        UA_Client_getState(c3, &channelState, NULL, NULL);
+        if(channelState == UA_SECURECHANNELSTATE_OPEN)
+            break;
+    }
+    ck_assert_uint_eq(channelState, UA_SECURECHANNELSTATE_OPEN);
+    __UA_Client_Service(c3, &req, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &r3, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(r3.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionResponse_clear(&r3);
+    UA_CreateSessionResponse_clear(&r2);
+    UA_CreateSessionResponse_clear(&r1);
+    UA_Client_disconnect(c1); UA_Client_delete(c1);
+    UA_Client_disconnect(c2); UA_Client_delete(c2);
+    UA_Client_disconnect(c3); UA_Client_delete(c3);
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -121,6 +195,12 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
     suite_add_tcase(s,tc_session);
+
+    TCase *tc_channelLimit = tcase_create("channel purge");
+    tcase_add_checked_fixture(tc_channelLimit, setup_channelLimit, teardown);
+    tcase_add_test(tc_channelLimit, Session_unactivated_doesNotPinChannel);
+    suite_add_tcase(s, tc_channelLimit);
+
     return s;
 }
 
