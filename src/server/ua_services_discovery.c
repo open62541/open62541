@@ -1061,6 +1061,19 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     if(sc->applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
         return UA_STATUSCODE_BADSERVICEUNSUPPORTED;
 
+    /* No Session backs RegisterServer(2), so only the channel can
+     * authenticate the caller. A local call without a channel is exempt. */
+    UA_SecureChannel *rsChannel = session->channel;
+    if(rsChannel && rsChannel->remoteCertificate.length == 0)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+
+    /* The certificate must also match the claimed serverUri, otherwise a
+     * differently-identified peer could still overwrite another entry. */
+    if(rsChannel && rsChannel->remoteCertificate.length > 0 &&
+       UA_CertificateUtils_verifyApplicationUri(&rsChannel->remoteCertificate,
+                                                &requestServer->serverUri) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+
     /* Check the presence of at least one DiscoveryUrl */
     if(requestServer->discoveryUrlsSize == 0)
         return UA_STATUSCODE_BADDISCOVERYURLMISSING;
