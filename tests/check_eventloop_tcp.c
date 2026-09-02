@@ -130,6 +130,46 @@ START_TEST(listenTCP) {
     ck_assert_uint_eq(connCount, 0);
 } END_TEST
 
+START_TEST(listenTCPAddressArrayUsesPerElementLength) {
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    el->registerEventSource(el, &cm->eventSource);
+    el->start(el);
+
+    UA_UInt16 port = 0;
+    UA_Boolean listen = true;
+    UA_Boolean validate = true;
+    char tooLong[600];
+    char shortAddressBacking[600] = "127.0.0.1";
+    memset(tooLong, 'A', sizeof(tooLong));
+    UA_String addresses[2] = {
+        {sizeof(tooLong), (UA_Byte*)tooLong},
+        {strlen(shortAddressBacking), (UA_Byte*)shortAddressBacking}
+    };
+
+    UA_KeyValuePair params[4];
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    params[2].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&params[2].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    params[3].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setArray(&params[3].value, addresses, 2,
+                        &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap paramsMap = {4, params};
+
+    UA_StatusCode retval =
+        cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED)
+        el->run(el, 1);
+    el->free(el);
+    el = NULL;
+} END_TEST
+
 START_TEST(connectTCP) {
     setupEL();
     el->start(el);
@@ -311,6 +351,7 @@ int main(void) {
     Suite *s  = suite_create("Test TCP EventLoop");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, listenTCP);
+    tcase_add_test(tc, listenTCPAddressArrayUsesPerElementLength);
     tcase_add_test(tc, connectTCP);
     tcase_add_test(tc, staticSendBuffer);
     suite_add_tcase(s, tc);

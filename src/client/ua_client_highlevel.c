@@ -356,12 +356,15 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     /* Call the service */
     UA_CallResponse response = UA_Client_Service_call(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
-        if(response.resultsSize == 1)
-            retval = response.results[0].statusCode;
-        else
-            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CallResponse_clear(&response);
+        return retval;
     }
+    if(response.resultsSize != 1) {
+        UA_CallResponse_clear(&response);
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    retval = response.results[0].statusCode;
     if(UA_StatusCode_isBad(retval)) {
         UA_CallResponse_clear(&response);
         return retval;
@@ -819,12 +822,15 @@ __Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
-        if(response.resultsSize == 1)
-            retval = response.results[0].status;
-        else
-            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ReadResponse_clear(&response);
+        return retval;
     }
+    if(response.resultsSize != 1) {
+        UA_ReadResponse_clear(&response);
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    retval = response.results[0].status;
     if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD)) {
         UA_ReadResponse_clear(&response);
         return retval;
@@ -1139,12 +1145,13 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
         }
 
         retval = response.responseHeader.serviceResult;
-        if(retval == UA_STATUSCODE_GOOD) {
-            if(response.resultsSize == 1)
-                retval = response.results[0].statusCode;
-            else
-                retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        if(response.resultsSize != 1) {
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+            goto cleanup;
         }
+        retval = response.results[0].statusCode;
         if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
             goto cleanup;
 

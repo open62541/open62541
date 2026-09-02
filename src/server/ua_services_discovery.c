@@ -261,26 +261,19 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Iterate over all records and add to filtered list */
+    /* Count the matching records without placing a cache-sized temporary
+     * array on the stack. The service mutex keeps the list stable between
+     * this pass and the copy pass below. */
     UA_UInt32 filteredCount = 0;
-    UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
     UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList(dm);
-    if(!current) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return true;
-    }
-    for(size_t i = 0; i < recordCount; i++) {
-        if(filteredCount >= recordCount)
-            break;
+    for(; current && filteredCount < recordCount;
+        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current)) {
         if(current->recordId < request->startingRecordId)
             continue;
         if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
-                               request->serverCapabilityFilter, current))
+                                         request->serverCapabilityFilter, current))
             continue;
-        filtered[filteredCount++] = current;
-        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current);
-        if(!current)
-            break;
+        filteredCount++;
     }
 
     if(filteredCount == 0)
@@ -288,16 +281,40 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Allocate the array for the response */
     response->servers = (UA_ServerOnNetwork*)
-        UA_malloc(sizeof(UA_ServerOnNetwork)*filteredCount);
+        UA_Array_new(filteredCount, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
     }
     response->serversSize = filteredCount;
 
-    /* Copy the server names */
-    for(size_t i = 0; i < filteredCount; i++) {
-        UA_ServerOnNetwork_copy(filtered[i], &response->servers[filteredCount-i-1]);
+    /* Copy the server names in the same oldest-to-newest order as before */
+    size_t pos = filteredCount;
+    current = UA_DiscoveryManager_getServerOnNetworkList(dm);
+    for(; current && pos > 0;
+        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current)) {
+        if(current->recordId < request->startingRecordId)
+            continue;
+        if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
+                                         request->serverCapabilityFilter, current))
+            continue;
+        UA_StatusCode retval =
+            UA_ServerOnNetwork_copy(current, &response->servers[--pos]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(response->servers, response->serversSize,
+                            &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+            response->servers = NULL;
+            response->serversSize = 0;
+            response->responseHeader.serviceResult = retval;
+            return true;
+        }
+    }
+    if(pos != 0) {
+        UA_Array_delete(response->servers, response->serversSize,
+                        &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+        response->servers = NULL;
+        response->serversSize = 0;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
     }
     return true;
 }

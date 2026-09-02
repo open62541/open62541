@@ -178,6 +178,73 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt) {
     ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
 }END_TEST
 
+static size_t
+asymmetricHeaderLengthWithoutCertificate(void) {
+    return UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        calculateAsymAlgSecurityHeaderLength(&testChannel) -
+        dummyPolicy.localCertificate.length;
+}
+
+static void
+resizeLocalCertificate(size_t certificateLength) {
+    UA_ByteString_clear(&dummyPolicy.localCertificate);
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&dummyPolicy.localCertificate,
+                                               certificateLength),
+                      UA_STATUSCODE_GOOD);
+    memset(dummyPolicy.localCertificate.data, 'A', certificateLength);
+}
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_oversizedSecurityHeader) {
+    UA_OpenSecureChannelResponse dummyResponse;
+    createDummyResponse(&dummyResponse);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    testChannel.config.sendBufferSize = 8192;
+    keySizes.asym_rmt_ptext_blocksize = 214;
+
+    resizeLocalCertificate(8200);
+
+    UA_StatusCode retval =
+        UA_SecureChannel_sendOPN(&testChannel, 42, &dummyResponse,
+                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+}END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_requiresEncryptedBlock) {
+    UA_OpenSecureChannelResponse dummyResponse;
+    createDummyResponse(&dummyResponse);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    testChannel.config.sendBufferSize = 8192;
+    keySizes.asym_rmt_ptext_blocksize = 214;
+
+    const size_t fixedHeaderLength = asymmetricHeaderLengthWithoutCertificate();
+    const size_t encryptedBlockSize = keySizes.asym_rmt_blocksize;
+    resizeLocalCertificate(testChannel.config.sendBufferSize - fixedHeaderLength -
+                           encryptedBlockSize + 1);
+
+    UA_StatusCode retval =
+        UA_SecureChannel_sendOPN(&testChannel, 42, &dummyResponse,
+                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+}END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_acceptsOneEncryptedBlock) {
+    UA_OpenSecureChannelResponse dummyResponse;
+    createDummyResponse(&dummyResponse);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    testChannel.config.sendBufferSize = 8192;
+    keySizes.asym_rmt_ptext_blocksize = 214;
+
+    const size_t fixedHeaderLength = asymmetricHeaderLengthWithoutCertificate();
+    const size_t encryptedBlockSize = keySizes.asym_rmt_blocksize;
+    resizeLocalCertificate(testChannel.config.sendBufferSize - fixedHeaderLength -
+                           encryptedBlockSize);
+
+    UA_StatusCode retval =
+        UA_SecureChannel_sendOPN(&testChannel, 42, &dummyResponse,
+                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}END_TEST
+
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     UA_OpenSecureChannelResponse dummyResponse;
     createDummyResponse(&dummyResponse);
@@ -693,6 +760,12 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt);
+    tcase_add_test(tc_sendAsymmetricOPNMessage,
+                   SecureChannel_sendAsymmetricOPNMessage_oversizedSecurityHeader);
+    tcase_add_test(tc_sendAsymmetricOPNMessage,
+                   SecureChannel_sendAsymmetricOPNMessage_requiresEncryptedBlock);
+    tcase_add_test(tc_sendAsymmetricOPNMessage,
+                   SecureChannel_sendAsymmetricOPNMessage_acceptsOneEncryptedBlock);
     tcase_add_test(tc_sendAsymmetricOPNMessage,
                    Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits);
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);

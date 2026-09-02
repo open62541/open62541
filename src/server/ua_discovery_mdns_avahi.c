@@ -305,14 +305,17 @@ UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
 UA_ServerOnNetwork*
 UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
                                    UA_ServerOnNetwork *current) {
-    serverOnNetwork *entry = NULL;
-    LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
-        if(&entry->serverOnNetwork == current) {
-            entry = LIST_NEXT(entry, pointers);
-            break;
-        }
-    }
+    (void)dm;
+    serverOnNetwork *entry = container_of(current, serverOnNetwork,
+                                          serverOnNetwork);
+    entry = LIST_NEXT(entry, pointers);
     return entry ? &entry->serverOnNetwork : NULL;
+}
+
+UA_StatusCode
+UA_DiscoveryManager_addServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                              const UA_String serverName) {
+    return UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, NULL);
 }
 
 

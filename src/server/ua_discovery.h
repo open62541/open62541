@@ -115,6 +115,11 @@ UA_ServerOnNetwork*
 UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
                                   UA_ServerOnNetwork *current);
 
+/* Add a record to the local ServersOnNetwork cache without announcing it. */
+UA_StatusCode
+UA_DiscoveryManager_addServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                              const UA_String serverName);
+
 UA_StatusCode
 UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm);
 
