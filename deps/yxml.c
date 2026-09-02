@@ -222,7 +222,7 @@ static yxml_ret_t yxml_selfclose(yxml_t *x, unsigned ch) {
 		return YXML_ELEMEND;
 	}
 	x->elem = (char *)x->stack;
-	x->state = YXMLS_misc3;
+	x->state = x->contentmode ? YXMLS_misc2 : YXMLS_misc3;
 	return YXML_ELEMEND;
 }
 
@@ -292,6 +292,7 @@ static yxml_ret_t yxml_refend(yxml_t *x, yxml_ret_t ret) {
 	if(!ch || ch > 0x10FFFF || ch == 0xFFFE || ch == 0xFFFF || (ch-0xDFFF) < 0x7FF)
 		return YXML_EREF;
 	yxml_setutf8(x->data, ch);
+	x->isReference = true;
 	return ret;
 }
 
@@ -308,7 +309,15 @@ void yxml_init(yxml_t *x, void *stack, size_t stacksize) {
 	x->state = YXMLS_init;
 }
 
+void yxml_init_content(yxml_t *x, void *stack, size_t stacksize) {
+	yxml_init(x, stack, stacksize);
+	x->contentmode = true;
+	x->state = YXMLS_misc2;
+}
+
 yxml_ret_t yxml_parse(yxml_t *x, int _ch) {
+	x->isReference = false;
+
 	/* Ensure that characters are in the range of 0..255 rather than -126..125.
 	 * All character comparisons are done with positive integers. */
 	unsigned ch = (unsigned)(_ch+256) & 0xff;
@@ -1026,8 +1035,8 @@ yxml_ret_t yxml_parse(yxml_t *x, int _ch) {
 }
 
 yxml_ret_t yxml_eof(yxml_t *x) {
-	if(x->state != YXMLS_misc3)
+	if(x->state != YXMLS_misc3 &&
+	   !(x->contentmode && x->state == YXMLS_misc2 && x->stacklen == 0))
 		return YXML_EEOF;
 	return YXML_OK;
 }
-
