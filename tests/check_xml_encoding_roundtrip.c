@@ -549,6 +549,58 @@ START_TEST(xml_decode_string) {
     UA_String_clear(&dst);
 } END_TEST
 
+START_TEST(xml_decode_character_references) {
+    const struct {
+        const char *xml;
+        const char *expected;
+    } cases[] = {
+        {"<String>&lt;&gt;&amp;&apos;&quot;</String>", "<>&'\""},
+        {"<String>&#65;&#x20AC;&#x10000;</String>",
+         "A\xE2\x82\xAC\xF0\x90\x80\x80"},
+        {"<String>&amp;<![CDATA[&amp;]]> &#x20AC; goodbye</String>",
+         "&&amp; \xE2\x82\xAC goodbye"},
+        {"<String attr=\">\">&amp;</String>", "&"},
+        {"<String>a;b</String>", "a;b"}
+    };
+
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        UA_ByteString xml = {
+            strlen(cases[i].xml), (UA_Byte*)(uintptr_t)cases[i].xml};
+        UA_String dst;
+        UA_String_init(&dst);
+        UA_StatusCode res =
+            UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_STRING], NULL);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        UA_String expected = {
+            strlen(cases[i].expected), (UA_Byte*)(uintptr_t)cases[i].expected};
+        ck_assert(UA_String_equal(&dst, &expected));
+        UA_String_clear(&dst);
+    }
+
+    char mutableXml[] = "<String>&amp;&#x20AC;</String>";
+    char unchanged[sizeof(mutableXml)];
+    memcpy(unchanged, mutableXml, sizeof(mutableXml));
+    UA_ByteString xml = {
+        sizeof(mutableXml) - 1, (UA_Byte*)(uintptr_t)mutableXml};
+    UA_String dst;
+    UA_String_init(&dst);
+    UA_StatusCode res =
+        UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_STRING], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_mem_eq(mutableXml, unchanged, sizeof(mutableXml));
+    UA_String_clear(&dst);
+} END_TEST
+
+START_TEST(xml_decode_invalid_character_reference) {
+    UA_ByteString xml = UA_BYTESTRING("<String>&unknown;</String>");
+    UA_String dst;
+    UA_String_init(&dst);
+    UA_StatusCode res =
+        UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_STRING], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_String_clear(&dst);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("XML Encoding Ext");
 
@@ -613,6 +665,8 @@ int main(void) {
     tcase_add_test(tc_misc, xml_decode_double_neginf);
     tcase_add_test(tc_misc, xml_decode_double_nan);
     tcase_add_test(tc_misc, xml_decode_string);
+    tcase_add_test(tc_misc, xml_decode_character_references);
+    tcase_add_test(tc_misc, xml_decode_invalid_character_reference);
     suite_add_tcase(s, tc_misc);
 
     SRunner *sr = srunner_create(s);

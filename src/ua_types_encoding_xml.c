@@ -106,6 +106,8 @@ xml_tokenize(const char *xml, unsigned int len,
         }
         case YXML_CONTENT:
         case YXML_ATTRVAL:
+            if(ctx.isReference && xml_status == YXML_CONTENT)
+                stack[top]->contentEscaped = true;
             if(val_begin == 0)
                 val_begin = pos;
             stack[top]->end = pos;
@@ -150,6 +152,75 @@ xml_tokenize(const char *xml, unsigned int len,
     res.error_pos = pos;
     res.error = XML_ERROR_INVALID;
     return res;
+}
+
+/* Get the complete raw element content, including CDATA markers. */
+static status
+getTokenContent(const char *xml, const xml_token *token, UA_String *content) {
+    size_t begin = token->start;
+    char quote = 0;
+    for(; begin < token->end; begin++) {
+        char c = xml[begin];
+        if(quote) {
+            if(c == quote)
+                quote = 0;
+        } else if(c == '\'' || c == '"') {
+            quote = c;
+        } else if(c == '>') {
+            begin++;
+            break;
+        }
+    }
+    if(begin >= token->end)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    size_t end = token->end;
+    while(end > begin && xml[end - 1] != '<')
+        end--;
+    if(end <= begin)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    end--;
+
+    content->data = (UA_Byte*)(uintptr_t)&xml[begin];
+    content->length = end - begin;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Decode character and entity references and remove CDATA markers in the
+ * already copied content. Output never overtakes unread input, so rewriting
+ * in-place is safe. */
+static status
+decodeTokenContentInPlace(UA_String *content) {
+    yxml_t parser;
+    char parserStack[512];
+    yxml_init_content(&parser, parserStack, sizeof(parserStack));
+    unsigned depth = 0;
+    size_t outPos = 0;
+
+    for(size_t pos = 0; pos < content->length; pos++) {
+        yxml_ret_t event = yxml_parse(&parser, content->data[pos]);
+        if(event < YXML_OK)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        if(event == YXML_ELEMSTART) {
+            depth++;
+        } else if(event == YXML_ELEMEND) {
+            if(depth == 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            depth--;
+        } else if(event == YXML_CONTENT && depth == 0) {
+            size_t eventLength = strlen(parser.data);
+            if(outPos > content->length ||
+               eventLength > content->length - outPos)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            memcpy(&content->data[outPos], parser.data, eventLength);
+            outPos += eventLength;
+        }
+    }
+
+    if(depth != 0 || yxml_eof(&parser) != YXML_OK)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    content->length = outPos;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Map for decoding a XML complex object type. An array of this is passed to the
@@ -1099,6 +1170,7 @@ DECODE_XML(Float) {
 DECODE_XML(String) {
     UA_String *dst = (UA_String*)dst_;
     CHECK_DATA_BOUNDS;
+    const xml_token *token = &ctx->tokens[ctx->index];
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
 
@@ -1110,7 +1182,20 @@ DECODE_XML(String) {
     }
 
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-    return UA_String_copy(&str, dst);
+    status ret = UA_STATUSCODE_GOOD;
+    if(token->contentEscaped)
+        ret = getTokenContent(ctx->xml, token, &str);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    ret = UA_String_copy(&str, dst);
+    if(ret != UA_STATUSCODE_GOOD || !token->contentEscaped)
+        return ret;
+
+    ret = decodeTokenContentInPlace(dst);
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_String_clear(dst);
+    return ret;
 }
 
 DECODE_XML(DateTime) {
