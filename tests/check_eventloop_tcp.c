@@ -131,9 +131,7 @@ START_TEST(listenTCP) {
 } END_TEST
 
 START_TEST(listenTCPAddressArrayUsesPerElementLength) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 0;

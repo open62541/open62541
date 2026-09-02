@@ -148,9 +148,7 @@ START_TEST(listenUDP) {
 } END_TEST
 
 START_TEST(listenUDPAddressArrayUsesPerElementLength) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 0;
