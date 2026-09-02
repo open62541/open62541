@@ -37,6 +37,31 @@ yxml_parse_full(const char *xml, size_t len, char *buf, size_t buflen,
     return yxml_eof(&x);
 }
 
+static yxml_ret_t
+yxml_parse_content_full(const char *xml, char *buf, size_t buflen,
+                        char *out, size_t outsize, size_t *outlen,
+                        size_t *references) {
+    yxml_t x;
+    yxml_init_content(&x, buf, buflen);
+    *outlen = 0;
+    *references = 0;
+    for(size_t i = 0; i < strlen(xml); i++) {
+        yxml_ret_t ret = yxml_parse(&x, (unsigned char)xml[i]);
+        if(ret < YXML_OK)
+            return ret;
+        if(x.isReference)
+            (*references)++;
+        if(ret != YXML_CONTENT)
+            continue;
+        size_t length = strlen(x.data);
+        if(*outlen > outsize || length > outsize - *outlen)
+            return YXML_ESTACK;
+        memcpy(&out[*outlen], x.data, length);
+        *outlen += length;
+    }
+    return yxml_eof(&x);
+}
+
 /* === xml_tokenize wrapper tests === */
 
 START_TEST(parseElement) {
@@ -342,6 +367,75 @@ START_TEST(yxmlEntityRef_content) {
                                      NULL, NULL, NULL, &cnt, NULL, NULL, NULL);
     ck_assert_int_eq(ret, YXML_OK);
     ck_assert_int_gt(cnt, 0);
+} END_TEST
+
+START_TEST(yxmlEntityRef_flag) {
+    char buf[512];
+    const char *xml = "<r a=\"plain;&amp;plain\">plain;&#65;plain</r>";
+    yxml_t x;
+    yxml_init(&x, buf, sizeof(buf));
+    size_t contentReferences = 0;
+    size_t attributeReferences = 0;
+    for(size_t i = 0; i < strlen(xml); i++) {
+        yxml_ret_t ret = yxml_parse(&x, (unsigned char)xml[i]);
+        ck_assert_int_ge(ret, YXML_OK);
+        if(x.isReference) {
+            if(ret == YXML_CONTENT)
+                contentReferences++;
+            else if(ret == YXML_ATTRVAL)
+                attributeReferences++;
+            else
+                ck_abort_msg("Reference flag set for event %d", ret);
+        }
+    }
+    ck_assert_uint_eq(contentReferences, 1);
+    ck_assert_uint_eq(attributeReferences, 1);
+} END_TEST
+
+START_TEST(yxmlContentFragment) {
+    char buf[512];
+    char out[128];
+    size_t outlen;
+    size_t references;
+    const char *content =
+        "a&amp;<?pi data?><!--ignored-->&lt;&#65;&#x20AC;"
+        "<![CDATA[&gt;]]>z";
+    yxml_ret_t ret = yxml_parse_content_full(
+        content, buf, sizeof(buf), out, sizeof(out) - 1,
+        &outlen, &references);
+    ck_assert_int_eq(ret, YXML_OK);
+    out[outlen] = 0;
+    ck_assert_str_eq(out, "a&<A\xE2\x82\xAC&gt;z");
+    ck_assert_uint_eq(references, 4);
+
+    yxml_t empty;
+    yxml_init_content(&empty, buf, sizeof(buf));
+    ck_assert_int_eq(yxml_eof(&empty), YXML_OK);
+} END_TEST
+
+START_TEST(yxmlContentFragment_nested) {
+    char buf[512];
+    yxml_t x;
+    yxml_init_content(&x, buf, sizeof(buf));
+    const char *content = "before<child>inside</child>after";
+    for(size_t i = 0; i < strlen(content); i++)
+        ck_assert_int_ge(yxml_parse(&x, (unsigned char)content[i]), YXML_OK);
+    ck_assert_int_eq(yxml_eof(&x), YXML_OK);
+} END_TEST
+
+START_TEST(yxmlContentFragment_incomplete) {
+    const char *invalid[] = {
+        "&amp", "<![CDATA[text", "<!-- comment", "<?pi data", "<child>"
+    };
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        char buf[512];
+        yxml_t x;
+        yxml_init_content(&x, buf, sizeof(buf));
+        for(size_t j = 0; j < strlen(invalid[i]); j++)
+            ck_assert_int_ge(yxml_parse(&x, (unsigned char)invalid[i][j]),
+                             YXML_OK);
+        ck_assert_int_eq(yxml_eof(&x), YXML_EEOF);
+    }
 } END_TEST
 
 START_TEST(yxmlEntityRef_unknown) {
@@ -898,6 +992,10 @@ static Suite *testSuite_yxml(void) {
 
     TCase *tc_ref = tcase_create("yxml_refs");
     tcase_add_test(tc_ref, yxmlEntityRef_content);
+    tcase_add_test(tc_ref, yxmlEntityRef_flag);
+    tcase_add_test(tc_ref, yxmlContentFragment);
+    tcase_add_test(tc_ref, yxmlContentFragment_nested);
+    tcase_add_test(tc_ref, yxmlContentFragment_incomplete);
     tcase_add_test(tc_ref, yxmlEntityRef_unknown);
     tcase_add_test(tc_ref, yxmlEntityRef_tooLong);
     tcase_add_test(tc_ref, yxmlCharRef_decimalASCII);

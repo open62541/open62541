@@ -23,6 +23,7 @@
 #ifndef YXML_H
 #define YXML_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -94,6 +95,10 @@ typedef struct {
 	 */
 	char data[8];
 
+	/* True if the current YXML_CONTENT or YXML_ATTRVAL event was produced from
+	 * a character or entity reference. Valid until the next yxml_parse() call. */
+	bool isReference;
+
 	/* Name of the current attribute. Changed after YXML_ATTRSTART, valid up to
 	 * and including the next YXML_ATTREND. */
 	char *attr;
@@ -119,6 +124,7 @@ typedef struct {
 	int nextstate; /* Used for '@' state remembering and for the "string" consuming state */
 	unsigned ignore;
 	unsigned char *string;
+	bool contentmode;
 } yxml_t;
 
 #ifdef __cplusplus
@@ -127,14 +133,20 @@ extern "C" {
 
 void yxml_init(yxml_t *, void *, size_t);
 
+/* Initialize the parser for an XML content fragment without an enclosing
+ * element. Character data, references, CDATA sections, comments, processing
+ * instructions and balanced child elements are accepted. */
+void yxml_init_content(yxml_t *, void *, size_t);
+
 yxml_ret_t yxml_parse(yxml_t *, int);
 
 /* May be called after the last character has been given to yxml_parse().
- * Returns YXML_OK if the XML document is valid, YXML_EEOF otherwise.  Using
- * this function isn't really necessary, but can be used to detect documents
- * that don't end correctly. In particular, an error is returned when the XML
- * document did not contain a (complete) root element, or when the document
- * ended while in a comment or processing instruction. */
+ * Returns YXML_OK if the XML document or content fragment is valid, YXML_EEOF
+ * otherwise. Using this function isn't really necessary, but can be used to
+ * detect input that doesn't end correctly. In document mode, an error is
+ * returned when there is no complete root element. In content mode, an error
+ * is returned for unbalanced child elements. Both modes reject input ending
+ * inside a reference, CDATA section, comment or processing instruction. */
 yxml_ret_t yxml_eof(yxml_t *);
 
 #ifdef __cplusplus
