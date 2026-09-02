@@ -92,13 +92,13 @@ START_TEST(callKnownMethodOnUnknownObject) {
 
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE);
+    callMethodRequest.methodId = UA_NODEID_STRING(1, "nofunctionpointer");
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_UNKNOWN_OBJECT);
 
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
 } END_TEST
 
 START_TEST(callMethodAndObjectExistsButMethodHasWrongNodeClass) {

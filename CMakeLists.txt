@@ -131,14 +131,6 @@ endif()
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
-
-    # Detect whether any loaded companion spec requires the RoleSet node
-    set(UA_NODESET_INJECTOR_NEEDS_ROLESET OFF)
-    foreach(_model ${UA_INFORMATION_MODEL_AUTOLOAD})
-        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data")
-            set(UA_NODESET_INJECTOR_NEEDS_ROLESET ON)
-        endif()
-    endforeach()
 endif()
 
 set(MULTITHREADING_DEFAULT 0)
@@ -1801,13 +1793,6 @@ add_library(open62541::open62541 ALIAS open62541)
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if(UA_NODESET_INJECTOR_NEEDS_ROLESET)
-    target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_ROLESET)
-endif()
-if(UA_NODESET_INJECTOR_NEEDS_SERVERLOG)
-    target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_SERVERLOG)
-endif()
-
 # Prevent Wincrypt override warning.
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)

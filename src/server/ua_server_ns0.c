@@ -971,7 +971,7 @@ initNS0(UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Configure NS0 nodes: write values, delete unused nodes, add references.
+/* Configure NS0 nodes: write values and add references.
  * This is called after nodes are created (initNS0) or loaded from ROM.
  * Shared between initNS0() and initNS0_dataSources() to avoid duplication. */
 static UA_StatusCode
@@ -1025,22 +1025,6 @@ configureNS0(UA_Server *server) {
     UA_RedundancySupport redundancySupport = UA_REDUNDANCYSUPPORT_NONE;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT,
                                &redundancySupport, &UA_TYPES[UA_TYPES_REDUNDANCYSUPPORT]);
-    /* Remove unused subtypes of ServerRedundancy */
-    deleteNode(server, UA_NS0ID(SERVER_SERVERREDUNDANCY_CURRENTSERVERID), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERREDUNDANCY_REDUNDANTSERVERARRAY), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERREDUNDANCY_SERVERURIARRAY), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERREDUNDANCY_SERVERNETWORKGROUPS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_CONFORMANCEUNITS), true);
-    deleteNode(server, UA_NS0ID(SERVER_URISVERSION), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_CONFORMANCEUNITS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMSPERSUBSCRIPTION), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSELECTCLAUSEPARAMETERS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSESSIONS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSUBSCRIPTIONS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSUBSCRIPTIONSPERSESSION), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXWHERECLAUSEPARAMETERS), true);
-
     /* ServerCapabilities - LocaleIdArray */
     UA_LocaleId locale_en = UA_STRING("en");
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY,
@@ -1075,62 +1059,6 @@ configureNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXHISTORYCONTINUATIONPOINTS,
                                &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
-    /* Remove unused operation limit components */
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADDATA), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADEVENTS), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYUPDATEDATA), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYUPDATEEVENTS), true);
-#if !defined(UA_NODESET_INJECTOR_NEEDS_ROLESET) && !defined(UA_ENABLE_RBAC)
-    /* With RBAC the RoleSet with the well-known Role Objects and their
-     * standard NodeIds (Part 18 v1.05 §4.3) is kept; initNS0RBAC only fills
-     * the gaps and connects the data sources. */
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_ROLESET), true);
-#endif
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSTRINGLENGTH), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXARRAYLENGTH), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXBYTESTRINGLENGTH), true);
-
-    /* Remove not supported server configurations */
-    deleteNode(server, UA_NS0ID(SERVER_ESTIMATEDRETURNTIME), true);
-    deleteNode(server, UA_NS0ID(SERVER_LOCALTIME), true);
-    deleteNode(server, UA_NS0ID(SERVER_REQUESTSERVERSTATECHANGE), true);
-    deleteNode(server, UA_NS0ID(SERVER_SETSUBSCRIPTIONDURABLE), true);
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP), true);
-#if defined(UA_NS0ID_SERVERLOG) && !defined(UA_NODESET_INJECTOR_NEEDS_SERVERLOG)
-    deleteNode(server, UA_NS0ID(SERVERLOG), true);
-#endif
-#ifdef UA_NS0ID_LLDP
-    deleteNode(server, UA_NS0ID(LLDP), true);
-#endif
-    deleteNode(server, UA_NS0ID(PROVISIONABLEDEVICE), true);
-    deleteNode(server, UA_NS0ID(USERMANAGEMENT), true);
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_TRANSACTIONDIAGNOSTICS), true);
-#ifdef UA_NS0ID_SERVERCONFIGURATION_CONFIGURATIONFILE
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CONFIGURATIONFILE), true);
-#endif
-#ifndef UA_ENABLE_DRIVER_GDS_RECEIVER
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP), true);
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP), true);
-#endif
-
-#ifndef UA_ENABLE_DIAGNOSTICS
-    /* Removing these NodeIds make Server Object to be non-complaint with UA
-     * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
-     * 1.04 specification this has been resolved by allowing to remove these
-     * static nodes as well */
-    deleteNode(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
-#endif
-
-    /* The sampling diagnostics array is optional
-     * TODO: Add support for this diagnostics */
-    deleteNode(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
-
-#ifndef UA_ENABLE_PUBSUB
-    deleteNode(server, UA_NS0ID(PUBLISHSUBSCRIBE), true);
-#endif
-
     /* ServerConfiguration - MulticastDnsEnabled */
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
@@ -1157,12 +1085,7 @@ configureNS0(UA_Server *server) {
                                    &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
     }
 #endif
-#ifndef UA_ENABLE_HISTORIZING
-    deleteNode(server, UA_NS0ID(HISTORYSERVERCAPABILITIES), true);
-#ifdef UA_NS0ID_DEFAULTHACONFIGURATION
-    deleteNode(server, UA_NS0ID(DEFAULTHACONFIGURATION), true);
-#endif
-#else
+#ifdef UA_ENABLE_HISTORIZING
     /* ServerCapabilities - HistoryServerCapabilities - AccessHistoryDataCapability */
     retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_ACCESSHISTORYDATACAPABILITY,
                                &server->config.accessHistoryDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
@@ -1388,20 +1311,314 @@ connectNS0_dataSources(UA_Server *server) {
     return retVal;
 }
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+
+static UA_Boolean
+variableNodeHasCallbacks(const UA_VariableNode *node) {
+    if(node->valueSourceType == UA_VALUESOURCETYPE_CALLBACK)
+        return (node->valueSource.callback.read != NULL ||
+                node->valueSource.callback.write != NULL);
+
+    const UA_ValueSourceNotifications *notifications =
+        (node->valueSourceType == UA_VALUESOURCETYPE_EXTERNAL) ?
+        &node->valueSource.external.notifications :
+        &node->valueSource.internal.notifications;
+    return (notifications->onRead != NULL || notifications->onWrite != NULL);
+}
+
+static UA_Boolean
+nodeHasRuntimeConfiguration(const UA_Node *node) {
+    if(node->head.context != NULL)
+        return true;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    if(node->head.monitoredItems != NULL)
+        return true;
+#endif
+
+    if(node->head.nodeClass == UA_NODECLASS_METHOD)
+        return node->methodNode.method != NULL;
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
+        return variableNodeHasCallbacks(&node->variableNode);
+    return false;
+}
+
+typedef struct {
+    UA_NS0ReferenceSignature *signature;
+    UA_UInt32 sourceHash;
+    UA_Byte referenceTypeIndex;
+    UA_Boolean isInverse;
+} NS0ReferenceSignatureContext;
+
+static UA_UInt64
+mixReferenceHash(UA_UInt64 value) {
+    value ^= value >> 30;
+    value *= 0xbf58476d1ce4e5b9ULL;
+    value ^= value >> 27;
+    value *= 0x94d049bb133111ebULL;
+    return value ^ (value >> 31);
+}
+
+static void *
+addReferenceToSignature(void *context, UA_ReferenceTarget *target) {
+    NS0ReferenceSignatureContext *ctx =
+        (NS0ReferenceSignatureContext*)context;
+    UA_ExpandedNodeId targetId =
+        UA_NodePointer_toExpandedNodeId(target->targetId);
+    UA_UInt64 value = ((UA_UInt64)ctx->sourceHash << 32) |
+        UA_ExpandedNodeId_hash(&targetId);
+    value ^= ((UA_UInt64)ctx->referenceTypeIndex << 1);
+    value ^= ctx->isInverse;
+    ctx->signature->hash += mixReferenceHash(value);
+    ctx->signature->referencesSize++;
+    return NULL;
+}
+
+static UA_StatusCode
+inspectNS0Hierarchy(UA_Server *server, UA_UInt32 nodeId,
+                    UA_NS0ReferenceSignature *signature,
+                    UA_Boolean *configured) {
+    *signature = (UA_NS0ReferenceSignature){0};
+    *configured = false;
+
+    UA_NodeId rootId = UA_NODEID_NUMERIC(0, nodeId);
+    const UA_Node *root = UA_NODESTORE_GET(server, &rootId);
+    if(!root)
+        return UA_STATUSCODE_GOOD;
+    UA_NODESTORE_RELEASE(server, root);
+
+    UA_ReferenceTypeSet hierarchicalRefs;
+    UA_NodeId hierarchicalReferences = UA_NS0ID(HIERARCHICALREFERENCES);
+    UA_StatusCode res =
+        referenceTypeIndices(server, &hierarchicalReferences,
+                             &hierarchicalRefs, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    size_t nodesSize = 0;
+    UA_ExpandedNodeId *nodes = NULL;
+    res = browseRecursive(server, 1, &rootId, UA_BROWSEDIRECTION_FORWARD,
+                          &hierarchicalRefs, 0, true, &nodesSize, &nodes);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    signature->nodesSize = nodesSize;
+    for(size_t i = 0; i < nodesSize; i++) {
+        if(!UA_ExpandedNodeId_isLocal(&nodes[i]))
+            continue;
+
+        const UA_Node *node = UA_NODESTORE_GET(server, &nodes[i].nodeId);
+        if(!node) {
+            res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            break;
+        }
+
+        *configured |= nodeHasRuntimeConfiguration(node);
+        for(size_t j = 0; j < node->head.referencesSize; j++) {
+            UA_NodeReferenceKind *reference = &node->head.references[j];
+            NS0ReferenceSignatureContext ctx = {
+                signature, UA_NodeId_hash(&node->head.nodeId),
+                reference->referenceTypeIndex, reference->isInverse};
+            UA_NodeReferenceKind_iterate(reference, addReferenceToSignature,
+                                         &ctx);
+        }
+        UA_NODESTORE_RELEASE(server, node);
+    }
+
+    UA_Array_delete(nodes, nodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return res;
+}
+
+static UA_Boolean
+ns0NodeIsUsed(UA_Server *server, size_t candidateIndex, UA_UInt32 nodeId) {
+    /* Keep a candidate if its hierarchy gained or lost a reference after NS0
+     * initialization. Runtime callbacks, contexts, and MonitoredItems also
+     * indicate use. Inspection errors retain the candidate. */
+    if(candidateIndex >= server->ns0CleanupSignaturesSize)
+        return true;
+
+    UA_NS0ReferenceSignature signature;
+    UA_Boolean configured;
+    UA_StatusCode res =
+        inspectNS0Hierarchy(server, nodeId, &signature, &configured);
+    if(res != UA_STATUSCODE_GOOD || configured)
+        return true;
+
+    UA_NS0ReferenceSignature *baseline =
+        &server->ns0CleanupSignatures[candidateIndex];
+    return (signature.hash != baseline->hash ||
+            signature.nodesSize != baseline->nodesSize ||
+            signature.referencesSize != baseline->referencesSize);
+}
+
+static const UA_UInt32 *
+ns0CleanupCandidates(size_t *size) {
+    static const UA_UInt32 candidates[] = {
+        /* Unused subtypes of ServerRedundancy */
+        UA_NS0ID_SERVER_SERVERREDUNDANCY_CURRENTSERVERID,
+        UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANTSERVERARRAY,
+        UA_NS0ID_SERVER_SERVERREDUNDANCY_SERVERURIARRAY,
+        UA_NS0ID_SERVER_SERVERREDUNDANCY_SERVERNETWORKGROUPS,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_CONFORMANCEUNITS,
+        UA_NS0ID_SERVER_URISVERSION,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMS,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMSPERSUBSCRIPTION,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXSELECTCLAUSEPARAMETERS,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXSESSIONS,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXSUBSCRIPTIONS,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXSUBSCRIPTIONSPERSESSION,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXWHERECLAUSEPARAMETERS,
+
+        /* Unused operation limit components */
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADDATA,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADEVENTS,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYUPDATEDATA,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYUPDATEEVENTS,
+#ifndef UA_ENABLE_RBAC
+        /* With RBAC the RoleSet with the well-known Role Objects and their
+         * standard NodeIds (Part 18 v1.05 §4.3) is kept; initNS0RBAC fills
+         * the gaps and connects the data sources. */
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET,
+#endif
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXSTRINGLENGTH,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXARRAYLENGTH,
+        UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBYTESTRINGLENGTH,
+
+        /* Unsupported server configurations */
+        UA_NS0ID_SERVER_ESTIMATEDRETURNTIME,
+        UA_NS0ID_SERVER_LOCALTIME,
+        UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE,
+        UA_NS0ID_SERVER_SETSUBSCRIPTIONDURABLE,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP,
+#ifdef UA_NS0ID_LLDP
+        UA_NS0ID_LLDP,
+#endif
+        UA_NS0ID_PROVISIONABLEDEVICE,
+        UA_NS0ID_USERMANAGEMENT,
+        UA_NS0ID_SERVERCONFIGURATION_TRANSACTIONDIAGNOSTICS,
+#ifdef UA_NS0ID_SERVERCONFIGURATION_CONFIGURATIONFILE
+        UA_NS0ID_SERVERCONFIGURATION_CONFIGURATIONFILE,
+#endif
+#ifndef UA_ENABLE_DRIVER_GDS_RECEIVER
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP,
+#endif
+
+#ifndef UA_ENABLE_DIAGNOSTICS
+        /* OPC UA 1.04 allows these static diagnostics nodes to be omitted. */
+        UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY,
+        UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
+        UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY,
+#endif
+
+        /* The sampling diagnostics array is optional and unsupported. */
+        UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY,
+
+#ifndef UA_ENABLE_PUBSUB
+        UA_NS0ID_PUBLISHSUBSCRIBE,
+#endif
+
+#ifndef UA_ENABLE_HISTORIZING
+        UA_NS0ID_HISTORYSERVERCAPABILITIES,
+#ifdef UA_NS0ID_DEFAULTHACONFIGURATION
+        UA_NS0ID_DEFAULTHACONFIGURATION,
+#endif
+#endif
+
+#ifdef UA_NS0ID_SERVERLOG
+        UA_NS0ID_SERVERLOG,
+#endif
+    };
+
+    *size = sizeof(candidates) / sizeof(candidates[0]);
+    return candidates;
+}
+
+#endif
+
+void
+snapshotNS0CleanupReferences(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    size_t candidatesSize = 0;
+    const UA_UInt32 *candidates = ns0CleanupCandidates(&candidatesSize);
+    UA_NS0ReferenceSignature *signatures = (UA_NS0ReferenceSignature*)
+        UA_calloc(candidatesSize, sizeof(UA_NS0ReferenceSignature));
+    if(!signatures) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not allocate NS0 cleanup state. "
+                       "Unused nodes will be retained");
+        return;
+    }
+
+    for(size_t i = 0; i < candidatesSize; i++) {
+        UA_Boolean configured;
+        UA_StatusCode res =
+            inspectNS0Hierarchy(server, candidates[i], &signatures[i],
+                                &configured);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not inspect NS0 cleanup candidates with %s. "
+                           "Unused nodes will be retained",
+                           UA_StatusCode_name(res));
+            UA_free(signatures);
+            return;
+        }
+    }
+
+    server->ns0CleanupSignatures = signatures;
+    server->ns0CleanupSignaturesSize = candidatesSize;
+#endif
+}
+
+void
+removeUnusedNS0Nodes(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    size_t candidatesSize = 0;
+    const UA_UInt32 *candidates = ns0CleanupCandidates(&candidatesSize);
+    if(server->ns0CleanupSignaturesSize == candidatesSize) {
+        UA_Boolean *used =
+            (UA_Boolean*)UA_calloc(candidatesSize, sizeof(UA_Boolean));
+        if(used) {
+            /* Inspect every candidate before deletion changes the references
+             * of another candidate. */
+            for(size_t i = 0; i < candidatesSize; i++)
+                used[i] = ns0NodeIsUsed(server, i, candidates[i]);
+            for(size_t i = 0; i < candidatesSize; i++) {
+                if(!used[i])
+                    deleteNode(server, UA_NODEID_NUMERIC(0, candidates[i]),
+                               true);
+            }
+            UA_free(used);
+        } else {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not allocate NS0 cleanup state. "
+                           "Unused nodes will be retained");
+        }
+    }
+
+    UA_free(server->ns0CleanupSignatures);
+    server->ns0CleanupSignatures = NULL;
+    server->ns0CleanupSignaturesSize = 0;
+#endif
+}
+
 /* Public function for external nodestores (e.g., ROM nodestore) that have
  * NS0 pre-loaded and only need to connect the dynamic data sources and
- * configure values/deletions. */
+ * configure values. */
 UA_StatusCode
 initNS0_dataSources(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Configuring pre-loaded NS0 nodes (data sources, values, deletions)");
+                "Configuring pre-loaded NS0 nodes (data sources and values)");
 
     /* Connect all data source callbacks (shared with initNS0) */
     UA_StatusCode retVal = connectNS0_dataSources(server);
 
-    /* Configure NS0: write values, delete unused nodes, add references */
+    /* Configure NS0 values and references */
     retVal |= configureNS0(server);
 
     if(retVal != UA_STATUSCODE_GOOD) {

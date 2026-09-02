@@ -147,6 +147,148 @@ START_TEST(checkGetLifecycleState) {
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
+#ifdef UA_NS0ID_SERVERLOG
+
+static UA_StatusCode
+serverLogMethod(UA_Server *server_, const UA_NodeId *sessionId,
+                void *sessionContext, const UA_NodeId *methodId,
+                void *methodContext, const UA_NodeId *objectId,
+                void *objectContext, size_t inputSize, const UA_Variant *input,
+                size_t outputSize, UA_Variant *output) {
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(checkUnusedServerLogRemovedOnStartup) {
+    UA_NodeId serverLog = UA_NS0ID(SERVERLOG);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, serverLog, &nodeClass),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, serverLog, &nodeClass),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkConfiguredServerLogRetainedOnStartup) {
+    UA_NodeId getRecords = UA_NS0ID(SERVERLOG_GETRECORDS);
+    ck_assert_uint_eq(UA_Server_setMethodNodeCallback(server, getRecords,
+                                                     serverLogMethod),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NS0ID(SERVERLOG),
+                                             &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkReferencedServerLogRetainedOnStartup) {
+    ck_assert_uint_eq(
+        UA_Server_addReference(server, UA_NS0ID(OBJECTSFOLDER),
+                               UA_NS0ID(ORGANIZES),
+                               UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERLOG),
+                               true),
+        UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NS0ID(SERVERLOG),
+                                             &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+#endif
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+
+START_TEST(checkUnusedNs0NodeRemovedOnStartup) {
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NS0ID(SERVER_LOCALTIME),
+                                             &nodeClass),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NS0ID(SERVER_LOCALTIME),
+                                             &nodeClass),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkConfiguredNs0NodeRetainedOnStartup) {
+    UA_UInt32 context = 0;
+    ck_assert_uint_eq(UA_Server_setNodeContext(server, UA_NS0ID(SERVER_LOCALTIME),
+                                              &context),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NS0ID(SERVER_LOCALTIME),
+                                             &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkReferencedNs0NodeRetainedOnStartup) {
+    ck_assert_uint_eq(
+        UA_Server_addReference(server, UA_NS0ID(OBJECTSFOLDER),
+                               UA_NS0ID(ORGANIZES),
+                               UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME),
+                               true),
+        UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, UA_NS0ID(SERVER_LOCALTIME),
+                                             &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkUnusedRoleSetRemovedOnStartup) {
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(
+        UA_Server_readNodeClass(server,
+                                UA_NS0ID(SERVER_SERVERCAPABILITIES_ROLESET),
+                                &nodeClass),
+        UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(
+        UA_Server_readNodeClass(server,
+                                UA_NS0ID(SERVER_SERVERCAPABILITIES_ROLESET),
+                                &nodeClass),
+        UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkCompanionNodeRetainsRoleSetOnStartup) {
+    UA_UInt16 ns = UA_Server_addNamespace(server, "urn:open62541:test");
+    UA_ObjectAttributes attributes = UA_ObjectAttributes_default;
+    attributes.displayName = UA_LOCALIZEDTEXT("", "CustomRole");
+    ck_assert_uint_eq(
+        UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(ns, 1),
+                                UA_NS0ID(SERVER_SERVERCAPABILITIES_ROLESET),
+                                UA_NS0ID(HASCOMPONENT),
+                                UA_QUALIFIEDNAME(ns, "CustomRole"),
+                                UA_NS0ID(BASEOBJECTTYPE), attributes,
+                                NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(
+        UA_Server_readNodeClass(server,
+                                UA_NS0ID(SERVER_SERVERCAPABILITIES_ROLESET),
+                                &nodeClass),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+#endif
+
 /* ---- Additional coverage tests ---- */
 
 START_TEST(checkGetDataTypes) {
@@ -699,6 +841,18 @@ int main(void) {
     tcase_add_test(tc_call, checkServer_run);
     tcase_add_test(tc_call, checkGetStatistics);
     tcase_add_test(tc_call, checkGetLifecycleState);
+#ifdef UA_NS0ID_SERVERLOG
+    tcase_add_test(tc_call, checkUnusedServerLogRemovedOnStartup);
+    tcase_add_test(tc_call, checkConfiguredServerLogRetainedOnStartup);
+    tcase_add_test(tc_call, checkReferencedServerLogRetainedOnStartup);
+#endif
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    tcase_add_test(tc_call, checkUnusedNs0NodeRemovedOnStartup);
+    tcase_add_test(tc_call, checkConfiguredNs0NodeRetainedOnStartup);
+    tcase_add_test(tc_call, checkReferencedNs0NodeRetainedOnStartup);
+    tcase_add_test(tc_call, checkUnusedRoleSetRemovedOnStartup);
+    tcase_add_test(tc_call, checkCompanionNodeRetainsRoleSetOnStartup);
+#endif
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");
