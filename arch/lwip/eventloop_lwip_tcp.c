@@ -767,8 +767,8 @@ TCP_openPassiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *p
         char hostname[512];
         if(hostStrings[i].length >= sizeof(hostname))
             continue;
-        memcpy(hostname, hostStrings[i].data, hostStrings->length);
-        hostname[hostStrings->length] = '\0';
+        memcpy(hostname, hostStrings[i].data, hostStrings[i].length);
+        hostname[hostStrings[i].length] = '\0';
         if(TCP_registerListenSockets(pcm, hostname, *port, application,
                                      context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
             retval = UA_STATUSCODE_GOOD;
