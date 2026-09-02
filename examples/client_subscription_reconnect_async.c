@@ -34,7 +34,7 @@
 #define UNHEALTHY_GRACE    (5 * UA_DATETIME_SEC) /* tear down a stuck connection after this */
 
 typedef struct {
-    UA_Boolean running;
+    volatile UA_Boolean running;
     UA_Boolean mustReconnect; /* set by the inactivity callback: the server hung */
 } AppState;
 
@@ -42,7 +42,7 @@ static AppState app = {true, false};
 
 static void stopHandler(int sign) {
     (void)sign;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Received Ctrl-C");
+    /* Keep the signal handler free of locking and formatted I/O. */
     app.running = false;
 }
 

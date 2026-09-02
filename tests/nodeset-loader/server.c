@@ -11,9 +11,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-UA_Boolean running = true;
+static volatile UA_Boolean running = true;
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    (void)sign;
+    /* Keep the signal handler free of locking and formatted I/O. */
     running = false;
 }
 
