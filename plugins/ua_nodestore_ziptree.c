@@ -201,7 +201,7 @@ zipNsGetNodeCopy(UA_Nodestore *ns, const UA_NodeId *nodeId,
 
     /* Copy the node content */
     UA_Node *nnode = (UA_Node*)&ne->nodeId;
-    UA_StatusCode retval = UA_Node_copyForEdit(node, nnode);
+    UA_StatusCode retval = UA_Node_copy(node, nnode);
     zipNsReleaseNode(NULL, node);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteEntry(ne);
@@ -329,6 +329,10 @@ zipNsReplaceNode(UA_Nodestore *ns, UA_Node *node) {
         zipNsReleaseNode(NULL, oldNode);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* All failure checks have passed. Move the runtime associations only at
+     * the commit point so a failed replacement leaves the old node intact. */
+    UA_Node_moveMonitoredItems((UA_Node*)&oldEntry->nodeId, node);
 
     /* Replace */
     ZipNodestore *zns = (ZipNodestore*)ns;

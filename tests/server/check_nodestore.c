@@ -322,7 +322,18 @@ START_TEST(nodeCopy_doesNotCopyMonitoredItems) {
     ns->deleteNode(ns, source);
 } END_TEST
 
-START_TEST(getNodeCopy_preservesMonitoredItems) {
+START_TEST(moveMonitoredItems_sameNodeIsNoop) {
+    UA_Node *node = createNode(0, 7002);
+    node->head.monitoredItems = (UA_MonitoredItem*)(uintptr_t)0x01;
+
+    UA_Node_moveMonitoredItems(node, node);
+    ck_assert_ptr_eq(node->head.monitoredItems,
+                     (UA_MonitoredItem*)(uintptr_t)0x01);
+
+    ns->deleteNode(ns, node);
+} END_TEST
+
+START_TEST(replaceNode_movesMonitoredItems) {
     UA_Node *source = createNode(0, 7002);
     source->head.monitoredItems = (UA_MonitoredItem*)(uintptr_t)0x01;
     UA_StatusCode retval = ns->insertNode(ns, source, NULL);
@@ -332,8 +343,7 @@ START_TEST(getNodeCopy_preservesMonitoredItems) {
     UA_Node *copy = NULL;
     retval = ns->getNodeCopy(ns, &id, &copy);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(copy->head.monitoredItems,
-                     (UA_MonitoredItem*)(uintptr_t)0x01);
+    ck_assert_ptr_eq(copy->head.monitoredItems, NULL);
 
     retval = ns->replaceNode(ns, copy);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -466,7 +476,8 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_ext, getNodeCopy_modifyAndReplace);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test (tc_ext, nodeCopy_doesNotCopyMonitoredItems);
-    tcase_add_test (tc_ext, getNodeCopy_preservesMonitoredItems);
+    tcase_add_test (tc_ext, moveMonitoredItems_sameNodeIsNoop);
+    tcase_add_test (tc_ext, replaceNode_movesMonitoredItems);
 #endif
     tcase_add_test (tc_ext, getNodeCopy_nonExistent);
     tcase_add_test (tc_ext, newNodeAllClasses);
