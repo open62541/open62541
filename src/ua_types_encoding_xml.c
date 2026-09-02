@@ -10,6 +10,7 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <stdint.h>
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
@@ -261,9 +262,16 @@ typedef struct {
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
-    if(ctx->pos + len > ctx->end)
+    if(ctx->calcOnly) {
+        uintptr_t pos = (uintptr_t)ctx->pos;
+        if(len > UINTPTR_MAX - pos)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        ctx->pos = (uint8_t*)(pos + len);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(len > (size_t)(ctx->end - ctx->pos))
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly && len)
+    if(len)
         memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
