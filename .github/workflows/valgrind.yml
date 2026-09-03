@@ -67,7 +67,7 @@ jobs:
       CTEST_SHARDS: 6
       CTEST_SHARD: ${{ matrix.shard }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - uses: ./.github/actions/linux-ci-setup
@@ -98,7 +98,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
             cmd_action: examples_valgrind OPENSSL AVAHI
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - uses: ./.github/actions/linux-ci-setup
