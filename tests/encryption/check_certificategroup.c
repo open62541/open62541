@@ -9,6 +9,7 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -19,13 +20,18 @@
 #include <stdlib.h>
 
 #include "test_helpers.h"
+#include "../common.h"
 #include "certificates.h"
 #include "certificate_eku.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || \
+    defined(__APPLE__) || defined(__OpenBSD__)
 #include "mp_printf.h"
+#endif
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 #define TEST_PATH_MAX 256
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
@@ -588,6 +594,63 @@ START_TEST(verify_expired_certificate_status_depends_on_trust) {
 }
 END_TEST
 
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || \
+    defined(__APPLE__) || defined(__OpenBSD__)
+START_TEST(filestore_uses_crl_issuer_in_filename) {
+    UA_CertificateGroup group;
+    memset(&group, 0, sizeof(group));
+    UA_NodeId groupId = UA_NS0ID(
+        SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_String storePath = UA_STRING("pki-crl-filename-test");
+    UA_StatusCode retval = UA_CertificateGroup_Filestore(
+        &group, &groupId, storePath, UA_Log_Stdout, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString caCertificate = {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA};
+    UA_ByteString crl = {ROOT_EMPTY_CRL_PEM_LENGTH, ROOT_EMPTY_CRL_PEM_DATA};
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES |
+                               UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    trustList.trustedCertificates = &caCertificate;
+    trustList.trustedCertificatesSize = 1;
+    trustList.trustedCrls = &crl;
+    trustList.trustedCrlsSize = 1;
+    retval = group.setTrustList(&group, &trustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String issuer = UA_STRING_NULL;
+    retval = UA_CertificateUtils_getSubjectName(&crl, &issuer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < issuer.length; i++) {
+        if(issuer.data[i] == '/' || issuer.data[i] == '\\' || issuer.data[i] < 0x20)
+            issuer.data[i] = '_';
+    }
+
+    UA_Byte thumbprintData[40];
+    UA_String thumbprint = {sizeof(thumbprintData), thumbprintData};
+    retval = UA_CertificateUtils_getThumbprint(&crl, &thumbprint);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    char filename[2048];
+    int len = mp_snprintf(
+        filename, sizeof(filename),
+        "pki-crl-filename-test/ApplCerts/trusted/crl/%.*s[%.*s].crl",
+        (int)issuer.length, (char*)issuer.data,
+        (int)thumbprint.length, (char*)thumbprint.data);
+    ck_assert_int_ge(len, 0);
+    ck_assert_uint_lt((size_t)len, sizeof(filename));
+
+    UA_ByteString storedCrl = loadFile(filename);
+    ck_assert(UA_ByteString_equal(&storedCrl, &crl));
+
+    UA_ByteString_clear(&storedCrl);
+    UA_String_clear(&issuer);
+    group.clear(&group);
+}
+END_TEST
+#endif
+
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 START_TEST(memorystore_rejects_invalid_initial_trust_material) {
     UA_Byte invalidData[] = {0x01, 0x02, 0x03};
@@ -793,6 +856,13 @@ static Suite* testSuite_encryption(void) {
     suite_add_tcase(s,tc_encryption_filestore);
 #endif /* UA_ENABLE_ENCRYPTION */
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || \
+    defined(__APPLE__) || defined(__OpenBSD__)
+    TCase *tc_filestore_filename = tcase_create("CertificateGroup filenames");
+    tcase_add_test(tc_filestore_filename, filestore_uses_crl_issuer_in_filename);
+    suite_add_tcase(s, tc_filestore_filename);
+#endif
     return s;
 }
 

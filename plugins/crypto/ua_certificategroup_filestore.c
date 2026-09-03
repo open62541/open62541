@@ -129,48 +129,43 @@ getCertFileName(const char *path, const char *fileExt,
                 const UA_ByteString *certificate, char *fileNameBuf,
                 size_t fileNameLen) {
     /* Check parameter */
-    if(path == NULL || fileExt == NULL || certificate == NULL || fileNameBuf == NULL)
+    if(path == NULL || fileExt == NULL || certificate == NULL ||
+       fileNameBuf == NULL || fileNameLen == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Byte thumbprintData[40];
+    UA_String thumbprint = {sizeof(thumbprintData), thumbprintData};
+    UA_StatusCode retval = UA_CertificateUtils_getThumbprint(
+        (UA_ByteString*)(uintptr_t)certificate, &thumbprint);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    UA_String thumbprint = UA_STRING_NULL;
-    thumbprint.length = 40;
-    thumbprint.data = (UA_Byte*)UA_calloc(thumbprint.length, sizeof(UA_Byte));
-
-    UA_String commonName = UA_STRING_NULL;
-
-    UA_CertificateUtils_getThumbprint((UA_ByteString*)(uintptr_t)certificate, &thumbprint);
-    UA_CertificateUtils_getCertCommonName((UA_ByteString*)(uintptr_t)certificate, &commonName);
-
-    if((thumbprint.length + commonName.length + 2) > fileNameLen) {
-        UA_String_clear(&thumbprint);
-        UA_String_clear(&commonName);
+    UA_String name = UA_STRING_NULL;
+    retval = UA_CertificateUtils_getCertCommonName(certificate, &name);
+    if(retval != UA_STATUSCODE_GOOD) {
+        retval = UA_CertificateUtils_getSubjectName(
+            (UA_ByteString*)(uintptr_t)certificate, &name);
+    }
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    if(name.length > UA_INT32_MAX) {
+        UA_String_clear(&name);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    char *thumbprintBuffer = (char*)UA_malloc(thumbprint.length + 1);
-    char *commonNameBuffer = (char*)UA_malloc(commonName.length + 1);
-
-    memcpy(thumbprintBuffer, thumbprint.data, thumbprint.length);
-    thumbprintBuffer[thumbprint.length] = '\0';
-    memcpy(commonNameBuffer, commonName.data, commonName.length);
-    commonNameBuffer[commonName.length] = '\0';
-
-    for(char *c = commonNameBuffer; *c; c++) {
-        if(*c == '/' || *c == '\\')
-            *c = '_';
+    for(size_t i = 0; i < name.length; i++) {
+        if(name.data[i] == '/' || name.data[i] == '\\' || name.data[i] < 0x20)
+            name.data[i] = '_';
     }
 
-    if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]%s", path,
-                   commonNameBuffer,
-                   thumbprintBuffer, fileExt) < 0)
+    int len = mp_snprintf(fileNameBuf, fileNameLen, "%s/%.*s[%.*s]%s", path,
+                          (int)name.length, (char*)name.data,
+                          (int)thumbprint.length,
+                          (char*)thumbprint.data, fileExt);
+    if(len < 0 || (size_t)len >= fileNameLen)
         retval = UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_String_clear(&thumbprint);
-    UA_String_clear(&commonName);
-    UA_free(thumbprintBuffer);
-    UA_free(commonNameBuffer);
+    UA_String_clear(&name);
 
     return retval;
 }
@@ -340,7 +335,7 @@ writeCertificates(const UA_ByteString *list, size_t listSize,
         char filename[UA_PATH_MAX] = {0};
         retval = getCertFileName(listPath, fileExt, &list[i], filename, UA_PATH_MAX);
         if(retval != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return retval;
 
         /* Store data in file */
         retval = writeByteStringToFile(filename, &list[i]);
@@ -361,7 +356,10 @@ writeTrustList(const UA_ByteString *list, size_t listSize,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     char listPath[UA_PATH_MAX] = {0};
-    mp_snprintf(listPath, UA_PATH_MAX, "%.*s", (int)path.length, (char *)path.data);
+    int len = mp_snprintf(listPath, UA_PATH_MAX, "%.*s",
+                          (int)path.length, (char*)path.data);
+    if(len < 0 || len >= UA_PATH_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /* remove existing files in directory */
     UA_StatusCode retval = removeAllFilesFromDir(listPath, false);
     if(retval != UA_STATUSCODE_GOOD)
@@ -382,37 +380,41 @@ writeTrustStore(UA_CertificateGroup *certGroup, const UA_UInt32 trustListMask) {
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = trustListMask;
 
-    context->store->getTrustList(context->store, &trustList);
+    UA_StatusCode retval =
+        context->store->getTrustList(context->store, &trustList);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
         retval = writeTrustList(trustList.trustedCertificates,
                                 trustList.trustedCertificatesSize, context->trustedCertFolder,
                                 ".der");
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         retval = writeTrustList(trustList.trustedCrls,
                                 trustList.trustedCrlsSize, context->trustedCrlFolder,
                                 ".crl");
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         retval = writeTrustList(trustList.issuerCertificates,
                                 trustList.issuerCertificatesSize, context->issuerCertFolder,
                                 ".der");
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
     if(trustList.specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         retval = writeTrustList(trustList.issuerCrls,
                                 trustList.issuerCrlsSize, context->issuerCrlFolder,
                                 ".crl");
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
+
+cleanup:
     UA_TrustListDataType_clear(&trustList);
 
     return retval;
