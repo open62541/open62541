@@ -104,6 +104,12 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
                       MulticastRequest *req, const UA_Logger *logger) {
     struct netif *netif = NULL;
     u8_t netif_index = 0;
+    struct netif *netif_by_name = NULL;
+
+    /* User input can be shorter than the minimum "xx0" netif name.
+     * netif_find unconditionally reads the number from netif_name[2]. */
+    if(strlen(netif_name) >= 3)
+        netif_by_name = netif_find(netif_name);
 
 #if LWIP_SINGLE_NETIF
     /* If only one network interface is available, use netif_default */
@@ -115,7 +121,7 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
     }
 
     /* Check if the interface name matches */
-    if(netif_find(netif_name) == netif) {
+    if(netif_by_name == netif) {
         netif_index = netif_get_index(netif);
     } else {
     /* Convert IP to string and compare */
@@ -141,8 +147,6 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
     }
 
 #else
-    struct netif *netif_by_name = netif_find(netif_name);
-
     /* Iterate over available network interfaces */
     NETIF_FOREACH(netif) {
         if(!netif || !netif_is_up(netif))
