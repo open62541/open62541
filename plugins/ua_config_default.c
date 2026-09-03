@@ -201,7 +201,8 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
     1 << 29, /* .localMaxMessageSize, 512 MB */
     1 << 29, /* .remoteMaxMessageSize, 512 MB */
     1 << 14, /* .localMaxChunkCount, 16k */
-    1 << 14  /* .remoteMaxChunkCount, 16k */
+    1 << 14,  /* .remoteMaxChunkCount, 16k */
+    1 << 17  /* .localMaxUntrustedMessageSize 128 kB*/
 };
 
 /***************************/

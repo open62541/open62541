@@ -955,6 +955,17 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
             return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
         }
 
+        /* Now validate whether the channel is unsecured AND the message size
+         * exceeds what is configured */
+        if((channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+            channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) &&
+           (channel->config.localMaxUntrustedMessageSize != 0 &&
+            channel->chunksLength + chunk.bytes.length > channel->config.localMaxUntrustedMessageSize)) {
+            if(chunk.copied)
+                UA_ByteString_clear(&chunk.bytes);
+            return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
+        }
+
         /* Add the chunk to the queue. Then continue extracting more chunks. */
         pchunk = (UA_Chunk*)UA_malloc(sizeof(UA_Chunk));
         if(!pchunk) {
