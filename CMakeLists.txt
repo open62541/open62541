@@ -131,14 +131,6 @@ endif()
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
-
-    # Detect whether any loaded companion spec requires the RoleSet node
-    set(UA_NODESET_INJECTOR_NEEDS_ROLESET OFF)
-    foreach(_model ${UA_INFORMATION_MODEL_AUTOLOAD})
-        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data")
-            set(UA_NODESET_INJECTOR_NEEDS_ROLESET ON)
-        endif()
-    endforeach()
 endif()
 
 set(MULTITHREADING_DEFAULT 0)
@@ -1504,6 +1496,7 @@ set(UA_NS0_NODESETS)
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
     set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
+    set(UA_NS0_TYPES_XML ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
 
     # Set the full ns0 nodeset
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.xml)
@@ -1602,6 +1595,7 @@ include(open62541Macros)
 # standard-defined data types
 ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
                       FILE_CSV "${UA_NS0_NODEIDS}"
+                      FILE_XML "${UA_NS0_TYPES_XML}"
                       FILES_BSD "${UA_NS0_TYPES_BSD}"
                       FILES_SELECTED ${UA_NS0_DATATYPES})
 
@@ -1799,10 +1793,6 @@ add_library(open62541::open62541 ALIAS open62541)
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if(UA_NODESET_INJECTOR_NEEDS_ROLESET)
-    target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_ROLESET)
-endif()
-
 # Prevent Wincrypt override warning.
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)

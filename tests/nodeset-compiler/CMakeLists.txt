@@ -133,3 +133,6 @@ add_test(NAME test_generate_datatypes_cross_ns
 add_test(NAME test_generate_datatypes_symbolic_names
          COMMAND "${Python3_EXECUTABLE}"
                  "${CMAKE_CURRENT_SOURCE_DIR}/test_symbolic_names.py")
+add_test(NAME test_generate_datatypes_optional_fields
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_optional_fields.py")
