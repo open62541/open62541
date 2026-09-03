@@ -12,6 +12,11 @@
 #include <stdlib.h>
 #include <check.h>
 
+#if defined(UA_ARCHITECTURE_LWIP)
+#include <lwip/netif.h>
+#include <lwip/tcpip.h>
+#endif
+
 static UA_EventLoop *el;
 static UA_ConnectionManager *cm;
 static UA_EventLoop *elListener;
@@ -279,6 +284,63 @@ START_TEST(connectUDPValidationFails) {
     el = NULL;
 }
 END_TEST
+
+#if defined(UA_ARCHITECTURE_LWIP)
+static UA_StatusCode
+validateMulticastInterface(const char *interfaceName) {
+    UA_UInt16 port = 4840;
+    UA_Boolean validate = true;
+    UA_String address = UA_STRING("224.0.0.22");
+    UA_String interface = {strlen(interfaceName), (UA_Byte*)(uintptr_t)interfaceName};
+
+    UA_KeyValuePair params[4];
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[1].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    params[2].key = UA_QUALIFIEDNAME(0, "interface");
+    UA_Variant_setScalar(&params[2].value, &interface, &UA_TYPES[UA_TYPES_STRING]);
+    params[3].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&params[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap paramsMap = {4, params};
+    TestContext testContext = {0};
+
+    return cm->openConnection(cm, &paramsMap, NULL, &testContext,
+                              connectionCallback);
+}
+
+START_TEST(connectUDPMulticastInterfaceName) {
+    setupEL();
+    ck_assert(el != NULL);
+    ck_assert(cm != NULL);
+    ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+
+    char interfaceName[NETIF_NAMESIZE];
+    char *result = NULL;
+    LOCK_TCPIP_CORE();
+    if(netif_default)
+        result = netif_index_to_name(netif_get_index(netif_default),
+                                     interfaceName);
+    UNLOCK_TCPIP_CORE();
+    ck_assert(result == interfaceName);
+
+    ck_assert_uint_eq(validateMulticastInterface(interfaceName),
+                      UA_STATUSCODE_GOOD);
+
+    char incompleteName[3] = {interfaceName[0], interfaceName[1], '\0'};
+    ck_assert_uint_eq(validateMulticastInterface(incompleteName),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(validateMulticastInterface(""),
+                      UA_STATUSCODE_BADINTERNALERROR);
+
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED)
+        el->run(el, 1);
+    ck_assert_uint_eq(el->free(el), UA_STATUSCODE_GOOD);
+    el = NULL;
+    cm = NULL;
+} END_TEST
+#endif
 
 START_TEST(connectUDP) {
     setupEL();
@@ -586,6 +648,9 @@ int main(void) {
     tcase_add_test(tc, connectUDP);
     tcase_add_test(tc, connectUDPValidationFails);
     tcase_add_test(tc, connectUDPValidationSucceeds);
+#if defined(UA_ARCHITECTURE_LWIP)
+    tcase_add_test(tc, connectUDPMulticastInterfaceName);
+#endif
     tcase_add_test(tc, udpTalkerAndListener);
     tcase_add_test(tc, udpTalkerAndListenerDifferentDestination);
     suite_add_tcase(s, tc);

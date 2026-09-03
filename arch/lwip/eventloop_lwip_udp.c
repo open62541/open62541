@@ -104,18 +104,26 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
                       MulticastRequest *req, const UA_Logger *logger) {
     struct netif *netif = NULL;
     u8_t netif_index = 0;
+    struct netif *netif_by_name = NULL;
+
+    LOCK_TCPIP_CORE();
+    /* User input can be shorter than the minimum "xx0" netif name.
+     * netif_find unconditionally reads the number from netif_name[2]. */
+    if(strlen(netif_name) >= 3)
+        netif_by_name = netif_find(netif_name);
 
 #if LWIP_SINGLE_NETIF
     /* If only one network interface is available, use netif_default */
     netif = netif_default;
     if(!netif || !netif_is_up(netif)) {
+        UNLOCK_TCPIP_CORE();
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                         "UDP\t| No active network interface found.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Check if the interface name matches */
-    if(strcmp(netif->name, netif_name) == 0) {
+    if(netif_by_name == netif) {
         netif_index = netif_get_index(netif);
     } else {
     /* Convert IP to string and compare */
@@ -147,7 +155,7 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
             continue;
 
         /* Check if the interface name matches */
-        if(strcmp(netif->name, netif_name) == 0) {
+        if(netif_by_name == netif) {
             netif_index = netif_get_index(netif);
             break;
         }
@@ -179,6 +187,7 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
 
     /* If no interface was found */
     if(!netif || netif_index == 0) {
+        UNLOCK_TCPIP_CORE();
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "UDP\t| No matching network interface found.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -189,6 +198,7 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
 #if LWIP_IGMP
         req->ipv4.imr_interface.s_addr = ip4_addr_get_u32(ip_2_ip4(&netif->ip_addr));
 #else
+        UNLOCK_TCPIP_CORE();
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "UDP\t| IGMP (IPv4 multicast) is not enabled in lwIP.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -199,12 +209,14 @@ setMulticastInterface(const char *netif_name, struct addrinfo *info,
 #if LWIP_IPV6_MLD
         req->ipv6.ipv6mr_interface = netif_index;
 #else
+        UNLOCK_TCPIP_CORE();
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                         "UDP\t| MLD (IPv6 multicast) is not enabled in lwIP.");
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif
     }
 #endif /* UA_IPV6 && LWIP_IPV6 */
+    UNLOCK_TCPIP_CORE();
     return UA_STATUSCODE_GOOD;
 }
 
