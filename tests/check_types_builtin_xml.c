@@ -9,6 +9,7 @@
 #include "ua_types_encoding_xml.h"
 
 #include <check.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -2299,6 +2300,20 @@ END_TEST
 
 // ---------------------------DECODE-------------------------------------
 
+#if SIZE_MAX > UINT_MAX
+START_TEST(UA_oversize_input_xml_decode) {
+    UA_Byte dummy = 0;
+    UA_ByteString buf = {(size_t)UINT_MAX + 1, &dummy};
+    UA_Boolean out = false;
+
+    UA_StatusCode retval =
+        UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_BOOLEAN], NULL);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+}
+END_TEST
+#endif
+
 
 /* Boolean */
 START_TEST(UA_Boolean_true_xml_decode) {
@@ -4579,6 +4594,9 @@ static Suite *testSuite_builtin_xml(void) {
 
     TCase *tc_xml_decode = tcase_create("xml_decode");
 
+#if SIZE_MAX > UINT_MAX
+    tcase_add_test(tc_xml_decode, UA_oversize_input_xml_decode);
+#endif
     tcase_add_test(tc_xml_decode, UA_Boolean_true_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Boolean_false_xml_decode);
 

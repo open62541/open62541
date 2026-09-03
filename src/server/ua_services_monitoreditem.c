@@ -604,8 +604,9 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     notifyMonitoredItem(server, newMon,
                         UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
 
-    /* The callback can reenter and delete the new MonitoredItem. */
-    if(newMon->samplingType == UA_MONITOREDITEMSAMPLINGTYPE_DELETED)
+    /* Deletion from the CREATED callback has already queued delayed cleanup.
+     * Do not reactivate or sample the logically removed MonitoredItem. */
+    if(UA_MonitoredItem_isDeleting(newMon))
         goto prepareResponse;
 
     /* Activate the MonitoredItem */
@@ -1029,7 +1030,6 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-
     UA_MonitoredItem_delete(server, mon, true);
 }
 
@@ -1073,14 +1073,9 @@ UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     lockServer(server);
 
-    UA_Subscription *sub = server->adminSubscription;
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(UA_MonitoredItem_isDeleting(mon))
-            continue;
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
+    UA_MonitoredItem *mon =
+        UA_Subscription_getMonitoredItem(server->adminSubscription,
+                                         monitoredItemId);
 
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {

@@ -20,6 +20,7 @@
 #include "ua_types_encoding_json.h"
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 
 #include "../deps/utf8.h"
@@ -65,20 +66,31 @@ decodeJsonUnionExtensionObject(ParseCtx *ctx, void *dst,
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChar(CtxJson *ctx, char c) {
+    if(ctx->calcOnly) {
+        if((uintptr_t)ctx->pos >= (uintptr_t)ctx->end)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        ctx->pos = (UA_Byte*)((uintptr_t)ctx->pos + 1u);
+        return UA_STATUSCODE_GOOD;
+    }
     if(ctx->pos >= ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
-        *ctx->pos = (UA_Byte)c;
-    ctx->pos++;
+    *ctx->pos++ = (UA_Byte)c;
     return UA_STATUSCODE_GOOD;
 }
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChars(CtxJson *ctx, const char *c, size_t len) {
-    if(ctx->pos + len > ctx->end)
+    if(ctx->calcOnly) {
+        uintptr_t pos = (uintptr_t)ctx->pos;
+        uintptr_t end = (uintptr_t)ctx->end;
+        if(len > end - pos)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        ctx->pos = (UA_Byte*)(pos + len);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(len > (size_t)(ctx->end - ctx->pos))
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
-        memcpy(ctx->pos, c, len);
+    memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
 }
@@ -2060,6 +2072,8 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst,
     ctx->index++; /* Go to first array member */
 
     /* Allocate memory */
+    if(length > SIZE_MAX / type->memSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = UA_calloc(length, type->memSize);
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -2499,8 +2513,9 @@ DiagnosticInfoInner_decodeJson(ParseCtx* ctx, void* dst, const UA_DataType* type
     return DiagnosticInfo_decodeJson(ctx, inner, type);
 }
 
-status
-decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
+static status
+decodeFieldsInternal(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount,
+                     UA_Boolean allowUnknown) {
     CHECK_TOKEN_BOUNDS;
     CHECK_NULL_SKIP; /* null is treated like an empty object */
 
@@ -2549,6 +2564,11 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 
         /* The key is unknown */
         if(!entry) {
+            if(allowUnknown) {
+                ctx->index++; /* key -> value */
+                skipObject(ctx);
+                continue;
+            }
             ret = UA_STATUSCODE_BADDECODINGERROR;
             break;
         }
@@ -2587,6 +2607,17 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
     return ret;
 }
 
+status
+decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
+    return decodeFieldsInternal(ctx, entries, entryCount, false);
+}
+
+status
+decodeFieldsAllowUnknown(ParseCtx *ctx, DecodeEntry *entries,
+                         size_t entryCount) {
+    return decodeFieldsInternal(ctx, entries, entryCount, true);
+}
+
 static status
 Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type) {
     void **dst = (void**)dst_;
@@ -2618,6 +2649,8 @@ Array_decodeJson(ParseCtx *ctx, void *dst_, const UA_DataType *type) {
     }
 
     /* Allocate memory */
+    if(length > SIZE_MAX / type->memSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = UA_calloc(length, type->memSize);
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -2921,6 +2954,10 @@ tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
      * have needed */
     if(r.error == CJ5_ERROR_OVERFLOW &&
        tokensSize != r.num_tokens) {
+#if SIZE_MAX <= UINT_MAX
+        if((size_t)r.num_tokens > SIZE_MAX / sizeof(cj5_token))
+            return UA_STATUSCODE_BADDECODINGERROR;
+#endif
         ctx->tokens = (cj5_token*)
             UA_malloc(sizeof(cj5_token) * r.num_tokens);
         if(!ctx->tokens)

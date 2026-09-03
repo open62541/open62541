@@ -9,20 +9,30 @@
 
 #include "ua_server_internal.h"
 
-/* The layout of the results array is is:
+/* The layout of the results array is:
  * [results-array] | padding | UA_AsyncResponse | padding | [UA_AsyncOperation]
  *
  * We need to take care about memory alignment (padding). */
 static void *
 allocateResultsArray(const UA_DataType *resultsType, size_t resultsLen,
                      UA_AsyncResponse **resp, UA_AsyncOperation **ops) {
-    uintptr_t align = sizeof(size_t);
-    size_t arrEnd = resultsType->memSize * resultsLen;
-    uintptr_t responseBegin = (arrEnd + align - 1) & ~(align - 1);
-    uintptr_t responseEnd = responseBegin + sizeof(UA_AsyncResponse);
-    uintptr_t opsBegin = (responseEnd + align - 1) & ~(align - 1);
-    uintptr_t opsEnd =  opsBegin + (sizeof(UA_AsyncOperation) * resultsLen);
-    void *arr = UA_calloc(1, opsEnd);
+    const size_t padding = sizeof(size_t) - 1;
+    const size_t fixedSize = sizeof(UA_AsyncResponse) + 2 * padding;
+    const size_t elementSize =
+        resultsType->memSize + sizeof(UA_AsyncOperation);
+
+    /* Reserve the maximum padding at both alignment boundaries. */
+    if(resultsLen > (SIZE_MAX - fixedSize) / elementSize)
+        return NULL;
+
+    size_t responseBegin =
+        (resultsType->memSize * resultsLen + padding) & ~padding;
+    size_t opsBegin =
+        (responseBegin + sizeof(UA_AsyncResponse) + padding) & ~padding;
+    size_t allocationSize =
+        opsBegin + sizeof(UA_AsyncOperation) * resultsLen;
+
+    void *arr = UA_calloc(1, allocationSize);
     if(!arr)
         return NULL;
     uintptr_t arrMem = (uintptr_t)arr;
@@ -451,6 +461,9 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_AsyncOperation *op, *op_tmp;
     UA_AsyncManager *am = &server->asyncManager;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        /* Only request operations own a handling.response. */
+        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+            continue;
         UA_AsyncResponse *ar = op->handling.response;
         if(ar->requestHandle != requestHandle ||
            !UA_NodeId_equal(&session->sessionId, &ar->sessionId))
@@ -623,6 +636,9 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
 
     /* Cancel operations that are still waiting for the result */
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        /* Only direct operations own a handling.callback. */
+        if(op->asyncOperationType < UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+            continue;
         if(op->handling.callback.context != context)
             continue;
 

@@ -547,8 +547,11 @@ struct UA_Nodestore {
      * ``getNodeFromPtr``. */
     void (*releaseNode)(UA_Nodestore *ns, const UA_Node *node);
 
-    /* Returns an editable copy of a node (needs to be deleted with the
-     * deleteNode function or inserted / replaced into the nodestore). */
+    /* Returns an editable copy of the same logical node (needs to be deleted
+     * with the deleteNode function or inserted / replaced into the nodestore).
+     * Runtime state such as MonitoredItem associations is not copied. A
+     * successful replacement must transfer that state from the old node to
+     * the replacement. */
     UA_StatusCode (*getNodeCopy)(UA_Nodestore *ns, const UA_NodeId *nodeId,
                                  UA_Node **outNode);
 
@@ -598,7 +601,8 @@ UA_EXPORT UA_StatusCode
 UA_Node_insertOrUpdateDescription(UA_Node *node,
                                   const UA_LocalizedText *description);
 
-/* Reset the destination node and copy the content of the source */
+/* Reset the destination node and copy the content of the source. Runtime
+ * MonitoredItem associations are not copied. */
 UA_StatusCode UA_EXPORT
 UA_Node_copy(const UA_Node *src, UA_Node *dst);
 

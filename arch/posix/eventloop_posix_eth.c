@@ -188,8 +188,8 @@ setETHHeader(unsigned char *buf,
     memcpy(&buf[pos], sourceAddr, ETHER_ADDR_LEN);
     pos += ETHER_ADDR_LEN;
 
-    /* Set the 802.1Q VLAN header */
-    if(vid > 0 && vid != ETH_P_ALL) {
+    /* Set the 802.1Q VLAN header for VIDs in the valid range 1-4094. */
+    if(vid > 0 && vid <= 4094) {
         *(UA_UInt16*)&buf[pos] = htons(0x8100);
         pos += 2;
         UA_UInt16 tci = (UA_UInt16)(((UA_UInt16)pcp  << 13) | ((UA_UInt16)dei  << 12) | ((UA_UInt16)vid));
@@ -217,13 +217,20 @@ ETH_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(!erfd)
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
 
-    /* Allocate the buffer with the hidden Ethernet header in front */
+    /* Allocate the buffer with the hidden Ethernet header in front.
+     * Spec 7.3.3: "MaxNetworkMessageSize shall be limited to an Ethernet
+     * frame size of 1522 Byte." Reject oversized frames. */
+    if(bufSize > (size_t)1522 - erfd->headerSize) {
+        return UA_STATUSCODE_BADENCODINGERROR;
+    }
+    /* Reserve a fixed prefix. This lets the buffer be recovered even if the
+     * connection disappears between allocation and send. */
     UA_StatusCode res =
         UA_EventLoopPOSIX_allocNetworkBuffer(cm, connectionId, buf,
-                                             bufSize + erfd->headerSize);
+                                             bufSize + UA_ETH_MAXHEADERLENGTH);
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
-        buf->data   += erfd->headerSize;
-        buf->length -= erfd->headerSize;
+        buf->data   += UA_ETH_MAXHEADERLENGTH;
+        buf->length -= UA_ETH_MAXHEADERLENGTH;
     }
     return res;
 }
@@ -231,17 +238,21 @@ ETH_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
 static void
 ETH_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString *buf) {
-    /* Get the ETH_FD */
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
-    UA_FD fd = (UA_FD)connectionId;
-    ETH_FD *erfd = (ETH_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
-    if(!erfd)
-        return;
-
-    /* Unhide the Ethernet header and free */
-    buf->data   -= erfd->headerSize;
-    buf->length += erfd->headerSize;
+    /* Allocation uses a fixed prefix, so freeing does not depend on the
+     * connection still being registered. */
+    buf->data   -= UA_ETH_MAXHEADERLENGTH;
+    buf->length += UA_ETH_MAXHEADERLENGTH;
     UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+}
+
+static void
+ETH_freeSendBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
+                   UA_ByteString *buf, size_t headerSize) {
+    /* Restore the application payload view expected by
+     * ETH_freeNetworkBuffer after sendWithConnection exposed the header. */
+    buf->data += headerSize;
+    buf->length -= headerSize;
+    ETH_freeNetworkBuffer(cm, connectionId, buf);
 }
 
 /* Test if the ConnectionManager can be stopped */
@@ -398,7 +409,7 @@ ETH_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
 
     if(etherType > 0) {
         params[2].key = UA_QUALIFIEDNAME(0, "ethertype");
-        UA_Variant_setScalar(&params[1].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
+        UA_Variant_setScalar(&params[2].value, &etherType, &UA_TYPES[UA_TYPES_UINT16]);
         paramsSize++;
     }
 
@@ -904,17 +915,22 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     ETH_FD *conn = (ETH_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
-        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+        /* The fixed allocation prefix can be recovered without the vanished
+         * connection. */
+        ETH_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
+    /* The connection may be finalized after the EventLoop lock is released.
+     * Retain the only connection-specific value needed to restore the buffer. */
+    const size_t headerSize = conn->headerSize;
 
     /* Uncover and set the Ethernet header */
-    buf->data -= conn->headerSize;
-    buf->length += conn->headerSize;
-    memcpy(buf->data, conn->header, conn->headerSize);
+    buf->data -= headerSize;
+    buf->length += headerSize;
+    memcpy(buf->data, conn->header, headerSize);
     if(conn->lengthOffset) {
         UA_UInt16 *ethLength =  (UA_UInt16*)&buf->data[conn->lengthOffset];
-        *ethLength = htons((UA_UInt16)(buf->length - conn->headerSize));
+        *ethLength = htons((UA_UInt16)(buf->length - headerSize));
     }
 
     /* Was a txtime configured? */
@@ -926,7 +942,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                      "ETH %u\t| txtime was not configured for the connection",
                      (unsigned)connectionId);
         UA_UNLOCK(&el->elMutex);
-        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+        ETH_freeSendBuffer(cm, connectionId, buf, headerSize);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -968,7 +984,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                     (unsigned)connectionId, errno_str));
                     ETH_shutdown(pcm, conn);
                     UA_UNLOCK(&el->elMutex);
-                    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+                    ETH_freeSendBuffer(cm, connectionId, buf, headerSize);
                     return UA_STATUSCODE_BADCONNECTIONCLOSED;
                 }
 
@@ -985,7 +1001,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         (unsigned)connectionId, errno_str));
                         ETH_shutdown(pcm, conn);
                         UA_UNLOCK(&el->elMutex);
-                        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+                        ETH_freeSendBuffer(cm, connectionId, buf, headerSize);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
                 } while(poll_ret <= 0);
@@ -996,7 +1012,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Free the buffer */
     UA_UNLOCK(&el->elMutex);
-    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+    ETH_freeSendBuffer(cm, connectionId, buf, headerSize);
     return UA_STATUSCODE_GOOD;
 }
 

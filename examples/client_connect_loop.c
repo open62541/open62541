@@ -18,11 +18,11 @@
 #include <stdlib.h>
 #include "common.h"
 
-static UA_Boolean running = true;
+static volatile UA_Boolean running = true;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received Ctrl-C");
-    running = 0;
+    (void)sign;
+    running = false;
 }
 
 int main(void) {

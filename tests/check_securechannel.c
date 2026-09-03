@@ -183,6 +183,73 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt) {
     ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
 }END_TEST
 
+static size_t
+asymmetricHeaderLengthWithoutCertificate(void) {
+    return UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+        calculateAsymAlgSecurityHeaderLength(&testChannel) -
+        dummyPolicy.localCertificate.length;
+}
+
+static void
+resizeLocalCertificate(size_t certificateLength) {
+    UA_ByteString_clear(&dummyPolicy.localCertificate);
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&dummyPolicy.localCertificate,
+                                               certificateLength),
+                      UA_STATUSCODE_GOOD);
+    memset(dummyPolicy.localCertificate.data, 'A', certificateLength);
+}
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_oversizedSecurityHeader) {
+    UA_OpenSecureChannelResponse dummyResponse;
+    createDummyResponse(&dummyResponse);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    testChannel.config.sendBufferSize = 8192;
+    keySizes.asym_rmt_ptext_blocksize = 214;
+
+    resizeLocalCertificate(8200);
+
+    UA_StatusCode retval =
+        UA_SecureChannel_sendOPN(&testChannel, 42, &dummyResponse,
+                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+}END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_requiresEncryptedBlock) {
+    UA_OpenSecureChannelResponse dummyResponse;
+    createDummyResponse(&dummyResponse);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    testChannel.config.sendBufferSize = 8192;
+    keySizes.asym_rmt_ptext_blocksize = 214;
+
+    const size_t fixedHeaderLength = asymmetricHeaderLengthWithoutCertificate();
+    const size_t encryptedBlockSize = keySizes.asym_rmt_blocksize;
+    resizeLocalCertificate(testChannel.config.sendBufferSize - fixedHeaderLength -
+                           encryptedBlockSize + 1);
+
+    UA_StatusCode retval =
+        UA_SecureChannel_sendOPN(&testChannel, 42, &dummyResponse,
+                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+}END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_acceptsOneEncryptedBlock) {
+    UA_OpenSecureChannelResponse dummyResponse;
+    createDummyResponse(&dummyResponse);
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    testChannel.config.sendBufferSize = 8192;
+    keySizes.asym_rmt_ptext_blocksize = 214;
+
+    const size_t fixedHeaderLength = asymmetricHeaderLengthWithoutCertificate();
+    const size_t encryptedBlockSize = keySizes.asym_rmt_blocksize;
+    resizeLocalCertificate(testChannel.config.sendBufferSize - fixedHeaderLength -
+                           encryptedBlockSize);
+
+    UA_StatusCode retval =
+        UA_SecureChannel_sendOPN(&testChannel, 42, &dummyResponse,
+                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}END_TEST
+
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     UA_OpenSecureChannelResponse dummyResponse;
     createDummyResponse(&dummyResponse);
@@ -502,6 +569,38 @@ START_TEST(SecureChannel_assemblePartialChunks) {
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST
 
+START_TEST(SecureChannel_countFinalChunkAgainstLimit) {
+    /* Queue one intermediate chunk for a channel limited to one chunk. */
+    UA_Chunk *intermediate = (UA_Chunk*)UA_calloc(1, sizeof(UA_Chunk));
+    ck_assert_ptr_ne(intermediate, NULL);
+    intermediate->messageType = UA_MESSAGETYPE_HEL;
+    intermediate->chunkType = UA_CHUNKTYPE_INTERMEDIATE;
+    intermediate->requestId = 0;
+    UA_ByteString intermediateBytes = UA_BYTESTRING_STATIC("x");
+    intermediate->bytes = intermediateBytes;
+    TAILQ_INSERT_TAIL(&testChannel.chunks, intermediate, pointers);
+    testChannel.chunksCount = 1;
+    testChannel.chunksLength = 1;
+    testChannel.config.localMaxChunkCount = 1;
+
+    /* A final HEL chunk would make this a two-chunk message. */
+    UA_ByteString buffer =
+        UA_BYTESTRING_STATIC("HELF\x10\x00\x00\x00\x00\x00\x00\x00"
+                             "\x00\x00\x00\x00");
+    ck_assert_uint_eq(UA_SecureChannel_loadBuffer(&testChannel, buffer),
+                      UA_STATUSCODE_GOOD);
+
+    UA_MessageType messageType;
+    UA_UInt32 requestId = 0;
+    UA_ByteString payload = UA_BYTESTRING_NULL;
+    UA_Boolean copied = false;
+    UA_StatusCode retval =
+        UA_SecureChannel_getCompleteMessage(&testChannel, &messageType, &requestId,
+                                            &payload, &copied,
+                                            UA_DateTime_nowMonotonic());
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPMESSAGETOOLARGE);
+} END_TEST
+
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
 /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining on
  * SecureChannel renewal. This exercises the OpenSSL helper directly
@@ -666,6 +765,12 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt);
     tcase_add_test(tc_sendAsymmetricOPNMessage,
+                   SecureChannel_sendAsymmetricOPNMessage_oversizedSecurityHeader);
+    tcase_add_test(tc_sendAsymmetricOPNMessage,
+                   SecureChannel_sendAsymmetricOPNMessage_requiresEncryptedBlock);
+    tcase_add_test(tc_sendAsymmetricOPNMessage,
+                   SecureChannel_sendAsymmetricOPNMessage_acceptsOneEncryptedBlock);
+    tcase_add_test(tc_sendAsymmetricOPNMessage,
                    Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits);
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
 
@@ -685,6 +790,7 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_processBuffer, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
+    tcase_add_test(tc_processBuffer, SecureChannel_countFinalChunkAgainstLimit);
     suite_add_tcase(s, tc_processBuffer);
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)

@@ -299,7 +299,9 @@ UA_StatusCode
 UA_String_append(UA_String *s, const UA_String s2) {
     if(s2.length == 0)
         return UA_STATUSCODE_GOOD;
-    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + s2.length);
+    UA_Byte *buf = (UA_Byte*)
+        UA_realloc((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL),
+                   s->length + s2.length);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(buf + s->length, s2.data, s2.length);
@@ -2690,6 +2692,8 @@ UA_Array_new(size_t size, const UA_DataType *type) {
         return NULL;
     if(size == 0)
         return UA_EMPTY_ARRAY_SENTINEL;
+    if(size > SIZE_MAX / type->memSize)
+        return NULL;
     return UA_calloc(size, type->memSize);
 }
 
@@ -2709,13 +2713,17 @@ UA_Array_copy(const void *src, size_t size,
     if(UA_UNLIKELY(!type || !src))
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if(size > SIZE_MAX / type->memSize)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    size_t byteSize = size * type->memSize;
+
     /* calloc, so we don't have to check retval in every iteration of copying */
     *dst = UA_calloc(size, type->memSize);
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(type->pointerFree) {
-        memcpy(*dst, src, type->memSize * size);
+        memcpy(*dst, src, byteSize);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2740,6 +2748,11 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
     if(*size == newSize)
         return UA_STATUSCODE_GOOD;
 
+    /* The old and new representations must fit into size_t. */
+    if(*size > SIZE_MAX / type->memSize ||
+       newSize > SIZE_MAX / type->memSize)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     /* Empty array? */
     if(newSize == 0) {
         UA_Array_delete(*p, *size, type);
@@ -2748,16 +2761,19 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
         return UA_STATUSCODE_GOOD;
     }
 
+    size_t newByteSize = newSize * type->memSize;
+
     /* Make a copy of the members that shall be removed. Realloc can fail during
      * trimming. So we cannot clear the members already here. */
     void *deleteMembers = NULL;
     if(newSize < *size && !type->pointerFree) {
         size_t deleteSize = *size - newSize;
-        deleteMembers = UA_malloc(deleteSize * type->memSize);
+        size_t deleteByteSize = deleteSize * type->memSize;
+        deleteMembers = UA_malloc(deleteByteSize);
         if(!deleteMembers)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        memcpy(deleteMembers, (void*)((uintptr_t)*p + (newSize * type->memSize)),
-               deleteSize * type->memSize); /* shallow copy */
+        memcpy(deleteMembers, (void*)((uintptr_t)*p + newByteSize),
+               deleteByteSize); /* shallow copy */
     }
 
     void *oldP = *p;
@@ -2765,7 +2781,7 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
         oldP = NULL;
 
     /* Realloc */
-    void *newP = UA_realloc(oldP, newSize * type->memSize);
+    void *newP = UA_realloc(oldP, newByteSize);
     if(!newP) {
         if(deleteMembers)
             UA_free(deleteMembers);
@@ -2775,8 +2791,9 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
     /* Clear removed members or initialize the new ones. Note that deleteMembers
      * depends on type->pointerFree. */
     if(newSize > *size) {
-        memset((void*)((uintptr_t)newP + (*size * type->memSize)), 0,
-               (newSize - *size) * type->memSize);
+        size_t oldByteSize = *size * type->memSize;
+        memset((void*)((uintptr_t)newP + oldByteSize), 0,
+               newByteSize - oldByteSize);
     } else if(deleteMembers) {
         UA_Array_delete(deleteMembers, *size - newSize, type);
     }
@@ -2792,6 +2809,8 @@ UA_Array_append(void **p, size_t *size, void *newElem,
                 const UA_DataType *type) {
     /* Resize the array */
     size_t oldSize = *size;
+    if(oldSize == SIZE_MAX)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode res = UA_Array_resize(p, size, oldSize+1, type);
     if(res != UA_STATUSCODE_GOOD)
         return res;

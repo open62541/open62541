@@ -1,6 +1,16 @@
 name: Linux Build & Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - 'master'
+      - '[0-9]+.[0-9]+'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Only supersede runs of the same pull request, never pushes to master/1.x.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   mbedtls-compatibility:
@@ -91,10 +101,6 @@ jobs:
 
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_action: unit_tests_alarms
-
-          - name: "Valgrind Build & Unit Tests with Alarms&Conditions (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind
-            cmd_action: unit_tests_alarms_memcheck
 
           - name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc
@@ -343,33 +349,6 @@ jobs:
               mbedtls: true
               cmd_deps: sudo apt-get install -y -qq python3-netifaces
               cmd_action: run_examples MBEDTLS MDNSD
-
-          # Valgrind tests for specific Ubuntu versions
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-              mbedtls: true
-              cmd_deps: sudo apt-get install -y -qq valgrind
-              cmd_action: unit_tests_valgrind MBEDTLS          
-
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl
-              cmd_action: unit_tests_valgrind OPENSSL          
-
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-              mbedtls: true
-              cmd_deps: sudo apt-get install -y -qq valgrind python3-netifaces
-              cmd_action: examples_valgrind MBEDTLS MDNSD          
-
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl python3-netifaces libavahi-client-dev libavahi-common-dev
-              cmd_action: examples_valgrind OPENSSL AVAHI          
 
           # Clang Static Analyzer Builds
           - os: ubuntu-22.04

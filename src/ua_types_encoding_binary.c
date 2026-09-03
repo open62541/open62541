@@ -528,6 +528,9 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
      * sizeof(UA_DataValue) == 80 and an empty DataValue is encoded with just
      * one byte. We use 128 as the smallest power of 2 larger than 80. */
     size_t length = (size_t)signed_length;
+    UA_CHECK(length <= SIZE_MAX / type->memSize,
+             return UA_STATUSCODE_BADDECODINGERROR);
+    size_t arraySize = length * type->memSize;
     size_t remaining = (size_t)(ctx->end - ctx->pos);
     UA_CHECK(length / 128 <= remaining / type->memSize,
              return UA_STATUSCODE_BADDECODINGERROR);
@@ -538,13 +541,13 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
 
     if(type->overlayable) {
         /* memcpy overlayable array */
-        if(ctx->pos + (type->memSize * length) > ctx->end){
+        if(arraySize > remaining) {
             ctxFree(ctx, *dst);
             *dst = NULL;
             return UA_STATUSCODE_BADDECODINGERROR;
         }
-        memcpy(*dst, ctx->pos, type->memSize * length);
-        ctx->pos += type->memSize * length;
+        memcpy(*dst, ctx->pos, arraySize);
+        ctx->pos += arraySize;
     } else {
         /* Decode array members */
         uintptr_t ptr = (uintptr_t)*dst;
@@ -1219,7 +1222,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
      * ExtensionObject is at least 4 byte long (3 byte NodeId + 1 Byte encoding
      * field). */
     size_t length = (size_t)signed_length;
-    UA_CHECK(ctx->pos + ((4 * length) / 32) <= ctx->end,
+    size_t remaining = (size_t)(ctx->end - ctx->pos);
+    UA_CHECK(length <= remaining / 4,
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Decode the type NodeId of the first member */
@@ -1247,6 +1251,10 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
         ctx->pos = orig_pos;
         return Array_decodeBinary(ctx, dst, out_length, *type);
     }
+
+    /* The decoded representation must fit into size_t. */
+    UA_CHECK(length <= SIZE_MAX / contentType->memSize,
+             return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Compare the header of all array members if the array can be unwrapped */
     UA_ByteString header = {(uintptr_t)ctx->pos - (uintptr_t)orig_pos - 4, &orig_pos[4]};
@@ -2035,10 +2043,11 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 size_t
 UA_calcSizeBinary(const void *p, const UA_DataType *type,
                   UA_EncodeBinaryOptions *options) {
-    u8 *pos = NULL;
+    /* A non-null sentinel keeps sizing pointer arithmetic well-defined. */
+    u8 *pos = (u8*)(uintptr_t)1u;
     const u8 *posEnd = NULL;
     UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         return 0;
-    return (size_t)(uintptr_t)pos;
+    return (size_t)((uintptr_t)pos - 1u);
 }

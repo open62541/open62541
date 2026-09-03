@@ -509,13 +509,16 @@ int main(int argc, char* argv[]) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     const char *pkiDir = getenv("UA_PKI_DIR");
     if(pkiDir && strlen(pkiDir) > 0) {
         UA_String storePath = UA_STRING((char*)(uintptr_t)pkiDir);
         retval = UA_ServerConfig_setDefaultWithFilestore(config, port,
                                                          &certificate, &privateKey,
                                                          storePath);
-    } else {
+    } else
+#endif
+    {
         retval = UA_ServerConfig_setDefaultWithSecurityPolicies(config, port,
                                                           &certificate, &privateKey,
                                                           trustList, trustListSize,

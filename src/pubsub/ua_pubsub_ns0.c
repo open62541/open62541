@@ -626,9 +626,15 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    retVal |= UA_PublisherId_fromVariant(&connectionConfig.publisherId,
-                                         &pubsubConnection->publisherId);
-    retVal |= UA_PubSubConnection_create(psm, &connectionConfig, connectionId);
+    retVal = UA_PublisherId_fromVariant(&connectionConfig.publisherId,
+                                        &pubsubConnection->publisherId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
+        return retVal;
+    }
+
+    retVal = UA_PubSubConnection_create(psm, &connectionConfig, connectionId);
+    UA_PublisherId_clear(&connectionConfig.publisherId);
     UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
     return retVal;
 }
@@ -1075,12 +1081,13 @@ addPubSubConnectionAction(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode rollbackRetVal;
     UA_PubSubConnectionDataType *pubSubConnection =
         (UA_PubSubConnectionDataType *) input[0].data;
 
     //call API function and create the connection
     UA_NodeId connectionId;
-    retVal |= addPubSubConnectionConfig(server, pubSubConnection, &connectionId);
+    retVal = addPubSubConnectionConfig(server, pubSubConnection, &connectionId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "addPubSubConnection failed");
@@ -1090,20 +1097,20 @@ addPubSubConnectionAction(UA_Server *server,
     for(size_t i = 0; i < pubSubConnection->writerGroupsSize; i++) {
         UA_NodeId writerGroupId;
         UA_WriterGroupDataType *writerGroup = &pubSubConnection->writerGroups[i];
-        retVal |= addWriterGroupConfig(server, connectionId, writerGroup, &writerGroupId);
+        retVal = addWriterGroupConfig(server, connectionId, writerGroup, &writerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                          "addWriterGroup failed");
-            return retVal;
+            goto rollback;
         }
 
         for(size_t j = 0; j < writerGroup->dataSetWritersSize; j++) {
             UA_DataSetWriterDataType *dataSetWriter = &writerGroup->dataSetWriters[j];
-            retVal |= addDataSetWriterConfig(server, &writerGroupId, dataSetWriter, NULL);
+            retVal = addDataSetWriterConfig(server, &writerGroupId, dataSetWriter, NULL);
             if(retVal != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                              "addDataSetWriter failed");
-                return retVal;
+                goto rollback;
             }
         }
 
@@ -1122,22 +1129,22 @@ addPubSubConnectionAction(UA_Server *server,
     for(size_t i = 0; i < pubSubConnection->readerGroupsSize; i++){
         UA_NodeId readerGroupId;
         UA_ReaderGroupDataType *readerGroup = &pubSubConnection->readerGroups[i];
-        retVal |= addReaderGroupConfig(server, connectionId, readerGroup, &readerGroupId);
+        retVal = addReaderGroupConfig(server, connectionId, readerGroup, &readerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                          "addReaderGroup failed");
-            return retVal;
+            goto rollback;
         }
 
         for(size_t j = 0; j < readerGroup->dataSetReadersSize; j++) {
             UA_NodeId dataSetReaderId;
             UA_DataSetReaderDataType *dataSetReader = &readerGroup->dataSetReaders[j];
-            retVal |= addDataSetReaderConfig(server, readerGroupId,
-                                             dataSetReader, &dataSetReaderId);
+            retVal = addDataSetReaderConfig(server, readerGroupId,
+                                            dataSetReader, &dataSetReaderId);
             if(retVal != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                              "addDataSetReader failed");
-                return retVal;
+                goto rollback;
             }
 
         }
@@ -1154,9 +1161,20 @@ addPubSubConnectionAction(UA_Server *server,
         }
     }
 
-    /* Set ouput value */
-    UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
-    return UA_STATUSCODE_GOOD;
+    /* Set output value */
+    retVal = UA_Variant_setScalarCopy(output, &connectionId,
+                                      &UA_TYPES[UA_TYPES_NODEID]);
+    if(retVal == UA_STATUSCODE_GOOD)
+        return retVal;
+
+rollback:
+    rollbackRetVal = UA_Server_removePubSubConnection(server, connectionId);
+    if(rollbackRetVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Could not roll back PubSubConnection: %s",
+                     UA_StatusCode_name(rollbackRetVal));
+    }
+    return retVal;
 }
 
 static UA_StatusCode

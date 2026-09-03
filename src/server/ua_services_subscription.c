@@ -183,6 +183,25 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     return true;
 }
 
+struct UpdateSamplingContext {
+    UA_Server *server;
+    UA_Double oldPublishingInterval;
+};
+
+static void *
+updateSamplingIntervalVisitor(void *context, UA_MonitoredItem *mon) {
+    struct UpdateSamplingContext *ctx =
+        (struct UpdateSamplingContext*)context;
+
+    if(mon->parameters.samplingInterval == mon->subscription->publishingInterval ||
+       mon->parameters.samplingInterval == ctx->oldPublishingInterval) {
+        UA_MonitoredItem_unregisterSampling(ctx->server, mon);
+        UA_MonitoredItem_registerSampling(ctx->server, mon);
+    }
+
+    return NULL;
+}
+
 UA_Boolean
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const void *request_, void *response_) {
@@ -222,14 +241,12 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         /* For each MonitoredItem check if it was/shall be attached to the
          * publish interval. This ensures that we have less cyclic callbacks
          * registered and that the notifications are fresh. */
-        UA_MonitoredItem *mon;
-        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            if(mon->parameters.samplingInterval == sub->publishingInterval ||
-               mon->parameters.samplingInterval == oldPublishingInterval) {
-                UA_MonitoredItem_unregisterSampling(server, mon);
-                UA_MonitoredItem_registerSampling(server, mon);
-            }
-        }
+        struct UpdateSamplingContext ctx;
+        ctx.server = server;
+        ctx.oldPublishingInterval = oldPublishingInterval;
+
+        ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                 updateSamplingIntervalVisitor, &ctx);
     }
 
     /* If the priority has changed, re-enter the subscription to the
@@ -535,6 +552,12 @@ setTransferredSequenceNumbers(const UA_Subscription *sub, UA_TransferResult *res
     return UA_STATUSCODE_GOOD;
 }
 
+static void *
+setMonitoredItemSubscriptionVisitor(void *context, UA_MonitoredItem *mon) {
+    mon->subscription = (UA_Subscription*)context;
+    return NULL;
+}
+
 static void
 Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                const void *context /* UA_Boolean */,
@@ -629,14 +652,11 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     sub->wasTransferred = true;
 
     /* Move over the MonitoredItems and adjust the backpointers */
-    LIST_INIT(&newSub->monitoredItems);
-    UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp) {
-        LIST_REMOVE(mon, listEntry);
-        mon->subscription = newSub;
-        LIST_INSERT_HEAD(&newSub->monitoredItems, mon, listEntry);
-    }
+    newSub->monitoredItemsById = sub->monitoredItemsById;
+    ZIP_INIT(&sub->monitoredItemsById);
     sub->monitoredItemsSize = 0;
+    ZIP_ITER(UA_MonitoredItemIdTree, &newSub->monitoredItemsById,
+             setMonitoredItemSubscriptionVisitor, newSub);
 
     /* Move over the samplingMonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->samplingMonitoredItems);

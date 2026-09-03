@@ -20,6 +20,47 @@ fi
 # Allow to reuse TIME-WAIT sockets for new connections
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
+# CTest arguments for the memcheck jobs. Running the full unit test suite under
+# Valgrind takes hours, so the CI splits it round-robin over several runners
+# (ctest -I <start>,,<stride>). CTEST_SHARDS is the number of runners and
+# CTEST_SHARD the 1-based index of this one. Both default to running the
+# complete suite, so a local "source ci.sh && unit_tests_valgrind MBEDTLS"
+# behaves as before.
+#
+# Two things to keep in mind when reusing this helper:
+#
+#  - "-I" selects tests by their index in the *unfiltered* list. Sharding must
+#    therefore not be combined with a "-R" name filter, or the shards silently
+#    end up covering only part of the filtered set.
+#  - "--no-tests=error" catches a shard that ends up selecting no test at all.
+#    It requires CMake >= 3.18 and is therefore only passed when the installed
+#    ctest advertises it; ubuntu-20.04 still ships CMake 3.16.
+function ctest_args {
+    local args="--output-on-failure"
+    local shards="${CTEST_SHARDS:-1}"
+    local shard="${CTEST_SHARD:-1}"
+    if [ "${shards}" != "1" ]; then
+        # Fail loudly on a misconfigured matrix. Falling back to the full suite
+        # would run the complete multi-hour testsuite in every single shard.
+        case "${shards}:${shard}" in
+            *[!0-9:]*|:*|*:)
+                echo "ci.sh: CTEST_SHARDS/CTEST_SHARD must be positive integers," \
+                     "got '${shards}'/'${shard}'" >&2
+                return 1
+                ;;
+        esac
+        # Probed instead of piped into grep, so that neither "set -o pipefail"
+        # nor a SIGPIPE from an early-exiting reader can flip the result.
+        local help_output
+        help_output="$(ctest --help 2>/dev/null || true)"
+        case "${help_output}" in
+            *--no-tests=*) args="${args} --no-tests=error" ;;
+        esac
+        args="${args} -I ${shard},,${shards}"
+    fi
+    printf '%s' "${args}"
+}
+
 #####################################
 # Build Documentation including PDF #
 #####################################
@@ -489,7 +530,8 @@ function unit_tests_alarms_memcheck {
 
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "make test ARGS=\"-V\""
+    local args; args="$(ctest_args)"
+    sudo -E bash -c "make test ARGS=\"${args}\""
 }
 
 function unit_tests_encryption {
@@ -541,7 +583,9 @@ function unit_tests_pubsub_sks {
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
-    sudo -E bash -c "make test ARGS=\"-V -R sks\""
+    # Never sharded: "-I" would index into the unfiltered list, not into "-R sks"
+    local args; args="$(CTEST_SHARDS=1 ctest_args)"
+    sudo -E bash -c "make test ARGS=\"${args} -R sks\""
     make gcov
 }
 
@@ -566,7 +610,8 @@ function unit_tests_valgrind {
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "make test ARGS=\"-V\""
+    local args; args="$(ctest_args)"
+    sudo -E bash -c "make test ARGS=\"${args}\""
 }
 
 ##########################

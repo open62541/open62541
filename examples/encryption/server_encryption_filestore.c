@@ -14,9 +14,9 @@
 
 #include "common.h"
 
-static UA_Boolean running = true;
+static volatile UA_Boolean running = true;
 static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
+    (void)sig;
     running = false;
 }
 

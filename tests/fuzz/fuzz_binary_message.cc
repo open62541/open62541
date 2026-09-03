@@ -10,6 +10,7 @@
 #include <open62541/types.h>
 
 #include "ua_server_internal.h"
+#include "custom_memory_manager.h"
 #include "testing_networklayers.h"
 
 #define RECEIVE_BUFFER_SIZE 65535
@@ -22,6 +23,9 @@ extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if(size <= 4)
         return 0;
+
+    /* Keep setup and teardown outside allocation-failure fuzzing. */
+    UA_memoryManager_setLimit((unsigned long long)-1);
 
     /* less debug output */
     UA_ServerConfig initialConfig;
@@ -62,11 +66,27 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     UA_assert(bpm != NULL);
 
-    void *ctx = NULL;
     UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
-    serverNetworkCallback(cm, 0, bpm,
-                          &ctx, UA_CONNECTIONSTATE_ESTABLISHED,
+
+    /* Register a listening socket first. New active connections inherit its
+     * context and replace it with their SecureChannel on the first callback. */
+    void *listenCtx = NULL;
+    serverNetworkCallback(cm, 1, bpm,
+                          &listenCtx, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
+    void *connectionCtx = listenCtx;
+    serverNetworkCallback(cm, 2, bpm,
+                          &connectionCtx, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, msg);
+
+    /* Remove both connections before freeing the testing ConnectionManager. */
+    serverNetworkCallback(cm, 2, bpm,
+                          &connectionCtx, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    serverNetworkCallback(cm, 1, bpm,
+                          &listenCtx, UA_CONNECTIONSTATE_CLOSING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     cm->eventSource.free(&cm->eventSource);
 
     // if we got an invalid chunk, the message is not deleted, so delete it here
