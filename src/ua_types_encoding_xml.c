@@ -1070,6 +1070,15 @@ Enum_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
             return UA_STATUSCODE_GOOD;
         }
     }
+
+    /* Be lenient with XML produced by implementations that encode enum values
+     * as bare integers instead of the schema-defined "Name_Value" form. */
+    UA_Int64 value = 0;
+    UA_StatusCode ret = decodeSigned(data, length, &value);
+    if(ret == UA_STATUSCODE_GOOD && value >= UA_INT32_MIN && value <= UA_INT32_MAX) {
+        *(UA_Int32*)dst = (UA_Int32)value;
+        return UA_STATUSCODE_GOOD;
+    }
     return UA_STATUSCODE_BADDECODINGERROR;
 }
 
