@@ -31,9 +31,12 @@ START_TEST(Server_addDiNodeset) {
 }
 END_TEST
 
-START_TEST(Server_addAdiNodeset) {
+START_TEST(Server_rejectInvalidAdiNodeset) {
+    /* The ADI 1.00 NodeSet omits ValueRank for six YArrayItemType instances.
+     * The UANodeSet schema default makes them scalar, which is incompatible
+     * with the one-dimensional VariableType. */
     UA_StatusCode retval = namespace_tests_adi_generated(server);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
 }
 END_TEST
 
@@ -42,7 +45,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server DI and ADI nodeset");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_addDiNodeset);
-    tcase_add_test(tc_server, Server_addAdiNodeset);
+    tcase_add_test(tc_server, Server_rejectInvalidAdiNodeset);
     suite_add_tcase(s, tc_server);
     return s;
 }

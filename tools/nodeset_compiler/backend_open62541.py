@@ -182,70 +182,10 @@ def setNodeDatatypeRecursive(node, nodeset):
         setNodeDatatypeRecursive(node.parent, nodeset)
         node.dataType = node.parent.dataType
 
-def setNodeValueRankRecursive(node, nodeset):
-
-    if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        raise RuntimeError(f"Node {str(node.id)}: ValueRank can only be set for VariableNode and VariableTypeNode")
-
-    if node.valueRank is not None:
-        return
-
-    # If BaseVariableType
-    if node.id == NodeId("ns=0;i=62"):
-        if node.valueRank is None:
-            # BaseVariableType always has -2
-            node.valueRank = -2
-        return
-
-    if isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        typeDefNode = nodeset.getNodeTypeDefinition(node)
-        if typeDefNode is None:
-            # Use the parent type.
-            raise RuntimeError("Cannot get node for HasTypeDefinition of VariableNode " + node.browseName.name + " " + str(node.id))
-        if not isinstance(typeDefNode, VariableTypeNode):
-            raise RuntimeError("Node {} ({}) has an invalid type definition. {} is not a VariableType node.".format(
-                str(node.id), node.browseName.name, str(typeDefNode.id)))
-
-
-        setNodeValueRankRecursive(typeDefNode, nodeset)
-
-        if typeDefNode.valueRank is not None:
-            node.valueRank = typeDefNode.valueRank
-        else:
-            # TypeDefinition has no ValueRank, apply XSD schema default for scalar nodes
-            # UANodeSet.xsd: <xs:attribute name="ValueRank" type="ValueRank" default="-1"/>
-            if len(node.arrayDimensions) == 0:
-                node.valueRank = -1
-            else:
-                raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
-    else:
-        if node.parent is None:
-            raise RuntimeError(f"Node {str(node.id)}: does not have a parent. Probably the parent node was blacklisted?")
-
-        # Check if parent node limits the value rank
-        setNodeValueRankRecursive(node.parent, nodeset)
-
-
-        if node.parent.valueRank is not None:
-            node.valueRank = node.parent.valueRank
-        else:
-            # Parent has no ValueRank, apply XSD schema default for scalar nodes
-            # UANodeSet.xsd: <xs:attribute name="ValueRank" type="ValueRank" default="-1"/>
-            if len(node.arrayDimensions) == 0:
-                node.valueRank = -1
-            else:
-                raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
-
-
 def generateCommonVariableCode(node, nodeset):
     code = []
     codeCleanup = []
     codeGlobal = []
-
-    if node.valueRank is None:
-        # Set the constrained value rank from the type/parent node
-        setNodeValueRankRecursive(node, nodeset)
-        code.append("/* Value rank inherited */")
 
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
@@ -704,4 +644,3 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     outfilec.flush()
     os.fsync(outfilec)
     outfilec.close()
-

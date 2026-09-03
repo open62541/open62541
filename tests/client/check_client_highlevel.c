@@ -847,7 +847,7 @@ START_TEST(Node_ReadWrite_ValueRank) {
     UA_Int32 valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
     UA_StatusCode retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(valueRank, UA_VALUERANK_ANY);
+    ck_assert_int_eq(valueRank, UA_VALUERANK_SCALAR);
 
     // set the value to a scalar
     UA_Double val = 0.0;
@@ -862,6 +862,11 @@ START_TEST(Node_ReadWrite_ValueRank) {
     // shall fail when the value is not compatible
     retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
     ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    /* Relax the scalar default before writing an array value. */
+    UA_Int32 anyValueRank = UA_VALUERANK_ANY;
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &anyValueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // set the value to an array
     UA_Double vec[3] = {0.0, 0.0, 0.0};
@@ -894,11 +899,20 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(arrayDimsReadSize, 0);
 
-    // Set a vector of size 1 as the value
+    /* Relax the scalar default before writing an array value. */
+    UA_Int32 valueRank = UA_VALUERANK_ANY;
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Set a vector of size 2 as the value
     UA_Double vec2[2] = {0.0, 0.0};
     UA_Variant value;
     UA_Variant_setArray(&value, vec2, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
     retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    valueRank = UA_VALUERANK_ONE_DIMENSION;
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // writing the array dimensions shall fail at first

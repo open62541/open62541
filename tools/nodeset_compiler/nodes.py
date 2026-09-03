@@ -216,7 +216,9 @@ class VariableNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
         self.dataType = None
-        self.valueRank = None
+        # UANodeSet.xsd defines -1 (Scalar) as the default when ValueRank is
+        # omitted for UAVariable and UAVariableType nodes.
+        self.valueRank = -1
         self.arrayDimensions = []
         # Set access levels to read by default
         self.accessLevel = 1
