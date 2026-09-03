@@ -41,7 +41,8 @@ jobs:
         config:
           - os: ubuntu-24.04
             name: "Unit Tests with MbedTLS (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            mbedtls: true
+            cmd_deps: sudo apt-get install -y -qq valgrind
             cmd_action: unit_tests_valgrind MBEDTLS
 
           - os: ubuntu-24.04
@@ -49,7 +50,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq valgrind openssl
             cmd_action: unit_tests_valgrind OPENSSL
 
-          - os: ubuntu-20.04
+          - os: ubuntu-26.04
             name: "Unit Tests with Alarms&Conditions (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind
             cmd_action: unit_tests_alarms_memcheck
@@ -70,9 +71,30 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
+      - name: Checkout supported mbedTLS
+        if: matrix.config.mbedtls
+        uses: actions/checkout@v7
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: mbedtls-3.6.4
+          path: mbedtls-source
+          submodules: recursive
       - uses: ./.github/actions/linux-ci-setup
         with:
           extra-deps: ${{ matrix.config.cmd_deps }}
+      - name: Build supported mbedTLS
+        if: matrix.config.mbedtls
+        run: |
+          cmake -S mbedtls-source -B mbedtls-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/mbedtls-install" \
+            -DENABLE_PROGRAMS=OFF \
+            -DENABLE_TESTING=OFF
+          cmake --build mbedtls-build --parallel
+          cmake --install mbedtls-build
+          echo "MBEDTLS_FOLDER_INCLUDE=$GITHUB_WORKSPACE/mbedtls-install/include" >> "$GITHUB_ENV"
+          echo "MBEDTLS_FOLDER_LIBRARY=$GITHUB_WORKSPACE/mbedtls-install/lib" >> "$GITHUB_ENV"
       - name: ${{ matrix.config.name }}
         shell: bash
         run: source tools/ci/linux/ci.sh && ${{ matrix.config.cmd_action }}
@@ -91,19 +113,41 @@ jobs:
       matrix:
         config:
           - name: "Examples with MbedTLS and mDNSD (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+            mbedtls: true
+            cmd_deps: sudo apt-get install -y -qq valgrind python3-netifaces
             cmd_action: examples_valgrind MBEDTLS MDNSD
 
           - name: "Examples with OpenSSL and avahi-mdns (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl python3-netifaces libavahi-client-dev libavahi-common-dev
             cmd_action: examples_valgrind OPENSSL AVAHI
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: true
+      - name: Checkout supported mbedTLS
+        if: matrix.config.mbedtls
+        uses: actions/checkout@v7
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: mbedtls-3.6.4
+          path: mbedtls-source
+          submodules: recursive
       - uses: ./.github/actions/linux-ci-setup
         with:
           extra-deps: ${{ matrix.config.cmd_deps }}
+      - name: Build supported mbedTLS
+        if: matrix.config.mbedtls
+        run: |
+          cmake -S mbedtls-source -B mbedtls-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/mbedtls-install" \
+            -DENABLE_PROGRAMS=OFF \
+            -DENABLE_TESTING=OFF
+          cmake --build mbedtls-build --parallel
+          cmake --install mbedtls-build
+          echo "MBEDTLS_FOLDER_INCLUDE=$GITHUB_WORKSPACE/mbedtls-install/include" >> "$GITHUB_ENV"
+          echo "MBEDTLS_FOLDER_LIBRARY=$GITHUB_WORKSPACE/mbedtls-install/lib" >> "$GITHUB_ENV"
       - name: ${{ matrix.config.name }}
         shell: bash
         run: source tools/ci/linux/ci.sh && ${{ matrix.config.cmd_action }}
