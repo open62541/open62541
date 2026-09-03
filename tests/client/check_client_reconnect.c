@@ -2,13 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* Regression test for the asynchronous reconnecting subscription client
- * (examples/client_subscription_reconnect_async.c). It drives the exact same
- * non-blocking loop - connectAsync (throttled) while the channel is closed,
- * disconnectAsync when the server is hung (subscription inactivity) or a
- * connect is stuck past a grace period, and re-create the subscription from the
- * stateCallback on every activated session - and asserts that the client
- * recovers on its own from:
+/* Exercise the asynchronous reconnecting subscription client behavior from
+ * examples/client_subscription_reconnect_async.c. The test drives the same
+ * non-blocking loop and checks that the client recovers on its own from:
  *   1. a server shutdown + restart (the connection is closed), and
  *   2. a hung/frozen server (TCP stays open, no responses) that is later
  *      resumed - only detectable through the subscriptionInactivityCallback. */

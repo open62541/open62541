@@ -1293,9 +1293,8 @@ __Client_backgroundConnectivity(UA_Client *client) {
     if(!client->config.connectivityCheckInterval)
         return;
 
-    /* Only probe the server once the Session is activated. A Read sent
-     * before the server returns ActivateSessionResponse triggers a
-     * ServiceFault that aborts a slow connect (issue #8195). */
+    /* Only probe the server once the Session is activated. A Read during
+     * session activation can be rejected with a ServiceFault. */
     if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
         return;
 
