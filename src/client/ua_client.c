@@ -1293,6 +1293,11 @@ __Client_backgroundConnectivity(UA_Client *client) {
     if(!client->config.connectivityCheckInterval)
         return;
 
+    /* Only probe the server once the Session is activated. A Read during
+     * session activation can be rejected with a ServiceFault. */
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
+        return;
+
     if(client->pendingConnectivityCheck)
         return;
 

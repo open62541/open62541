@@ -372,7 +372,9 @@ UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
     /* Restrict buffer to the available space for the payload */
     UA_Byte *buf_pos = buf.data;
     const UA_Byte *buf_end = &buf.data[buf.length];
-    hideBytesAsym(channel, &buf_pos, &buf_end);
+    res = hideBytesAsym(channel, &buf_pos, &buf_end);
+    UA_CHECK_STATUS(res, cm->freeNetworkBuffer(cm, channel->connectionId, &buf);
+                    return res);
 
     /* Define variables here to pacify some compilers wrt goto */
     size_t securityHeaderLength, pre_sig_length, total_length, encryptedLength;
@@ -1026,6 +1028,7 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
 
     /* Compute the message size */
     size_t messageSize = chunk.bytes.length;
+    size_t messageChunks = 1; /* Include the final chunk */
     UA_Chunk *first = NULL;
     TAILQ_FOREACH(pchunk, &channel->chunks, pointers) {
         if(chunk.requestId != pchunk->requestId)
@@ -1037,12 +1040,16 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
         }
         if(!first)
             first = pchunk;
+        messageChunks++;
         messageSize += pchunk->bytes.length;
     }
 
-    /* Validate the assembled message size */
-    if(channel->config.localMaxMessageSize != 0 &&
-       messageSize > channel->config.localMaxMessageSize) {
+    /* Validate the assembled message limits. The final chunk also counts
+     * towards localMaxChunkCount. */
+    if((channel->config.localMaxChunkCount != 0 &&
+        messageChunks > channel->config.localMaxChunkCount) ||
+       (channel->config.localMaxMessageSize != 0 &&
+        messageSize > channel->config.localMaxMessageSize)) {
         if(chunk.copied)
             UA_ByteString_clear(&chunk.bytes);
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;

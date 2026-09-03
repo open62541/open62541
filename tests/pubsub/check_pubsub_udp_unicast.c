@@ -70,6 +70,8 @@ setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNu
         stack_config.externalEventLoop = true;
     }
     retVal |= UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
+    stack_config.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    stack_config.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     *server = UA_Server_newWithConfig(&stack_config);
     UA_ServerConfig *sc = UA_Server_getConfig(*server);
     sc->tcpReuseAddr = true;

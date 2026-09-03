@@ -94,7 +94,9 @@ iterateUntilNotification(UA_Client *client, UA_UInt32 maxIterations) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(UA_UInt32 i = 0; i < maxIterations && !notificationReceived; ++i) {
         UA_Server_run_iterate(server, false);
-        retval = UA_Client_run_iterate(client, 0);
+        /* Wait 1ms per iteration. A zero timeout makes this a busy-poll that
+         * can return before the PublishResponse is readable on the socket. */
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         UA_fakeSleep(1);
     }
@@ -841,6 +843,13 @@ START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
     UA_UInt32 oldHandle =
         mon->parameters.clientHandle;
     UA_Double oldSamplingInterval = mon->parameters.samplingInterval;
+    ck_assert_uint_eq(sub->pendingRekeys, 0);
+    /* A notification with an unknown clientHandle while nothing is pending
+     * must be dropped without scanning the tree (the O(N*n) guard). */
+    notificationReceived = false;
+    injectDataChangeNotification(client, sub, 0xDEADBEEFu);
+    ck_assert(!notificationReceived);
+    ck_assert_uint_eq(sub->pendingRekeys, 0);
 
     UA_MonitoredItemModifyRequest item;
     UA_MonitoredItemModifyRequest_init(&item);
@@ -870,6 +879,7 @@ START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
     UA_UInt32 newHandle =
         mon->pendingParameters.clientHandle;
     ck_assert_uint_ne(oldHandle, newHandle);
+    ck_assert_uint_eq(sub->pendingRekeys, 1);
 
     notificationReceived = false;
     countNotificationReceived = 0;
@@ -884,6 +894,7 @@ START_TEST(Client_subscription_modifyMonitoredItem_doubleBuffer) {
     ck_assert_uint_eq(mon->parameters.clientHandle, newHandle);
     ck_assert(!mon->pendingParameters.clientHandle);
     ck_assert(mon->parameters.samplingInterval == 1000.0);
+    ck_assert_uint_eq(sub->pendingRekeys, 0);
 
     /* Now deliver the new handle before the asynchronous modify response. */
     pauseServer();

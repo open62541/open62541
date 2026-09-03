@@ -702,6 +702,22 @@ resendData(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
+
+struct FillHandlesContext {
+    UA_UInt32 *clientHandles;
+    UA_UInt32 *serverHandles;
+    UA_UInt32 i;
+};
+
+static void *
+fillHandlesVisitor(void *context, UA_MonitoredItem *monitoredItem) {
+    struct FillHandlesContext *ctx = (struct FillHandlesContext*)context;
+    ctx->clientHandles[ctx->i] = monitoredItem->parameters.clientHandle;
+    ctx->serverHandles[ctx->i] = monitoredItem->monitoredItemId;
+    ctx->i++;
+    return NULL;
+}
+
 static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
@@ -745,11 +761,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     }
 
     /* Count the MonitoredItems */
-    UA_UInt32 sizeOfOutput = 0;
-    UA_MonitoredItem* monitoredItem;
-    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
-        ++sizeOfOutput;
-    }
+    UA_UInt32 sizeOfOutput = subscription->monitoredItemsSize;
     if(sizeOfOutput == 0) {
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
@@ -771,12 +783,10 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     }
 
     /* Fill the array */
-    UA_UInt32 i = 0;
-    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
-        clientHandles[i] = monitoredItem->parameters.clientHandle;
-        serverHandles[i] = monitoredItem->monitoredItemId;
-        ++i;
-    }
+    struct FillHandlesContext ctx = {clientHandles, serverHandles, 0};
+    ZIP_ITER(UA_MonitoredItemIdTree, &subscription->monitoredItemsById,
+             fillHandlesVisitor, &ctx);
+    UA_assert(ctx.i == sizeOfOutput);
     UA_Variant_setArray(&output[0], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
 

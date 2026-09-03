@@ -42,7 +42,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/util")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
-include_directories("${PROJECT_BINARY_DIR}/../plugins")
+include_directories("${PROJECT_SOURCE_DIR}/plugins")
 
 if(UA_ARCHITECTURE_LWIP)
     # lwip includes
@@ -456,7 +456,13 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions_modify.c)
     ua_add_test(server/check_local_monitored_item.c)
-ua_add_test(server/check_datachange_deadband_typekinds.c)
+    ua_add_test(server/check_datachange_deadband_typekinds.c)
+endif()
+
+if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
+    ua_add_test(server/check_findservers_on_network.c)
+    target_include_directories(check_findservers_on_network PRIVATE
+                               "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -557,6 +563,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(client/check_client_subscriptions.c)
     ua_add_test(client/check_client_subscriptions_datachange.c)
     ua_add_test(client/check_subscriptionWithactivateSession.c)
+    ua_add_test(client/check_client_reconnect.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)

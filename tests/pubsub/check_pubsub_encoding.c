@@ -1473,6 +1473,35 @@ START_TEST(UA_PubSub_Decode_MultiDsmZeroSizeReturnsBadDecodingError) {
     UA_NetworkMessage_clear(&m);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer) {
+    /* An invalid DSM may be skipped when its declared size is known. The
+     * declared size is attacker-controlled and must neither advance past the
+     * receive buffer nor rewind into the already-decoded header. */
+    UA_Byte raw[] = {0x00}; /* invalid Variant KeyFrame */
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = raw;
+    ctx.ctx.end = raw + sizeof(raw);
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    UA_StatusCode res =
+        UA_DataSetMessage_decodeBinary(&ctx, NULL, &dsm, 10);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert((uintptr_t)ctx.ctx.pos <= (uintptr_t)ctx.ctx.end);
+    UA_DataSetMessage_clear(&dsm);
+
+    UA_Byte rawWithPayload[] = {0x00, 0x00, 0x00};
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = rawWithPayload;
+    ctx.ctx.end = rawWithPayload + sizeof(rawWithPayload);
+    memset(&dsm, 0, sizeof(dsm));
+    res = UA_DataSetMessage_decodeBinary(&ctx, NULL, &dsm, 1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert((uintptr_t)ctx.ctx.pos >= (uintptr_t)rawWithPayload);
+    UA_DataSetMessage_clear(&dsm);
+} END_TEST
+
 START_TEST(UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError) {
     /* Header with publisherIdEnabled + extended flags 1.
      * ExtendedFlags1 low bits carry idType. Use invalid idType=5. */
@@ -1597,7 +1626,7 @@ START_TEST(UA_PubSub_EnDecode_SecurityHeaderAndFooter) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.securityEnabled = true;
-    m.securityHeader.networkMessageSigned = false;
+    m.securityHeader.networkMessageSigned = true;
     m.securityHeader.networkMessageEncrypted = false;
     m.securityHeader.securityFooterEnabled = true;
     m.securityHeader.forceKeyReset = true;
@@ -1635,6 +1664,98 @@ START_TEST(UA_PubSub_EnDecode_SecurityHeaderAndFooter) {
     UA_NetworkMessage_clear(&m2);
     UA_ByteString_clear(&buffer);
     clearKeyFrame(&dmkf);
+} END_TEST
+
+static void
+assertSecurityHeaderRejected(UA_Byte securityFlags, UA_Byte nonceLength) {
+    UA_Byte raw[10 + UA_NETWORKMESSAGE_MAX_NONCE_LENGTH] = {
+        0x81, /* version=1, ExtendedFlags1 */
+        0x10, /* Security enabled */
+        securityFlags,
+        0x01, 0x00, 0x00, 0x00, /* SecurityTokenId */
+        nonceLength
+    };
+    /* Supply a footer-size field as well. Cases without the footer flag leave
+     * these trailing bytes untouched by header decoding. */
+    raw[8 + nonceLength] = 1;
+    raw[9 + nonceLength] = 0;
+    UA_ByteString buffer = {10 + nonceLength, raw};
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    size_t payloadOffset = 0;
+    UA_StatusCode res = UA_NetworkMessage_decodeBinaryHeaders(
+        &buffer, &message, NULL, NULL, &payloadOffset);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    UA_NetworkMessage_clear(&message);
+}
+
+START_TEST(UA_PubSub_Decode_RejectsInvalidSecurityFlags) {
+    assertSecurityHeaderRejected(0x10, 0); /* reserved flag */
+    assertSecurityHeaderRejected(0x02, 1); /* encrypt without sign */
+    assertSecurityHeaderRejected(0x03, 0); /* encrypt without nonce */
+    assertSecurityHeaderRejected(0x04, 0); /* unauthenticated footer */
+    assertSecurityHeaderRejected(0x08, 0); /* unauthenticated key reset */
+} END_TEST
+
+START_TEST(UA_PubSub_Encode_RejectsInconsistentSecurityFooter) {
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    message.version = 1;
+    message.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    message.securityEnabled = true;
+    message.securityHeader.networkMessageSigned = true;
+    message.securityHeader.securityFooterEnabled = true;
+    message.securityHeader.securityFooterSize = 4;
+
+    UA_DataSetMessage dataSetMessage;
+    fillKeyFrame(&dataSetMessage, 1);
+    message.payload.dataSetMessages = &dataSetMessage;
+    message.messageCount = 1;
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_NetworkMessage_encodeBinary(&message, &buffer, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGERROR);
+    UA_ByteString_clear(&buffer);
+    clearKeyFrame(&dataSetMessage);
+} END_TEST
+
+START_TEST(UA_PubSub_Encode_RejectsMissingRawFieldMetadata) {
+    UA_NetworkMessage message;
+    memset(&message, 0, sizeof(message));
+    message.version = 1;
+    message.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+    dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    dsm.fieldCount = 2;
+    dsm.data.keyFrameFields = (UA_DataValue*)
+        UA_calloc(dsm.fieldCount, sizeof(UA_DataValue));
+    ck_assert_ptr_ne(dsm.data.keyFrameFields, NULL);
+    UA_UInt32 values[2] = {1, 2};
+    for(size_t i = 0; i < dsm.fieldCount; i++) {
+        UA_Variant_setScalar(&dsm.data.keyFrameFields[i].value, &values[i],
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        dsm.data.keyFrameFields[i].hasValue = true;
+    }
+    message.payload.dataSetMessages = &dsm;
+    message.messageCount = 1;
+
+    UA_FieldMetaData field;
+    UA_FieldMetaData_init(&field);
+    field.builtInType = UA_NS0ID_UINT32;
+    field.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetMessage_EncodingMetaData metadata = {0, 1, &field, 0};
+    UA_NetworkMessage_EncodingOptions options = {1, &metadata};
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&message, &buffer, &options),
+                      UA_STATUSCODE_BADENCODINGERROR);
+    UA_ByteString_clear(&buffer);
+    UA_free(dsm.data.keyFrameFields);
 } END_TEST
 
 START_TEST(UA_PubSub_EnDecode_DataSetClassIdRoundtrip) {
@@ -1882,7 +2003,10 @@ int main(void) {
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_PayloadHeaderCountZeroReturnsBadDecodingError);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_PayloadHeaderCountTooLargeReturnsBadDecodingError);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_MultiDsmZeroSizeReturnsBadDecodingError);
+    tcase_add_test(tc_decode_err,
+                   UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError);
+    tcase_add_test(tc_decode_err, UA_PubSub_Decode_RejectsInvalidSecurityFlags);
 
     TCase *tc_nm_optional = tcase_create("NetworkMessage optional headers");
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_PicosecondsRoundtrip);
@@ -1890,6 +2014,9 @@ int main(void) {
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_SecurityHeaderAndFooter);
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DataSetClassIdRoundtrip);
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_DiscoveryRequestType);
+    tcase_add_test(tc_nm_optional, UA_PubSub_Encode_RejectsInconsistentSecurityFooter);
+    tcase_add_test(tc_nm_optional,
+                   UA_PubSub_Encode_RejectsMissingRawFieldMetadata);
 
 
     Suite *s = suite_create("PubSub NetworkMessage");

@@ -277,10 +277,7 @@ START_TEST(remove_certificate_issuerlist) {
 }
 END_TEST
 
-/* Regression test for fix/ca-removal-without-crl:
- * Removing a CA certificate that has no associated CRL must succeed.
- * Without the fix, getCertificateCrls returns Bad_NoMatch and the
- * remove call fails with that status code. */
+/* A CA certificate does not need an associated CRL to be removable. */
 START_TEST(remove_ca_certificate_without_crl) {
     UA_NodeId defaultApplicationGroup =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);

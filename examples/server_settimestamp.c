@@ -73,7 +73,7 @@ writeVariable(UA_Server *server, UA_Int32 myInteger ) {
 
 static volatile UA_Boolean running = true;
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    (void)sign;
     running = false;
 }
 
