@@ -502,6 +502,70 @@ START_TEST(SecureChannel_assemblePartialChunks) {
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST
 
+/* ==== UA_SecureChannel.maxMessageSizeOverride ====
+ *
+ * Reuses the single-chunk "HELF" fixture above: a full 32-byte chunk
+ * (8-byte header + 24-byte body) whose declared MessageSize (bytes 4-7,
+ * little-endian) is 32. In the server, maxMessageSizeOverride is only ever
+ * written through UA_Server_setSecureChannelAttribute (see
+ * check_server_http_protocol.c) -- these tests set the field directly to
+ * exercise the enforcement logic in isolation from that public API. */
+
+START_TEST(SecureChannel_maxMessageSizeOverride_tightensBelowStaticLimit) {
+    /* The static localMaxMessageSize (from UA_ConnectionConfig_default) is
+     * generous enough to admit the 32-byte test message on its own. An
+     * override below the message size must still reject it. */
+    int chunks_processed = 0;
+    testChannel.maxMessageSizeOverride = 16;
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval =
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPMESSAGETOOLARGE);
+    ck_assert_int_eq(chunks_processed, 0);
+} END_TEST
+
+START_TEST(SecureChannel_maxMessageSizeOverride_zeroMeansUnset) {
+    /* maxMessageSizeOverride == 0 is the default (never written) state --
+     * the static localMaxMessageSize (large enough here) applies unmodified
+     * and the 32-byte message is accepted. */
+    int chunks_processed = 0;
+    ck_assert_uint_eq(testChannel.maxMessageSizeOverride, 0);
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval =
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(chunks_processed, 1);
+} END_TEST
+
+START_TEST(SecureChannel_maxMessageSizeOverride_cannotExceedStaticLimit) {
+    /* The override can only tighten the static ceiling, never loosen it --
+     * an application cannot use it to bypass the administrator-configured
+     * tcpMaxMsgSize. */
+    int chunks_processed = 0;
+    testChannel.config.localMaxMessageSize = 8; /* smaller than the 32-byte message */
+    testChannel.maxMessageSizeOverride = 1000;  /* would admit it on its own */
+
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval =
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTCPMESSAGETOOLARGE);
+    ck_assert_int_eq(chunks_processed, 0);
+} END_TEST
+
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
 /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining on
  * SecureChannel renewal. This exercises the OpenSSL helper directly
@@ -685,6 +749,9 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_processBuffer, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
+    tcase_add_test(tc_processBuffer, SecureChannel_maxMessageSizeOverride_tightensBelowStaticLimit);
+    tcase_add_test(tc_processBuffer, SecureChannel_maxMessageSizeOverride_zeroMeansUnset);
+    tcase_add_test(tc_processBuffer, SecureChannel_maxMessageSizeOverride_cannotExceedStaticLimit);
     suite_add_tcase(s, tc_processBuffer);
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
