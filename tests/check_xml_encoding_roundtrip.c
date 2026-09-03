@@ -549,6 +549,15 @@ START_TEST(xml_decode_string) {
     UA_String_clear(&dst);
 } END_TEST
 
+START_TEST(xml_decode_numeric_enum) {
+    UA_ByteString xml = UA_BYTESTRING("<ServerState>5</ServerState>");
+    UA_ServerState dst = UA_SERVERSTATE_RUNNING;
+    UA_StatusCode res =
+        UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_SERVERSTATE], NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(dst, UA_SERVERSTATE_TEST);
+} END_TEST
+
 START_TEST(xml_decode_character_references) {
     const struct {
         const char *xml;
@@ -665,6 +674,7 @@ int main(void) {
     tcase_add_test(tc_misc, xml_decode_double_neginf);
     tcase_add_test(tc_misc, xml_decode_double_nan);
     tcase_add_test(tc_misc, xml_decode_string);
+    tcase_add_test(tc_misc, xml_decode_numeric_enum);
     tcase_add_test(tc_misc, xml_decode_character_references);
     tcase_add_test(tc_misc, xml_decode_invalid_character_reference);
     suite_add_tcase(s, tc_misc);
