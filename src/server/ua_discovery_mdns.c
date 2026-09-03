@@ -713,14 +713,27 @@ UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
 UA_ServerOnNetwork*
 UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
                                    UA_ServerOnNetwork *current) {
-    serverOnNetwork *entry = NULL;
-    LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
-        if(&entry->serverOnNetwork == current) {
-            entry = LIST_NEXT(entry, pointers);
-            break;
-        }
-    }
+    (void)dm;
+    serverOnNetwork *entry = container_of(current, serverOnNetwork,
+                                          serverOnNetwork);
+    entry = LIST_NEXT(entry, pointers);
     return entry ? &entry->serverOnNetwork : NULL;
+}
+
+UA_StatusCode
+UA_DiscoveryManager_addServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                              const UA_String serverName) {
+    if(serverName.length == SIZE_MAX)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    char *record = (char*)UA_malloc(serverName.length + 1);
+    if(!record)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memcpy(record, serverName.data, serverName.length);
+    record[serverName.length] = '\0';
+    UA_StatusCode res =
+        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, record, serverName, NULL);
+    UA_free(record);
+    return res;
 }
 
 

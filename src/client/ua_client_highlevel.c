@@ -356,12 +356,15 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     /* Call the service */
     UA_CallResponse response = UA_Client_Service_call(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
-        if(response.resultsSize == 1)
-            retval = response.results[0].statusCode;
-        else
-            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CallResponse_clear(&response);
+        return retval;
     }
+    if(response.resultsSize != 1) {
+        UA_CallResponse_clear(&response);
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    retval = response.results[0].statusCode;
     if(UA_StatusCode_isBad(retval)) {
         UA_CallResponse_clear(&response);
         return retval;
@@ -407,10 +410,12 @@ UA_Client_browse(UA_Client *client, const UA_ViewDescription *view,
     /* Call the service */
     response = UA_Client_Service_browse(client, request);
     retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(UA_StatusCode_isBad(retval))
+    if(retval != UA_STATUSCODE_GOOD)
         goto error;
+    if(response.resultsSize != 1) {
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        goto error;
+    }
 
     /* Return the result */
     res = response.results[0];
@@ -439,9 +444,9 @@ UA_Client_browseNext(UA_Client *client, UA_Boolean releaseContinuationPoint,
     UA_BrowseResult res;
     UA_BrowseNextResponse response = UA_Client_Service_browseNext(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(UA_StatusCode_isBad(retval)) {
+    if(retval != UA_STATUSCODE_GOOD || response.resultsSize != 1) {
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         UA_BrowseNextResponse_clear(&response);
         UA_BrowseResult_init(&res);
         res.statusCode = retval;
@@ -476,10 +481,12 @@ UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
     /* Call the service */
     response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
     retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(UA_StatusCode_isBad(retval))
+    if(retval != UA_STATUSCODE_GOOD)
         goto error;
+    if(response.resultsSize != 1) {
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        goto error;
+    }
 
     /* Return the result */
     res = response.results[0];
@@ -513,11 +520,13 @@ UA_Client_write(UA_Client *client, const UA_WriteValue *wv) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_WriteResponse response = UA_Client_Service_write(client, request);
     retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(UA_StatusCode_isBad(retval)) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_WriteResponse_clear(&response);
         return retval;
+    }
+    if(response.resultsSize != 1) {
+        UA_WriteResponse_clear(&response);
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
     /* Return the result */
@@ -788,9 +797,9 @@ UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi) {
     UA_DataValue res;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(UA_StatusCode_isBad(retval)) {
+    if(retval != UA_STATUSCODE_GOOD || response.resultsSize != 1) {
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         UA_ReadResponse_clear(&response);
         UA_DataValue_init(&res);
         res.status = retval;
@@ -819,12 +828,15 @@ __Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
-        if(response.resultsSize == 1)
-            retval = response.results[0].status;
-        else
-            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ReadResponse_clear(&response);
+        return retval;
     }
+    if(response.resultsSize != 1) {
+        UA_ReadResponse_clear(&response);
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    retval = response.results[0].status;
     if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD)) {
         UA_ReadResponse_clear(&response);
         return retval;
@@ -1139,12 +1151,13 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
         }
 
         retval = response.responseHeader.serviceResult;
-        if(retval == UA_STATUSCODE_GOOD) {
-            if(response.resultsSize == 1)
-                retval = response.results[0].statusCode;
-            else
-                retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        if(response.resultsSize != 1) {
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+            goto cleanup;
         }
+        retval = response.results[0].statusCode;
         if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
             goto cleanup;
 

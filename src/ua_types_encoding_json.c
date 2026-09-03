@@ -21,6 +21,7 @@
 #include "ua_types_encoding_json.h"
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 
 #include "../deps/utf8.h"
@@ -2078,6 +2079,8 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst, const UA_DataTy
     ctx->index++; /* Go to first array member */
 
     /* Allocate memory */
+    if(length > SIZE_MAX / type->memSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = UA_calloc(length, type->memSize);
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -2531,6 +2534,8 @@ Array_decodeJson(ParseCtx *ctx, void **dst, const UA_DataType *type) {
     }
 
     /* Allocate memory */
+    if(length > SIZE_MAX / type->memSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = UA_calloc(length, type->memSize);
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -2647,6 +2652,10 @@ tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
      * have needed */
     if(r.error == CJ5_ERROR_OVERFLOW &&
        tokensSize != r.num_tokens) {
+#if SIZE_MAX <= UINT_MAX
+        if((size_t)r.num_tokens > SIZE_MAX / sizeof(cj5_token))
+            return UA_STATUSCODE_BADDECODINGERROR;
+#endif
         ctx->tokens = (cj5_token*)
             UA_malloc(sizeof(cj5_token) * r.num_tokens);
         if(!ctx->tokens)

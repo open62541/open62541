@@ -1301,8 +1301,8 @@ UDP_openReceiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
         char hn[UA_MAXHOSTNAME_LENGTH];
         if(hostStrings[i].length >= sizeof(hn))
             continue;
-        memcpy(hn, hostStrings[i].data, hostStrings->length);
-        hn[hostStrings->length] = '\0';
+        memcpy(hn, hostStrings[i].data, hostStrings[i].length);
+        hn[hostStrings[i].length] = '\0';
         UA_StatusCode rv =
             UDP_registerListenSockets(pcm, hn, *port, params, application,
                                       context, connectionCallback, validate);

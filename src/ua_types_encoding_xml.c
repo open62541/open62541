@@ -8,6 +8,7 @@
 #include "ua_types_encoding_xml.h"
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 
 #include "../deps/itoa.h"
@@ -1299,7 +1300,7 @@ unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
     }
 
     /* Allocate the array */
-    void *unpacked = UA_calloc(dst->arrayLength, type->memSize);
+    void *unpacked = UA_Array_new(dst->arrayLength, type);
     if(!unpacked)
         return;
 
@@ -1363,8 +1364,12 @@ decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
 
     /* Check that the ArrayDimensions match */
     size_t dimLen = 1;
-    for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
+    for(size_t i = 0; i < dst->arrayDimensionsSize; i++) {
+        if(dst->arrayDimensions[i] != 0 &&
+           dimLen > SIZE_MAX / dst->arrayDimensions[i])
+            return UA_STATUSCODE_BADDECODINGERROR;
         dimLen *= dst->arrayDimensions[i];
+    }
 
     return (dimLen == dst->arrayLength) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADDECODINGERROR;
 }
@@ -1526,6 +1531,8 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
              const UA_DecodeXmlOptions *options) {
     if(!dst || !src || !type)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(src->length > UINT_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Tokenize. Add a fake wrapper element if options->unwrapped is enabled. */
     unsigned tokensSize = 63;
@@ -1535,7 +1542,12 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     xml_result res = xml_tokenize((char*)src->data, (unsigned)src->length,
                                   tokens + 1, tokensSize);
     if(res.error == XML_ERROR_OVERFLOW) {
-        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * (res.num_tokens + 1));
+        if(res.num_tokens == UINT_MAX)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        size_t requiredTokens = (size_t)res.num_tokens + 1;
+        if(requiredTokens > SIZE_MAX / sizeof(xml_token))
+            return UA_STATUSCODE_BADDECODINGERROR;
+        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * requiredTokens);
         if(!tokens)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         res = xml_tokenize((char*)src->data, (unsigned)src->length,
