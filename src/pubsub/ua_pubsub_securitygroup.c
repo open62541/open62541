@@ -193,8 +193,16 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     retval = generateKeyData(ks->policy, &currentKey);
 
-    UA_ByteString *futurekeys = (UA_ByteString *)
-        UA_calloc(sg->config.maxFutureKeyCount, sizeof(UA_ByteString));
+    UA_ByteString *futurekeys = NULL;
+    if(sg->config.maxFutureKeyCount > 0) {
+        futurekeys = (UA_ByteString *)
+            UA_calloc(sg->config.maxFutureKeyCount, sizeof(UA_ByteString));
+        if(!futurekeys) {
+            UA_ByteString_clear(&currentKey);
+            UA_PubSubKeyStorage_delete(psm, ks);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
     for(size_t i = 0; i < sg->config.maxFutureKeyCount; i++) {
         retval = UA_ByteString_allocBuffer(&futurekeys[i], keyLength);
         retval = generateKeyData(ks->policy, &futurekeys[i]);

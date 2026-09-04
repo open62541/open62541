@@ -482,8 +482,17 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA: {
-            UA_PublishedVariableDataType *pvd = (UA_PublishedVariableDataType *)
-                UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
+            /* Return an empty array if the PublishedDataSet has no fields.
+             * UA_calloc is allowed to return NULL for zero elements. */
+            UA_PublishedVariableDataType *pvd =
+                (UA_PublishedVariableDataType *)UA_EMPTY_ARRAY_SENTINEL;
+            if(publishedDataSet->fieldSize > 0) {
+                pvd = (UA_PublishedVariableDataType *)
+                    UA_calloc(publishedDataSet->fieldSize,
+                              sizeof(UA_PublishedVariableDataType));
+                if(!pvd)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
             size_t counter = 0;
             UA_DataSetField *field;
             TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
