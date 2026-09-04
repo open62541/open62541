@@ -58,7 +58,7 @@ typedef struct {
 
     /* Maps ReferenceTypeIndex to the NodeId of the ReferenceType */
     UA_NodeId referenceTypeIds[UA_REFERENCETYPESET_MAX];
-    UA_Byte referenceTypeCounter;
+    UA_UInt16 referenceTypeCounter;
 } ZipNodestore;
 
 ZIP_FUNCTIONS(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
@@ -335,8 +335,9 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
         }
 
         /* Assign the ReferenceTypeIndex to the new ReferenceTypeNode */
-        refNode->referenceTypeIndex = zns->referenceTypeCounter;
-        refNode->subTypes = UA_REFTYPESET(zns->referenceTypeCounter);
+        UA_Byte refTypeIndex = (UA_Byte)zns->referenceTypeCounter;
+        refNode->referenceTypeIndex = refTypeIndex;
+        refNode->subTypes = UA_REFTYPESET(refTypeIndex);
         zns->referenceTypeCounter++;
     }
 

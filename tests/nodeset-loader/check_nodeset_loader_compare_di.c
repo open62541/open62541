@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/server.h>
-#include <open62541/plugin/nodesetloader.h>
+#include "nodeset_loader_test.h"
 #include <open62541/types.h>
 
 #include "check.h"
@@ -18,14 +18,13 @@ static void setup(void) {
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
 }
-
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
 
 START_TEST(Server_compareDiNodeset) {
-    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = loadNodesetFile(server,
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
 

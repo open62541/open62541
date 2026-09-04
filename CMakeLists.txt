@@ -119,7 +119,6 @@ option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
-option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 option(UA_ENABLE_RBAC "Enable Role-Based Access Control (EXPERIMENTAL - NOT FOR PRODUCTION)" OFF)
 
@@ -938,12 +937,14 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/mp_printf.h
                 ${PROJECT_SOURCE_DIR}/deps/utf8.h
                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
+                ${PROJECT_SOURCE_DIR}/deps/yxml.h
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util_internal.h
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset_loader_internal.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
@@ -964,6 +965,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_encryptedsecret.c
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset.c
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset_loader.c
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset_loader_apply.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
@@ -1024,6 +1028,7 @@ set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/mp_printf.c
                 ${PROJECT_SOURCE_DIR}/deps/utf8.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
+                ${PROJECT_SOURCE_DIR}/deps/yxml.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
 
@@ -1090,10 +1095,8 @@ if(UA_ENABLE_XML_ENCODING)
     if(NOT UA_ENABLE_TYPEDESCRIPTION)
         message(FATAL_ERROR "XML encoding requires parsing and type descriptions to be enabled")
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
@@ -1480,20 +1483,6 @@ if(UA_ENABLE_DISCOVERY)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c)
 endif()
 
-if(UA_ENABLE_NODESETLOADER)
-    # This is required because of issues with policy CMP0077.
-    # Source: https://stackoverflow.com/a/54404924
-    option(ENABLE_BUILD_INTO_OPEN62541 "make nodesetLoader part of the open62541 library" off)
-    set(ENABLE_BUILD_INTO_OPEN62541 on)
-
-    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
-
-    list(APPEND lib_sources ${NODESETLOADER_SOURCES})
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
-    list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
-endif()
-
 #########################
 # Generate source files #
 #########################
@@ -1636,14 +1625,14 @@ if(UA_ENABLE_AMALGAMATION)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                               ${exported_headers} ${NODESETLOADER_PUBLIC_HEADERS} ${plugin_headers}
+                               ${exported_headers} ${plugin_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${exported_headers} ${plugin_headers})
 
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                               ${lib_headers} ${NODESETLOADER_PRIVATE_HEADERS} ${lib_sources} ${plugin_sources}
+                               ${lib_headers} ${lib_sources} ${plugin_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
                                ${lib_sources} ${plugin_sources})
 
@@ -1769,9 +1758,6 @@ endif()
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     include_directories_private(${LIBRESSL_INCLUDE_DIR})
 endif()
-if(UA_ENABLE_NODESETLOADER)
-    include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
-endif()
 if(UA_ENABLE_LWS)
     include_directories_private(${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
@@ -1787,10 +1773,6 @@ endfunction()
 include_directories_public("${PROJECT_SOURCE_DIR}/include"
                            "${PROJECT_SOURCE_DIR}/plugins/include"
                            "${PROJECT_BINARY_DIR}/src_generated")
-
-if(UA_ENABLE_NODESETLOADER)
-    include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
-endif()
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
 add_library(open62541::open62541 ALIAS open62541)

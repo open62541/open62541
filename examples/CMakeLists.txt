@@ -238,9 +238,7 @@ endif()
 # Nodeser Loader Examples #
 ###########################
 
-if(UA_ENABLE_NODESETLOADER)
-    add_subdirectory(nodeset_loader)
-endif()
+add_subdirectory(nodeset_loader)
 
 if(UA_ENABLE_NODESET_INJECTOR)
     set(UA_NODESETINJECTOR_SOURCE_FILES ${UA_NODESETINJECTOR_SOURCE_FILES} PARENT_SCOPE)
