@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://open62541.org/NodeSetLoader/Unsortable/</Uri>
+  </NamespaceUris>
+  <UAReferenceType NodeId="ns=1;i=50000" BrowseName="1:First">
+    <References>
+      <Reference ReferenceType="i=45" IsForward="false">ns=1;i=50001</Reference>
+    </References>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=1;i=50001" BrowseName="1:Second">
+    <References>
+      <Reference ReferenceType="i=45" IsForward="false">ns=1;i=50000</Reference>
+    </References>
+  </UAReferenceType>
+</UANodeSet>

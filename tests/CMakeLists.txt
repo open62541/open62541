@@ -676,9 +676,7 @@ endif()
 add_subdirectory(nodeset-compiler)
 
 # Tests for Nodeset Loader
-if(UA_ENABLE_NODESETLOADER)
-    add_subdirectory(nodeset-loader)
-endif()
+add_subdirectory(nodeset-loader)
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")

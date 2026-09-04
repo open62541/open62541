@@ -62,8 +62,8 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 #define UA_REFERENCETYPEINDEX_HASORDEREDCOMPONENT 16
 #define UA_REFERENCETYPEINDEX_HASINTERFACE 17
 
-/* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
-#define UA_REFERENCETYPESET_MAX 128
+/* The maximum number of ReferenceTypes. Must be a multiple of 32. */
+#define UA_REFERENCETYPESET_MAX 256
 typedef struct {
     UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
 } UA_ReferenceTypeSet;
