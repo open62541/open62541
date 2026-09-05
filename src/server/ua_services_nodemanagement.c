@@ -509,6 +509,28 @@ static const UA_NodeId baseObjectType =
 static const UA_NodeId hasTypeDefinition =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASTYPEDEFINITION}};
 
+static UA_Boolean
+compatibleVariableTypeValue(UA_Server *server, UA_Session *session,
+                            const UA_VariableNode *node,
+                            const UA_VariableTypeNode *vt,
+                            const UA_Variant *value) {
+    const UA_NodeId *dataType = &node->dataType;
+    if(UA_NodeId_isNull(dataType))
+        dataType = &vt->dataType;
+
+    size_t arrayDimensionsSize = node->arrayDimensionsSize;
+    const UA_UInt32 *arrayDimensions = node->arrayDimensions;
+    if(arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
+        arrayDimensionsSize = vt->arrayDimensionsSize;
+        arrayDimensions = vt->arrayDimensions;
+    }
+
+    const char *reason;
+    return compatibleValue(server, session, dataType, node->valueRank,
+                           arrayDimensionsSize, arrayDimensions, value,
+                           NULL, &reason);
+}
+
 /* Use attributes from the variable type wherever required. Reload the node if
  * changes were made. */
 static UA_StatusCode
@@ -532,7 +554,8 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_DataValue v;
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
-        if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
+        if(retval == UA_STATUSCODE_GOOD && v.hasValue &&
+           compatibleVariableTypeValue(server, session, node, vt, &v.value)) {
             /* Let the write path adjust equivalent wire types before it
              * performs the final compatibility check. */
             retval = writeAttribute(server, &server->adminSession,

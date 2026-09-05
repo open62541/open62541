@@ -40,6 +40,16 @@ static UA_Boolean earlyChildWasAbsent;
 static UA_Boolean constructorSawChild;
 static UA_Boolean earlyConstructorReplacesNodeClass;
 
+static void
+countWarnings(void *context, UA_LogLevel level, UA_LogCategory category,
+              const char *msg, va_list args) {
+    (void)category;
+    (void)msg;
+    (void)args;
+    if(level == UA_LOGLEVEL_WARNING)
+        (*(size_t*)context)++;
+}
+
 static UA_Boolean
 nodeHasBrowseName(UA_Server *server_, const UA_NodeId *nodeId,
                   const UA_QualifiedName *expected) {
@@ -494,6 +504,12 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
      * tries to auto-generate a matching zero-value of the correct
      * dimensions. */
 
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
     /* Add the node */
     UA_StatusCode res =
         UA_Server_addVariableNode(server, UA_NODEID_NULL,
@@ -501,7 +517,9 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                                   vAttr, NULL, NULL);
+    config->logging = originalLogger;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    ck_assert_uint_eq(warnings, 0);
 } END_TEST
 
 START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
@@ -527,12 +545,20 @@ START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
     childAttr.dataType = UA_TYPES[UA_TYPES_FLOAT].typeId;
     childAttr.valueRank = UA_VALUERANK_ANY;
 
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
     UA_NodeId childId;
     res = UA_Server_addVariableTypeNode(server, UA_NODEID_NULL, parentId,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                         UA_QUALIFIEDNAME(1, "Float Child"), UA_NODEID_NULL,
                                         childAttr, NULL, &childId);
+    config->logging = originalLogger;
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 0);
 
     UA_Variant value;
     UA_Variant_init(&value);
