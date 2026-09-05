@@ -382,6 +382,26 @@ START_TEST(AbstractVariableTypeBelowHierarchicalParent) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(UnattachedMethodWarnsAndIsAccepted) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "UnattachedMethod");
+    UA_StatusCode res =
+        UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 80601),
+                                UA_NODEID_NULL, UA_NODEID_NULL,
+                                UA_QUALIFIEDNAME(1, "UnattachedMethod"), attr,
+                                NULL, 0, NULL, 0, NULL, NULL, NULL);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 1);
+} END_TEST
+
 START_TEST(AddComplexTypeWithInheritance) {
     /* add a variable node to the address space */
 
@@ -1558,6 +1578,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
     tcase_add_test(tc_addnodes, VariableTypeRestrictionGetsMatchingDefaultValue);
     tcase_add_test(tc_addnodes, AbstractVariableTypeBelowHierarchicalParent);
+    tcase_add_test(tc_addnodes, UnattachedMethodWarnsAndIsAccepted);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
