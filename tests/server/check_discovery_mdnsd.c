@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ */
 
 #include <check.h>
 #include <stdlib.h>
@@ -1503,6 +1506,20 @@ setDiscoveryTestClientDefaults(UA_ClientConfig *cc) {
     cc->securityMode = UA_MESSAGESECURITYMODE_NONE;
 }
 
+/* Called with the registering server's background thread stopped. The public
+ * API only queues the request; finish it before querying the LDS or submitting
+ * another request. The LDS continues to run on its own thread. */
+static UA_Boolean
+finishDiscoveryRequest(void) {
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
+    while(UA_DiscoveryManager_getPendingRegistration(serverRegister, NULL)) {
+        if(UA_DateTime_nowMonotonic() >= deadline)
+            return false;
+        UA_Server_run_iterate(serverRegister, true);
+    }
+    return true;
+}
+
 static void
 registerWithLdsPublicApi(void) {
     UA_ClientConfig cc;
@@ -1517,10 +1534,13 @@ registerWithLdsPublicApi(void) {
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING_NULL);
 
+    UA_Boolean completed = (retval == UA_STATUSCODE_GOOD) && finishDiscoveryRequest();
+
     *runningRegister = true;
     THREAD_CREATE(serverThreadRegister, serverloop_register_public);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(completed, "Timed out waiting for the discovery request to finish");
 }
 
 static void
@@ -1536,23 +1556,21 @@ deregisterFromLdsPublicApi(void) {
         UA_Server_deregisterDiscovery(serverRegister, &cc,
                                       UA_STRING("opc.tcp://localhost:4840"));
 
+    UA_Boolean completed = (retval == UA_STATUSCODE_GOOD) && finishDiscoveryRequest();
+
     *runningRegister = true;
     THREAD_CREATE(serverThreadRegister, serverloop_register_public);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(completed, "Timed out waiting for the discovery request to finish");
 }
 
 static UA_Boolean
 isServerRegisteredAtLds(void) {
     UA_Client *client = UA_Client_new();
-    if(!client)
-        return false;
+    ck_assert_ptr_nonnull(client);
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     setDiscoveryTestClientDefaults(cc);
-    /* The default 5s timeout would stretch the for-loop into tens of
-     * minutes when the discovery handshake never completes. Use a short
-     * timeout so the test fails fast and reports a clear problem. */
-    cc->timeout = 200;
     UA_ApplicationDescription *servers = NULL;
     size_t serversSize = 0;
 
@@ -1567,6 +1585,7 @@ isServerRegisteredAtLds(void) {
                               &serversSize, &servers);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         return false;
     }
 
@@ -1875,8 +1894,6 @@ START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
     expectedServerNames[0] = "LDS_public_api";
 
     registerWithLdsPublicApi();
-    for(size_t i = 0; i < 30 && !isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
     ck_assert(isServerRegisteredAtLds());
 
     UA_fakeSleep(4000);
@@ -2044,33 +2061,20 @@ END_TEST
 
 START_TEST(PublicApiRegisterDeregisterCallback) {
     registerWithLdsPublicApi();
-
-    for(size_t i = 0; i < 30 && !isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
-
     ck_assert(isServerRegisteredAtLds());
 
     deregisterFromLdsPublicApi();
-
-    for(size_t i = 0; i < 30 && isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
-
     ck_assert(!isServerRegisteredAtLds());
 }
 END_TEST
 
 START_TEST(PublicApiDeregisterDiscoveryKeepsLocalMdnsRecord) {
     registerWithLdsPublicApi();
-    for(size_t i = 0; i < 30 && !isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
     ck_assert(isServerRegisteredAtLds());
     ck_assert_uint_eq(countServersOnNetworkByName(serverRegister,
                                                   "Register_public_api"), 1);
 
     deregisterFromLdsPublicApi();
-
-    for(size_t i = 0; i < 30 && isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
     ck_assert(!isServerRegisteredAtLds());
     ck_assert_uint_eq(countServersOnNetworkByName(serverRegister,
                                                   "Register_public_api"), 1);
