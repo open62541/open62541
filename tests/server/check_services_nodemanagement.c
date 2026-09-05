@@ -18,6 +18,16 @@ static void *sessionCalled = (void *)1;
 static void *nodeCalled = (void *)2;
 static UA_Int32 handleCalled = 0;
 
+static void
+countWarnings(void *context, UA_LogLevel level, UA_LogCategory category,
+              const char *msg, va_list args) {
+    (void)category;
+    (void)msg;
+    (void)args;
+    if(level == UA_LOGLEVEL_WARNING)
+        (*(size_t*)context)++;
+}
+
 static UA_StatusCode
 globalInstantiationMethod(UA_Server *server_,
                           const UA_NodeId *sessionId, void *sessionContext,
@@ -276,6 +286,12 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
      * tries to auto-generate a matching zero-value of the correct
      * dimensions. */
 
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
     /* Add the node */
     UA_StatusCode res =
         UA_Server_addVariableNode(server, UA_NODEID_NULL,
@@ -283,7 +299,56 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                                   vAttr, NULL, NULL);
+    config->logging = originalLogger;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    ck_assert_uint_eq(warnings, 0);
+} END_TEST
+
+START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
+    UA_Double parentDefault = 42.0;
+    UA_VariableTypeAttributes parentAttr = UA_VariableTypeAttributes_default;
+    parentAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Number Parent");
+    parentAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_NUMBER);
+    parentAttr.valueRank = UA_VALUERANK_ANY;
+    UA_Variant_setScalar(&parentAttr.value, &parentDefault,
+                         &UA_TYPES[UA_TYPES_DOUBLE]);
+
+    UA_NodeId parentId;
+    UA_StatusCode res =
+        UA_Server_addVariableTypeNode(server, UA_NODEID_NULL,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                      UA_QUALIFIEDNAME(1, "Number Parent"), UA_NODEID_NULL,
+                                      parentAttr, NULL, &parentId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_VariableTypeAttributes childAttr = UA_VariableTypeAttributes_default;
+    childAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Float Child");
+    childAttr.dataType = UA_TYPES[UA_TYPES_FLOAT].typeId;
+    childAttr.valueRank = UA_VALUERANK_ANY;
+
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_NodeId childId;
+    res = UA_Server_addVariableTypeNode(server, UA_NODEID_NULL, parentId,
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                        UA_QUALIFIEDNAME(1, "Float Child"), UA_NODEID_NULL,
+                                        childAttr, NULL, &childId);
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 0);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readValue(server, childId, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_FLOAT]));
+    ck_assert_float_eq(*(UA_Float*)value.data, 0.0f);
+    UA_Variant_clear(&value);
 } END_TEST
 
 START_TEST(AddComplexTypeWithInheritance) {
@@ -1460,6 +1525,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeWrongDims);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
+    tcase_add_test(tc_addnodes, VariableTypeRestrictionGetsMatchingDefaultValue);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
