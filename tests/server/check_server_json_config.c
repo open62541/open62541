@@ -27,6 +27,7 @@ START_TEST(UA_new_server_from_json) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->tcpEnabled);
     ck_assert_uint_eq(config->certificateEkuRule, UA_RULEHANDLING_WARN);
+    ck_assert_uint_eq(config->allowUnattachedMethods, UA_RULEHANDLING_WARN);
 #ifdef UA_ENABLE_LWS
     ck_assert(!config->webSocketEnabled);
     ck_assert_uint_eq(config->webSocketBufSize, 32000);

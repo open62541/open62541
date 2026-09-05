@@ -2226,6 +2226,12 @@ struct UA_ServerConfig {
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
 
+    /* Methods shall be the target of at least one HasComponent reference from
+     * an Object or ObjectType. Some legacy NodeSets contain detached Methods.
+     * DEFAULT and WARN log and accept them, ABORT rejects them and ACCEPT
+     * accepts them silently. */
+    UA_RuleHandling allowUnattachedMethods;
+
     UA_RuleHandling allowAllCertificateUris;
 
     /* Verify that client ApplicationInstanceCertificates and X509IdentityTokens
