@@ -14,6 +14,7 @@
 
 static UA_StatusCode addCustomDataType(NodeSet *nodeset, const NL_DataTypeNode *node);
 static const UA_DataType *findDataType(NodeSet *nodeset, const UA_NodeId *id);
+static const UA_DataType *resolveDataType(NodeSet *nodeset, const UA_NodeId *id);
 
 static UA_NodeId
 getParentId(const NL_Node *node, UA_NodeId *parentRefId) {
@@ -621,29 +622,72 @@ addAllReferences(NodeSet *nodeset, NL_Node *node) {
     }
 }
 
-static const UA_NodeId *
-getEncodingId(const NL_DataTypeNode *node, const char *browseName) {
-    UA_NodeId encodingRefType = UA_NS0ID(HASENCODING);
+static bool
+encodingNameMatches(const NL_Node *node, const char *browseName) {
     UA_String name = UA_STRING((char *)(uintptr_t)browseName);
+    return UA_String_equal(&node->browseName.name, &name);
+}
+
+static const UA_NodeId *
+getEncodingId(NodeSet *nodeset, const NL_DataTypeNode *node, const char *browseName) {
+    UA_NodeId encodingRefType = UA_NS0ID(HASENCODING);
     for(NL_Reference *ref = node->refs; ref; ref = ref->next) {
-        if(UA_NodeId_equal(&encodingRefType, &ref->refType) && ref->targetPtr &&
-           UA_String_equal(&ref->targetPtr->browseName.name, &name))
+        if(ref->isForward && UA_NodeId_equal(&encodingRefType, &ref->refType) &&
+           ref->targetPtr && encodingNameMatches(ref->targetPtr, browseName))
             return &ref->target;
+    }
+
+    /* Some NodeSets only declare the inverse HasEncoding reference on the
+     * encoding object. The parsed graph is complete, so resolve that form
+     * without materializing reverse-reference lists on every node. */
+    for(NL_Node *encoding = nodeset->nodes; encoding; encoding = encoding->next) {
+        if(!encodingNameMatches(encoding, browseName))
+            continue;
+        for(NL_Reference *ref = encoding->refs; ref; ref = ref->next) {
+            if(!ref->isForward && UA_NodeId_equal(&encodingRefType, &ref->refType) &&
+               UA_NodeId_equal(&ref->target, &node->id))
+                return &encoding->id;
+        }
     }
     return NULL;
 }
 
 static const UA_DataType *
 findDataType(NodeSet *nodeset, const UA_NodeId *id) {
-    const UA_DataType *type = UA_Server_findDataType(nodeset->server, id);
+    return UA_Server_findDataType(nodeset->server, id);
+}
+
+static const UA_DataType *
+resolveDataType(NodeSet *nodeset, const UA_NodeId *id) {
+    const UA_DataType *type = findDataType(nodeset, id);
     if(type)
         return type;
 
-    /* Abstract namespace-zero types have no binary representation of their
-     * own. Encode their values as Variants, as the nodeset compiler does. */
-    if(id->namespaceIndex == 0)
-        return &UA_TYPES[UA_TYPES_VARIANT];
-    return NULL;
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *id;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NS0ID(HASSUBTYPE);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = UA_NODECLASS_DATATYPE;
+
+    size_t ancestorsSize = 0;
+    UA_ExpandedNodeId *ancestors = NULL;
+    UA_StatusCode res =
+        UA_Server_browseRecursive(nodeset->server, &bd, &ancestorsSize, &ancestors);
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+
+    for(size_t i = 0; i < ancestorsSize; i++) {
+        if(!UA_ExpandedNodeId_isLocal(&ancestors[i]))
+            continue;
+        type = findDataType(nodeset, &ancestors[i].nodeId);
+        if(type)
+            break;
+    }
+
+    UA_Array_delete(ancestors, ancestorsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return type;
 }
 
 static UA_StatusCode
@@ -654,7 +698,7 @@ addTypeFromDescription(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId 
 
     UA_StatusCode res =
         UA_DataType_fromDescription(&type, description, UA_Server_getDataTypes(nodeset->server));
-    const UA_NodeId *xmlEncodingId = getEncodingId(node, "Default XML");
+    const UA_NodeId *xmlEncodingId = getEncodingId(nodeset, node, "Default XML");
     if(res == UA_STATUSCODE_GOOD && xmlEncodingId)
         res = UA_NodeId_copy(xmlEncodingId, &type.xmlEncodingId);
     if(res == UA_STATUSCODE_GOOD)
@@ -752,11 +796,15 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
         dst->isOptional = src->isOptional;
         hasOptionalFields |= src->isOptional;
 
+        if(src->allowSubTypes) {
+            dst->dataType = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId;
+            continue;
+        }
         if(UA_NodeId_equal(&src->dataType, &node->id)) {
             dst->dataType = node->id;
             continue;
         }
-        const UA_DataType *memberType = findDataType(nodeset, &src->dataType);
+        const UA_DataType *memberType = resolveDataType(nodeset, &src->dataType);
         if(!memberType) {
             res = UA_STATUSCODE_BADINTERNALERROR;
             break;
@@ -783,7 +831,7 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
                     : (hasOptionalFields ? UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS
                                          : UA_STRUCTURETYPE_STRUCTURE);
 
-        const UA_NodeId *binaryEncodingId = getEncodingId(node, "Default Binary");
+        const UA_NodeId *binaryEncodingId = getEncodingId(nodeset, node, "Default Binary");
         if(binaryEncodingId)
             definition->defaultEncodingId = *binaryEncodingId;
 
@@ -800,7 +848,7 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
 static UA_StatusCode
 addCustomDataType(NodeSet *nodeset, const NL_DataTypeNode *node) {
     UA_NodeId parent = getParentId((const NL_Node *)node, NULL);
-    const UA_DataType *parentType = findDataType(nodeset, &parent);
+    const UA_DataType *parentType = resolveDataType(nodeset, &parent);
     const NL_DataTypeDefinition *definition = node->definition;
 
     if(definition && definition->isOptionSet && parentType &&
@@ -814,7 +862,7 @@ addCustomDataType(NodeSet *nodeset, const NL_DataTypeNode *node) {
     }
     if(definition && (definition->isEnum || definition->isOptionSet))
         return addEnumDataType(nodeset, node, parent);
-    if(definition && definition->fieldsSize > 0)
+    if(definition)
         return addStructureDataType(nodeset, node, parent, parentType, true);
     if(parentType && (parentType->typeKind == UA_DATATYPEKIND_STRUCTURE ||
                       parentType->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
@@ -831,7 +879,9 @@ dataTypeDependencyReady(NodeSet *nodeset, const UA_NodeId *typeId, const NL_Data
         return NL_DEPENDENCY_READY;
 
     NL_Node *dependency = UA_NodeSet_findNode(nodeset, typeId);
-    if(!dependency || dependency->nodeClass != UA_NODECLASS_DATATYPE)
+    if(!dependency)
+        return resolveDataType(nodeset, typeId) ? NL_DEPENDENCY_READY : NL_DEPENDENCY_REJECT;
+    if(dependency->nodeClass != UA_NODECLASS_DATATYPE)
         return NL_DEPENDENCY_REJECT;
     const NL_DataTypeNode *dataType = (const NL_DataTypeNode *)dependency;
     if(dataType->registrationState == NL_DATATYPE_REGISTERED)
@@ -855,6 +905,8 @@ dataTypeDependenciesReady(NodeSet *nodeset, const NL_DataTypeNode *node) {
     if(!definition || definition->isEnum || definition->isOptionSet)
         return NL_DEPENDENCY_READY;
     for(size_t i = 0; i < definition->fieldsSize; i++) {
+        if(definition->fields[i].allowSubTypes)
+            continue;
         state = dataTypeDependencyReady(nodeset, &definition->fields[i].dataType, node);
         if(state != NL_DEPENDENCY_READY)
             return state;

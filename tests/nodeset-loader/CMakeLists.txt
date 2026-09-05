@@ -34,6 +34,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     add_compile_definitions(OPEN62541_TESTNODESET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodesets/")
     ua_add_test(check_nodeset_loader_testnodeset.c)
+    ua_add_test(check_nodeset_loader_datatypes.c)
 
     add_compile_definitions(OPEN62541_ORDERING_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodesets/")
     ua_add_test(check_nodeset_loader_ordering_di.c)

@@ -94,6 +94,7 @@ typedef struct {
     UA_Int32 valueRank;
     UA_Int64 value;
     UA_Boolean isOptional;
+    UA_Boolean allowSubTypes;
 } NL_DataTypeDefinitionField;
 typedef struct {
     NL_DataTypeDefinitionField *fields;

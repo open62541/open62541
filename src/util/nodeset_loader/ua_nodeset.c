@@ -607,6 +607,7 @@ UA_NodeSet_addDataTypeField(NodeSet *nodeset, NL_Node *node, const XmlAttributes
         }
         newField->valueRank = (UA_Int32)getIntegerAttribute(attributes, "ValueRank", -1);
         newField->isOptional = getBooleanAttribute(attributes, "IsOptional", false);
+        newField->allowSubTypes = getBooleanAttribute(attributes, "AllowSubTypes", false);
     }
     return true;
 }
