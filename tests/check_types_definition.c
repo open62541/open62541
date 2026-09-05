@@ -52,6 +52,75 @@ START_TEST(definition_roundtrip_enum) {
     roundtrip(&UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
 } END_TEST
 
+START_TEST(definition_largeEnum) {
+    const size_t fieldsSize = 387;
+    UA_EnumField *fields = (UA_EnumField*)
+        calloc(fieldsSize, sizeof(UA_EnumField));
+    ck_assert_ptr_nonnull(fields);
+    for(size_t i = 0; i < fieldsSize; i++) {
+        fields[i].value = (UA_Int64)i;
+        fields[i].name = UA_STRING("Value");
+    }
+
+    UA_EnumDescription description;
+    UA_EnumDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 5004);
+    description.name = UA_QUALIFIEDNAME(1, "LargeEnum");
+    description.builtInType = UA_DATATYPEKIND_INT32 + 1;
+    description.enumDefinition.fieldsSize = fieldsSize;
+    description.enumDefinition.fields = fields;
+
+    UA_ExtensionObject descriptionObject;
+    UA_ExtensionObject_setValueNoDelete(
+        &descriptionObject, &description, &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]);
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+    UA_StatusCode res =
+        UA_DataType_fromDescription(&type, &descriptionObject, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(type.membersSize, fieldsSize);
+    ck_assert_int_eq((UA_Int64)(uintptr_t)type.members[fieldsSize - 1].memberType,
+                     (UA_Int64)(fieldsSize - 1));
+
+    UA_ExtensionObject regenerated;
+    res = UA_DataType_toDescription(&type, &regenerated);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_EnumDescription *regeneratedDescription =
+        (UA_EnumDescription*)regenerated.content.decoded.data;
+    ck_assert_uint_eq(regeneratedDescription->enumDefinition.fieldsSize,
+                      fieldsSize);
+
+    UA_ExtensionObject_clear(&regenerated);
+    UA_DataType_clear(&type);
+    free(fields);
+} END_TEST
+
+START_TEST(definition_tooManyEnumFields) {
+    const size_t fieldsSize = UA_DATATYPE_MEMBERS_MAX + 1;
+    UA_EnumField *fields = (UA_EnumField*)
+        calloc(fieldsSize, sizeof(UA_EnumField));
+    ck_assert_ptr_nonnull(fields);
+
+    UA_EnumDescription description;
+    UA_EnumDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 5005);
+    description.name = UA_QUALIFIEDNAME(1, "OversizedEnum");
+    description.builtInType = UA_DATATYPEKIND_INT32 + 1;
+    description.enumDefinition.fieldsSize = fieldsSize;
+    description.enumDefinition.fields = fields;
+
+    UA_ExtensionObject descriptionObject;
+    UA_ExtensionObject_setValueNoDelete(
+        &descriptionObject, &description, &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]);
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+    UA_StatusCode res =
+        UA_DataType_fromDescription(&type, &descriptionObject, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+
+    free(fields);
+} END_TEST
+
 START_TEST(definition_fromDescription_invalidExtObj) {
     /* An ExtensionObject that does not carry a description type fails */
     UA_ExtensionObject eo;
@@ -93,6 +162,8 @@ static Suite *testSuite_definition(void) {
     tcase_add_test(tc, definition_roundtrip_structure_nested);
     tcase_add_test(tc, definition_roundtrip_simpleType);
     tcase_add_test(tc, definition_roundtrip_enum);
+    tcase_add_test(tc, definition_largeEnum);
+    tcase_add_test(tc, definition_tooManyEnumFields);
     tcase_add_test(tc, definition_fromDescription_invalidExtObj);
     tcase_add_test(tc, definition_fromStructure_unknownMember);
 

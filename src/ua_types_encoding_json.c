@@ -1037,7 +1037,7 @@ static status
 encodeJsonStructureContent(CtxJson *ctx, const void *src,
                            const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t) src;
-    u8 membersSize = type->membersSize;
+    size_t membersSize = type->membersSize;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
 
     if(ctx->useCompactEncoding &&

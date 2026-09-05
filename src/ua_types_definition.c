@@ -178,8 +178,8 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     UA_CHECK_STATUS(res, UA_DataType_clear(type); return res);
 
     /* Reject definitions whose field count cannot be represented by the
-     * 8-bit membersSize field instead of silently truncating it */
-    if(sd->fieldsSize > UA_BYTE_MAX) {
+     * membersSize field instead of silently truncating it */
+    if(sd->fieldsSize > UA_DATATYPE_MEMBERS_MAX) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     }
@@ -191,7 +191,7 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    type->membersSize = (UA_Byte)sd->fieldsSize;
+    type->membersSize = (UA_UInt32)sd->fieldsSize;
 
     /* Try to get pointerFree and overlayable handling shortcuts.
      * Adjusted later for each member and end-padding. */
@@ -427,8 +427,8 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
     type->overlayable = true;
 
     /* Reject definitions whose field count cannot be represented by the
-     * 8-bit membersSize field instead of silently truncating it */
-    if(descr->enumDefinition.fieldsSize > UA_BYTE_MAX) {
+     * membersSize field instead of silently truncating it */
+    if(descr->enumDefinition.fieldsSize > UA_DATATYPE_MEMBERS_MAX) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     }
@@ -440,7 +440,7 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    type->membersSize = (UA_Byte)descr->enumDefinition.fieldsSize;
+    type->membersSize = (UA_UInt32)descr->enumDefinition.fieldsSize;
 
     /* Copy the enum fields into the members array */
     for(size_t i = 0; i < type->membersSize; i++) {
