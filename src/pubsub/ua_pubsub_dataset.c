@@ -646,13 +646,14 @@ UA_StatusCode
 UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
                                 UA_SubscribedDataSetConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(src->subscribedDataSetType != UA_PUBSUB_SDS_TARGET)
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+
     memcpy(dst, src, sizeof(UA_SubscribedDataSetConfig));
     res = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
     res |= UA_String_copy(&src->name, &dst->name);
-    if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
-        res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
-                                               &dst->subscribedDataSet.target);
-    }
+    res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
+                                           &dst->subscribedDataSet.target);
     if(res != UA_STATUSCODE_GOOD)
         UA_SubscribedDataSetConfig_clear(dst);
     return res;
@@ -678,6 +679,13 @@ addSubscribedDataSet(UA_PubSubManager *psm,
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "SubscribedDataSet creation failed. No config passed in.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if(sdsConfig->subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "SubscribedDataSet creation failed. Currently only "
+                     "TargetVariables are implemented.");
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
     UA_SubscribedDataSetConfig tmpSubscribedDataSetConfig;
