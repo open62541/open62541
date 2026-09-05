@@ -113,6 +113,39 @@ START_TEST(importPolymorphicAndRecursiveFields) {
 }
 END_TEST
 
+static void
+assertUnionValue(UA_UInt32 nodeId, UA_UInt32 expectedSelection,
+                 const void *expectedValue, const UA_DataType *expectedType) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res =
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(namespaceIndex, nodeId), &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    const UA_DataType *unionType = findType(9101);
+    ck_assert_ptr_nonnull(unionType);
+    ck_assert_ptr_eq(value.type, unionType);
+    ck_assert(UA_Variant_isScalar(&value));
+
+    UA_UInt32 selection = *(const UA_UInt32 *)value.data;
+    ck_assert_uint_eq(selection, expectedSelection);
+    ck_assert_uint_le(selection, unionType->membersSize);
+    const UA_DataTypeMember *member = &unionType->members[selection - 1];
+    ck_assert_ptr_eq(member->memberType, expectedType);
+    ck_assert(UA_order((const UA_Byte *)value.data + member->padding, expectedValue,
+                       expectedType) == UA_ORDER_EQ);
+    UA_Variant_clear(&value);
+}
+
+START_TEST(readImportedUnionValues) {
+    const UA_UInt32 x = 70000;
+    assertUnionValue(9201, 1, &x, &UA_TYPES[UA_TYPES_UINT32]);
+
+    const UA_Int32 y = -1000;
+    assertUnionValue(9202, 2, &y, &UA_TYPES[UA_TYPES_INT32]);
+}
+END_TEST
+
 static Suite *
 testSuite(void) {
     Suite *suite = suite_create("NodeSet loader DataTypes");
@@ -122,6 +155,7 @@ testSuite(void) {
     tcase_add_test(testCase, importEmptyStructures);
     tcase_add_test(testCase, resolveOpaqueSubtypeAncestors);
     tcase_add_test(testCase, importPolymorphicAndRecursiveFields);
+    tcase_add_test(testCase, readImportedUnionValues);
     suite_add_tcase(suite, testCase);
     return suite;
 }

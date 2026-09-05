@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+           xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
   <NamespaceUris>
     <Uri>http://open62541.org/test/datatype-edge-cases/</Uri>
   </NamespaceUris>
@@ -121,4 +122,73 @@
       <Field Name="Children" DataType="ns=1;i=9001" ValueRank="1"/>
     </Definition>
   </UADataType>
+
+  <!-- A union whose second member has a different alignment and signedness. -->
+  <UADataType NodeId="ns=1;i=9101" BrowseName="1:ImportedUnion">
+    <DisplayName>ImportedUnion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12756</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=9102</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=9103</Reference>
+    </References>
+    <Definition Name="ImportedUnion" IsUnion="true">
+      <Field Name="X" DataType="i=7"/>
+      <Field Name="Y" DataType="i=6"/>
+    </Definition>
+  </UADataType>
+  <UAObject NodeId="ns=1;i=9102" BrowseName="Default Binary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=9101</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=9103" BrowseName="Default XML">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=9101</Reference>
+    </References>
+  </UAObject>
+
+  <UAVariable NodeId="ns=1;i=9201" BrowseName="1:UnionX" DataType="ns=1;i=9101">
+    <DisplayName>UnionX</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject>
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=9103</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <ImportedUnion>
+            <SwitchField>1</SwitchField>
+            <X>70000</X>
+          </ImportedUnion>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=9202" BrowseName="1:UnionY" DataType="ns=1;i=9101">
+    <DisplayName>UnionY</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="i=35" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject>
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=9103</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <ImportedUnion>
+            <SwitchField>2</SwitchField>
+            <Y>-1000</Y>
+          </ImportedUnion>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
 </UANodeSet>
