@@ -347,7 +347,7 @@ START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
     res = UA_Server_readValue(server, childId, &value);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_FLOAT]));
-    ck_assert_float_eq(*(UA_Float*)value.data, 0.0f);
+    ck_assert(*(UA_Float*)value.data == 0.0f);
     UA_Variant_clear(&value);
 } END_TEST
 

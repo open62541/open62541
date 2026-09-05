@@ -162,7 +162,7 @@ START_TEST(Utils_addDataType_preservesSelfReference) {
     ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
     const UA_DataType *found =
         UA_Server_findDataType(server, &recursiveType.typeId);
-    ck_assert_ptr_nonnull(found);
+    ck_assert_ptr_ne(found, NULL);
     ck_assert_ptr_eq(found->members[0].memberType, found);
 } END_TEST
 

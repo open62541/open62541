@@ -638,7 +638,7 @@ START_TEST(xml_decode_character_references) {
     UA_StatusCode res =
         UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_STRING], NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_mem_eq(mutableXml, unchanged, sizeof(mutableXml));
+    ck_assert(memcmp(mutableXml, unchanged, sizeof(mutableXml)) == 0);
     UA_String_clear(&dst);
 } END_TEST
 

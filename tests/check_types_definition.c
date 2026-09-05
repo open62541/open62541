@@ -106,7 +106,7 @@ START_TEST(definition_emptyStructureHasStorage) {
     ck_assert_uint_eq(type.membersSize, 0);
 
     void *array = UA_Array_new(2, &type);
-    ck_assert_ptr_nonnull(array);
+    ck_assert_ptr_ne(array, NULL);
     UA_Array_delete(array, 2, &type);
     UA_DataType_clear(&type);
 } END_TEST
