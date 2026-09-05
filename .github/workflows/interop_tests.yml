@@ -56,7 +56,12 @@ jobs:
 
       - name: Clone .NET Reference Server
         run: |
-          git clone https://github.com/OPCFoundation/UA-.NETStandard.git \
+          # 1.5.378.134 is the latest release with the classic HTTPS binding.
+          # The 2.x sample currently exposes only opc.tcp by default.
+          # Nerdbank.GitVersioning needs the history back to the last version
+          # height reset when the reference server is built.
+          git clone --branch 1.5.378.134 --single-branch \
+            https://github.com/OPCFoundation/UA-.NETStandard.git \
             ${{ github.workspace }}/UA-.NETStandard
 
       - name: Generate interop certificates
@@ -79,7 +84,7 @@ jobs:
 
       - name: Build .NET Reference Server
         run: |
-          dotnet build ${{ github.workspace }}/UA-.NETStandard/samples/Reference/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
+          dotnet build ${{ github.workspace }}/UA-.NETStandard/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
 
       - name: Run interop tests
         env:
