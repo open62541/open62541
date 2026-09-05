@@ -1917,7 +1917,7 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
-    u8 membersSize = type->membersSize;
+    size_t membersSize = type->membersSize;
     UA_STACKARRAY(XmlDecodeEntry, entries, membersSize);
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
