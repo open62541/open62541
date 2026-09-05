@@ -351,6 +351,37 @@ START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
     UA_Variant_clear(&value);
 } END_TEST
 
+START_TEST(AbstractVariableTypeBelowHierarchicalParent) {
+    UA_ObjectTypeAttributes objectTypeAttr = UA_ObjectTypeAttributes_default;
+    objectTypeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ContainerType");
+    UA_NodeId objectTypeId;
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, "ContainerType"),
+                                    objectTypeAttr, NULL, &objectTypeId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes variableAttr = UA_VariableAttributes_default;
+    variableAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PropertyContainer");
+    UA_NodeId propertyId;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL, objectTypeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                    UA_QUALIFIEDNAME(1, "PropertyContainer"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    variableAttr, NULL, &propertyId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    variableAttr.displayName = UA_LOCALIZEDTEXT("en-US", "NestedAbstract");
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL, propertyId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                    UA_QUALIFIEDNAME(1, "NestedAbstract"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    variableAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(AddComplexTypeWithInheritance) {
     /* add a variable node to the address space */
 
@@ -1526,6 +1557,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeWrongDims);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
     tcase_add_test(tc_addnodes, VariableTypeRestrictionGetsMatchingDefaultValue);
+    tcase_add_test(tc_addnodes, AbstractVariableTypeBelowHierarchicalParent);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
