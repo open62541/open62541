@@ -573,6 +573,38 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     return UA_STATUSCODE_GOOD;
 }
 
+
+/* Replace the logger in an already-configured UA_ServerConfig. This
+ * correctly frees the old logger and keeps every cached copy of the
+ * logger pointer in sync (the EventLoop and the certificate-verification
+ * groups), so nothing is left pointing at freed memory.
+ *
+ * @param config The configuration to manipulate
+ * @param newLogger The new logger to install
+ */
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setLogger(UA_ServerConfig *config, UA_Logger *newLogger) {
+    if(!config || !newLogger)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Free the old logger if one exists */
+    if(config->logging)
+        config->logging->clear(config->logging);
+
+    config->logging = newLogger;
+
+    /* Sync every place that cached the old pointer, so nothing is
+     * left pointing at freed memory. See issue #7307. */
+    if(config->eventLoop)
+        config->eventLoop->logger = newLogger;
+    config->secureChannelPKI.logging = newLogger;
+    config->sessionPKI.logging = newLogger;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
     return UA_ServerConfig_setBasics_withPort(conf, 4840);
