@@ -29,12 +29,14 @@ START_TEST(Server_compareDiNodeset) {
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
 
+    /* The generated array is const with the DI namespace index pinned at
+     * generation time (NAMESPACE_MAP in CMakeLists.txt). The nodeset loader
+     * must have registered DI at exactly that index for the NodeIds to be
+     * comparable without patching the array. */
     UA_UInt16 nsIndex = UA_Server_addNamespace(server, "http://opcfoundation.org/UA/DI/");
+    ck_assert_uint_eq(nsIndex, UA_TYPES_NODESETLOADER_DI[0].typeId.namespaceIndex);
 
     for(int i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; ++i) {
-        UA_TYPES_NODESETLOADER_DI[i].typeId.namespaceIndex = nsIndex;
-        UA_TYPES_NODESETLOADER_DI[i].binaryEncodingId.namespaceIndex = nsIndex;
-
         const UA_DataType *compiledType = &UA_TYPES_NODESETLOADER_DI[i];
         const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
 
