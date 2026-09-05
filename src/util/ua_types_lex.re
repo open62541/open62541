@@ -336,6 +336,9 @@ parse_qn(UA_QualifiedName *qn, const u8 *pos, const u8 *end,
     if(UA_readNumber((const UA_Byte*)begin, len, &tmp) != len)
         return UA_STATUSCODE_BADDECODINGERROR;
     qn->namespaceIndex = (UA_UInt16)tmp;
+    if(nsMapping)
+        qn->namespaceIndex =
+            UA_NamespaceMapping_remote2Local(nsMapping, qn->namespaceIndex);
     goto match_name;
 
  match_uri:
