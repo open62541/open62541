@@ -156,6 +156,30 @@ START_TEST(definition_fromStructure_unknownMember) {
     UA_ExtensionObject_clear(&descr);
 } END_TEST
 
+START_TEST(definition_emptyStructureHasStorage) {
+    UA_StructureDescription description;
+    UA_StructureDescription_init(&description);
+    description.dataTypeId = UA_NODEID_NUMERIC(1, 5006);
+    description.name = UA_QUALIFIEDNAME(1, "EmptyStructure");
+    description.structureDefinition.baseDataType = UA_NS0ID(STRUCTURE);
+    description.structureDefinition.structureType = UA_STRUCTURETYPE_STRUCTURE;
+
+    UA_ExtensionObject descriptionObject;
+    UA_ExtensionObject_setValueNoDelete(
+        &descriptionObject, &description, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    UA_DataType type;
+    memset(&type, 0, sizeof(type));
+    UA_StatusCode res = UA_DataType_fromDescription(&type, &descriptionObject, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(type.memSize, 1);
+    ck_assert_uint_eq(type.membersSize, 0);
+
+    void *array = UA_Array_new(2, &type);
+    ck_assert_ptr_nonnull(array);
+    UA_Array_delete(array, 2, &type);
+    UA_DataType_clear(&type);
+} END_TEST
+
 static Suite *testSuite_definition(void) {
     TCase *tc = tcase_create("DataTypeDefinition");
     tcase_add_test(tc, definition_roundtrip_structure);
@@ -166,6 +190,7 @@ static Suite *testSuite_definition(void) {
     tcase_add_test(tc, definition_tooManyEnumFields);
     tcase_add_test(tc, definition_fromDescription_invalidExtObj);
     tcase_add_test(tc, definition_fromStructure_unknownMember);
+    tcase_add_test(tc, definition_emptyStructureHasStorage);
 
     Suite *s = suite_create("DataType Definition");
     suite_add_tcase(s, tc);

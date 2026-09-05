@@ -208,6 +208,11 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
      * layout computed below. */
     size_t accSize = type->memSize;
 
+    /* C objects always occupy storage, even when an encoded structure has no
+     * fields. An empty union additionally retains its switch field. */
+    if(sd->fieldsSize == 0)
+        accSize = (type->typeKind == UA_DATATYPEKIND_UNION) ? sizeof(UA_UInt32) : 1;
+
     /* Populate the members array */
     for(size_t i = 0; i < sd->fieldsSize; i++) {
         const UA_StructureField *sf = &sd->fields[i];
