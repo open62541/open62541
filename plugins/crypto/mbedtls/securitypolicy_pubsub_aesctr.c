@@ -293,8 +293,9 @@ setup(UA_PubSubSecurityPolicy *sp, const UA_Logger *logger,
     sp->setSecurityKeys = setSecurityKeys;
     sp->generateKey = generateKey;
     sp->generateNonce = generateNonce;
-    sp->nonceLength = UA_PUBSUB_AESCTR_SIGNING_KEY_LENGTH + keyLength +
+    sp->keyMaterialLength = UA_PUBSUB_AESCTR_SIGNING_KEY_LENGTH + keyLength +
         UA_PUBSUB_AESCTR_KEYNONCE_LENGTH;
+    sp->messageNonceLength = UA_PUBSUB_AESCTR_MESSAGENONCE_LENGTH;
     sp->setMessageNonce = setMessageNonce;
     sp->clear = clear;
     return UA_STATUSCODE_GOOD;

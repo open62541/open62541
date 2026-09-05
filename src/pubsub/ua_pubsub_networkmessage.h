@@ -5,6 +5,7 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Tino Bischoff)
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2025 Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_

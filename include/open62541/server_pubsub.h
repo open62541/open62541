@@ -7,6 +7,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -585,6 +586,15 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+
+    /* Fields defined by PubSubGroupDataType and preserved by file-config
+     * save/load. securityPolicy remains the runtime policy implementation. */
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+    UA_UInt32 maxNetworkMessageSize;
+    size_t localeIdsSize;
+    UA_String *localeIds;
+    UA_String headerLayoutUri;
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -772,6 +782,9 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
 typedef struct {
     UA_PUBSUBCOMPONENT_COMMON
     UA_PublisherId publisherId;
+    /* A zero-initialized config keeps the legacy wildcard behavior. Set this
+     * to true to filter explicitly for the legitimate Byte PublisherId 0. */
+    UA_Boolean publisherIdFilterEnabled;
     UA_UInt16 writerGroupId;
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;
@@ -781,6 +794,10 @@ typedef struct {
                                       * message. Gets reset after every received
                                       * message. If <= 0.0, then no timeout is
                                       * configured. */
+    UA_UInt32 keyFrameCount; /* Maximum key-frame period. A value <= 1
+                              * accepts key frames only. */
+    UA_String headerLayoutUri;
+    UA_KeyValueMap dataSetReaderProperties;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetType subscribedDataSetType;
@@ -861,6 +878,7 @@ typedef struct {
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
+    UA_ExtensionObject messageSettings;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information
@@ -868,6 +886,9 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+    UA_UInt32 maxNetworkMessageSize;
 } UA_ReaderGroupConfig;
 
 void UA_EXPORT
@@ -1031,7 +1052,8 @@ typedef void
  *        the securityGroupId is deleted. The input config is copied to an
  *        internal config object and the content of input config object will be
  *        reset to zero.
- * @param endpointUrl holds the endpointUrl of the SKS server
+ * @param endpointUrl holds the endpointUrl of the SKS server. It is copied and
+ *        does not need to outlive this call.
  * @param securityGroupId the SecurityGroupId of the securityGroup on SKS and
  *        reader/writergroups
  * @param callback the user defined callback to notify the user about the status
