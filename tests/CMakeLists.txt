@@ -535,6 +535,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_server_alarmsconditions.c)
 endif()
 
+if(UA_ENABLE_METHODCALLS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    ua_add_test(server/check_server_filetransfer.c)
+    ua_add_test(client/check_client_filetransfer.c)
+endif()
+
 if(UA_ENABLE_ASYNCOPERATIONS)
     ua_add_test(server/check_server_asyncop.c)
 endif()

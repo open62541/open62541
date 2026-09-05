@@ -922,6 +922,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/file_transfer.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
@@ -1391,6 +1392,15 @@ endif()
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
+
+# The file transfer driver uses the OS-specific file handling definitions.
+# It is appended after the eventloop sources so that the amalgamation
+# integrates the architecture header before the driver code.
+list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/drivers/file_transfer_internal.h)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_driver.c)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_filetype.c)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_directory.c)
+list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/drivers/file_transfer_backend_localfs.c)
 
 # For file based server and client configuration
 if(UA_ENABLE_JSON_ENCODING)

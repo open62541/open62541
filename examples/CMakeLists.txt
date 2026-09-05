@@ -72,6 +72,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
 endif()
 
+if(UA_ENABLE_METHODCALLS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    add_example(tutorial_server_filetransfer tutorial_server_filetransfer.c)
+    add_example(server_filetransfer_custom_backend filetransfer/server_filetransfer_custom_backend.c)
+endif()
+
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
