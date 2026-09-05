@@ -618,6 +618,70 @@ START_TEST(AddNodeTwiceGivesError) {
     ck_assert_int_eq(res, UA_STATUSCODE_BADNODEIDEXISTS);
 } END_TEST
 
+static UA_StatusCode
+addUnattachedMethod(UA_UInt32 identifier) {
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "UnattachedMethod");
+    return UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, identifier),
+                                   UA_NODEID_NULL, UA_NODEID_NULL,
+                                   UA_QUALIFIEDNAME(1, "UnattachedMethod"), attr,
+                                   NULL, 0, NULL, 0, NULL, NULL, NULL);
+}
+
+START_TEST(UnattachedMethodRuleDefaultWarnsAndAccepts) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_StatusCode res = addUnattachedMethod(80601);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 1);
+}
+END_TEST
+
+START_TEST(UnattachedMethodRuleAbortRejects) {
+    UA_Server_getConfig(server)->allowUnattachedMethods = UA_RULEHANDLING_ABORT;
+    UA_StatusCode res = addUnattachedMethod(80602);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADPARENTNODEIDINVALID);
+}
+END_TEST
+
+START_TEST(UnattachedMethodRuleWarnsAndAccepts) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->allowUnattachedMethods = UA_RULEHANDLING_WARN;
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_StatusCode res = addUnattachedMethod(80603);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 1);
+}
+END_TEST
+
+START_TEST(UnattachedMethodRuleAcceptIsSilent) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->allowUnattachedMethods = UA_RULEHANDLING_ACCEPT;
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_StatusCode res = addUnattachedMethod(80604);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 0);
+}
+END_TEST
+
 static UA_Boolean constructorCalled = false;
 
 static UA_StatusCode
@@ -2001,6 +2065,10 @@ int main(void) {
     tcase_add_test(tc_addnodes, AddVariableNodeAdjustsEnumWireType);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleDefaultWarnsAndAccepts);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleAbortRejects);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleWarnsAndAccepts);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleAcceptIsSilent);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
     tcase_add_test(tc_addnodes, EarlyConstructorRunsDuringBegin);

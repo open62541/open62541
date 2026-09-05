@@ -26,6 +26,10 @@
       "$ref": "#/definitions/RuleHandling",
       "description": "Rule for allowing empty variables"
     },
+    "allowUnattachedMethods": {
+      "$ref": "#/definitions/RuleHandling",
+      "description": "Rule for allowing Methods without a parent"
+    },
     "serverUrls": {
       "type": "array",
       "items": {

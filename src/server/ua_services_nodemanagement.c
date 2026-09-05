@@ -195,13 +195,29 @@ logAddNode(const UA_Logger *logger, UA_Session *session,
 static UA_StatusCode
 checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *head,
                      const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
+    UA_Boolean noParent = UA_NodeId_isNull(parentNodeId) &&
+                          UA_NodeId_isNull(referenceTypeId);
+
     /* Objects do not need a parent (e.g. mandatory/optional modellingrules).
      * Also, there are some variables which do not have parents, e.g.
      * EnumStrings, EnumValues */
     if((head->nodeClass == UA_NODECLASS_OBJECT ||
         head->nodeClass == UA_NODECLASS_VARIABLE) &&
-       UA_NodeId_isNull(parentNodeId) && UA_NodeId_isNull(referenceTypeId))
+       noParent)
         return UA_STATUSCODE_GOOD;
+
+    /* Part 3 requires Methods to be the target of a HasComponent reference.
+     * Accept detached Methods for compatibility with legacy NodeSets. */
+    if(head->nodeClass == UA_NODECLASS_METHOD && noParent) {
+        UA_RuleHandling rule = server->config.allowUnattachedMethods;
+        if(rule == UA_RULEHANDLING_ABORT)
+            return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+        if(rule != UA_RULEHANDLING_ACCEPT)
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "AddNode (%N): The Method is detached (has no parent)",
+                                   head->nodeId);
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* See if the parent exists */
     const UA_Node *parent = UA_NODESTORE_GET(server, parentNodeId);
