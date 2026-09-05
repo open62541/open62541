@@ -297,6 +297,7 @@ else()
 endif()
 
 if (UA_MULTITHREADING GREATER_EQUAL 100)
+    ua_add_test(multithreading/check_mt_shutdown.c)
     ua_add_test(multithreading/check_mt_addVariableNode.c)
     ua_add_test(multithreading/check_mt_addVariableTypeNode.c)
     ua_add_test(multithreading/check_mt_addObjectNode.c)
