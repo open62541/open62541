@@ -32,10 +32,10 @@ THREAD_CALLBACK(shutdownCallback) {
     UA_String uri = UA_STRING("http://opcfoundation.org/UA/");
     /* This public API acquires the server mutex. */
     UA_StatusCode result = UA_Server_getNamespaceByName(probe.server, uri, &index);
-    MUTEX_LOCK(probe.mutex);
+    ck_assert(MUTEX_LOCK(probe.mutex));
     probe.result = result;
     probe.completed = true;
-    MUTEX_UNLOCK(probe.mutex);
+    ck_assert(MUTEX_UNLOCK(probe.mutex));
     return 0;
 }
 
@@ -83,7 +83,7 @@ runWithShutdownCallback(UA_EventLoop *el, UA_UInt32 timeout) {
     probe.started = true;
 #ifdef UA_ARCHITECTURE_WIN32
     THREAD_CREATE(probe.worker, shutdownCallback);
-    ck_assert_ptr_nonnull(probe.worker);
+    ck_assert_ptr_ne(probe.worker, NULL);
 #else
     ck_assert_int_eq(THREAD_CREATE(probe.worker, shutdownCallback), 0);
 #endif
@@ -94,9 +94,9 @@ runWithShutdownCallback(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_DateTime deadline = UA_DateTime_nowMonotonic() + 5 * UA_DATETIME_SEC;
     UA_Boolean completed;
     do {
-        MUTEX_LOCK(probe.mutex);
+        ck_assert(MUTEX_LOCK(probe.mutex));
         completed = probe.completed;
-        MUTEX_UNLOCK(probe.mutex);
+        ck_assert(MUTEX_UNLOCK(probe.mutex));
         if(completed)
             break;
 #ifdef UA_ARCHITECTURE_WIN32
@@ -128,20 +128,20 @@ checkShutdown(UA_Boolean stopComponent) {
     probe.stopComponent = stopComponent;
     ck_assert(MUTEX_INIT(probe.mutex));
     probe.server = UA_Server_newForUnitTest();
-    ck_assert_ptr_nonnull(probe.server);
+    ck_assert_ptr_ne(probe.server, NULL);
     UA_ServerConfig *config = UA_Server_getConfig(probe.server);
     /* Bind only to loopback and let the OS choose an unused port. */
     UA_Array_delete(config->serverUrls, config->serverUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
     config->serverUrls = UA_String_new();
-    ck_assert_ptr_nonnull(config->serverUrls);
+    ck_assert_ptr_ne(config->serverUrls, NULL);
     config->serverUrlsSize = 1;
     config->serverUrls[0] = UA_STRING_ALLOC("opc.tcp://127.0.0.1:0");
-    ck_assert_ptr_nonnull(config->serverUrls[0].data);
+    ck_assert_ptr_ne(config->serverUrls[0].data, NULL);
     UA_EventLoop *el = config->eventLoop;
 
     if(stopComponent) {
         probe.component = (UA_ServerComponent*)UA_calloc(1, sizeof(UA_ServerComponent));
-        ck_assert_ptr_nonnull(probe.component);
+        ck_assert_ptr_ne(probe.component, NULL);
         probe.component->start = componentStart;
         probe.component->stop = componentStop;
         probe.component->clear = componentClear;
@@ -168,7 +168,7 @@ checkShutdown(UA_Boolean stopComponent) {
                           UA_LIFECYCLESTATE_STOPPED);
     UA_Boolean loopStopped = (el->state == UA_EVENTLOOPSTATE_STOPPED);
     UA_Server_delete(probe.server);
-    MUTEX_DESTROY(probe.mutex);
+    ck_assert(MUTEX_DESTROY(probe.mutex));
 
     ck_assert(probe.started);
     ck_assert(probe.completed);
