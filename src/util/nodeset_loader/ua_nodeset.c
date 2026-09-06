@@ -80,10 +80,15 @@ nodeDelete(NL_Node *node) {
 
     if(node->nodeClass == UA_NODECLASS_VARIABLE) {
         NL_VariableNode *varNode = (NL_VariableNode *)node;
+        if(varNode->arrayDimensionsOwned)
+            UA_free(varNode->arrayDimensions);
         UA_String_clear(&varNode->value);
         UA_NodeId_clear(&varNode->datatype);
     } else if(node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
         NL_VariableTypeNode *varTypeNode = (NL_VariableTypeNode *)node;
+        if(varTypeNode->arrayDimensionsOwned)
+            UA_free(varTypeNode->arrayDimensions);
+        UA_String_clear(&varTypeNode->value);
         UA_NodeId_clear(&varTypeNode->datatype);
     } else if(node->nodeClass == UA_NODECLASS_DATATYPE) {
         NL_DataTypeNode *dtNode = (NL_DataTypeNode *)node;
@@ -432,12 +437,16 @@ getDoubleAttribute(const XmlAttributes *attributes, const char *name, UA_Double 
 
 static bool
 extractAttributes(NodeSet *nodeset, NL_Node *node, const XmlAttributes *attributes) {
-    if(!parseNodeId(nodeset, getAttributeValue(attributes, "NodeId"), &node->id) ||
-       !parseQualifiedName(nodeset, getAttributeValue(attributes, "BrowseName"), &node->browseName))
+    if(!parseNodeId(nodeset, getAttributeValue(attributes, "NodeId"), &node->id))
+        return false;
+    char *browseName = getAttributeValue(attributes, "BrowseName");
+    if(browseName && !parseQualifiedName(nodeset, browseName, &node->browseName))
         return false;
     char *parentNodeId = getAttributeValue(attributes, "ParentNodeId");
     if(parentNodeId && !alias2Id(nodeset, parentNodeId, &node->parentId))
         return false;
+    node->writeMask = (UA_UInt32)getIntegerAttribute(attributes, "WriteMask", 0);
+    node->userWriteMask = (UA_UInt32)getIntegerAttribute(attributes, "UserWriteMask", 0);
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECTTYPE:
         ((NL_ObjectTypeNode *)node)->isAbstract =
@@ -488,10 +497,12 @@ extractAttributes(NodeSet *nodeset, NL_Node *node, const XmlAttributes *attribut
             getBooleanAttribute(attributes, "UserExecutable", true);
         break;
 
-    case UA_NODECLASS_REFERENCETYPE:
-        ((NL_ReferenceTypeNode *)node)->symmetric =
-            getBooleanAttribute(attributes, "Symmetric", false);
+    case UA_NODECLASS_REFERENCETYPE: {
+        NL_ReferenceTypeNode *referenceType = (NL_ReferenceTypeNode *)node;
+        referenceType->isAbstract = getBooleanAttribute(attributes, "IsAbstract", false);
+        referenceType->symmetric = getBooleanAttribute(attributes, "Symmetric", false);
         break;
+    }
 
     case UA_NODECLASS_VIEW:
         ((NL_ViewNode *)node)->containsNoLoops =
@@ -503,6 +514,171 @@ extractAttributes(NodeSet *nodeset, NL_Node *node, const XmlAttributes *attribut
     default:
         break;
     }
+    return true;
+}
+
+static bool
+parseInteger(const char *value, UA_Int64 min, UA_Int64 max, UA_Int64 *result) {
+    size_t length = strlen(value);
+    return length > 0 && parseInt64(value, length, result) == length && *result >= min &&
+           *result <= max;
+}
+
+bool
+UA_NodeSet_setNodeAttribute(NodeSet *nodeset, NL_Node *node, const char *name, char *value) {
+    if(!value)
+        return false;
+    if(!strcmp(name, "BrowseName")) {
+        UA_QualifiedName_clear(&node->browseName);
+        return parseQualifiedName(nodeset, value, &node->browseName);
+    }
+
+    UA_Int64 integer;
+    if(!strcmp(name, "WriteMask") || !strcmp(name, "UserWriteMask")) {
+        if(!parseInteger(value, 0, UA_UINT32_MAX, &integer))
+            return false;
+        if(!strcmp(name, "WriteMask"))
+            node->writeMask = (UA_UInt32)integer;
+        else
+            node->userWriteMask = (UA_UInt32)integer;
+        return true;
+    }
+
+    if(!strcmp(name, "IsAbstract")) {
+        UA_Boolean isAbstract;
+        if(!strcmp(value, "true") || !strcmp(value, "1"))
+            isAbstract = true;
+        else if(!strcmp(value, "false") || !strcmp(value, "0"))
+            isAbstract = false;
+        else
+            return false;
+        switch(node->nodeClass) {
+        case UA_NODECLASS_OBJECTTYPE:
+            ((NL_ObjectTypeNode *)node)->isAbstract = isAbstract;
+            break;
+        case UA_NODECLASS_VARIABLETYPE:
+            ((NL_VariableTypeNode *)node)->isAbstract = isAbstract;
+            break;
+        case UA_NODECLASS_DATATYPE:
+            ((NL_DataTypeNode *)node)->isAbstract = isAbstract;
+            break;
+        case UA_NODECLASS_REFERENCETYPE:
+            ((NL_ReferenceTypeNode *)node)->isAbstract = isAbstract;
+            break;
+        default:
+            break;
+        }
+        return true;
+    }
+
+    if(node->nodeClass != UA_NODECLASS_VARIABLE &&
+       node->nodeClass != UA_NODECLASS_VARIABLETYPE)
+        return true;
+    UA_NodeId *dataType;
+    char **arrayDimensions;
+    UA_Boolean *arrayDimensionsOwned;
+    UA_Int32 *valueRank;
+    UA_Boolean *valueRankDefined;
+    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+        NL_VariableNode *variable = (NL_VariableNode *)node;
+        dataType = &variable->datatype;
+        arrayDimensions = &variable->arrayDimensions;
+        arrayDimensionsOwned = &variable->arrayDimensionsOwned;
+        valueRank = &variable->valueRank;
+        valueRankDefined = &variable->valueRankDefined;
+    } else {
+        NL_VariableTypeNode *variableType = (NL_VariableTypeNode *)node;
+        dataType = &variableType->datatype;
+        arrayDimensions = &variableType->arrayDimensions;
+        arrayDimensionsOwned = &variableType->arrayDimensionsOwned;
+        valueRank = &variableType->valueRank;
+        valueRankDefined = &variableType->valueRankDefined;
+    }
+    if(!strcmp(name, "DataType")) {
+        UA_NodeId_clear(dataType);
+        return alias2Id(nodeset, value, dataType);
+    }
+    if(!strcmp(name, "ValueRank")) {
+        if(!parseInteger(value, INT32_MIN, INT32_MAX, &integer))
+            return false;
+        *valueRank = (UA_Int32)integer;
+        *valueRankDefined = true;
+        return true;
+    }
+    if(!strcmp(name, "ArrayDimensions")) {
+        if(*arrayDimensionsOwned)
+            UA_free(*arrayDimensions);
+        *arrayDimensions = value;
+        *arrayDimensionsOwned = false;
+        return true;
+    }
+    if(node->nodeClass == UA_NODECLASS_VARIABLETYPE)
+        return true;
+
+    NL_VariableNode *variable = (NL_VariableNode *)node;
+    if(!strcmp(name, "AccessLevel") || !strcmp(name, "UserAccessLevel")) {
+        if(!parseInteger(value, 0, UA_BYTE_MAX, &integer))
+            return false;
+        if(!strcmp(name, "AccessLevel"))
+            variable->accessLevel = (UA_Byte)integer;
+        else
+            variable->userAccessLevel = (UA_Byte)integer;
+        return true;
+    }
+    if(!strcmp(name, "MinimumSamplingInterval")) {
+        size_t length = strlen(value);
+        return length > 0 &&
+               parseDouble(value, length, &variable->minimumSamplingInterval) == length;
+    }
+    if(!strcmp(name, "Historizing")) {
+        if(!strcmp(value, "true") || !strcmp(value, "1"))
+            variable->historizing = true;
+        else if(!strcmp(value, "false") || !strcmp(value, "0"))
+            variable->historizing = false;
+        else
+            return false;
+        return true;
+    }
+    return false;
+}
+
+bool
+UA_NodeSet_appendArrayDimension(NL_Node *node, const char *value) {
+    if(!value || (node->nodeClass != UA_NODECLASS_VARIABLE &&
+                  node->nodeClass != UA_NODECLASS_VARIABLETYPE))
+        return false;
+    UA_Int64 integer;
+    if(!parseInteger(value, 0, UA_UINT32_MAX, &integer))
+        return false;
+
+    char **arrayDimensions;
+    UA_Boolean *arrayDimensionsOwned;
+    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+        NL_VariableNode *variable = (NL_VariableNode *)node;
+        arrayDimensions = &variable->arrayDimensions;
+        arrayDimensionsOwned = &variable->arrayDimensionsOwned;
+    } else {
+        NL_VariableTypeNode *variableType = (NL_VariableTypeNode *)node;
+        arrayDimensions = &variableType->arrayDimensions;
+        arrayDimensionsOwned = &variableType->arrayDimensionsOwned;
+    }
+    size_t oldLength = *arrayDimensions ? strlen(*arrayDimensions) : 0;
+    size_t valueLength = strlen(value);
+    if(oldLength > SIZE_MAX - valueLength - 2)
+        return false;
+    size_t newLength = oldLength + (oldLength > 0) + valueLength;
+    char *dimensions = (char *)UA_malloc(newLength + 1);
+    if(!dimensions)
+        return false;
+    if(oldLength > 0) {
+        memcpy(dimensions, *arrayDimensions, oldLength);
+        dimensions[oldLength] = ',';
+    }
+    memcpy(dimensions + oldLength + (oldLength > 0), value, valueLength + 1);
+    if(*arrayDimensionsOwned)
+        UA_free(*arrayDimensions);
+    *arrayDimensions = dimensions;
+    *arrayDimensionsOwned = true;
     return true;
 }
 

@@ -12,6 +12,14 @@
 
 #include "parse_num.h"
 
+#define SET_COMMON_ATTRIBUTES(ATTR, NODE)                                                          \
+    do {                                                                                           \
+        (ATTR).displayName = (NODE)->displayName;                                                  \
+        (ATTR).description = (NODE)->description;                                                  \
+        (ATTR).writeMask = (NODE)->writeMask;                                                      \
+        (ATTR).userWriteMask = (NODE)->userWriteMask;                                              \
+    } while(false)
+
 static UA_StatusCode addCustomDataType(NodeSet *nodeset, const NL_DataTypeNode *node);
 static const UA_DataType *findDataType(NodeSet *nodeset, const UA_NodeId *id);
 static const UA_DataType *resolveDataType(NodeSet *nodeset, const UA_NodeId *id);
@@ -158,6 +166,49 @@ isArgumentDescriptorValue(UA_Server *server, const UA_Variant *value, const UA_N
            targetType->typeKind != UA_DATATYPEKIND_UNION;
 }
 
+static UA_StatusCode
+decodeVariableValue(NodeSet *nodeset, const NL_Node *node, const UA_String *xml,
+                    const UA_NodeId *dataType, UA_Int32 valueRank, size_t arrayDimensionsSize,
+                    const UA_UInt32 *arrayDimensions, UA_Variant *value) {
+    UA_DecodeXmlOptions opts;
+    memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
+    opts.unwrapped = true;
+    opts.customTypes = UA_Server_getDataTypes(nodeset->server);
+    opts.namespaceMapping = &nodeset->namespaceMapping;
+    UA_StatusCode res = UA_decodeXml(xml, value, &UA_TYPES[UA_TYPES_VARIANT], &opts);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(res != UA_STATUSCODE_BADOUTOFMEMORY)
+            UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
+                           "NodeSetLoader: Failed to parse the value of %N", node->id);
+        return res;
+    }
+
+    adjustDecodedValueType(nodeset->server, value, dataType);
+    if(isArgumentDescriptorValue(nodeset->server, value, dataType)) {
+        UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
+                       "NodeSetLoader: Ignoring the Argument descriptor used as the initial "
+                       "value of %N",
+                       node->id);
+        UA_Variant_clear(value);
+    } else if(value->arrayLength > 0 && arrayDimensionsSize > 0 && valueRank > 1) {
+        UA_Array_delete(value->arrayDimensions, value->arrayDimensionsSize,
+                        &UA_TYPES[UA_TYPES_UINT32]);
+        value->arrayDimensions = NULL;
+        value->arrayDimensionsSize = 0;
+        res = UA_Array_copy(arrayDimensions, arrayDimensionsSize, (void **)&value->arrayDimensions,
+                            &UA_TYPES[UA_TYPES_UINT32]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        value->arrayDimensionsSize = arrayDimensionsSize;
+    }
+
+    /* Accept a directly encoded value for a one-element array. The scalar
+     * allocation already has the same layout as an array with one entry. */
+    if(valueRank == 1 && UA_Variant_isScalar(value))
+        value->arrayLength = 1;
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif
 
 static UA_StatusCode
@@ -168,7 +219,7 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
         node->typeDefinitionRef ? node->typeDefinitionRef->target : UA_NODEID_NULL;
 
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = node->displayName;
+    SET_COMMON_ATTRIBUTES(attr, node);
     UA_NodeId dataType;
     bool dataTypeOwned = getDataType(server, &node->datatype, &typeDefId, &dataType);
     attr.dataType = dataType;
@@ -186,51 +237,17 @@ handleVariableNode(NodeSet *nodeset, const NL_VariableNode *node, UA_NodeId pare
     attr.arrayDimensions = arrDims;
     attr.accessLevel = node->accessLevel;
     attr.userAccessLevel = node->userAccessLevel;
-    attr.description = node->description;
     attr.historizing = node->historizing;
     attr.minimumSamplingInterval = node->minimumSamplingInterval;
 
     ret = UA_STATUSCODE_GOOD;
     if(node->value.length > 0) {
 #ifdef UA_ENABLE_XML_ENCODING
-        UA_DecodeXmlOptions opts;
-        memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
-        opts.unwrapped = true;
-        opts.customTypes = UA_Server_getDataTypes(server);
-        opts.namespaceMapping = &nodeset->namespaceMapping;
-        ret = UA_decodeXml(&node->value, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);
+        ret = decodeVariableValue(nodeset, (const NL_Node *)node, &node->value, &attr.dataType,
+                                  attr.valueRank, attr.arrayDimensionsSize, attr.arrayDimensions,
+                                  &attr.value);
         if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
             goto cleanup;
-        if(ret != UA_STATUSCODE_GOOD)
-            UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
-                           "NodeSetLoader: Failed to parse the value of %N", node->id);
-        else
-            adjustDecodedValueType(server, &attr.value, &attr.dataType);
-
-        if(ret == UA_STATUSCODE_GOOD &&
-           isArgumentDescriptorValue(server, &attr.value, &attr.dataType)) {
-            UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
-                           "NodeSetLoader: Ignoring the Argument descriptor used as the initial "
-                           "value of %N",
-                           node->id);
-            UA_Variant_clear(&attr.value);
-        } else if(ret == UA_STATUSCODE_GOOD && attr.value.arrayLength > 0 &&
-                  attr.arrayDimensionsSize > 0 && attr.valueRank > 1) {
-            UA_Array_delete(attr.value.arrayDimensions, attr.value.arrayDimensionsSize,
-                            &UA_TYPES[UA_TYPES_UINT32]);
-            attr.value.arrayDimensions = NULL;
-            attr.value.arrayDimensionsSize = 0;
-            ret = UA_Array_copy(attr.arrayDimensions, attr.arrayDimensionsSize,
-                                (void **)&attr.value.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
-            if(ret != UA_STATUSCODE_GOOD)
-                goto cleanup;
-            attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;
-        }
-
-        /* Accept a directly encoded value for a one-element array. The scalar
-         * allocation already has the same layout as an array with one entry. */
-        if(ret == UA_STATUSCODE_GOOD && attr.valueRank == 1 && UA_Variant_isScalar(&attr.value))
-            attr.value.arrayLength = 1;
 #else
         UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
                        "NodeSetLoader: Ignoring the value of %N because XML "
@@ -279,14 +296,14 @@ cleanup:
 }
 
 static UA_StatusCode
-handleVariableTypeNode(UA_Server *server, const NL_VariableTypeNode *node, UA_NodeId parentId,
+handleVariableTypeNode(NodeSet *nodeset, const NL_VariableTypeNode *node, UA_NodeId parentId,
                        UA_NodeId parentReferenceId) {
+    UA_Server *server = nodeset->server;
     UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
-    attr.displayName = node->displayName;
+    SET_COMMON_ATTRIBUTES(attr, node);
     UA_NodeId dataType;
     bool dataTypeOwned = getDataType(server, &node->datatype, &parentId, &dataType);
     attr.dataType = dataType;
-    attr.description = node->description;
     attr.valueRank = node->valueRank;
     if(!node->valueRankDefined && !UA_NodeId_isNull(&parentId))
         (void)UA_Server_readValueRank(server, parentId, &attr.valueRank);
@@ -306,10 +323,26 @@ handleVariableTypeNode(UA_Server *server, const NL_VariableTypeNode *node, UA_No
         goto cleanup;
     attr.arrayDimensions = arrayDimensions;
 
+    if(node->value.length > 0) {
+#ifdef UA_ENABLE_XML_ENCODING
+        ret = decodeVariableValue(nodeset, (const NL_Node *)node, &node->value, &attr.dataType,
+                                  attr.valueRank, attr.arrayDimensionsSize, attr.arrayDimensions,
+                                  &attr.value);
+        if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
+            goto cleanup;
+#else
+        UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
+                       "NodeSetLoader: Ignoring the value of %N because XML "
+                       "decoding is disabled",
+                       node->id);
+#endif
+    }
+
     ret = UA_Server_addNode_begin(server, UA_NODECLASS_VARIABLETYPE, node->id, parentId,
                                   parentReferenceId, node->browseName, UA_NODEID_NULL, &attr,
                                   &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES], NULL, NULL);
 cleanup:
+    UA_Variant_clear(&attr.value);
     UA_free(arrayDimensions);
     if(dataTypeOwned)
         UA_NodeId_clear(&dataType);
@@ -375,8 +408,7 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     case UA_NODECLASS_OBJECT: {
         const NL_ObjectNode *object = (const NL_ObjectNode *)node;
         UA_ObjectAttributes attr = UA_ObjectAttributes_default;
-        attr.displayName = node->displayName;
-        attr.description = node->description;
+        SET_COMMON_ATTRIBUTES(attr, node);
         attr.eventNotifier = object->eventNotifier;
         UA_NodeId typeDefinition =
             node->typeDefinitionRef ? node->typeDefinitionRef->target : UA_NODEID_NULL;
@@ -389,8 +421,7 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     case UA_NODECLASS_METHOD: {
         const NL_MethodNode *method = (const NL_MethodNode *)node;
         UA_MethodAttributes attr = UA_MethodAttributes_default;
-        attr.displayName = node->displayName;
-        attr.description = node->description;
+        SET_COMMON_ATTRIBUTES(attr, node);
         attr.executable = method->executable;
         attr.userExecutable = method->userExecutable;
         res = UA_Server_addNode_begin(server, node->nodeClass, node->id, parentId,
@@ -402,8 +433,7 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     case UA_NODECLASS_OBJECTTYPE: {
         const NL_ObjectTypeNode *objectType = (const NL_ObjectTypeNode *)node;
         UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-        attr.displayName = node->displayName;
-        attr.description = node->description;
+        SET_COMMON_ATTRIBUTES(attr, node);
         attr.isAbstract = objectType->isAbstract;
         res = UA_Server_addNode_begin(server, node->nodeClass, node->id, parentId,
                                       parentReferenceId, node->browseName, UA_NODEID_NULL, &attr,
@@ -414,9 +444,9 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     case UA_NODECLASS_REFERENCETYPE: {
         const NL_ReferenceTypeNode *referenceType = (const NL_ReferenceTypeNode *)node;
         UA_ReferenceTypeAttributes attr = UA_ReferenceTypeAttributes_default;
-        attr.displayName = node->displayName;
-        attr.description = node->description;
+        SET_COMMON_ATTRIBUTES(attr, node);
         attr.inverseName = referenceType->inverseName;
+        attr.isAbstract = referenceType->isAbstract;
         attr.symmetric = referenceType->symmetric;
         res = UA_Server_addNode_begin(server, node->nodeClass, node->id, parentId,
                                       parentReferenceId, node->browseName, UA_NODEID_NULL, &attr,
@@ -425,7 +455,7 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     }
 
     case UA_NODECLASS_VARIABLETYPE:
-        res = handleVariableTypeNode(server, (const NL_VariableTypeNode *)node, parentId,
+        res = handleVariableTypeNode(nodeset, (const NL_VariableTypeNode *)node, parentId,
                                      parentReferenceId);
         break;
 
@@ -436,8 +466,7 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     case UA_NODECLASS_DATATYPE: {
         const NL_DataTypeNode *dataType = (const NL_DataTypeNode *)node;
         UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
-        attr.displayName = node->displayName;
-        attr.description = node->description;
+        SET_COMMON_ATTRIBUTES(attr, node);
         attr.isAbstract = dataType->isAbstract;
         res = UA_Server_addNode_begin(server, node->nodeClass, node->id, parentId,
                                       parentReferenceId, node->browseName, UA_NODEID_NULL, &attr,
@@ -448,8 +477,7 @@ beginNode(NodeSet *nodeset, NL_Node *node) {
     case UA_NODECLASS_VIEW: {
         const NL_ViewNode *view = (const NL_ViewNode *)node;
         UA_ViewAttributes attr = UA_ViewAttributes_default;
-        attr.displayName = node->displayName;
-        attr.description = node->description;
+        SET_COMMON_ATTRIBUTES(attr, node);
         attr.eventNotifier = view->eventNotifier;
         attr.containsNoLoops = view->containsNoLoops;
         res = UA_Server_addNode_begin(server, node->nodeClass, node->id, parentId,

@@ -208,6 +208,110 @@ START_TEST(Server_ignoreMalformedArrayDimensions) {
 }
 END_TEST
 
+START_TEST(Server_loadMissingNodeAttributes) {
+    const UA_XmlElement xml = UA_STRING_STATIC(
+        "<UANodeSet><NamespaceUris><Uri>urn:open62541:loader:attributes</Uri>"
+        "</NamespaceUris>"
+        "<UAReferenceType NodeId=\"ns=1;i=1\" BrowseName=\"1:AbstractReference\" "
+        "IsAbstract=\"true\" WriteMask=\"4\" UserWriteMask=\"8\">"
+        "<DisplayName>AbstractReference</DisplayName><InverseName>ReferencedBy</InverseName>"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=33</Reference>"
+        "</References></UAReferenceType>"
+        "<UAVariableType NodeId=\"ns=1;i=2\" BrowseName=\"1:ValuedVariableType\" "
+        "DataType=\"i=6\" WriteMask=\"12\" UserWriteMask=\"16\">"
+        "<DisplayName>ValuedVariableType</DisplayName>"
+        "<Value><Int32>42</Int32></Value>"
+        "<References><Reference ReferenceType=\"i=45\" IsForward=\"false\">i=63</Reference>"
+        "</References></UAVariableType></UANodeSet>");
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, xml), UA_STATUSCODE_GOOD);
+
+    size_t nsIndex = 0;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(
+                          server, UA_STRING("urn:open62541:loader:attributes"), &nsIndex),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_le(nsIndex, UA_UINT16_MAX);
+
+    UA_NodeId referenceTypeId = UA_NODEID_NUMERIC((UA_UInt16)nsIndex, 1);
+    UA_Boolean isAbstract = false;
+    ck_assert_uint_eq(UA_Server_readIsAbstract(server, referenceTypeId, &isAbstract),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(isAbstract);
+    UA_UInt32 writeMask = 0;
+    ck_assert_uint_eq(UA_Server_readWriteMask(server, referenceTypeId, &writeMask),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeMask, 4);
+
+    UA_NodeId variableTypeId = UA_NODEID_NUMERIC((UA_UInt16)nsIndex, 2);
+    ck_assert_uint_eq(UA_Server_readWriteMask(server, variableTypeId, &writeMask),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeMask, 12);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server, variableTypeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_int_eq(*(UA_Int32 *)value.data, 42);
+    UA_Variant_clear(&value);
+}
+END_TEST
+
+START_TEST(Server_loadLegacyChildAttributes) {
+    const UA_XmlElement xml = UA_STRING_STATIC(
+        "<UANodeSet><NamespaceUris><Uri>urn:open62541:loader:child-attributes</Uri>"
+        "</NamespaceUris><UAVariable NodeId=\"ns=1;i=1\">"
+        "<BrowseName>1:ChildAttributes</BrowseName><DisplayName>ChildAttributes</DisplayName>"
+        "<WriteMask>4</WriteMask><UserWriteMask>8</UserWriteMask><DataType>i=6</DataType>"
+        "<ValueRank>1</ValueRank><ArrayDimensions><ListOfUInt32><UInt32>2</UInt32>"
+        "</ListOfUInt32></ArrayDimensions><AccessLevel>3</AccessLevel><UserAccessLevel>1"
+        "</UserAccessLevel><MinimumSamplingInterval>2.5</MinimumSamplingInterval>"
+        "<Historizing>true</Historizing><Value><ListOfInt32><Int32>1</Int32><Int32>2</Int32>"
+        "</ListOfInt32></Value><References>"
+        "<Reference ReferenceType=\"i=35\" IsForward=\"false\">i=85</Reference>"
+        "<Reference ReferenceType=\"i=40\">i=63</Reference>"
+        "</References></UAVariable></UANodeSet>");
+    ck_assert_uint_eq(UA_Server_loadNodeset(server, xml), UA_STATUSCODE_GOOD);
+
+    size_t nsIndex = 0;
+    ck_assert_uint_eq(UA_Server_getNamespaceByName(
+                          server, UA_STRING("urn:open62541:loader:child-attributes"), &nsIndex),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_le(nsIndex, UA_UINT16_MAX);
+    UA_NodeId id = UA_NODEID_NUMERIC((UA_UInt16)nsIndex, 1);
+
+    UA_QualifiedName browseName;
+    UA_QualifiedName_init(&browseName);
+    ck_assert_uint_eq(UA_Server_readBrowseName(server, id, &browseName), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(browseName.namespaceIndex, nsIndex);
+    const UA_String expectedBrowseName = UA_STRING_STATIC("ChildAttributes");
+    ck_assert(UA_String_equal(&browseName.name, &expectedBrowseName));
+    UA_QualifiedName_clear(&browseName);
+
+    UA_UInt32 writeMask = 0;
+    ck_assert_uint_eq(UA_Server_readWriteMask(server, id, &writeMask), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(writeMask, 4);
+    UA_Int32 valueRank = 0;
+    ck_assert_uint_eq(UA_Server_readValueRank(server, id, &valueRank), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(valueRank, 1);
+    UA_Variant dimensions;
+    UA_Variant_init(&dimensions);
+    ck_assert_uint_eq(UA_Server_readArrayDimensions(server, id, &dimensions), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&dimensions, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(dimensions.arrayLength, 1);
+    ck_assert_uint_eq(*(UA_UInt32 *)dimensions.data, 2);
+    UA_Variant_clear(&dimensions);
+
+    UA_Byte accessLevel = 0;
+    ck_assert_uint_eq(UA_Server_readAccessLevel(server, id, &accessLevel), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(accessLevel, 3);
+    UA_Double minimumSamplingInterval = 0.0;
+    ck_assert_uint_eq(UA_Server_readMinimumSamplingInterval(server, id, &minimumSamplingInterval),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_double_eq_tol(minimumSamplingInterval, 2.5, 0.0001);
+    UA_Boolean historizing = false;
+    ck_assert_uint_eq(UA_Server_readHistorizing(server, id, &historizing), UA_STATUSCODE_GOOD);
+    ck_assert(historizing);
+}
+END_TEST
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Loader");
@@ -220,6 +324,8 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_loadCustomHierarchicalParentReference);
     tcase_add_test(tc_server, Server_rejectInvalidXmlElement);
     tcase_add_test(tc_server, Server_ignoreMalformedArrayDimensions);
+    tcase_add_test(tc_server, Server_loadMissingNodeAttributes);
+    tcase_add_test(tc_server, Server_loadLegacyChildAttributes);
     suite_add_tcase(s, tc_server);
     return s;
 }

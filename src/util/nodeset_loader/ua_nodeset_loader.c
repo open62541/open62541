@@ -189,7 +189,8 @@ typedef enum {
     XML_SCOPE_NODE,
     XML_SCOPE_NAMESPACE_URIS,
     XML_SCOPE_REFERENCES,
-    XML_SCOPE_DEFINITION
+    XML_SCOPE_DEFINITION,
+    XML_SCOPE_ARRAY_DIMENSIONS
 } XmlScope;
 
 typedef struct {
@@ -267,7 +268,8 @@ processElement(NodeSet *nodeset, XmlCursor *cursor, XmlScope scope, NL_Node *nod
             NL_Node *newNode = UA_NodeSet_newNode(nodeset, nodeClass, &attributes);
             if(!newNode)
                 return false;
-            return processChildren(nodeset, cursor, element, XML_SCOPE_NODE, newNode);
+            return processChildren(nodeset, cursor, element, XML_SCOPE_NODE, newNode) &&
+                   newNode->browseName.name.data != NULL;
         } else if(!strcmp(name, "NamespaceUris")) {
             return processChildren(nodeset, cursor, element, XML_SCOPE_NAMESPACE_URIS, NULL);
         } else if(!strcmp(name, "Alias")) {
@@ -287,16 +289,35 @@ processElement(NodeSet *nodeset, XmlCursor *cursor, XmlScope scope, NL_Node *nod
             char *content = xmlTokenLeafContent(cursor, element);
             UA_NodeSet_setLocalizedText(&node->description, &attributes, content);
             return true;
+        } else if(!strcmp(name, "BrowseName") || !strcmp(name, "WriteMask") ||
+                  !strcmp(name, "UserWriteMask") || !strcmp(name, "DataType") ||
+                  !strcmp(name, "ValueRank") || !strcmp(name, "AccessLevel") ||
+                  !strcmp(name, "UserAccessLevel") ||
+                  !strcmp(name, "MinimumSamplingInterval") || !strcmp(name, "Historizing") ||
+                  !strcmp(name, "IsAbstract")) {
+            char *content = xmlTokenLeafContent(cursor, element);
+            return UA_NodeSet_setNodeAttribute(nodeset, node, name, content);
+        } else if(!strcmp(name, "ArrayDimensions")) {
+            if(element->content) {
+                char *content = xmlTokenLeafContent(cursor, element);
+                return UA_NodeSet_setNodeAttribute(nodeset, node, name, content);
+            }
+            if(!UA_NodeSet_setNodeAttribute(nodeset, node, name, ""))
+                return false;
+            return processChildren(nodeset, cursor, element, XML_SCOPE_ARRAY_DIMENSIONS, node);
         } else if(!strcmp(name, "Value")) {
             cursor->position = element->subtreeEnd;
-            if(node->nodeClass != UA_NODECLASS_VARIABLE)
+            if(node->nodeClass != UA_NODECLASS_VARIABLE &&
+               node->nodeClass != UA_NODECLASS_VARIABLETYPE)
                 return true;
             if(element->end < element->start || element->end > cursor->xmlLength)
                 return false;
             UA_String xmlValue = {element->end - element->start,
                                   (UA_Byte *)(uintptr_t)(cursor->xml + element->start)};
-            return UA_String_copy(&xmlValue, &((NL_VariableNode *)node)->value) ==
-                   UA_STATUSCODE_GOOD;
+            UA_String *value = node->nodeClass == UA_NODECLASS_VARIABLE
+                                   ? &((NL_VariableNode *)node)->value
+                                   : &((NL_VariableTypeNode *)node)->value;
+            return UA_String_copy(&xmlValue, value) == UA_STATUSCODE_GOOD;
         } else if(!strcmp(name, "Definition") && node->nodeClass == UA_NODECLASS_DATATYPE) {
             if(!UA_NodeSet_addDataTypeDefinition(node, &attributes))
                 return false;
@@ -325,6 +346,13 @@ processElement(NodeSet *nodeset, XmlCursor *cursor, XmlScope scope, NL_Node *nod
                 return false;
             cursor->position = element->subtreeEnd;
             return true;
+        }
+    } else if(scope == XML_SCOPE_ARRAY_DIMENSIONS) {
+        if(!strcmp(name, "ListOfUInt32"))
+            return processChildren(nodeset, cursor, element, XML_SCOPE_ARRAY_DIMENSIONS, node);
+        if(!strcmp(name, "UInt32")) {
+            char *content = xmlTokenLeafContent(cursor, element);
+            return UA_NodeSet_appendArrayDimension(node, content);
         }
     }
 
