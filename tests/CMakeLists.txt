@@ -24,6 +24,14 @@ endif()
 include_directories(${CHECK_INCLUDE_DIRS})
 link_directories(${CHECK_LIBRARY_DIRS})
 
+# Apply compatibility assertions to every test, including optional test suites.
+set(UA_CHECK_COMPAT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins/check_compat.h")
+if(MSVC)
+    add_compile_options("/FI${UA_CHECK_COMPAT_HEADER}")
+else()
+    add_compile_options("SHELL:-include \"${UA_CHECK_COMPAT_HEADER}\"")
+endif()
+
 # Valgrind dependency
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
@@ -390,6 +398,7 @@ else()
 endif()
 
 if (UA_MULTITHREADING GREATER_EQUAL 100)
+    ua_add_test(multithreading/check_mt_shutdown.c)
     ua_add_test(multithreading/check_mt_addVariableNode.c)
     ua_add_test(multithreading/check_mt_addVariableTypeNode.c)
     ua_add_test(multithreading/check_mt_addObjectNode.c)

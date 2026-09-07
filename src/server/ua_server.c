@@ -1248,7 +1248,10 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_EventLoop *el = server->config.eventLoop;
     while(!testStoppedCondition(server) &&
           res == UA_STATUSCODE_GOOD) {
+        /* Event-loop callbacks on other threads may need the server lock. */
+        unlockServer(server);
         res = el->run(el, 100);
+        lockServer(server);
     }
 
     /* Stop the EventLoop. Iterate until stopped. */
@@ -1256,7 +1259,10 @@ UA_Server_run_shutdown(UA_Server *server) {
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           el->state != UA_EVENTLOOPSTATE_FRESH &&
           res == UA_STATUSCODE_GOOD) {
+        /* Event-loop callbacks on other threads may need the server lock. */
+        unlockServer(server);
         res = el->run(el, 100);
+        lockServer(server);
     }
 
     /* Set server lifecycle state to stopped if not already the case */
