@@ -1014,7 +1014,7 @@ START_TEST(UA_String_escapeutf_xml_encode) {
     status s = UA_encodeXml(&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<String>he\\zsdl\alo€ \x26\x3A asdasd</String>";
+    char *result = "<String>he\\zsdl\alo€ &amp;\x3A asdasd</String>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);

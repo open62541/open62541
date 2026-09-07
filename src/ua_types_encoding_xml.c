@@ -280,6 +280,31 @@ xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Element content cannot carry '&' and '<' as they are. '>' only has to be
+ * escaped where it ends a CDATA section, escaping it everywhere is simpler and
+ * decodes back the same. */
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+xmlEncodeWriteEscapedChars(CtxXml *ctx, const char *c, size_t len) {
+    if(len == 0)
+        return UA_STATUSCODE_GOOD;
+    status ret = UA_STATUSCODE_GOOD;
+    size_t start = 0;
+    for(size_t i = 0; i < len; i++) {
+        const char *entity;
+        size_t entityLen;
+        switch(c[i]) {
+        case '&': entity = "&amp;"; entityLen = 5; break;
+        case '<': entity = "&lt;";  entityLen = 4; break;
+        case '>': entity = "&gt;";  entityLen = 4; break;
+        default: continue;
+        }
+        ret |= xmlEncodeWriteChars(ctx, &c[start], i - start);
+        ret |= xmlEncodeWriteChars(ctx, entity, entityLen);
+        start = i + 1;
+    }
+    return ret | xmlEncodeWriteChars(ctx, &c[start], len - start);
+}
+
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
     if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
@@ -441,7 +466,7 @@ ENCODE_XML(Double) {
 /* String */
 ENCODE_XML(String) {
     const UA_String *src = (const UA_String*)src_;
-    return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
+    return xmlEncodeWriteEscapedChars(ctx, (const char*)src->data, src->length);
 }
 
 /* XmlElement */
