@@ -1021,6 +1021,45 @@ START_TEST(UA_String_escapeutf_xml_encode) {
 }
 END_TEST
 
+START_TEST(UA_String_markup_xml_encode) {
+    UA_String src = UA_STRING("a<b & c>d");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml(&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char *result = "<String>a&lt;b &amp; c&gt;d</String>";
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+    UA_ByteString_clear(&buf);
+}
+END_TEST
+
+START_TEST(UA_String_markup_xml_roundtrip) {
+    UA_String src = UA_STRING("a<b & c>d");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size);
+    status s = UA_encodeXml(&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    UA_String out;
+    UA_String_init(&out);
+    s = UA_decodeXml(&buf, &out, type, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&src, &out));
+
+    UA_String_clear(&out);
+    UA_ByteString_clear(&buf);
+}
+END_TEST
+
 START_TEST(UA_String_special_xml_encode) {
     UA_String src = UA_STRING("𝄞𠂊𝕥🔍");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
@@ -4534,6 +4573,8 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_String_Null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_escapesimple_xml_encode);
     tcase_add_test(tc_xml_encode, UA_String_escapeutf_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_String_markup_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_String_markup_xml_roundtrip);
     tcase_add_test(tc_xml_encode, UA_String_special_xml_encode);
 
     tcase_add_test(tc_xml_encode, UA_DateTime_xml_encode);
