@@ -586,7 +586,8 @@ ENCODE_XML(ExtensionObject) {
            ret |= writeXmlElement(ctx, "ByteString", &src->content.encoded.body,
                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
         else
-            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
+            /* An XML encoded body is markup already, it goes out as it is */
+            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, XmlElement);
         ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     } else {
         /* Write the decoded value */
