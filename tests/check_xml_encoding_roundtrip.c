@@ -12,6 +12,44 @@
 #include <float.h>
 #include <math.h>
 
+typedef struct {
+    UA_UInt32 switchField;
+    union {
+        UA_Double number;
+        UA_String text;
+    } fields;
+} TestUnion;
+
+static UA_DataTypeMember testUnionMembers[2] = {
+    {
+        UA_TYPENAME("Number")
+        &UA_TYPES[UA_TYPES_DOUBLE],
+        offsetof(TestUnion, fields.number),
+        false,
+        false
+    },
+    {
+        UA_TYPENAME("Text")
+        &UA_TYPES[UA_TYPES_STRING],
+        offsetof(TestUnion, fields.text),
+        false,
+        false
+    }
+};
+
+static UA_DataType testUnionType = {
+    UA_TYPENAME("TestUnion")
+    {1, UA_NODEIDTYPE_NUMERIC, {1001}},
+    {1, UA_NODEIDTYPE_NUMERIC, {2001}},
+    {1, UA_NODEIDTYPE_NUMERIC, {3001}},
+    sizeof(TestUnion),
+    UA_DATATYPEKIND_UNION,
+    false,
+    false,
+    2,
+    testUnionMembers
+};
+
 /* Helper: encode to XML, then decode back */
 static UA_StatusCode
 roundtripXml(const void *src, const UA_DataType *type, void *dst) {
@@ -558,6 +596,19 @@ START_TEST(xml_decode_numeric_enum) {
     ck_assert_int_eq(dst, UA_SERVERSTATE_TEST);
 } END_TEST
 
+START_TEST(xml_decode_union) {
+    UA_ByteString xml = UA_BYTESTRING(
+        "<TestUnion><SwitchField>2</SwitchField><Text>hello</Text></TestUnion>");
+    TestUnion dst;
+    memset(&dst, 0, sizeof(dst));
+    UA_StatusCode res = UA_decodeXml(&xml, &dst, &testUnionType, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dst.switchField, 2);
+    UA_String expected = UA_STRING("hello");
+    ck_assert(UA_String_equal(&dst.fields.text, &expected));
+    UA_clear(&dst, &testUnionType);
+} END_TEST
+
 START_TEST(xml_decode_character_references) {
     const struct {
         const char *xml;
@@ -596,7 +647,7 @@ START_TEST(xml_decode_character_references) {
     UA_StatusCode res =
         UA_decodeXml(&xml, &dst, &UA_TYPES[UA_TYPES_STRING], NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_mem_eq(mutableXml, unchanged, sizeof(mutableXml));
+    ck_assert(memcmp(mutableXml, unchanged, sizeof(mutableXml)) == 0);
     UA_String_clear(&dst);
 } END_TEST
 
@@ -662,6 +713,7 @@ int main(void) {
     tcase_add_test(tc_complex, xml_variant_guid);
     tcase_add_test(tc_complex, xml_extensionobject_decoded);
     tcase_add_test(tc_complex, xml_extensionobject_nobody);
+    tcase_add_test(tc_complex, xml_decode_union);
     suite_add_tcase(s, tc_complex);
 
     TCase *tc_misc = tcase_create("Misc");

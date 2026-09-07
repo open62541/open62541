@@ -1842,7 +1842,7 @@ decodeBinaryStructure(Ctx *UA_RESTRICT ctx, void *UA_RESTRICT dst,
 
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
-    u8 membersSize = type->membersSize;
+    size_t membersSize = type->membersSize;
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {

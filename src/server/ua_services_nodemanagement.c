@@ -180,7 +180,7 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
 
 static const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}},
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}}
 };
 
 static void
@@ -195,13 +195,29 @@ logAddNode(const UA_Logger *logger, UA_Session *session,
 static UA_StatusCode
 checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *head,
                      const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
+    UA_Boolean noParent = UA_NodeId_isNull(parentNodeId) &&
+                          UA_NodeId_isNull(referenceTypeId);
+
     /* Objects do not need a parent (e.g. mandatory/optional modellingrules).
      * Also, there are some variables which do not have parents, e.g.
      * EnumStrings, EnumValues */
     if((head->nodeClass == UA_NODECLASS_OBJECT ||
         head->nodeClass == UA_NODECLASS_VARIABLE) &&
-       UA_NodeId_isNull(parentNodeId) && UA_NodeId_isNull(referenceTypeId))
+       noParent)
         return UA_STATUSCODE_GOOD;
+
+    /* Part 3 requires Methods to be the target of a HasComponent reference.
+     * Accept detached Methods for compatibility with legacy NodeSets. */
+    if(head->nodeClass == UA_NODECLASS_METHOD && noParent) {
+        UA_RuleHandling rule = server->config.allowUnattachedMethods;
+        if(rule == UA_RULEHANDLING_ABORT)
+            return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+        if(rule != UA_RULEHANDLING_ACCEPT)
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "AddNode (%N): The Method is detached (has no parent)",
+                                   head->nodeId);
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* See if the parent exists */
     const UA_Node *parent = UA_NODESTORE_GET(server, parentNodeId);
@@ -493,6 +509,28 @@ static const UA_NodeId baseObjectType =
 static const UA_NodeId hasTypeDefinition =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASTYPEDEFINITION}};
 
+static UA_Boolean
+compatibleVariableTypeValue(UA_Server *server, UA_Session *session,
+                            const UA_VariableNode *node,
+                            const UA_VariableTypeNode *vt,
+                            const UA_Variant *value) {
+    const UA_NodeId *dataType = &node->dataType;
+    if(UA_NodeId_isNull(dataType))
+        dataType = &vt->dataType;
+
+    size_t arrayDimensionsSize = node->arrayDimensionsSize;
+    const UA_UInt32 *arrayDimensions = node->arrayDimensions;
+    if(arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
+        arrayDimensionsSize = vt->arrayDimensionsSize;
+        arrayDimensions = vt->arrayDimensions;
+    }
+
+    const char *reason;
+    return compatibleValue(server, session, dataType, node->valueRank,
+                           arrayDimensionsSize, arrayDimensions, value,
+                           NULL, &reason);
+}
+
 /* Use attributes from the variable type wherever required. Reload the node if
  * changes were made. */
 static UA_StatusCode
@@ -516,7 +554,8 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_DataValue v;
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
-        if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
+        if(retval == UA_STATUSCODE_GOOD && v.hasValue &&
+           compatibleVariableTypeValue(server, session, node, vt, &v.value)) {
             /* Let the write path adjust equivalent wire types before it
              * performs the final compatibility check. */
             retval = writeAttribute(server, &server->adminSession,

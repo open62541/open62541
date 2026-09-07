@@ -1917,7 +1917,7 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
-    u8 membersSize = type->membersSize;
+    size_t membersSize = type->membersSize;
     UA_STACKARRAY(XmlDecodeEntry, entries, membersSize);
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
@@ -1944,6 +1944,44 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
+    return ret;
+}
+
+static status
+decodeXmlUnion(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    CHECK_DATA_BOUNDS;
+    UA_String switchName = UA_STRING_STATIC("SwitchField");
+    UA_String switchContent;
+    status ret = getChildContent(ctx, switchName, &switchContent);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    UA_UInt64 selection = 0;
+    ret = decodeUnsigned(switchContent.data, switchContent.length, &selection);
+    if(ret != UA_STATUSCODE_GOOD || selection > type->membersSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    *(UA_UInt32 *)dst = (UA_UInt32)selection;
+
+    /* Decode only the selected field. All union members share their storage. */
+    XmlDecodeEntry entries[2] = {
+        {switchName, dst, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
+        {UA_STRING_NULL, NULL, NULL, false, NULL}
+    };
+    size_t entriesSize = 1;
+    if(selection > 0) {
+        const UA_DataTypeMember *member = &type->members[selection - 1];
+        entries[1].name = UA_STRING((char *)(uintptr_t)member->memberName);
+        entries[1].fieldPointer = (UA_Byte *)dst + member->padding;
+        entries[1].function = member->isArray ? Array_decodeXml : NULL;
+        entries[1].type = member->memberType;
+        entriesSize++;
+    }
+
+    ret = decodeXmlFields(ctx, entries, entriesSize);
+    if(ret == UA_STATUSCODE_GOOD &&
+       (!entries[0].found || *(UA_UInt32 *)dst != selection ||
+        (selection > 0 && !entries[1].found)))
+        ret = UA_STATUSCODE_BADDECODINGERROR;
     return ret;
 }
 
@@ -1992,7 +2030,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     Enum_decodeXml,             /* Enum */
     decodeXmlStructure,         /* Structure */
     decodeXmlStructure,         /* Structure with optional fields */
-    decodeXmlNotImplemented,    /* Union */
+    decodeXmlUnion,             /* Union */
     decodeXmlNotImplemented     /* BitfieldCluster */
 };
 

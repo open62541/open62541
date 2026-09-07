@@ -1218,6 +1218,20 @@ UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                       void *nodeContext, UA_NodeId *outNewNodeId);
 
 /**
+ * NodeSet Import
+ * ~~~~~~~~~~~~~~
+ * Load a UANodeSet XML document into the server.
+ *
+ * Load dependencies first by calling this function once for each document.
+ * The XML input is borrowed for the duration of the call. Individual nodes
+ * that cannot be added are logged and skipped. The return status reports
+ * failures that prevent loading the document as a whole. The operation is not
+ * transactional; nodes and namespaces added before a failure remain in the
+ * server. */
+UA_EXPORT UA_StatusCode
+UA_Server_loadNodeset(UA_Server *server, const UA_XmlElement nodesetXml);
+
+/**
  * .. _node-lifecycle:
  *
  * Node Lifecycle: Constructors, Destructors and Node Contexts
@@ -2225,6 +2239,12 @@ struct UA_ServerConfig {
      * empty variant value. The default behaviour is to auto-create a matching
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
+
+    /* Methods shall be the target of at least one HasComponent reference from
+     * an Object or ObjectType. Some legacy NodeSets contain detached Methods.
+     * DEFAULT and WARN log and accept them, ABORT rejects them and ACCEPT
+     * accepts them silently. */
+    UA_RuleHandling allowUnattachedMethods;
 
     UA_RuleHandling allowAllCertificateUris;
 

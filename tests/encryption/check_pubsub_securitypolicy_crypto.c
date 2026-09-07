@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ */
 
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/log_stdout.h>
@@ -129,9 +132,9 @@ exercisePubSubPolicy(PubSubPolicyInit init) {
     UA_ByteString_clear(&derived);
 
     /* ---- generateNonce ---- */
-    if(policy.nonceLength > 0) {
+    if(policy.keyMaterialLength > 0) {
         UA_ByteString nonce;
-        UA_ByteString_allocBuffer(&nonce, policy.nonceLength);
+        UA_ByteString_allocBuffer(&nonce, policy.keyMaterialLength);
         rv = policy.generateNonce(&policy, ctx, &nonce);
         ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
         UA_ByteString_clear(&nonce);

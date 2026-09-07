@@ -9,7 +9,3 @@
 	path = deps/mqtt-c
 	url = https://github.com/LiamBindle/MQTT-C.git
 	branch = master
-[submodule "deps/nodesetLoader"]
-	path = deps/nodesetLoader
-	url = https://github.com/open62541/nodesetLoader
-	branch = master

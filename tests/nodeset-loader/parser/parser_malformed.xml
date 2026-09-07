@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <UAObject NodeId="i=50000" BrowseName="Broken">
+    <DisplayName>Broken</UAObject>
+</UANodeSet>

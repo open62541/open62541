@@ -435,7 +435,7 @@ UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
  *
  * For PubSub encryption, the message nonce is part of the (unencrypted)
  * SecurityHeader. The nonce is required for the de- and encryption and has to
- * be set in the channel context before de/encrypting. */
+ * be set in the group context before de/encrypting. */
 
 struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
@@ -456,37 +456,47 @@ struct UA_PubSubSecurityPolicy {
                                      const UA_ByteString *keyNonce,
                                      void **gContext);
 
-    /* Delete the WriterGroup SecurityPolicy context */
+    /* Delete the WriterGroup / ReaderGroup SecurityPolicy context. */
     void (*deleteGroupContext)(UA_PubSubSecurityPolicy *policy, void *gContext);
 
-    /* See UA_SecurityPolicy for the following method signatures */
-
+    /* Verify a message signature using the keys in the group context. */
     UA_StatusCode (*verify)(const UA_PubSubSecurityPolicy *policy,
                             void *gContext, const UA_ByteString *message,
                             const UA_ByteString *signature);
 
+    /* Sign a message using the keys in the group context. The caller allocates
+     * the signature buffer with the size returned by getSignatureSize. */
     UA_StatusCode (*sign)(const UA_PubSubSecurityPolicy *policy,
                           void *gContext, const UA_ByteString *message,
                           UA_ByteString *signature);
 
+    /* Return the signature size in bytes. */
     size_t (*getSignatureSize)(const UA_PubSubSecurityPolicy *policy,
                                const void *gContext);
 
+    /* Return the signing-key length in bytes. The group context may be NULL
+     * when querying the policy for SKS key-material processing. */
     size_t (*getSignatureKeyLength)(const UA_PubSubSecurityPolicy *policy,
                                     const void *gContext);
 
+    /* Return the encryption-key length in bytes. The group context may be NULL
+     * when querying the policy for SKS key-material processing. */
     size_t (*getEncryptionKeyLength)(const UA_PubSubSecurityPolicy *policy,
                                      const void *gContext);
 
+    /* Encrypt the supplied buffer in place using the group keys and the
+     * message nonce installed with setMessageNonce. */
     UA_StatusCode (*encrypt)(const UA_PubSubSecurityPolicy *policy,
                              void *gContext, UA_ByteString *data);
 
+    /* Decrypt the supplied buffer in place using the group keys and the
+     * message nonce installed with setMessageNonce. */
     UA_StatusCode (*decrypt)(const UA_PubSubSecurityPolicy *policy,
                              void *gContext, UA_ByteString *data);
 
-    /* Set the keys and nonce for the WriterGroup. This is returned from the
-     * GetSecurityKeys method of a Security Key Service (SKS). Otherwise, set
-     * manually via out-of-band transmission of the keys. */
+    /* Set the keys and key nonce for a WriterGroup / ReaderGroup. These are
+     * returned by GetSecurityKeys on a Security Key Service (SKS), or supplied
+     * manually via out-of-band transmission. */
     UA_StatusCode (*setSecurityKeys)(UA_PubSubSecurityPolicy *policy,
                                      void *gContext,
                                      const UA_ByteString *signingKey,
@@ -497,8 +507,8 @@ struct UA_PubSubSecurityPolicy {
      *
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param gContext The group context.
-     * @param secret Usually from the nonce. See part 6.
-     * @param seed Usually from the nonce. See part 6.
+     * @param secret Secret input for the policy-specific key derivation.
+     * @param seed Seed input for the policy-specific key derivation.
      * @param out An output to write the data to. The length defines the maximum
      *        number of output bytes that are produced. */
     UA_StatusCode (*generateKey)(UA_PubSubSecurityPolicy *policy,
@@ -510,14 +520,18 @@ struct UA_PubSubSecurityPolicy {
     /* Random generator for generating nonces.
      *
      * @param policy The SecurityPolicy to which the callback belongs.
-     * @param wgContext The context of the SecureChannel
+     * @param gContext The group context, or NULL for policy-level generation.
      * @param out Pointer to a buffer to store the nonce in. Needs to be
      *        allocated by the caller. The buffer is filled with random data. */
     UA_StatusCode (*generateNonce)(UA_PubSubSecurityPolicy *policy,
                                    void *gContext, UA_ByteString *out);
 
-    /* The length of the nonce used in the SecureChannel */
-    size_t nonceLength;
+    /* Total length in bytes of one SKS key-material item. For the CTR policies
+     * this is signing key + encryption key + key nonce. */
+    size_t keyMaterialLength;
+
+    /* Length of the per-NetworkMessage nonce passed to setMessageNonce. */
+    size_t messageNonceLength;
 
     /* The nonce is contained in the NetworkMessage SecurityHeader. Set before
      * each en-/decryption step. */

@@ -152,10 +152,13 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             res = UA_STATUSCODE_BADOUTOFMEMORY;
             goto errout;
         }
+        t2->membersSize = t1->membersSize;
         for(size_t i = 0; i < t1->membersSize; i++) {
             const UA_DataTypeMember *m1 = &t1->members[i];
             UA_DataTypeMember *m2 = &t2->members[i];
             memcpy(m2, m1, sizeof(UA_DataTypeMember));
+            if(m1->memberType == t1)
+                m2->memberType = t2;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
             nameLen = strlen(m1->memberName) + 1;
             char *mName = (char*)UA_malloc(nameLen);
@@ -167,7 +170,6 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             *(void**)(uintptr_t)&m2->memberName = mName;
 #endif
         }
-        t2->membersSize = t1->membersSize;
     }
 
  errout:

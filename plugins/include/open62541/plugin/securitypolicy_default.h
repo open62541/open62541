@@ -6,6 +6,7 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_SECURITYPOLICIES_H_

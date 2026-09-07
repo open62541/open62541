@@ -40,6 +40,16 @@ static UA_Boolean earlyChildWasAbsent;
 static UA_Boolean constructorSawChild;
 static UA_Boolean earlyConstructorReplacesNodeClass;
 
+static void
+countWarnings(void *context, UA_LogLevel level, UA_LogCategory category,
+              const char *msg, va_list args) {
+    (void)category;
+    (void)msg;
+    (void)args;
+    if(level == UA_LOGLEVEL_WARNING)
+        (*(size_t*)context)++;
+}
+
 static UA_Boolean
 nodeHasBrowseName(UA_Server *server_, const UA_NodeId *nodeId,
                   const UA_QualifiedName *expected) {
@@ -494,6 +504,12 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
      * tries to auto-generate a matching zero-value of the correct
      * dimensions. */
 
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
     /* Add the node */
     UA_StatusCode res =
         UA_Server_addVariableNode(server, UA_NODEID_NULL,
@@ -501,7 +517,9 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                                   vAttr, NULL, NULL);
+    config->logging = originalLogger;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    ck_assert_uint_eq(warnings, 0);
 } END_TEST
 
 START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
@@ -527,19 +545,27 @@ START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
     childAttr.dataType = UA_TYPES[UA_TYPES_FLOAT].typeId;
     childAttr.valueRank = UA_VALUERANK_ANY;
 
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
     UA_NodeId childId;
     res = UA_Server_addVariableTypeNode(server, UA_NODEID_NULL, parentId,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                         UA_QUALIFIEDNAME(1, "Float Child"), UA_NODEID_NULL,
                                         childAttr, NULL, &childId);
+    config->logging = originalLogger;
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 0);
 
     UA_Variant value;
     UA_Variant_init(&value);
     res = UA_Server_readValue(server, childId, &value);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_FLOAT]));
-    ck_assert_float_eq(*(UA_Float*)value.data, 0.0f);
+    ck_assert(*(UA_Float*)value.data == 0.0f);
     UA_Variant_clear(&value);
 } END_TEST
 
@@ -569,6 +595,37 @@ START_TEST(AddVariableNodeAdjustsEnumWireType) {
     ck_assert_int_eq(*(UA_ApplicationType*)value.data,
                      UA_APPLICATIONTYPE_SERVER);
     UA_Variant_clear(&value);
+} END_TEST
+
+START_TEST(AbstractVariableTypeBelowHierarchicalParent) {
+    UA_ObjectTypeAttributes objectTypeAttr = UA_ObjectTypeAttributes_default;
+    objectTypeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ContainerType");
+    UA_NodeId objectTypeId;
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, "ContainerType"),
+                                    objectTypeAttr, NULL, &objectTypeId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes variableAttr = UA_VariableAttributes_default;
+    variableAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PropertyContainer");
+    UA_NodeId propertyId;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL, objectTypeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                    UA_QUALIFIEDNAME(1, "PropertyContainer"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    variableAttr, NULL, &propertyId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    variableAttr.displayName = UA_LOCALIZEDTEXT("en-US", "NestedAbstract");
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL, propertyId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                    UA_QUALIFIEDNAME(1, "NestedAbstract"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    variableAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddComplexTypeWithInheritance) {
@@ -617,6 +674,70 @@ START_TEST(AddNodeTwiceGivesError) {
                                     attr, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_BADNODEIDEXISTS);
 } END_TEST
+
+static UA_StatusCode
+addUnattachedMethod(UA_UInt32 identifier) {
+    UA_MethodAttributes attr = UA_MethodAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "UnattachedMethod");
+    return UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, identifier),
+                                   UA_NODEID_NULL, UA_NODEID_NULL,
+                                   UA_QUALIFIEDNAME(1, "UnattachedMethod"), attr,
+                                   NULL, 0, NULL, 0, NULL, NULL, NULL);
+}
+
+START_TEST(UnattachedMethodRuleDefaultWarnsAndAccepts) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_StatusCode res = addUnattachedMethod(80601);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 1);
+}
+END_TEST
+
+START_TEST(UnattachedMethodRuleAbortRejects) {
+    UA_Server_getConfig(server)->allowUnattachedMethods = UA_RULEHANDLING_ABORT;
+    UA_StatusCode res = addUnattachedMethod(80602);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADPARENTNODEIDINVALID);
+}
+END_TEST
+
+START_TEST(UnattachedMethodRuleWarnsAndAccepts) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->allowUnattachedMethods = UA_RULEHANDLING_WARN;
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_StatusCode res = addUnattachedMethod(80603);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 1);
+}
+END_TEST
+
+START_TEST(UnattachedMethodRuleAcceptIsSilent) {
+    size_t warnings = 0;
+    UA_Logger captureLogger = {countWarnings, &warnings, NULL};
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->allowUnattachedMethods = UA_RULEHANDLING_ACCEPT;
+    UA_Logger *originalLogger = config->logging;
+    config->logging = &captureLogger;
+
+    UA_StatusCode res = addUnattachedMethod(80604);
+
+    config->logging = originalLogger;
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(warnings, 0);
+}
+END_TEST
 
 static UA_Boolean constructorCalled = false;
 
@@ -2012,8 +2133,13 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
     tcase_add_test(tc_addnodes, VariableTypeRestrictionGetsMatchingDefaultValue);
     tcase_add_test(tc_addnodes, AddVariableNodeAdjustsEnumWireType);
+    tcase_add_test(tc_addnodes, AbstractVariableTypeBelowHierarchicalParent);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleDefaultWarnsAndAccepts);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleAbortRejects);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleWarnsAndAccepts);
+    tcase_add_test(tc_addnodes, UnattachedMethodRuleAcceptIsSilent);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
     tcase_add_test(tc_addnodes, EarlyConstructorRunsDuringBegin);

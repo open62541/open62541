@@ -8,6 +8,7 @@
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_pubsub_internal.h"
@@ -36,6 +37,32 @@ UA_PubSubState_name(UA_PubSubState state) {
     if(state < UA_PUBSUBSTATE_DISABLED || state > UA_PUBSUBSTATE_PREOPERATIONAL)
         return pubSubStateNames[5];
     return pubSubStateNames[state];
+}
+
+UA_StatusCode
+UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
+                                  UA_PubSubComponentType componentType,
+                                  UA_PubSubState targetState,
+                                  UA_StatusCode errorReason) {
+    switch(componentType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        return UA_PubSubConnection_setPubSubState(
+            psm, (UA_PubSubConnection*)component, targetState);
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        return UA_WriterGroup_setPubSubState(
+            psm, (UA_WriterGroup*)component, targetState);
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        return UA_ReaderGroup_setPubSubState(
+            psm, (UA_ReaderGroup*)component, targetState);
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        return UA_DataSetReader_setPubSubState(
+            psm, (UA_DataSetReader*)component, targetState, errorReason);
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        return UA_DataSetWriter_setPubSubState(
+            psm, (UA_DataSetWriter*)component, targetState);
+    default:
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
 }
 
 void
@@ -343,6 +370,32 @@ UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now) {
     UA_UInt32 timeDiffSince2000 = (UA_UInt32)(now - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
+}
+
+UA_StatusCode
+UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
+                                 UA_MessageSecurityMode securityMode) {
+    if(securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
+
+    if(!policy || !policy->newGroupContext || !policy->deleteGroupContext ||
+       !policy->verify || !policy->sign || !policy->getSignatureSize ||
+       !policy->getSignatureKeyLength || !policy->getEncryptionKeyLength ||
+       !policy->setSecurityKeys ||
+       !policy->generateNonce || !policy->clear ||
+       policy->keyMaterialLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    if(securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        size_t nonceLength = policy->messageNonceLength;
+        if(!policy->encrypt || !policy->decrypt || !policy->setMessageNonce ||
+           nonceLength < sizeof(UA_UInt32) ||
+           nonceLength > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Generate a new unique NodeId. This NodeId will be used for the information
@@ -749,6 +802,28 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     }
 }
 
+UA_PubSubState
+UA_PubSubManager_getPubSubState(const UA_PubSubManager *psm) {
+    if(psm->drv.state == UA_LIFECYCLESTATE_STOPPED)
+        return UA_PUBSUBSTATE_DISABLED;
+    if(psm->drv.state != UA_LIFECYCLESTATE_STARTED)
+        return UA_PUBSUBSTATE_PAUSED;
+
+    UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &psm->connections, listEntry) {
+        UA_PubSubState childState = connection->head.state;
+        if(childState == UA_PUBSUBSTATE_ERROR)
+            return childState;
+        if(childState == UA_PUBSUBSTATE_PREOPERATIONAL)
+            state = childState;
+        else if(childState == UA_PUBSUBSTATE_PAUSED &&
+                state == UA_PUBSUBSTATE_OPERATIONAL)
+            state = childState;
+    }
+    return state;
+}
+
 static UA_StatusCode
 UA_PubSubManager_start(UA_Driver *drv) {
     /* Check that the server backpointer is set */
@@ -824,6 +899,8 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     LIST_FOREACH_SAFE(ks, &psm->pubSubKeyList, keyStorageList, ksTmp) {
         UA_PubSubKeyStorage_delete(psm, ks);
     }
+    if(!LIST_EMPTY(&psm->pubSubKeyList))
+        return UA_STATUSCODE_BADWOULDBLOCK;
 #endif
 
     return UA_STATUSCODE_GOOD;

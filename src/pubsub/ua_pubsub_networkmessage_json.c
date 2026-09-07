@@ -406,8 +406,7 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
     pd.nm = nm;
     pd.dsmIndex = dsmIndex;
 
-    /* JSON uses UInt32 SequenceNumber and StatusCode. The public fields are
-     * UInt16, so reject values that cannot be represented. */
+    /* JSON uses UInt32 SequenceNumber and StatusCode. */
     UA_UInt32 sequenceNumber = 0;
     UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
     DecodeEntry entries[7] = {
@@ -433,11 +432,9 @@ DatasetMessage_Payload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, UA_NetworkMe
     /* Error or no DatasetWriterId found or no payload found */
     if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[6].found)
         return UA_STATUSCODE_BADDECODINGERROR;
-    if(sequenceNumber > UA_UINT16_MAX || statusCode > UA_UINT16_MAX)
-        return UA_STATUSCODE_BADDECODINGERROR;
 
-    dsm->header.dataSetMessageSequenceNr = (UA_UInt16)sequenceNumber;
-    dsm->header.status = (UA_UInt16)statusCode;
+    dsm->header.dataSetMessageSequenceNr = sequenceNumber;
+    dsm->header.status = statusCode;
 
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
     dsm->header.dataSetMessageSequenceNrEnabled = entries[1].found;
