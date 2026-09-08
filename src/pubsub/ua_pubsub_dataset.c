@@ -13,7 +13,6 @@
 
 #include <open62541/server_pubsub.h>
 #include "ua_pubsub_internal.h"
-#include <stdio.h>
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -987,8 +986,8 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
     UA_PublishedDataSetConfig stagedConfig = *config;
     char name[64];
     UA_Guid guid = UA_Guid_random();
-    int nameLength = snprintf(name, sizeof(name), "update-" UA_PRINTF_GUID_FORMAT,
-                              UA_PRINTF_GUID_DATA(guid));
+    int nameLength = mp_snprintf(name, sizeof(name), "update-" UA_PRINTF_GUID_FORMAT,
+                                 UA_PRINTF_GUID_DATA(guid));
     if(nameLength < 0 || (size_t)nameLength >= sizeof(name)) {
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto done;
