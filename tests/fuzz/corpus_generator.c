@@ -414,15 +414,20 @@ subscriptionRequests(UA_Client *client) {
     monId = monResponse.monitoredItemId;
 
     // publishRequest
+    // Both helpers are internal and require the client lock to be held.
     UA_PublishRequest publishRequest;
     UA_PublishRequest_init(&publishRequest);
-    ASSERT_GOOD(UA_Client_preparePublishRequest(client, &publishRequest));
-    __UA_Client_AsyncService(client, &publishRequest,
-                             &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
-                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
-    // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
-    // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
+    lockClient(client);
+    UA_StatusCode publishRetval = __Client_preparePublishRequest(client, &publishRequest);
+    if(publishRetval == UA_STATUSCODE_GOOD)
+        __Client_AsyncService(client, &publishRequest,
+                              &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
+                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
+    unlockClient(client);
+    // here we don't care about the async return value since it may be
+    // UA_STATUSCODE_BADMESSAGENOTAVAILABLE
     UA_PublishRequest_clear(&publishRequest);
+    ASSERT_GOOD(publishRetval);
 
     // republishRequest
     UA_RepublishRequest republishRequest;
