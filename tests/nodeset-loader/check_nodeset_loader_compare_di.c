@@ -11,6 +11,10 @@
 #include "testing_clock.h"
 #include "test_helpers.h"
 
+#ifndef UA_TYPES_NODESETLOADER_DI_IS_CONST
+#error "DI types must be const to check compatibility with the runtime loader"
+#endif
+
 UA_Server *server = NULL;
 
 static void setup(void) {
@@ -40,6 +44,10 @@ START_TEST(Server_compareDiNodeset) {
         const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
 
         ck_assert(loadedType != NULL);
+        ck_assert(UA_NodeId_equal(&compiledType->binaryEncodingId,
+                                  &loadedType->binaryEncodingId));
+        ck_assert(UA_NodeId_equal(&compiledType->xmlEncodingId,
+                                  &loadedType->xmlEncodingId));
         ck_assert_uint_eq(compiledType->typeKind, loadedType->typeKind);
         ck_assert_uint_eq(compiledType->membersSize, loadedType->membersSize);
         ck_assert_uint_eq(compiledType->memSize, loadedType->memSize);
@@ -62,11 +70,43 @@ START_TEST(Server_compareDiNodeset) {
 }
 END_TEST
 
+START_TEST(Server_loadWithConstTypes) {
+    UA_StatusCode retVal = namespace_nodesetloader_di_generated(server);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* The loader must reuse the registered const definitions and still be
+     * able to add owned, mutable definitions alongside them. */
+    retVal = loadNodesetFile(server,
+        OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = loadNodesetFile(server,
+        OPEN62541_TESTNODESET_DIR "datatype_edge_cases.xml", NULL);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+
+    for(size_t i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; i++) {
+        const UA_DataType *type = &UA_TYPES_NODESETLOADER_DI[i];
+        ck_assert_ptr_eq(UA_Server_findDataType(server, &type->typeId), type);
+    }
+
+    size_t nsIndex = 0;
+    retVal = UA_Server_getNamespaceByName(server,
+        UA_STRING("http://open62541.org/test/datatype-edge-cases/"), &nsIndex);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_NodeId recursiveId = UA_NODEID_NUMERIC((UA_UInt16)nsIndex, 9001);
+    const UA_DataType *recursive = UA_Server_findDataType(server, &recursiveId);
+    ck_assert_ptr_nonnull(recursive);
+    ck_assert_uint_eq(recursive->membersSize, 1);
+    ck_assert(recursive->members[0].isArray);
+    ck_assert_ptr_eq(recursive->members[0].memberType, recursive);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Loader");
     TCase *tc_server = tcase_create("Compare DI Nodeset");
-    tcase_add_unchecked_fixture(tc_server, setup, teardown);
+    tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_compareDiNodeset);
+    tcase_add_test(tc_server, Server_loadWithConstTypes);
     suite_add_tcase(s, tc_server);
     return s;
 }
