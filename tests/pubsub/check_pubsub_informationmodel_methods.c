@@ -2256,6 +2256,25 @@ START_TEST(PublishedItemsTemplatePreservesContract) {
     config.name = UA_STRING("RenameNotSupported");
     ck_assert_uint_eq(UA_Server_updatePublishedDataSetConfig(server, id, &config), UA_STATUSCODE_BADINVALIDARGUMENT);
     config.name = UA_STRING("Template");
+    /* Empty replacements, including empty-to-empty, retain a valid contract. */
+    metadata->fieldsSize = 0;
+    metadata->fields = NULL;
+    config.config.itemsTemplate.variablesToAddSize = 0;
+    config.config.itemsTemplate.variablesToAdd = NULL;
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(UA_Server_updatePublishedDataSetConfig(server, id, &config), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_getPublishedDataSetMetaData(server, id, &actual), UA_STATUSCODE_GOOD);
+        ck_assert(UA_equal(&actual, metadata, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+        UA_DataSetMetaDataType_clear(&actual);
+    }
+    metadata->fieldsSize = 1;
+    metadata->fields = &field;
+    config.config.itemsTemplate.variablesToAddSize = 1;
+    config.config.itemsTemplate.variablesToAdd = &variable;
+    ck_assert_uint_eq(UA_Server_updatePublishedDataSetConfig(server, id, &config), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getPublishedDataSetMetaData(server, id, &actual), UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&actual, metadata, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    UA_DataSetMetaDataType_clear(&actual);
     ck_assert_uint_eq(UA_Server_removePublishedDataSet(server, id), UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&id);
     /* Reject a wrong contract and release the name so a corrected retry works. */
