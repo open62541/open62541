@@ -1001,7 +1001,7 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
     UA_PublishedDataSet *staged = UA_PublishedDataSet_find(psm, stagedId);
     size_t count = (size_t)current->fieldSize + staged->fieldSize;
     UA_NodeId *parents = (UA_NodeId*)UA_Array_new(count, &UA_TYPES[UA_TYPES_NODEID]);
-    if(!parents && count) { res = UA_STATUSCODE_BADOUTOFMEMORY; goto cleanup; }
+    if(!parents) { res = UA_STATUSCODE_BADOUTOFMEMORY; goto cleanup; }
     for(size_t i = 0; i < count; i++) {
         res = UA_NodeId_copy(i < current->fieldSize ? &stagedId : &id, &parents[i]);
         if(res != UA_STATUSCODE_GOOD) {
@@ -1029,7 +1029,8 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
         TAILQ_REMOVE(&temporary.fields, field, listEntry);
         TAILQ_INSERT_TAIL(&staged->fields, field, listEntry);
     }
-    UA_free(parents); /* NodeId ownership moved into the fields. */
+    /* NodeId ownership moved into the fields. Also handle the empty-array sentinel. */
+    UA_Array_delete(parents, 0, &UA_TYPES[UA_TYPES_NODEID]);
 #define SWAP_DATASET_MEMBER(member, type) do { \
     type tmp = current->member; current->member = staged->member; staged->member = tmp; \
 } while(0)
