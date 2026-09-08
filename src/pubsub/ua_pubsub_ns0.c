@@ -377,6 +377,12 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         if(!sds)
             return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
+        case UA_NS0ID_TARGETVARIABLESTYPE_TARGETVARIABLES:
+            value->hasValue = true;
+            return UA_Variant_setArrayCopy(&value->value,
+                sds->config.subscribedDataSet.target.targetVariables,
+                sds->config.subscribedDataSet.target.targetVariablesSize,
+                &UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE]);
         case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
             UA_Boolean isConnected = (sds->connectedReader != NULL);
             value->hasValue = true;
@@ -469,7 +475,8 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     UA_NetworkAddressUrlDataType networkAddressUrl;
     memset(&networkAddressUrl, 0, sizeof(networkAddressUrl));
     UA_ExtensionObject *eo = &pubsubConnection->address;
-    if(eo->encoding == UA_EXTENSIONOBJECT_DECODED &&
+    if((eo->encoding == UA_EXTENSIONOBJECT_DECODED ||
+        eo->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
        eo->content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
         void *data = eo->content.decoded.data;
         retVal =
@@ -525,7 +532,8 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
     UA_ExtensionObject *eoWG = &writerGroup->messageSettings;
     UA_UadpWriterGroupMessageDataType uadpWriterGroupMessage;
     UA_JsonWriterGroupMessageDataType jsonWriterGroupMessage;
-    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
+    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED ||
+       eoWG->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
         if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
             writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
@@ -734,6 +742,17 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
 
     /* Add variable for the fields. */
     for(size_t i = 0; i < targetVars->targetVariablesSize; i++) {
+        /* Existing FE inputs are mappings, not requests to create new nodes.
+         * Re-adding them overwrites the target NodeId output on failure. */
+        const UA_Node *existing = UA_NODESTORE_GET(
+            server, &targetVars->targetVariables[i].targetNodeId);
+        if(existing) {
+            UA_Boolean isVariable = existing->head.nodeClass == UA_NODECLASS_VARIABLE;
+            UA_NODESTORE_RELEASE(server, existing);
+            if(!isVariable)
+                return UA_STATUSCODE_BADNODECLASSINVALID;
+            continue;
+        }
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = pMetaData->fields[i].description;
         vAttr.displayName.locale = UA_STRING("");
@@ -809,6 +828,23 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
         return retVal;
     }
 
+    UA_ExtensionObject *subscribed = &dataSetReader->subscribedDataSet;
+    UA_Boolean standalone =
+        (subscribed->encoding == UA_EXTENSIONOBJECT_DECODED ||
+         subscribed->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+        subscribed->content.decoded.type ==
+            &UA_TYPES[UA_TYPES_STANDALONESUBSCRIBEDDATASETREFDATATYPE];
+    if(standalone) {
+        UA_StandaloneSubscribedDataSetRefDataType *ref =
+            (UA_StandaloneSubscribedDataSetRefDataType*)subscribed->content.decoded.data;
+        retVal = UA_String_copy(&ref->dataSetName,
+                                &readerConfig.linkedStandaloneSubscribedDataSetName);
+        if(retVal != UA_STATUSCODE_GOOD || UA_String_isEmpty(&ref->dataSetName)) {
+            UA_DataSetReaderConfig_clear(&readerConfig);
+            return retVal != UA_STATUSCODE_GOOD ? retVal : UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+
     retVal |= UA_DataSetReader_create(psm, readerGroupId,
                                       &readerConfig, dataSetReaderId);
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
@@ -817,7 +853,8 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
         return retVal;
     }
 
-    retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReader, pMetaData);
+    if(!standalone)
+        retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReader, pMetaData);
     UA_DataSetReaderConfig_clear(&readerConfig);
     return retVal;
 }
@@ -1690,8 +1727,7 @@ addSubscribedDataSetRepresentation(UA_Server *server,
         attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         attr.arrayDimensionsSize = 1;
         UA_UInt32 arrayDimensions[1];
-        arrayDimensions[0] = (UA_UInt32)
-            subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize;
+        arrayDimensions[0] = 0; /* Target count may change through settings updates. */
         attr.arrayDimensions = arrayDimensions;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ;
         UA_Variant_setArray(&attr.value,
@@ -1702,6 +1738,15 @@ addSubscribedDataSetRepresentation(UA_Server *server,
                        UA_NS0ID(HASPROPERTY), UA_QUALIFIEDNAME(0, "TargetVariables"),
                        UA_NS0ID(PROPERTYTYPE), &attr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
                        NULL, &targetVarsId);
+        UA_NodePropertyContext *context = (UA_NodePropertyContext*)UA_malloc(sizeof(UA_NodePropertyContext));
+        if(!context)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        context->parentNodeId = subscribedDataSet->head.identifier;
+        context->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
+        context->elementClassiefier = UA_NS0ID_TARGETVARIABLESTYPE_TARGETVARIABLES;
+        UA_CallbackValueSource source = {0};
+        source.read = ReadCallback;
+        ret |= setVariableValueSource(server, source, targetVarsId, context);
     }
 
     UA_NodePropertyContext *isConnectedNodeContext = (UA_NodePropertyContext *)

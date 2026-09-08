@@ -2161,9 +2161,160 @@ START_TEST(TestEnableDisableTopLevelPublishSubscribe){
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(FailedConnectionCreationRemovesEarlierGroups) {
+    UA_PubSubConnectionDataType connection = {0};
+    connection.name = UA_STRING("AtomicConnection");
+    UA_UInt16 publisher = 123;
+    UA_Variant_setScalar(&connection.publisherId, &publisher, &UA_TYPES[UA_TYPES_UINT16]);
+    connection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType address = UA_PUBSUB_TEST_NETWORKADDRESSURL("opc.udp://127.0.0.1:4841/");
+    UA_ExtensionObject_setValueNoDelete(&connection.address, &address,
+                                       &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_WriterGroupDataType groups[2] = {{0}};
+    UA_UadpWriterGroupMessageDataType settings = {0};
+    for(size_t i = 0; i < 2; i++) {
+        groups[i].name = i == 0 ? UA_STRING("First") : UA_STRING("Rejected");
+        groups[i].writerGroupId = (UA_UInt16)(100 + i);
+        groups[i].publishingInterval = 50;
+        UA_ExtensionObject_setValueNoDelete(&groups[i].messageSettings, &settings,
+                                           &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    }
+    UA_DataSetWriterDataType writer = {0};
+    writer.name = UA_STRING("MissingDatasetWriter");
+    writer.dataSetName = UA_STRING("MissingDataset");
+    groups[1].dataSetWritersSize = 1;
+    groups[1].dataSetWriters = &writer;
+    connection.writerGroupsSize = 2;
+    connection.writerGroups = groups;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &connection, &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]);
+    UA_CallMethodRequest request = {0};
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADPARENTNODEIDINVALID);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId connectionId = findSingleChildNode(UA_QUALIFIEDNAME(0, "AtomicConnection"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPUBSUBCONNECTION), request.objectId);
+    ck_assert(UA_NodeId_isNull(&connectionId));
+    UA_NodeId_clear(&connectionId);
+} END_TEST
+
+START_TEST(PublishedItemsTemplatePreservesContract) {
+    UA_PublishedVariableDataType variable = {0};
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Double initial = 1.0;
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
+    attr.valueRank = UA_VALUERANK_SCALAR;
+    UA_Variant_setScalar(&attr.value, &initial, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 9001),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "Source"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+    variable.publishedVariable = UA_NODEID_NUMERIC(1, 9001);
+    variable.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_FieldMetaData field = {0};
+    field.name = UA_STRING("Clock");
+    field.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
+    field.builtInType = 11;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    field.dataSetFieldId = UA_Guid_random();
+    UA_PublishedDataSetConfig config = {0};
+    config.name = UA_STRING("Template");
+    config.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE;
+    config.config.itemsTemplate.variablesToAddSize = 1;
+    config.config.itemsTemplate.variablesToAdd = &variable;
+    UA_DataSetMetaDataType *metadata = &config.config.itemsTemplate.metaData;
+    metadata->name = config.name;
+    metadata->fieldsSize = 1;
+    metadata->fields = &field;
+    metadata->dataSetClassId = UA_Guid_random();
+    metadata->configurationVersion.majorVersion = 123;
+    metadata->configurationVersion.minorVersion = 456;
+    UA_NodeId id = UA_NODEID_NULL;
+    UA_AddPublishedDataSetResult result = UA_Server_addPublishedDataSet(server, &config, &id);
+    ck_assert_uint_eq(result.addResult, UA_STATUSCODE_GOOD);
+    UA_DataSetMetaDataType actual = {0};
+    ck_assert_uint_eq(UA_Server_getPublishedDataSetMetaData(server, id, &actual), UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&actual, metadata, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    UA_DataSetMetaDataType_clear(&actual);
+    metadata->configurationVersion.majorVersion = 789;
+    ck_assert_uint_eq(UA_Server_updatePublishedDataSetConfig(server, id, &config), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getPublishedDataSetMetaData(server, id, &actual), UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&actual, metadata, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    UA_DataSetMetaDataType_clear(&actual);
+    /* A rejected replacement leaves the old dataset and its contract intact. */
+    field.builtInType = 13;
+    ck_assert_uint_eq(UA_Server_updatePublishedDataSetConfig(server, id, &config), UA_STATUSCODE_BADTYPEMISMATCH);
+    field.builtInType = 11;
+    ck_assert_uint_eq(UA_Server_getPublishedDataSetMetaData(server, id, &actual), UA_STATUSCODE_GOOD);
+    ck_assert(UA_equal(&actual, metadata, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    UA_DataSetMetaDataType_clear(&actual);
+    config.name = UA_STRING("RenameNotSupported");
+    ck_assert_uint_eq(UA_Server_updatePublishedDataSetConfig(server, id, &config), UA_STATUSCODE_BADINVALIDARGUMENT);
+    config.name = UA_STRING("Template");
+    ck_assert_uint_eq(UA_Server_removePublishedDataSet(server, id), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&id);
+    /* Reject a wrong contract and release the name so a corrected retry works. */
+    field.builtInType = 13;
+    result = UA_Server_addPublishedDataSet(server, &config, &id);
+    ck_assert_uint_eq(result.addResult, UA_STATUSCODE_BADTYPEMISMATCH);
+    field.builtInType = 11;
+    result = UA_Server_addPublishedDataSet(server, &config, &id);
+    ck_assert_uint_eq(result.addResult, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&id);
+} END_TEST
+
+START_TEST(SubscribedDataSetUpdateRefreshesTargetVariables) {
+    UA_FieldMetaData field = {0};
+    field.name = UA_STRING("Time");
+    field.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    field.builtInType = 13;
+    field.valueRank = -1;
+    UA_FieldTargetDataType target = {0};
+    target.targetNodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
+    target.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_SubscribedDataSetConfig config = {0};
+    config.name = UA_STRING("Incoming");
+    config.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    config.dataSetMetaData.fields = &field;
+    config.dataSetMetaData.fieldsSize = 1;
+    config.subscribedDataSet.target.targetVariables = &target;
+    config.subscribedDataSet.target.targetVariablesSize = 1;
+    UA_NodeId dataset;
+    ck_assert_uint_eq(UA_Server_addSubscribedDataSet(server, &config, &dataset), UA_STATUSCODE_GOOD);
+    UA_SubscribedDataSetConfig snapshot;
+    memset(&snapshot, 0, sizeof(snapshot));
+    ck_assert_uint_eq(UA_Server_getSubscribedDataSetConfig(server, dataset, &snapshot), UA_STATUSCODE_GOOD);
+    UA_String_clear(&snapshot.name);
+    snapshot.name = UA_STRING_ALLOC("RenameNotSupported");
+    ck_assert_uint_eq(UA_Server_updateSubscribedDataSetConfig(server, dataset, &snapshot), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_SubscribedDataSetConfig_clear(&snapshot);
+    target.targetNodeId = UA_NS0ID(SERVER_SERVERSTATUS_STARTTIME);
+    ck_assert_uint_eq(UA_Server_updateSubscribedDataSetConfig(server, dataset, &config), UA_STATUSCODE_GOOD);
+    UA_NodeId object = findSingleChildNode(UA_QUALIFIEDNAME(0, "SubscribedDataSet"), UA_NS0ID(HASCOMPONENT), dataset);
+    UA_NodeId variable = findSingleChildNode(UA_QUALIFIEDNAME(0, "TargetVariables"), UA_NS0ID(HASPROPERTY), object);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server, variable, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE]));
+    ck_assert(UA_NodeId_equal(&((UA_FieldTargetDataType*)value.data)[0].targetNodeId, &target.targetNodeId));
+    UA_Variant_clear(&value);
+    config.subscribedDataSet.target.targetVariablesSize = 0;
+    ck_assert_uint_eq(UA_Server_updateSubscribedDataSetConfig(server, dataset, &config), UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_NodeId_clear(&dataset);
+    UA_NodeId_clear(&object);
+    UA_NodeId_clear(&variable);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, FailedConnectionCreationRemovesEarlierGroups);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, PublishedItemsTemplatePreservesContract);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, SubscribedDataSetUpdateRefreshesTargetVariables);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionUsingTheInformationModelMethod);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRollsBackOnChildFailure);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRejectsInvalidPublisherIdWithoutSideEffects);
