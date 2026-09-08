@@ -2170,7 +2170,8 @@ START_TEST(FailedConnectionCreationRemovesEarlierGroups) {
     UA_NetworkAddressUrlDataType address = UA_PUBSUB_TEST_NETWORKADDRESSURL("opc.udp://127.0.0.1:4841/");
     UA_ExtensionObject_setValueNoDelete(&connection.address, &address,
                                        &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    UA_WriterGroupDataType groups[2] = {{0}};
+    UA_WriterGroupDataType groups[2];
+    memset(groups, 0, sizeof(groups));
     UA_UadpWriterGroupMessageDataType settings = {0};
     for(size_t i = 0; i < 2; i++) {
         groups[i].name = i == 0 ? UA_STRING("First") : UA_STRING("Rejected");
