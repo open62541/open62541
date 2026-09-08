@@ -235,6 +235,10 @@ class CGenerator:
         byIndex = {}
         for ns in sorted(self.namespaceMap):
             idx = self.namespaceMap[ns]
+            if not 0 <= idx <= 65535:
+                raise RuntimeError(
+                    "--namespaceMap index {} for {} is outside the UInt16 "
+                    "range (0..65535).".format(idx, ns))
             if idx in byIndex:
                 raise RuntimeError(
                     "--namespaceMap pins index {} to more than one namespace:\n"
@@ -688,14 +692,24 @@ _UA_BEGIN_DECLS
                 self.printh("""
 /* All namespace indices in the type array are fixed at generation time
  * (--namespaceMap). The array is const and can reside in read-only memory.
- * The server must assign exactly the baked namespace indices at runtime,
- * i.e. the nodesets must be loaded in the generation order. */""")
+ * The server must assign exactly the baked indices to these namespace URIs
+ * at runtime. The nodeset initializer verifies the URI/index pairs below. */""")
                 self.printh("#define UA_" + outUpper + "_IS_CONST 1")
+                # Preserve the URI/index association for nodeset initialization.
+                # Array order and the nodeset output filename do not identify
+                # which namespace a type belongs to.
+                entries = [
+                    '{{{}, UA_STRING_STATIC("{}")}}'.format(
+                        self.namespaceMap[ns], makeCLiteral(ns))
+                    for ns in self._contributing_namespaces()]
+                self.printh("#define UA_" + outUpper + "_NAMESPACE_MAP {" +
+                            ", ".join(entries) + "}")
             self.printh(
                 "extern " + self.export_macro + " " + const_q + "UA_DataType UA_" + outUpper + "[UA_" + outUpper + "_COUNT];")
 
+            typeIndex = 0
             for ns in self.filtered_types:
-                for i, t_name in enumerate(self.filtered_types[ns]):
+                for t_name in self.filtered_types[ns]:
                     t = self.filtered_types[ns][t_name]
                     is_cross_ns_dup = t_name in self.cross_ns_duplicate_types
                     if t.description == "":
@@ -709,7 +723,8 @@ _UA_BEGIN_DECLS
                     if not is_cross_ns_dup:
                         if not isinstance(t, BuiltinType):
                             self.printh(self.print_datatype_typedef(t) + "\n")
-                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(typeIndex))
+                    typeIndex += 1
                     self.printh("")
                     if not is_cross_ns_dup:
                         self.printh(self.print_functions(t))

@@ -49,12 +49,12 @@ read-only memory. Pass the new `NAMESPACE_MAP` argument to the CMake
 generation macros (`--namespaceMap` to generate_datatypes.py) to pin the
 namespace indices at generation time, e.g.
 `NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"`. The generated init
-code then verifies at runtime that the server assigned exactly the
-pinned indices (i.e. the nodesets are loaded in the generation order)
-and fails with `UA_STATUSCODE_BADINTERNALERROR` otherwise. The check
-covers the nodeset's own type array; arrays of dependency nodesets are
-verified by their own generated init functions, which must be called in
-dependency order (as already required for the nodes). Without pinning,
+code then verifies each contributing namespace URI against its pinned
+index and fails with `UA_STATUSCODE_BADINTERNALERROR` otherwise, before
+registering any type arrays or adding nodes. This checks all supplied
+const arrays, including dependency arrays and arrays spanning multiple
+namespaces, independently of the generated nodeset's filename. Dependency
+nodesets must still be initialized before their dependent nodes. Without pinning,
 the generated array remains mutable and its namespace indices continue
 to be adjusted in-place when the nodeset is loaded (unchanged behavior;
 the `xmlEncodingId` is now adjusted as well, and null encoding NodeIds
@@ -65,8 +65,8 @@ array must be pinned, otherwise the load-time rewrite would overwrite the
 pinned indices again. Namespaces that are only imported (they contribute
 no type to this array) do not need to be pinned. An incomplete
 `NAMESPACE_MAP`, a namespace URI that matches no namespace of the type
-array, or one index pinned to two namespaces is reported as an error at
-generation time instead of silently producing a mutable array.
+array, one index pinned to two namespaces, or an index outside the UInt16
+range is reported as an error at generation time.
 
 For a pinned namespace the pinned index takes precedence over an
 explicit `ns=` prefix in the NodeId strings of the type definition files.

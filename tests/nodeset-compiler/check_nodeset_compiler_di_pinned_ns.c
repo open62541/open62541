@@ -60,7 +60,7 @@ END_TEST
 /* Adding an unrelated namespace first shifts DI to index 3, so the indices
  * baked into the const array no longer match the server. The generated init
  * code must refuse the nodeset instead of registering unusable typeIds. This
- * logs the expected "does not match" error. */
+ * logs the expected pinned-index error. */
 START_TEST(Server_pinnedNamespaceMismatch) {
     UA_UInt16 otherNs = UA_Server_addNamespace(server, "urn:open62541.tests:not-di");
     ck_assert_uint_eq(otherNs, DI_PINNED_NS_INDEX);

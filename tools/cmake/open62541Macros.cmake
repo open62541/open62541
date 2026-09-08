@@ -571,9 +571,9 @@ endfunction()
 #   [NAMESPACE_MAP] Optional list of "<idx>:<namespace uri>" entries that bake
 #                   fixed namespace indices into the generated type array. The
 #                   array is then const and can reside in read-only memory. The
-#                   server must assign exactly these indices at runtime (i.e.
-#                   the nodesets must be loaded in the generation order); this
-#                   is verified by the generated init code.
+#                   server must assign exactly these indices to the namespace
+#                   URIs at runtime; the generated init code verifies this for
+#                   all supplied const arrays before registering any of them.
 #                   Every namespace that contributes a type must be pinned;
 #                   purely imported namespaces (e.g. the types of a dependency
 #                   nodeset) need not be. An incomplete or inconsistent map is

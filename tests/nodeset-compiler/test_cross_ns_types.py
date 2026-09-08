@@ -152,6 +152,14 @@ def main():
         expect_fail("duplicate pinned index rejected", r,
                     "more than one namespace")
 
+        # Namespace indices must fit into UA_NodeId.namespaceIndex. Otherwise
+        # the generated initializer can truncate the promised pinned index.
+        for index in (-1, 65536):
+            r = run_generator(tmpdir, "ns_out_of_range", [SAME_BSD], SAME_CSV,
+                              extra_args=[f"--namespaceMap={index}:{SAME_NS}"])
+            expect_fail(f"out-of-range namespace index {index} rejected", r,
+                        "outside the UInt16 range")
+
         # --- Test 7: namespace 0 pinned somewhere other than index 0 ---
         r = run_generator(tmpdir, "ns_zero", [SAME_BSD], SAME_CSV,
                           extra_args=["--namespaceMap=5:http://opcfoundation.org/UA/"])

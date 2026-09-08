@@ -653,13 +653,38 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     writec("nsMapping.remote2local = nsMappingTable;")
     writec(f"nsMapping.remote2localSize = {len(mapping)};")
 
-    # Change namespaceIndex from the current namespace, but only if the
-    # nodeset defines its own data types and the array is mutable. For const
-    # arrays (namespace indices pinned at generation time via --namespaceMap)
-    # verify instead that the runtime namespace order matches the pinning.
+    # Validate every const array before registering any types. The datatype
+    # generator supplies the URI/index pairs, including arrays spanning multiple
+    # namespaces and arrays whose names differ from this nodeset's output name.
+    for arr in typesArray:
+        if arr == "UA_TYPES":
+            continue
+        writec("#ifdef " + arr + "_IS_CONST")
+        writec("{")
+        writec("    static const struct {")
+        writec("        UA_UInt16 index;")
+        writec("        UA_String uri;")
+        writec("    } namespaces[] = " + arr + "_NAMESPACE_MAP;")
+        writec("    for(size_t i = 0; i < sizeof(namespaces) / sizeof(namespaces[0]); i++) {")
+        writec("        size_t runtimeIndex = 0;")
+        writec("        UA_StatusCode res = UA_Server_getNamespaceByName(")
+        writec("            server, namespaces[i].uri, &runtimeIndex);")
+        writec("        if(res != UA_STATUSCODE_GOOD || runtimeIndex != namespaces[i].index) {")
+        writec("            UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,")
+        writec('                 "Namespace %.*s does not have the pinned index %u required by "')
+        writec('                 "the const DataType array ' + arr + '. Load the namespaces at "')
+        writec('                 "their pinned indices or regenerate without NAMESPACE_MAP.",')
+        writec("                 (int)namespaces[i].uri.length, (char*)namespaces[i].uri.data,")
+        writec("                 (unsigned)namespaces[i].index);")
+        writec("            return UA_STATUSCODE_BADINTERNALERROR;")
+        writec("        }")
+        writec("    }")
+        writec("}")
+        writec("#endif /* " + arr + "_IS_CONST */")
+
+    # Preserve the existing namespace rewrite for the nodeset's mutable array.
     if len(typesArray) > 0:
         typeArr = typesArray[-1]
-        # Build the name of the TypeArray to compare if the current nodeset defines data types.
         currentTypeArr = '_'.join(outfilebase.upper().split('_')[1:-1])
         if typeArr != "UA_TYPES" and typeArr != "ns0" and typeArr == "UA_TYPES_"+currentTypeArr:
             nsIdx = "ns[" + str(len(nodeset.namespaces)-1) + "]"
@@ -672,21 +697,6 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
             writec("    " + typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = " + nsIdx + ";")
             writec("if(!UA_NodeId_isNull(&" + typeArr + "[i]" + ".xmlEncodingId))")
             writec("    " + typeArr + "[i]" + ".xmlEncodingId.namespaceIndex = " + nsIdx + ";")
-            writec("}")
-            writec("#endif")
-            writec("#else")
-            writec("/* Namespace indices are baked into the const type array. Verify that")
-            writec(" * the runtime namespace order matches the generation-time pinning. */")
-            writec("#if " + typeArr + "_COUNT" + " > 0")
-            writec("if(" + nsIdx + " != " + typeArr + "[0].typeId.namespaceIndex) {")
-            writec("    UA_LOG_ERROR(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_SERVER,")
-            writec("                 \"The runtime namespace index (%u) does not match the index \"")
-            writec("                 \"baked into the const DataType array " + typeArr + " (%u). \"")
-            writec("                 \"Load the nodesets in the generation order or regenerate \"")
-            writec("                 \"without NAMESPACE_MAP.\",")
-            writec("                 (unsigned)" + nsIdx + ",")
-            writec("                 (unsigned)" + typeArr + "[0].typeId.namespaceIndex);")
-            writec("    return UA_STATUSCODE_BADINTERNALERROR;")
             writec("}")
             writec("#endif")
             writec("#endif /* " + typeArr + "_IS_CONST */")
