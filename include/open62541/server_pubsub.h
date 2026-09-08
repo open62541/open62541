@@ -477,7 +477,7 @@ UA_Server_addPublishedDataSet(UA_Server *server,
                               const UA_PublishedDataSetConfig *pdsConfig,
                               UA_NodeId *pdsId);
 
-/* Returns a deep copy of the config */
+/* Return an owned copy; release it with UA_PublishedDataSetConfig_clear. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pdsId,
                                     UA_PublishedDataSetConfig *config);
@@ -931,6 +931,21 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
                                        const UA_ByteString keyNonce);
+
+/* Return an owned copy; release it with UA_SubscribedDataSetConfig_clear. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                    UA_SubscribedDataSetConfig *config);
+
+/* Update the settings of a disabled dataset in place. Name and NodeId are
+ * immutable. Disable attached writers/readers before updating and restore
+ * their states afterwards. Plain PublishedItems fields are retained. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                      const UA_PublishedDataSetConfig *config);
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                       const UA_SubscribedDataSetConfig *config);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 

@@ -806,7 +806,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
 
     /* JSON does not differ between deltaframes and keyframes, only keyframes
      * are currently used. */
-    if(dsm && psm->drv.server->config.pubSubConfig.enableDeltaFrames) {
+    if(dsm && psm->drv.server->config.pubSubConfig.enableDeltaFrames &&
+       dataSetMessage->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
         if(dsw->lastSamplesCount != pds->fieldSize ||
