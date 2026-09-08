@@ -2454,6 +2454,14 @@ subscribedDataSetTypeDestructor(UA_Server *server,
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
     freeNodeContext(server, &node);
+    UA_NodeId subscribedDataSetNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                            UA_NS0ID(HASCOMPONENT), *nodeId);
+    if(!UA_NodeId_isNull(&subscribedDataSetNode)) {
+        node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TargetVariables"),
+                                   UA_NS0ID(HASPROPERTY), subscribedDataSetNode);
+        freeNodeContext(server, &node);
+    }
 }
 
 /*************************************/
