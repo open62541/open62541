@@ -996,7 +996,7 @@ START_TEST(UA_String_escapesimple_xml_encode) {
     status s = UA_encodeXml(&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<String>\b\th\"e\fl\nl\\o\r</String>";
+    char *result = "<String>\b\th&quot;e\fl\nl\\o\r</String>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1022,7 +1022,7 @@ START_TEST(UA_String_escapeutf_xml_encode) {
 END_TEST
 
 START_TEST(UA_String_markup_xml_encode) {
-    UA_String src = UA_STRING("a<b & c>d");
+    UA_String src = UA_STRING("a<b & c>d \"e\" 'f'");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
     size_t size = UA_calcSizeXml((void*)&src, type, NULL);
 
@@ -1032,7 +1032,7 @@ START_TEST(UA_String_markup_xml_encode) {
     status s = UA_encodeXml(&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<String>a&lt;b &amp; c&gt;d</String>";
+    char *result = "<String>a&lt;b &amp; c&gt;d &quot;e&quot; &apos;f&apos;</String>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1040,7 +1040,7 @@ START_TEST(UA_String_markup_xml_encode) {
 END_TEST
 
 START_TEST(UA_String_markup_xml_roundtrip) {
-    UA_String src = UA_STRING("a<b & c>d");
+    UA_String src = UA_STRING("a<b & c>d \"e\" 'f'");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
     size_t size = UA_calcSizeXml((void*)&src, type, NULL);
 

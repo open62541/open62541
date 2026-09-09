@@ -280,9 +280,10 @@ xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Element content cannot carry '&' and '<' as they are. '>' only has to be
- * escaped where it ends a CDATA section, escaping it everywhere is simpler and
- * decodes back the same. */
+/* Element content cannot carry '&' and '<' as they are. The other three
+ * predefined entities are only needed in attributes or where a CDATA section
+ * would end, escaping all five everywhere is simpler and decodes back the
+ * same. */
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteEscapedChars(CtxXml *ctx, const char *c, size_t len) {
     if(len == 0)
@@ -293,9 +294,11 @@ xmlEncodeWriteEscapedChars(CtxXml *ctx, const char *c, size_t len) {
         const char *entity;
         size_t entityLen;
         switch(c[i]) {
-        case '&': entity = "&amp;"; entityLen = 5; break;
-        case '<': entity = "&lt;";  entityLen = 4; break;
-        case '>': entity = "&gt;";  entityLen = 4; break;
+        case '&':  entity = "&amp;";  entityLen = 5; break;
+        case '<':  entity = "&lt;";   entityLen = 4; break;
+        case '>':  entity = "&gt;";   entityLen = 4; break;
+        case '"':  entity = "&quot;"; entityLen = 6; break;
+        case '\'': entity = "&apos;"; entityLen = 6; break;
         default: continue;
         }
         ret |= xmlEncodeWriteChars(ctx, &c[start], i - start);
