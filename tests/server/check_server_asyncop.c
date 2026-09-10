@@ -51,6 +51,23 @@ static UA_StatusCode completeCanceledReadResult;
 // Store active async reads and remove when cancelled
 static void *activeReads[16];
 
+/* Tracking for the "late result after cancellation" (zombie operation)
+ * tests. These record what happened when a worker "raced ahead" and
+ * delivered its result via UA_Server_setAsync*Result *after* the server
+ * had already cancelled/timed out the operation and sent out a response
+ * for it. */
+static UA_StatusCode lateReadResult;
+static UA_Boolean lateReadResultReceived;
+static UA_StatusCode lateWriteResult;
+static UA_Boolean lateWriteResultReceived;
+static UA_StatusCode lateCallResult;
+static UA_Boolean lateCallResultReceived;
+
+/* Last value received by clientReadCallback, to verify that the payload of
+ * an asynchronously-completed ReadRequest actually reaches the client. */
+static UA_DataValue lastReadDataValue;
+static UA_Boolean lastReadDataValueSet;
+
 static void
 asyncOperationCancelCallback(UA_Server *server, const void *out) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Request %p was canceled", out);
@@ -135,7 +152,9 @@ readCallback_closeSession(UA_Server *server, const UA_NodeId *sessionId,
 
 static void
 asyncWrite(UA_Server *server, void *data) {
-    UA_Server_setAsyncWriteResult(server, (const UA_DataValue*)data, UA_STATUSCODE_GOOD);
+    lateWriteResult =
+        UA_Server_setAsyncWriteResult(server, (const UA_DataValue*)data, UA_STATUSCODE_GOOD);
+    lateWriteResultReceived = true;
 }
 
 static UA_StatusCode
@@ -152,7 +171,63 @@ writeCallback_async(UA_Server *server, const UA_NodeId *sessionId,
 static void
 asyncCall(UA_Server *server, void *data) {
     UA_Variant *out = (UA_Variant*)data;
-    UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
+    lateCallResult = UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
+    lateCallResultReceived = true;
+}
+
+/* The "late" worker callbacks below intentionally deliver their result
+ * well after the internal checkTimeouts repeated callback (fixed 1s
+ * period) has had a chance to cancel the operation. This decouples the
+ * "late result" tests from a race against that periodic callback: the
+ * cancellation always happens on its first tick, the late result always
+ * arrives a good margin afterwards. */
+#define LATE_RESULT_DELAY (3 * UA_DATETIME_SEC)
+
+static void
+asyncReadLate(UA_Server *server, void *data) {
+    /* Deliver the read result even though the operation may already have
+     * been cancelled (e.g. via a timeout) on the server side. This
+     * simulates a worker thread that is unaware of the cancellation and
+     * races ahead with the result -- exactly the scenario that the
+     * "zombie" operation bookkeeping in ua_server_async.c has to handle
+     * without touching memory that may already have been sent/freed. */
+    UA_DataValue *out = (UA_DataValue*)data;
+    UA_UInt32 val = 123;
+    UA_Variant_setScalarCopy(&out->value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    out->hasValue = true;
+    lateReadResult = UA_Server_setAsyncReadResult(server, out);
+    lateReadResultReceived = true;
+}
+
+static UA_StatusCode
+readCallback_lateAsync(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *nodeId,
+                       void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                       const UA_NumericRange *range, UA_DataValue *value) {
+    /* Unlike readCallback_async / asyncRead, this does *not* consult
+     * activeReads[] and always delivers its result later, regardless of
+     * whether the operation was cancelled in the meantime. */
+    UA_DateTime callTime = UA_DateTime_now_fake(NULL) + LATE_RESULT_DELAY;
+    UA_Server_addTimedCallback(server, asyncReadLate, value, callTime, &lastTimedCallback);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static void
+asyncWriteLate(UA_Server *server, void *data) {
+    lateWriteResult =
+        UA_Server_setAsyncWriteResult(server, (const UA_DataValue*)data, UA_STATUSCODE_GOOD);
+    lateWriteResultReceived = true;
+}
+
+static UA_StatusCode
+writeCallback_lateAsync(UA_Server *server, const UA_NodeId *sessionId,
+                        void *sessionContext, const UA_NodeId *nodeId,
+                        void *nodeContext, const UA_NumericRange *range,
+                        const UA_DataValue *value) {
+    UA_DateTime callTime = UA_DateTime_now_fake(NULL) + LATE_RESULT_DELAY;
+    UA_Server_addTimedCallback(server, asyncWriteLate, (void*)(uintptr_t)value,
+                               callTime, &lastTimedCallback);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
 static UA_StatusCode
@@ -179,9 +254,34 @@ methodCallback_async(UA_Server *server,
 }
 
 static void
+asyncCallLate(UA_Server *server, void *data) {
+    UA_Variant *out = (UA_Variant*)data;
+    lateCallResult = UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
+    lateCallResultReceived = true;
+}
+
+static UA_StatusCode
+methodCallback_lateAsync(UA_Server *server,
+                         const UA_NodeId *sessionId, void *sessionHandle,
+                         const UA_NodeId *methodId, void *methodContext,
+                         const UA_NodeId *objectId, void *objectContext,
+                         size_t inputSize, const UA_Variant *input,
+                         size_t outputSize, UA_Variant *output) {
+    UA_DateTime callTime = UA_DateTime_now_fake(NULL) + LATE_RESULT_DELAY;
+    UA_Server_addTimedCallback(server, asyncCallLate, output, callTime, &lastTimedCallback);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static void
 clientReadCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                    UA_StatusCode status, UA_DataValue *value) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received read response");
+    if(lastReadDataValueSet)
+        UA_DataValue_clear(&lastReadDataValue);
+    UA_DataValue_init(&lastReadDataValue);
+    if(value)
+        UA_DataValue_copy(value, &lastReadDataValue);
+    lastReadDataValueSet = true;
     clientCounter++;
 }
 
@@ -211,6 +311,13 @@ static void setup(void) {
     closeAtServiceAsync = false;
     closeServiceAsyncCount = 0;
     closeServiceEndCount = 0;
+    lateReadResult = UA_STATUSCODE_GOOD;
+    lateReadResultReceived = false;
+    lateWriteResult = UA_STATUSCODE_GOOD;
+    lateWriteResultReceived = false;
+    lateCallResult = UA_STATUSCODE_GOOD;
+    lateCallResultReceived = false;
+    lastReadDataValueSet = false;
     running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -266,6 +373,31 @@ static void setup(void) {
 
     UA_Server_setVariableNode_callbackValueSource(server, UA_NODEID_STRING(1, "asyncVar"), evs);
 
+    /* Asynchronous Variable whose read/write always delivers its result
+     * later -- even if the operation was already cancelled in the
+     * meantime. Used to test the "zombie" operation bookkeeping (late
+     * results racing in after a timeout/cancel). */
+    UA_CallbackValueSource lateEvs = {readCallback_lateAsync, writeCallback_lateAsync};
+    res = UA_Server_addVariableNode(server,
+                                    UA_NODEID_STRING(1, "lateVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "lateVar"),
+                                    UA_NS0ID(BASEDATAVARIABLETYPE),
+                                    varAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_setVariableNode_callbackValueSource(server, UA_NODEID_STRING(1, "lateVar"), lateEvs);
+
+    /* Asynchronous Method that likewise always delivers its result later,
+     * regardless of prior cancellation. */
+    res = UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "lateAsyncMethod"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "lateAsyncMethod"),
+                            methodAttr, &methodCallback_lateAsync,
+                            0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
     /* Variable that closes the calling Session from its read callback */
     UA_CallbackValueSource closeSessionSource = {readCallback_closeSession, NULL};
     res = UA_Server_addVariableNode(server,
@@ -290,6 +422,10 @@ static void teardown(void) {
     }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    if(lastReadDataValueSet) {
+        UA_DataValue_clear(&lastReadDataValue);
+        lastReadDataValueSet = false;
+    }
 }
 
 START_TEST(Async_call) {
@@ -372,6 +508,17 @@ START_TEST(Async_read) {
         UA_Client_run_iterate(client, 0);
     }
     ck_assert_uint_eq(clientCounter, 2);
+
+    /* The value produced by asyncRead() must actually reach the client:
+     * the second response received here is for "asyncVar", which
+     * completes asynchronously through the READ_REQUEST path in
+     * Service_Read(). This guards against the result staying stuck in
+     * the operation's workerSlots staging area instead of being copied
+     * into the ReadResponse that is sent out. */
+    ck_assert(lastReadDataValueSet);
+    ck_assert(lastReadDataValue.hasValue);
+    ck_assert(UA_Variant_hasScalarType(&lastReadDataValue.value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)lastReadDataValue.value.data, 42);
 
     running = true;
     THREAD_CREATE(server_thread, serverloop);
@@ -798,6 +945,262 @@ START_TEST(Async_read_timeout_server) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_read_timeout_deliversBadStatusToClient) {
+    /* Regression test: a timed-out READ_REQUEST must report the cancellation
+     * status back to the client instead of silently looking like a
+     * successful empty read.
+     *
+     * Service_Read() stages the read result in
+     * aopArray[i].workerSlots.readDataValue and only copies it into the
+     * response slot (responseReadTarget) on normal completion, inside
+     * UA_Server_setAsyncReadResult(). UA_AsyncOperation_cancel() -- used for
+     * both timeouts and session-close cancellation -- sets hasStatus/status
+     * only on op->output.read, which aliases workerSlots.readDataValue, not
+     * the response slot. If that copy is skipped on cancellation, the
+     * calloc'd response entry stays all-zero (hasStatus == false), which
+     * OPC UA Part 4 defines as an implicit Good. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    clientCounter = 0;
+    retval = UA_Client_readValueAttribute_async(client,
+                                                UA_NODEID_STRING(1, "asyncVar"),
+                                                clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process the request on the server to start the async op */
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+
+    /* Remove the timed callback so the worker never delivers a result */
+    UA_Server_removeCallback(server, lastTimedCallback);
+
+    /* Wait for the async timeout (2 seconds, see setup()).
+     * Under lwip with TAP networking the response may need
+     * multiple iterations to be delivered. */
+    UA_fakeSleep(3000);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(clientCounter, 1);
+
+    /* The response must carry the BadTimeout status, not an implicit Good
+     * from an all-zero DataValue. */
+    ck_assert(lastReadDataValueSet);
+    ck_assert(lastReadDataValue.hasStatus);
+    ck_assert_uint_eq(lastReadDataValue.status, UA_STATUSCODE_BADTIMEOUT);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* --- "Zombie" operation tests ---
+ *
+ * When an async operation is cancelled (timeout, session close, explicit
+ * cancel) before the worker has delivered its result, the operation
+ * cannot simply be freed: the worker may still be racing towards calling
+ * UA_Server_setAsync{Read,Write,CallMethod}Result with a pointer into the
+ * (now formally cancelled) operation/response. If that memory had already
+ * been freed, this would be a use-after-free.
+ *
+ * Instead, such an unacknowledged operation is kept alive as a "zombie"
+ * (AsyncManager.zombieOps / zombieCount) until the worker finally
+ * acknowledges it. Only then is the operation - and, once every zombie of
+ * a response has been acknowledged, the owning UA_AsyncResponse - actually
+ * freed. The tests below force exactly this race by letting a "late"
+ * worker deliver its result strictly *after* the server has already
+ * timed out and answered the request. */
+
+START_TEST(Async_read_lateResultAfterTimeout) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Shorten the timeout so it fires well before the "late" worker
+     * (readCallback_lateAsync schedules its result LATE_RESULT_DELAY,
+     * i.e. 3s, out). */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Double origTimeout = config->asyncOperationTimeout;
+    config->asyncOperationTimeout = 200.0;
+
+    clientCounter = 0;
+    retval = UA_Client_readValueAttribute_async(client,
+                                                UA_NODEID_STRING(1, "lateVar"),
+                                                clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process the request on the server to start the async op */
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert(!lateReadResultReceived);
+
+    /* Advance past the (short) timeout. Note this has to cross the 1s
+     * period of the internal checkTimeouts repeated callback as well as
+     * the (shortened) asyncOperationTimeout for the cancellation to
+     * actually be evaluated. The read is cancelled and a response is
+     * sent to the client -- the operation becomes a "zombie" instead of
+     * being freed, because the worker has not acknowledged it yet. */
+    UA_fakeSleep(1200);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert(!lateReadResultReceived);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    /* The "late" worker now delivers its result, racing in after the
+     * operation was already cancelled and the response already sent.
+     * This must be handled gracefully (no crash, no double response)
+     * instead of touching already-sent/freed response memory. */
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, true);
+    ck_assert(lateReadResultReceived);
+    ck_assert_uint_eq(lateReadResult, UA_STATUSCODE_GOOD);
+
+    /* No second response must have been delivered to the client, and the
+     * zombie bookkeeping must be fully cleaned up (no leaked
+     * UA_AsyncOperation / UA_AsyncResponse). */
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    config->asyncOperationTimeout = origTimeout;
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_write_lateResultAfterTimeout) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* writeCallback_lateAsync / asyncWriteLate schedule the result
+     * LATE_RESULT_DELAY, i.e. 3s, out */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Double origTimeout = config->asyncOperationTimeout;
+    config->asyncOperationTimeout = 200.0;
+
+    clientCounter = 0;
+    UA_UInt32 val = 7;
+    UA_Variant valueAttr;
+    UA_Variant_setScalar(&valueAttr, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    retval = UA_Client_writeValueAttribute_async(client, UA_NODEID_STRING(1, "lateVar"),
+                                                 &valueAttr, clientWriteCallback,
+                                                 NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process the request on the server to start the async op */
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert(!lateWriteResultReceived);
+
+    /* Advance past the (short) timeout (and the 1s period of the
+     * internal checkTimeouts repeated callback): BadTimeout is sent to
+     * the client and the write operation becomes a zombie. */
+    UA_fakeSleep(1200);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert(!lateWriteResultReceived);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    /* The late worker delivers its result after the fact */
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, true);
+    ck_assert(lateWriteResultReceived);
+    ck_assert_uint_eq(lateWriteResult, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    config->asyncOperationTimeout = origTimeout;
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+#ifdef UA_ENABLE_METHODCALLS
+START_TEST(Async_call_lateResultAfterTimeout) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* methodCallback_lateAsync / asyncCallLate schedule the result
+     * LATE_RESULT_DELAY, i.e. 3s, out */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Double origTimeout = config->asyncOperationTimeout;
+    config->asyncOperationTimeout = 200.0;
+
+    clientCounter = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "lateAsyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process the request on the server to start the async op */
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert(!lateCallResultReceived);
+
+    /* Advance past the (short) timeout (and the 1s period of the
+     * internal checkTimeouts repeated callback): BadTimeout is sent to
+     * the client and the call operation becomes a zombie. */
+    UA_fakeSleep(1200);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert(!lateCallResultReceived);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    /* The late worker delivers its result after the fact. This exercises
+     * the CALL_REQUEST zombie path, including the outputArgumentsSize
+     * staging in workerSlots. */
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, true);
+    ck_assert(lateCallResultReceived);
+    ck_assert_uint_eq(lateCallResult, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    config->asyncOperationTimeout = origTimeout;
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+#endif /* UA_ENABLE_METHODCALLS */
+
 START_TEST(Async_setResult_badnotfound) {
     UA_DataValue dv;
     UA_DataValue_init(&dv);
@@ -1108,6 +1511,137 @@ START_TEST(Async_direct_call_method_result) {
     running = true;
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
+
+/* --- DIRECT-path "zombie" operation tests ---
+ *
+ * Async_{read,write,call}_lateResultAfterTimeout above exercise the zombie
+ * bookkeeping for the REQUEST path (a network Read/Write/CallRequest).
+ * UA_Server_{read,write,call}_async() go through a separate branch of the
+ * same mechanism (op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT),
+ * with its own zombie cleanup in finishZombie() / deleteDirectOpZombieLater().
+ * These tests force the same "late worker" race, but through the direct C
+ * API, using the "lateVar" / "lateAsyncMethod" nodes whose read/write/call
+ * callbacks always deliver a result at LATE_RESULT_DELAY (3s), regardless of
+ * prior cancellation. */
+
+START_TEST(Async_directRead_lateResultAfterTimeout) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    serverReadResultReceived = false;
+    UA_DataValue_init(&serverReadResult);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = UA_NODEID_STRING(1, "lateVar");
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    /* Short explicit operation timeout so cancellation fires well before
+     * the "late" worker (asyncReadLate) delivers its result. */
+    UA_StatusCode retval =
+        UA_Server_read_async(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH,
+                             serverAsyncReadCallback, NULL, 200);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!serverReadResultReceived);
+
+    /* Advance past the (short) operation timeout and the 1s period of the
+     * internal checkTimeouts repeated callback. The op is cancelled and
+     * becomes a DIRECT zombie -- it must not be freed yet since the late
+     * worker has not acknowledged it. */
+    UA_fakeSleep(1200);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert(serverReadResultReceived);
+    ck_assert(serverReadResult.hasStatus);
+    ck_assert_uint_eq(serverReadResult.status, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+    UA_DataValue_clear(&serverReadResult);
+
+    /* The late worker now delivers its result, racing in after the direct
+     * operation was already cancelled. This must not touch already-freed
+     * memory, and the zombie bookkeeping must be fully cleaned up. */
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, false);
+    ck_assert(lateReadResultReceived);
+    ck_assert_uint_eq(lateReadResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+START_TEST(Async_directWrite_lateResultAfterTimeout) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    serverWriteResultReceived = false;
+    serverWriteResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = UA_NODEID_STRING(1, "lateVar");
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_UInt32 val = 7;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    wv.value.hasValue = true;
+
+    UA_StatusCode retval =
+        UA_Server_write_async(server, &wv, serverAsyncWriteCallback, NULL, 200);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!serverWriteResultReceived);
+
+    UA_fakeSleep(1200);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert(serverWriteResultReceived);
+    ck_assert_uint_eq(serverWriteResultCode, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, false);
+    ck_assert(lateWriteResultReceived);
+    ck_assert_uint_eq(lateWriteResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+#ifdef UA_ENABLE_METHODCALLS
+START_TEST(Async_directCall_lateResultAfterTimeout) {
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    directCallCompleted = false;
+    directCallResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    req.methodId = UA_NODEID_STRING(1, "lateAsyncMethod");
+
+    UA_StatusCode retval =
+        UA_Server_call_async(server, &req, directCallCompletionCb, NULL, 200);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!directCallCompleted);
+
+    UA_fakeSleep(1200);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert(directCallCompleted);
+    ck_assert_uint_eq(directCallResultCode, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, false);
+    ck_assert(lateCallResultReceived);
+    ck_assert_uint_eq(lateCallResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+#endif /* UA_ENABLE_METHODCALLS */
 
 /* --- Additional async operation edge case tests --- */
 
@@ -1511,6 +2045,12 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_server_read);
     tcase_add_test(tc_manager, Async_server_write);
     tcase_add_test(tc_manager, Async_read_timeout_server);
+    tcase_add_test(tc_manager, Async_read_timeout_deliversBadStatusToClient);
+    tcase_add_test(tc_manager, Async_read_lateResultAfterTimeout);
+    tcase_add_test(tc_manager, Async_write_lateResultAfterTimeout);
+#ifdef UA_ENABLE_METHODCALLS
+    tcase_add_test(tc_manager, Async_call_lateResultAfterTimeout);
+#endif
     tcase_add_test(tc_manager, Async_setResult_badnotfound);
     tcase_add_test(tc_manager, Async_queue_limit_read_direct);
     tcase_add_test(tc_manager, Async_sync_method_call);
@@ -1521,6 +2061,11 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_service_write_validation_paths);
     tcase_add_test(tc_manager, Async_service_write_toomanyoperations);
     tcase_add_test(tc_manager, Async_direct_call_method_result);
+    tcase_add_test(tc_manager, Async_directRead_lateResultAfterTimeout);
+    tcase_add_test(tc_manager, Async_directWrite_lateResultAfterTimeout);
+#ifdef UA_ENABLE_METHODCALLS
+    tcase_add_test(tc_manager, Async_directCall_lateResultAfterTimeout);
+#endif
     tcase_add_test(tc_manager, Async_write_queue_overflow);
     /* Additional direct API coverage that doesn't need a running server. */
     tcase_add_test(tc_manager, Async_cancelAsync_unknownContext_returnsError);

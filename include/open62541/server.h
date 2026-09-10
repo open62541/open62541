@@ -1484,14 +1484,22 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  *
  * Note that an async operation can be cancelled (e.g. after a timeout period or
  * if the caller cannot wait for the result). This is signaled in the configured
- * ``asyncOperationCancelCallback``. The provided memory locations to store the
- * operation output are then no longer valid. */
+ * ``asyncOperationCancelCallback``. The output memory that was handed to the
+ * operation stays valid and owned by the implementation even after
+ * cancellation -- it may still be written to and the result may still be set
+ * (e.g. via UA_Server_setAsyncReadResult) at a later point. The server itself
+ * does not access that memory again once cancellation has been signaled; a
+ * result that is set after cancellation is accepted and discarded gracefully
+ * instead of being treated as an error. Each operation's result must still be
+ * set exactly once. */
 
 /* When the UA_MethodCallback returns UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY,
  * then an async operation is created in the server for later completion. The
  * output pointer from the method callback is used to identify the async
- * operation. Do not access the output pointer after the operation has been
- * cancelled or after setting the result. */
+ * operation. The output pointer stays valid and may still be written to and
+ * used to set the result even after the operation has been cancelled -- the
+ * server itself will not access it again once cancellation has been signaled.
+ * The result must still be set exactly once. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
                                    UA_StatusCode result);
