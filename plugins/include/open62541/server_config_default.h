@@ -129,6 +129,17 @@ UA_ServerConfig_setDefault(UA_ServerConfig *config) ,{
  *
  * @param conf The configuration to manipulate
  */
+
+/* Replace the logger in an already-configured UA_ServerConfig. This
+ * correctly frees the old logger and keeps every cached copy of the
+ * logger pointer in sync (the EventLoop and the certificate-verification
+ * groups), so nothing is left pointing at freed memory.
+ *
+ * @param config The configuration to manipulate
+ * @param newLogger The new logger to install
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setLogger(UA_ServerConfig *config, UA_Logger *newLogger);
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig *conf);
 
