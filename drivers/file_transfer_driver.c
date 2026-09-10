@@ -237,6 +237,22 @@ backendComplete(const UA_FileTransferBackend *b, UA_Boolean standaloneFile,
     return true;
 }
 
+/* A namespaceIndex for the mirrored BrowseNames has to resolve in the server's
+ * namespace array. An index that does not would put the Objects in a namespace
+ * no client can interpret, and the mismatch would only show up on a browse. */
+static UA_StatusCode
+checkMountNamespace(UA_Server *server,
+                    const UA_FileTransferMountOptions *options) {
+    if(!options || options->namespaceIndex == 0)
+        return UA_STATUSCODE_GOOD;
+    UA_String uri = UA_STRING_NULL;
+    UA_StatusCode res =
+        UA_Server_getNamespaceByIndex(server, options->namespaceIndex, &uri);
+    UA_String_clear(&uri);
+    return (res == UA_STATUSCODE_GOOD) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
 FTMount *
 newMount(FileTransferDriver *ftd, UA_FileTransferBackend backend,
          const UA_FileTransferMountOptions *options, UA_Boolean standaloneFile) {
@@ -320,9 +336,16 @@ addFileSystem(UA_FileTransferDriver *driver, const UA_NodeId requestedNodeId,
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
 
+    UA_StatusCode res = checkMountNamespace(drv->server, options);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(backend.clear)
+            backend.clear(&backend);
+        return res;
+    }
+
     /* The backend root must be a directory */
     UA_FileTransferFileInfo info;
-    UA_StatusCode res = backend.getAttributes(&backend, UA_STRING_NULL, &info);
+    res = backend.getAttributes(&backend, UA_STRING_NULL, &info);
     if(res == UA_STATUSCODE_GOOD && !info.isDirectory)
         res = UA_STATUSCODE_BADINVALIDARGUMENT;
     if(res != UA_STATUSCODE_GOOD) {
@@ -596,6 +619,12 @@ static void
 FileTransferDriver_stop(UA_Driver *drv) {
     FileTransferDriver *ftd = (FileTransferDriver*)drv;
 
+    /* Only a driver that actually started owns the Method nodes. A driver
+     * whose start failed -- a second file transfer driver on the same server,
+     * for instance -- is still STOPPED, and releasing the callbacks here would
+     * strip them from the instance that legitimately holds them. */
+    UA_Boolean wasStarted = (drv->state == UA_LIFECYCLESTATE_STARTED);
+
     /* Close all open file handles. The mounts and the mirrored nodes are
      * kept so the driver can be restarted. */
     FTHandle *h, *tmp;
@@ -606,7 +635,7 @@ FileTransferDriver_stop(UA_Driver *drv) {
     /* Release the shared Namespace Zero Method nodes again. A stopped driver
      * must not keep answering calls on FileType/FileDirectoryType Objects that
      * belong to the application or to another driver. */
-    if(drv->server)
+    if(wasStarted && drv->server)
         unregisterFileTransferMethodCallbacks(drv->server);
 
     drv->state = UA_LIFECYCLESTATE_STOPPED;

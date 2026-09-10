@@ -2301,6 +2301,63 @@ START_TEST(moveOrCopyKeepsUnmirroredTarget) {
 } END_TEST
 #endif /* !_WIN32 */
 
+/* Only the driver that actually started owns the Namespace Zero Method nodes.
+ * A second driver whose start failed is still STOPPED, so stopping it must not
+ * strip the callbacks from the instance that legitimately holds them. */
+START_TEST(stoppingARejectedDriverKeepsTheCallbacks) {
+    UA_FileTransferDriver *second = UA_FileTransferDriver_new(UA_KEYVALUEMAP_NULL);
+    ck_assert_ptr_nonnull(second);
+    ck_assert_uint_eq(UA_Server_addDriver(server_ft, &second->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(second->drv.start(&second->drv),
+                      UA_STATUSCODE_BADALREADYEXISTS);
+
+    /* An application may well stop a driver whose start failed */
+    second->drv.stop(&second->drv);
+    ck_assert_uint_eq(UA_Server_removeDriver(server_ft, &second->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(second->drv.free(&second->drv), UA_STATUSCODE_GOOD);
+
+    /* The running driver still serves its files */
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server_ft, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN),
+                          &cb), UA_STATUSCODE_GOOD);
+    ck_assert(cb != NULL);
+
+    UA_NodeId fileId = addTestFile("StillWorks", "content", NULL);
+    UA_ByteString data = readFileContent(fileId);
+    ck_assert_uint_eq(data.length, strlen("content"));
+    UA_ByteString_clear(&data);
+    ck_assert_uint_eq(ftDriver->removeFile(ftDriver, fileId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+} END_TEST
+
+/* A namespaceIndex that does not resolve in the server's namespace array is
+ * rejected instead of producing Objects in a namespace no client can read. */
+START_TEST(mountRejectsUnknownNamespace) {
+    size_t nsSize = 0;
+    UA_String uri = UA_STRING_NULL;
+    while(UA_Server_getNamespaceByIndex(server_ft, nsSize, &uri) ==
+          UA_STATUSCODE_GOOD) {
+        UA_String_clear(&uri);
+        nsSize++;
+    }
+    ck_assert_uint_gt(nsSize, 0);
+
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    options.namespaceIndex = (UA_UInt16)nsSize; /* one past the last index */
+
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFileSystem(
+                          ftDriver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(0, "FileSystem"),
+                          memBackendWithTree(), &options, &fsId),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert(UA_NodeId_isNull(&fsId));
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_FILETRANSFER */
 
 int main(void) {
@@ -2313,6 +2370,7 @@ int main(void) {
     tcase_add_test(tc_lifecycle, instanceSharesTypeMethodNodes);
     tcase_add_test(tc_lifecycle, instanceHasMandatoryProperties);
     tcase_add_test(tc_lifecycle, stopReleasesTypeMethodCallbacks);
+    tcase_add_test(tc_lifecycle, stoppingARejectedDriverKeepsTheCallbacks);
     tcase_add_test(tc_lifecycle, optionalPropertiesAreNotDuplicated);
 #endif
     tcase_add_checked_fixture(tc_lifecycle, setup, teardown);
@@ -2352,6 +2410,7 @@ int main(void) {
     tcase_add_test(tc_dir, removeFileSystemWithOpenHandles);
     tcase_add_test(tc_dir, dirCreateRespectsMaxNodes);
     tcase_add_test(tc_dir, mirroredNamesUseMountNamespace);
+    tcase_add_test(tc_dir, mountRejectsUnknownNamespace);
 # ifndef _WIN32
     tcase_add_test(tc_dir, localFilesystemMount);
     tcase_add_test(tc_dir, mountSkipsUnreadableEntries);

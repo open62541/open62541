@@ -264,9 +264,18 @@ mirrorEntry(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
         if(res != UA_STATUSCODE_GOOD)
             return res;
         (*nodeBudget)--;
-        /* A subdirectory that cannot be listed stays as an empty Object */
-        return fileTransferMirrorTree(server, ftd, childNode, depth + 1,
-                                      nodeBudget);
+        /* The Object itself exists from here on. A subdirectory whose content
+         * cannot be listed stays as an empty Object, so report that instead of
+         * letting the caller log it as a skipped entry. */
+        res = fileTransferMirrorTree(server, ftd, childNode, depth + 1,
+                                     nodeBudget);
+        if(res == UA_STATUSCODE_GOOD || fatalScanError(res))
+            return res;
+        UA_LOG_WARNING(ftd->logging, UA_LOGCATEGORY_SERVER,
+                       "FileTransfer: The directory \"%S\" is mirrored empty, "
+                       "its content cannot be listed: %s",
+                       childNode->path, UA_StatusCode_name(res));
+        return UA_STATUSCODE_GOOD;
     }
 
     UA_String childPath = UA_STRING_NULL;
