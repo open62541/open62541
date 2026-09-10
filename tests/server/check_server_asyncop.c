@@ -272,6 +272,37 @@ methodCallback_lateAsync(UA_Server *server,
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
+/* Same as asyncCallLate/methodCallback_lateAsync, but the method actually has
+ * an output argument and the "late" worker writes a real (heap-allocating)
+ * value into it before acknowledging. Used to verify that a discarded zombie
+ * CALL result does not leak the content the worker wrote into
+ * outputArguments while outputArgumentsSize was masked to zero. */
+static void
+asyncCallLateWithOutput(UA_Server *server, void *data) {
+    UA_Variant *out = (UA_Variant*)data;
+    UA_String s = UA_STRING_ALLOC("zombie-call-output");
+    /* setScalarCopy deep-copies s's content into out[0]'s own heap
+     * allocation -- out[0] must own stable memory, not point back at this
+     * function's stack. */
+    UA_Variant_setScalarCopy(&out[0], &s, &UA_TYPES[UA_TYPES_STRING]);
+    UA_String_clear(&s);
+    lateCallResult = UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
+    lateCallResultReceived = true;
+}
+
+static UA_StatusCode
+methodCallback_lateAsyncWithOutput(UA_Server *server,
+                                   const UA_NodeId *sessionId, void *sessionHandle,
+                                   const UA_NodeId *methodId, void *methodContext,
+                                   const UA_NodeId *objectId, void *objectContext,
+                                   size_t inputSize, const UA_Variant *input,
+                                   size_t outputSize, UA_Variant *output) {
+    UA_DateTime callTime = UA_DateTime_now_fake(NULL) + LATE_RESULT_DELAY;
+    UA_Server_addTimedCallback(server, asyncCallLateWithOutput, output,
+                               callTime, &lastTimedCallback);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
 static void
 clientReadCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                    UA_StatusCode status, UA_DataValue *value) {
@@ -396,6 +427,23 @@ static void setup(void) {
                             UA_QUALIFIEDNAME(1, "lateAsyncMethod"),
                             methodAttr, &methodCallback_lateAsync,
                             0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Same as lateAsyncMethod, but with one real (heap-allocating) output
+     * argument that the late worker actually writes to. Used to verify the
+     * zombie CALL cleanup does not leak that content when the result is
+     * discarded. */
+    UA_Argument lateOutputArg;
+    UA_Argument_init(&lateOutputArg);
+    lateOutputArg.name = UA_STRING("output");
+    lateOutputArg.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    lateOutputArg.valueRank = UA_VALUERANK_SCALAR;
+    res = UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "lateAsyncMethodWithOutput"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "lateAsyncMethodWithOutput"),
+                            methodAttr, &methodCallback_lateAsyncWithOutput,
+                            0, NULL, 1, &lateOutputArg, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     /* Variable that closes the calling Session from its read callback */
@@ -562,6 +610,74 @@ START_TEST(Async_multiRead_closingSessionCancelsPendingOperation) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_multiRead_zombieAlongsideSyncOp) {
+    /* A single ReadRequest with two operations: "lateVar" (goes async and,
+     * because the session closes mid-request, gets cancelled without ever
+     * being acknowledged by its worker -- it becomes a zombie) and
+     * "closeSessionVar" (completes synchronously in the very same request).
+     * This exercises detachResultsCopy()'s UA_Array_copy() over the whole
+     * results array while one element is still a live zombie.
+     *
+     * Note: since the session-closed path always forces a non-Good
+     * responseHeader.serviceResult, sendResponse() answers with a bare
+     * ServiceFault (see src/server/ua_transport_tcp.c) instead of the actual
+     * ReadResponse -- the client never sees resultsSize/results here, only
+     * the service-level status. What this test actually verifies is that
+     * building and discarding that independent results copy over a mixed
+     * done/zombie batch does not crash or leak, and that the zombie
+     * bookkeeping (kept alive for the still-pending "lateVar" op) cleans up
+     * correctly once its late worker eventually acknowledges -- without
+     * touching the response, which was already detached and freed. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId nodes[2];
+    UA_ReadValueId_init(&nodes[0]);
+    nodes[0].nodeId = UA_NODEID_STRING(1, "lateVar");
+    nodes[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_ReadValueId_init(&nodes[1]);
+    nodes[1].nodeId = UA_NODEID_STRING(1, "closeSessionVar");
+    nodes[1].attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    request.nodesToRead = nodes;
+    request.nodesToReadSize = 2;
+
+    closeFromReadResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    canceledCallRequest = NULL;
+    completeCanceledRead = true;
+    completeCanceledReadResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    lateReadResultReceived = false;
+
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    ck_assert_uint_eq(closeFromReadResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSESSIONCLOSED);
+    ck_assert_ptr_nonnull(canceledCallRequest);
+    ck_assert_uint_eq(completeCanceledReadResult, UA_STATUSCODE_BADNOTFOUND);
+    UA_ReadResponse_clear(&response);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Stop the server thread and let the late worker for "lateVar" deliver
+     * its result manually, well after the response above was already sent
+     * and cleared. */
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_fakeSleep(3100);
+    UA_Server_run_iterate(server, false);
+    ck_assert(lateReadResultReceived);
+    ck_assert_uint_eq(lateReadResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
 START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
@@ -1199,6 +1315,65 @@ START_TEST(Async_call_lateResultAfterTimeout) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
+
+START_TEST(Async_call_lateResultWithOutputArguments_noLeak) {
+    /* Same race as Async_call_lateResultAfterTimeout, but the method has a
+     * real output argument that the late worker actually writes to
+     * (methodCallback_lateAsyncWithOutput / asyncCallLateWithOutput). The
+     * response was already sent with outputArgumentsSize masked to zero, so
+     * the late write's heap-allocated content is only reachable through the
+     * zombie op's workerSlots.callOutputArgumentsSize. This must be freed by
+     * finishZombie() instead of leaking -- verified by running this test
+     * under LeakSanitizer/valgrind. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_Double origTimeout = config->asyncOperationTimeout;
+    config->asyncOperationTimeout = 200.0;
+
+    clientCounter = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "lateAsyncMethodWithOutput"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert(!lateCallResultReceived);
+
+    UA_fakeSleep(1200);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert(!lateCallResultReceived);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    /* The late worker writes a heap-allocated String into the output
+     * argument and then acknowledges. The result is discarded (the response
+     * was already sent), but the String must be freed, not leaked. */
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, true);
+    ck_assert(lateCallResultReceived);
+    ck_assert_uint_eq(lateCallResult, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    config->asyncOperationTimeout = origTimeout;
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 #endif /* UA_ENABLE_METHODCALLS */
 
 START_TEST(Async_setResult_badnotfound) {
@@ -1641,6 +1816,47 @@ START_TEST(Async_directCall_lateResultAfterTimeout) {
     running = true;
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
+
+START_TEST(Async_directCall_lateResultWithOutputArguments_noLeak) {
+    /* DIRECT-path counterpart of
+     * Async_call_lateResultWithOutputArguments_noLeak: the late worker
+     * writes a real, heap-allocating output argument into a CALL_DIRECT
+     * operation that was already cancelled (timed out) and delivered to
+     * directCallCompletionCb with outputArgumentsSize masked to zero. The
+     * late write must be freed by finishZombie(), not leaked -- verified by
+     * running this test under LeakSanitizer/valgrind. */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    directCallCompleted = false;
+    directCallResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    req.methodId = UA_NODEID_STRING(1, "lateAsyncMethodWithOutput");
+
+    UA_StatusCode retval =
+        UA_Server_call_async(server, &req, directCallCompletionCb, NULL, 200);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!directCallCompleted);
+
+    UA_fakeSleep(1200);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert(directCallCompleted);
+    ck_assert_uint_eq(directCallResultCode, UA_STATUSCODE_BADTIMEOUT);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 1);
+
+    UA_fakeSleep(2000);
+    UA_Server_run_iterate(server, false);
+    ck_assert(lateCallResultReceived);
+    ck_assert_uint_eq(lateCallResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.zombieCount, 0);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
 #endif /* UA_ENABLE_METHODCALLS */
 
 /* --- Additional async operation edge case tests --- */
@@ -2035,6 +2251,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_call);
     tcase_add_test(tc_manager, Async_read);
     tcase_add_test(tc_manager, Async_multiRead_closingSessionCancelsPendingOperation);
+    tcase_add_test(tc_manager, Async_multiRead_zombieAlongsideSyncOp);
     tcase_add_test(tc_manager,
                    Async_serviceNotificationCloseCancelsPersistedResponse);
     tcase_add_test(tc_manager, Async_write);
@@ -2050,6 +2267,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_write_lateResultAfterTimeout);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_manager, Async_call_lateResultAfterTimeout);
+    tcase_add_test(tc_manager, Async_call_lateResultWithOutputArguments_noLeak);
 #endif
     tcase_add_test(tc_manager, Async_setResult_badnotfound);
     tcase_add_test(tc_manager, Async_queue_limit_read_direct);
@@ -2065,6 +2283,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_directWrite_lateResultAfterTimeout);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_manager, Async_directCall_lateResultAfterTimeout);
+    tcase_add_test(tc_manager, Async_directCall_lateResultWithOutputArguments_noLeak);
 #endif
     tcase_add_test(tc_manager, Async_write_queue_overflow);
     /* Additional direct API coverage that doesn't need a running server. */

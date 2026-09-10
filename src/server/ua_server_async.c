@@ -68,7 +68,7 @@ UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
         op->responseReadTarget->status = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_READ_DIRECT:
-        cancelPtr = &op->output.directRead;
+        cancelPtr = &op->workerSlots.readDataValue;
         op->output.directRead.hasStatus = true;
         op->output.directRead.status = opstatus;
         break;
@@ -223,8 +223,6 @@ sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
     responseHeader->requestHandle = ar->requestHandle;
 
     /* Send the Response */
-    /* To avoid a data race between the worker thread and the el, we zero out values in the
-     * responses and restore them after we send the response */
     UA_StatusCode res = sendResponse(server, channel, ar->responseToken,
                                      (UA_Response*)&ar->response, ar->responseType);
     if(res != UA_STATUSCODE_GOOD) {
@@ -342,9 +340,6 @@ zombifyIfUnacknowledged(UA_AsyncManager *am, UA_AsyncOperation *op) {
     TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
     am->zombieCount++;
     ar->zombieCountdown++;
-    if(ar->responseType == &UA_TYPES[UA_TYPES_CALLRESPONSE]) {
-        op->output.call->outputArgumentsSize = 0;
-    }
 }
 
 
@@ -907,12 +902,13 @@ readOptionalNode_async(UA_Server *server, UA_Session *session,
     /* Call the operation */
     UA_Boolean done = node ?
         Operation_ReadWithNode(server, session, node, ttr, operation,
-                               &op->output.directRead) :
-        Operation_Read(server, session, ttr, operation, &op->output.directRead);
+                               &op->workerSlots.readDataValue) :
+        Operation_Read(server, session, ttr, operation, &op->workerSlots.readDataValue);
     if(!done)
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_READ_DIRECT,
                                            context, (uintptr_t)callback, timeoutDate);
 
+    op->output.directRead = op->workerSlots.readDataValue;
     callback(server, context, &op->output.directRead);
     UA_DataValue_clear(&op->output.directRead);
     UA_free(op);
@@ -962,6 +958,11 @@ finishZombie(UA_Server *server, UA_AsyncOperation *op) {
         UA_AsyncResponse *ar = op->handling.response;
         if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_READ_REQUEST) {
             UA_DataValue_clear(&op->workerSlots.readDataValue);
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+            UA_Array_delete(op->output.call->outputArguments,
+                           op->workerSlots.callOutputArgumentsSize,
+                           &UA_TYPES[UA_TYPES_VARIANT]);
+            op->output.call->outputArguments = NULL;
         }
         ar->zombieCountdown--;
         /* Check if op is not part of any pending response and that no zombies are
@@ -970,6 +971,14 @@ finishZombie(UA_Server *server, UA_AsyncOperation *op) {
             UA_AsyncResponse_delete(op->handling.response);
         }
     } else {
+        if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_READ_DIRECT) {
+            UA_DataValue_clear(&op->workerSlots.readDataValue);
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+            UA_Array_delete(op->output.directCall.outputArguments,
+                           op->workerSlots.callOutputArgumentsSize,
+                           &UA_TYPES[UA_TYPES_VARIANT]);
+            op->output.directCall.outputArguments = NULL;
+        }
         /* It is possible that an async cancel is scheduled, which will use the op in an
          * el-iteration after this function returns. To avoid a race condition, we
          * schedule the delete to a later iteration of the el. */
@@ -983,10 +992,12 @@ UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result) {
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
-        if(op->output.read == result || &op->output.directRead == result) {
+        if(&op->workerSlots.readDataValue == result) {
             op->acknowledged = true;
             if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_READ_REQUEST) {
                 *op->responseReadTarget = op->workerSlots.readDataValue;
+            } else {
+                op->output.directRead = op->workerSlots.readDataValue;
             }
             processOperationResult(server, op);
             break;
@@ -994,7 +1005,7 @@ UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result) {
     }
     if(!op) {
         TAILQ_FOREACH(op, &am->zombieOps, pointers) {
-            if(op->output.read == result || &op->output.directRead == result) {
+            if(&op->workerSlots.readDataValue == result) {
                 finishZombie(server, op);
                 break;
             }
@@ -1284,9 +1295,12 @@ call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *o
     /* Call the operation */
     UA_Boolean done = Operation_CallMethod(server, session, operation,
                                            &op->output.directCall);
-    if(!done)
+    if(!done) {
+        op->workerSlots.callOutputArgumentsSize = op->output.directCall.outputArgumentsSize;
+        op->output.directCall.outputArgumentsSize = 0;
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_CALL_DIRECT,
                                            context, (uintptr_t)callback, timeoutDate);
+    }
 
     /* Done, return right away */
     callback(server, context, &op->output.directCall);
@@ -1324,6 +1338,7 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
         } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
             if(op->output.directCall.outputArguments == output) {
                 op->acknowledged = true;
+                op->output.directCall.outputArgumentsSize = op->workerSlots.callOutputArgumentsSize;
                 op->output.directCall.statusCode = result;
                 processOperationResult(server, op);
                 break;
