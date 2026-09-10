@@ -8,15 +8,52 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 
-    # Generate types and namespace for DI
+    # One const array containing two namespaces, used by nodesets with both
+    # a matching name and an independently chosen name.
+    ua_generate_datatypes(
+        NAME "types-tests-pinned-multi"
+        TARGET_SUFFIX "types-tests-pinned-multi"
+        FILE_CSV "${CMAKE_CURRENT_SOURCE_DIR}/pinned_namespaces.csv"
+        FILES_BSD "${CMAKE_CURRENT_SOURCE_DIR}/pinned_namespaces_a.bsd"
+                  "${CMAKE_CURRENT_SOURCE_DIR}/pinned_namespaces_b.bsd"
+        NAMESPACE_MAP "2:urn:open62541:test:pinned-a"
+                      "3:urn:open62541:test:pinned-b"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}")
+    foreach(name tests-pinned-multi tests-pinned-renamed)
+        ua_generate_nodeset(
+            NAME "${name}"
+            FILE "${CMAKE_CURRENT_SOURCE_DIR}/pinned_namespaces.xml"
+            TYPES_ARRAY "UA_TYPES_TESTS_PINNED_MULTI"
+            DEPENDS_NS ${open62541_NS0_NODESETS}
+            DEPENDS_TYPES "UA_TYPES"
+            OUTPUT_DIR "${GENERATE_OUTPUT_DIR}")
+    endforeach()
+    ua_add_test(check_nodeset_compiler_pinned_namespaces.c EXTRASOURCES
+                ${UA_TYPES_TESTS_PINNED_MULTI_SOURCES}
+                ${UA_NODESET_TESTS_PINNED_MULTI_SOURCES}
+                ${UA_NODESET_TESTS_PINNED_RENAMED_SOURCES})
+
+    # Generate types and namespace for DI. The namespace index is pinned via
+    # NAMESPACE_MAP, so the generated type array is const and the tests
+    # exercise the const type array path including the generated runtime
+    # namespace-order check (DI is always the first namespace added to the
+    # test servers -> index 2).
     ua_generate_nodeset_and_datatypes(
         NAME "tests-di"
         FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
         FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
+        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
     )
+
+    # Covers both outcomes of the generated namespace-order check: the pinned
+    # index matching the server, and the mismatch that must be rejected.
+    ua_add_test(check_nodeset_compiler_di_pinned_ns.c EXTRASOURCES
+                ${UA_NODESET_TESTS_DI_SOURCES}
+                ${UA_TYPES_TESTS_DI_SOURCES})
+    add_dependencies(check_nodeset_compiler_di_pinned_ns open62541-generator-ns-tests-di)
 
     # Generate types and namespace for ADI
     ua_generate_nodeset_and_datatypes(
