@@ -80,8 +80,13 @@ typedef struct FileTransferDriver {
 
 /* driver.c -- top-level helpers and lifecycle */
 FileTransferDriver *findFileTransferDriver(UA_Server *server);
-UA_Boolean backendComplete(const UA_FileTransferBackend *b);
+/* Check the backend against the operations the mount can reach. A standalone
+ * file never sees the directory operations, a read-only mount never sees the
+ * mutating ones. */
+UA_Boolean backendComplete(const UA_FileTransferBackend *b,
+                           UA_Boolean standaloneFile, UA_Boolean readOnly);
 UA_StatusCode registerFileTransferMethodCallbacks(UA_Server *server);
+void unregisterFileTransferMethodCallbacks(UA_Server *server);
 
 /* driver.c -- registry and handle primitives, used across all sub-files */
 FTNode *findFTNode(FileTransferDriver *ftd, const UA_NodeId *nodeId);

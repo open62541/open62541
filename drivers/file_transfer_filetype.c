@@ -162,52 +162,90 @@ setupFileNode(UA_Server *server, FileTransferDriver *ftd, FTNode *node,
         return res;
     updateOpenCount(server, node);
 
-    /* The optional LastModifiedTime Property is added explicitly */
-    UA_VariableAttributes lmAttr = UA_VariableAttributes_default;
-    lmAttr.displayName = UA_LOCALIZEDTEXT("", "LastModifiedTime");
-    lmAttr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
-    lmAttr.valueRank = UA_VALUERANK_SCALAR;
+    /* The three optional Properties below are normally not instantiated with
+     * the Object: open62541 skips optional children unless the application
+     * provides a nodeLifecycle->createOptionalChild callback that asks for
+     * them. Where it does, the Property already exists and must be reused --
+     * adding a second one leaves the Object with a duplicate BrowseName, which
+     * makes TranslateBrowsePathsToNodeIds return two targets for one Property
+     * and leaves the value source on only one of them. */
+
+    /* LastModifiedTime is computed from the backend on demand */
     UA_CallbackValueSource lmSource;
     memset(&lmSource, 0, sizeof(UA_CallbackValueSource));
     lmSource.read = readLastModifiedCallback;
-    res = UA_Server_addCallbackValueSourceVariableNode(
-        server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
-        UA_QUALIFIEDNAME(0, "LastModifiedTime"), UA_NS0ID(PROPERTYTYPE),
-        lmAttr, lmSource, node, NULL);
+    UA_NodeId lastModifiedId = UA_NODEID_NULL;
+    if(getChildId(server, node->nodeId, "LastModifiedTime",
+                  &lastModifiedId) == UA_STATUSCODE_GOOD) {
+        res = UA_Server_setNodeContext(server, lastModifiedId, node);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_Server_setVariableNode_callbackValueSource(
+                server, lastModifiedId, lmSource);
+        UA_NodeId_clear(&lastModifiedId);
+    } else {
+        UA_VariableAttributes lmAttr = UA_VariableAttributes_default;
+        lmAttr.displayName = UA_LOCALIZEDTEXT("", "LastModifiedTime");
+        lmAttr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+        lmAttr.valueRank = UA_VALUERANK_SCALAR;
+        res = UA_Server_addCallbackValueSourceVariableNode(
+            server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
+            UA_QUALIFIEDNAME(0, "LastModifiedTime"), UA_NS0ID(PROPERTYTYPE),
+            lmAttr, lmSource, node, NULL);
+    }
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* The optional MaxByteStringLength Property advertises the maximum number
-     * of bytes returned by a single Read (the driver's max-read-length) */
-    UA_VariableAttributes mbslAttr = UA_VariableAttributes_default;
-    mbslAttr.displayName = UA_LOCALIZEDTEXT("", "MaxByteStringLength");
-    mbslAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
-    mbslAttr.valueRank = UA_VALUERANK_SCALAR;
-    UA_Variant_setScalar(&mbslAttr.value, &ftd->maxReadLength,
+    /* MaxByteStringLength advertises the maximum number of bytes accepted or
+     * returned by a single Read/Write (the driver's max-read-length) */
+    UA_Variant mbslValue;
+    UA_Variant_setScalar(&mbslValue, &ftd->maxReadLength,
                          &UA_TYPES[UA_TYPES_UINT32]);
-    res = UA_Server_addVariableNode(
-        server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
-        UA_QUALIFIEDNAME(0, "MaxByteStringLength"), UA_NS0ID(PROPERTYTYPE),
-        mbslAttr, NULL, NULL);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* The optional MimeType Property is added only when the backend reports a
-     * media type for the file */
-    if(info->mimeType.length > 0) {
-        UA_VariableAttributes mtAttr = UA_VariableAttributes_default;
-        mtAttr.displayName = UA_LOCALIZEDTEXT("", "MimeType");
-        mtAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-        mtAttr.valueRank = UA_VALUERANK_SCALAR;
-        UA_String mimeType = info->mimeType;
-        UA_Variant_setScalar(&mtAttr.value, &mimeType, &UA_TYPES[UA_TYPES_STRING]);
+    UA_NodeId mbslId = UA_NODEID_NULL;
+    if(getChildId(server, node->nodeId, "MaxByteStringLength",
+                  &mbslId) == UA_STATUSCODE_GOOD) {
+        res = UA_Server_writeValue(server, mbslId, mbslValue);
+        UA_NodeId_clear(&mbslId);
+    } else {
+        UA_VariableAttributes mbslAttr = UA_VariableAttributes_default;
+        mbslAttr.displayName = UA_LOCALIZEDTEXT("", "MaxByteStringLength");
+        mbslAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+        mbslAttr.valueRank = UA_VALUERANK_SCALAR;
+        mbslAttr.value = mbslValue;
         res = UA_Server_addVariableNode(
             server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
-            UA_QUALIFIEDNAME(0, "MimeType"), UA_NS0ID(PROPERTYTYPE),
-            mtAttr, NULL, NULL);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+            UA_QUALIFIEDNAME(0, "MaxByteStringLength"), UA_NS0ID(PROPERTYTYPE),
+            mbslAttr, NULL, NULL);
     }
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* MimeType is only meaningful when the backend reports a media type. An
+     * existing Property is filled in; it is never added for an unknown type. */
+    UA_NodeId mimeTypeId = UA_NODEID_NULL;
+    UA_Boolean mimeTypeExists =
+        (getChildId(server, node->nodeId, "MimeType",
+                    &mimeTypeId) == UA_STATUSCODE_GOOD);
+    if(info->mimeType.length > 0) {
+        UA_String mimeType = info->mimeType;
+        UA_Variant mtValue;
+        UA_Variant_setScalar(&mtValue, &mimeType, &UA_TYPES[UA_TYPES_STRING]);
+        if(mimeTypeExists) {
+            res = UA_Server_writeValue(server, mimeTypeId, mtValue);
+        } else {
+            UA_VariableAttributes mtAttr = UA_VariableAttributes_default;
+            mtAttr.displayName = UA_LOCALIZEDTEXT("", "MimeType");
+            mtAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+            mtAttr.valueRank = UA_VALUERANK_SCALAR;
+            mtAttr.value = mtValue;
+            res = UA_Server_addVariableNode(
+                server, UA_NODEID_NULL, node->nodeId, UA_NS0ID(HASPROPERTY),
+                UA_QUALIFIEDNAME(0, "MimeType"), UA_NS0ID(PROPERTYTYPE),
+                mtAttr, NULL, NULL);
+        }
+    }
+    UA_NodeId_clear(&mimeTypeId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -416,6 +454,13 @@ writeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_ByteString data = *(UA_ByteString*)input[1].data;
     if(data.length == 0)
         return UA_STATUSCODE_GOOD;
+
+    /* The MaxByteStringLength Property announces this limit for Read and Write
+     * alike (Part 20, 4.2.1). A Read may return less than requested, but
+     * truncating a Write would silently discard client data, so an oversized
+     * chunk is rejected instead. */
+    if(data.length > ftd->maxReadLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_FileTransferBackend *b = &h->file->mount->backend;
     return b->write(b, h->backendFileContext, data);

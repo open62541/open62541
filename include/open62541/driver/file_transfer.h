@@ -34,7 +34,15 @@
  * Create the driver with UA_FileTransferDriver_new() and attach it to a
  * server with UA_Server_addDriver(). Only one file transfer driver instance
  * can be attached to a server. The driver requires the full Namespace Zero
- * (``UA_NAMESPACE_ZERO=FULL``) and Method calls enabled. */
+ * (``UA_NAMESPACE_ZERO=FULL``) and Method calls enabled.
+ *
+ * While started, the driver owns the FileType and FileDirectoryType Method
+ * nodes of Namespace Zero. Object instances reference those shared nodes
+ * instead of copying them, so the Part 20 Methods of *every*
+ * FileType/FileDirectoryType Object in the server are answered by the driver,
+ * which rejects Objects it does not manage. An application that implements
+ * FileType Objects itself must not run this driver at the same time. Stopping
+ * the driver releases the Method nodes again. */
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 
@@ -65,6 +73,18 @@ _UA_BEGIN_DECLS
  * to UA_STATUSCODE_BADNOTFOUND and EACCES to
  * UA_STATUSCODE_BADUSERACCESSDENIED).
  *
+ * A backend only has to implement the operations its mount can reach.
+ * openFile, closeFile, read, getPosition, setPosition and getAttributes are
+ * always required. write is required unless the mount is read-only.
+ * listDirectory and -- for a writable mount -- createFile, createDirectory,
+ * remove and rename are required for a directory mount (addFileSystem) and
+ * never called for a standalone file (addFile). Adding a mount whose backend
+ * is missing an operation it would need returns Bad_InvalidArgument.
+ *
+ * When the backend reports an error for a single entry during the initial scan
+ * or a refresh -- an unreadable subdirectory, a file that vanished mid-scan --
+ * the entry is skipped with a warning instead of failing the whole mount.
+ *
  * Backend calls are executed in the server's main loop. They must not block
  * for extended periods of time (network filesystems, remote storage). Read
  * and write sizes are bounded by the maxByteStringLength limit configured for
@@ -80,7 +100,8 @@ typedef struct {
                                  * the driver copies it and never frees it.
                                  * Point it at static or otherwise stable
                                  * memory. An empty string means unknown; the
-                                 * optional MimeType Property is then omitted. */
+                                 * optional MimeType Property is then not
+                                 * added (an existing one is left as it is). */
 } UA_FileTransferFileInfo;
 
 /* Called by the backend for every entry when listing a directory */
@@ -185,9 +206,19 @@ typedef struct {
     UA_UInt32 maxScanDepth;
 
     /* Maximum number of file/directory Objects created for this mount.
-     * Entries beyond the limit are skipped with a warning. 0 means
-     * unlimited. */
+     * Entries beyond the limit are skipped with a warning, and the
+     * CreateFile/CreateDirectory Methods return Bad_ResourceUnavailable.
+     * 0 means unlimited. */
     UA_UInt32 maxNodes;
+
+    /* NamespaceIndex used for the BrowseNames of the mirrored file and
+     * directory Objects. Part 20 does not constrain the namespace of the
+     * <FileName>/<FileDirectoryName> placeholders, and the default 0 keeps
+     * the names next to the Part 20 Properties and Methods. Point this at the
+     * server's own namespace to keep storage-defined names out of the OPC UA
+     * namespace. The Properties and Methods defined by Part 20 always stay in
+     * namespace 0, as does the "FileSystem" root. */
+    UA_UInt16 namespaceIndex;
 
     /* Per-user write permission hook for the UserWritable Property and write
      * access checks. If NULL, UserWritable mirrors the Writable Property. */
@@ -210,9 +241,12 @@ typedef struct {
  * 0:max-open-handles-per-file [UInt16]
  *    Maximum number of open file handles per file (default: 16).
  * 0:max-read-length [UInt32]
- *    Maximum number of bytes returned by a single Read Method call
- *    (default: 1 MByte). Longer read requests are truncated; clients
- *    continue reading at the advanced position. */
+ *    Maximum number of bytes transferred by a single Read or Write Method
+ *    call (default: 1 MByte). Published as the MaxByteStringLength Property
+ *    of every file Object, which Part 20 defines for both directions.
+ *    Longer read requests are truncated and clients continue reading at the
+ *    advanced position; a longer Write is rejected with Bad_InvalidArgument,
+ *    because truncating it would silently discard client data. */
 
 typedef struct UA_FileTransferDriver UA_FileTransferDriver;
 struct UA_FileTransferDriver {
@@ -232,7 +266,10 @@ struct UA_FileTransferDriver {
      * @param parentNodeId The parent node of the FileSystem Object
      * @param browseName The BrowseName of the FileSystem Object. Part 20
      *        mandates the name 0:"FileSystem" for the root of an exposed
-     *        directory structure.
+     *        directory structure; passing an empty BrowseName selects it.
+     *        Another name is accepted -- two mounts below the same parent need
+     *        distinct names -- but is logged as a warning, because it puts the
+     *        address space outside the Part 20 conformance unit.
      * @param backend The storage backend for this mount
      * @param options Mount options. NULL selects the defaults (writable,
      *        unlimited scan).

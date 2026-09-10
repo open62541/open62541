@@ -1107,7 +1107,9 @@ START_TEST(fileBadHandles) {
 } END_TEST
 
 START_TEST(fileReadOnlyMount) {
-    UA_FileTransferMountOptions options = {true, 0, 0, NULL, NULL};
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    options.readOnly = true;
     UA_NodeId fileId = addTestFile("RoFile", "content", &options);
 
     UA_Variant value;
@@ -1384,7 +1386,9 @@ START_TEST(mountScanMirrorsTree) {
 } END_TEST
 
 START_TEST(mountScanDepthLimit) {
-    UA_FileTransferMountOptions options = {false, 1, 0, NULL, NULL};
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    options.maxScanDepth = 1;
     UA_NodeId fsId = mountTree(&options);
 
     /* Only the first level is mirrored */
@@ -1451,7 +1455,9 @@ START_TEST(dirCreateMethods) {
 } END_TEST
 
 START_TEST(dirReadOnlyMount) {
-    UA_FileTransferMountOptions options = {true, 0, 0, NULL, NULL};
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    options.readOnly = true;
     UA_NodeId fsId = mountTree(&options);
 
     callCreateDirectory(fsId, "nope", UA_STATUSCODE_BADUSERACCESSDENIED);
@@ -1674,7 +1680,9 @@ START_TEST(crossMountReadOnlySource) {
     UA_FileTransferBackend bB;
     ck_assert_uint_eq(memBackend(&bB), UA_STATUSCODE_GOOD);
 
-    UA_FileTransferMountOptions ro = {true, 0, 0, NULL, NULL};
+    UA_FileTransferMountOptions ro;
+    memset(&ro, 0, sizeof(ro));
+    ro.readOnly = true;
     UA_NodeId fsA = mountNamedMem(bA, "FsRo", &ro);
     UA_NodeId fsB = mountNamedMem(bB, "FsRW", NULL);
 
@@ -1834,6 +1842,465 @@ START_TEST(instanceHasMandatoryProperties) {
     UA_NodeId_clear(&fileNodeId);
 } END_TEST
 
+/**************************************
+ * Regression Tests
+ **************************************/
+
+/* The driver hands the shared Namespace Zero Method nodes back when it stops,
+ * so a stopped driver no longer answers calls on FileType Objects that belong
+ * to the application or to another driver. */
+START_TEST(stopReleasesTypeMethodCallbacks) {
+    UA_MethodCallback cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server_ft, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN),
+                          &cb), UA_STATUSCODE_GOOD);
+    ck_assert(cb != NULL);
+
+    ftDriver->drv.stop(&ftDriver->drv);
+    cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server_ft, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN),
+                          &cb), UA_STATUSCODE_GOOD);
+    ck_assert(cb == NULL);
+
+    /* Restarting claims them again, so the fixture teardown is unaffected */
+    ck_assert_uint_eq(ftDriver->drv.start(&ftDriver->drv), UA_STATUSCODE_GOOD);
+    cb = NULL;
+    ck_assert_uint_eq(UA_Server_getMethodNodeCallback(
+                          server_ft, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN),
+                          &cb), UA_STATUSCODE_GOOD);
+    ck_assert(cb != NULL);
+} END_TEST
+
+static UA_Boolean
+createEveryOptionalChild(UA_Server *s, const UA_NodeId *sessionId,
+                         void *sessionContext, const UA_NodeId *sourceNodeId,
+                         const UA_NodeId *targetParentNodeId,
+                         const UA_NodeId *referenceTypeId) {
+    return true;
+}
+
+/* An application may ask for every optional child to be instantiated. The
+ * optional FileType Properties then already exist when the driver wires up the
+ * Object and have to be reused: adding a second one would leave the Object with
+ * a duplicate BrowseName, so TranslateBrowsePathsToNodeIds returns two targets
+ * for one Property and only one of them carries the value source. */
+START_TEST(optionalPropertiesAreNotDuplicated) {
+    UA_Server *s = UA_Server_newForUnitTest();
+    UA_GlobalNodeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(lifecycle));
+    lifecycle.createOptionalChild = createEveryOptionalChild;
+    UA_Server_getConfig(s)->nodeLifecycle = &lifecycle;
+
+    UA_FileTransferDriver *drv = UA_FileTransferDriver_new(UA_KEYVALUEMAP_NULL);
+    ck_assert_ptr_nonnull(drv);
+    ck_assert_uint_eq(UA_Server_addDriver(s, &drv->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->drv.start(&drv->drv), UA_STATUSCODE_GOOD);
+
+    UA_NodeId fileId = UA_NODEID_NULL;
+    UA_FileTransferBackend b = memBackendWithFile("f.bin", "data");
+    ck_assert_uint_eq(drv->addFile(drv, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                                   UA_QUALIFIEDNAME(0, "OptFile"), b,
+                                   UA_STRING("f.bin"), NULL, &fileId),
+                      UA_STATUSCODE_GOOD);
+
+    /* Every Property of the FileType resolves to exactly one node */
+    const char *properties[] = {"Size", "Writable", "UserWritable", "OpenCount",
+                                "LastModifiedTime", "MaxByteStringLength",
+                                "MimeType"};
+    for(size_t i = 0; i < sizeof(properties) / sizeof(properties[0]); i++) {
+        UA_QualifiedName qn = UA_QUALIFIEDNAME(0, (char*)(uintptr_t)properties[i]);
+        UA_BrowsePathResult bpr =
+            UA_Server_browseSimplifiedBrowsePath(s, fileId, 1, &qn);
+        ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(bpr.targetsSize, 1);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    /* The reused LastModifiedTime node carries the driver's value source */
+    UA_QualifiedName lmName = UA_QUALIFIEDNAME(0, "LastModifiedTime");
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(s, fileId, 1, &lmName);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(s, bpr.targets[0].targetId.nodeId,
+                                          &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME]));
+    ck_assert(*(UA_DateTime*)value.data > 0);
+    UA_Variant_clear(&value);
+    UA_BrowsePathResult_clear(&bpr);
+
+    drv->drv.stop(&drv->drv);
+    ck_assert_uint_eq(UA_Server_removeDriver(s, &drv->drv), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(drv->drv.free(&drv->drv), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+    UA_Server_delete(s);
+} END_TEST
+
+/* MaxByteStringLength bounds Read and Write alike (Part 20, 4.2.1). A Read may
+ * return less than requested, but silently truncating a Write would discard
+ * client data, so an oversized chunk is rejected. */
+START_TEST(fileWriteRespectsMaxByteStringLength) {
+    UA_NodeId fileId = addTestFile("BigWriteFile", "", NULL);
+    UA_UInt32 h = callOpen(fileId, UA_OPENFILEMODE_WRITE, UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    readProperty(fileId, "MaxByteStringLength", &value);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT32]));
+    UA_UInt32 maxLen = *(UA_UInt32*)value.data;
+    UA_Variant_clear(&value);
+
+    UA_ByteString chunk;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&chunk, (size_t)maxLen + 1),
+                      UA_STATUSCODE_GOOD);
+    memset(chunk.data, 'x', chunk.length);
+
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &h, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &chunk, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_CallMethodResult result =
+        callMethod(fileId, UA_NS0ID_FILETYPE_WRITE, 2, input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_CallMethodResult_clear(&result);
+
+    /* A chunk exactly at the announced limit is accepted */
+    chunk.length = maxLen;
+    UA_Variant_setScalar(&input[1], &chunk, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    result = callMethod(fileId, UA_NS0ID_FILETYPE_WRITE, 2, input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    UA_ByteString_clear(&chunk);
+    callClose(fileId, h, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(ftDriver->removeFile(ftDriver, fileId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+} END_TEST
+
+/**************************************
+ * Minimal Read-Only Test Backend
+ *
+ * Implements only what a read-only standalone file can reach. Used to check
+ * that the driver does not demand stubs for operations it never calls.
+ **************************************/
+
+static const char minimalContent[] = "read-only";
+
+typedef struct {
+    size_t pos;
+} MinimalFile;
+
+static UA_StatusCode
+minimalOpenFile(UA_FileTransferBackend *b, const UA_String path,
+                UA_Byte mode, void **fileContext) {
+    if(mode & UA_OPENFILEMODE_WRITE)
+        return UA_STATUSCODE_BADNOTWRITABLE;
+    MinimalFile *f = (MinimalFile*)UA_calloc(1, sizeof(MinimalFile));
+    if(!f)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *fileContext = f;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+minimalCloseFile(UA_FileTransferBackend *b, void *fileContext) {
+    UA_free(fileContext);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+minimalRead(UA_FileTransferBackend *b, void *fileContext, UA_Int32 length,
+            UA_ByteString *out) {
+    MinimalFile *f = (MinimalFile*)fileContext;
+    size_t total = sizeof(minimalContent) - 1;
+    size_t remaining = (f->pos < total) ? total - f->pos : 0;
+    size_t toRead = ((size_t)length < remaining) ? (size_t)length : remaining;
+    if(toRead == 0) {
+        UA_ByteString_init(out);
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_StatusCode res = UA_ByteString_allocBuffer(out, toRead);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    memcpy(out->data, minimalContent + f->pos, toRead);
+    f->pos += toRead;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+minimalGetPosition(UA_FileTransferBackend *b, void *fileContext,
+                   UA_UInt64 *outPosition) {
+    *outPosition = ((MinimalFile*)fileContext)->pos;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+minimalSetPosition(UA_FileTransferBackend *b, void *fileContext,
+                   UA_UInt64 position) {
+    MinimalFile *f = (MinimalFile*)fileContext;
+    size_t total = sizeof(minimalContent) - 1;
+    f->pos = (position < total) ? (size_t)position : total;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+minimalGetAttributes(UA_FileTransferBackend *b, const UA_String path,
+                     UA_FileTransferFileInfo *outInfo) {
+    memset(outInfo, 0, sizeof(UA_FileTransferFileInfo));
+    outInfo->size = sizeof(minimalContent) - 1;
+    outInfo->lastModified = UA_DateTime_now();
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_FileTransferBackend
+minimalBackend(void) {
+    UA_FileTransferBackend b;
+    memset(&b, 0, sizeof(b));
+    b.openFile = minimalOpenFile;
+    b.closeFile = minimalCloseFile;
+    b.read = minimalRead;
+    b.getPosition = minimalGetPosition;
+    b.setPosition = minimalSetPosition;
+    b.getAttributes = minimalGetAttributes;
+    return b;
+}
+
+/* A read-only standalone file never reaches write, listDirectory, createFile,
+ * createDirectory, remove or rename, so the backend need not supply stubs for
+ * them. A writable mount still has to provide the mutating operations. */
+START_TEST(readOnlyBackendNeedsNoWriteCallbacks) {
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    options.readOnly = true;
+
+    UA_NodeId fileId = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFile(ftDriver, UA_NODEID_NULL,
+                                        UA_NS0ID(OBJECTSFOLDER),
+                                        UA_QUALIFIEDNAME(0, "MinimalFile"),
+                                        minimalBackend(), UA_STRING("static"),
+                                        &options, &fileId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ByteString content = readFileContent(fileId);
+    ck_assert_uint_eq(content.length, strlen(minimalContent));
+    ck_assert(memcmp(content.data, minimalContent, content.length) == 0);
+    UA_ByteString_clear(&content);
+
+    /* Writing is refused by the mount before the backend is consulted */
+    callOpen(fileId, UA_OPENFILEMODE_WRITE, UA_STATUSCODE_BADNOTWRITABLE);
+
+    /* The same backend is rejected for a writable mount */
+    UA_NodeId rejected = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFile(ftDriver, UA_NODEID_NULL,
+                                        UA_NS0ID(OBJECTSFOLDER),
+                                        UA_QUALIFIEDNAME(0, "WritableFile"),
+                                        minimalBackend(), UA_STRING("static"),
+                                        NULL, &rejected),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert(UA_NodeId_isNull(&rejected));
+
+    /* ... and for a read-only directory mount, which still needs a listing */
+    UA_NodeId rejectedFs = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFileSystem(ftDriver, UA_NODEID_NULL,
+                                              UA_NS0ID(OBJECTSFOLDER),
+                                              UA_QUALIFIEDNAME(0, "FileSystem"),
+                                              minimalBackend(), &options,
+                                              &rejectedFs),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    ck_assert_uint_eq(ftDriver->removeFile(ftDriver, fileId), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&fileId);
+} END_TEST
+
+/* The maxNodes ceiling has to hold for Objects created through the Methods as
+ * well, otherwise a client grows the address space past the configured limit
+ * one CreateFile call at a time. */
+START_TEST(dirCreateRespectsMaxNodes) {
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    /* The mirrored tree is the root plus five entries */
+    options.maxNodes = 7;
+    UA_NodeId fsId = mountTree(&options);
+
+    /* One more Object fits */
+    UA_NodeId firstId = callCreateFile(fsId, "first.txt", false, NULL,
+                                       UA_STATUSCODE_GOOD);
+    ck_assert(!UA_NodeId_isNull(&firstId));
+
+    /* The next one is refused, and nothing is created in the backend */
+    callCreateFile(fsId, "second.txt", false, NULL,
+                   UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert(!tryResolveChild(server_ft, fsId, "second.txt", NULL));
+    callCreateDirectory(fsId, "seconddir", UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    ck_assert(!tryResolveChild(server_ft, fsId, "seconddir", NULL));
+
+    /* Deleting one frees the budget again */
+    callDelete(fsId, firstId, UA_STATUSCODE_GOOD);
+    UA_NodeId thirdId = callCreateFile(fsId, "third.txt", false, NULL,
+                                       UA_STATUSCODE_GOOD);
+    ck_assert(!UA_NodeId_isNull(&thirdId));
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&firstId);
+    UA_NodeId_clear(&thirdId);
+    UA_NodeId_clear(&fsId);
+} END_TEST
+
+/* Part 20 does not constrain the namespace of the <FileName> placeholder. The
+ * mount can place the storage-defined names in the server's own namespace
+ * instead of the OPC UA namespace; the Part 20 Properties stay in namespace 0. */
+START_TEST(mirroredNamesUseMountNamespace) {
+    UA_UInt16 nsIdx = UA_Server_addNamespace(server_ft, "http://example.org/files");
+    ck_assert_uint_gt(nsIdx, 0);
+
+    UA_FileTransferMountOptions options;
+    memset(&options, 0, sizeof(options));
+    options.namespaceIndex = nsIdx;
+    UA_NodeId fsId = mountTree(&options);
+
+    /* The mirrored names live in the configured namespace */
+    UA_QualifiedName readme = {nsIdx, UA_STRING_STATIC("readme.txt")};
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server_ft, fsId, 1, &readme);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_NodeId readmeId;
+    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &readmeId);
+    UA_BrowsePathResult_clear(&bpr);
+
+    /* ... and not in namespace 0 */
+    ck_assert(!tryResolveChild(server_ft, fsId, "readme.txt", NULL));
+
+    /* The Part 20 Properties of the mirrored file stay in namespace 0 */
+    UA_NodeId sizeId = resolveChild(server_ft, readmeId, "Size");
+    UA_NodeId_clear(&sizeId);
+
+    /* Objects created through the Methods follow the same namespace */
+    UA_NodeId createdId = callCreateFile(fsId, "created.txt", false, NULL,
+                                         UA_STATUSCODE_GOOD);
+    UA_QualifiedName created = {nsIdx, UA_STRING_STATIC("created.txt")};
+    bpr = UA_Server_browseSimplifiedBrowsePath(server_ft, fsId, 1, &created);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_BrowsePathResult_clear(&bpr);
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&createdId);
+    UA_NodeId_clear(&readmeId);
+    UA_NodeId_clear(&fsId);
+} END_TEST
+
+#ifndef _WIN32
+/* One entry the server cannot read must not make the whole mount unavailable:
+ * it is skipped with a warning, like an entry with an invalid name. */
+START_TEST(mountSkipsUnreadableEntries) {
+    makeScratchDir();
+
+    char readablePath[128];
+    char lockedPath[128];
+    strcpy(readablePath, scratchDir);
+    strcat(readablePath, "/readable");
+    strcpy(lockedPath, scratchDir);
+    strcat(lockedPath, "/locked");
+    ck_assert_int_eq(mkdir(readablePath, 0755), 0);
+    ck_assert_int_eq(mkdir(lockedPath, 0755), 0);
+
+    UA_FileTransferBackend pre;
+    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
+                          UA_STRING(scratchDir), &pre), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("readable/visible.txt")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("locked/hidden.txt")),
+                      UA_STATUSCODE_GOOD);
+    pre.clear(&pre);
+
+    /* Take away the permission to list the directory */
+    ck_assert_int_eq(chmod(lockedPath, 0), 0);
+
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
+                          UA_STRING(scratchDir), &b), UA_STATUSCODE_GOOD);
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFileSystem(
+                          ftDriver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(0, "FileSystem"), b, NULL, &fsId),
+                      UA_STATUSCODE_GOOD);
+
+    /* The readable part of the tree is mirrored */
+    UA_NodeId readableId;
+    ck_assert(tryResolveChild(server_ft, fsId, "readable", &readableId));
+    ck_assert(tryResolveChild(server_ft, readableId, "visible.txt", NULL));
+
+    /* The unreadable directory itself is represented but stays empty */
+    UA_NodeId lockedId;
+    ck_assert(tryResolveChild(server_ft, fsId, "locked", &lockedId));
+    ck_assert(!tryResolveChild(server_ft, lockedId, "hidden.txt", NULL));
+
+    /* A refresh does not fail over it either */
+    ck_assert_uint_eq(ftDriver->refresh(ftDriver, fsId), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&readableId);
+    UA_NodeId_clear(&lockedId);
+    UA_NodeId_clear(&fsId);
+    ck_assert_int_eq(chmod(lockedPath, 0755), 0);
+    removeTree(scratchDir);
+} END_TEST
+
+/* rename(2) replaces an existing target silently. An entry created behind the
+ * driver's back must not be destroyed by a MoveOrCopy onto its name. */
+START_TEST(moveOrCopyKeepsUnmirroredTarget) {
+    makeScratchDir();
+
+    UA_FileTransferBackend pre;
+    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
+                          UA_STRING(scratchDir), &pre), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("source.txt")),
+                      UA_STATUSCODE_GOOD);
+    pre.clear(&pre);
+
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
+                          UA_STRING(scratchDir), &b), UA_STATUSCODE_GOOD);
+    UA_NodeId fsId = UA_NODEID_NULL;
+    ck_assert_uint_eq(ftDriver->addFileSystem(
+                          ftDriver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                          UA_QUALIFIEDNAME(0, "FileSystem"), b, NULL, &fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId sourceId;
+    ck_assert(tryResolveChild(server_ft, fsId, "source.txt", &sourceId));
+
+    /* Create a file the driver never mirrored */
+    char victimPath[128];
+    strcpy(victimPath, scratchDir);
+    strcat(victimPath, "/victim.txt");
+    FILE *fp = fopen(victimPath, "wb");
+    ck_assert_ptr_nonnull(fp);
+    ck_assert_uint_eq(fwrite("keep me", 1, 7, fp), 7);
+    fclose(fp);
+
+    /* Renaming onto it is refused instead of overwriting it */
+    callMoveOrCopy(fsId, sourceId, fsId, false, "victim.txt",
+                   UA_STATUSCODE_BADBROWSENAMEDUPLICATED);
+
+    /* The file behind the driver's back is untouched */
+    struct stat st;
+    ck_assert_int_eq(stat(victimPath, &st), 0);
+    ck_assert_uint_eq((size_t)st.st_size, 7);
+    /* ... and the source still exists */
+    ck_assert(tryResolveChild(server_ft, fsId, "source.txt", NULL));
+
+    ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsId),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&sourceId);
+    UA_NodeId_clear(&fsId);
+    removeTree(scratchDir);
+} END_TEST
+#endif /* !_WIN32 */
+
 #endif /* UA_TEST_ENABLE_FILETRANSFER */
 
 int main(void) {
@@ -1845,6 +2312,8 @@ int main(void) {
     tcase_add_test(tc_lifecycle, restartDriver);
     tcase_add_test(tc_lifecycle, instanceSharesTypeMethodNodes);
     tcase_add_test(tc_lifecycle, instanceHasMandatoryProperties);
+    tcase_add_test(tc_lifecycle, stopReleasesTypeMethodCallbacks);
+    tcase_add_test(tc_lifecycle, optionalPropertiesAreNotDuplicated);
 #endif
     tcase_add_checked_fixture(tc_lifecycle, setup, teardown);
     suite_add_tcase(s, tc_lifecycle);
@@ -1860,6 +2329,8 @@ int main(void) {
     tcase_add_test(tc_file, fileHandleLimits);
     tcase_add_test(tc_file, removeFileClosesHandles);
     tcase_add_test(tc_file, fileMaxByteStringLength);
+    tcase_add_test(tc_file, fileWriteRespectsMaxByteStringLength);
+    tcase_add_test(tc_file, readOnlyBackendNeedsNoWriteCallbacks);
 # ifndef _WIN32
     tcase_add_test(tc_file, fileMimeType);
 # endif
@@ -1879,8 +2350,12 @@ int main(void) {
     tcase_add_test(tc_dir, crossMountReadOnlySource);
     tcase_add_test(tc_dir, dirRefresh);
     tcase_add_test(tc_dir, removeFileSystemWithOpenHandles);
+    tcase_add_test(tc_dir, dirCreateRespectsMaxNodes);
+    tcase_add_test(tc_dir, mirroredNamesUseMountNamespace);
 # ifndef _WIN32
     tcase_add_test(tc_dir, localFilesystemMount);
+    tcase_add_test(tc_dir, mountSkipsUnreadableEntries);
+    tcase_add_test(tc_dir, moveOrCopyKeepsUnmirroredTarget);
 # endif
 #endif
     tcase_add_checked_fixture(tc_dir, setup, teardown);

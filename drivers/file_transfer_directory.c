@@ -173,7 +173,8 @@ mirrorFile(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    UA_QualifiedName browseName = {0, name};
+    UA_QualifiedName browseName =
+        {dirNode->mount->options.namespaceIndex, name};
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName.text = name;
     UA_NodeId newNodeId = UA_NODEID_NULL;
@@ -211,7 +212,8 @@ mirrorDirectory(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    UA_QualifiedName browseName = {0, name};
+    UA_QualifiedName browseName =
+        {dirNode->mount->options.namespaceIndex, name};
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName.text = name;
     UA_NodeId newNodeId = UA_NODEID_NULL;
@@ -236,22 +238,62 @@ mirrorDirectory(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
     return res;
 }
 
-/* Recursively mirror the backend content below a directory node */
-UA_StatusCode
-fileTransferMirrorTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
-                       UA_UInt32 depth, UA_UInt32 *nodeBudget) {
-    const UA_FileTransferMountOptions *opts = &dirNode->mount->options;
-    if(opts->maxScanDepth > 0 && depth > opts->maxScanDepth)
-        return UA_STATUSCODE_GOOD;
+/* A backend error for a single entry -- an unreadable subdirectory, a file that
+ * vanished mid-scan, a permission-denied stat -- must not abort the whole scan.
+ * Such an entry is skipped with a warning, exactly like an entry with an
+ * invalid name, so that one restricted directory does not make the entire
+ * mount unavailable. Only a failed allocation is fatal: the resulting tree
+ * would be arbitrarily incomplete for a reason the caller cannot act on. */
+static UA_Boolean
+fatalScanError(UA_StatusCode res) {
+    return res == UA_STATUSCODE_BADOUTOFMEMORY;
+}
 
-    UA_FileTransferBackend *b = &dirNode->mount->backend;
-    ScanEntry *entries = NULL;
-    UA_StatusCode res = b->listDirectory(b, dirNode->path, scanCollector,
-                                         &entries);
+/* Mirror one directory entry below dirNode. Returns the StatusCode of the
+ * operation; the caller decides whether to skip the entry or abort the scan.
+ * dirPath is passed explicitly so the caller can hand over a snapshot of
+ * dirNode->path where it holds one. */
+static UA_StatusCode
+mirrorEntry(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
+            const UA_String dirPath, const ScanEntry *e, UA_UInt32 depth,
+            UA_UInt32 *nodeBudget) {
+    if(e->isDir) {
+        FTNode *childNode = NULL;
+        UA_StatusCode res =
+            mirrorDirectory(server, ftd, dirNode, e->name, &childNode);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        (*nodeBudget)--;
+        /* A subdirectory that cannot be listed stays as an empty Object */
+        return fileTransferMirrorTree(server, ftd, childNode, depth + 1,
+                                      nodeBudget);
+    }
+
+    UA_String childPath = UA_STRING_NULL;
+    UA_StatusCode res = joinPath(dirPath, e->name, &childPath);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    UA_FileTransferBackend *b = &dirNode->mount->backend;
+    UA_FileTransferFileInfo info;
+    res = b->getAttributes(b, childPath, &info);
+    UA_String_clear(&childPath);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = mirrorFile(server, ftd, dirNode, e->name, &info, NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        (*nodeBudget)--;
+    return res;
+}
 
-    for(ScanEntry *e = entries; e && res == UA_STATUSCODE_GOOD; e = e->next) {
+/* Walk the collected listing and mirror every entry, skipping the ones that
+ * cannot be represented. Shared by the initial scan and the refresh. */
+static UA_StatusCode
+mirrorEntries(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
+              const UA_String dirPath, ScanEntry *entries, UA_Boolean skipMatched,
+              UA_UInt32 depth, UA_UInt32 *nodeBudget) {
+    for(ScanEntry *e = entries; e; e = e->next) {
+        if(skipMatched && e->matched)
+            continue;
         if(!validEntryName(e->name)) {
             UA_LOG_WARNING(ftd->logging, UA_LOGCATEGORY_SERVER,
                            "FileTransfer: Skipping the entry \"%S\" with an "
@@ -265,29 +307,39 @@ fileTransferMirrorTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNo
             break;
         }
 
-        if(e->isDir) {
-            FTNode *childNode = NULL;
-            res = mirrorDirectory(server, ftd, dirNode, e->name, &childNode);
-            if(res == UA_STATUSCODE_GOOD) {
-                (*nodeBudget)--;
-                res = fileTransferMirrorTree(server, ftd, childNode, depth + 1, nodeBudget);
-            }
-        } else {
-            UA_String childPath = UA_STRING_NULL;
-            res = joinPath(dirNode->path, e->name, &childPath);
-            if(res != UA_STATUSCODE_GOOD)
-                break;
-            UA_FileTransferFileInfo info;
-            res = b->getAttributes(b, childPath, &info);
-            UA_String_clear(&childPath);
-            if(res != UA_STATUSCODE_GOOD)
-                break;
-            res = mirrorFile(server, ftd, dirNode, e->name, &info, NULL);
-            if(res == UA_STATUSCODE_GOOD)
-                (*nodeBudget)--;
-        }
+        UA_StatusCode res =
+            mirrorEntry(server, ftd, dirNode, dirPath, e, depth, nodeBudget);
+        if(res == UA_STATUSCODE_GOOD)
+            continue;
+        if(fatalScanError(res))
+            return res;
+        UA_LOG_WARNING(ftd->logging, UA_LOGCATEGORY_SERVER,
+                       "FileTransfer: Skipping the entry \"%S\": %s",
+                       e->name, UA_StatusCode_name(res));
     }
+    return UA_STATUSCODE_GOOD;
+}
 
+/* Recursively mirror the backend content below a directory node */
+UA_StatusCode
+fileTransferMirrorTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode,
+                       UA_UInt32 depth, UA_UInt32 *nodeBudget) {
+    const UA_FileTransferMountOptions *opts = &dirNode->mount->options;
+    if(opts->maxScanDepth > 0 && depth > opts->maxScanDepth)
+        return UA_STATUSCODE_GOOD;
+
+    UA_FileTransferBackend *b = &dirNode->mount->backend;
+    ScanEntry *entries = NULL;
+    /* Failing to list this directory is reported to the caller. For the mount
+     * root that fails addFileSystem; for a subdirectory the recursion site
+     * turns it into a skipped entry. */
+    UA_StatusCode res = b->listDirectory(b, dirNode->path, scanCollector,
+                                         &entries);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    res = mirrorEntries(server, ftd, dirNode, dirNode->path, entries, false,
+                        depth, nodeBudget);
     freeScanEntries(entries);
     return res;
 }
@@ -485,48 +537,33 @@ fileTransferSyncTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode
         }
     }
 
-    /* Create nodes for new backend entries */
-    for(ScanEntry *e = entries; e && res == UA_STATUSCODE_GOOD; e = e->next) {
-        if(e->matched || !validEntryName(e->name))
-            continue;
-        if(*nodeBudget == 0)
-            break;
-        if(e->isDir) {
-            FTNode *newDir = NULL;
-            res = mirrorDirectory(server, ftd, dirNode, e->name, &newDir);
-            if(res == UA_STATUSCODE_GOOD) {
-                (*nodeBudget)--;
-                res = fileTransferMirrorTree(server, ftd, newDir, depth + 1, nodeBudget);
-            }
-        } else {
-            UA_String childPath = UA_STRING_NULL;
-            res = joinPath(dirPath, e->name, &childPath);
-            if(res != UA_STATUSCODE_GOOD)
-                break;
-            UA_FileTransferFileInfo info;
-            res = b->getAttributes(b, childPath, &info);
-            UA_String_clear(&childPath);
-            if(res != UA_STATUSCODE_GOOD)
-                break;
-            res = mirrorFile(server, ftd, dirNode, e->name, &info, NULL);
-            if(res == UA_STATUSCODE_GOOD)
-                (*nodeBudget)--;
-        }
-    }
+    /* Create nodes for new backend entries. Entries that cannot be mirrored
+     * are skipped with a warning rather than aborting the reconciliation. */
+    res = mirrorEntries(server, ftd, dirNode, dirPath, entries, true,
+                        depth, nodeBudget);
     freeScanEntries(entries);
     if(res != UA_STATUSCODE_GOOD) {
         UA_String_clear(&dirPath);
         return res;
     }
 
-    /* Recurse into the (kept) subdirectories */
+    /* Recurse into the (kept) subdirectories. A subdirectory that cannot be
+     * listed any more keeps its nodes and does not stop the walk. */
     LIST_FOREACH_SAFE(child, &ftd->nodes, listEntry, childTmp) {
         if(child->mount != dirMount || !child->isDirectory ||
            child->zombie || !isDirectChildPath(dirPath, child->path))
             continue;
-        res = fileTransferSyncTree(server, ftd, child, depth + 1, nodeBudget);
-        if(res != UA_STATUSCODE_GOOD)
+        UA_StatusCode childRes =
+            fileTransferSyncTree(server, ftd, child, depth + 1, nodeBudget);
+        if(childRes == UA_STATUSCODE_GOOD)
+            continue;
+        if(fatalScanError(childRes)) {
+            res = childRes;
             break;
+        }
+        UA_LOG_WARNING(ftd->logging, UA_LOGCATEGORY_SERVER,
+                       "FileTransfer: Skipping the refresh of \"%S\": %s",
+                       child->path, UA_StatusCode_name(childRes));
     }
     UA_String_clear(&dirPath);
     return res;
@@ -535,6 +572,15 @@ fileTransferSyncTree(UA_Server *server, FileTransferDriver *ftd, FTNode *dirNode
 /**************************************
  * FileDirectoryType Method Callbacks
  **************************************/
+
+/* The maxNodes ceiling has to apply to Objects created through the Methods as
+ * well, not only to the scan -- otherwise a client can grow the address space
+ * past the configured limit one CreateFile call at a time. */
+static UA_Boolean
+mountNodeBudgetExhausted(FileTransferDriver *ftd, FTMount *mount) {
+    return mount->options.maxNodes > 0 &&
+        countMountNodes(ftd, mount) >= mount->options.maxNodes;
+}
 
 /* Resolve the FTNode of a directory Object addressed by a Method call */
 static UA_StatusCode
@@ -569,6 +615,8 @@ createDirectoryMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_String name = *(UA_String*)input[0].data;
     if(!validEntryName(name))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(mountNodeBudgetExhausted(ftd, dirNode->mount))
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_String newPath = UA_STRING_NULL;
     res = joinPath(dirNode->path, name, &newPath);
@@ -618,6 +666,8 @@ createFileMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_Boolean requestFileOpen = *(UA_Boolean*)input[1].data;
     if(!validEntryName(name))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(mountNodeBudgetExhausted(ftd, dirNode->mount))
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
 
     UA_String newPath = UA_STRING_NULL;
     res = joinPath(dirNode->path, name, &newPath);

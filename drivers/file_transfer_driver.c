@@ -158,8 +158,14 @@ FileTransferDriver_notification(UA_Driver *drv,
  * Method Registration
  **************************************/
 
-UA_StatusCode
-registerFileTransferMethodCallbacks(UA_Server *server) {
+/* The callbacks are attached to the Namespace Zero type declarations. With the
+ * default configuration (copyMethodsOnInstances false) an Object instance
+ * references the type's Method nodes instead of copying them, so one
+ * registration serves every FileType/FileDirectoryType instance. The flip side
+ * is that this is server-global state: it claims the Part 20 Methods for the
+ * driver, and it has to be released again when the driver stops. */
+static UA_StatusCode
+setFileTransferMethodCallbacks(UA_Server *server, UA_Boolean install) {
     const struct {
         UA_UInt32 methodId;
         UA_MethodCallback callback;
@@ -179,11 +185,22 @@ registerFileTransferMethodCallbacks(UA_Server *server) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
         res = UA_Server_setMethodNodeCallback(
-            server, UA_NODEID_NUMERIC(0, methods[i].methodId), methods[i].callback);
+            server, UA_NODEID_NUMERIC(0, methods[i].methodId),
+            install ? methods[i].callback : NULL);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
     return res;
+}
+
+UA_StatusCode
+registerFileTransferMethodCallbacks(UA_Server *server) {
+    return setFileTransferMethodCallbacks(server, true);
+}
+
+void
+unregisterFileTransferMethodCallbacks(UA_Server *server) {
+    setFileTransferMethodCallbacks(server, false);
 }
 
 /**************************************
@@ -191,15 +208,33 @@ registerFileTransferMethodCallbacks(UA_Server *server) {
  **************************************/
 
 static const UA_FileTransferMountOptions defaultMountOptions =
-    {false, 0, 0, NULL, NULL};
+    {false, 0, 0, 0, NULL, NULL};
 
-/* Validate that a backend implements the mandatory operations */
+/* Validate that a backend implements the operations the mount can actually
+ * reach. Requiring all of them unconditionally would force a read-only or
+ * single-file backend -- content generated on the fly, a file in flash -- to
+ * supply half a dozen stubs that only ever return Bad_NotSupported. */
 UA_Boolean
-backendComplete(const UA_FileTransferBackend *b) {
-    return b->openFile && b->closeFile && b->read && b->write &&
-        b->getPosition && b->setPosition && b->getAttributes &&
-        b->listDirectory && b->createFile && b->createDirectory &&
-        b->remove && b->rename;
+backendComplete(const UA_FileTransferBackend *b, UA_Boolean standaloneFile,
+                UA_Boolean readOnly) {
+    /* Reading a file and moving within it is always possible */
+    if(!b->openFile || !b->closeFile || !b->read ||
+       !b->getPosition || !b->setPosition || !b->getAttributes)
+        return false;
+    if(!readOnly && !b->write)
+        return false;
+    /* A standalone file has no directory tree: no listing, and none of the
+     * mutating directory operations can name it */
+    if(standaloneFile)
+        return true;
+    if(!b->listDirectory)
+        return false;
+    /* CreateFile/CreateDirectory/Delete/MoveOrCopy are rejected with
+     * Bad_UserAccessDenied on a read-only mount before reaching the backend */
+    if(!readOnly && (!b->createFile || !b->createDirectory ||
+                     !b->remove || !b->rename))
+        return false;
+    return true;
 }
 
 FTMount *
@@ -274,7 +309,7 @@ addFileSystem(UA_FileTransferDriver *driver, const UA_NodeId requestedNodeId,
 
     /* The driver takes ownership of the backend. On failure the backend is
      * cleared before returning. */
-    if(!backendComplete(&backend)) {
+    if(!backendComplete(&backend, false, options && options->readOnly)) {
         if(backend.clear)
             backend.clear(&backend);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -303,11 +338,24 @@ addFileSystem(UA_FileTransferDriver *driver, const UA_NodeId requestedNodeId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Part 20 mandates the BrowseName "FileSystem" for the root Object of an
-     * exposed directory structure */
+    /* Part 20, 4.3.2: "The Object representing the root of a file directory
+     * structure shall have the BrowseName FileSystem." An empty BrowseName
+     * selects it. A different name is still accepted -- two mounts below the
+     * same parent need distinct names -- but it puts the address space outside
+     * the "Base Info FileDirectoryType Base" conformance unit, so say so
+     * instead of deviating silently. */
     UA_QualifiedName rootName = browseName;
-    if(rootName.name.length == 0)
-        rootName = UA_QUALIFIEDNAME(0, "FileSystem");
+    UA_QualifiedName fileSystemName = UA_QUALIFIEDNAME(0, "FileSystem");
+    if(rootName.name.length == 0) {
+        rootName = fileSystemName;
+    } else if(rootName.namespaceIndex != fileSystemName.namespaceIndex ||
+              !UA_String_equal(&rootName.name, &fileSystemName.name)) {
+        UA_LOG_WARNING(ftd->logging, UA_LOGCATEGORY_SERVER,
+                       "FileTransfer: Creating the FileSystem root with the "
+                       "BrowseName %u:\"%S\". Part 20 requires 0:\"FileSystem\" "
+                       "for the root of an exposed directory structure",
+                       (unsigned)rootName.namespaceIndex, rootName.name);
+    }
 
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName.text = rootName.name;
@@ -381,7 +429,7 @@ addFile(UA_FileTransferDriver *driver, const UA_NodeId requestedNodeId,
 
     /* The driver takes ownership of the backend. On failure the backend is
      * cleared before returning. */
-    if(!backendComplete(&backend)) {
+    if(!backendComplete(&backend, true, options && options->readOnly)) {
         if(backend.clear)
             backend.clear(&backend);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -554,6 +602,12 @@ FileTransferDriver_stop(UA_Driver *drv) {
     LIST_FOREACH_SAFE(h, &ftd->handles, listEntry, tmp) {
         closeFTHandle(drv->server, ftd, h);
     }
+
+    /* Release the shared Namespace Zero Method nodes again. A stopped driver
+     * must not keep answering calls on FileType/FileDirectoryType Objects that
+     * belong to the application or to another driver. */
+    if(drv->server)
+        unregisterFileTransferMethodCallbacks(drv->server);
 
     drv->state = UA_LIFECYCLESTATE_STOPPED;
 }

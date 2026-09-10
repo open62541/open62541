@@ -9,21 +9,54 @@
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+/* The backend needs the OS file handling definitions. On POSIX they come from
+ * the architecture header, but only where the POSIX EventLoop is actually
+ * compiled in: the definitions there are gated on UA_ARCHITECTURE_POSIX &&
+ * !UA_ARCHITECTURE_LWIP, and the "posix-lwip" architecture sets both. Win32
+ * has no equivalent header, so the same definitions are made here (mirroring
+ * plugins/crypto/ua_filestore_common.h). Architectures with neither (lwip,
+ * freertos-lwip, zephyr) fall through to the UA_STATUSCODE_BADNOTSUPPORTED
+ * stub at the bottom of this file. */
+#if defined(UA_ARCHITECTURE_WIN32)
+# define UA_FILETRANSFER_LOCALBACKEND
+# include <direct.h>
+# include <errno.h>
+# include <io.h>
+# include <stdint.h>
+# include <stdio.h>
+# include <sys/stat.h>
+# include "tr_dirent.h"
+# include "mp_printf.h"
+# define UA_STAT stat
+# define UA_DIR DIR
+# define UA_DIRENT dirent
+# define UA_FILE FILE
+# define UA_stat stat
+# define UA_opendir opendir
+# define UA_readdir readdir
+# define UA_closedir closedir
+# define UA_mkdir(path, mode) _mkdir(path)
+# define UA_fopen fopen
+# define UA_fread fread
+# define UA_fwrite fwrite
+# define UA_fseek fseek
+# define UA_ftell ftell
+# define UA_fclose fclose
+# define UA_remove remove
+# define UA_SEEK_END SEEK_END
+# define UA_SEEK_SET SEEK_SET
+# define UA_PATH_MAX MAX_PATH
+# define ft_rmdir _rmdir
+# define ft_access _access
+# define FT_ISDIR(mode) (((mode) & _S_IFDIR) != 0)
+#elif defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 # define UA_FILETRANSFER_LOCALBACKEND
 # include "../arch/posix/eventloop_posix.h"
 # include "mp_printf.h"
 # include <errno.h>
-# ifdef UA_ARCHITECTURE_WIN32
-#  include <io.h>
-#  define ft_rmdir _rmdir
-#  define ft_access _access
-#  define FT_ISDIR(mode) (((mode) & _S_IFDIR) != 0)
-# else
-#  define ft_rmdir rmdir
-#  define ft_access access
-#  define FT_ISDIR(mode) S_ISDIR(mode)
-# endif
+# define ft_rmdir rmdir
+# define ft_access access
+# define FT_ISDIR(mode) S_ISDIR(mode)
 #endif
 
 /**************************************
@@ -398,6 +431,13 @@ localFsRename(UA_FileTransferBackend *b, const UA_String fromPath,
     res = buildLocalPath(ctx, toPath, localTo);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+
+    /* rename(2) replaces an existing target without warning. The driver only
+     * knows about entries it mirrored, so an entry created out-of-band or
+     * below maxScanDepth would be destroyed silently. Reject it here instead. */
+    struct UA_STAT st;
+    if(UA_stat(localTo, &st) == 0)
+        return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
 
     errno = 0;
     if(rename(localFrom, localTo) != 0)
