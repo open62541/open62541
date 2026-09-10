@@ -55,6 +55,7 @@ typedef enum {
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
+    UA_Boolean acknowledged; /* True if the worker thread acknowledged this operation */
     UA_AsyncOperationType asyncOperationType;
 
     union {
@@ -91,10 +92,20 @@ typedef struct UA_AsyncOperation {
          * don't access the writeValue after the operationCallback. */
         UA_WriteValue writeValue;
     } context;
+
+    union {
+        size_t callOutputArgumentsSize;
+        UA_DataValue readDataValue;
+    } workerSlots;
+
+    UA_DataValue *responseReadTarget;
+    UA_DelayedCallback dc;
 } UA_AsyncOperation;
 
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
+
+    UA_Boolean processed; /* Tue if the response is send */
 
     UA_UInt64 responseToken;
     UA_UInt32 uacpRequestId; /* Zero for transports without a UACP RequestId */
@@ -103,6 +114,7 @@ struct UA_AsyncResponse {
     UA_NodeId sessionId;
     UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
                             * only be deleted when all have returned. */
+    UA_UInt32 zombieCountdown;
     UA_Boolean abandoned;  /* The transport carrier closed before completion */
 
     const UA_DataType *responseType;
@@ -128,6 +140,8 @@ typedef struct {
     TAILQ_HEAD(, UA_AsyncOperation) waitingOps;
     TAILQ_HEAD(, UA_AsyncOperation) readyOps;
     size_t opsCount; /* Both waiting and ready */
+    TAILQ_HEAD(, UA_AsyncOperation) zombieOps;
+    size_t zombieCount;
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
 
