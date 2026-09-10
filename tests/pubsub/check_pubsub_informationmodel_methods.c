@@ -1962,6 +1962,18 @@ START_TEST(HeartbeatWriterViaInformationModel) {
         UA_StatusCode expected = (i == 1) ? UA_STATUSCODE_GOOD :
             ((i == 3) ? UA_STATUSCODE_BADPARENTNODEIDINVALID : UA_STATUSCODE_BADCONFIGURATIONERROR);
         ck_assert_uint_eq(result.statusCode, expected);
+        if(expected == UA_STATUSCODE_GOOD) {
+            UA_NodeId writerId = *(UA_NodeId*)result.outputArguments[0].data;
+            UA_NodeId property = findSingleChildNode(
+                UA_QUALIFIEDNAME(0, "DataSetWriterId"), UA_NS0ID(HASPROPERTY), writerId);
+            UA_Variant value;
+            UA_Variant_init(&value);
+            ck_assert_uint_eq(UA_Server_readValue(server, property, &value), UA_STATUSCODE_GOOD);
+            ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+            ck_assert_uint_eq(*(UA_UInt16*)value.data, writer.dataSetWriterId);
+            UA_Variant_clear(&value);
+            UA_NodeId_clear(&property);
+        }
         UA_CallMethodResult_clear(&result);
     }
     UA_NodeId_clear(&groupId);
