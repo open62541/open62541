@@ -85,6 +85,13 @@ OPC UA Server
 | Local Discovery Server Multicast Ext.   | :heavy_check_mark: |
 | Global Discovery Server                 |      :moon:        |
 
+| **File Transfer (Part 20)**             |                    |
+| --------------------------------------- |:------------------:|
+| FileType Objects                        | :heavy_check_mark: |
+| FileDirectoryType / FileSystem Objects  | :heavy_check_mark: |
+| Pluggable storage backends              | :heavy_check_mark: |
+| TemporaryFileTransferType               |     :new_moon:     |
+
 OPC UA Client
 -------------
 
