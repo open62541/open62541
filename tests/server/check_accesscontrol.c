@@ -233,6 +233,51 @@ START_TEST(Server_setSessionParameter) {
     UA_Server_delete(server);
 } END_TEST
 
+static UA_StatusCode
+loginCallbackStub(const UA_String *userName, const UA_ByteString *password,
+                  size_t loginSize, const UA_UsernamePasswordLogin *login,
+                  void **sessionContext, void *loginContext) {
+    (void)userName; (void)password; (void)loginSize;
+    (void)login; (void)sessionContext; (void)loginContext;
+    return UA_STATUSCODE_BADUSERACCESSDENIED;
+}
+
+/* A login callback verifies the credentials itself, so the caller has no list to
+ * hand over -- that is the point of the callback variant. The UserName policy has
+ * to be announced all the same, otherwise no client is ever told that
+ * username/password login exists and the callback is never reached.
+ * Passing a dummy list to work around it is not a neutral workaround: the obvious
+ * filler, an empty password, makes the built-in comparison succeed (a
+ * constant-time compare over zero bytes returns true), so anyone knowing the user
+ * name would get in. */
+START_TEST(Server_usernamePolicyWithLoginCallbackOnly) {
+    UA_Server *s = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(s, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(s);
+
+    UA_String policy = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
+    UA_StatusCode retval =
+        UA_AccessControl_defaultWithLoginCallback(config, true, &policy,
+                                                  0, NULL, loginCallbackStub, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean foundUserName = false;
+    UA_Boolean foundAnonymous = false;
+    for(size_t i = 0; i < config->accessControl.userTokenPoliciesSize; i++) {
+        if(config->accessControl.userTokenPolicies[i].tokenType == UA_USERTOKENTYPE_USERNAME)
+            foundUserName = true;
+        if(config->accessControl.userTokenPolicies[i].tokenType == UA_USERTOKENTYPE_ANONYMOUS)
+            foundAnonymous = true;
+    }
+
+    /* Anonymous was requested and must still be there: without this witness, a
+     * configuration that announced nothing at all would pass the check below. */
+    ck_assert(foundAnonymous);
+    ck_assert(foundUserName);
+
+    UA_Server_delete(s);
+} END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_user = tcase_create("Client User/Password");
@@ -246,6 +291,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server-Side Access Control");
     tcase_add_test(tc_server, Server_sessionParameter);
     tcase_add_test(tc_server, Server_setSessionParameter);
+    tcase_add_test(tc_server, Server_usernamePolicyWithLoginCallbackOnly);
     suite_add_tcase(s,tc_server);
     return s;
 }
