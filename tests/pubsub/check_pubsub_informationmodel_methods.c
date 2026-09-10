@@ -2027,6 +2027,83 @@ START_TEST(WriterGroupTransport2PreservesAddress) {
     UA_NodeId_clear(&connection);
 } END_TEST
 
+START_TEST(WriterGroupOwnsConfigurationAfterMethodCall) {
+    UA_NodeId connection = addPubSubConnection();
+    UA_NetworkAddressUrlDataType address = {UA_STRING_NULL, UA_STRING("opc.udp://127.0.0.1:4841/")};
+    UA_DatagramWriterGroupTransport2DataType transport;
+    UA_DatagramWriterGroupTransport2DataType_init(&transport);
+    UA_ExtensionObject_setValueNoDelete(&transport.address, &address,
+                                       &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_UadpWriterGroupMessageDataType message;
+    UA_UadpWriterGroupMessageDataType_init(&message);
+    UA_WriterGroupDataType group;
+    UA_WriterGroupDataType_init(&group);
+    group.name = UA_STRING("OwnedConfiguration");
+    group.writerGroupId = 7;
+    group.publishingInterval = 100;
+    group.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    group.securityGroupId = UA_STRING("SecurityGroup");
+    UA_KeyValuePair property = {0};
+    property.key = UA_QUALIFIEDNAME(1, "Property");
+    UA_String propertyValue = UA_STRING("PropertyValue");
+    UA_Variant_setScalar(&property.value, &propertyValue, &UA_TYPES[UA_TYPES_STRING]);
+    group.groupProperties = &property;
+    group.groupPropertiesSize = 1;
+    UA_Double offset = 12.5;
+    message.publishingOffset = &offset;
+    message.publishingOffsetSize = 1;
+    UA_ExtensionObject_setValueNoDelete(&group.transportSettings, &transport,
+                                       &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]);
+    UA_ExtensionObject_setValueNoDelete(&group.messageSettings, &message,
+                                       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    UA_Variant input;
+    /* Model a decoded method argument whose allocations belong to the caller. */
+    UA_WriterGroupDataType ownedGroup;
+    ck_assert_uint_eq(UA_WriterGroupDataType_copy(&group, &ownedGroup), UA_STATUSCODE_GOOD);
+    UA_Variant_setScalar(&input, &ownedGroup, &UA_TYPES[UA_TYPES_WRITERGROUPDATATYPE]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = connection;
+    request.methodId = UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDWRITERGROUP);
+    request.inputArguments = &input;
+    request.inputArgumentsSize = 1;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    /* The saved configuration must outlive all method argument allocations. */
+    UA_WriterGroupDataType_clear(&ownedGroup);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 1);
+    UA_WriterGroupConfig snapshot;
+    memset(&snapshot, 0, sizeof(snapshot));
+    ck_assert_uint_eq(UA_Server_getWriterGroupConfig(server,
+        *(UA_NodeId*)result.outputArguments[0].data, &snapshot), UA_STATUSCODE_GOOD);
+    ck_assert(UA_ExtensionObject_hasDecodedType(&snapshot.transportSettings,
+        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]));
+    UA_DatagramWriterGroupTransport2DataType *saved =
+        (UA_DatagramWriterGroupTransport2DataType*)snapshot.transportSettings.content.decoded.data;
+    ck_assert(UA_ExtensionObject_hasDecodedType(&saved->address,
+        &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
+    UA_NetworkAddressUrlDataType *savedAddress =
+        (UA_NetworkAddressUrlDataType*)saved->address.content.decoded.data;
+    ck_assert(UA_String_equal(&savedAddress->url, &address.url));
+    ck_assert_uint_eq(snapshot.securityMode, UA_MESSAGESECURITYMODE_NONE);
+    ck_assert(UA_String_equal(&snapshot.securityGroupId, &group.securityGroupId));
+    ck_assert_uint_eq(snapshot.groupProperties.mapSize, 1);
+    ck_assert(UA_QualifiedName_equal(&snapshot.groupProperties.map[0].key, &property.key));
+    ck_assert(UA_Variant_hasScalarType(&snapshot.groupProperties.map[0].value,
+                                       &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert(UA_String_equal((UA_String*)snapshot.groupProperties.map[0].value.data,
+                              &propertyValue));
+    ck_assert(UA_ExtensionObject_hasDecodedType(&snapshot.messageSettings,
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]));
+    UA_UadpWriterGroupMessageDataType *savedMessage =
+        (UA_UadpWriterGroupMessageDataType*)snapshot.messageSettings.content.decoded.data;
+    ck_assert_uint_eq(savedMessage->publishingOffsetSize, 1);
+    ck_assert(savedMessage->publishingOffset[0] == offset);
+    UA_WriterGroupConfig_clear(&snapshot);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId_clear(&connection);
+} END_TEST
+
 START_TEST(DataSetReaderAllowsNullSubscribedDataSet) {
     UA_NodeId connection = addPubSubConnection();
     UA_ReaderGroupConfig group;
@@ -2068,6 +2145,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, DataSetReaderAllowsNullSubscribedDataSet);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, WriterGroupTransport2PreservesAddress);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, WriterGroupOwnsConfigurationAfterMethodCall);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, HeartbeatWriterViaInformationModel);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionUsingTheInformationModelMethod);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRollsBackOnChildFailure);
