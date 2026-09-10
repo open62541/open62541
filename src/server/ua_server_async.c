@@ -676,12 +676,13 @@ cancelAsyncResponseOperations(UA_Server *server, UA_AsyncResponse *ar,
  * is detached (set to NULL/0, owning nothing) and *serviceResult is set to
  * the error -- the original array is left untouched for its other owner. */
 static void
-detachResultsCopy(void **results, size_t resultsSize,
+detachResultsCopy(void **results, size_t *resultsSize,
                   const UA_DataType *resultsType, UA_StatusCode *serviceResult) {
     void *copy = NULL;
-    UA_StatusCode res = UA_Array_copy(*results, resultsSize, &copy, resultsType);
+    UA_StatusCode res = UA_Array_copy(*results, *resultsSize, &copy, resultsType);
     if(res != UA_STATUSCODE_GOOD) {
         *results = NULL;
+        *resultsSize = 0;
         *serviceResult = res;
         return;
     }
@@ -865,7 +866,7 @@ Service_Read(UA_Server *server, UA_Session *session, const void *request_, void 
         ar->response.readResponse.results = response->results;
         ar->response.readResponse.resultsSize = response->resultsSize;
         ar->processed = true;
-        detachResultsCopy((void**)&response->results, response->resultsSize,
+        detachResultsCopy((void**)&response->results, &response->resultsSize,
                           &UA_TYPES[UA_TYPES_DATAVALUE],
                           &response->responseHeader.serviceResult);
     }
@@ -1083,7 +1084,7 @@ Service_Write(UA_Server *server, UA_Session *session,
         ar->response.writeResponse.results = response->results;
         ar->response.writeResponse.resultsSize = response->resultsSize;
         ar->processed = true;
-        detachResultsCopy((void**)&response->results, response->resultsSize,
+        detachResultsCopy((void**)&response->results, &response->resultsSize,
                           &UA_TYPES[UA_TYPES_STATUSCODE],
                           &response->responseHeader.serviceResult);
     }
@@ -1261,7 +1262,7 @@ Service_Call(UA_Server *server, UA_Session *session,
         ar->response.callResponse.results = response->results;
         ar->response.callResponse.resultsSize = response->resultsSize;
         ar->processed = true;
-        detachResultsCopy((void**)&response->results, response->resultsSize,
+        detachResultsCopy((void**)&response->results, &response->resultsSize,
                           &UA_TYPES[UA_TYPES_CALLMETHODRESULT],
                           &response->responseHeader.serviceResult);
     }
