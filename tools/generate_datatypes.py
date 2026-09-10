@@ -226,12 +226,6 @@ class CGenerator:
         if self.namespaceMap == {OPC_UA_NAMESPACE: 0}:
             return  # Nothing pinned, only the implicit namespace 0 entry
 
-        if self.namespaceMap.get(OPC_UA_NAMESPACE, 0) != 0:
-            raise RuntimeError(
-                "--namespaceMap pins {} to index {}. Namespace 0 is always at "
-                "index 0.".format(OPC_UA_NAMESPACE,
-                                  self.namespaceMap[OPC_UA_NAMESPACE]))
-
         byIndex = {}
         for ns in sorted(self.namespaceMap):
             idx = self.namespaceMap[ns]
@@ -792,7 +786,11 @@ inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
 namespaceMap = {OPC_UA_NAMESPACE: 0}
 for m in args.namespace_map:
     [idx, ns] = m.split(':', 1)
-    namespaceMap[ns] = int(idx)
+    idx = int(idx)
+    if ns in namespaceMap and namespaceMap[ns] != idx:
+        parser.error("--namespaceMap pins {} to conflicting indices {} and {}."
+                     .format(ns, namespaceMap[ns], idx))
+    namespaceMap[ns] = idx
 
 parser = CSVBSDTypeParser(args.opaque_map, args.selected_types,
                           args.no_builtin, outname, args.import_bsd,

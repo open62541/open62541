@@ -65,8 +65,9 @@ array must be pinned, otherwise the load-time rewrite would overwrite the
 pinned indices again. Namespaces that are only imported (they contribute
 no type to this array) do not need to be pinned. An incomplete
 `NAMESPACE_MAP`, a namespace URI that matches no namespace of the type
-array, one index pinned to two namespaces, or an index outside the UInt16
-range is reported as an error at generation time.
+array, one index pinned to two namespaces, one namespace pinned to conflicting
+indices, or an index outside the UInt16 range is reported as an error at
+generation time.
 
 For a pinned namespace the pinned index takes precedence over an
 explicit `ns=` prefix in the NodeId strings of the type definition files.

@@ -152,6 +152,18 @@ def main():
         expect_fail("duplicate pinned index rejected", r,
                     "more than one namespace")
 
+        # A repeated URI must not silently discard an earlier pinned index.
+        r = run_generator(tmpdir, "ns_conflict", [SAME_BSD], SAME_CSV,
+                          extra_args=[f"--namespaceMap=2:{SAME_NS}",
+                                      f"--namespaceMap=3:{SAME_NS}"])
+        expect_fail("conflicting indices for one namespace rejected", r,
+                    "conflicting indices")
+
+        r = run_generator(tmpdir, "ns_repeated", [SAME_BSD], SAME_CSV,
+                          extra_args=[f"--namespaceMap=2:{SAME_NS}",
+                                      f"--namespaceMap=2:{SAME_NS}"])
+        expect_ok("repeating an identical namespace mapping accepted", r)
+
         # Namespace indices must fit into UA_NodeId.namespaceIndex. Otherwise
         # the generated initializer can truncate the promised pinned index.
         for index in (-1, 65536):
@@ -164,7 +176,7 @@ def main():
         r = run_generator(tmpdir, "ns_zero", [SAME_BSD], SAME_CSV,
                           extra_args=["--namespaceMap=5:http://opcfoundation.org/UA/"])
         expect_fail("relocating namespace 0 rejected", r,
-                    "Namespace 0 is always at index 0")
+                    "conflicting indices")
 
         # Spelling out the default namespace 0 mapping stays valid
         r = run_generator(tmpdir, "ns_zero_ok", [SAME_BSD], SAME_CSV,
