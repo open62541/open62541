@@ -662,74 +662,35 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Now we create a new WriterGroupConfig and add the group to the existing
-     * PubSubConnection. */
-    UA_WriterGroupConfig writerGroupConfig;
-    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = writerGroup->name;
-    writerGroupConfig.publishingInterval = writerGroup->publishingInterval;
-    writerGroupConfig.writerGroupId = writerGroup->writerGroupId;
-    writerGroupConfig.priority = writerGroup->priority;
-
-    UA_ExtensionObject *eoWG = &writerGroup->messageSettings;
-    UA_UadpWriterGroupMessageDataType uadpWriterGroupMessage;
-    UA_JsonWriterGroupMessageDataType jsonWriterGroupMessage;
-    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
-        writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
-        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
-            writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-            if(UA_UadpWriterGroupMessageDataType_copy(
-                    (UA_UadpWriterGroupMessageDataType *)eoWG->content.decoded.data,
-                    &uadpWriterGroupMessage) != UA_STATUSCODE_GOOD) {
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-            writerGroupConfig.messageSettings.content.decoded.data = &uadpWriterGroupMessage;
-        } else if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
-            writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
-            if(UA_JsonWriterGroupMessageDataType_copy(
-                   (UA_JsonWriterGroupMessageDataType *)eoWG->content.decoded.data,
-                   &jsonWriterGroupMessage) != UA_STATUSCODE_GOOD) {
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
-            writerGroupConfig.messageSettings.content.decoded.data = &jsonWriterGroupMessage;
-        }
+    /* The native create operation copies the borrowed configuration. Preserve
+     * complete transport ExtensionObjects, including DatagramWriterGroupTransport2.
+     * Selecting a few older types here loses addresses and QoS settings. */
+    UA_WriterGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    config.name = writerGroup->name;
+    config.publishingInterval = writerGroup->publishingInterval;
+    config.writerGroupId = writerGroup->writerGroupId;
+    config.priority = writerGroup->priority;
+    config.securityMode = writerGroup->securityMode;
+    config.securityGroupId = writerGroup->securityGroupId;
+    config.groupProperties.map = writerGroup->groupProperties;
+    config.groupProperties.mapSize = writerGroup->groupPropertiesSize;
+    config.messageSettings = writerGroup->messageSettings;
+    config.transportSettings = writerGroup->transportSettings;
+    if(UA_ExtensionObject_hasDecodedType(&config.messageSettings,
+            &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
+        config.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+        if(!UA_ExtensionObject_hasDecodedType(&config.transportSettings,
+                &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]))
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    } else if(config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY ||
+              UA_ExtensionObject_hasDecodedType(&config.messageSettings,
+                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+        config.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    } else {
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
-
-    eoWG = &writerGroup->transportSettings;
-    UA_BrokerWriterGroupTransportDataType brokerWriterGroupTransport;
-    UA_DatagramWriterGroupTransportDataType datagramWriterGroupTransport;
-    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED) {
-        writerGroupConfig.transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
-            if(UA_BrokerWriterGroupTransportDataType_copy(
-                    (UA_BrokerWriterGroupTransportDataType*)eoWG->content.decoded.data,
-                    &brokerWriterGroupTransport) != UA_STATUSCODE_GOOD) {
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            writerGroupConfig.transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
-            writerGroupConfig.transportSettings.content.decoded.data = &brokerWriterGroupTransport;
-        } else if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORTDATATYPE]) {
-            if(UA_DatagramWriterGroupTransportDataType_copy(
-                   (UA_DatagramWriterGroupTransportDataType *)eoWG->content.decoded.data,
-                   &datagramWriterGroupTransport) != UA_STATUSCODE_GOOD) {
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            writerGroupConfig.transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORTDATATYPE];
-            writerGroupConfig.transportSettings.content.decoded.data = &datagramWriterGroupTransport;
-        }
-    }
-    if (writerGroupConfig.encodingMimeType == UA_PUBSUB_ENCODING_JSON
-        && (writerGroupConfig.transportSettings.encoding != UA_EXTENSIONOBJECT_DECODED ||
-        writerGroupConfig.transportSettings.content.decoded.type !=
-            &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE])) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "JSON encoding is supported only for MQTT transport");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
-    return UA_WriterGroup_create(psm, connectionId, &writerGroupConfig, writerGroupId);
+    return UA_WriterGroup_create(psm, connectionId, &config, writerGroupId);
 }
 
 /**
@@ -749,16 +710,19 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId publishedDataSetId = UA_NODEID_NULL;
-    UA_PublishedDataSet *tmpPDS;
-    TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry){
-        if(UA_String_equal(&dataSetWriter->dataSetName, &tmpPDS->config.name)) {
-            publishedDataSetId = tmpPDS->head.identifier;
-            break;
+    /* An empty DataSetName denotes a heartbeat writer with no PublishedDataSet.
+     * The core validates its KeyFrameCount. Resolve only named datasets here. */
+    if(dataSetWriter->dataSetName.length > 0) {
+        UA_PublishedDataSet *tmpPDS;
+        TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
+            if(UA_String_equal(&dataSetWriter->dataSetName, &tmpPDS->config.name)) {
+                publishedDataSetId = tmpPDS->head.identifier;
+                break;
+            }
         }
+        if(UA_NodeId_isNull(&publishedDataSetId))
+            return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
-
-    if(UA_NodeId_isNull(&publishedDataSetId))
-        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
 
     /* We need now a DataSetWriter within the WriterGroup. This means we must
      * create a new DataSetWriterConfig and add call the addWriterGroup function. */
@@ -812,9 +776,12 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ExtensionObject *eoTargetVar = &dataSetReader->subscribedDataSet;
-    if(eoTargetVar->encoding != UA_EXTENSIONOBJECT_DECODED ||
-       eoTargetVar->content.decoded.type != &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE])
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    /* FX may create the reader before assigning its target variables. */
+    if(eoTargetVar->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+    if(!UA_ExtensionObject_hasDecodedType(eoTargetVar,
+            &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     const UA_TargetVariablesDataType *targetVars =
         (UA_TargetVariablesDataType*)eoTargetVar->content.decoded.data;
@@ -924,12 +891,14 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
                                       &readerConfig, dataSetReaderId);
     UA_PublisherId_clear(&readerConfig.publisherId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_free(pMetaData->fields);
+        if(pMetaData->fieldsSize > 0)
+            UA_free(pMetaData->fields);
         return retVal;
     }
 
     retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReader, pMetaData);
-    UA_free(pMetaData->fields);
+    if(pMetaData->fieldsSize > 0)
+        UA_free(pMetaData->fields);
     return retVal;
 }
 
