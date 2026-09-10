@@ -279,8 +279,12 @@ def generateCommonVariableCode(node, nodeset):
 
     if node.value:
         code.append("#ifdef UA_ENABLE_XML_ENCODING")
-        xmlenc = [makeCLiteral(line) for line in node.value.toxml().splitlines()]
-        line_lengths = [len(line.lstrip()) for line in node.value.toxml().splitlines()] # length without the C escaping
+        # Decode the complete Variant representation. The previous unwrapped
+        # form loses the array length for ListOf* values in the XML decoder,
+        # causing valid companion-model defaults to be treated as scalars.
+        value_xml = "<Variant>" + node.value.toxml() + "</Variant>"
+        xmlenc = [makeCLiteral(line) for line in value_xml.splitlines()]
+        line_lengths = [len(line.lstrip()) for line in value_xml.splitlines()] # length without the C escaping
         xmlLength = sum(line_lengths)
         xmlenc = [(" " * (len(line) - len(line.lstrip()))) + "\"" + line.lstrip() + "\"" for line in xmlenc]
         if xmlLength < 30000:
@@ -318,10 +322,18 @@ def generateCommonVariableCode(node, nodeset):
 
         code.append("""UA_DecodeXmlOptions opts;
 memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
-opts.unwrapped = true;
+opts.unwrapped = false;
 opts.namespaceMapping = nsMapping;
 opts.customTypes = UA_Server_getConfig(server)->customDataTypes;
 retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);""")
+        # Some published NodeSets carry stale fixed ArrayDimensions alongside
+        # a newer default-value array. Keep the runtime attributes internally
+        # consistent so open62541 can materialize the node.
+        if node.valueRank is not None and node.valueRank >= 1:
+            code.append("if(attr.arrayDimensionsSize == 1 && attr.value.arrayLength > 0 &&")
+            code.append("   attr.arrayDimensions[0] != attr.value.arrayLength) {")
+            code.append("    attr.arrayDimensions[0] = (UA_UInt32)attr.value.arrayLength;")
+            code.append("}")
         # Some companion specs (e.g. IOLink, PNENC, PNRIO) declare ValueRank=1
         # (one-dimensional array) but provide a scalar default value in the XML
         # (e.g. <String> instead of <ListOfString>). Wrap the scalar into a
@@ -704,4 +716,3 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     outfilec.flush()
     os.fsync(outfilec)
     outfilec.close()
-
