@@ -2050,9 +2050,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
 
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId,
-                         &UA_TYPES[UA_TYPES_UINT16]);
-    writeValueAttribute(server, dataSetWriterIdNode, &value);
+    /* DataSetWriterId is supplied by its read-only value callback above. */
 
     UA_Variant_setScalar(&value, &dataSetWriter->config.keyFrameCount,
                          &UA_TYPES[UA_TYPES_UINT32]);
