@@ -2192,40 +2192,47 @@ START_TEST(mirroredNamesUseMountNamespace) {
     UA_NodeId_clear(&fsId);
 } END_TEST
 
-#ifndef _WIN32
-/* One entry the server cannot read must not make the whole mount unavailable:
+/* A backend whose listing of one subdirectory fails, to exercise the scan's
+ * skip-and-warn path deterministically. Filesystem permissions cannot be used
+ * for this: CI runs as root in a container, where chmod 000 does not stop
+ * opendir, so the entry would be listed after all. */
+static char failingListPath[MEM_MAXPATH];
+
+static UA_StatusCode
+failingListDirectory(UA_FileTransferBackend *b, const UA_String path,
+                     UA_FileTransferListCallback cb, void *listContext) {
+    if(strlen(failingListPath) == path.length &&
+       memcmp(failingListPath, path.data, path.length) == 0)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    return memListDirectory(b, path, cb, listContext);
+}
+
+static UA_FileTransferBackend
+memBackendWithUnlistableSubdir(const char *unlistable) {
+    UA_FileTransferBackend b;
+    ck_assert_uint_eq(memBackend(&b), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.createDirectory(&b, UA_STRING("readable")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.createFile(&b, UA_STRING("readable/visible.txt")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.createDirectory(&b, UA_STRING("locked")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(b.createFile(&b, UA_STRING("locked/hidden.txt")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_lt(strlen(unlistable), MEM_MAXPATH);
+    strcpy(failingListPath, unlistable);
+    b.listDirectory = failingListDirectory;
+    return b;
+}
+
+/* One entry the server cannot list must not make the whole mount unavailable:
  * it is skipped with a warning, like an entry with an invalid name. */
 START_TEST(mountSkipsUnreadableEntries) {
-    makeScratchDir();
-
-    char readablePath[128];
-    char lockedPath[128];
-    strcpy(readablePath, scratchDir);
-    strcat(readablePath, "/readable");
-    strcpy(lockedPath, scratchDir);
-    strcat(lockedPath, "/locked");
-    ck_assert_int_eq(mkdir(readablePath, 0755), 0);
-    ck_assert_int_eq(mkdir(lockedPath, 0755), 0);
-
-    UA_FileTransferBackend pre;
-    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
-                          UA_STRING(scratchDir), &pre), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("readable/visible.txt")),
-                      UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(pre.createFile(&pre, UA_STRING("locked/hidden.txt")),
-                      UA_STATUSCODE_GOOD);
-    pre.clear(&pre);
-
-    /* Take away the permission to list the directory */
-    ck_assert_int_eq(chmod(lockedPath, 0), 0);
-
-    UA_FileTransferBackend b;
-    ck_assert_uint_eq(UA_FileTransferBackend_localFilesystem(
-                          UA_STRING(scratchDir), &b), UA_STATUSCODE_GOOD);
     UA_NodeId fsId = UA_NODEID_NULL;
     ck_assert_uint_eq(ftDriver->addFileSystem(
                           ftDriver, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
-                          UA_QUALIFIEDNAME(0, "FileSystem"), b, NULL, &fsId),
+                          UA_QUALIFIEDNAME(0, "FileSystem"),
+                          memBackendWithUnlistableSubdir("locked"), NULL, &fsId),
                       UA_STATUSCODE_GOOD);
 
     /* The readable part of the tree is mirrored */
@@ -2233,23 +2240,24 @@ START_TEST(mountSkipsUnreadableEntries) {
     ck_assert(tryResolveChild(server_ft, fsId, "readable", &readableId));
     ck_assert(tryResolveChild(server_ft, readableId, "visible.txt", NULL));
 
-    /* The unreadable directory itself is represented but stays empty */
+    /* The unlistable directory itself is represented but stays empty */
     UA_NodeId lockedId;
     ck_assert(tryResolveChild(server_ft, fsId, "locked", &lockedId));
     ck_assert(!tryResolveChild(server_ft, lockedId, "hidden.txt", NULL));
 
-    /* A refresh does not fail over it either */
+    /* A refresh does not fail over it either, and does not drop what is there */
     ck_assert_uint_eq(ftDriver->refresh(ftDriver, fsId), UA_STATUSCODE_GOOD);
+    ck_assert(tryResolveChild(server_ft, fsId, "locked", NULL));
+    ck_assert(tryResolveChild(server_ft, readableId, "visible.txt", NULL));
 
     ck_assert_uint_eq(ftDriver->removeFileSystem(ftDriver, fsId),
                       UA_STATUSCODE_GOOD);
     UA_NodeId_clear(&readableId);
     UA_NodeId_clear(&lockedId);
     UA_NodeId_clear(&fsId);
-    ck_assert_int_eq(chmod(lockedPath, 0755), 0);
-    removeTree(scratchDir);
 } END_TEST
 
+#ifndef _WIN32
 /* rename(2) replaces an existing target silently. An entry created behind the
  * driver's back must not be destroyed by a MoveOrCopy onto its name. */
 START_TEST(moveOrCopyKeepsUnmirroredTarget) {
@@ -2411,9 +2419,9 @@ int main(void) {
     tcase_add_test(tc_dir, dirCreateRespectsMaxNodes);
     tcase_add_test(tc_dir, mirroredNamesUseMountNamespace);
     tcase_add_test(tc_dir, mountRejectsUnknownNamespace);
+    tcase_add_test(tc_dir, mountSkipsUnreadableEntries);
 # ifndef _WIN32
     tcase_add_test(tc_dir, localFilesystemMount);
-    tcase_add_test(tc_dir, mountSkipsUnreadableEntries);
     tcase_add_test(tc_dir, moveOrCopyKeepsUnmirroredTarget);
 # endif
 #endif
