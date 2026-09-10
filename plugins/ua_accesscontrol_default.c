@@ -364,12 +364,18 @@ static void clear_default(UA_AccessControl *ac) {
     }
 }
 
-UA_StatusCode
-UA_AccessControl_default(UA_ServerConfig *config,
-                         UA_Boolean allowAnonymous,
-                         const UA_String *userTokenPolicyUri,
-                         size_t usernamePasswordLoginSize,
-                         const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+/* Shared implementation. The login callback has to be known *here*, before the
+ * UserTokenPolicies are built: the UserName policy is only announced when
+ * username/password login is actually possible, which is the case either when a
+ * login list is configured or when a callback verifies the credentials itself. */
+static UA_StatusCode
+setDefaultAccessControl(UA_ServerConfig *config,
+                        UA_Boolean allowAnonymous,
+                        const UA_String *userTokenPolicyUri,
+                        size_t usernamePasswordLoginSize,
+                        const UA_UsernamePasswordLogin *usernamePasswordLogin,
+                        UA_UsernamePasswordLoginCallback loginCallback,
+                        void *loginContext) {
     UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                    "AccessControl: Unconfigured AccessControl. Users have all permissions.");
     UA_AccessControl *ac = &config->accessControl;
@@ -406,6 +412,9 @@ UA_AccessControl_default(UA_ServerConfig *config,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(context, 0, sizeof(AccessControlContext));
     ac->context = context;
+
+    context->loginCallback = loginCallback;
+    context->loginContext = loginContext;
 
     /* Allow anonymous? */
     context->allowAnonymous = allowAnonymous;
@@ -444,7 +453,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
     size_t policies = 0;
     if(allowAnonymous)
         policies++;
-    if(usernamePasswordLoginSize > 0)
+    if(usernamePasswordLoginSize > 0 || loginCallback)
         policies++;
     if(config->sessionPKI.verifyCertificate)
         policies++;
@@ -493,7 +502,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
             policies++;
         }
 
-        if(usernamePasswordLoginSize > 0) {
+        if(usernamePasswordLoginSize > 0 || loginCallback) {
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
             ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
 #if UA_LOGLEVEL <= 400
@@ -513,6 +522,17 @@ UA_AccessControl_default(UA_ServerConfig *config,
 }
 
 UA_StatusCode
+UA_AccessControl_default(UA_ServerConfig *config,
+                         UA_Boolean allowAnonymous,
+                         const UA_String *userTokenPolicyUri,
+                         size_t usernamePasswordLoginSize,
+                         const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+    return setDefaultAccessControl(config, allowAnonymous, userTokenPolicyUri,
+                                   usernamePasswordLoginSize, usernamePasswordLogin,
+                                   NULL, NULL);
+}
+
+UA_StatusCode
 UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           UA_Boolean allowAnonymous,
                                           const UA_String *userTokenPolicyUri,
@@ -520,17 +540,8 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           const UA_UsernamePasswordLogin *usernamePasswordLogin,
                                           UA_UsernamePasswordLoginCallback loginCallback,
                                           void *loginContext) {
-    AccessControlContext *context;
-    UA_StatusCode sc =
-        UA_AccessControl_default(config, allowAnonymous, userTokenPolicyUri,
-                                 usernamePasswordLoginSize, usernamePasswordLogin);
-    if(sc != UA_STATUSCODE_GOOD)
-        return sc;
-
-    context = (AccessControlContext *)config->accessControl.context;
-    context->loginCallback = loginCallback;
-    context->loginContext = loginContext;
-
-    return UA_STATUSCODE_GOOD;
+    return setDefaultAccessControl(config, allowAnonymous, userTokenPolicyUri,
+                                   usernamePasswordLoginSize, usernamePasswordLogin,
+                                   loginCallback, loginContext);
 }
 
