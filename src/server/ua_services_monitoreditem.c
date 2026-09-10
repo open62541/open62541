@@ -416,6 +416,8 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
                          &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setScalar(&notifyMonData[9].value, &mon->parameters.samplingInterval,
                          &UA_TYPES[UA_TYPES_DOUBLE]);
+    /* The filter is borrowed. Reset it without freeing the previous item's data. */
+    UA_Variant_init(&notifyMonData[10].value);
     if(mon->parameters.filter.encoding == UA_EXTENSIONOBJECT_DECODED ||
        mon->parameters.filter.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         UA_Variant_setScalar(&notifyMonData[10].value,
