@@ -161,6 +161,8 @@ option(UA_ENABLE_DRIVER_FILE_TRANSFER "Enable the file transfer driver" ON)
 mark_as_advanced(UA_ENABLE_DRIVER_FILE_TRANSFER)
 option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
+option(UA_ENABLE_DRIVER_GDS_PULL "Enable the GDS Pull driver" OFF)
+mark_as_advanced(UA_ENABLE_DRIVER_GDS_PULL)
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
 set(UA_FILE_MDNSD "${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c")
@@ -1012,17 +1014,29 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c)
 
+if(UA_ENABLE_DRIVER_GDS_RECEIVER OR UA_ENABLE_DRIVER_GDS_PULL)
+    list(APPEND lib_headers
+         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.h)
+    list(APPEND lib_sources
+         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.c)
+endif()
+
 if(UA_ENABLE_DRIVER_GDS_RECEIVER)
     list(APPEND exported_headers
          ${PROJECT_SOURCE_DIR}/include/open62541/driver/gds_receiver.h)
     list(APPEND lib_headers
-         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.h
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_internal.h)
     list(APPEND lib_sources
-         ${PROJECT_SOURCE_DIR}/drivers/gds_common/gds_common.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_ns0.c
          ${PROJECT_SOURCE_DIR}/drivers/gds_receiver/gds_receiver_trustlist.c)
+endif()
+
+if(UA_ENABLE_DRIVER_GDS_PULL)
+    list(APPEND exported_headers
+         ${PROJECT_SOURCE_DIR}/include/open62541/driver/gds_pull.h)
+    list(APPEND lib_sources
+         ${PROJECT_SOURCE_DIR}/drivers/gds_pull/gds_pull.c)
 endif()
 
 if(UA_ENABLE_RBAC)

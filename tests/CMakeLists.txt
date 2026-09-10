@@ -620,6 +620,8 @@ if(UA_ENABLE_ENCRYPTION)
 
     if(UA_ENABLE_DRIVER_GDS_RECEIVER)
         ua_add_test(encryption/check_gds_informationmodel.c)
+    endif()
+    if(UA_ENABLE_DRIVER_GDS_RECEIVER OR UA_ENABLE_DRIVER_GDS_PULL)
         ua_add_test(encryption/check_gds_common.c)
         target_include_directories(check_gds_common PRIVATE
                                    ${PROJECT_SOURCE_DIR}/drivers/gds_common)
