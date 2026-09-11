@@ -17,6 +17,20 @@ typedef struct UA_GDSPull {
     UA_Driver drv;
 } UA_GDSPull;
 
+/* A CertificateGroup of this application and the CertificateGroup of the
+ * CertificateManager that manages it. The CertificateManager assigns its groups
+ * to the application as a whole and knows nothing about the application's own
+ * groups, so the pairing is established when the application is registered
+ * (Part 12, 6.4) and has to be supplied here. A local group draws its
+ * certificates and its TrustList from exactly one remote group. */
+typedef struct {
+    /* NodeId of the CertificateGroup below the ServerConfiguration of this
+     * application, e.g. the DefaultApplicationGroup */
+    UA_NodeId localGroupId;
+    /* NodeId of the CertificateGroup in the CertificateManager */
+    UA_NodeId remoteGroupId;
+} UA_GDSPullGroupMapping;
+
 /* A signing request that the CertificateManager has not completed yet. */
 typedef struct {
     UA_NodeId requestId;
@@ -24,10 +38,11 @@ typedef struct {
     UA_NodeId certificateTypeId;
 } UA_GDSPullPendingRequest;
 
-/* Reports the complete new set whenever it changes. The requests are owned by
- * the driver and are only valid for the duration of the call. */
+/* Called by the driver with the complete new set whenever it changes, so that
+ * the application can persist it. The requests are owned by the driver and are
+ * only valid for the duration of the call. */
 typedef void
-(*UA_GDSPull_PendingRequestsCallback)(UA_GDSPull *pull, void *context,
+(*UA_GDSPullPendingRequestsCallback)(UA_GDSPull *pull, void *context,
                                       const UA_GDSPullPendingRequest *requests,
                                       size_t requestsSize);
 
@@ -53,6 +68,13 @@ UA_GDSPull_setGDSEndpointUrl(UA_GDSPull *pull, const UA_ByteString endpoint);
 UA_EXPORT void
 UA_GDSPull_setApplicationId(UA_GDSPull *pull, const UA_NodeId applicationId);
 
+/* Set the CertificateGroups that are managed via PullManagement. Call before
+ * the driver is started; replaces the set the driver holds. Every local group
+ * may appear only once. */
+UA_EXPORT UA_StatusCode
+UA_GDSPull_setGroups(UA_GDSPull *pull, const UA_GDSPullGroupMapping *groups,
+                     size_t groupsSize);
+
 /* Restore the requests that were pending at the last shutdown. Call before the
  * driver is started; replaces the set the driver holds. */
 UA_EXPORT UA_StatusCode
@@ -63,7 +85,7 @@ UA_GDSPull_setPendingRequests(UA_GDSPull *pull,
 /* Persisting the pending requests is the application's responsibility. */
 UA_EXPORT void
 UA_GDSPull_setPendingRequestsCallback(UA_GDSPull *pull,
-                                      UA_GDSPull_PendingRequestsCallback callback,
+                                      UA_GDSPullPendingRequestsCallback callback,
                                       void *context);
 
 _UA_END_DECLS
