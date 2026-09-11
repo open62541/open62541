@@ -229,6 +229,18 @@ struct UA_SecureChannel {
      * used in the server) */
     UA_Session *sessions;
 
+    /* Generic per-channel storage for the application, addressable via
+     * UA_Server_{get,set,delete}SecureChannelAttribute. Mirrors
+     * UA_Session.attributes. */
+    UA_KeyValueMap attributes;
+
+    /* Cached from the reserved "0:maxMessageSize" entry in attributes
+     * whenever it is written, so the per-chunk size checks in
+     * UA_SecureChannel_getCompleteMessage never need to touch the map. Zero
+     * means "not set" -> config.localMaxMessageSize applies unmodified. A
+     * non-zero value can only tighten, never loosen, that static ceiling. */
+    UA_UInt32 maxMessageSizeOverride;
+
     /* (Decrypted) chunks waiting to be processed */
     UA_ChunkQueue chunks;
     size_t chunksCount;
