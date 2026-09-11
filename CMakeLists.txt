@@ -1930,9 +1930,12 @@ endif()
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 # On the FreeRTOS architecture the open62541 target links against build-only
 # targets (freertos_kernel/freertos_config) that are not part of any export
-# set, so exporting the target fails at configure time. Still install the
-# library artifacts, but leave the target out of the export set there.
-if(UA_ARCHITECTURE_FREERTOS)
+# set, so exporting the target fails at configure time. The same applies when
+# open62541 is consumed as a Zephyr module: the target then links the
+# Zephyr-provided mbedTLS targets (mbedTLSBase/mbedTLSX509/mbedTLSCrypto),
+# which are likewise not in any export set of ours. Still install the library
+# artifacts, but leave the target out of the export set in both cases.
+if(UA_ARCHITECTURE_FREERTOS OR ZEPHYR_BASE)
 install(TARGETS open62541
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -1956,7 +1959,7 @@ endforeach()
 # Create the CMake package files (open62541Config.cmake, ConfigVersion,
 # Targets). open62541Config.cmake includes open62541Targets.cmake, so they
 # must be installed together or not at all.
-if(NOT UA_ARCHITECTURE_FREERTOS)
+if(NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE)
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
@@ -1985,7 +1988,7 @@ install(EXPORT open62541Targets
 export(TARGETS open62541
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
-endif()
+endif() # NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE
 
 # Generate and install open62541.pc
 set(pkgcfgpubliclibs "")
