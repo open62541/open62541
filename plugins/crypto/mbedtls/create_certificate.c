@@ -13,8 +13,7 @@
 
 #include "securitypolicy_common.h"
 #include "../deps/musl_inet_pton.h"
-
-#include <time.h>
+#include "mp_printf.h"
 
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>
@@ -351,22 +350,24 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 #endif
 
     /* Get the current time */
-    time_t rawTime;
-    struct tm *timeInfo;
-    time(&rawTime);
-    timeInfo = gmtime(&rawTime);
+    UA_DateTime now = UA_DateTime_now();
+    UA_DateTimeStruct nowStruct = UA_DateTime_toStruct(now);
 
     /* Format the current timestamp */
     char current_timestamp[15];  // YYYYMMDDhhmmss + '\0'
-    strftime(current_timestamp, sizeof(current_timestamp), "%Y%m%d%H%M%S", timeInfo);
+    mp_snprintf(current_timestamp, sizeof(current_timestamp), "%04d%02u%02u%02u%02u%02u",
+                nowStruct.year, nowStruct.month, nowStruct.day,
+                nowStruct.hour, nowStruct.min, nowStruct.sec);
 
     /* Calculate the future timestamp */
-    timeInfo->tm_mday += expiresInDays;
-    time_t future_time = mktime(timeInfo);
+    UA_DateTime future = now + (UA_DateTime)expiresInDays * 24 * 60 * 60 * UA_DATETIME_SEC;
+    UA_DateTimeStruct futureStruct = UA_DateTime_toStruct(future);
 
     /* Format the future timestamp */
     char future_timestamp[15];  // YYYYMMDDhhmmss + '\0'
-    strftime(future_timestamp, sizeof(future_timestamp), "%Y%m%d%H%M%S", gmtime(&future_time));
+    mp_snprintf(future_timestamp, sizeof(future_timestamp), "%04d%02u%02u%02u%02u%02u",
+                futureStruct.year, futureStruct.month, futureStruct.day,
+                futureStruct.hour, futureStruct.min, futureStruct.sec);
 
     if(mbedtls_x509write_crt_set_validity(&crt, current_timestamp, future_timestamp) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
