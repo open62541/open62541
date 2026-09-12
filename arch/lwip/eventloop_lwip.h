@@ -83,10 +83,10 @@ lwip_getnameinfo(const struct sockaddr *sa, socklen_t salen,
         if(host) {
             if(flags & NI_NUMERICHOST) {
                 /* Return numeric IP address */
-                strncpy(host, inet_ntoa(addr_in->sin_addr), hostlen);
+                ip4addr_ntoa_r((const ip4_addr_t *)&addr_in->sin_addr, host, (int)hostlen);
             } else {
                 /* Perform reverse DNS lookup (not provided by lwIP, can use lwIP's DNS if desired) */
-                strncpy(host, inet_ntoa(addr_in->sin_addr), hostlen); // Fallback to numeric IP
+                ip4addr_ntoa_r((const ip4_addr_t *)&addr_in->sin_addr, host, (int)hostlen); // Fallback to numeric IP
             }
         }
     } else {
