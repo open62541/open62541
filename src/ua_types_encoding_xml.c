@@ -277,6 +277,31 @@ xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Escape characters with special meaning in XML element content. Escaping all
+ * five predefined entities also keeps this helper safe if it is reused for an
+ * attribute value later. */
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+xmlEncodeWriteEscapedChars(CtxXml *ctx, const char *c, size_t len) {
+    status ret = UA_STATUSCODE_GOOD;
+    size_t start = 0;
+    for(size_t i = 0; i < len; i++) {
+        const char *entity;
+        size_t entityLen;
+        switch(c[i]) {
+        case '&':  entity = "&amp;";  entityLen = 5; break;
+        case '<':  entity = "&lt;";   entityLen = 4; break;
+        case '>':  entity = "&gt;";   entityLen = 4; break;
+        case '"':  entity = "&quot;"; entityLen = 6; break;
+        case '\'': entity = "&apos;"; entityLen = 6; break;
+        default: continue;
+        }
+        ret |= xmlEncodeWriteChars(ctx, &c[start], i - start);
+        ret |= xmlEncodeWriteChars(ctx, entity, entityLen);
+        start = i + 1;
+    }
+    return ret | xmlEncodeWriteChars(ctx, &c[start], len - start);
+}
+
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
     if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
@@ -408,6 +433,11 @@ ENCODE_XML(Double) {
 
 /* String */
 ENCODE_XML(String) {
+    return xmlEncodeWriteEscapedChars(ctx, (const char*)src->data, src->length);
+}
+
+/* An XmlElement already contains markup and must remain unchanged. */
+ENCODE_XML(XmlElement) {
     return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
@@ -536,7 +566,7 @@ ENCODE_XML(ExtensionObject) {
            ret |= writeXmlElement(ctx, "ByteString", &src->content.encoded.body,
                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
         else
-            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
+            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, XmlElement);
         ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     } else {
         /* Write the decoded value */
@@ -641,7 +671,7 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)DateTime_encodeXml,         /* DateTime */
     (encodeXmlSignature)Guid_encodeXml,             /* Guid */
     (encodeXmlSignature)ByteString_encodeXml,       /* ByteString */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* XmlElement */
+    (encodeXmlSignature)XmlElement_encodeXml,       /* XmlElement */
     (encodeXmlSignature)NodeId_encodeXml,           /* NodeId */
     (encodeXmlSignature)ExpandedNodeId_encodeXml,   /* ExpandedNodeId */
     (encodeXmlSignature)StatusCode_encodeXml,       /* StatusCode */
