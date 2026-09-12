@@ -500,10 +500,14 @@ START_TEST(Async_write) {
     }
     ck_assert_uint_eq(clientCounter, 1);
 
-    /* Iterate and pick up the async response to be sent out */
-    UA_fakeSleep(1000);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    /* Iterate and pick up the async response to be sent out.
+     * Match Async_read: loop until the delayed async write completes.
+     * A single sleep+iterate is racy under slower stacks (e.g. lwip). */
+    while(clientCounter == 1) {
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
     ck_assert_uint_eq(clientCounter, 2);
 
     running = true;
