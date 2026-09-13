@@ -748,8 +748,17 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
                                   &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
-    /* Set the sequence number for the channel from which to count up */
-    channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
+    /* Only the initial OPN establishes the receive sequence. Renewals remain
+     * part of the existing channel's monotonically increasing sequence. */
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    if(channel->state == UA_SECURECHANNELSTATE_OPEN) {
+        res = processSequenceNumberSym(channel, sequenceHeader.sequenceNumber);
+        UA_CHECK_STATUS(res, return res);
+    } else
+#endif
+    {
+        channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
+    }
     chunk->requestId = sequenceHeader.requestId; /* Set the RequestId of the chunk */
 
     /* Use only the payload */
