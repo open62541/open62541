@@ -435,16 +435,44 @@ sksClientCleanupCb(void *client, void *context) {
 
 static void
 storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                 UA_CallResponse *response);
+
+UA_StatusCode
+UA_PubSubKeyStorage_validateGetSecurityKeysResponse(
+    const UA_CallResponse *response) {
+    if(!response || response->resultsSize == 0 || !response->results)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    const UA_CallMethodResult *result = &response->results[0];
+    if(result->statusCode != UA_STATUSCODE_GOOD)
+        return result->statusCode;
+    if(result->outputArgumentsSize < 5 || !result->outputArguments)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    const UA_Variant *args = result->outputArguments;
+    if(!UA_Variant_hasScalarType(&args[0], &UA_TYPES[UA_TYPES_STRING]) ||
+       !UA_Variant_hasScalarType(&args[1], &UA_TYPES[UA_TYPES_UINT32]) ||
+       !UA_Variant_hasArrayType(&args[2], &UA_TYPES[UA_TYPES_BYTESTRING]) ||
+       args[2].arrayLength < 1 ||
+       !UA_Variant_hasScalarType(&args[3], &UA_TYPES[UA_TYPES_DURATION]) ||
+       !UA_Variant_hasScalarType(&args[4], &UA_TYPES[UA_TYPES_DURATION]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
                  UA_CallResponse *response) {
     sksClientContext *ctx = (sksClientContext *)userdata;
     UA_PubSubKeyStorage *ks = ctx->ks;
     UA_PubSubManager *psm = ctx->psm;
-    UA_StatusCode retval = response->responseHeader.serviceResult;
+    UA_StatusCode retval = response ? response->responseHeader.serviceResult :
+                                      UA_STATUSCODE_BADDECODINGERROR;
 
     lockServer(psm->sc.server);
-    /* check if the call to getSecurityKeys was a success */
-    if(response->resultsSize != 0)
-        retval = response->results->statusCode;
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = UA_PubSubKeyStorage_validateGetSecurityKeysResponse(response);
     if(retval != UA_STATUSCODE_GOOD) {
          UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "SKS Client: Failed to call GetSecurityKeys on SKS server with error: %s ",

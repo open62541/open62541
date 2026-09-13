@@ -277,6 +277,74 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     unlockServer(server);
 } END_TEST
 
+static void
+setValidGetSecurityKeysOutput(UA_CallResponse *response,
+                              UA_CallMethodResult *result,
+                              UA_Variant output[5],
+                              UA_ByteString keys[1]) {
+    UA_CallResponse_init(response);
+    UA_CallMethodResult_init(result);
+    memset(output, 0, 5 * sizeof(UA_Variant));
+    response->results = result;
+    response->resultsSize = 1;
+    result->outputArguments = output;
+    result->outputArgumentsSize = 5;
+
+    static UA_String policyUri = UA_STRING_STATIC("policy");
+    static UA_UInt32 tokenId = 1;
+    static UA_Duration timeToNextKey = 1000;
+    static UA_Duration keyLifetime = 2000;
+    keys[0] = UA_BYTESTRING("key");
+    UA_Variant_setScalar(&output[0], &policyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&output[1], &tokenId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[2], keys, 1,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&output[3], &timeToNextKey,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Variant_setScalar(&output[4], &keyLifetime,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+}
+
+START_TEST(TestGetSecurityKeysResponseValidation) {
+    UA_CallResponse response;
+    UA_CallMethodResult result;
+    UA_Variant output[5];
+    UA_ByteString keys[1];
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(NULL),
+        UA_STATUSCODE_BADDECODINGERROR);
+
+    setValidGetSecurityKeysOutput(&response, &result, output, keys);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_GOOD);
+
+    UA_Int32 invalidKeys = 42;
+    UA_Variant_setScalar(&output[2], &invalidKeys,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+
+    UA_Variant_setArray(&output[2], keys, 0,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+
+    result.outputArgumentsSize = 4;
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADDECODINGERROR);
+
+    response.resultsSize = 0;
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_UInt32 currentTokenId = 1;
     futureKeySize = 2;
@@ -441,6 +509,7 @@ main(void) {
     tcase_add_checked_fixture(tc_pubsub_keystorage, setup, teardown);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_initialize);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorageSetKeys);
+    tcase_add_test(tc_pubsub_keystorage, TestGetSecurityKeysResponseValidation);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_MovetoNextKeyCallback);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeystorage_ImportedKey);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithWriterGroup);
