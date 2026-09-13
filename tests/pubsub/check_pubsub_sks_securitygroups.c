@@ -478,6 +478,49 @@ START_TEST(GetSecurityKeysAllocatesByteStringArray) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(SecurityGroupRotationUsesQueuedFutureKey) {
+    UA_SecurityGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    config.keyLifeTime = 500;
+    config.securityPolicyUri = UA_STRING(
+        "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+    config.securityGroupName = UA_STRING("NoPastKeysSecurityGroup");
+    config.maxFutureKeyCount = 1;
+    config.maxPastKeyCount = 0;
+
+    UA_NodeId securityGroupNodeId;
+    UA_StatusCode retval = UA_Server_addSecurityGroup(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS),
+        &config, &securityGroupNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_SecurityGroup *sg =
+        UA_SecurityGroup_find(getPSM(server), securityGroupNodeId);
+    ck_assert_ptr_ne(sg, NULL);
+    ck_assert_ptr_ne(sg->keyStorage->currentItem, NULL);
+    UA_UInt32 initialCurrentId = sg->keyStorage->currentItem->keyID;
+    UA_UInt32 initialFutureId =
+        TAILQ_NEXT(sg->keyStorage->currentItem, keyListEntry)->keyID;
+    unlockServer(server);
+    ck_assert_uint_eq(initialCurrentId, 1);
+    ck_assert_uint_eq(initialFutureId, 2);
+
+    UA_fakeSleep(config.keyLifeTime);
+    UA_Server_run_iterate(server, false);
+
+    lockServer(server);
+    ck_assert_ptr_ne(sg->keyStorage->currentItem, NULL);
+    size_t keyListSize = sg->keyStorage->keyListSize;
+    UA_UInt32 currentId = sg->keyStorage->currentItem->keyID;
+    UA_UInt32 lastId =
+        TAILQ_LAST(&sg->keyStorage->keyList, keyListItems)->keyID;
+    unlockServer(server);
+    ck_assert_uint_eq(keyListSize, 2);
+    ck_assert_uint_eq(currentId, 2);
+    ck_assert_uint_eq(lastId, 3);
+} END_TEST
+
 int
 main(void) {
     int number_failed = 0;
@@ -501,6 +544,8 @@ main(void) {
                    GetSecurityKeysRejectsStorageWithoutSecurityGroup);
     tcase_add_test(tc_pubsub_sks_securityGroup,
                    GetSecurityKeysAllocatesByteStringArray);
+    tcase_add_test(tc_pubsub_sks_securityGroup,
+                   SecurityGroupRotationUsesQueuedFutureKey);
     Suite *s = suite_create("PubSub SKS SecurityGroups");
     suite_add_tcase(s, tc_pubsub_sks_securityGroup);
 

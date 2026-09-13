@@ -100,10 +100,13 @@ generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
 
 static void
 updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
+    /* EventLoop timer callbacks enter without the server lock. */
+    lockServer(psm->sc.server);
     if(!sg) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "UpdateSKSKeyStorage callback failed with Error: %s ",
                        UA_StatusCode_name(UA_STATUSCODE_BADINVALIDARGUMENT));
+        unlockServer(psm->sc.server);
         return;
     }
 
@@ -118,16 +121,36 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "UpdateSKSKeyStorage callback failed to allocate memory for new key with Error: %s ",
                        UA_StatusCode_name(retval));
+        unlockServer(psm->sc.server);
         return;
     }
 
-    generateKeyData(keyStorage->policy, &newKey);
-    UA_UInt32 newKeyID = TAILQ_LAST(&keyStorage->keyList, keyListItems)->keyID;
+    retval = generateKeyData(keyStorage->policy, &newKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&newKey);
+        unlockServer(psm->sc.server);
+        return;
+    }
+
+    UA_PubSubKeyListItem *last =
+        TAILQ_LAST(&keyStorage->keyList, keyListItems);
+    if(!last || !keyStorage->currentItem) {
+        UA_ByteString_clear(&newKey);
+        unlockServer(psm->sc.server);
+        return;
+    }
+    UA_UInt32 newKeyID = last->keyID;
 
     if(newKeyID >= UA_UINT32_MAX)
         newKeyID = 1;
     else
         ++newKeyID;
+
+    /* Capture the successor before a list item is moved. With no retained
+     * past keys, the current item itself is recycled to the tail. */
+    UA_PubSubKeyListItem *nextCurrentItem =
+        TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
+    UA_PubSubKeyListItem *generatedItem = NULL;
 
     if(keyStorage->keyListSize >= keyStorage->maxKeyListSize) {
         /* reusing the preallocated memory of the oldest key for the new key material */
@@ -136,23 +159,30 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
         UA_ByteString_clear(&oldestKey->key);
         oldestKey->keyID = newKeyID;
-        UA_ByteString_copy(&newKey, &oldestKey->key);
+        oldestKey->key = newKey;
+        newKey = UA_BYTESTRING_NULL;
+        generatedItem = oldestKey;
     } else {
-        UA_PubSubKeyListItem *newItem =
-            UA_PubSubKeyStorage_push(keyStorage, &newKey, newKeyID);
-        if(!newItem) {
+        generatedItem = UA_PubSubKeyStorage_push(keyStorage, &newKey, newKeyID);
+        if(!generatedItem) {
             UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                            "UpdateSKSKeyStorage callback failed to add new key to the "
                            "sks keystorage for the SecurityGroup %S",
                            sg->securityGroupId);
             UA_Byte_delete(newKey.data);
+            unlockServer(psm->sc.server);
             return;
         }
     }
 
-    UA_PubSubKeyListItem *nextCurrentItem = TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
-    if(nextCurrentItem)
-        keyStorage->currentItem = nextCurrentItem;
+    if(!nextCurrentItem)
+        nextCurrentItem = generatedItem;
+    keyStorage->currentItem = nextCurrentItem;
+
+    /* Keep local PubSub groups synchronized with the CurrentTokenId returned
+     * by GetSecurityKeys. */
+    UA_PubSubKeyStorage_activateKeyToChannelContext(
+        psm, UA_NODEID_NULL, sg->securityGroupId);
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     el->modifyTimer(el, sg->callbackId, sg->config.keyLifeTime,
@@ -160,6 +190,7 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
 
     /* We allocated memory for data with allocBuffer so now we free it */
     UA_ByteString_clear(&newKey);
+    unlockServer(psm->sc.server);
 }
 
 static UA_StatusCode
