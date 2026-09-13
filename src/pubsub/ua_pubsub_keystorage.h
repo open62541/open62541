@@ -334,6 +334,10 @@ void
 UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm,
                                      UA_PubSubKeyStorage *keyStorage);
 
+UA_StatusCode
+UA_PubSubKeyStorage_validateGetSecurityKeysResponse(
+    const UA_CallResponse *response);
+
 /* Calls get SecurityKeys Method and Store the returned keys into KeyStorage */
 UA_StatusCode
 getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm,
