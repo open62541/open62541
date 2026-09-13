@@ -14,6 +14,26 @@ typedef struct {
     UA_HistoryDataGathering gathering;
 } UA_HistoryDatabaseContext_default;
 
+static UA_StatusCode
+getHistoryUserAccessLevel(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          UA_Byte *accessLevel) {
+    UA_StatusCode res = UA_Server_readAccessLevel(server, *nodeId, accessLevel);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    void *nodeContext = NULL;
+    res = UA_Server_getNodeContext(server, *nodeId, &nodeContext);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    *accessLevel &= config->accessControl.getUserAccessLevel(
+        server, &config->accessControl, sessionId, sessionContext,
+        nodeId, nodeContext);
+    return UA_STATUSCODE_GOOD;
+}
+
 static size_t
 getResultSize_service_default(const UA_HistoryDataBackend* backend,
                               UA_Server *server,
@@ -316,9 +336,12 @@ updateData_service_default(UA_Server *server,
 {
     UA_HistoryDatabaseContext_default *ctx = (UA_HistoryDatabaseContext_default*)hdbContext;
     UA_Byte accessLevel = 0;
-    UA_Server_readAccessLevel(server,
-                              details->nodeId,
-                              &accessLevel);
+    UA_StatusCode res = getHistoryUserAccessLevel(
+        server, sessionId, sessionContext, &details->nodeId, &accessLevel);
+    if(res != UA_STATUSCODE_GOOD) {
+        result->statusCode = res;
+        return;
+    }
     if (!(accessLevel & UA_ACCESSLEVELMASK_HISTORYWRITE)) {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
@@ -416,9 +439,12 @@ deleteRawModified_service_default(UA_Server *server,
     }
     UA_HistoryDatabaseContext_default *ctx = (UA_HistoryDatabaseContext_default*)hdbContext;
     UA_Byte accessLevel = 0;
-    UA_Server_readAccessLevel(server,
-                              details->nodeId,
-                              &accessLevel);
+    UA_StatusCode res = getHistoryUserAccessLevel(
+        server, sessionId, sessionContext, &details->nodeId, &accessLevel);
+    if(res != UA_STATUSCODE_GOOD) {
+        result->statusCode = res;
+        return;
+    }
     if (!(accessLevel & UA_ACCESSLEVELMASK_HISTORYWRITE)) {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
@@ -482,9 +508,13 @@ readRaw_service_default(UA_Server *server,
     UA_HistoryDatabaseContext_default *ctx = (UA_HistoryDatabaseContext_default*)context;
     for (size_t i = 0; i < nodesToReadSize; ++i) {
         UA_Byte accessLevel = 0;
-        UA_Server_readAccessLevel(server,
-                                  nodesToRead[i].nodeId,
-                                  &accessLevel);
+        UA_StatusCode res = getHistoryUserAccessLevel(
+            server, sessionId, sessionContext, &nodesToRead[i].nodeId,
+            &accessLevel);
+        if(res != UA_STATUSCODE_GOOD) {
+            response->results[i].statusCode = res;
+            continue;
+        }
         if (!(accessLevel & UA_ACCESSLEVELMASK_HISTORYREAD)) {
             response->results[i].statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
             continue;
