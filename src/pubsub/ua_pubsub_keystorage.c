@@ -62,7 +62,7 @@ UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Remove callback */
-    if(!ks->callBackId) {
+    if(ks->callBackId != 0) {
         removeCallback(psm->sc.server, ks->callBackId);
         ks->callBackId = 0;
     }

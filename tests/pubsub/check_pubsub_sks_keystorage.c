@@ -410,6 +410,30 @@ START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     unlockServer(server);
 } END_TEST
 
+START_TEST(TestRemoveKeyStorageWithArmedRolloverTimer) {
+    UA_UInt32 currentTokenId = 1;
+    futureKeySize = 2;
+    UA_Duration keyLifetime = 2000;
+    UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
+
+    UA_PubSubKeyStorage *ks =
+        createKeyStoragewithkeys(currentTokenId, futureKeySize, keyLifetime, 0,
+                                 testSecurityGroupId);
+    ck_assert_ptr_nonnull(ks);
+    ck_assert_uint_ne(ks->callBackId, 0);
+
+    UA_Server_removeWriterGroup(server, writerGroup);
+    UA_Server_removeReaderGroup(server, readerGroup);
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    ck_assert_ptr_null(UA_PubSubKeyStorage_find(psm, SecurityGroupId));
+    unlockServer(server);
+
+    UA_fakeSleep(keyLifetime + 1);
+    UA_Server_run_iterate(server, false);
+} END_TEST
+
 int
 main(void) {
     int number_failed = 0;
@@ -423,6 +447,8 @@ main(void) {
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithReaderGroup);
     tcase_add_test(tc_pubsub_keystorage, TestAddingNewGroupToExistingKeyStorage);
     tcase_add_test(tc_pubsub_keystorage, TestRemoveAPubSubGroupWithKeyStorage);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestRemoveKeyStorageWithArmedRolloverTimer);
 
     Suite *s =
         suite_create("PubSub Keystorage and handling keys for Publisher and Subscriber");
