@@ -679,6 +679,44 @@ START_TEST(SetWrongSKSEndpointUrl) {
 }
 END_TEST
 
+START_TEST(DeleteKeyStorageWhileSksConnectIsPending) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_nonnull(config);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
+                                    testingSKSEndpointUrl,
+                                    sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_removeWriterGroup(publisherApp, writerGroupId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 20; i++)
+        UA_Server_run_iterate(publisherApp, false);
+
+    UA_PubSubManager *psm = getPSM(publisherApp);
+    lockServer(publisherApp);
+    ck_assert_ptr_null(UA_PubSubKeyStorage_find(psm, securityGroupId));
+    unlockServer(publisherApp);
+    UA_free(config);
+}
+END_TEST
+
+START_TEST(ShutdownWhileSksConnectIsPending) {
+    UA_StatusCode retval = addPublisher(publisherApp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    ck_assert_ptr_nonnull(config);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
+                                    testingSKSEndpointUrl,
+                                    sksPullRequestCallback_publisher, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_free(config);
+}
+END_TEST
+
 START_TEST(CheckPublishedValuesInUserLand) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     int retryCnt = 0;
@@ -977,6 +1015,9 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSClient);
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, SetWrongSKSEndpointUrl);
+    tcase_add_test(tc_pubsub_sks_client,
+                   DeleteKeyStorageWhileSksConnectIsPending);
+    tcase_add_test(tc_pubsub_sks_client, ShutdownWhileSksConnectIsPending);
     tcase_add_test(tc_pubsub_sks_client, CheckPublishedValuesInUserLand);
     tcase_add_test(tc_pubsub_sks_client, PublisherSubscriberTogethor);
     tcase_add_test(tc_pubsub_sks_client, PublisherDelayedSubscriberTogethor);
