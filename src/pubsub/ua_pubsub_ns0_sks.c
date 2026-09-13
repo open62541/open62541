@@ -177,7 +177,15 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!UA_String_equal(securityPolicyUri, &ks->policy->policyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval =
+        UA_PubSubKeyStorage_validateKeyMaterial(ks, 1, currentKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    retval = UA_PubSubKeyStorage_validateKeyMaterial(
+        ks, futureKeySize, futureKeys);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, currentKeyId);
     if(!current) {
         UA_PubSubKeyStorage_clearKeyList(ks);

@@ -264,6 +264,13 @@ UA_StatusCode
 UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *keyStorage, size_t keysSize,
                                     UA_ByteString *keys, UA_UInt32 currentKeyId);
 
+/* Validate complete SKS key-material items against the configured PubSub
+ * SecurityPolicy before they are installed in the live key list. */
+UA_StatusCode
+UA_PubSubKeyStorage_validateKeyMaterial(const UA_PubSubKeyStorage *keyStorage,
+                                        size_t keysSize,
+                                        const UA_ByteString *keys);
+
 /* Fetch the key from the list and set it as the current key */
 UA_StatusCode
 UA_PubSubKeyStorage_setCurrentKey(UA_PubSubKeyStorage *keyStorage,

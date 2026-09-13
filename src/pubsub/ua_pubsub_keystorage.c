@@ -168,8 +168,29 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
 }
 
 UA_StatusCode
+UA_PubSubKeyStorage_validateKeyMaterial(const UA_PubSubKeyStorage *ks,
+                                        size_t keysSize,
+                                        const UA_ByteString *keys) {
+    if(!ks || (keysSize > 0 && !keys))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!ks->policy || ks->policy->nonceLength == 0)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    for(size_t i = 0; i < keysSize; i++) {
+        if(keys[i].length != ks->policy->nonceLength || !keys[i].data)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
                                     UA_ByteString *keys, UA_UInt32 currentKeyId) {
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_validateKeyMaterial(ks, keysSize, keys);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     for(size_t i = 0; i < keysSize; ++i) {
         currentKeyId++; /* Increase the keyId */
         if(currentKeyId == 0)
@@ -562,6 +583,11 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
         retval = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
         goto cleanup;
     }
+
+    retval = UA_PubSubKeyStorage_validateKeyMaterial(
+        ks, futureKeySize + 1, keys);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, firstTokenId);
     if(!current) {
