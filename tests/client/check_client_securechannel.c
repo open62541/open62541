@@ -117,6 +117,52 @@ START_TEST(SecureChannel_renew) {
 }
 END_TEST
 
+/* Renew again without an intervening symmetric response from the server.
+ * This exercises NEWTOKEN_CLIENT -> SENT with an old token still retained. */
+START_TEST(SecureChannel_repeatedRenewalWithoutServiceTraffic) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; !client->haveNamespaces && i < 1000; i++)
+        UA_Client_run_iterate(client, 1);
+    ck_assert(client->haveNamespaces);
+    pauseServer();
+    UA_UInt32 channelId = client->channel.securityToken.channelId;
+
+    for(size_t renewal = 0; renewal < 2; renewal++) {
+        UA_UInt32 oldToken = client->channel.securityToken.tokenId;
+        UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+        ck_assert_uint_eq(UA_Client_renewSecureChannel(client), UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(client->channel.renewState, UA_SECURECHANNELRENEWSTATE_SENT);
+        for(size_t i = 0;
+            client->channel.renewState == UA_SECURECHANNELRENEWSTATE_SENT && i < 1000; i++) {
+            UA_Server_run_iterate(server, false);
+            UA_Client_run_iterate(client, 1);
+        }
+        ck_assert_int_eq(client->channel.renewState,
+                         UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT);
+        ck_assert_uint_ne(client->channel.securityToken.tokenId, oldToken);
+        ck_assert_uint_eq(client->channel.altSecurityToken.tokenId, oldToken);
+        /* An immediate extra renewal must not discard the overlap state. */
+        ck_assert_uint_eq(UA_Client_renewSecureChannel(client), UA_STATUSCODE_GOODCALLAGAIN);
+        ck_assert_int_eq(client->channel.renewState,
+                         UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT);
+    }
+
+    runServer();
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &value),
+        UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+    ck_assert_uint_eq(client->channel.securityToken.channelId, channelId);
+    ck_assert_int_eq(client->channel.renewState, UA_SECURECHANNELRENEWSTATE_NORMAL);
+    ck_assert_uint_eq(client->channel.altSecurityToken.tokenId, 0);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* Send the next message after the securechannel timed out */
 START_TEST(SecureChannel_timeout_fail) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -279,6 +325,7 @@ int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
     tcase_add_test(tc_sc, SecureChannel_renew);
+    tcase_add_test(tc_sc, SecureChannel_repeatedRenewalWithoutServiceTraffic);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
     tcase_add_test(tc_sc, SecureChannel_timeout_fail);
     tcase_add_test(tc_sc, SecureChannel_networkfail);
