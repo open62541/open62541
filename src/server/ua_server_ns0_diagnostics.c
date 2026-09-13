@@ -91,6 +91,11 @@ readSubscriptionDiagnostics(UA_Server *server,
     fillSubscriptionDiagnostics(sub, &sddt);
 
     char memberName[128];
+    if(bn.name.length >= sizeof(memberName)) {
+        UA_SubscriptionDiagnosticsDataType_clear(&sddt);
+        UA_QualifiedName_clear(&bn);
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
     memcpy(memberName, bn.name.data, bn.name.length);
     memberName[bn.name.length] = 0;
 
@@ -403,6 +408,10 @@ readSessionDiagnostics(UA_Server *server,
     } else {
         /* Try to find the member in SessionDiagnosticsDataType and
          * SessionSecurityDiagnosticsDataType */
+        if(bn.name.length >= sizeof(memberName)) {
+            res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+            goto cleanup;
+        }
         memcpy(memberName, bn.name.data, bn.name.length);
         memberName[bn.name.length] = 0;
         found = UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE],
