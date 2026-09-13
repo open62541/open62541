@@ -257,6 +257,8 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     UA_Boolean executable = false;
     UA_SecurityGroup *sg = UA_SecurityGroup_findByName(psm, *securityGroupId);
+    if(!sg || sg->keyStorage != ks)
+        return UA_STATUSCODE_BADNOTFOUND;
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
     executable = server->config.accessControl.getUserExecutableOnObject(
