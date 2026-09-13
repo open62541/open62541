@@ -345,6 +345,22 @@ START_TEST(TestGetSecurityKeysResponseValidation) {
         UA_STATUSCODE_BADDECODINGERROR);
 } END_TEST
 
+START_TEST(TestClearKeyStorageResetsCurrentKey) {
+    UA_PubSubKeyStorage *ks =
+        createKeyStoragewithkeys(1, 1, 2000, 0, SecurityGroupId);
+    ck_assert_ptr_ne(ks, NULL);
+
+    UA_PubSubManager *psm = getPSM(server);
+    lockServer(server);
+    UA_PubSubKeyStorage_clearKeyList(ks);
+    UA_StatusCode retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
+        psm, UA_NODEID_NULL, ks->securityGroupID);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_ptr_eq(ks->currentItem, NULL);
+    ck_assert_uint_eq(ks->keyListSize, 0);
+    unlockServer(server);
+} END_TEST
+
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_UInt32 currentTokenId = 1;
     futureKeySize = 2;
@@ -510,6 +526,8 @@ main(void) {
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_initialize);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorageSetKeys);
     tcase_add_test(tc_pubsub_keystorage, TestGetSecurityKeysResponseValidation);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestClearKeyStorageResetsCurrentKey);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_MovetoNextKeyCallback);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeystorage_ImportedKey);
     tcase_add_test(tc_pubsub_keystorage, TestPubSubKeyStorage_InitWithWriterGroup);
