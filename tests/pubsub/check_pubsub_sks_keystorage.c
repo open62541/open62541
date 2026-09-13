@@ -503,7 +503,7 @@ START_TEST(TestRemoveKeyStorageWithArmedRolloverTimer) {
     UA_PubSubKeyStorage *ks =
         createKeyStoragewithkeys(currentTokenId, futureKeySize, keyLifetime, 0,
                                  testSecurityGroupId);
-    ck_assert_ptr_nonnull(ks);
+    ck_assert_ptr_ne(ks, NULL);
     ck_assert_uint_ne(ks->callBackId, 0);
 
     UA_Server_removeWriterGroup(server, writerGroup);
@@ -511,11 +511,43 @@ START_TEST(TestRemoveKeyStorageWithArmedRolloverTimer) {
 
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
-    ck_assert_ptr_null(UA_PubSubKeyStorage_find(psm, SecurityGroupId));
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(psm, SecurityGroupId), NULL);
     unlockServer(server);
 
     UA_fakeSleep(keyLifetime + 1);
     UA_Server_run_iterate(server, false);
+} END_TEST
+
+START_TEST(TestRemoveKeyStorageWithPendingRefetchTimer) {
+    UA_Duration keyLifeTime = 2000;
+    UA_PubSubKeyStorage *ks =
+        createKeyStoragewithkeys(1, 0, keyLifeTime, 0, SecurityGroupId);
+    ck_assert_ptr_ne(ks, NULL);
+    ks->sksConfig.endpointUrl = "opc.tcp://localhost:4840";
+
+    /* The current key is also the last key, so rollover schedules an SKS
+     * refetch after half the key lifetime. */
+    UA_PubSubKeyStorage_keyRolloverCallback(getPSM(server), ks);
+
+    /* Isolate this timer from the separate rollover-timer deletion case. */
+    lockServer(server);
+    server->config.eventLoop->removeTimer(server->config.eventLoop,
+                                          ks->callBackId);
+    ks->callBackId = 0;
+    unlockServer(server);
+
+    ck_assert_uint_eq(UA_Server_removeWriterGroup(server, writerGroup),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_removeReaderGroup(server, readerGroup),
+                      UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep(keyLifeTime / 2 + 1);
+    UA_Server_run_iterate(server, false);
+
+    lockServer(server);
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(getPSM(server),
+                                              SecurityGroupId), NULL);
+    unlockServer(server);
 } END_TEST
 
 int
@@ -536,6 +568,8 @@ main(void) {
     tcase_add_test(tc_pubsub_keystorage, TestRemoveAPubSubGroupWithKeyStorage);
     tcase_add_test(tc_pubsub_keystorage,
                    TestRemoveKeyStorageWithArmedRolloverTimer);
+    tcase_add_test(tc_pubsub_keystorage,
+                   TestRemoveKeyStorageWithPendingRefetchTimer);
 
     Suite *s =
         suite_create("PubSub Keystorage and handling keys for Publisher and Subscriber");
