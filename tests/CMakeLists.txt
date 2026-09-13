@@ -475,6 +475,7 @@ endif()
 ua_add_test(encryption/check_certificategroup_none.c)
 
 if(UA_ENABLE_ENCRYPTION)
+    ua_add_test(encryption/check_encryptedsecret.c)
     ua_add_test(client/check_client_encryption.c)
     ua_add_test(encryption/check_crl_validation.c)
     ua_add_test(encryption/check_cert_validation_client_response.c)
