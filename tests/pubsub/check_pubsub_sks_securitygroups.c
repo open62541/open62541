@@ -350,7 +350,7 @@ START_TEST(GetSecurityKeysRejectsStorageWithoutSecurityGroup) {
     UA_String securityGroupId = UA_STRING("ReaderOnlySecurityGroup");
     UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage *)
         UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-    ck_assert_ptr_nonnull(ks);
+    ck_assert_ptr_ne(ks, NULL);
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retval = UA_PubSubKeyStorage_init(
@@ -358,7 +358,7 @@ START_TEST(GetSecurityKeysRejectsStorageWithoutSecurityGroup) {
         &server->config.pubSubConfig.securityPolicies[1], 0, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ks->referenceCount++;
-    ck_assert_ptr_null(UA_SecurityGroup_findByName(psm, securityGroupId));
+    ck_assert_ptr_eq(UA_SecurityGroup_findByName(psm, securityGroupId), NULL);
     unlockServer(server);
 
     /* UA_Server_call uses the administrative Session. Give it the encrypted
@@ -395,6 +395,89 @@ START_TEST(GetSecurityKeysRejectsStorageWithoutSecurityGroup) {
     unlockServer(server);
 } END_TEST
 
+START_TEST(GetSecurityKeysAllocatesByteStringArray) {
+    UA_NodeId securityGroupNodeId;
+    UA_SecurityGroupConfig config;
+    memset(&config, 0, sizeof(config));
+    config.keyLifeTime = 2000;
+    config.securityPolicyUri =
+        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+    config.securityGroupName = UA_STRING("ShortKeySecurityGroup");
+    config.maxFutureKeyCount = 1;
+    config.maxPastKeyCount = 0;
+    UA_StatusCode retval = UA_Server_addSecurityGroup(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS),
+        &config, &securityGroupNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_SecureChannel channel;
+    UA_SecureChannel_init(&channel);
+    channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    server->adminSession.channel = &channel;
+
+    /* SetSecurityKeys stores the new batch before key activation detects that
+     * these deliberately short keys do not satisfy the policy. */
+    UA_UInt32 currentTokenId = 100;
+    UA_ByteString firstKey = UA_BYTESTRING("A");
+    UA_ByteString futureKeys[1] = {UA_BYTESTRING("B")};
+    UA_Duration timeToNextKey = 2000;
+    UA_Duration keyLifetime = 2000;
+    UA_Variant setInput[7];
+    UA_Variant_setScalar(&setInput[0], &config.securityGroupName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&setInput[1], &config.securityPolicyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&setInput[2], &currentTokenId,
+                         &UA_TYPES[UA_TYPES_INTEGERID]);
+    UA_Variant_setScalar(&setInput[3], &firstKey,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setArray(&setInput[4], futureKeys, 1,
+                        &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&setInput[5], &timeToNextKey,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Variant_setScalar(&setInput[6], &keyLifetime,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS);
+    request.inputArgumentsSize = 7;
+    request.inputArguments = setInput;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_ne(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    UA_UInt32 startingTokenId = 0;
+    UA_UInt32 requestedKeyCount = 1;
+    UA_Variant getInput[3];
+    UA_Variant_setScalar(&getInput[0], &config.securityGroupName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&getInput[1], &startingTokenId,
+                         &UA_TYPES[UA_TYPES_INTEGERID]);
+    UA_Variant_setScalar(&getInput[2], &requestedKeyCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
+    request.inputArgumentsSize = 3;
+    request.inputArguments = getInput;
+    result = UA_Server_call(server, &request);
+    server->adminSession.channel = NULL;
+    UA_SecureChannel_clear(&channel);
+
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 5);
+    ck_assert_uint_eq(result.outputArguments[2].arrayLength, 2);
+    UA_ByteString *keys = (UA_ByteString *)result.outputArguments[2].data;
+    ck_assert(UA_ByteString_equal(&keys[0], &firstKey));
+    ck_assert(UA_ByteString_equal(&keys[1], &futureKeys[0]));
+    UA_CallMethodResult_clear(&result);
+
+    retval = UA_Server_removeSecurityGroup(server, securityGroupNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int
 main(void) {
     int number_failed = 0;
@@ -416,6 +499,8 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_securityGroup, SecurityGroupPeriodicInsertNewKeys);
     tcase_add_test(tc_pubsub_sks_securityGroup,
                    GetSecurityKeysRejectsStorageWithoutSecurityGroup);
+    tcase_add_test(tc_pubsub_sks_securityGroup,
+                   GetSecurityKeysAllocatesByteStringArray);
     Suite *s = suite_create("PubSub SKS SecurityGroups");
     suite_add_tcase(s, tc_pubsub_sks_securityGroup);
 
