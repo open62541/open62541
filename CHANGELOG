@@ -1,6 +1,18 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2026-09-13 Julius Pfrommer <julius.pfrommer at o6-automation.com>
+
+ * Reject changing the user of an active Session
+
+   ActivateSession now returns Bad_IdentityChangeNotSupported when a Client
+   attempts to change the user of an already activated Session. Reactivation
+   with the same user remains supported.
+
+   This is not a security fix. It protects server applications whose
+   AccessControl plugin does not account for user changes when maintaining
+   per-Session state or permissions.
+
 2025-02-18 Andreas Eckerstorfer <estr at keba.com>
 
  * PubSub beforeWrite callback
