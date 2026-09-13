@@ -259,7 +259,7 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
         /* Check for NaN */
-        if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
+        if(params->samplingInterval != params->samplingInterval)
             params->samplingInterval = server->config.samplingIntervalLimits.min;
 
         /* Minimum interval from the node */

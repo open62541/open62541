@@ -10,6 +10,7 @@
 #include "server/ua_subscription.h"
 
 #include <check.h>
+#include <math.h>
 #include <stdlib.h>
 
 #include "testing_clock.h"
@@ -883,6 +884,60 @@ START_TEST(Server_negativeSamplingInterval) {
 }
 END_TEST
 
+START_TEST(Server_nanModifiedSamplingInterval) {
+    createSubscription();
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subscriptionId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+
+    UA_MonitoredItemCreateRequest createItem;
+    UA_MonitoredItemCreateRequest_init(&createItem);
+    createItem.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    createItem.itemToMonitor.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    createItem.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    createItem.requestedParameters.samplingInterval = 100.0;
+    createRequest.itemsToCreateSize = 1;
+    createRequest.itemsToCreate = &createItem;
+
+    UA_CreateMonitoredItemsResponse createResponse;
+    UA_CreateMonitoredItemsResponse_init(&createResponse);
+    lockServer(server);
+    Service_CreateMonitoredItems(server, session, &createRequest, &createResponse);
+    unlockServer(server);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 monitoredItemId = createResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    UA_MonitoredItemModifyRequest modifyItem;
+    UA_MonitoredItemModifyRequest_init(&modifyItem);
+    modifyItem.monitoredItemId = monitoredItemId;
+    modifyItem.requestedParameters.samplingInterval = NAN;
+    modifyItem.requestedParameters.queueSize = 1;
+
+    UA_ModifyMonitoredItemsRequest modifyRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = subscriptionId;
+    modifyRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    modifyRequest.itemsToModifySize = 1;
+    modifyRequest.itemsToModify = &modifyItem;
+
+    UA_ModifyMonitoredItemsResponse modifyResponse;
+    UA_ModifyMonitoredItemsResponse_init(&modifyResponse);
+    lockServer(server);
+    Service_ModifyMonitoredItems(server, session, &modifyRequest, &modifyResponse);
+    unlockServer(server);
+    ck_assert_uint_eq(modifyResponse.resultsSize, 1);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(isfinite(modifyResponse.results[0].revisedSamplingInterval));
+    ck_assert(modifyResponse.results[0].revisedSamplingInterval ==
+              server->config.samplingIntervalLimits.min);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
+}
+END_TEST
+
 START_TEST(Server_transferSubscriptionDiagnostics) {
     /* Test that subscription diagnostics counter is correctly maintained
      * when subscriptions are transferred between sessions */
@@ -1353,6 +1408,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
     tcase_add_test(tc_server, Server_negativeSamplingInterval);
+    tcase_add_test(tc_server, Server_nanModifiedSamplingInterval);
     tcase_add_test(tc_server, Server_createMonitoredItems);
     tcase_add_test(tc_server, Server_modifyMonitoredItems);
     tcase_add_test(tc_server, Server_overflow);
