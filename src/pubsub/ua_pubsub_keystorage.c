@@ -70,9 +70,6 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyU
 
 void
 UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
-    if(TAILQ_EMPTY(&ks->keyList))
-        return;
-
     UA_PubSubKeyListItem *item, *item_tmp;
     TAILQ_FOREACH_SAFE(item, &ks->keyList, keyListEntry, item_tmp) {
         TAILQ_REMOVE(&ks->keyList, item, keyListEntry);
@@ -80,6 +77,7 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
         UA_free(item);
     }
     ks->keyListSize = 0;
+    ks->currentItem = NULL;
 }
 
 void
@@ -372,7 +370,7 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!ks->policy && !(ks->keyListSize > 0))
+    if(!ks->policy || !ks->currentItem || ks->keyListSize == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_UInt32 securityTokenId = ks->currentItem->keyID;
