@@ -878,6 +878,42 @@ START_TEST(inListOperatorValidation) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+START_TEST(inListOperatorEmptyArrays) {
+    /* Set up an INLIST filter with two empty array operands */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    setupSelectClauses();
+    filter.selectClauses = selectClauses;
+    filter.selectClausesSize = defaultSlectClauseSize;
+    setupContentFilter(&filter.whereClause, 1);
+    setupInListFilter(&filter.whereClause.elements[0], 2);
+
+    UA_Variant literalContent[2];
+    memset(literalContent, 0, sizeof(literalContent));
+    UA_Variant_setArray(&literalContent[0], UA_EMPTY_ARRAY_SENTINEL, 0,
+                        &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&literalContent[1], UA_EMPTY_ARRAY_SENTINEL, 0,
+                        &UA_TYPES[UA_TYPES_UINT32]);
+    setupLiteralOperand(&filter.whereClause.elements[0], 2, literalContent);
+
+    /* Send the filter over TCP and trigger its evaluation */
+    eventType = EventType_A_Layer_1;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult createResult =
+        addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                NULL, UA_TRUE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    checkForEvent(&createResult, true);
+
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
 START_TEST(modifySelectFilterValidation) {
     /* setup event filter */
     UA_EventFilter filter;
@@ -936,6 +972,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
     tcase_add_test(tc_server, betweenOperatorValidation);
     tcase_add_test(tc_server, inListOperatorValidation);
+    tcase_add_test(tc_server, inListOperatorEmptyArrays);
     tcase_add_test(tc_server, modifySelectFilterValidation);
     suite_add_tcase(s, tc_server);
     return s;
