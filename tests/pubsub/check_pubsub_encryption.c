@@ -14,6 +14,7 @@
 #include "pubsub_test_helpers.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_internal.h"
+#include "ua_pubsub_keystorage.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -151,6 +152,161 @@ makeStubPolicy(size_t messageNonceLength) {
     policy.clear = stubClear;
     return policy;
 }
+
+START_TEST(SecurityTokenIdMustMatchActiveKey) {
+    UA_PubSubSecurityPolicy policy = makeStubPolicy(8);
+    UA_ReaderGroup rg;
+    memset(&rg, 0, sizeof(rg));
+    rg.config.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    rg.config.securityPolicy = &policy;
+    rg.securityPolicyContext = &policy;
+    rg.securityTokenId = 1;
+
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.securityEnabled = true;
+    nm.securityHeader.networkMessageSigned = true;
+    nm.securityHeader.securityTokenId = 2;
+
+    UA_Byte storage;
+    UA_ByteString buffer = {0, &storage};
+    Ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = &storage;
+    ctx.end = &storage;
+
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, buffer, &ctx, &nm, &rg),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_ptr_eq(rg.securityPolicyContext, &policy);
+    ck_assert_uint_eq(rg.securityTokenId, 1);
+} END_TEST
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+keyedNewContext(UA_PubSubSecurityPolicy *policy,
+                const UA_ByteString *signingKey,
+                const UA_ByteString *encryptingKey,
+                const UA_ByteString *keyNonce, void **context) {
+    (void)policy;
+    (void)encryptingKey;
+    (void)keyNonce;
+    if(!signingKey || signingKey->length != 1)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    UA_Byte *key = (UA_Byte*)UA_malloc(1);
+    if(!key)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *key = signingKey->data[0];
+    *context = key;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+keyedDeleteContext(UA_PubSubSecurityPolicy *policy, void *context) {
+    (void)policy;
+    UA_free(context);
+}
+
+static UA_StatusCode
+keyedVerify(const UA_PubSubSecurityPolicy *policy, void *context,
+            const UA_ByteString *message, const UA_ByteString *signature) {
+    (void)policy;
+    (void)message;
+    if(!context || signature->length != 1 ||
+       *(UA_Byte*)context != signature->data[0])
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+keyedSetKeys(UA_PubSubSecurityPolicy *policy, void *context,
+             const UA_ByteString *signingKey,
+             const UA_ByteString *encryptingKey,
+             const UA_ByteString *keyNonce) {
+    (void)policy;
+    (void)encryptingKey;
+    (void)keyNonce;
+    if(!context || !signingKey || signingKey->length != 1)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    *(UA_Byte*)context = signingKey->data[0];
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+stubGetOne(const UA_PubSubSecurityPolicy *policy, const void *context) {
+    (void)policy;
+    (void)context;
+    return 1;
+}
+
+START_TEST(SecurityTokenRolloverIsCommittedAfterVerification) {
+    UA_PubSubSecurityPolicy policy = makeStubPolicy(0);
+    policy.newGroupContext = keyedNewContext;
+    policy.deleteGroupContext = keyedDeleteContext;
+    policy.verify = keyedVerify;
+    policy.setSecurityKeys = keyedSetKeys;
+    policy.getSignatureSize = stubGetOne;
+    policy.getSignatureKeyLength = stubGetOne;
+    policy.keyMaterialLength = 1;
+
+    UA_PubSubKeyStorage ks;
+    memset(&ks, 0, sizeof(ks));
+    TAILQ_INIT(&ks.keyList);
+    ks.policy = &policy;
+    UA_Byte key2Data = 2;
+    UA_Byte key3Data = 3;
+    UA_ByteString key2 = {1, &key2Data};
+    UA_ByteString key3 = {1, &key3Data};
+    ck_assert_ptr_nonnull(UA_PubSubKeyStorage_push(&ks, &key2, 2));
+    ck_assert_ptr_nonnull(UA_PubSubKeyStorage_push(&ks, &key3, 3));
+
+    UA_ReaderGroup rg;
+    memset(&rg, 0, sizeof(rg));
+    rg.config.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    rg.config.securityPolicy = &policy;
+    rg.keyStorage = &ks;
+    rg.securityTokenId = 1;
+    UA_Byte key1Data = 1;
+    UA_ByteString key1 = {1, &key1Data};
+    ck_assert_uint_eq(keyedNewContext(&policy, &key1, NULL, NULL,
+                                     &rg.securityPolicyContext),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.securityEnabled = true;
+    nm.securityHeader.networkMessageSigned = true;
+    nm.securityHeader.securityTokenId = 2;
+
+    UA_Byte validSignature = 2;
+    UA_ByteString validBuffer = {1, &validSignature};
+    Ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = &validSignature;
+    ctx.end = &validSignature + 1;
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, validBuffer, &ctx,
+                                                     &nm, &rg),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rg.securityTokenId, 2);
+    ck_assert_uint_eq(*(UA_Byte*)rg.securityPolicyContext, 2);
+
+    /* A forged packet for another stored token must not replace the active
+     * context when its signature does not verify with that token's key. */
+    nm.securityHeader.securityTokenId = 3;
+    UA_Byte invalidSignature = 0;
+    UA_ByteString invalidBuffer = {1, &invalidSignature};
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = &invalidSignature;
+    ctx.end = &invalidSignature + 1;
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, invalidBuffer, &ctx,
+                                                     &nm, &rg),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(rg.securityTokenId, 2);
+    ck_assert_uint_eq(*(UA_Byte*)rg.securityPolicyContext, 2);
+
+    policy.deleteGroupContext(&policy, rg.securityPolicyContext);
+    UA_PubSubKeyStorage_clearKeyList(&ks);
+} END_TEST
+#endif
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
@@ -349,6 +505,11 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
     tcase_add_test(tc_pubsub_publish, SecurityPolicyContractIsValidatedAtGroupCreation);
     tcase_add_test(tc_pubsub_publish, CustomMessageNonceLengthIsUsed);
+    tcase_add_test(tc_pubsub_publish, SecurityTokenIdMustMatchActiveKey);
+#ifdef UA_ENABLE_PUBSUB_SKS
+    tcase_add_test(tc_pubsub_publish,
+                   SecurityTokenRolloverIsCommittedAfterVerification);
+#endif
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_pubsub_publish);

@@ -716,13 +716,12 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                        "PubSub receive. securityPolicyContext must be initialized "
                        "when security mode is enabled to sign and/or encrypt");
 
-    /* Key rollover support (spec 7.2.4.4.3): if the incoming message uses a
-     * different SecurityTokenId than the one currently set on the reader
-     * group, look up the matching key from the key storage and activate it.
-     * This allows receiving messages secured with the previous or next key
-     * during the rollover window. */
-#ifdef UA_ENABLE_PUBSUB_SKS
+    /* Resolve a different SecurityTokenId to the key it identifies. Use a
+     * temporary context until the message signature has been verified, so an
+     * unauthenticated packet cannot change the active ReaderGroup key. */
+    void *rolloverContext = NULL;
     if(nm->securityEnabled && nm->securityHeader.securityTokenId != rg->securityTokenId) {
+#ifdef UA_ENABLE_PUBSUB_SKS
         if(rg->keyStorage) {
             UA_PubSubKeyListItem *keyItem =
                 UA_PubSubKeyStorage_getKeyByKeyId(rg->keyStorage,
@@ -733,30 +732,29 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                 UA_ByteString key = keyItem->key;
                 size_t signLen = sp->getSignatureKeyLength(sp, NULL);
                 size_t encLen = sp->getEncryptionKeyLength(sp, NULL);
-                if(key.length >= signLen + encLen) {
+                if(signLen <= key.length && encLen <= key.length - signLen) {
                     signingKey.data = key.data;
                     signingKey.length = signLen;
                     encryptingKey.data = key.data + signLen;
                     encryptingKey.length = encLen;
                     keyNonce.data = key.data + signLen + encLen;
                     keyNonce.length = key.length - signLen - encLen;
-                    UA_StatusCode kr = sp->setSecurityKeys(sp, cc,
-                        &signingKey, &encryptingKey, &keyNonce);
-                    if(kr == UA_STATUSCODE_GOOD)
-                        rg->securityTokenId = nm->securityHeader.securityTokenId;
-                    else
-                        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                                       "PubSub receive. Failed to activate key for "
-                                       "SecurityTokenId %u", (unsigned)nm->securityHeader.securityTokenId);
+                    rv = sp->newGroupContext(sp, &signingKey, &encryptingKey,
+                                             &keyNonce, &rolloverContext);
                 }
-            } else {
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                               "PubSub receive. No key found for SecurityTokenId %u",
-                               (unsigned)nm->securityHeader.securityTokenId);
             }
         }
-    }
 #endif
+        if(!rolloverContext || rv != UA_STATUSCODE_GOOD) {
+            if(rolloverContext)
+                sp->deleteGroupContext(sp, rolloverContext);
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "PubSub receive. No usable key for SecurityTokenId %u",
+                           (unsigned)nm->securityHeader.securityTokenId);
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
+        cc = rolloverContext;
+    }
 
     /* Validate the signature */
     if(doValidate) {
@@ -764,13 +762,14 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
         if(buffer.length < sigSize) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                            "PubSub receive. Message too short for signature");
-            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            rv = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            goto cleanup;
         }
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
         rv = sp->verify(sp, cc, &toBeVerified, &signature);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Signature invalid");
 
         /* Remove the signature from the ctx->end. We do not want to decode that. */
@@ -784,16 +783,28 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
             (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
         };
         rv = sp->setMessageNonce(sp, cc, &nonce);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 
         UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
         rv = sp->decrypt(sp, cc, &toBeDecrypted);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Decryption");
     }
 
-    return UA_STATUSCODE_GOOD;
+    /* Commit the rollover only after authentication and decryption succeeded. */
+    if(rolloverContext) {
+        void *oldContext = rg->securityPolicyContext;
+        rg->securityPolicyContext = rolloverContext;
+        rolloverContext = NULL;
+        rg->securityTokenId = nm->securityHeader.securityTokenId;
+        sp->deleteGroupContext(sp, oldContext);
+    }
+
+cleanup:
+    if(rolloverContext)
+        sp->deleteGroupContext(sp, rolloverContext);
+    return rv;
 }
 
 /***********************/
