@@ -124,6 +124,9 @@ typedef struct UA_PubSubSKSConfig {
     UA_Server_sksPullRequestCallback userNotifyCallback;
     void *context;
     UA_UInt32 reqId;
+    UA_Boolean requestActive;
+    UA_Client *client;
+    void *clientContext;
 } UA_PubSubSKSConfig;
 
 /* Holds all info and keys related to one SecurityGroup */
@@ -176,8 +179,13 @@ struct UA_PubSubKeyStorage {
      * keys */
     UA_PubSubSKSConfig sksConfig;
 
+    /* The asynchronous SKS client retains a pointer to this storage until its
+     * shutdown callback has completed. */
+    UA_Boolean pendingDelete;
+
     /* Pointer to the key storage list */
     LIST_ENTRY(UA_PubSubKeyStorage) keyStorageList;
+    UA_Boolean listed;
 
 };
 
@@ -214,6 +222,10 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm,
 void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm,
                            UA_PubSubKeyStorage *keyStorage);
+
+void
+UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm,
+                              UA_PubSubKeyStorage *keyStorage);
 
 /**
  * @brief Initializes an empty Keystorage for the SecurityGroupId and add it to the Server
