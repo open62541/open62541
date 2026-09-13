@@ -232,12 +232,49 @@ START_TEST(Server_HistorizingStrategyValueSet) {
 }
 END_TEST
 
+START_TEST(Server_HistorizingRejectsForgedContinuationPoint) {
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = UA_HistoryDataBackend_Memory_Circular(1, 10);
+    setting.maxHistoryDataResponseSize = 1;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
+    lockServer(server);
+    UA_StatusCode retval = gathering->registerNodeId(server, gathering->context,
+                                                     &outNodeId, setting);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = setUInt32(client, outNodeId, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = setUInt32(client, outNodeId, 2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString continuationPoint;
+    retval = UA_ByteString_allocBuffer(&continuationPoint, sizeof(size_t));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    *((size_t*)continuationPoint.data) = 3;
+
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+    requestHistory(0, 0, &response, 0, false, &continuationPoint);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+
+    UA_ByteString_clear(&continuationPoint);
+    UA_HistoryReadResponse_clear(&response);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
 static Suite *
 testSuite_Client(void) {
     Suite *s = suite_create("Server Historical Data");
     TCase *tc_server = tcase_create("Server Historical Data Circular");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
+    tcase_add_test(tc_server, Server_HistorizingRejectsForgedContinuationPoint);
     suite_add_tcase(s, tc_server);
 
     return s;
