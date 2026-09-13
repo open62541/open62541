@@ -1118,21 +1118,29 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(res != 0)
         return;
 
-    /* Zero-terminated buffer */
-    unsigned char buf[512];
-    memcpy(buf, msg.data, msg.length);
-    buf[msg.length] = 0;
+    /* message_parse requires a MAX_PACKET_LEN input buffer and a zeroed
+     * message. Keep both large scratch objects off the stack. */
+    struct MdnsParseBuffer {
+        struct message message;
+        unsigned char packet[MAX_PACKET_LEN];
+    };
+    struct MdnsParseBuffer *parseBuffer =
+        (struct MdnsParseBuffer*)UA_calloc(1, sizeof(struct MdnsParseBuffer));
+    if(!parseBuffer) {
+        freeaddrinfo(infoptr);
+        return;
+    }
+    memcpy(parseBuffer->packet, msg.data, msg.length);
 
     /* Parse and process the message */
-    struct message mm;
-    memset(&mm, 0, sizeof(struct message));
-    int rr = message_parse(&mm, buf);
+    int rr = message_parse(&parseBuffer->message, parseBuffer->packet);
     if(rr == 0) {
         inet_addr_t from;
         memset(&from, 0, sizeof(inet_addr_t));
         memcpy(&from, infoptr->ai_addr, infoptr->ai_addrlen);
-        mdnsd_in(md->mdnsDaemon, &mm, &from);
+        mdnsd_in(md->mdnsDaemon, &parseBuffer->message, &from);
     }
+    UA_free(parseBuffer);
     freeaddrinfo(infoptr);
 }
 

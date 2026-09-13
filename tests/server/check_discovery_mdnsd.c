@@ -1119,6 +1119,43 @@ buildInjectedARecordPacket(const char *name, unsigned short clazz,
 }
 
 static void
+writeUint16(unsigned char **pos, unsigned value) {
+    *(*pos)++ = (unsigned char)(value >> 8);
+    *(*pos)++ = (unsigned char)value;
+}
+
+/* Place an AAAA record at the end of a 511-byte datagram and claim 16 bytes of
+ * resource data although only eight bytes remain. The mdnsd parser may inspect
+ * the claimed bytes while validating the record. */
+static UA_ByteString
+buildTruncatedAaaaPacket(void) {
+    UA_ByteString packet;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&packet, 511),
+                      UA_STATUSCODE_GOOD);
+    memset(packet.data, 0, packet.length);
+    unsigned char *pos = packet.data;
+    writeUint16(&pos, 0);  /* Id */
+    writeUint16(&pos, 0);  /* Flags */
+    writeUint16(&pos, 96); /* Questions */
+    writeUint16(&pos, 1);  /* Answers */
+    writeUint16(&pos, 0);  /* Authority */
+    writeUint16(&pos, 0);  /* Additional */
+    for(size_t i = 0; i < 96; i++) {
+        *pos++ = 0;         /* Root name */
+        writeUint16(&pos, QTYPE_A);
+        writeUint16(&pos, QCLASS_IN);
+    }
+    *pos++ = 0;             /* Root name */
+    writeUint16(&pos, QTYPE_AAAA);
+    writeUint16(&pos, QCLASS_IN);
+    pos += 4;               /* TTL */
+    writeUint16(&pos, 16);  /* Resource-data length */
+    pos += 8;
+    ck_assert_ptr_eq(pos, packet.data + packet.length);
+    return packet;
+}
+
+static void
 injectMdnsPacket(UA_ConnectionManager *cm, const UA_ByteString *packet) {
     UA_KeyValuePair params[2];
     UA_KeyValueMap paramsMap = {2, params};
@@ -1687,6 +1724,13 @@ END_TEST
 START_TEST(MdnsStartupOpensReceiveAndSendConnections) {
     ck_assert_uint_eq(testUdpIntercept->openedListenConnections, 1);
     ck_assert_uint_eq(testUdpIntercept->openedSendConnections, 1);
+}
+END_TEST
+
+START_TEST(MdnsShortDatagramUsesParserSizedBuffer) {
+    UA_ByteString packet = buildTruncatedAaaaPacket();
+    injectMdnsPacket(testUdpCm, &packet);
+    UA_ByteString_clear(&packet);
 }
 END_TEST
 
@@ -2511,6 +2555,7 @@ testSuite_DiscoveryMdnsd(void) {
     TCase *tc = tcase_create("Send path scaffolding");
     tcase_add_unchecked_fixture(tc, setup_server, teardown_server);
     tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);
+    tcase_add_test(tc, MdnsShortDatagramUsesParserSizedBuffer);
     tcase_add_test(tc, MdnsStartupTriggersSendPath);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
