@@ -977,6 +977,90 @@ START_TEST(Server_transferSubscriptionDiagnostics) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+static UA_StatusCode
+setBrowseName(UA_Server *server, UA_Session *adminSession,
+              UA_Node *node, void *data) {
+    UA_QualifiedName_clear(&node->head.browseName);
+    return UA_QualifiedName_copy((UA_QualifiedName*)data,
+                                 &node->head.browseName);
+}
+
+START_TEST(Server_diagnosticsRejectLongBrowseNames) {
+    lockServer(server);
+    UA_String_clear(&session->sessionName);
+    session->sessionName = UA_STRING_ALLOC("diagnostics");
+    createSessionObject(server, session);
+
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = session->sessionId;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.targetName = UA_QUALIFIEDNAME(0, "SessionDiagnostics");
+    bp.relativePath.elements = &rpe;
+    bp.relativePath.elementsSize = 1;
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
+    unlockServer(server);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+
+    UA_NodeId sessionDiagnosticNode;
+    UA_NodeId_init(&sessionDiagnosticNode);
+    UA_StatusCode res = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId,
+                                       &sessionDiagnosticNode);
+    UA_BrowsePathResult_clear(&bpr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    createSubscription();
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_nonnull(sub);
+    UA_NodeId diagnosticNode;
+    UA_NodeId_init(&diagnosticNode);
+    res = UA_NodeId_copy(&sub->ns0Id, &diagnosticNode);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    char longNameData[128];
+    memset(longNameData, 'A', sizeof(longNameData));
+    UA_QualifiedName longName;
+    UA_QualifiedName_init(&longName);
+    longName.name.length = sizeof(longNameData);
+    longName.name.data = (UA_Byte*)(uintptr_t)longNameData;
+    lockServer(server);
+    res = UA_Server_editNode(server, &server->adminSession, &diagnosticNode,
+                             setBrowseName, &longName);
+    res |= UA_Server_editNode(server, &server->adminSession,
+                              &sessionDiagnosticNode, setBrowseName, &longName);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readValue(server, diagnosticNode, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    UA_Variant_clear(&value);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = sessionDiagnosticNode;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    lockServer(server);
+    UA_DataValue dv = readWithSession(server, session, &rvi,
+                                      UA_TIMESTAMPSTORETURN_NEITHER);
+    unlockServer(server);
+    ck_assert(dv.hasStatus);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    UA_DataValue_clear(&dv);
+
+    UA_NodeId_clear(&diagnosticNode);
+    UA_NodeId_clear(&sessionDiagnosticNode);
+}
+END_TEST
+#endif
+
 /* Test anonymous user subscription transfer restriction */
 START_TEST(Server_transferSubscription_anonymous) {
     /* Create subscription in first session (anonymous) */
@@ -1365,6 +1449,10 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_lifeTimeCount);
     tcase_add_test(tc_server, Server_invalidPublishingInterval);
     tcase_add_test(tc_server, Server_transferSubscriptionDiagnostics);
+#ifdef UA_ENABLE_DIAGNOSTICS
+    tcase_add_test(tc_server,
+                   Server_diagnosticsRejectLongBrowseNames);
+#endif
     tcase_add_test(tc_server, Server_transferSubscription_anonymous);
     tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable);
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
