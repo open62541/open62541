@@ -107,13 +107,18 @@ encyrptedclientconnect(UA_Client *client) {
 }
 
 static UA_StatusCode
-callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 currentTokenId, UA_UInt32 futureKeySize){
+callSetSecurityKeyMaterial(UA_Client *client, UA_String pSecurityGroupId,
+                           UA_UInt32 currentTokenId,
+                           UA_ByteString *newCurrentKey,
+                           size_t futureKeySize,
+                           UA_ByteString *newFutureKeys) {
     UA_NodeId parentId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
     UA_NodeId methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS);
     size_t inputSize = 7;
     UA_Variant inputs[7];
-    size_t outputSize;
-    UA_Variant *output;
+    memset(inputs, 0, sizeof(inputs));
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
 
     UA_Variant_setScalar(&inputs[0], &pSecurityGroupId, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -123,18 +128,13 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
 
     UA_Variant_setScalar(&inputs[2], &currentTokenId, &UA_TYPES[UA_TYPES_UINT32]);
 
-    size_t keyLength = server->config.pubSubConfig.securityPolicies->nonceLength;
-    UA_ByteString_allocBuffer(&currentKey, keyLength);
-    generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
-    UA_Variant_setScalar(&inputs[3], &currentKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
-
-    futureKey = (UA_ByteString *)UA_calloc(futureKeySize, sizeof(UA_ByteString));
-
-    for (size_t i = 0; i < futureKeySize; i++) {
-        UA_ByteString_allocBuffer(&futureKey[i], keyLength);
-        generateKeyData(server->config.pubSubConfig.securityPolicies, &futureKey[i]);
-    }
-    UA_Variant_setArrayCopy(&inputs[4], futureKey, futureKeySize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&inputs[3], newCurrentKey,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_StatusCode retval =
+        UA_Variant_setArrayCopy(&inputs[4], newFutureKeys, futureKeySize,
+                                &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     UA_Duration msTimeNextKey = 0;
     UA_Variant_setScalar(&inputs[5], &msTimeNextKey, &UA_TYPES[UA_TYPES_DURATION]);
@@ -142,9 +142,31 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
     UA_Duration mskeyLifeTime = 2000;
     UA_Variant_setScalar(&inputs[6], &mskeyLifeTime, &UA_TYPES[UA_TYPES_DURATION]);
 
-    UA_StatusCode retval = UA_Client_call(client, parentId, methodId, inputSize, inputs, &outputSize, &output);
-    UA_ByteString_clear(&currentKey);
+    retval = UA_Client_call(client, parentId, methodId, inputSize,
+                            inputs, &outputSize, &output);
     UA_Variant_clear(&inputs[4]);
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    return retval;
+}
+
+static UA_StatusCode
+callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId,
+                   UA_UInt32 currentTokenId, UA_UInt32 futureKeySize) {
+
+    size_t keyLength = server->config.pubSubConfig.securityPolicies->nonceLength;
+    UA_ByteString_allocBuffer(&currentKey, keyLength);
+    generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
+
+    futureKey = (UA_ByteString *)UA_calloc(futureKeySize, sizeof(UA_ByteString));
+
+    for (size_t i = 0; i < futureKeySize; i++) {
+        UA_ByteString_allocBuffer(&futureKey[i], keyLength);
+        generateKeyData(server->config.pubSubConfig.securityPolicies, &futureKey[i]);
+    }
+    UA_StatusCode retval = callSetSecurityKeyMaterial(
+        client, pSecurityGroupId, currentTokenId, &currentKey,
+        futureKeySize, futureKey);
+    UA_ByteString_clear(&currentKey);
     UA_Array_delete(futureKey, futureKeySize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     return retval;
 }
@@ -323,6 +345,73 @@ START_TEST(TestSetSecurityKeys_GOOD) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(TestSetSecurityKeys_RejectInvalidKeyMaterial) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+    UA_StatusCode retval = encyrptedclientconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callSetSecurityKey(client, securityGroupId, 1, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    lockServer(server);
+    UA_PubSubKeyStorage *ks =
+        UA_PubSubKeyStorage_find(psm, securityGroupId);
+    ck_assert_ptr_nonnull(ks);
+    ck_assert_ptr_nonnull(ks->currentItem);
+    ck_assert_uint_eq(ks->currentItem->keyID, 1);
+    ck_assert_uint_eq(ks->keyListSize, 2);
+    unlockServer(server);
+
+    UA_PubSubSecurityPolicy *policy =
+        server->config.pubSubConfig.securityPolicies;
+    size_t keyLength = policy->nonceLength;
+    ck_assert_uint_gt(keyLength, 1);
+
+    UA_ByteString shortCurrent = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&shortCurrent, keyLength - 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString validFuture = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&validFuture, keyLength);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = generateKeyData(policy, &validFuture);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callSetSecurityKeyMaterial(client, securityGroupId, 50,
+                                        &shortCurrent, 1, &validFuture);
+    lockServer(server);
+    ck_assert_ptr_nonnull(ks->currentItem);
+    ck_assert_uint_eq(ks->currentItem->keyID, 1);
+    ck_assert_uint_eq(ks->keyListSize, 2);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_ByteString validCurrent = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&validCurrent, keyLength);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = generateKeyData(policy, &validCurrent);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString shortFuture = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&shortFuture, keyLength - 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = callSetSecurityKeyMaterial(client, securityGroupId, 50,
+                                        &validCurrent, 1, &shortFuture);
+    lockServer(server);
+    ck_assert_ptr_nonnull(ks->currentItem);
+    ck_assert_uint_eq(ks->currentItem->keyID, 1);
+    ck_assert_uint_eq(ks->keyListSize, 2);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_ByteString_clear(&shortCurrent);
+    UA_ByteString_clear(&validFuture);
+    UA_ByteString_clear(&validCurrent);
+    UA_ByteString_clear(&shortFuture);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
     UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
@@ -420,6 +509,8 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_InsufficientSecurityMode);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_MissingSecurityGroup);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_GOOD);
+    tcase_add_test(tc_pubsub_sks_push,
+                   TestSetSecurityKeys_RejectInvalidKeyMaterial);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_UpdateCurrentKeyFromExistingList);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKeys);
     tcase_add_test(tc_pubsub_sks_push, TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList);
