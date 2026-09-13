@@ -851,6 +851,80 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
 
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL && !LIBRESSL_VERSION_NUMBER */
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include <open62541/plugin/securitypolicy_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include "encryption/certificates.h"
+
+static UA_StatusCode
+sweepAttachedPolicy(void *application, UA_SecureChannel *channel,
+                    const UA_AsymmetricAlgorithmSecurityHeader *header) {
+    (void)application; (void)channel; (void)header;
+    /* Both peers already have their authenticated peer certificate attached. */
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(SecureChannel_signedRenewalSequence) {
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString key = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_SecurityPolicy policy;
+    ck_assert_uint_eq(UA_SecurityPolicy_Basic256Sha256(&policy, cert, key,
+                                                     UA_Log_Stdout), UA_STATUSCODE_GOOD);
+    UA_SecureChannel sender, receiver;
+    UA_SecureChannel_init(&sender);
+    UA_SecureChannel_init(&receiver);
+    sender.config = receiver.config = UA_ConnectionConfig_default;
+    ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(&sender, &policy, &cert),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(&receiver, &policy, &cert),
+                      UA_STATUSCODE_GOOD);
+    sender.securityMode = receiver.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    sender.state = receiver.state = UA_SECURECHANNELSTATE_OPEN;
+    sender.securityToken.channelId = receiver.securityToken.channelId = 1;
+    sender.securityToken.tokenId = receiver.securityToken.tokenId = 42;
+    receiver.processOPNHeader = sweepAttachedPolicy;
+    receiver.receiveSequenceNumber = 100;
+    /* Successor, backwards, duplicate, gap, first client/server handshake,
+     * and the legacy sequence rollover boundary. */
+    const UA_UInt32 previous[] = {100, 100, 100, 100, 100, 100, 4294966271u};
+    const UA_UInt32 sending[] = {100, 0, 99, 101, 0, 0, 4294966271u};
+    const UA_Boolean accepted[] = {true, false, false, false, true, true, true};
+    receiver.receiveSequenceNumber = previous[_i];
+    sender.sendSequenceNumber = sending[_i];
+    if(_i == 4) receiver.state = UA_SECURECHANNELSTATE_ACK_SENT;
+    if(_i == 5) receiver.state = UA_SECURECHANNELSTATE_OPN_SENT;
+    UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
+    sender.connectionManager = cm;
+    UA_OpenSecureChannelRequest req;
+    UA_OpenSecureChannelRequest_init(&req);
+    req.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
+    req.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    req.clientNonce = UA_BYTESTRING("0123456789abcdef0123456789abcdef");
+    req.requestedLifetime = 60000;
+    ck_assert_uint_eq(UA_SecureChannel_sendOPN(&sender, 7, &req,
+                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]), UA_STATUSCODE_GOOD);
+    UA_ByteString wire = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_copy(TestConnectionManager_getLastSent(cm), &wire),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_SecureChannel_loadBuffer(&receiver, wire), UA_STATUSCODE_GOOD);
+    UA_MessageType mt; UA_UInt32 requestId;
+    UA_ByteString payload = UA_BYTESTRING_NULL; UA_Boolean copied = false;
+    UA_StatusCode res = UA_SecureChannel_getCompleteMessage(&receiver, &mt,
+        &requestId, &payload, &copied, UA_DateTime_nowMonotonic());
+    UA_UInt32 receivedSequence = receiver.receiveSequenceNumber;
+    if(copied) UA_ByteString_clear(&payload);
+    UA_SecureChannel_clear(&receiver);
+    UA_SecureChannel_clear(&sender);
+    UA_ByteString_clear(&wire);
+    cm->eventSource.free(&cm->eventSource);
+    policy.clear(&policy);
+    ck_assert_uint_eq(res, accepted[_i] ? UA_STATUSCODE_GOOD :
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(receivedSequence, accepted[_i] ?
+                      ((_i >= 4) ? 1 : 101) : previous[_i]);
+} END_TEST
+#endif
+
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
@@ -910,6 +984,11 @@ testSuite_SecureChannel(void) {
     suite_add_tcase(s, tc_ikmChaining);
 #endif
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    TCase *tc_sequence = tcase_create("Signed renewal sequence");
+    tcase_add_loop_test(tc_sequence, SecureChannel_signedRenewalSequence, 0, 7);
+    suite_add_tcase(s, tc_sequence);
+#endif
     return s;
 }
 
