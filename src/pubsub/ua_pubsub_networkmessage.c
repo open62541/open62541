@@ -1415,6 +1415,13 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_Boolean
+fieldCountFitsBuffer(const UA_ByteString *src, size_t offset,
+                     UA_UInt16 fieldCount, size_t minFieldSize) {
+    return offset <= src->length &&
+        fieldCount <= (src->length - offset) / minFieldSize;
+}
+
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_DataSetMessage* dst, UA_UInt16 dsmSize, const UA_DataTypeArray *customTypes, UA_DataSetMetaDataType *dsm) {
     size_t initialOffset = *offset;
@@ -1432,8 +1439,14 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             case UA_FIELDENCODING_VARIANT:
                 rv = UA_UInt16_decodeBinary(src, offset, &dst->data.keyFrameData.fieldCount);
                 UA_CHECK_STATUS(rv, return rv);
+                if(!fieldCountFitsBuffer(src, *offset,
+                                         dst->data.keyFrameData.fieldCount, 1))
+                    return UA_STATUSCODE_BADDECODINGERROR;
                 dst->data.keyFrameData.dataSetFields =
                     (UA_DataValue *)UA_Array_new(dst->data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
+                if(dst->data.keyFrameData.fieldCount > 0 &&
+                   !dst->data.keyFrameData.dataSetFields)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
                 for(UA_UInt16 i = 0; i < dst->data.keyFrameData.fieldCount; i++) {
                     UA_DataValue_init(&dst->data.keyFrameData.dataSetFields[i]);
                     rv = UA_decodeBinaryInternal(src, offset, &dst->data.keyFrameData.dataSetFields[i].value, &UA_TYPES[UA_TYPES_VARIANT], customTypes);
@@ -1445,8 +1458,14 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             case UA_FIELDENCODING_DATAVALUE:
                 rv = UA_UInt16_decodeBinary(src, offset, &dst->data.keyFrameData.fieldCount);
                 UA_CHECK_STATUS(rv, return rv);
+                if(!fieldCountFitsBuffer(src, *offset,
+                                         dst->data.keyFrameData.fieldCount, 1))
+                    return UA_STATUSCODE_BADDECODINGERROR;
                 dst->data.keyFrameData.dataSetFields =
                     (UA_DataValue *)UA_Array_new(dst->data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
+                if(dst->data.keyFrameData.fieldCount > 0 &&
+                   !dst->data.keyFrameData.dataSetFields)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
                 for(UA_UInt16 i = 0; i < dst->data.keyFrameData.fieldCount; i++) {
                     rv = UA_decodeBinaryInternal(src, offset,
                                                  &dst->data.keyFrameData.dataSetFields[i],
@@ -1506,8 +1525,14 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             case UA_FIELDENCODING_VARIANT: {
                 rv = UA_UInt16_decodeBinary(src, offset, &dst->data.deltaFrameData.fieldCount);
                 UA_CHECK_STATUS(rv, return rv);
+                if(!fieldCountFitsBuffer(src, *offset,
+                                         dst->data.deltaFrameData.fieldCount, 3))
+                    return UA_STATUSCODE_BADDECODINGERROR;
                 size_t memsize = sizeof(UA_DataSetMessage_DeltaFrameField) * dst->data.deltaFrameData.fieldCount;
                 dst->data.deltaFrameData.deltaFrameFields = (UA_DataSetMessage_DeltaFrameField*)UA_malloc(memsize);
+                if(dst->data.deltaFrameData.fieldCount > 0 &&
+                   !dst->data.deltaFrameData.deltaFrameFields)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
                 for(UA_UInt16 i = 0; i < dst->data.deltaFrameData.fieldCount; i++) {
                     rv = UA_UInt16_decodeBinary(src, offset, &dst->data.deltaFrameData.deltaFrameFields[i].fieldIndex);
                     UA_CHECK_STATUS(rv, return rv);
@@ -1523,8 +1548,14 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             case UA_FIELDENCODING_DATAVALUE: {
                 rv = UA_UInt16_decodeBinary(src, offset, &dst->data.deltaFrameData.fieldCount);
                 UA_CHECK_STATUS(rv, return rv);
+                if(!fieldCountFitsBuffer(src, *offset,
+                                         dst->data.deltaFrameData.fieldCount, 3))
+                    return UA_STATUSCODE_BADDECODINGERROR;
                 size_t memsize = sizeof(UA_DataSetMessage_DeltaFrameField) * dst->data.deltaFrameData.fieldCount;
                 dst->data.deltaFrameData.deltaFrameFields = (UA_DataSetMessage_DeltaFrameField*)UA_malloc(memsize);
+                if(dst->data.deltaFrameData.fieldCount > 0 &&
+                   !dst->data.deltaFrameData.deltaFrameFields)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
                 for(UA_UInt16 i = 0; i < dst->data.deltaFrameData.fieldCount; i++) {
                     rv = UA_UInt16_decodeBinary(src, offset, &dst->data.deltaFrameData.deltaFrameFields[i].fieldIndex);
                     UA_CHECK_STATUS(rv, return rv);
