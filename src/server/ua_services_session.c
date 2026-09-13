@@ -695,6 +695,36 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
 }
 #endif
 
+static UA_StatusCode
+getClientUserId(UA_Server *server, const UA_ExtensionObject *userIdentityToken,
+                UA_UserTokenType tokenType, UA_String *clientUserId) {
+    UA_String_init(clientUserId);
+    if(tokenType == UA_USERTOKENTYPE_ANONYMOUS)
+        return UA_STATUSCODE_GOOD;
+
+    if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+    if(tokenType == UA_USERTOKENTYPE_USERNAME) {
+        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+            userIdentityToken->content.decoded.data;
+        return UA_String_copy(&userToken->userName, clientUserId);
+    }
+
+    if(tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        UA_X509IdentityToken *userCertToken = (UA_X509IdentityToken*)
+            userIdentityToken->content.decoded.data;
+        if(server->config.sessionPKI.getSubjectName)
+            return server->config.sessionPKI.getSubjectName(
+                clientUserId, &userCertToken->certificateData);
+    }
+
+    /* There is no generic way to derive the ClientUserId from an issued
+     * token. Keep the identifier empty and distinguish it from anonymous via
+     * the token type. */
+    return UA_STATUSCODE_GOOD;
+}
+
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
  * the Certificate used to create the original SecureChannel. In addition, the
@@ -712,6 +742,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     const UA_UserTokenPolicy *utp = NULL;
     const UA_SecurityPolicy *tokenSp = NULL;
     UA_String *tmpLocaleIds;
+    UA_String clientUserId = UA_STRING_NULL;
 
     /* Get the session */
     UA_Session *session = getSessionByToken(server, &req->requestHeader.authenticationToken);
@@ -802,6 +833,24 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         goto securityRejected;
 #endif
 
+    /* The server does not support replacing the user identity of an active
+     * Session. Reject the change before invoking access control so that the
+     * plugin cannot mutate the existing Session context. Re-activation with
+     * the same identity remains supported. */
+    resp->responseHeader.serviceResult =
+        getClientUserId(server, &req->userIdentityToken,
+                        utp->tokenType, &clientUserId);
+    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        goto securityRejected;
+
+    if(session->activated &&
+       (utp->tokenType != session->userTokenType ||
+        !UA_String_equal(&clientUserId, &session->clientUserIdOfSession))) {
+        resp->responseHeader.serviceResult =
+            UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
+        goto securityRejected;
+    }
+
     /* Callback into userland access control */
     resp->responseHeader.serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed,
@@ -867,23 +916,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 
-    /* Store the ClientUserId. tokenType can be NULL for the anonymous user. */
+    /* Store the authenticated ClientUserId. */
     UA_String_clear(&session->clientUserIdOfSession);
-    const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
-    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
-            req->userIdentityToken.content.decoded.data;
-        UA_String_copy(&userToken->userName, &session->clientUserIdOfSession);
-    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
-        UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
-            req->userIdentityToken.content.decoded.data;
-        if(server->config.sessionPKI.getSubjectName)
-            server->config.sessionPKI.
-                getSubjectName(&session->clientUserIdOfSession,
-                               &userCertToken->certificateData);
-    } else {
-        /* TODO: Handle issued token */
-    }
+    session->clientUserIdOfSession = clientUserId;
+    UA_String_init(&clientUserId);
+    session->userTokenType = utp->tokenType;
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* Add the ClientUserId to the diagnostics history */
@@ -920,6 +957,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 securityRejected:
     server->serverDiagnosticsSummary.securityRejectedSessionCount++;
 rejected:
+    UA_String_clear(&clientUserId);
     server->serverDiagnosticsSummary.rejectedSessionCount++;
 }
 
