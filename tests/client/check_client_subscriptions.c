@@ -180,6 +180,77 @@ START_TEST(Client_subscription) {
 }
 END_TEST
 
+static UA_Boolean malformedDeleteCallbackCalled;
+
+static void
+malformedDeleteCallback(UA_Client *client, UA_UInt32 subscriptionId,
+                        void *subscriptionContext, UA_UInt32 monitoredItemId,
+                        void *monitoredItemContext) {
+    malformedDeleteCallbackCalled = true;
+}
+
+START_TEST(Client_deleteMonitoredItems_malformedResultsSize) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest subRequest =
+        UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse subResponse =
+        UA_Client_Subscriptions_create(client, subRequest, NULL, NULL, NULL);
+    ck_assert_uint_eq(subResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(
+            client, subResponse.subscriptionId, UA_TIMESTAMPSTORETURN_BOTH,
+            monRequest, NULL, dataChangeHandler, malformedDeleteCallback);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subResponse.subscriptionId;
+    deleteRequest.monitoredItemIds = (UA_UInt32 *)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_ptr_nonnull(deleteRequest.monitoredItemIds);
+    deleteRequest.monitoredItemIdsSize = 1;
+    deleteRequest.monitoredItemIds[0] = monResponse.monitoredItemId;
+
+    UA_StatusCode results[2] = {
+        UA_STATUSCODE_BADUNEXPECTEDERROR,
+        UA_STATUSCODE_GOOD
+    };
+    UA_DeleteMonitoredItemsResponse deleteResponse;
+    UA_DeleteMonitoredItemsResponse_init(&deleteResponse);
+    deleteResponse.results = results;
+    deleteResponse.resultsSize = 2;
+
+    malformedDeleteCallbackCalled = false;
+    lockClient(client);
+    UA_Client_Subscription *sub = client->subscriptions.lh_first;
+    ck_assert_ptr_nonnull(sub);
+    __Client_MonitoredItems_processDelete(client, sub, &deleteRequest,
+                                          &deleteResponse);
+    unlockClient(client);
+    ck_assert(!malformedDeleteCallbackCalled);
+
+    UA_Array_delete(deleteRequest.monitoredItemIds,
+                    deleteRequest.monitoredItemIdsSize,
+                    &UA_TYPES[UA_TYPES_UINT32]);
+    retval = UA_Client_MonitoredItems_deleteSingle(
+        client, subResponse.subscriptionId, monResponse.monitoredItemId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(malformedDeleteCallbackCalled);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_async) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -1740,6 +1811,12 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_transfer);
     tcase_add_test(tc_client, Client_subscription_writeBurst);
     suite_add_tcase(s,tc_client);
+
+    TCase *tc_malformed = tcase_create("Malformed DeleteMonitoredItems Response");
+    tcase_add_checked_fixture(tc_malformed, setup, teardown);
+    tcase_add_test(tc_malformed,
+                   Client_deleteMonitoredItems_malformedResultsSize);
+    suite_add_tcase(s, tc_malformed);
 
 #ifdef UA_ENABLE_METHODCALLS
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");

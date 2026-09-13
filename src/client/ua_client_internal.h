@@ -76,6 +76,13 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client);
 void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
+/* Exposed for fuzzing malformed service responses */
+void
+__Client_MonitoredItems_processDelete(
+    UA_Client *client, UA_Client_Subscription *sub,
+    const UA_DeleteMonitoredItemsRequest *request,
+    const UA_DeleteMonitoredItemsResponse *response);
+
 /**********/
 /* Client */
 /**********/

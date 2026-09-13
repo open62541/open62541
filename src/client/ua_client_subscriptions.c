@@ -809,10 +809,11 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     return result;
 }
 
-static void
-ua_MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
-                         const UA_DeleteMonitoredItemsRequest *request,
-                         const UA_DeleteMonitoredItemsResponse *response) {
+void
+__Client_MonitoredItems_processDelete(
+    UA_Client *client, UA_Client_Subscription *sub,
+    const UA_DeleteMonitoredItemsRequest *request,
+    const UA_DeleteMonitoredItemsResponse *response) {
 #ifdef __clang_analyzer__
     return;
 #endif
@@ -823,7 +824,10 @@ ua_MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
     deleteMonitoredItem.client = client;
     deleteMonitoredItem.sub = sub;
 
-    for(size_t i = 0; i < response->resultsSize; i++) {
+    size_t resultsSize = response->resultsSize;
+    if(resultsSize > request->monitoredItemIdsSize)
+        resultsSize = request->monitoredItemIdsSize;
+    for(size_t i = 0; i < resultsSize; i++) {
         if(response->results[i] != UA_STATUSCODE_GOOD &&
            response->results[i] != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
             continue;
@@ -857,7 +861,7 @@ ua_MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId
     }
 
     /* Delete MonitoredItems from the internal representation */
-    ua_MonitoredItems_delete(client, sub, request, response);
+    __Client_MonitoredItems_processDelete(client, sub, request, response);
 
 cleanup:
     if(cc->userCallback)
@@ -893,7 +897,7 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     }
 
     /* Remove MonitoredItems in the internal representation */
-    ua_MonitoredItems_delete(client, sub, &request, &response);
+    __Client_MonitoredItems_processDelete(client, sub, &request, &response);
 
     unlockClient(client);
 
