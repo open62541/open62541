@@ -323,14 +323,18 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /* Keys */
     UA_PubSubKeyListItem *iterator = startingItem;
     output[2].data = (UA_ByteString *)
-        UA_calloc(requestedKeyCount, startingItem->key.length);
+        UA_calloc(requestedKeyCount, sizeof(UA_ByteString));
     if(!output[2].data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_ByteString *requestedKeys = (UA_ByteString *)output[2].data;
     UA_UInt32 retkeyCount = 0;
     for(size_t i = 0; i < requestedKeyCount; i++) {
-        UA_ByteString_copy(&iterator->key, &requestedKeys[i]);
+        retval = UA_ByteString_copy(&iterator->key, &requestedKeys[i]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            requestedKeyCount = retkeyCount;
+            break;
+        }
         ++retkeyCount;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
         if(!iterator) {
