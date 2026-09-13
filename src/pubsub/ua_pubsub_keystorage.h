@@ -175,6 +175,9 @@ struct UA_PubSubKeyStorage {
      * security group */
     UA_UInt64 callBackId;
 
+    /* One-shot timer that starts the next pull from a remote SKS. */
+    UA_UInt64 refetchCallbackId;
+
     /* Sks related information to connect with SKS server and fetch security
      * keys */
     UA_PubSubSKSConfig sksConfig;

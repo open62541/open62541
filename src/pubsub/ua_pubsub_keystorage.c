@@ -134,6 +134,10 @@ UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
         removeCallback(psm->sc.server, ks->callBackId);
         ks->callBackId = 0;
     }
+    if(ks->refetchCallbackId != 0) {
+        removeCallback(psm->sc.server, ks->refetchCallbackId);
+        ks->refetchCallbackId = 0;
+    }
 
     UA_PubSubKeyStorage_clearKeyList(ks);
     UA_String_clear(&ks->securityGroupID);
@@ -401,18 +405,21 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
 
 static void
 nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    lockServer(psm->sc.server);
     if(!ks) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "GetSecurityKeysCall Failed with error: KeyStorage does not exist "
                      "in the server");
+        unlockServer(psm->sc.server);
         return;
     }
-    retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
+    ks->refetchCallbackId = 0;
+    UA_StatusCode retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "GetSecurityKeysCall Failed with error: %s ",
                      UA_StatusCode_name(retval));
+    unlockServer(psm->sc.server);
 }
 
 void
@@ -440,14 +447,15 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
                          "Failed to update keys for security group id '%S'. Reason: '%s'.",
                          ks->securityGroupID, UA_StatusCode_name(retval));
         }
-    } else if(ks->sksConfig.endpointUrl && ks->sksConfig.reqId == 0) {
+    } else if(ks->sksConfig.endpointUrl && ks->sksConfig.reqId == 0 &&
+              ks->refetchCallbackId == 0) {
         /* Publishers using a central SKS shall call GetSecurityKeys at a period
          * of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = ks->keyLifeTime / 2;
         UA_EventLoop *el = psm->sc.server->config.eventLoop;
         retval = el->addTimer(el, (UA_Callback)nextGetSecuritykeysCallback, psm,
                               ks, msTimeToNextGetSecurityKeys, NULL,
-                              UA_TIMERPOLICY_ONCE, NULL);
+                              UA_TIMERPOLICY_ONCE, &ks->refetchCallbackId);
     }
 
     unlockServer(psm->sc.server);
