@@ -1497,6 +1497,25 @@ START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
 }
 END_TEST
 
+START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
+    UA_UInt32 initial[10] = {0};
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode res =
+        UA_Variant_setArrayCopy(&value, initial, 10,
+                                &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 source[13] = {0};
+    UA_NumericRangeDimension dimension = {3, 15};
+    UA_NumericRange range = {1, &dimension};
+    res = UA_Variant_setRangeCopy(&value, source, 13, range);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINDEXRANGEINVALID);
+
+    UA_Variant_clear(&value);
+}
+END_TEST
+
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     // given
     UA_String *srcArray = (UA_String*)UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
@@ -1877,6 +1896,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
+    tcase_add_test(tc_copy, UA_Variant_setRangeRejectsUnclampedSourceSize);
 
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
