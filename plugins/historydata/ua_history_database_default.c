@@ -343,8 +343,13 @@ updateData_service_default(UA_Server *server,
     }
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
+    result->operationResults = (UA_StatusCode*)
+        UA_Array_new(details->updateValuesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(!result->operationResults) {
+        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
     result->operationResultsSize = details->updateValuesSize;
-    result->operationResults = (UA_StatusCode*)UA_Array_new(result->operationResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     for (size_t i = 0; i < details->updateValuesSize; ++i) {
         if (config->accessControl.allowHistoryUpdateUpdateData &&
             !config->accessControl.allowHistoryUpdateUpdateData(server, &config->accessControl, sessionId, sessionContext,

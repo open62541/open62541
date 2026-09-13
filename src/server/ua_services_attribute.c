@@ -2042,6 +2042,11 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < response->resultsSize; ++i) {
         void * data = UA_new(historyDataType);
+        if(!data) {
+            UA_free(historyData);
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
         UA_ExtensionObject_setValue(&response->results[i].historyData,
                                     data, historyDataType);
         historyData[i] = data;
