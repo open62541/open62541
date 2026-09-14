@@ -207,6 +207,10 @@ typedef struct {
     UA_UInt32 remoteMaxMessageSize; /* (0 = unbounded) */
     UA_UInt32 localMaxChunkCount;   /* (0 = unbounded) */
     UA_UInt32 remoteMaxChunkCount;  /* (0 = unbounded) */
+    /* Additional limitation of messages that are sent over an unsecured SecureChannel.
+     * This will target mainly the Discovery Service Set and prevents an unauthenticated
+     * and untrusted client to block too many server resources. */
+    UA_UInt32 localMaxUntrustedMessageSize; /* (0 = unbounded) */
 } UA_ConnectionConfig;
 
 /**

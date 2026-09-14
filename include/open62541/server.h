@@ -2158,6 +2158,11 @@ struct UA_ServerConfig {
                               * (default: 0 -> unbounded) */
     UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
                               * (default: 0 -> unbounded) */
+    /* Additional limitation of messages that are sent over an unsecured SecureChannel.
+     * This will target mainly the Discovery Service Set and prevents an unauthenticated
+     * and untrusted client to block too many server resources. */
+    UA_UInt32 tcpMaxUntrustedMsgSize; /* (default: 0 -> unbounded) */
+
     UA_Boolean tcpReuseAddr;
 
     /* Security and Encryption
