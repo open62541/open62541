@@ -32,6 +32,32 @@ typedef struct UA_LogObjectEntry {
 
 typedef LIST_HEAD(UA_LogObjectList, UA_LogObjectEntry) UA_LogObjectList;
 
+/* A continuation point of the GetRecords Method. It is owned by the Session
+ * and stores the filter of the original call together with the cursor of the
+ * storage backend. */
+typedef struct UA_LogObjectContinuationPoint {
+    TAILQ_ENTRY(UA_LogObjectContinuationPoint) pointers;
+    UA_Guid identifier; /* Returned to the client as a 16-byte ByteString */
+    UA_NodeId logObjectId;
+    UA_DateTime startTime;
+    UA_DateTime endTime;
+    UA_UInt16 minimumSeverity;
+    UA_LogRecordMask requestMask;
+    UA_UInt32 maxReturnRecords;
+    UA_LogObjectCursor cursor;
+} UA_LogObjectContinuationPoint;
+
+/* Callback of the GetRecords Method (Part 26, 5.3). Attached to the Method of
+ * the LogObjectType, which serves the instantiated LogObjects, and to the
+ * GetRecords Method of the ServerLog. */
+UA_StatusCode
+logObjectGetRecordsMethod(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *methodId,
+                          void *methodContext, const UA_NodeId *objectId,
+                          void *objectContext, size_t inputSize,
+                          const UA_Variant *input, size_t outputSize,
+                          UA_Variant *output);
+
 /* Create the ServerLog, wire the NS0 nodes and capture the server logger.
  * Called from UA_Server_init with the server lock held after the namespace
  * zero is set up. */

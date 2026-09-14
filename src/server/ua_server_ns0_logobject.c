@@ -90,6 +90,13 @@ initNS0LogObject(UA_Server *server) {
     }
 
     res |= addMaxContinuationPointsProperty(server);
+
+    /* The GetRecords Method of the type serves the instantiated LogObjects.
+     * The ServerLog has its own Method node in the standard nodeset. */
+    res |= setMethodNode_callback(server, UA_NS0ID(LOGOBJECTTYPE_GETRECORDS),
+                                  logObjectGetRecordsMethod);
+    res |= setMethodNode_callback(server, UA_NS0ID(SERVERLOG_GETRECORDS),
+                                  logObjectGetRecordsMethod);
     return res;
 }
 

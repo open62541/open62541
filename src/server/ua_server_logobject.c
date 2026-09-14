@@ -100,6 +100,249 @@ UA_Server_addLogRecord(UA_Server *server, const UA_NodeId logObjectId,
     return res;
 }
 
+/***********************/
+/* Continuation points */
+/***********************/
+
+#define UA_LOGRECORDMASK_ALL                                            \
+    (UA_LOGRECORDMASK_EVENTTYPE | UA_LOGRECORDMASK_SOURCENODE |         \
+     UA_LOGRECORDMASK_SOURCENAME | UA_LOGRECORDMASK_TRACECONTEXT |      \
+     UA_LOGRECORDMASK_ADDITIONALDATA)
+
+static void
+LogObjectContinuationPoint_delete(UA_LogObjectContinuationPoint *cp) {
+    UA_NodeId_clear(&cp->logObjectId);
+    UA_free(cp);
+}
+
+void
+UA_LogObjectCPQueue_clear(UA_LogObjectCPQueue *queue) {
+    UA_LogObjectContinuationPoint *cp, *tmp;
+    TAILQ_FOREACH_SAFE(cp, queue, pointers, tmp) {
+        TAILQ_REMOVE(queue, cp, pointers);
+        LogObjectContinuationPoint_delete(cp);
+    }
+}
+
+static UA_LogObjectContinuationPoint *
+findContinuationPoint(UA_Session *session, const UA_ByteString *identifier) {
+    if(identifier->length != sizeof(UA_Guid))
+        return NULL;
+    UA_LogObjectContinuationPoint *cp;
+    TAILQ_FOREACH(cp, &session->logObjectCPs, pointers) {
+        if(memcmp(identifier->data, &cp->identifier, sizeof(UA_Guid)) == 0)
+            return cp;
+    }
+    return NULL;
+}
+
+static void
+removeContinuationPoint(UA_Session *session, UA_LogObjectContinuationPoint *cp) {
+    TAILQ_REMOVE(&session->logObjectCPs, cp, pointers);
+    session->logObjectCPsSize--;
+    LogObjectContinuationPoint_delete(cp);
+}
+
+/* Remove the optional fields that were not requested (Part 26, 5.8) */
+static void
+applyRequestMask(UA_LogRecord *r, UA_LogRecordMask mask) {
+    if(!(mask & UA_LOGRECORDMASK_EVENTTYPE) && r->eventType) {
+        UA_NodeId_delete(r->eventType);
+        r->eventType = NULL;
+    }
+    if(!(mask & UA_LOGRECORDMASK_SOURCENODE) && r->sourceNode) {
+        UA_NodeId_delete(r->sourceNode);
+        r->sourceNode = NULL;
+    }
+    if(!(mask & UA_LOGRECORDMASK_SOURCENAME) && r->sourceName) {
+        UA_String_delete(r->sourceName);
+        r->sourceName = NULL;
+    }
+    if(!(mask & UA_LOGRECORDMASK_TRACECONTEXT) && r->traceContext) {
+        UA_TraceContextDataType_delete(r->traceContext);
+        r->traceContext = NULL;
+    }
+    if(!(mask & UA_LOGRECORDMASK_ADDITIONALDATA) && r->additionalData) {
+        UA_Array_delete(r->additionalData, r->additionalDataSize,
+                        &UA_TYPES[UA_TYPES_NAMEVALUEPAIR]);
+        r->additionalData = NULL;
+        r->additionalDataSize = 0;
+    }
+}
+
+static UA_Boolean
+scalarInput(const UA_Variant *v, const UA_DataType *type) {
+    return v->data != NULL && UA_Variant_hasScalarType(v, type);
+}
+
+UA_StatusCode
+logObjectGetRecordsMethod(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *methodId,
+                          void *methodContext, const UA_NodeId *objectId,
+                          void *objectContext, size_t inputSize,
+                          const UA_Variant *input, size_t outputSize,
+                          UA_Variant *output) {
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 2);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(inputSize < 6)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+
+    /* The Call service checked the argument types. The RequestMask arrives as
+     * LogRecordMask or UInt32, both are backed by UInt32. */
+    if(!scalarInput(&input[0], &UA_TYPES[UA_TYPES_DATETIME]) ||
+       !scalarInput(&input[1], &UA_TYPES[UA_TYPES_DATETIME]) ||
+       !scalarInput(&input[2], &UA_TYPES[UA_TYPES_UINT32]) ||
+       !scalarInput(&input[3], &UA_TYPES[UA_TYPES_UINT16]) ||
+       !input[4].data || !UA_Variant_isScalar(&input[4]) ||
+       input[4].type->typeKind != UA_DATATYPEKIND_UINT32)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_DateTime startTime = *(UA_DateTime*)input[0].data;
+    UA_DateTime endTime = *(UA_DateTime*)input[1].data;
+    UA_UInt32 maxReturnRecords = *(UA_UInt32*)input[2].data;
+    UA_UInt16 minimumSeverity = *(UA_UInt16*)input[3].data;
+    UA_LogRecordMask requestMask = *(UA_UInt32*)input[4].data;
+    const UA_ByteString *cpIn = NULL;
+    if(input[5].data && UA_Variant_hasScalarType(&input[5], &UA_TYPES[UA_TYPES_BYTESTRING]))
+        cpIn = (const UA_ByteString*)input[5].data;
+    UA_Boolean continuation = (cpIn && cpIn->length > 0);
+
+    /* Validate the arguments of a new request (Part 26, Table 3). A
+     * continuation uses the arguments of the original call. */
+    if(!continuation) {
+        if(minimumSeverity < 1 || minimumSeverity > 1000)
+            return UA_STATUSCODE_BADOUTOFRANGE;
+        if(startTime != 0 && endTime != 0 && startTime > endTime)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(requestMask & ~(UA_LogRecordMask)UA_LOGRECORDMASK_ALL)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        /* Zero denotes an unbounded time range */
+        if(startTime == 0)
+            startTime = UA_INT64_MIN;
+        if(endTime == 0)
+            endTime = UA_INT64_MAX;
+    }
+
+    lockServer(server);
+
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_LogObjectEntry *entry = getLogObjectEntry(server, objectId);
+    if(!entry) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    }
+
+    /* Continue a previous call */
+    UA_LogObjectCursor cursor = 0;
+    if(continuation) {
+        UA_LogObjectContinuationPoint *cp = findContinuationPoint(session, cpIn);
+        if(!cp || !UA_NodeId_equal(&cp->logObjectId, objectId)) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+        }
+        startTime = cp->startTime;
+        endTime = cp->endTime;
+        minimumSeverity = cp->minimumSeverity;
+        requestMask = cp->requestMask;
+        maxReturnRecords = cp->maxReturnRecords;
+        cursor = cp->cursor;
+        removeContinuationPoint(session, cp);
+    }
+
+    /* The server can impose a limit below MaxReturnRecords (Part 26, 5.3) */
+    size_t limit = maxReturnRecords;
+    UA_UInt32 cap = server->config.maxLogRecordsPerCall;
+    if(cap > 0 && (limit == 0 || limit > cap))
+        limit = cap;
+    if(limit == 0)
+        limit = entry->settings.maxRecords;
+
+    /* Read the records from the backend */
+    UA_LogObjectBackend *backend = &server->config.logObjectBackend;
+    size_t recordsSize = 0;
+    UA_LogRecord *records = NULL;
+    UA_LogObjectCursor nextCursor = cursor;
+    UA_Boolean moreAvailable = false;
+    res = backend->getRecords(server, backend->context, &entry->nodeId,
+                              startTime, endTime, minimumSeverity, requestMask,
+                              cursor, limit, logObjectNow(server),
+                              &recordsSize, &records, &nextCursor, &moreAvailable);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* The core is authoritative for the RequestMask */
+    for(size_t i = 0; i < recordsSize; i++)
+        applyRequestMask(&records[i], requestMask);
+
+    /* Allocate the output arguments */
+    UA_LogRecordsDataType *results = UA_LogRecordsDataType_new();
+    UA_ByteString *cpOut = UA_ByteString_new();
+    if(!results || !cpOut) {
+        if(results)
+            UA_LogRecordsDataType_delete(results);
+        if(cpOut)
+            UA_ByteString_delete(cpOut);
+        UA_Array_delete(records, recordsSize, &UA_TYPES[UA_TYPES_LOGRECORD]);
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Keep a continuation point for the remaining records. The Session limit
+     * is enforced without evicting older points (Part 26, Table 3). */
+    if(moreAvailable) {
+        UA_UInt16 maxCPs = server->config.maxLogObjectContinuationPoints;
+        UA_LogObjectContinuationPoint *cp = NULL;
+        if(maxCPs > 0 && session->logObjectCPsSize >= maxCPs) {
+            res = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+        } else {
+            cp = (UA_LogObjectContinuationPoint*)
+                UA_calloc(1, sizeof(UA_LogObjectContinuationPoint));
+            if(!cp)
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_NodeId_copy(objectId, &cp->logObjectId);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_ByteString_allocBuffer(cpOut, sizeof(UA_Guid));
+        if(res != UA_STATUSCODE_GOOD) {
+            if(cp)
+                LogObjectContinuationPoint_delete(cp);
+            UA_LogRecordsDataType_delete(results);
+            UA_ByteString_delete(cpOut);
+            UA_Array_delete(records, recordsSize, &UA_TYPES[UA_TYPES_LOGRECORD]);
+            unlockServer(server);
+            return res;
+        }
+        cp->identifier = UA_Guid_random();
+        memcpy(cpOut->data, &cp->identifier, sizeof(UA_Guid));
+        cp->startTime = startTime;
+        cp->endTime = endTime;
+        cp->minimumSeverity = minimumSeverity;
+        cp->requestMask = requestMask;
+        cp->maxReturnRecords = maxReturnRecords;
+        cp->cursor = nextCursor;
+        TAILQ_INSERT_TAIL(&session->logObjectCPs, cp, pointers);
+        session->logObjectCPsSize++;
+    }
+
+    /* Set the output arguments. An empty result is an empty array. */
+    results->logRecordArraySize = recordsSize;
+    results->logRecordArray = records;
+    if(!records)
+        results->logRecordArray = (UA_LogRecord*)UA_EMPTY_ARRAY_SENTINEL;
+    UA_Variant_setScalar(&output[0], results, &UA_TYPES[UA_TYPES_LOGRECORDSDATATYPE]);
+    UA_Variant_setScalar(&output[1], cpOut, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
 /**********************/
 /* Capture the logger */
 /**********************/

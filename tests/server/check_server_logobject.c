@@ -28,22 +28,44 @@ countingLog(void *context, UA_LogLevel level, UA_LogCategory category,
 }
 static UA_Logger countingLogger = {countingLog, NULL, NULL};
 
+/* Options of the test server. The EventLoop uses the fake clock. */
+typedef struct {
+    UA_Boolean enabled;
+    UA_LogObjectSettings serverLog;
+    UA_UInt32 maxRecordsPerCall;
+    UA_UInt16 maxContinuationPoints;
+    UA_Logger *logger;
+} ServerOptions;
+
+static ServerOptions
+defaultOptions(void) {
+    ServerOptions o;
+    memset(&o, 0, sizeof(ServerOptions));
+    o.enabled = true;
+    o.serverLog.maxRecords = 1000;
+    o.serverLog.maxStorageDuration = 0.0;
+    o.serverLog.minimumSeverity = 1;
+    o.maxRecordsPerCall = 1000;
+    o.maxContinuationPoints = 32;
+    return o;
+}
+
 /* Create a server with the LogObject feature configured before the
- * information model is set up. The EventLoop uses the fake clock. */
+ * information model is set up */
 static UA_Server *
-newLogObjectServer(UA_Boolean enabled, const UA_LogObjectSettings *settings,
-                   UA_Logger *logger) {
+newLogObjectServer(const ServerOptions *o) {
     UA_ServerConfig sc;
     memset(&sc, 0, sizeof(UA_ServerConfig));
-    sc.logging = logger ? logger : UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
+    sc.logging = o->logger ? o->logger : UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
     UA_StatusCode res = UA_ServerConfig_setMinimal(&sc, 4840, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     sc.eventLoop->dateTime_now = UA_DateTime_now_fake;
     sc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     sc.tcpReuseAddr = true;
-    sc.logObjectsEnabled = enabled;
-    if(settings)
-        sc.serverLog = *settings;
+    sc.logObjectsEnabled = o->enabled;
+    sc.serverLog = o->serverLog;
+    sc.maxLogRecordsPerCall = o->maxRecordsPerCall;
+    sc.maxLogObjectContinuationPoints = o->maxContinuationPoints;
     UA_Server *s = UA_Server_newWithConfig(&sc);
     ck_assert(s != NULL);
     return s;
@@ -85,8 +107,8 @@ stringEquals(const UA_String *s, const char *expected) {
 /* --- Capture of the server logger (Part 26, 7.2) --- */
 
 START_TEST(captureLogOutput) {
-    UA_LogObjectSettings settings = {1000, 0.0, 1};
-    server = newLogObjectServer(true, &settings, NULL);
+    ServerOptions o = defaultOptions();
+    server = newLogObjectServer(&o);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_String str = UA_STRING("abc");
@@ -125,8 +147,9 @@ START_TEST(captureLogOutput) {
 } END_TEST
 
 START_TEST(minimumSeverityGating) {
-    UA_LogObjectSettings settings = {1000, 0.0, 200};
-    server = newLogObjectServer(true, &settings, NULL);
+    ServerOptions o = defaultOptions();
+    o.serverLog.minimumSeverity = 200;
+    server = newLogObjectServer(&o);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_LOG_INFO(config->logging, UA_LOGCATEGORY_SERVER, "info marker");
@@ -156,8 +179,9 @@ START_TEST(loggerWrappedAndRestored) {
     countingLogger.log = countingLog;
     countingLogger.context = NULL;
     countingLogger.clear = NULL;
-    UA_LogObjectSettings settings = {1000, 0.0, 1};
-    server = newLogObjectServer(true, &settings, &countingLogger);
+    ServerOptions o = defaultOptions();
+    o.logger = &countingLogger;
+    server = newLogObjectServer(&o);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* Wrapped in place: same structure, different callback */
@@ -185,8 +209,8 @@ START_TEST(loggerWrappedAndRestored) {
 /* --- UA_Server_addLogRecord --- */
 
 START_TEST(addLogRecordApi) {
-    UA_LogObjectSettings settings = {1000, 0.0, 1};
-    server = newLogObjectServer(true, &settings, NULL);
+    ServerOptions o = defaultOptions();
+    server = newLogObjectServer(&o);
 
     UA_LogRecord r;
     UA_LogRecord_init(&r);
@@ -250,8 +274,11 @@ START_TEST(addLogRecordApi) {
 /* --- Information model --- */
 
 START_TEST(serverLogProperties) {
-    UA_LogObjectSettings settings = {500, 2000.0, 100};
-    server = newLogObjectServer(true, &settings, NULL);
+    ServerOptions o = defaultOptions();
+    o.serverLog.maxRecords = 500;
+    o.serverLog.maxStorageDuration = 2000.0;
+    o.serverLog.minimumSeverity = 100;
+    server = newLogObjectServer(&o);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_Variant v;
@@ -304,8 +331,9 @@ START_TEST(serverLogProperties) {
 } END_TEST
 
 START_TEST(noMaxStorageDurationProperty) {
-    UA_LogObjectSettings settings = {1000, 0.0, 51};
-    server = newLogObjectServer(true, &settings, NULL);
+    ServerOptions o = defaultOptions();
+    o.serverLog.minimumSeverity = 51;
+    server = newLogObjectServer(&o);
     /* Zero is not a valid MaxStorageDuration, the Property is not exposed */
     UA_NodeClass nc;
     UA_StatusCode res =
@@ -321,7 +349,10 @@ START_TEST(disabledAtRuntime) {
     countingLogger.log = countingLog;
     countingLogger.context = NULL;
     countingLogger.clear = NULL;
-    server = newLogObjectServer(false, NULL, &countingLogger);
+    ServerOptions o = defaultOptions();
+    o.enabled = false;
+    o.logger = &countingLogger;
+    server = newLogObjectServer(&o);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* The logger is untouched */
@@ -350,6 +381,356 @@ START_TEST(disabledAtRuntime) {
     UA_Server_delete(server);
 } END_TEST
 
+
+/* --- GetRecords Method (Part 26, 5.3) --- */
+
+/* Call GetRecords on a LogObject through the Call service (admin Session).
+ * The results and the continuation point are copied out. */
+static UA_StatusCode
+callGetRecords(const UA_NodeId objectId, UA_DateTime start, UA_DateTime end,
+               UA_UInt32 maxReturn, UA_UInt16 minSeverity, UA_UInt32 mask,
+               const UA_ByteString *cpIn, UA_LogRecordsDataType *results,
+               UA_ByteString *cpOut) {
+    UA_Variant inputs[6];
+    for(size_t i = 0; i < 6; i++)
+        UA_Variant_init(&inputs[i]);
+    UA_Variant_setScalar(&inputs[0], &start, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[1], &end, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[2], &maxReturn, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputs[3], &minSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&inputs[4], &mask, &UA_TYPES[UA_TYPES_LOGRECORDMASK]);
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    UA_Variant_setScalar(&inputs[5], (void*)(uintptr_t)(cpIn ? cpIn : &empty),
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = objectId;
+    req.methodId = UA_NS0ID(LOGOBJECTTYPE_GETRECORDS);
+    req.inputArgumentsSize = 6;
+    req.inputArguments = inputs;
+    UA_CallMethodResult r = UA_Server_call(server, &req);
+    UA_StatusCode res = r.statusCode;
+    UA_LogRecordsDataType_init(results);
+    UA_ByteString_init(cpOut);
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(r.outputArgumentsSize, 2);
+        ck_assert(UA_Variant_hasScalarType(&r.outputArguments[0],
+                                           &UA_TYPES[UA_TYPES_LOGRECORDSDATATYPE]));
+        UA_LogRecordsDataType_copy((UA_LogRecordsDataType*)r.outputArguments[0].data,
+                                   results);
+        ck_assert(UA_Variant_hasScalarType(&r.outputArguments[1],
+                                           &UA_TYPES[UA_TYPES_BYTESTRING]));
+        UA_ByteString_copy((UA_ByteString*)r.outputArguments[1].data, cpOut);
+    }
+    UA_CallMethodResult_clear(&r);
+    return res;
+}
+
+/* Add a record with the current (fake) time via the API */
+static void
+addRecord(UA_UInt16 severity, const char *msg) {
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = severity;
+    r.message = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)msg);
+    UA_StatusCode res = UA_Server_addLogRecord(server, UA_NS0ID(SERVERLOG), &r);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* The captured log output has at most Severity 230 (ERROR). A
+ * MinimumSeverity of 300 keeps the ServerLog free of it, so only the records
+ * added by the tests are returned. */
+static ServerOptions
+apiOnlyOptions(void) {
+    ServerOptions o = defaultOptions();
+    o.serverLog.minimumSeverity = 300;
+    return o;
+}
+
+START_TEST(getRecordsArguments) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+
+    /* Severity outside 1..1000 */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFRANGE);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1001, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADOUTOFRANGE);
+
+    /* StartTime after EndTime */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 20, 10, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Unknown bits in the RequestMask */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x20, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Bogus continuation point */
+    UA_ByteString bogus = UA_BYTESTRING("0123456789abcdef");
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, &bogus, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+
+    /* An empty ServerLog returns an empty array and no continuation point */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 0);
+    ck_assert_uint_eq(cp.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(getRecordsTimeRange) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+    UA_DateTime t1 = UA_DateTime_now_fake(NULL);
+    addRecord(300, "one");
+    UA_fakeSleep(1000);
+    UA_DateTime t2 = UA_DateTime_now_fake(NULL);
+    addRecord(300, "two");
+    UA_fakeSleep(1000);
+    UA_DateTime t3 = UA_DateTime_now_fake(NULL);
+    addRecord(300, "three");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+
+    /* Everything, oldest first */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 3);
+    ck_assert_int_eq(results.logRecordArray[0].time, t1);
+    ck_assert_int_eq(results.logRecordArray[2].time, t3);
+    ck_assert(stringEquals(&results.logRecordArray[0].message.text, "one"));
+    ck_assert_uint_eq(cp.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* [t2, t3] */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t2, t3, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    ck_assert_int_eq(results.logRecordArray[0].time, t2);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* StartTime == EndTime returns the records at exactly that time */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t2, t2, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 1);
+    ck_assert(stringEquals(&results.logRecordArray[0].message.text, "two"));
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* Open ranges */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t2, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, t2, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* Nothing after t3 */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), t3 + 1, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(getRecordsSeverityFilter) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+    addRecord(300, "critical");
+    addRecord(400, "alert");
+    addRecord(500, "emergency");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 400, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    ck_assert_uint_eq(results.logRecordArray[0].severity, 400);
+    ck_assert_uint_eq(results.logRecordArray[1].severity, 500);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(getRecordsRequestMask) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+
+    UA_NodeId eventType = UA_NS0ID(BASEEVENTTYPE);
+    UA_NodeId sourceNode = UA_NS0ID(SERVER);
+    UA_String sourceName = UA_STRING("Test");
+    UA_TraceContextDataType traceContext;
+    UA_TraceContextDataType_init(&traceContext);
+    traceContext.spanId = 7;
+    UA_NameValuePair pair;
+    UA_NameValuePair_init(&pair);
+    pair.name = UA_STRING("key");
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 300;
+    r.message = UA_LOCALIZEDTEXT("", "full");
+    r.eventType = &eventType;
+    r.sourceNode = &sourceNode;
+    r.sourceName = &sourceName;
+    r.traceContext = &traceContext;
+    r.additionalData = &pair;
+    r.additionalDataSize = 1;
+    ck_assert_uint_eq(UA_Server_addLogRecord(server, UA_NS0ID(SERVERLOG), &r),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    const UA_UInt32 masks[7] = {0, 1, 2, 4, 8, 16, 0x1F};
+    for(size_t i = 0; i < 7; i++) {
+        UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, masks[i],
+                                           NULL, &results, &cp);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(results.logRecordArraySize, 1);
+        const UA_LogRecord *s = &results.logRecordArray[0];
+        ck_assert_uint_eq(s->severity, 300);
+        ck_assert((s->eventType != NULL) == ((masks[i] & 1) != 0));
+        ck_assert((s->sourceNode != NULL) == ((masks[i] & 2) != 0));
+        ck_assert((s->sourceName != NULL) == ((masks[i] & 4) != 0));
+        ck_assert((s->traceContext != NULL) == ((masks[i] & 8) != 0));
+        ck_assert((s->additionalDataSize == 1) == ((masks[i] & 16) != 0));
+        UA_LogRecordsDataType_clear(&results);
+        UA_ByteString_clear(&cp);
+    }
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(getRecordsContinuation) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+    for(int i = 0; i < 25; i++) {
+        addRecord(300, "record");
+        UA_fakeSleep(10);
+    }
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+    UA_DateTime last = 0;
+
+    /* First page */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 10, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 10);
+    ck_assert_uint_eq(cp.length, 16);
+    last = results.logRecordArray[9].time;
+    UA_LogRecordsDataType_clear(&results);
+
+    /* Second page continues after the first, the arguments of the original
+     * call apply */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 10);
+    ck_assert(results.logRecordArray[0].time > last);
+    ck_assert_uint_eq(cp2.length, 16);
+    last = results.logRecordArray[9].time;
+    UA_LogRecordsDataType_clear(&results);
+
+    /* A continuation point can be used only once */
+    UA_ByteString cp3;
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp3);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString_clear(&cp);
+
+    /* Last page */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp2, &results, &cp3);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 5);
+    ck_assert(results.logRecordArray[0].time > last);
+    ck_assert_uint_eq(cp3.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp2);
+    UA_ByteString_clear(&cp3);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(getRecordsServerLimit) {
+    ServerOptions o = apiOnlyOptions();
+    o.maxRecordsPerCall = 5;
+    server = newLogObjectServer(&o);
+    for(int i = 0; i < 12; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+
+    /* No client limit: the server limit applies and a continuation point is
+     * returned */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 5);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* A smaller client limit wins */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 3, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 3);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+
+    /* A larger client limit is capped */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 100, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 5);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(noContinuationPoints) {
+    ServerOptions o = apiOnlyOptions();
+    o.maxContinuationPoints = 1;
+    server = newLogObjectServer(&o);
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* The Session has no continuation point left */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOCONTINUATIONPOINTS);
+
+    /* Consuming the first one frees the slot */
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 2);
+    ck_assert_uint_eq(cp2.length, 0);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_ByteString_clear(&cp2);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("LogObjects");
 
@@ -365,6 +746,16 @@ int main(void) {
     tcase_add_test(tc_model, noMaxStorageDurationProperty);
     tcase_add_test(tc_model, disabledAtRuntime);
     suite_add_tcase(s, tc_model);
+
+    TCase *tc_get = tcase_create("GetRecords");
+    tcase_add_test(tc_get, getRecordsArguments);
+    tcase_add_test(tc_get, getRecordsTimeRange);
+    tcase_add_test(tc_get, getRecordsSeverityFilter);
+    tcase_add_test(tc_get, getRecordsRequestMask);
+    tcase_add_test(tc_get, getRecordsContinuation);
+    tcase_add_test(tc_get, getRecordsServerLimit);
+    tcase_add_test(tc_get, noContinuationPoints);
+    suite_add_tcase(s, tc_get);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
