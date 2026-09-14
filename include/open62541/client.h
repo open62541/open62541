@@ -783,8 +783,8 @@ UA_Client_Service_queryNext(UA_Client *client,
                             const UA_QueryNextRequest request) {
     UA_QueryNextResponse response;
     __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
-        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+        client, &request, &UA_TYPES[UA_TYPES_QUERYNEXTREQUEST],
+        &response, &UA_TYPES[UA_TYPES_QUERYNEXTRESPONSE]);
     return response;
 }
 
