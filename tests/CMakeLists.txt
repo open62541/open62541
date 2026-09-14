@@ -248,6 +248,10 @@ ua_add_test(check_utf8.c)
 ua_add_test(check_musl_inet_pton.c)
 ua_add_test(check_config_default.c)
 
+if(UA_ENABLE_LOGOBJECT)
+    ua_add_test(check_logobject_backend_memory.c)
+endif()
+
 if(UNIX AND NOT APPLE)
     ua_add_test(check_log_syslog.c)
 endif()

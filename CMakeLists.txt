@@ -929,6 +929,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/logobject.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
@@ -1419,6 +1420,12 @@ endif()
 
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
+endif()
+
+if(UA_ENABLE_LOGOBJECT)
+    list(APPEND plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/logobject_backend_memory.h)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_logobject_backend_memory.c)
 endif()
 
 # For file based server and client configuration
