@@ -1131,7 +1131,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
 
 START_TEST(AddConnectionRejectsRemotelyReplacedInputArguments) {
     UA_Client *client = UA_Client_new();
-    ck_assert_ptr_nonnull(client);
+    ck_assert_ptr_ne(client, NULL);
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode res =
         UA_Client_connect(client, "opc.tcp://localhost:4840");
