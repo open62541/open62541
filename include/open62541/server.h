@@ -36,6 +36,9 @@
 #ifdef UA_ENABLE_HISTORIZING
 #include <open62541/plugin/historydatabase.h>
 #endif
+#ifdef UA_ENABLE_LOGOBJECT
+#include <open62541/plugin/logobject.h>
+#endif
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
@@ -1855,6 +1858,50 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
 #endif /* UA_ENABLE_DISCOVERY */
 
 /**
+ * .. _logobject:
+ *
+ * LogObjects (OPC UA Part 26)
+ * ---------------------------
+ * OPC UA Part 26 defines the LogObjectType: an Object that collects log
+ * records and makes them available to clients with the GetRecords Method.
+ * With ``UA_ENABLE_LOGOBJECT`` the server provides the well-known ServerLog
+ * Object below the Server Object. It captures every message written to the
+ * server logger (``config->logging``) as a LogRecord:
+ *
+ * - Time: the current time of the EventLoop clock
+ * - Severity: mapped from the log level (TRACE 10, DEBUG 40, INFO 80,
+ *   WARNING 180, ERROR 230, FATAL 500; see Part 26, Table 9)
+ * - Message: the formatted log message, without a locale
+ * - SourceName: the log category (Network, SecureChannel, Session, Server,
+ *   Client, Application, Security, EventLoop, PubSub, Discovery)
+ * - AdditionalData: one NameValuePair "LogLevel" with the numeric log level
+ *
+ * Messages below ``config->serverLog.minimumSeverity`` are not stored.
+ * Messages that are removed at compile time by ``UA_LOGLEVEL`` never reach the
+ * logger and cannot be captured. The capture rewrites the ``UA_Logger``
+ * structure that ``config->logging`` points to in place (the original log
+ * callback is still called), so the structure must be writable. The original
+ * logger is restored when the server is deleted.
+ *
+ * The records are stored by the ``config->logObjectBackend`` plugin (see
+ * :ref:`logobject-backend`). Access to the GetRecords Method is controlled by
+ * the AccessControl plugin (``getUserExecutableOnObject``). The records are
+ * not filtered per user.
+ *
+ * Application code adds records with the following function. The record is
+ * copied by the storage backend, the caller keeps the ownership. The Severity
+ * must be in 1..1000. A Time of zero is replaced by the current time. Records
+ * with a Severity below the MinimumSeverity of the LogObject are dropped. A
+ * record added to an application LogObject is also added to the ServerLog
+ * (Part 26, 7.2). Returns UA_STATUSCODE_BADNOTSUPPORTED when
+ * ``config->logObjectsEnabled`` is false. */
+#ifdef UA_ENABLE_LOGOBJECT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addLogRecord(UA_Server *server, const UA_NodeId logObjectId,
+                       const UA_LogRecord *record);
+#endif
+
+/**
  * .. _drivers:
  *
  * Drivers
@@ -2569,6 +2616,29 @@ struct UA_ServerConfig {
     UA_Boolean deleteRawCapability;
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
+#endif
+
+    /* LogObjects (OPC UA Part 26)
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * The ServerLog Object collects the output of the server logger and makes
+     * it available via the GetRecords Method. See :ref:`logobject`. */
+    UA_Boolean logObjectsEnabled;
+#ifdef UA_ENABLE_LOGOBJECT
+    UA_LogObjectBackend logObjectBackend;     /* Storage of the LogRecords (see
+                                               * plugin/logobject.h) */
+    UA_LogObjectSettings serverLog;           /* Limits of the ServerLog. Mirrored
+                                               * into the MaxRecords,
+                                               * MaxStorageDuration and
+                                               * MinimumSeverity Properties */
+    UA_UInt32 maxLogRecordsPerCall;           /* Server-imposed limit for the
+                                               * LogRecords returned by one
+                                               * GetRecords call. 0 = only the
+                                               * MaxReturnRecords argument of
+                                               * the client applies */
+    UA_UInt16 maxLogObjectContinuationPoints; /* Continuation points of the
+                                               * GetRecords Method per Session.
+                                               * Mirrored into the
+                                               * ServerCapabilities */
 #endif
 
     /* Certificate Password Callback

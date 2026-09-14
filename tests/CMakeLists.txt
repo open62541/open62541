@@ -250,6 +250,7 @@ ua_add_test(check_config_default.c)
 
 if(UA_ENABLE_LOGOBJECT)
     ua_add_test(check_logobject_backend_memory.c)
+    ua_add_test(server/check_server_logobject.c)
 endif()
 
 if(UNIX AND NOT APPLE)

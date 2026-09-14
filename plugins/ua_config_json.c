@@ -1194,6 +1194,11 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = HistorizingConfigurationField_parseJson(&ctx, config, NULL);
 #endif
 
+#ifdef UA_ENABLE_LOGOBJECT
+                else if(strcmp(field, "logObjectsEnabled") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->logObjectsEnabled, NULL);
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
                 else if(strcmp(field, "pubsubEnabled") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->pubsubEnabled, NULL);

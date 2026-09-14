@@ -1035,6 +1035,12 @@ if(UA_ENABLE_RBAC)
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.h)
 endif()
 
+if(UA_ENABLE_LOGOBJECT)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_logobject.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_logobject.c)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_logobject.h)
+endif()
+
 list(APPEND lib_sources
      ${PROJECT_SOURCE_DIR}/src/server/ua_transport_ws.c
      ${PROJECT_SOURCE_DIR}/src/ua_securechannel_http.c
