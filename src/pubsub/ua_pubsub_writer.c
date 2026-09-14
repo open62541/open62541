@@ -577,6 +577,27 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
 }
 
 static UA_StatusCode
+syncLastSamples(UA_DataSetWriter *dataSetWriter, size_t fieldCount) {
+    if(dataSetWriter->lastSamplesCount == fieldCount)
+        return UA_STATUSCODE_GOOD;
+
+    UA_DataSetWriterSample *newSamples = NULL;
+    if(fieldCount > 0) {
+        newSamples = (UA_DataSetWriterSample*)
+            UA_calloc(fieldCount, sizeof(UA_DataSetWriterSample));
+        if(!newSamples)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++)
+        UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+    UA_free(dataSetWriter->lastSamples);
+    dataSetWriter->lastSamples = newSamples;
+    dataSetWriter->lastSamplesCount = fieldCount;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetWriter *dataSetWriter) {
@@ -584,6 +605,13 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
         UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    if(server->config.pubSubConfig.enableDeltaFrames) {
+        UA_StatusCode res =
+            syncLastSamples(dataSetWriter, currentDataSet->fieldSize);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
@@ -658,6 +686,11 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_StatusCode res =
+        syncLastSamples(dataSetWriter, currentDataSet->fieldSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
@@ -914,20 +947,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
            currentDataSet->dataSetMetaData.configurationVersion.majorVersion ||
            dataSetWriter->connectedDataSetVersion.minorVersion !=
            currentDataSet->dataSetMetaData.configurationVersion.minorVersion) {
-            /* Remove old samples */
-            for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++)
-                UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
-
-            /* Realloc PDS dependent memory */
-            dataSetWriter->lastSamplesCount = currentDataSet->fieldSize;
-            UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
-                UA_realloc(dataSetWriter->lastSamples,
-                           sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
-            if(!newSamplesArray)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            dataSetWriter->lastSamples = newSamplesArray;
-            memset(dataSetWriter->lastSamples, 0,
-                   sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
+            UA_StatusCode res =
+                syncLastSamples(dataSetWriter, currentDataSet->fieldSize);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
 
             dataSetWriter->connectedDataSetVersion =
                 currentDataSet->dataSetMetaData.configurationVersion;
