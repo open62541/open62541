@@ -15,6 +15,10 @@
 
 _UA_BEGIN_DECLS
 
+UA_CertificateGroup *
+UA_GDS_getCertificateGroup(UA_ServerConfig *sc,
+                           const UA_NodeId *certificateGroupId);
+
 /* Applying a new ApplicationInstanceCertificate is shared between the GDS
  * drivers. The certificate is not stored in the CertificateGroup. It is held
  * by every SecurityPolicy with a matching CertificateType and mirrored into
