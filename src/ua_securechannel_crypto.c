@@ -18,6 +18,25 @@
 #include "ua_types_encoding_binary.h"
 
 UA_StatusCode
+UA_CertificateUtils_checkExtendedKeyUsage(const UA_ByteString *certificate,
+                                          UA_CertificateEku requestedUsage,
+                                          UA_Boolean ekuRequired) {
+    UA_CertificateEku eku = UA_CERTIFICATEEKU_NONE;
+    UA_StatusCode res =
+        UA_CertificateUtils_getExtendedKeyUsage(certificate, &eku);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(eku == UA_CERTIFICATEEKU_NONE)
+        return ekuRequired ? UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED :
+            UA_STATUSCODE_GOOD;
+
+    if((eku & (requestedUsage | UA_CERTIFICATEEKU_ANY)) != 0)
+        return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+}
+
+UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
