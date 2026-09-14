@@ -7,6 +7,7 @@
  */
 
 #include "gds_receiver_internal.h"
+#include "../gds_common/gds_certificates.h"
 #include <open62541/plugin/nodestore.h>
 
 #ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
@@ -31,22 +32,14 @@ getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
     static UA_NodeId defaultUserTokenTrustList =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST);
-    static UA_NodeId defaultApplicationGroup =
-        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    static UA_NodeId defaultUserTokenGroup =
-        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    if(UA_NodeId_equal(objectId, &defaultApplicationGroup) ||
-       UA_NodeId_equal(objectId, &defaultApplicationTrustList)) {
-        return &sc->secureChannelPKI;
-    }
+    UA_NodeId groupId = *objectId;
+    if(UA_NodeId_equal(objectId, &defaultApplicationTrustList))
+        groupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    else if(UA_NodeId_equal(objectId, &defaultUserTokenTrustList))
+        groupId = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
-    if(UA_NodeId_equal(objectId, &defaultUserTokenGroup) ||
-       UA_NodeId_equal(objectId, &defaultUserTokenTrustList)) {
-        return &sc->sessionPKI;
-    }
-
-    return NULL;
+    return UA_GDS_getCertificateGroup(sc, &groupId);
 }
 
 static UA_StatusCode

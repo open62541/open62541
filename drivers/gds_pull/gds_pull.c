@@ -32,6 +32,7 @@
  * 12, 7.6 suggests "a small number like 2". */
 #define UA_GDSPULL_FINISH_REPEAT 2
 #define UA_GDSPULL_FINISH_RETRY_MS 1000
+#define UA_GDSPULL_TRUSTLIST_CHUNK 16384
 
 /* Externally supplied information that PullManagement needs and that cannot be
  * derived. */
@@ -69,7 +70,9 @@ typedef enum {
     UA_GDSPULLSTEP_FINISH_REQUEST,
     UA_GDSPULLSTEP_GET_TRUSTLIST,
     UA_GDSPULLSTEP_READ_LASTUPDATE,
+    UA_GDSPULLSTEP_OPEN_TRUSTLIST,
     UA_GDSPULLSTEP_READ_TRUSTLIST,
+    UA_GDSPULLSTEP_CLOSE_TRUSTLIST,
     UA_GDSPULLSTEP_COMMIT,
     UA_GDSPULLSTEP_DISCONNECT
 } UA_GDSPullStep;
@@ -112,6 +115,17 @@ struct UA_GDSPullContext {
     /* Some steps iterate over each security policy. */
     size_t policyIndex;
 
+    size_t groupIndex;
+    struct {
+        UA_NodeId lastUpdateTimeId;
+        UA_NodeId openId;
+        UA_NodeId readId;
+        UA_NodeId closeId;
+        UA_DateTime lastUpdateTime;
+        UA_UInt32 fileHandle;
+        UA_ByteString data;
+    } trustList;
+
     /* The CertificateGroups managed via PullManagement. Supplied from
      * outside. */
     size_t groupsSize;
@@ -130,6 +144,16 @@ UA_GDSPull_byteStringOutput(const UA_CallMethodResult *result, size_t index) {
                                  &UA_TYPES[UA_TYPES_BYTESTRING]))
         return UA_BYTESTRING_NULL;
     return *(UA_ByteString *)result->outputArguments[index].data;
+}
+
+static UA_StatusCode
+UA_GDSPull_callResult(UA_CallResponse *cr, UA_CallMethodResult **result) {
+    UA_StatusCode res = cr->responseHeader.serviceResult;
+    if(res == UA_STATUSCODE_GOOD)
+        res = (cr->resultsSize == 1) ? cr->results[0].statusCode
+                                     : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    *result = (res == UA_STATUSCODE_GOOD) ? &cr->results[0] : NULL;
+    return res;
 }
 
 static UA_StatusCode
@@ -171,6 +195,17 @@ UA_GDSPull_clearGroups(UA_GDSPullContext *ctx) {
     UA_free(ctx->groups);
     ctx->groups = NULL;
     ctx->groupsSize = 0;
+}
+
+static void
+UA_GDSPull_clearTrustListScratch(UA_GDSPullContext *ctx) {
+    UA_NodeId_clear(&ctx->trustList.lastUpdateTimeId);
+    UA_NodeId_clear(&ctx->trustList.openId);
+    UA_NodeId_clear(&ctx->trustList.readId);
+    UA_NodeId_clear(&ctx->trustList.closeId);
+    UA_ByteString_clear(&ctx->trustList.data);
+    ctx->trustList.lastUpdateTime = 0;
+    ctx->trustList.fileHandle = 0;
 }
 
 static void
@@ -226,7 +261,9 @@ static UA_StatusCode
 UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
                                    const UA_GDSPullPendingRequest *pending,
                                    const UA_ByteString certificate,
-                                   const UA_ByteString privateKey) {
+                                   const UA_ByteString privateKey,
+                                   UA_ByteString *issuerCertificates,
+                                   size_t issuerCertificatesSize) {
     /* StartSigningRequest signs the key the CSR was created with. That key is
      * still held by the SecurityPolicy, so an empty privateKey means "keep the
      * key you have". StartNewKeyPairRequest returns the key here instead. */
@@ -237,10 +274,29 @@ UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
             return res;
     }
 
-    /* TODO: the issuer certificates from the FinishRequest response still have
-     * to reach the trust list of pending->certificateGroupId. That needs the
-     * same local group lookup as the READ_TRUSTLIST and COMMIT steps. */
     UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+
+    if(issuerCertificatesSize > 0) {
+        UA_CertificateGroup *certGroup =
+            UA_GDS_getCertificateGroup(sc, &pending->certificateGroupId);
+        UA_StatusCode res = UA_STATUSCODE_BADNOTSUPPORTED;
+        if(certGroup && certGroup->addToTrustList) {
+            UA_TrustListDataType issuers;
+            UA_TrustListDataType_init(&issuers);
+            issuers.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+            issuers.issuerCertificates = issuerCertificates;
+            issuers.issuerCertificatesSize = issuerCertificatesSize;
+            res = certGroup->addToTrustList(certGroup, &issuers);
+        }
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
+                           "The %u issuer certificate(s) of the new certificate "
+                           "could not be added to the TrustList of "
+                           "CertificateGroup %N (%s)",
+                           (unsigned)issuerCertificatesSize,
+                           pending->certificateGroupId, UA_StatusCode_name(res));
+    }
+
     return UA_GDS_applyCertificateToPolicies(sc, &pending->certificateTypeId,
                                              certificate, privateKey);
 }
@@ -268,6 +324,8 @@ UA_GDSPull_workflowStepConnect(UA_Client *client, UA_GDSPullContext *ctx) {
     ctx->pendingRequestIndex = 0;
     ctx->finishAttempts = 0;
     ctx->policyIndex = 0;
+    ctx->groupIndex = 0;
+    UA_GDSPull_clearTrustListScratch(ctx);
     ctx->currentStep = UA_GDSPULLSTEP_READ_NAMESPACES;
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
@@ -307,10 +365,8 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
        ctx->pendingRequestIndex >= ctx->pendingRequestsSize)
         return;
 
-    UA_StatusCode res = cr->responseHeader.serviceResult;
-    if(res == UA_STATUSCODE_GOOD)
-        res = (cr->resultsSize == 1) ? cr->results[0].statusCode
-                                     : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
 
     UA_Boolean retry = false;
     if(res == UA_STATUSCODE_BADNOTHINGTODO) {
@@ -333,9 +389,16 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                        UA_StatusCode_name(res));
         UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex);
     } else {
-        UA_CallMethodResult *result = &cr->results[0];
         UA_ByteString certificate = UA_GDSPull_byteStringOutput(result, 0);
         UA_ByteString privateKey = UA_GDSPull_byteStringOutput(result, 1);
+        UA_ByteString *issuers = NULL;
+        size_t issuersSize = 0;
+        if(result->outputArgumentsSize > 2 &&
+           UA_Variant_hasArrayType(&result->outputArguments[2],
+                                   &UA_TYPES[UA_TYPES_BYTESTRING])) {
+            issuers = (UA_ByteString *)result->outputArguments[2].data;
+            issuersSize = result->outputArguments[2].arrayLength;
+        }
 
         if(certificate.length == 0) {
             UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
@@ -344,7 +407,7 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
         } else {
             res = UA_GDSPull_applyPendingCertificate(
                 ctx, &ctx->pendingRequests[ctx->pendingRequestIndex],
-                certificate, privateKey);
+                certificate, privateKey, issuers, issuersSize);
             if(res != UA_STATUSCODE_GOOD)
                 UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                                "The certificate signed by the "
@@ -463,16 +526,13 @@ UA_GDSPull_getCertificateGroupsCallback(UA_Client *client, void *userdata,
     if(ctx->currentStep != UA_GDSPULLSTEP_GET_CERTIFICATE_GROUPS)
         return;
 
-    UA_StatusCode res = cr->responseHeader.serviceResult;
-    if(res == UA_STATUSCODE_GOOD)
-        res = (cr->resultsSize == 1) ? cr->results[0].statusCode
-                                     : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
 
     /* CertificateGroupIds is a NodeId[]. An application without any group
      * gets an empty array, which may arrive as an empty Variant. */
     const UA_Variant *groupIds = NULL;
     if(res == UA_STATUSCODE_GOOD) {
-        UA_CallMethodResult *result = &cr->results[0];
         if(result->outputArgumentsSize == 1)
             groupIds = &result->outputArguments[0];
         if(!groupIds ||
@@ -627,15 +687,12 @@ UA_GDSPull_getCertStatusCallback(UA_Client *client, void *data,
     if(ctx->currentStep != UA_GDSPULLSTEP_GET_CERT_STATUS)
         return;
 
-    UA_StatusCode res = cr->responseHeader.serviceResult;
-    if(res == UA_STATUSCODE_GOOD)
-        res = (cr->resultsSize == 1) ? cr->results[0].statusCode
-                                     : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
 
     /* UpdateRequired is a single Boolean output */
     UA_Boolean updateRequired = false;
     if(res == UA_STATUSCODE_GOOD) {
-        UA_CallMethodResult *result = &cr->results[0];
         if(result->outputArgumentsSize == 1 &&
            UA_Variant_hasScalarType(&result->outputArguments[0],
                                     &UA_TYPES[UA_TYPES_BOOLEAN]))
@@ -746,15 +803,12 @@ UA_GDSPull_startSigningCallback(UA_Client *client, void *data,
     if(ctx->currentStep != UA_GDSPULLSTEP_START_SIGNING)
         return;
 
-    UA_StatusCode res = cr->responseHeader.serviceResult;
-    if(res == UA_STATUSCODE_GOOD)
-        res = (cr->resultsSize == 1) ? cr->results[0].statusCode
-                                     : UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
 
     /* RequestId is a single NodeId output */
     const UA_NodeId *newRequestId = NULL;
     if(res == UA_STATUSCODE_GOOD) {
-        UA_CallMethodResult *result = &cr->results[0];
         if(result->outputArgumentsSize == 1 &&
            UA_Variant_hasScalarType(&result->outputArguments[0],
                                     &UA_TYPES[UA_TYPES_NODEID]))
@@ -903,6 +957,7 @@ UA_GDSPull_workflowStepFinishRequest(UA_Client *client,
      * already made sure an ApplicationId is configured. */
     if(ctx->pendingRequestIndex >= ctx->pendingRequestsSize) {
         ctx->pendingRequestIndex = 0;
+        ctx->groupIndex = 0;
         ctx->currentStep = UA_GDSPULLSTEP_GET_TRUSTLIST;
         return UA_GDSPull_scheduleDispatch(ctx, 0);
     }
@@ -911,28 +966,465 @@ UA_GDSPull_workflowStepFinishRequest(UA_Client *client,
 }
 
 static UA_StatusCode
-UA_GDSPull_workflowStepGetTrustList(UA_Client *client, UA_GDSPullContext *ctx) {
-    ctx->currentStep = UA_GDSPULLSTEP_READ_LASTUPDATE;
+UA_GDSPull_continueTrustList(UA_GDSPullContext *ctx) {
+    UA_GDSPull_clearTrustListScratch(ctx);
+    ctx->groupIndex++;
+    ctx->currentStep = UA_GDSPULLSTEP_GET_TRUSTLIST;
     return UA_GDSPull_scheduleDispatch(ctx, 0);
+}
+
+static void
+UA_GDSPull_getTrustListCallback(UA_Client *client, void *userdata,
+                                UA_UInt32 requestId, UA_CallResponse *cr) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+
+    if(ctx->currentStep != UA_GDSPULLSTEP_GET_TRUSTLIST ||
+       ctx->groupIndex >= ctx->groupsSize)
+        return;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
+    if(res == UA_STATUSCODE_GOOD) {
+        if(result->outputArgumentsSize == 1 &&
+           UA_Variant_hasScalarType(&result->outputArguments[0],
+                                    &UA_TYPES[UA_TYPES_NODEID]))
+            res = UA_NodeId_copy(
+                (const UA_NodeId *)result->outputArguments[0].data,
+                &group->trustListId);
+        else
+            res = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GetTrustList for CertificateGroup %N failed (%s). The "
+                       "local TrustList is kept.",
+                       group->remoteGroupId, UA_StatusCode_name(res));
+        res = UA_GDSPull_continueTrustList(ctx);
+    } else {
+        ctx->currentStep = UA_GDSPULLSTEP_READ_LASTUPDATE;
+        res = UA_GDSPull_scheduleDispatch(ctx, 0);
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GDS Pull workflow stalled after GetTrustList: %s",
+                       UA_StatusCode_name(res));
+}
+
+static UA_StatusCode
+UA_GDSPull_workflowStepGetTrustList(UA_Client *client, UA_GDSPullContext *ctx) {
+    while(ctx->groupIndex < ctx->groupsSize &&
+          !ctx->groups[ctx->groupIndex].assigned)
+        ctx->groupIndex++;
+    if(ctx->groupIndex >= ctx->groupsSize)
+        return UA_GDSPull_finishWorkflow(client, ctx);
+
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+    UA_NodeId_clear(&group->trustListId);
+
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &ctx->conf.applicationId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&input[1], &group->remoteGroupId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+
+    UA_StatusCode res = UA_Client_call_async(
+        client, UA_GDSPull_gdsNodeId(ctx, UA_GDSID_DIRECTORY),
+        UA_GDSPull_gdsNodeId(ctx, UA_GDSID_GETTRUSTLIST), 2, input,
+        UA_GDSPull_getTrustListCallback, ctx, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_GDSPull_continueTrustList(ctx);
+    return res;
+}
+
+static UA_StatusCode
+UA_GDSPull_downloadUnconditionally(UA_GDSPullContext *ctx) {
+    ctx->trustList.lastUpdateTime = 0;
+    ctx->currentStep = UA_GDSPULLSTEP_OPEN_TRUSTLIST;
+    return UA_GDSPull_scheduleDispatch(ctx, 0);
+}
+
+static void
+UA_GDSPull_readLastUpdateCallback(UA_Client *client, void *userdata,
+                                  UA_UInt32 requestId, UA_StatusCode status,
+                                  UA_DataValue *value) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+
+    if(ctx->currentStep != UA_GDSPULLSTEP_READ_LASTUPDATE ||
+       ctx->groupIndex >= ctx->groupsSize)
+        return;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_StatusCode res = status;
+    if(res == UA_STATUSCODE_GOOD && value->hasStatus)
+        res = value->status;
+    UA_DateTime remote = 0;
+    if(res == UA_STATUSCODE_GOOD) {
+        if(value->hasValue && value->value.type &&
+           UA_Variant_isScalar(&value->value) &&
+           value->value.type->typeKind == UA_DATATYPEKIND_DATETIME)
+            remote = *(UA_DateTime *)value->value.data;
+        else
+            res = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "The LastUpdateTime of TrustList %N could not be read "
+                       "(%s). The TrustList is downloaded unconditionally.",
+                       group->trustListId, UA_StatusCode_name(res));
+        res = UA_GDSPull_downloadUnconditionally(ctx);
+    } else if(group->lastUpdateTime != 0 && remote == group->lastUpdateTime) {
+        UA_LOG_DEBUG(logging, UA_LOGCATEGORY_CLIENT,
+                     "The TrustList of CertificateGroup %N is unchanged",
+                     group->remoteGroupId);
+        res = UA_GDSPull_continueTrustList(ctx);
+    } else {
+        ctx->trustList.lastUpdateTime = remote;
+        ctx->currentStep = UA_GDSPULLSTEP_OPEN_TRUSTLIST;
+        res = UA_GDSPull_scheduleDispatch(ctx, 0);
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GDS Pull workflow stalled after reading LastUpdateTime: "
+                       "%s",
+                       UA_StatusCode_name(res));
+}
+
+static void
+UA_GDSPull_translateTrustListCallback(UA_Client *client, void *userdata,
+                                      UA_UInt32 requestId, void *response) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+    UA_TranslateBrowsePathsToNodeIdsResponse *tr =
+        (UA_TranslateBrowsePathsToNodeIdsResponse *)response;
+
+    if(ctx->currentStep != UA_GDSPULLSTEP_READ_LASTUPDATE ||
+       ctx->groupIndex >= ctx->groupsSize)
+        return;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_NodeId *targets[4] = {&ctx->trustList.lastUpdateTimeId,
+                             &ctx->trustList.openId, &ctx->trustList.readId,
+                             &ctx->trustList.closeId};
+    UA_StatusCode res = tr->responseHeader.serviceResult;
+    if(res == UA_STATUSCODE_GOOD && tr->resultsSize != 4)
+        res = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    for(size_t i = 0; i < 4 && res == UA_STATUSCODE_GOOD; i++) {
+        const UA_BrowsePathResult *bpr = &tr->results[i];
+        if(bpr->statusCode != UA_STATUSCODE_GOOD || bpr->targetsSize == 0)
+            continue;
+        res = UA_NodeId_copy(&bpr->targets[0].targetId.nodeId, targets[i]);
+    }
+    if(res == UA_STATUSCODE_GOOD &&
+       (UA_NodeId_isNull(&ctx->trustList.openId) ||
+        UA_NodeId_isNull(&ctx->trustList.readId) ||
+        UA_NodeId_isNull(&ctx->trustList.closeId)))
+        res = UA_STATUSCODE_BADNOTFOUND;
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "The Open, Read and Close Methods of TrustList %N could "
+                       "not be resolved (%s). The local TrustList is kept.",
+                       group->trustListId, UA_StatusCode_name(res));
+        res = UA_GDSPull_continueTrustList(ctx);
+    } else if(UA_NodeId_isNull(&ctx->trustList.lastUpdateTimeId)) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "TrustList %N has no LastUpdateTime Property. The "
+                       "TrustList is downloaded unconditionally.",
+                       group->trustListId);
+        res = UA_GDSPull_downloadUnconditionally(ctx);
+    } else {
+        res = UA_Client_readValueAttribute_async(
+            client, ctx->trustList.lastUpdateTimeId,
+            UA_GDSPull_readLastUpdateCallback, ctx, NULL);
+        if(res != UA_STATUSCODE_GOOD)
+            res = UA_GDSPull_downloadUnconditionally(ctx);
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GDS Pull workflow stalled after resolving the "
+                       "TrustList: %s",
+                       UA_StatusCode_name(res));
 }
 
 static UA_StatusCode
 UA_GDSPull_workflowStepReadLastUpdate(UA_Client *client,
                                       UA_GDSPullContext *ctx) {
-    ctx->currentStep = UA_GDSPULLSTEP_READ_TRUSTLIST;
-    return UA_GDSPull_scheduleDispatch(ctx, 0);
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_QualifiedName names[4] = {
+        UA_QUALIFIEDNAME(0, "LastUpdateTime"), UA_QUALIFIEDNAME(0, "Open"),
+        UA_QUALIFIEDNAME(0, "Read"), UA_QUALIFIEDNAME(0, "Close")};
+    UA_RelativePathElement elements[4];
+    UA_BrowsePath paths[4];
+    for(size_t i = 0; i < 4; i++) {
+        UA_RelativePathElement_init(&elements[i]);
+        elements[i].referenceTypeId = UA_NS0ID(AGGREGATES);
+        elements[i].includeSubtypes = true;
+        elements[i].targetName = names[i];
+        UA_BrowsePath_init(&paths[i]);
+        paths[i].startingNode = group->trustListId;
+        paths[i].relativePath.elementsSize = 1;
+        paths[i].relativePath.elements = &elements[i];
+    }
+    UA_TranslateBrowsePathsToNodeIdsRequest request;
+    UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
+    request.browsePathsSize = 4;
+    request.browsePaths = paths;
+
+    UA_StatusCode res = __UA_Client_AsyncService(
+        client, &request,
+        &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST],
+        UA_GDSPull_translateTrustListCallback,
+        &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE], ctx, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_GDSPull_continueTrustList(ctx);
+    return res;
+}
+
+static void
+UA_GDSPull_openTrustListCallback(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, UA_CallResponse *cr) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+
+    if(ctx->currentStep != UA_GDSPULLSTEP_OPEN_TRUSTLIST ||
+       ctx->groupIndex >= ctx->groupsSize)
+        return;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
+    if(res == UA_STATUSCODE_GOOD) {
+        if(result->outputArgumentsSize == 1 &&
+           UA_Variant_hasScalarType(&result->outputArguments[0],
+                                    &UA_TYPES[UA_TYPES_UINT32]))
+            ctx->trustList.fileHandle =
+                *(UA_UInt32 *)result->outputArguments[0].data;
+        else
+            res = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "TrustList %N could not be opened for reading (%s). "
+                       "The local TrustList is kept.",
+                       group->trustListId, UA_StatusCode_name(res));
+        res = UA_GDSPull_continueTrustList(ctx);
+    } else {
+        UA_ByteString_clear(&ctx->trustList.data);
+        ctx->currentStep = UA_GDSPULLSTEP_READ_TRUSTLIST;
+        res = UA_GDSPull_scheduleDispatch(ctx, 0);
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GDS Pull workflow stalled after opening the TrustList: "
+                       "%s",
+                       UA_StatusCode_name(res));
+}
+
+static UA_StatusCode
+UA_GDSPull_workflowStepOpenTrustList(UA_Client *client,
+                                     UA_GDSPullContext *ctx) {
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_Byte mode = UA_OPENFILEMODE_READ;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &mode, &UA_TYPES[UA_TYPES_BYTE]);
+
+    UA_StatusCode res = UA_Client_call_async(
+        client, group->trustListId, ctx->trustList.openId, 1, &input,
+        UA_GDSPull_openTrustListCallback, ctx, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_GDSPull_continueTrustList(ctx);
+    return res;
+}
+
+static void
+UA_GDSPull_abortTrustListRead(UA_GDSPullContext *ctx) {
+    UA_ByteString_clear(&ctx->trustList.data);
+    ctx->currentStep = UA_GDSPULLSTEP_CLOSE_TRUSTLIST;
+}
+
+static UA_StatusCode
+UA_GDSPull_appendTrustListChunk(UA_GDSPullContext *ctx,
+                                const UA_ByteString *chunk) {
+    UA_UInt32 maxSize = UA_Server_getConfig(ctx->drv.server)->maxTrustListSize;
+    size_t newLength = ctx->trustList.data.length + chunk->length;
+    if(maxSize != 0 && newLength > maxSize)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+
+    UA_Byte *grown = (UA_Byte *)UA_realloc(ctx->trustList.data.data, newLength);
+    if(!grown)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memcpy(grown + ctx->trustList.data.length, chunk->data, chunk->length);
+    ctx->trustList.data.data = grown;
+    ctx->trustList.data.length = newLength;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_GDSPull_readTrustListCallback(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, UA_CallResponse *cr) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+
+    if(ctx->currentStep != UA_GDSPULLSTEP_READ_TRUSTLIST ||
+       ctx->groupIndex >= ctx->groupsSize)
+        return;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
+    UA_ByteString chunk = UA_BYTESTRING_NULL;
+    if(res == UA_STATUSCODE_GOOD) {
+        if(result->outputArgumentsSize == 1 &&
+           UA_Variant_hasScalarType(&result->outputArguments[0],
+                                    &UA_TYPES[UA_TYPES_BYTESTRING]))
+            chunk = *(UA_ByteString *)result->outputArguments[0].data;
+        else
+            res = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    if(res == UA_STATUSCODE_GOOD && chunk.length > 0)
+        res = UA_GDSPull_appendTrustListChunk(ctx, &chunk);
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "Reading TrustList %N failed (%s). The local TrustList "
+                       "is kept.",
+                       group->trustListId, UA_StatusCode_name(res));
+        UA_GDSPull_abortTrustListRead(ctx);
+    } else if(chunk.length == 0) {
+        ctx->currentStep = UA_GDSPULLSTEP_CLOSE_TRUSTLIST;
+    }
+
+    res = UA_GDSPull_scheduleDispatch(ctx, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GDS Pull workflow stalled after reading the TrustList: "
+                       "%s",
+                       UA_StatusCode_name(res));
 }
 
 static UA_StatusCode
 UA_GDSPull_workflowStepReadTrustList(UA_Client *client,
                                      UA_GDSPullContext *ctx) {
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_Int32 length = UA_GDSPULL_TRUSTLIST_CHUNK;
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &ctx->trustList.fileHandle,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &length, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_StatusCode res = UA_Client_call_async(
+        client, group->trustListId, ctx->trustList.readId, 2, input,
+        UA_GDSPull_readTrustListCallback, ctx, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_GDSPull_abortTrustListRead(ctx);
+        UA_GDSPull_scheduleDispatch(ctx, 0);
+    }
+    return res;
+}
+
+static UA_StatusCode
+UA_GDSPull_afterCloseTrustList(UA_GDSPullContext *ctx) {
+    if(ctx->trustList.data.length == 0)
+        return UA_GDSPull_continueTrustList(ctx);
     ctx->currentStep = UA_GDSPULLSTEP_COMMIT;
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
 
+static void
+UA_GDSPull_closeTrustListCallback(UA_Client *client, void *userdata,
+                                  UA_UInt32 requestId, UA_CallResponse *cr) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)userdata;
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+
+    if(ctx->currentStep != UA_GDSPULLSTEP_CLOSE_TRUSTLIST ||
+       ctx->groupIndex >= ctx->groupsSize)
+        return;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_CallMethodResult *result = NULL;
+    UA_StatusCode res = UA_GDSPull_callResult(cr, &result);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "Closing TrustList %N failed (%s)", group->trustListId,
+                       UA_StatusCode_name(res));
+
+    res = UA_GDSPull_afterCloseTrustList(ctx);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "GDS Pull workflow stalled after closing the TrustList: "
+                       "%s",
+                       UA_StatusCode_name(res));
+}
+
+static UA_StatusCode
+UA_GDSPull_workflowStepCloseTrustList(UA_Client *client,
+                                      UA_GDSPullContext *ctx) {
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &ctx->trustList.fileHandle,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_StatusCode res = UA_Client_call_async(
+        client, group->trustListId, ctx->trustList.closeId, 1, &input,
+        UA_GDSPull_closeTrustListCallback, ctx, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_GDSPull_afterCloseTrustList(ctx);
+    return res;
+}
+
 static UA_StatusCode
 UA_GDSPull_workflowStepCommit(UA_Client *client, UA_GDSPullContext *ctx) {
-    return UA_GDSPull_finishWorkflow(client, ctx);
+    const UA_Logger *logging = UA_Client_getConfig(client)->logging;
+    struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
+    UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+
+    UA_CertificateGroup *certGroup =
+        UA_GDS_getCertificateGroup(sc, &group->localGroupId);
+    if(!certGroup || !certGroup->setTrustList) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "The local CertificateGroup %N cannot store a "
+                       "TrustList. The download is discarded.",
+                       group->localGroupId);
+        return UA_GDSPull_continueTrustList(ctx);
+    }
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    UA_StatusCode res =
+        UA_decodeBinary(&ctx->trustList.data, &trustList,
+                        &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        res = certGroup->setTrustList(certGroup, &trustList);
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                       "The TrustList downloaded for CertificateGroup %N could "
+                       "not be applied (%s)",
+                       group->localGroupId, UA_StatusCode_name(res));
+    } else {
+        group->lastUpdateTime = ctx->trustList.lastUpdateTime;
+        UA_LOG_INFO(logging, UA_LOGCATEGORY_CLIENT,
+                    "Updated the TrustList of CertificateGroup %N from the "
+                    "CertificateManager (%u trusted certificates, %u trusted "
+                    "CRLs, %u issuer certificates, %u issuer CRLs)",
+                    group->localGroupId,
+                    (unsigned)trustList.trustedCertificatesSize,
+                    (unsigned)trustList.trustedCrlsSize,
+                    (unsigned)trustList.issuerCertificatesSize,
+                    (unsigned)trustList.issuerCrlsSize);
+    }
+    UA_TrustListDataType_clear(&trustList);
+    return UA_GDSPull_continueTrustList(ctx);
 }
 
 static UA_StatusCode
@@ -965,8 +1457,12 @@ UA_GDSPull_dispatchWorkflowStep(UA_Client *client,
         return UA_GDSPull_workflowStepGetTrustList(client, ctx);
     case UA_GDSPULLSTEP_READ_LASTUPDATE:
         return UA_GDSPull_workflowStepReadLastUpdate(client, ctx);
+    case UA_GDSPULLSTEP_OPEN_TRUSTLIST:
+        return UA_GDSPull_workflowStepOpenTrustList(client, ctx);
     case UA_GDSPULLSTEP_READ_TRUSTLIST:
         return UA_GDSPull_workflowStepReadTrustList(client, ctx);
+    case UA_GDSPULLSTEP_CLOSE_TRUSTLIST:
+        return UA_GDSPull_workflowStepCloseTrustList(client, ctx);
     case UA_GDSPULLSTEP_COMMIT:
         return UA_GDSPull_workflowStepCommit(client, ctx);
 
@@ -1013,6 +1509,8 @@ UA_GDSPull_deleteClientCallback(void *application, void *context) {
     ctx->pendingRequestIndex = 0;
     ctx->finishAttempts = 0;
     ctx->policyIndex = 0;
+    ctx->groupIndex = 0;
+    UA_GDSPull_clearTrustListScratch(ctx);
 
     /* A stop() that was waiting for the client can now complete */
     if(ctx->drv.state == UA_LIFECYCLESTATE_STOPPING)
@@ -1247,6 +1745,7 @@ UA_GDSPull_free(UA_Driver *drv) {
     UA_ByteString_clear(&ctx->privateKey);
     UA_GDSPull_clearPendingRequests(ctx);
     UA_GDSPull_clearGroups(ctx);
+    UA_GDSPull_clearTrustListScratch(ctx);
     UA_free(ctx);
     return UA_STATUSCODE_GOOD;
 }
