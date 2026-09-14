@@ -1475,9 +1475,9 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                 break;
             case UA_FIELDENCODING_RAWDATA:
                 dst->data.keyFrameData.rawFields.data = &src->data[*offset];
-                dst->data.keyFrameData.rawFields.length = dsmSize;
-                if(dsmSize == 0){
-                    if(dsm != NULL) {
+                dst->data.keyFrameData.rawFields.length = 0;
+                if(dsmSize == 0) {
+                    if(dsm) {
                         size_t tmpOffset = 0;
                         // calculate the length of the DSM-Payload for a single DSM
                         dst->data.keyFrameData.fieldCount = (UA_UInt16)dsm->fieldsSize;
@@ -1507,14 +1507,17 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                         }
                         *offset += tmpOffset;
                     } else {
-                        //TODO calculate the length of the DSM-Payload for a single DSM
-                        //Problem: Size is not set and MetaData information are needed.
-                        //Increase offset to avoid endless chunk loop. Needs to be fixed when
-                        //pubsub security footer and signatur is enabled.
-                        *offset += 1500;
+                        /* The payload size of a single RawData DSM can only be
+                         * derived from its metadata. */
+                        return UA_STATUSCODE_BADDECODINGERROR;
                     }
                 } else {
-                    *offset += (dsmSize - (*offset - initialOffset));
+                    size_t headerSize = *offset - initialOffset;
+                    if(dsmSize < headerSize || initialOffset > src->length ||
+                       dsmSize > src->length - initialOffset)
+                        return UA_STATUSCODE_BADDECODINGERROR;
+                    dst->data.keyFrameData.rawFields.length = dsmSize - headerSize;
+                    *offset = initialOffset + dsmSize;
                 }
                 break;
             default:
