@@ -23,6 +23,41 @@
 #endif
 
 #define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
+#define UA_DATASETMESSAGE_STACK_CAPACITY 16
+
+static UA_StatusCode
+allocDataSetMessageStore(size_t count, UA_UInt16 *stackWriterIds,
+                         UA_DataSetMessage *stackMessages,
+                         UA_UInt16 **writerIds, UA_DataSetMessage **messages) {
+    *writerIds = stackWriterIds;
+    *messages = stackMessages;
+    if(count <= UA_DATASETMESSAGE_STACK_CAPACITY)
+        return UA_STATUSCODE_GOOD;
+    if(count > SIZE_MAX / sizeof(UA_UInt16) ||
+       count > SIZE_MAX / sizeof(UA_DataSetMessage))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    *writerIds = (UA_UInt16*)UA_calloc(count, sizeof(UA_UInt16));
+    if(!*writerIds)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *messages = (UA_DataSetMessage*)UA_calloc(count, sizeof(UA_DataSetMessage));
+    if(!*messages) {
+        UA_free(*writerIds);
+        *writerIds = NULL;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+freeDataSetMessageStore(UA_UInt16 *stackWriterIds,
+                        UA_DataSetMessage *stackMessages,
+                        UA_UInt16 *writerIds, UA_DataSetMessage *messages) {
+    if(messages != stackMessages)
+        UA_free(messages);
+    if(writerIds != stackWriterIds)
+        UA_free(writerIds);
+}
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 static UA_StatusCode
@@ -339,12 +374,18 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     const UA_Byte *bufEnd;
     UA_Byte *bufPos;
     UA_NetworkMessage networkMessage;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+    UA_UInt16 stackWriterIds[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_DataSetMessage stackMessages[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_UInt16 *dsWriterIds;
+    UA_DataSetMessage *dsmStore;
+    size_t dsmCount = 0;
+    UA_StatusCode res = allocDataSetMessageStore(
+        wg->writersCount, stackWriterIds, stackMessages,
+        &dsWriterIds, &dsmStore);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup_dsm;
 
     /* Validate the DataSetWriters and generate their DataSetMessage */
-    size_t dsmCount = 0;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_prepareDataSet(server, dsw, &dsmStore[dsmCount]);
@@ -444,6 +485,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
+    freeDataSetMessageStore(stackWriterIds, stackMessages,
+                            dsWriterIds, dsmStore);
     return res;
 }
 
@@ -1399,8 +1442,20 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
      * are sent out right away. The others are kept in a buffer for
      * "batching". */
     size_t dsmCount = 0;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
+    UA_UInt16 stackWriterIds[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_DataSetMessage stackMessages[UA_DATASETMESSAGE_STACK_CAPACITY];
+    UA_UInt16 *dsWriterIds;
+    UA_DataSetMessage *dsmStore;
+    UA_StatusCode res = allocDataSetMessageStore(
+        writerGroup->writersCount, stackWriterIds, stackMessages,
+        &dsWriterIds, &dsmStore);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
+                                 "PubSub Publish: Allocating the DataSetMessage "
+                                 "store failed");
+        unlockServer(server);
+        return;
+    }
 
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
@@ -1421,8 +1476,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
         /* Generate the DSM */
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-        UA_StatusCode res =
-            UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+        res = UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_WRITER(server->config.logging, dsw,
                          "PubSub Publish: DataSetMessage creation failed");
@@ -1473,6 +1527,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         }
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
+
+    freeDataSetMessageStore(stackWriterIds, stackMessages,
+                            dsWriterIds, dsmStore);
 
     unlockServer(server);
 }
