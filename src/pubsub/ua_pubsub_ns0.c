@@ -1326,31 +1326,30 @@ addDataSetFolderAction(UA_Server *server,
 }
 
 static UA_StatusCode
-disablePubSubFolderChildren(UA_Server *server, const UA_NodeId nodeId) {
-    UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_find(psm, nodeId);
+disablePubSubComponent(UA_PubSubManager *psm, const UA_NodeId nodeId) {
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, nodeId);
     if(connection)
         return UA_PubSubConnection_setPubSubState(
             psm, connection, UA_PUBSUBSTATE_DISABLED);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, nodeId);
     if(wg)
-        return UA_WriterGroup_setPubSubState(psm, wg,
-                                             UA_PUBSUBSTATE_DISABLED);
+        return UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, nodeId);
     if(rg)
-        return UA_ReaderGroup_setPubSubState(psm, rg,
-                                             UA_PUBSUBSTATE_DISABLED);
+        return UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, nodeId);
     if(dsw)
         return UA_DataSetWriter_setPubSubState(psm, dsw,
                                                UA_PUBSUBSTATE_DISABLED);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, nodeId);
     if(dsr)
-        return UA_DataSetReader_setPubSubState(psm, dsr,
-                                               UA_PUBSUBSTATE_DISABLED,
-                                               UA_STATUSCODE_GOOD);
+        return UA_DataSetReader_setPubSubState(
+            psm, dsr, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+    return UA_STATUSCODE_GOOD;
+}
 
+static UA_StatusCode
+disablePubSubFolderChildren(UA_Server *server, const UA_NodeId nodeId) {
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = nodeId;
@@ -1358,19 +1357,22 @@ disablePubSubFolderChildren(UA_Server *server, const UA_NodeId nodeId) {
     bd.referenceTypeId = UA_NS0ID(HIERARCHICALREFERENCES);
     bd.includeSubtypes = true;
     bd.nodeClassMask = UA_NODECLASS_OBJECT;
-    bd.resultMask = UA_BROWSERESULTMASK_ALL;
-    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
-    if(br.statusCode != UA_STATUSCODE_GOOD)
-        return br.statusCode;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < br.referencesSize; i++) {
-        if(br.references[i].nodeId.serverIndex != 0 ||
-           br.references[i].nodeId.namespaceUri.length != 0)
-            continue;
-        res |= disablePubSubFolderChildren(
-            server, br.references[i].nodeId.nodeId);
+
+    size_t childrenSize = 0;
+    UA_ExpandedNodeId *children = NULL;
+    UA_StatusCode res =
+        UA_Server_browseRecursive(server, &bd, &childrenSize, &children);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_PubSubManager *psm = getPSM(server);
+    res = disablePubSubComponent(psm, nodeId);
+    for(size_t i = 0; i < childrenSize; i++) {
+        if(UA_ExpandedNodeId_isLocal(&children[i]))
+            res |= disablePubSubComponent(psm, children[i].nodeId);
     }
-    UA_BrowseResult_clear(&br);
+    UA_Array_delete(children, childrenSize,
+                    &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     return res;
 }
 
