@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "ua_server_internal.h"
@@ -696,6 +697,92 @@ START_TEST(read_trustlist_reject_negative_length) {
 }
 END_TEST
 
+START_TEST(add_certificate_replaced_input_metadata) {
+    UA_Client *client = createSecureClient();
+
+    UA_StatusCode retval = UA_Client_deleteNode(
+        client,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE_INPUTARGUMENTS),
+        true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    argument.name = UA_STRING("Certificate");
+    argument.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    argument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "InputArguments");
+    attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = 1;
+    attr.arrayDimensionsSize = 1;
+    attr.arrayDimensions = &arrayDimension;
+    UA_Variant_setArray(&attr.value, &argument, 1,
+                        &UA_TYPES[UA_TYPES_ARGUMENT]);
+
+    retval = UA_Client_addVariableNode(
+        client,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE_INPUTARGUMENTS),
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "InputArguments"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), attr, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Prime the method-call stack with a Boolean as the second argument. The
+     * shortened AddCertificate definition must not let its callback reuse it. */
+    UA_String thumbprint = UA_STRING("not-found");
+    UA_Boolean trusted = true;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_Variant removeInput[2];
+    UA_Variant_init(&removeInput[0]);
+    UA_Variant_init(&removeInput[1]);
+    UA_Variant_setScalar(&removeInput[0], &thumbprint,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&removeInput[1], &trusted,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant addInput;
+    UA_Variant_init(&addInput);
+    UA_Variant_setScalar(&addInput, &certificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest methods[2];
+    UA_CallMethodRequest_init(&methods[0]);
+    UA_CallMethodRequest_init(&methods[1]);
+    methods[0].objectId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+    methods[0].methodId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE);
+    methods[0].inputArgumentsSize = 2;
+    methods[0].inputArguments = removeInput;
+    methods[1].objectId = methods[0].objectId;
+    methods[1].methodId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE);
+    methods[1].inputArgumentsSize = 1;
+    methods[1].inputArguments = &addInput;
+
+    UA_CallRequest request;
+    UA_CallRequest_init(&request);
+    request.methodsToCallSize = 2;
+    request.methodsToCall = methods;
+    UA_CallResponse response = UA_Client_Service_call(client, request);
+    ck_assert_uint_eq(response.resultsSize, 2);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(response.results[1].statusCode,
+                      UA_STATUSCODE_BADTYPEMISMATCH);
+    UA_CallResponse_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static void teardown(void) {
     running = false;
     THREAD_JOIN(server_thread);
@@ -710,6 +797,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
+    tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
