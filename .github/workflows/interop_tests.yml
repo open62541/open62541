@@ -52,7 +52,7 @@ jobs:
           node-version: '22'
 
       - name: Install node-opcua interop server
-        run: npm install --prefix tests/interop/node-opcua
+        run: npm ci --prefix tests/interop/node-opcua
 
       - name: Clone .NET Reference Server
         run: |
