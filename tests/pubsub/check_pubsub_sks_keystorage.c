@@ -321,6 +321,16 @@ START_TEST(TestGetSecurityKeysResponseValidation) {
         UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
         UA_STATUSCODE_GOOD);
 
+    UA_Variant_setScalar(&output[1], output[1].data,
+                         &UA_TYPES[UA_TYPES_INTEGERID]);
+    UA_Variant_setScalar(&output[3], output[3].data,
+                         &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_Variant_setScalar(&output[4], output[4].data,
+                         &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(
+        UA_PubSubKeyStorage_validateGetSecurityKeysResponse(&response),
+        UA_STATUSCODE_GOOD);
+
     UA_Int32 invalidKeys = 42;
     UA_Variant_setScalar(&output[2], &invalidKeys,
                          &UA_TYPES[UA_TYPES_INT32]);
