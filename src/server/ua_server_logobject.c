@@ -39,6 +39,76 @@ logObjectNow(UA_Server *server) {
     return UA_DateTime_now();
 }
 
+/******************/
+/* Overflow Event */
+/******************/
+
+/* Emit a LogOverflowEventType Event for the LogObject (Part 26, 6.4). The
+ * server lock must be held. */
+static void
+emitOverflowEvent(UA_Server *server, UA_LogObjectEntry *entry) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_String sourceName = UA_STRING("LogObject/Overflow");
+    UA_KeyValuePair field;
+    field.key = UA_QUALIFIEDNAME(0, "/SourceName");
+    UA_Variant_setScalar(&field.value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap fields = {1, &field};
+
+    UA_EventDescription ed;
+    memset(&ed, 0, sizeof(UA_EventDescription));
+    ed.sourceNode = entry->nodeId;
+    ed.eventType = UA_NS0ID(LOGOVERFLOWEVENTTYPE);
+    ed.severity = 500;
+    ed.message = UA_LOCALIZEDTEXT("", "LogObject discarded records (MaxRecords reached)");
+    ed.eventFields = &fields;
+    UA_StatusCode res = createEvent(server, &ed, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not emit the LogOverflowEventType Event: %s",
+                       UA_StatusCode_name(res));
+#else
+    (void)server;
+    (void)entry;
+#endif
+}
+
+/* Runs in the EventLoop. Emits one Event per LogObject that overflowed since
+ * the last cycle. */
+static void
+overflowDelayedCallback(void *application, void *context) {
+    UA_Server *server = (UA_Server*)application;
+    lockServer(server);
+    UA_atomic_store(&server->overflowCallbackQueued, (uintptr_t)0);
+    if(server->state == UA_LIFECYCLESTATE_STARTED) {
+        UA_LogObjectEntry *entry;
+        LIST_FOREACH(entry, &server->logObjects, pointers) {
+            uintptr_t pending = 1;
+            UA_atomic_cmpxchg(&entry->overflowPending, &pending, (uintptr_t)0);
+            if(pending == 1)
+                emitOverflowEvent(server, entry);
+        }
+    }
+    unlockServer(server);
+}
+
+/* Called from any thread. Marks the LogObject and arms the delayed callback
+ * once. The callback structure is embedded in the server, so nothing is
+ * leaked if the EventLoop never runs it. */
+static void
+scheduleOverflowEvent(UA_Server *server, UA_LogObjectEntry *entry) {
+    UA_atomic_store(&entry->overflowPending, (uintptr_t)1);
+    uintptr_t queued = 0;
+    UA_atomic_cmpxchg(&server->overflowCallbackQueued, &queued, (uintptr_t)1);
+    if(queued != 0)
+        return; /* Already armed */
+    UA_EventLoop *el = server->config.eventLoop;
+    if(!el) {
+        UA_atomic_store(&server->overflowCallbackQueued, (uintptr_t)0);
+        return;
+    }
+    el->addDelayedCallback(el, &server->overflowCallback);
+}
+
 UA_LogObjectEntry *
 getLogObjectEntry(UA_Server *server, const UA_NodeId *logObjectId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -63,7 +133,8 @@ addLogRecord(UA_Server *server, UA_LogObjectEntry *entry,
         UA_Boolean overflow = false;
         res = backend->addRecord(server, backend->context, &entry->nodeId,
                                  record, record->time, &overflow);
-        (void)overflow;
+        if(overflow)
+            scheduleOverflowEvent(server, entry);
     }
 
     /* The ServerLog contains the records of all LogObjects (Part 26, 7.2) */
@@ -439,7 +510,8 @@ captureLog(void *context, UA_LogLevel level, UA_LogCategory category,
     UA_Boolean overflow = false;
     backend->addRecord(server, backend->context, &entry->nodeId,
                        &record, record.time, &overflow);
-    (void)overflow;
+    if(overflow)
+        scheduleOverflowEvent(server, entry);
 }
 
 /* The config is cleared without the server having restored the original
@@ -487,6 +559,10 @@ UA_Server_initLogObjects(UA_Server *server) {
     UA_ServerConfig *config = &server->config;
     LIST_INIT(&server->logObjects);
     server->serverLog = NULL;
+    memset(&server->overflowCallback, 0, sizeof(UA_DelayedCallback));
+    server->overflowCallback.callback = overflowDelayedCallback;
+    server->overflowCallback.application = server;
+    UA_atomic_store(&server->overflowCallbackQueued, (uintptr_t)0);
 
     /* Sanitize the configuration */
     if(config->serverLog.maxRecords == 0)
@@ -542,6 +618,13 @@ UA_Server_initLogObjects(UA_Server *server) {
 void
 UA_Server_cleanupLogObjects(UA_Server *server) {
     removeLogCapture(server);
+
+    /* The EventLoop is freed after this point. Disarm the delayed callback. */
+    uintptr_t queued = 1;
+    UA_atomic_cmpxchg(&server->overflowCallbackQueued, &queued, (uintptr_t)0);
+    if(queued == 1 && server->config.eventLoop)
+        server->config.eventLoop->removeDelayedCallback(server->config.eventLoop,
+                                                         &server->overflowCallback);
     UA_LogObjectBackend *backend = &server->config.logObjectBackend;
     UA_LogObjectEntry *entry, *tmp;
     LIST_FOREACH_SAFE(entry, &server->logObjects, pointers, tmp) {

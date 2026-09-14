@@ -28,6 +28,7 @@ typedef struct UA_LogObjectEntry {
     UA_NodeId nodeId;
     UA_LogObjectSettings settings;
     UA_Boolean isServerLog;
+    UA_atomic(uintptr_t) overflowPending; /* Set from any thread */
 } UA_LogObjectEntry;
 
 typedef LIST_HEAD(UA_LogObjectList, UA_LogObjectEntry) UA_LogObjectList;

@@ -251,6 +251,10 @@ struct UA_Server {
     UA_Boolean logObjectLoggerInstalled;
     UA_LogObjectList logObjects;
     UA_LogObjectEntry *serverLog; /* NULL when the feature is disabled */
+    /* LogOverflowEventType Events are emitted from the EventLoop. The delayed
+     * callback is armed from any thread, also from the logging path. */
+    UA_DelayedCallback overflowCallback;
+    UA_atomic(uintptr_t) overflowCallbackQueued;
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY

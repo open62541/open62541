@@ -878,6 +878,104 @@ START_TEST(continuationPointsReleasedWithSession) {
     UA_Server_delete(server);
 } END_TEST
 
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* --- LogOverflowEventType (Part 26, 6.4) --- */
+
+static unsigned overflowEvents = 0;
+static UA_UInt32 overflowEventTypeId = 0;
+static UA_UInt32 overflowSourceNodeId = 0;
+static UA_Boolean overflowSourceNameOk = false;
+
+static void
+overflowCallback(UA_Server *s, UA_UInt32 monitoredItemId, void *context,
+                 const UA_KeyValueMap eventFields) {
+    overflowEvents++;
+    if(eventFields.mapSize != 3)
+        return;
+    const UA_Variant *v = &eventFields.map[0].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        overflowEventTypeId = ((UA_NodeId*)v->data)->identifier.numeric;
+    v = &eventFields.map[1].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        overflowSourceNodeId = ((UA_NodeId*)v->data)->identifier.numeric;
+    v = &eventFields.map[2].value;
+    if(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_STRING]))
+        overflowSourceNameOk = stringEquals((UA_String*)v->data, "LogObject/Overflow");
+}
+
+/* Run the EventLoop so that delayed callbacks and local notifications are
+ * processed */
+static void
+pump(void) {
+    for(int i = 0; i < 10; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+}
+
+START_TEST(overflowEvent) {
+    ServerOptions o = apiOnlyOptions();
+    o.serverLog.maxRecords = 3;
+    server = newLogObjectServer(&o);
+    UA_Server_run_startup(server);
+
+    UA_EventFilter ef;
+    UA_EventFilter_init(&ef);
+    ef.selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(3, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    ck_assert(ef.selectClauses != NULL);
+    ef.selectClausesSize = 3;
+    ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&ef.selectClauses[0],
+                                                      UA_STRING("/EventType")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&ef.selectClauses[1],
+                                                      UA_STRING("/SourceNode")),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_SimpleAttributeOperand_parse(&ef.selectClauses[2],
+                                                      UA_STRING("/SourceName")),
+                      UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server, UA_NS0ID(SERVER), ef, NULL,
+                                           overflowCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&ef);
+    overflowEvents = 0;
+
+    /* Filling the ring does not overflow */
+    addRecord(300, "one");
+    addRecord(300, "two");
+    addRecord(300, "three");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 0);
+
+    /* Two overflows in the same cycle are reported as one Event with the
+     * fields required by Part 26, 6.4 */
+    addRecord(300, "four");
+    addRecord(300, "five");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 1);
+    ck_assert_uint_eq(overflowEventTypeId, UA_NS0ID_LOGOVERFLOWEVENTTYPE);
+    ck_assert_uint_eq(overflowSourceNodeId, UA_NS0ID_SERVERLOG);
+    ck_assert(overflowSourceNameOk);
+
+    /* The next overflow is reported again */
+    addRecord(300, "six");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 2);
+
+    /* Overflow caused by the captured logger (FATAL maps to Severity 500) */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_FATAL(config->logging, UA_LOGCATEGORY_SERVER, "fatal marker");
+    pump();
+    ck_assert_uint_eq(overflowEvents, 3);
+
+    UA_Server_deleteMonitoredItem(server, mon.monitoredItemId);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 int main(void) {
     Suite *s = suite_create("LogObjects");
 
@@ -908,6 +1006,12 @@ int main(void) {
     tcase_add_test(tc_release, releaseContinuationPoint);
     tcase_add_test(tc_release, continuationPointsReleasedWithSession);
     suite_add_tcase(s, tc_release);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    TCase *tc_overflow = tcase_create("Overflow");
+    tcase_add_test(tc_overflow, overflowEvent);
+    suite_add_tcase(s, tc_overflow);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
