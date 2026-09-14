@@ -264,6 +264,7 @@ function unit_tests {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=${COVERAGE} \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_LOGOBJECT=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
@@ -502,6 +503,7 @@ function unit_tests_alarms {
           -DUA_ENABLE_DA=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_LOGOBJECT=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
@@ -640,6 +642,7 @@ function run_examples {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_LOGOBJECT=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -687,6 +690,7 @@ function examples_valgrind {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_LOGOBJECT=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -872,6 +876,10 @@ function build_option_coverage {
     build_option_cfg "UA_ENABLE_QUERY"             -DUA_ENABLE_QUERY=ON
     build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
     build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
+    build_option_cfg "UA_ENABLE_LOGOBJECT"         -DUA_ENABLE_LOGOBJECT=ON
+    build_option_cfg "UA_ENABLE_LOGOBJECT no events" -DUA_ENABLE_LOGOBJECT=ON \
+                     -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF
+    build_option_cfg "UA_ENABLE_LOGOBJECT full NS0" -DUA_ENABLE_LOGOBJECT=ON -DUA_NAMESPACE_ZERO=FULL
 
     # On by default, so only ever compiled in the enabled state
     # The PubSub information model twin exposes methods, so it has to go as well
