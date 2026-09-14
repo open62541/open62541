@@ -303,6 +303,10 @@ updateCertificate(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 6)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
@@ -382,6 +386,10 @@ createSigningRequest(UA_Server *server,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 5)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
@@ -422,6 +430,10 @@ getRejectedList(UA_Server *server,
                 size_t inputSize, const UA_Variant *input,
                 size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 0)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     size_t rejectedListSize = 0;
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
 
@@ -471,6 +483,10 @@ addCertificate(UA_Server *server,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*Certificate*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BOOLEAN])) /*IsTrustedCertificate*/
@@ -533,6 +549,10 @@ removeCertificate(UA_Server *server,
                 size_t inputSize, const UA_Variant *input,
                 size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) || /*Thumbprint*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BOOLEAN])) /*IsTrustedCertificate*/
@@ -658,6 +678,10 @@ openTrustList(UA_Server *server,
               size_t inputSize, const UA_Variant *input,
               size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 1)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTE]))/*FileMode*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -750,6 +774,10 @@ openTrustListWithMask(UA_Server *server,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 1)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*Mask*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -821,6 +849,10 @@ readTrustList(UA_Server *server,
               size_t inputSize, const UA_Variant *input,
               size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /*FileHandle*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_INT32])) /*Length*/
@@ -874,6 +906,10 @@ writeTrustList(UA_Server *server,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /*FileHandle*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BYTESTRING])) /*Data*/
@@ -932,6 +968,10 @@ closeTrustList(UA_Server *server,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 1)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*FileHandle*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -979,6 +1019,10 @@ closeAndUpdateTrustList(UA_Server *server,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 1)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*FileHandle*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1046,6 +1090,10 @@ getPositionTrustList(UA_Server *server,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 1)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /*FileHandle*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1076,6 +1124,10 @@ setPositionTrustList(UA_Server *server,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 2)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /*check for input types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /*FileHandle*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_UINT64])) /*Position*/
@@ -1257,6 +1309,10 @@ applyChanges(UA_Server *server,
              size_t inputSize, const UA_Variant *input,
              size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    if(inputSize != 0)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
