@@ -343,6 +343,38 @@ logObjectGetRecordsMethod(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+logObjectReleaseContinuationPointMethod(UA_Server *server, const UA_NodeId *sessionId,
+                                        void *sessionContext, const UA_NodeId *methodId,
+                                        void *methodContext, const UA_NodeId *objectId,
+                                        void *objectContext, size_t inputSize,
+                                        const UA_Variant *input, size_t outputSize,
+                                        UA_Variant *output) {
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(inputSize < 1)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(!scalarInput(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]))
+        return UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+    const UA_ByteString *identifier = (const UA_ByteString*)input[0].data;
+
+    lockServer(server);
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_LogObjectContinuationPoint *cp = findContinuationPoint(session, identifier);
+    if(!cp || !UA_NodeId_equal(&cp->logObjectId, objectId)) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+    }
+    removeContinuationPoint(session, cp);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
 /**********************/
 /* Capture the logger */
 /**********************/

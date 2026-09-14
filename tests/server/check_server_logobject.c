@@ -6,10 +6,12 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/logobject.h>
+#include <open62541/client_highlevel.h>
 
 #include "server/ua_server_internal.h"
 #include "test_helpers.h"
 #include "testing_clock.h"
+#include "thread_wrapper.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -731,6 +733,151 @@ START_TEST(noContinuationPoints) {
     UA_Server_delete(server);
 } END_TEST
 
+
+/* --- ReleaseContinuationPoint Method (Part 26, 5.4) --- */
+
+static UA_StatusCode
+callReleaseContinuationPoint(const UA_NodeId objectId, const UA_ByteString *cp) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, (void*)(uintptr_t)cp, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_CallMethodRequest req;
+    UA_CallMethodRequest_init(&req);
+    req.objectId = objectId;
+    req.methodId = UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT);
+    req.inputArgumentsSize = 1;
+    req.inputArguments = &input;
+    UA_CallMethodResult r = UA_Server_call(server, &req);
+    UA_StatusCode res = r.statusCode;
+    UA_CallMethodResult_clear(&r);
+    return res;
+}
+
+START_TEST(releaseContinuationPoint) {
+    ServerOptions o = apiOnlyOptions();
+    o.maxContinuationPoints = 1;
+    server = newLogObjectServer(&o);
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* Unknown and empty identifiers */
+    UA_ByteString bogus = UA_BYTESTRING("0123456789abcdef");
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &bogus),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &empty),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+
+    /* Release frees the slot of the Session, a second release fails */
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &cp),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &cp),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+    UA_ByteString_clear(&cp);
+
+    res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 4, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+
+/* --- Continuation points are released with the Session --- */
+
+static UA_Boolean running = false;
+THREAD_HANDLE server_thread;
+
+THREAD_CALLBACK(serverloop) {
+    while(running)
+        UA_Server_run_iterate(server, true);
+    return 0;
+}
+
+/* GetRecords over the network with MaxReturnRecords=4. Returns the length of
+ * the continuation point or the error. */
+static UA_StatusCode
+clientGetRecords(UA_Client *client, size_t *cpLength) {
+    UA_DateTime zero = 0;
+    UA_UInt32 maxReturn = 4;
+    UA_UInt16 minSeverity = 1;
+    UA_UInt32 mask = 0x1F;
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    UA_Variant inputs[6];
+    for(size_t i = 0; i < 6; i++)
+        UA_Variant_init(&inputs[i]);
+    UA_Variant_setScalar(&inputs[0], &zero, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[1], &zero, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&inputs[2], &maxReturn, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputs[3], &minSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&inputs[4], &mask, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputs[5], &empty, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode res = UA_Client_call(client, UA_NS0ID(SERVERLOG),
+                                       UA_NS0ID(LOGOBJECTTYPE_GETRECORDS),
+                                       6, inputs, &outputSize, &output);
+    *cpLength = 0;
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(outputSize, 2);
+        ck_assert(UA_Variant_hasScalarType(&output[1], &UA_TYPES[UA_TYPES_BYTESTRING]));
+        *cpLength = ((UA_ByteString*)output[1].data)->length;
+    }
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    return res;
+}
+
+START_TEST(continuationPointsReleasedWithSession) {
+    ServerOptions o = apiOnlyOptions();
+    o.maxContinuationPoints = 1;
+    server = newLogObjectServer(&o);
+    for(int i = 0; i < 6; i++)
+        addRecord(300, "record");
+    UA_Server_run_startup(server);
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    /* The first Session takes the only continuation point */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t cpLength = 0;
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cpLength, 16);
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOCONTINUATIONPOINTS);
+
+    /* Closing the Session releases its continuation points (the leak check
+     * of the memcheck build covers the cleanup). A new Session starts with a
+     * free slot. */
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    client = UA_Client_newForUnitTest();
+    res = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = clientGetRecords(client, &cpLength);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cpLength, 16);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("LogObjects");
 
@@ -756,6 +903,11 @@ int main(void) {
     tcase_add_test(tc_get, getRecordsServerLimit);
     tcase_add_test(tc_get, noContinuationPoints);
     suite_add_tcase(s, tc_get);
+
+    TCase *tc_release = tcase_create("ReleaseContinuationPoint");
+    tcase_add_test(tc_release, releaseContinuationPoint);
+    tcase_add_test(tc_release, continuationPointsReleasedWithSession);
+    suite_add_tcase(s, tc_release);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

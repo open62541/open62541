@@ -58,6 +58,16 @@ logObjectGetRecordsMethod(UA_Server *server, const UA_NodeId *sessionId,
                           const UA_Variant *input, size_t outputSize,
                           UA_Variant *output);
 
+/* Callback of the ReleaseContinuationPoint Method (Part 26, 5.4). Attached to
+ * the Method of the LogObjectType, which is referenced from every LogObject. */
+UA_StatusCode
+logObjectReleaseContinuationPointMethod(UA_Server *server, const UA_NodeId *sessionId,
+                                        void *sessionContext, const UA_NodeId *methodId,
+                                        void *methodContext, const UA_NodeId *objectId,
+                                        void *objectContext, size_t inputSize,
+                                        const UA_Variant *input, size_t outputSize,
+                                        UA_Variant *output);
+
 /* Create the ServerLog, wire the NS0 nodes and capture the server logger.
  * Called from UA_Server_init with the server lock held after the namespace
  * zero is set up. */

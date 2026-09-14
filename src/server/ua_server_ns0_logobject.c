@@ -97,6 +97,8 @@ initNS0LogObject(UA_Server *server) {
                                   logObjectGetRecordsMethod);
     res |= setMethodNode_callback(server, UA_NS0ID(SERVERLOG_GETRECORDS),
                                   logObjectGetRecordsMethod);
+    res |= setMethodNode_callback(server, UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT),
+                                  logObjectReleaseContinuationPointMethod);
     return res;
 }
 
