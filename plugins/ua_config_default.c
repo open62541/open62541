@@ -564,6 +564,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->serverLog.minimumSeverity = 51;     /* Information and above (Part 26, Table 9) */
     conf->maxLogRecordsPerCall = 1000;
     conf->maxLogObjectContinuationPoints = 32;
+    conf->logOverflowEventInterval = 60000.0; /* At most one Event per minute */
 #endif
 
 #if UA_MULTITHREADING >= 100

@@ -257,6 +257,14 @@ struct UA_Server {
                                  * after this one */
     UA_LogObjectList logObjects;
     UA_LogObjectEntry *serverLog; /* NULL when the feature is disabled */
+    /* LogOverflowEventType Events are emitted from the EventLoop. The delayed
+     * callback is armed from any thread, also from the logging path. The
+     * one-shot timer emits the overflows that were coalesced because the
+     * LogObject reported an overflow less than logOverflowEventInterval ago. */
+    UA_DelayedCallback overflowCallback;
+    UA_atomic(uintptr_t) overflowCallbackQueued;
+    UA_atomic(uintptr_t) overflowTimerArmed;
+    UA_UInt64 overflowTimerId;
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY

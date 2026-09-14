@@ -39,6 +39,146 @@ logObjectNow(UA_Server *server) {
     return UA_DateTime_now();
 }
 
+/******************/
+/* Overflow Event */
+/******************/
+
+/* Emit a LogOverflowEventType Event for the LogObject (Part 26, 6.4). The
+ * server lock must be held. */
+static void
+emitOverflowEvent(UA_Server *server, UA_LogObjectEntry *entry,
+                  uintptr_t discarded) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_String sourceName = UA_STRING("LogObject/Overflow");
+    UA_KeyValuePair field;
+    field.key = UA_QUALIFIEDNAME(0, "/SourceName");
+    UA_Variant_setScalar(&field.value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap fields = {1, &field};
+
+    /* The LogOverflowEventType has no field for the number of discarded
+     * records. It is reported in the Message. */
+    char buf[96];
+    UA_String text = {sizeof(buf), (UA_Byte*)buf};
+    if(UA_String_format(&text, "LogObject discarded %lu records (MaxRecords reached)",
+                        (unsigned long)discarded) != UA_STATUSCODE_GOOD)
+        text = UA_STRING("LogObject discarded records (MaxRecords reached)");
+
+    UA_EventDescription ed;
+    memset(&ed, 0, sizeof(UA_EventDescription));
+    ed.sourceNode = entry->nodeId;
+    ed.eventType = UA_NS0ID(LOGOVERFLOWEVENTTYPE);
+    ed.severity = 500;
+    ed.message.text = text;
+    ed.eventFields = &fields;
+    /* A failure is not logged: the message would be captured into the
+     * ServerLog and could trigger the next overflow */
+    (void)createEvent(server, &ed, NULL);
+#else
+    (void)server;
+    (void)entry;
+    (void)discarded;
+#endif
+}
+
+static void overflowTimerCallback(void *application, void *context);
+
+/* Emit the pending overflow Events. A LogObject emits at most one Event per
+ * logOverflowEventInterval. A ring buffer at its limit evicts a record for
+ * every new one, so without the limit every cycle that logs would emit an
+ * Event. And the emission itself logs, which would overflow again in the next
+ * cycle. The overflows within the interval are reported with the next Event
+ * when the one-shot timer fires. Runs in the EventLoop, the server lock must be
+ * held. */
+static void
+processOverflowEvents(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EventLoop *el = server->config.eventLoop;
+    if(!el || server->state != UA_LIFECYCLESTATE_STARTED)
+        return;
+
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    UA_DateTime interval = (UA_DateTime)
+        (server->config.logOverflowEventInterval * UA_DATETIME_MSEC);
+    UA_DateTime nextDue = UA_INT64_MAX;
+    UA_LogObjectEntry *entry;
+    LIST_FOREACH(entry, &server->logObjects, pointers) {
+        if(UA_atomic_load(&entry->discarded) == 0)
+            continue;
+        if(entry->overflowReported && now - entry->lastOverflowEvent < interval) {
+            UA_DateTime due = entry->lastOverflowEvent + interval;
+            if(due < nextDue)
+                nextDue = due;
+            continue;
+        }
+        uintptr_t discarded = 0;
+        UA_atomic_xchg(&entry->discarded, (uintptr_t)0, &discarded);
+        entry->overflowReported = true;
+        entry->lastOverflowEvent = now;
+        emitOverflowEvent(server, entry, discarded);
+    }
+
+    /* Wake up when the next coalesced Event is due */
+    if(nextDue == UA_INT64_MAX || UA_atomic_load(&server->overflowTimerArmed))
+        return;
+    UA_Double delay = (UA_Double)(nextDue - now) / UA_DATETIME_MSEC;
+    UA_StatusCode res =
+        el->addTimer(el, overflowTimerCallback, server, NULL, delay, NULL,
+                     UA_TIMERPOLICY_ONCE, &server->overflowTimerId);
+    if(res == UA_STATUSCODE_GOOD)
+        UA_atomic_store(&server->overflowTimerArmed, (uintptr_t)1);
+}
+
+/* Runs in the EventLoop. Emits the Events of the LogObjects that overflowed
+ * since the last cycle. */
+static void
+overflowDelayedCallback(void *application, void *context) {
+    UA_Server *server = (UA_Server*)application;
+    lockServer(server);
+    UA_atomic_store(&server->overflowCallbackQueued, (uintptr_t)0);
+    processOverflowEvents(server);
+    unlockServer(server);
+}
+
+/* The one-shot timer is removed by the EventLoop after it fired */
+static void
+overflowTimerCallback(void *application, void *context) {
+    UA_Server *server = (UA_Server*)application;
+    lockServer(server);
+    UA_atomic_store(&server->overflowTimerArmed, (uintptr_t)0);
+    processOverflowEvents(server);
+    unlockServer(server);
+}
+
+/* Called from any thread. Counts the discarded record and arms the delayed
+ * callback once. The callback structure is embedded in the server, so nothing
+ * is leaked if the EventLoop never runs it. While the timer is armed, the
+ * timer picks up the count. The count is incremented before the timer flag is
+ * read and the callbacks clear the flag before they read the counts. So no
+ * overflow is lost. */
+static void
+scheduleOverflowEvent(UA_Server *server, UA_LogObjectEntry *entry) {
+    uintptr_t count = UA_atomic_load(&entry->discarded);
+    for(;;) {
+        uintptr_t expected = count;
+        UA_atomic_cmpxchg(&entry->discarded, &expected, count + 1);
+        if(expected == count)
+            break;
+        count = expected;
+    }
+    if(UA_atomic_load(&server->overflowTimerArmed))
+        return; /* The timer emits the Event */
+    uintptr_t queued = 0;
+    UA_atomic_cmpxchg(&server->overflowCallbackQueued, &queued, (uintptr_t)1);
+    if(queued != 0)
+        return; /* Already armed */
+    UA_EventLoop *el = server->config.eventLoop;
+    if(!el) {
+        UA_atomic_store(&server->overflowCallbackQueued, (uintptr_t)0);
+        return;
+    }
+    el->addDelayedCallback(el, &server->overflowCallback);
+}
+
 UA_LogObjectEntry *
 getLogObjectEntry(UA_Server *server, const UA_NodeId *logObjectId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -63,7 +203,8 @@ addLogRecord(UA_Server *server, UA_LogObjectEntry *entry,
         UA_Boolean overflow = false;
         res = backend->addRecord(server, backend->context, &entry->nodeId,
                                  record, record->time, &overflow);
-        (void)overflow;
+        if(overflow)
+            scheduleOverflowEvent(server, entry);
     }
 
     /* The ServerLog contains the records of all LogObjects (Part 26, 7.2) */
@@ -430,7 +571,8 @@ captureLog(void *context, UA_LogLevel level, UA_LogCategory category,
     UA_Boolean overflow = false;
     backend->addRecord(server, backend->context, &entry->nodeId,
                        &record, record.time, &overflow);
-    (void)overflow;
+    if(overflow)
+        scheduleOverflowEvent(server, entry);
 }
 
 /* Several servers can share one UA_Logger. Every server then wraps the
@@ -513,6 +655,12 @@ UA_Server_initLogObjects(UA_Server *server) {
     UA_ServerConfig *config = &server->config;
     LIST_INIT(&server->logObjects);
     server->serverLog = NULL;
+    memset(&server->overflowCallback, 0, sizeof(UA_DelayedCallback));
+    server->overflowCallback.callback = overflowDelayedCallback;
+    server->overflowCallback.application = server;
+    UA_atomic_store(&server->overflowCallbackQueued, (uintptr_t)0);
+    UA_atomic_store(&server->overflowTimerArmed, (uintptr_t)0);
+    server->overflowTimerId = 0;
 
     /* Sanitize the configuration */
     if(config->serverLog.maxRecords == 0)
@@ -523,6 +671,8 @@ UA_Server_initLogObjects(UA_Server *server) {
         config->serverLog.minimumSeverity = 1000;
     if(config->serverLog.maxStorageDuration < 0.0)
         config->serverLog.maxStorageDuration = 0.0;
+    if(!(config->logOverflowEventInterval > 0.0))
+        config->logOverflowEventInterval = 60000.0;
 
     if(config->logObjectsEnabled &&
        (!config->logObjectBackend.registerLogObject ||
@@ -568,6 +718,18 @@ UA_Server_initLogObjects(UA_Server *server) {
 void
 UA_Server_cleanupLogObjects(UA_Server *server) {
     removeLogCapture(server);
+
+    /* The EventLoop is freed after this point. Disarm the delayed callback. */
+    uintptr_t queued = 1;
+    UA_atomic_cmpxchg(&server->overflowCallbackQueued, &queued, (uintptr_t)0);
+    if(queued == 1 && server->config.eventLoop)
+        server->config.eventLoop->removeDelayedCallback(server->config.eventLoop,
+                                                         &server->overflowCallback);
+    uintptr_t armed = 1;
+    UA_atomic_cmpxchg(&server->overflowTimerArmed, &armed, (uintptr_t)0);
+    if(armed == 1 && server->config.eventLoop)
+        server->config.eventLoop->removeTimer(server->config.eventLoop,
+                                              server->overflowTimerId);
     UA_LogObjectBackend *backend = &server->config.logObjectBackend;
     UA_LogObjectEntry *entry, *tmp;
     LIST_FOREACH_SAFE(entry, &server->logObjects, pointers, tmp) {

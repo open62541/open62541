@@ -1995,7 +1995,13 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * same logger from other threads.
  *
  * The records are stored by the ``config->logObjectBackend`` plugin (see
- * :ref:`logobject-backend`). Access to the GetRecords Method is controlled by
+ * :ref:`logobject-backend`). When a LogObject evicts records because
+ * MaxRecords is reached, a LogOverflowEventType Event is emitted with the
+ * LogObject as SourceNode. A full ring evicts a record for every new one, so
+ * the Events of a LogObject are limited to one per
+ * ``config->logOverflowEventInterval``. The Message of the Event states the
+ * number of records discarded since the previous Event. Access to the
+ * GetRecords Method is controlled by
  * the AccessControl plugin (``getUserExecutableOnObject``). The records are
  * not filtered per user.
  *
@@ -2754,6 +2760,12 @@ struct UA_ServerConfig {
                                                * GetRecords Method per Session.
                                                * Mirrored into the
                                                * ServerCapabilities */
+    UA_Double logOverflowEventInterval;       /* Minimum time in ms between two
+                                               * LogOverflowEventType Events of
+                                               * a LogObject. Overflows in
+                                               * between are reported together
+                                               * with the next Event. 0 = the
+                                               * default of 60000 */
 #endif
 
     /* Certificate Password Callback

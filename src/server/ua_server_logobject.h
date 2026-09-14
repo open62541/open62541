@@ -28,6 +28,11 @@ typedef struct UA_LogObjectEntry {
     UA_NodeId nodeId;
     UA_LogObjectSettings settings;
     UA_Boolean isServerLog;
+    UA_atomic(uintptr_t) discarded; /* Records evicted by an overflow since the
+                                     * last LogOverflowEventType Event.
+                                     * Incremented from any thread. */
+    UA_Boolean overflowReported;    /* An overflow Event was emitted */
+    UA_DateTime lastOverflowEvent;  /* Monotonic time of the last overflow Event */
 } UA_LogObjectEntry;
 
 typedef LIST_HEAD(UA_LogObjectList, UA_LogObjectEntry) UA_LogObjectList;
