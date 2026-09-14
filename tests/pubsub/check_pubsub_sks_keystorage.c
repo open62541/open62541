@@ -134,6 +134,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
     UA_ByteString_allocBuffer(&currentKey, keyLength);
     generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
 
+    futureKeySize = keysize;
     futureKey = (UA_ByteString *)UA_calloc(keysize, sizeof(UA_ByteString));
     if(!futureKey)
         return NULL;
