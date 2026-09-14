@@ -142,6 +142,10 @@ dumpLogsFolder(UA_Client *client) {
     if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD && resp.resultsSize == 1) {
         for(size_t i = 0; i < resp.results[0].referencesSize; i++) {
             const UA_ReferenceDescription *ref = &resp.results[0].references[i];
+            /* The ServerLog was dumped already */
+            UA_NodeId serverLog = UA_NS0ID(SERVERLOG);
+            if(UA_NodeId_equal(&ref->nodeId.nodeId, &serverLog))
+                continue;
             dumpLogObject(client, ref->nodeId.nodeId, ref->browseName.name);
         }
     }

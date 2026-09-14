@@ -1056,6 +1056,9 @@ START_TEST(addLogObject) {
      * the Methods of the type */
     ck_assert(browseContains(UA_NS0ID(LOGS), UA_NS0ID_ORGANIZES,
                              UA_BROWSEDIRECTION_FORWARD, logId));
+    /* ... as is the ServerLog (Part 26, 7.3) */
+    ck_assert(browseContains(UA_NS0ID(LOGS), UA_NS0ID_ORGANIZES,
+                             UA_BROWSEDIRECTION_FORWARD, UA_NS0ID(SERVERLOG)));
     ck_assert(browseContains(logId, UA_NS0ID_HASTYPEDEFINITION,
                              UA_BROWSEDIRECTION_FORWARD, UA_NS0ID(LOGOBJECTTYPE)));
     ck_assert(browseContains(logId, UA_NS0ID_HASCOMPONENT, UA_BROWSEDIRECTION_FORWARD,
@@ -1170,6 +1173,7 @@ START_TEST(removeLogObject) {
     UA_NodeId_clear(&secondId);
     UA_Server_delete(server);
 } END_TEST
+
 
 int main(void) {
     Suite *s = suite_create("LogObjects");

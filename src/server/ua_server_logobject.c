@@ -61,11 +61,9 @@ emitOverflowEvent(UA_Server *server, UA_LogObjectEntry *entry) {
     ed.severity = 500;
     ed.message = UA_LOCALIZEDTEXT("", "LogObject discarded records (MaxRecords reached)");
     ed.eventFields = &fields;
-    UA_StatusCode res = createEvent(server, &ed, NULL);
-    if(res != UA_STATUSCODE_GOOD)
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Could not emit the LogOverflowEventType Event: %s",
-                       UA_StatusCode_name(res));
+    /* A failure is not logged: the message would be captured into the
+     * ServerLog and could trigger the next overflow */
+    (void)createEvent(server, &ed, NULL);
 #else
     (void)server;
     (void)entry;

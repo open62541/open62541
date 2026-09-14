@@ -75,6 +75,10 @@ initNS0LogObject(UA_Server *server) {
     res |= addRef(server, UA_NS0ID(SERVERLOG), UA_NS0ID(HASCOMPONENT),
                   UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT), true);
 
+    /* The Logs Folder resolves to all LogObjects of the Server (Part 26, 7.3).
+     * The standard nodeset does not reference the ServerLog from it. */
+    res |= addRef(server, UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), UA_NS0ID(SERVERLOG), true);
+
     /* Mirror the configured limits into the Properties of the ServerLog */
     UA_LogObjectSettings *s = &server->config.serverLog;
     res |= writeLogObjectProperty(server, UA_NS0ID_SERVERLOG_MAXRECORDS,
