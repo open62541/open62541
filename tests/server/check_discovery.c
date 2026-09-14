@@ -8,6 +8,7 @@
 #include <open62541/plugin/pki_default.h>
 
 #include "server/ua_server_internal.h"
+#include "server/ua_discovery.h"
 #include "../encryption/certificates.h"
 
 #include <fcntl.h>
@@ -48,6 +49,23 @@ THREAD_CALLBACK(serverloop_lds) {
     while(*running_lds)
         UA_Server_run_iterate(server_lds, true);
     return 0;
+}
+
+static void
+waitForRegistration(size_t expectedSize) {
+    /* RegisterServer is asynchronous. Wait for the LDS to process the request
+     * before FindServers checks its result, without advancing the test clock. */
+    for(size_t attempt = 0; attempt < 1000; attempt++) {
+        lockServer(server_lds);
+        UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+            getServerComponentByName(server_lds, UA_STRING("discovery"));
+        UA_Boolean completed = dm && dm->registeredServersSize == expectedSize;
+        unlockServer(server_lds);
+        if(completed)
+            return;
+        UA_realSleep(10);
+    }
+    ck_abort_msg("Timed out waiting for discovery registration state");
 }
 
 static void
@@ -206,7 +224,7 @@ registerServer(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
+    waitForRegistration(1);
 }
 
 static void
@@ -238,7 +256,7 @@ unregisterServer(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
+    waitForRegistration(0);
 }
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -285,7 +303,7 @@ Server_register_semaphore(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
+    waitForRegistration(1);
 }
 
 static void
@@ -630,7 +648,7 @@ START_TEST(Server_registerTimeout) {
     // wait until server is removed by timeout. Additionally wait a few seconds
     // more to be sure.
     UA_fakeSleep(100000 * checkWait);
-    UA_realSleep(1000);
+    waitForRegistration(0);
 
     Client_find_discovery();
 
@@ -643,7 +661,7 @@ START_TEST(Server_registerTimeout) {
     // wait until server is removed by timeout. Additionally wait a few seconds
     // more to be sure.
     UA_fakeSleep(100000 * checkWait);
-    UA_realSleep(1000);
+    waitForRegistration(0);
 
     Client_find_discovery();
 #endif
