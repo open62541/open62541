@@ -208,6 +208,11 @@ struct UA_Client {
 #endif
 };
 
+UA_StatusCode
+verifyServerCertificateEku(const UA_ClientConfig *config,
+                           const UA_SecurityPolicy *securityPolicy,
+                           const UA_ByteString *certificate);
+
 /* In order to prevent deadlocks between the EventLoop mutex and the
  * client-mutex, we always take the EventLoop mutex first. */
 

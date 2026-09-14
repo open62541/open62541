@@ -95,6 +95,7 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
 #endif
     dst->connectivityCheckInterval = src->connectivityCheckInterval;
     dst->certificateVerification = src->certificateVerification;
+    dst->certificateEkuRule = src->certificateEkuRule;
     dst->clientContext = src->clientContext;
     dst->customDataTypes = src->customDataTypes;
     dst->eventLoop = src->eventLoop;

@@ -690,6 +690,13 @@ struct UA_ClientConfig {
     /* Certificate Verification Plugin */
     UA_CertificateGroup certificateVerification;
 
+    /* Verify that the server ApplicationInstanceCertificate permits serverAuth.
+     * For RSA SecurityPolicies the EKU extension is mandatory. For ECC
+     * SecurityPolicies it is optional, but must permit serverAuth when present.
+     * ABORT rejects invalid usage, DEFAULT and WARN log and continue, and ACCEPT
+     * continues silently. */
+    UA_RuleHandling certificateEkuRule;
+
     /* SecurityPolicies for authentication with an x509 certificate. The
      * UserIdentityToken contains only the certificate. The certificate gets
      * matched against the SecurityPolicy instance from this array. Only the
