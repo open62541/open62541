@@ -1016,7 +1016,7 @@ START_TEST(Server_diagnosticsRejectLongBrowseNames) {
 
     lockServer(server);
     UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
-    ck_assert_ptr_nonnull(sub);
+    ck_assert_ptr_ne(sub, NULL);
     UA_NodeId diagnosticNode;
     UA_NodeId_init(&diagnosticNode);
     res = UA_NodeId_copy(&sub->ns0Id, &diagnosticNode);
