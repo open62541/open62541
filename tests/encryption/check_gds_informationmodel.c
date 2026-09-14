@@ -783,6 +783,75 @@ START_TEST(add_certificate_replaced_input_metadata) {
 }
 END_TEST
 
+/* Exercise each callback contract directly, independently of method metadata. */
+START_TEST(gds_callback_argument_counts) {
+    const struct {
+        UA_UInt32 methodId;
+        UA_UInt32 objectId;
+        size_t inputSize;
+        size_t outputSize;
+    } contracts[] = {
+        {UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE,
+         UA_NS0ID_SERVERCONFIGURATION, 6, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST,
+         UA_NS0ID_SERVERCONFIGURATION, 5, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST,
+         UA_NS0ID_SERVERCONFIGURATION, 0, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES,
+         UA_NS0ID_SERVERCONFIGURATION, 0, 0},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_ADDCERTIFICATE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPENWITHMASKS,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 0},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSEANDUPDATE,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 1, 1},
+        {UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION,
+         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST, 2, 0},
+    };
+    UA_Variant input[7];
+    UA_Variant output[2];
+    memset(input, 0, sizeof(input));
+    memset(output, 0, sizeof(output));
+    for(size_t i = 0; i < sizeof(contracts) / sizeof(contracts[0]); i++) {
+        UA_NodeId methodId = UA_NODEID_NUMERIC(0, contracts[i].methodId);
+        UA_NodeId objectId = UA_NODEID_NUMERIC(0, contracts[i].objectId);
+        UA_MethodCallback callback = NULL;
+        UA_StatusCode retval =
+            UA_Server_getMethodNodeCallback(server, methodId, &callback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_ne(callback, NULL);
+
+        /* Both too few and too many arguments must be rejected before use. */
+        size_t inputCounts[2] = {contracts[i].inputSize + 1,
+                                contracts[i].inputSize ? contracts[i].inputSize - 1 : 1};
+        size_t outputCounts[2] = {contracts[i].outputSize + 1,
+                                 contracts[i].outputSize ? contracts[i].outputSize - 1 : 1};
+        for(size_t j = 0; j < 2; j++) {
+            retval = callback(server, &UA_NODEID_NULL, NULL, &methodId, NULL,
+                              &objectId, NULL, inputCounts[j], input,
+                              contracts[i].outputSize, output);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+            retval = callback(server, &UA_NODEID_NULL, NULL, &methodId, NULL,
+                              &objectId, NULL, contracts[i].inputSize, input,
+                              outputCounts[j], output);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+        }
+    }
+}
+END_TEST
+
 static void teardown(void) {
     running = false;
     THREAD_JOIN(server_thread);
@@ -796,6 +865,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
+    tcase_add_test(tc_cert, gds_callback_argument_counts);
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
     tcase_add_test(tc_cert, add_certificate_success);
