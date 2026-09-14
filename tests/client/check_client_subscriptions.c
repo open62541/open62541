@@ -216,7 +216,7 @@ START_TEST(Client_deleteMonitoredItems_malformedResultsSize) {
     deleteRequest.subscriptionId = subResponse.subscriptionId;
     deleteRequest.monitoredItemIds = (UA_UInt32 *)
         UA_Array_new(1, &UA_TYPES[UA_TYPES_UINT32]);
-    ck_assert_ptr_nonnull(deleteRequest.monitoredItemIds);
+    ck_assert_ptr_ne(deleteRequest.monitoredItemIds, NULL);
     deleteRequest.monitoredItemIdsSize = 1;
     deleteRequest.monitoredItemIds[0] = monResponse.monitoredItemId;
 
@@ -232,7 +232,7 @@ START_TEST(Client_deleteMonitoredItems_malformedResultsSize) {
     malformedDeleteCallbackCalled = false;
     lockClient(client);
     UA_Client_Subscription *sub = client->subscriptions.lh_first;
-    ck_assert_ptr_nonnull(sub);
+    ck_assert_ptr_ne(sub, NULL);
     __Client_MonitoredItems_processDelete(client, sub, &deleteRequest,
                                           &deleteResponse);
     unlockClient(client);
