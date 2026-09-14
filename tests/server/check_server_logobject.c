@@ -1175,6 +1175,77 @@ START_TEST(removeLogObject) {
 } END_TEST
 
 
+/* --- MaxStorageDuration and concurrent logging --- */
+
+START_TEST(maxStorageDurationExpiry) {
+    ServerOptions o = defaultOptions();
+    o.serverLog.maxStorageDuration = 1000.0; /* 1s */
+    server = newLogObjectServer(&o);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "old marker");
+    UA_fakeSleep(2000);
+    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER, "new marker");
+
+    /* Records older than MaxStorageDuration are dropped */
+    UA_LogRecord *records = NULL;
+    size_t n = readServerLog(&records);
+    ck_assert(findRecord(records, n, "old marker") == NULL);
+    ck_assert(findRecord(records, n, "new marker") != NULL);
+    UA_Array_delete(records, n, &UA_TYPES[UA_TYPES_LOGRECORD]);
+
+    /* The Property mirrors the setting */
+    UA_Variant v;
+    UA_StatusCode res =
+        UA_Server_readValue(server, UA_NS0ID(SERVERLOG_MAXSTORAGEDURATION), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(*(UA_Double*)v.data == 1000.0);
+    UA_Variant_clear(&v);
+    UA_Server_delete(server);
+} END_TEST
+
+#if UA_MULTITHREADING >= 100
+/* A second thread logs while the main thread reads and appends */
+THREAD_CALLBACK(loggerThread) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    for(int i = 0; i < 2000; i++)
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND, "concurrent %d", i);
+    return 0;
+}
+
+START_TEST(logWhileGetRecordsMultithreaded) {
+    ServerOptions o = defaultOptions();
+    o.serverLog.maxRecords = 100;
+    server = newLogObjectServer(&o);
+    THREAD_HANDLE logger;
+    THREAD_CREATE(logger, loggerThread);
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    for(int i = 0; i < 200; i++) {
+        UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                           &results, &cp);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_uint_le(results.logRecordArraySize, 100);
+        for(size_t j = 0; j < results.logRecordArraySize; j++)
+            ck_assert(results.logRecordArray[j].message.text.length > 0);
+        UA_LogRecordsDataType_clear(&results);
+        UA_ByteString_clear(&cp);
+        addRecord(300, "main thread");
+    }
+    THREAD_JOIN(logger);
+
+    /* The ring is full and every record is intact */
+    UA_StatusCode res = callGetRecords(UA_NS0ID(SERVERLOG), 0, 0, 0, 1, 0x1F, NULL,
+                                       &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(results.logRecordArraySize, 100);
+    for(size_t j = 1; j < results.logRecordArraySize; j++)
+        ck_assert(results.logRecordArray[j].time >= results.logRecordArray[j - 1].time);
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    UA_Server_delete(server);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s = suite_create("LogObjects");
 
@@ -1210,6 +1281,13 @@ int main(void) {
     tcase_add_test(tc_app, addLogObject);
     tcase_add_test(tc_app, removeLogObject);
     suite_add_tcase(s, tc_app);
+
+    TCase *tc_storage = tcase_create("Storage");
+    tcase_add_test(tc_storage, maxStorageDurationExpiry);
+#if UA_MULTITHREADING >= 100
+    tcase_add_test(tc_storage, logWhileGetRecordsMultithreaded);
+#endif
+    suite_add_tcase(s, tc_storage);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     TCase *tc_overflow = tcase_create("Overflow");
