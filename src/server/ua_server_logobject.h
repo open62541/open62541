@@ -94,6 +94,14 @@ UA_StatusCode
 addLogRecord(UA_Server *server, UA_LogObjectEntry *entry,
              const UA_LogRecord *record);
 
+/* Destructor of the LogObjectType. Deleting a LogObject node unregisters the
+ * LogObject (the ServerLog is kept). */
+void
+logObjectTypeDestructor(UA_Server *server, const UA_NodeId *sessionId,
+                        void *sessionContext, const UA_NodeId *typeNodeId,
+                        void *typeNodeContext, const UA_NodeId *nodeId,
+                        void **nodeContext);
+
 /* Map the level of the server logger to the Severity ranges of OPC UA Part
  * 26, Table 9 */
 UA_UInt16 logLevelToSeverity(UA_LogLevel level);

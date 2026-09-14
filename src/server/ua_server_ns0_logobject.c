@@ -9,6 +9,8 @@
 
 #ifdef UA_ENABLE_LOGOBJECT
 
+#include <string.h>
+
 /* Wiring of the OPC UA Part 26 nodes in namespace zero */
 
 static UA_StatusCode
@@ -99,6 +101,12 @@ initNS0LogObject(UA_Server *server) {
                                   logObjectGetRecordsMethod);
     res |= setMethodNode_callback(server, UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT),
                                   logObjectReleaseContinuationPointMethod);
+
+    /* Deleting a LogObject node unregisters the LogObject */
+    UA_NodeTypeLifecycle lifecycle;
+    memset(&lifecycle, 0, sizeof(UA_NodeTypeLifecycle));
+    lifecycle.destructor = logObjectTypeDestructor;
+    res |= setNodeTypeLifecycle(server, UA_NS0ID(LOGOBJECTTYPE), lifecycle);
     return res;
 }
 

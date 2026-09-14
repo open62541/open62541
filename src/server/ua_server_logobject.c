@@ -446,6 +446,221 @@ logObjectReleaseContinuationPointMethod(UA_Server *server, const UA_NodeId *sess
     return UA_STATUSCODE_GOOD;
 }
 
+/**************************/
+/* Application LogObjects */
+/**************************/
+
+static void
+dropSessionContinuationPoints(UA_Session *session, const UA_NodeId *logObjectId) {
+    UA_LogObjectContinuationPoint *cp, *tmp;
+    TAILQ_FOREACH_SAFE(cp, &session->logObjectCPs, pointers, tmp) {
+        if(UA_NodeId_equal(&cp->logObjectId, logObjectId))
+            removeContinuationPoint(session, cp);
+    }
+}
+
+/* Unregister a LogObject and release the continuation points that refer to
+ * it in all Sessions */
+static void
+removeLogObjectEntry(UA_Server *server, UA_LogObjectEntry *entry) {
+    session_list_entry *se;
+    LIST_FOREACH(se, &server->sessions, pointers)
+        dropSessionContinuationPoints(&se->session, &entry->nodeId);
+    dropSessionContinuationPoints(&server->adminSession, &entry->nodeId);
+
+    LIST_REMOVE(entry, pointers);
+    UA_LogObjectBackend *backend = &server->config.logObjectBackend;
+    if(backend->unregisterLogObject)
+        backend->unregisterLogObject(server, backend->context, &entry->nodeId);
+    UA_NodeId_clear(&entry->nodeId);
+    UA_free(entry);
+}
+
+void
+logObjectTypeDestructor(UA_Server *server, const UA_NodeId *sessionId,
+                        void *sessionContext, const UA_NodeId *typeNodeId,
+                        void *typeNodeContext, const UA_NodeId *nodeId,
+                        void **nodeContext) {
+    UA_LogObjectEntry *entry = getLogObjectEntry(server, nodeId);
+    if(!entry || entry->isServerLog)
+        return;
+    removeLogObjectEntry(server, entry);
+}
+
+/* Write a Property of a LogObject. The Property is created if the
+ * instantiation of the type did not create the optional child. */
+static UA_StatusCode
+setLogObjectProperty(UA_Server *server, const UA_NodeId *logObjectId,
+                     char *name, void *value, const UA_DataType *type) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, name);
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_Variant_setScalar(&v, value, type);
+    UA_StatusCode res;
+    UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *logObjectId, 1, &qn);
+    if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0) {
+        res = writeValueAttribute(server, bpr.targets[0].targetId.nodeId, &v);
+    } else {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.displayName = UA_LOCALIZEDTEXT("", name);
+        attr.dataType = type->typeId;
+        attr.valueRank = UA_VALUERANK_SCALAR;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        attr.value = v;
+        res = addNode(server, UA_NODECLASS_VARIABLE,
+                      UA_NODEID_NUMERIC(logObjectId->namespaceIndex, 0),
+                      *logObjectId, UA_NS0ID(HASPROPERTY), qn,
+                      UA_NS0ID(PROPERTYTYPE), &attr,
+                      &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], NULL, NULL);
+    }
+    UA_BrowsePathResult_clear(&bpr);
+    return res;
+}
+
+/* Remove an optional Property if the instantiation created it */
+static void
+removeLogObjectProperty(UA_Server *server, const UA_NodeId *logObjectId, char *name) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, name);
+    UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *logObjectId, 1, &qn);
+    if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0)
+        deleteNode(server, bpr.targets[0].targetId.nodeId, true);
+    UA_BrowsePathResult_clear(&bpr);
+}
+
+UA_StatusCode
+UA_Server_addLogObject(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                       const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                       const UA_QualifiedName browseName,
+                       const UA_ObjectAttributes attr,
+                       const UA_LogObjectSettings settings, void *nodeContext,
+                       UA_NodeId *outNewNodeId) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(settings.maxRecords == 0 || settings.minimumSeverity < 1 ||
+       settings.minimumSeverity > 1000 || settings.maxStorageDuration < 0.0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(outNewNodeId)
+        UA_NodeId_init(outNewNodeId);
+
+    lockServer(server);
+    if(!server->config.logObjectsEnabled || !server->serverLog) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* Below the Logs Folder by default */
+    UA_NodeId parent = parentNodeId;
+    UA_NodeId refType = referenceTypeId;
+    if(UA_NodeId_isNull(&parent)) {
+        parent = UA_NS0ID(LOGS);
+        refType = UA_NS0ID(ORGANIZES);
+    }
+
+    /* Instantiate the LogObjectType. The GetRecords Method of the type is
+     * referenced automatically. */
+    UA_NodeId newId;
+    UA_NodeId_init(&newId);
+    UA_StatusCode res =
+        addNode(server, UA_NODECLASS_OBJECT, requestedNewNodeId, parent, refType,
+                browseName, UA_NS0ID(LOGOBJECTTYPE), &attr,
+                &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], nodeContext, &newId);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* Register the LogObject */
+    UA_LogObjectEntry *entry = (UA_LogObjectEntry*)
+        UA_calloc(1, sizeof(UA_LogObjectEntry));
+    if(!entry) {
+        deleteNode(server, newId, true);
+        UA_NodeId_clear(&newId);
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    entry->settings = settings;
+    res = UA_NodeId_copy(&newId, &entry->nodeId);
+    UA_LogObjectBackend *backend = &server->config.logObjectBackend;
+    if(res == UA_STATUSCODE_GOOD)
+        res = backend->registerLogObject(server, backend->context,
+                                         &entry->nodeId, &entry->settings);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&entry->nodeId);
+        UA_free(entry);
+        deleteNode(server, newId, true);
+        UA_NodeId_clear(&newId);
+        unlockServer(server);
+        return res;
+    }
+    LIST_INSERT_HEAD(&server->logObjects, entry, pointers);
+
+    /* Every LogObject is reachable from the Logs Folder (Part 26, 7.3) */
+    res = addRef(server, UA_NS0ID(LOGS), UA_NS0ID(ORGANIZES), newId, true);
+    if(res == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
+        res = UA_STATUSCODE_GOOD;
+
+    /* The optional ReleaseContinuationPoint Method of the type */
+    if(res == UA_STATUSCODE_GOOD) {
+        res = addRef(server, newId, UA_NS0ID(HASCOMPONENT),
+                     UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT), true);
+        if(res == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
+            res = UA_STATUSCODE_GOOD;
+    }
+
+    /* The Properties mirror the settings */
+    if(res == UA_STATUSCODE_GOOD)
+        res = setLogObjectProperty(server, &newId, "MaxRecords",
+                                   &entry->settings.maxRecords,
+                                   &UA_TYPES[UA_TYPES_UINT32]);
+    if(res == UA_STATUSCODE_GOOD)
+        res = setLogObjectProperty(server, &newId, "MinimumSeverity",
+                                   &entry->settings.minimumSeverity,
+                                   &UA_TYPES[UA_TYPES_UINT16]);
+    if(res == UA_STATUSCODE_GOOD) {
+        if(entry->settings.maxStorageDuration > 0.0)
+            res = setLogObjectProperty(server, &newId, "MaxStorageDuration",
+                                       &entry->settings.maxStorageDuration,
+                                       &UA_TYPES[UA_TYPES_DURATION]);
+        else
+            removeLogObjectProperty(server, &newId, "MaxStorageDuration");
+    }
+
+    if(res != UA_STATUSCODE_GOOD) {
+        removeLogObjectEntry(server, entry);
+        deleteNode(server, newId, true);
+        UA_NodeId_clear(&newId);
+        unlockServer(server);
+        return res;
+    }
+
+    if(outNewNodeId)
+        *outNewNodeId = newId;
+    else
+        UA_NodeId_clear(&newId);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeLogObject(UA_Server *server, const UA_NodeId logObjectId) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_LogObjectEntry *entry = getLogObjectEntry(server, &logObjectId);
+    if(!entry) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    if(entry->isServerLog) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    removeLogObjectEntry(server, entry);
+    UA_StatusCode res = deleteNode(server, logObjectId, true);
+    unlockServer(server);
+    return res;
+}
+
 /**********************/
 /* Capture the logger */
 /**********************/

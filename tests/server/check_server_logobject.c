@@ -976,6 +976,201 @@ START_TEST(overflowEvent) {
 } END_TEST
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
+
+/* --- Application LogObjects (Part 26, 7.3) --- */
+
+static UA_Boolean
+browseContains(const UA_NodeId source, UA_UInt32 referenceType,
+               UA_BrowseDirection direction, const UA_NodeId target) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = source;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceType);
+    bd.browseDirection = direction;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &target))
+            found = true;
+    }
+    UA_BrowseResult_clear(&br);
+    return found;
+}
+
+static UA_NodeId
+addApplicationLog(const char *name, const UA_LogObjectSettings settings) {
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)name);
+    UA_NodeId id;
+    UA_StatusCode res =
+        UA_Server_addLogObject(server, UA_NODEID_NULL, UA_NODEID_NULL, UA_NODEID_NULL,
+                               UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name), attr,
+                               settings, NULL, &id);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    return id;
+}
+
+static void
+addRecordTo(const UA_NodeId logObjectId, UA_UInt16 severity, const char *msg) {
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = severity;
+    r.message = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)msg);
+    UA_StatusCode res = UA_Server_addLogRecord(server, logObjectId, &r);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static size_t
+countRecords(const UA_NodeId logObjectId, const char *msg) {
+    UA_LogRecordsDataType results;
+    UA_ByteString cp;
+    UA_StatusCode res = callGetRecords(logObjectId, 0, 0, 0, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    size_t count = 0;
+    for(size_t i = 0; i < results.logRecordArraySize; i++) {
+        if(!msg || stringEquals(&results.logRecordArray[i].message.text, msg))
+            count++;
+    }
+    UA_LogRecordsDataType_clear(&results);
+    UA_ByteString_clear(&cp);
+    return count;
+}
+
+START_TEST(addLogObject) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+
+    /* Invalid settings */
+    UA_LogObjectSettings invalid = {0, 0.0, 1};
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    UA_StatusCode res =
+        UA_Server_addLogObject(server, UA_NODEID_NULL, UA_NODEID_NULL, UA_NODEID_NULL,
+                               UA_QUALIFIEDNAME(1, "Invalid"), attr, invalid, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_LogObjectSettings settings = {10, 0.0, 1};
+    UA_NodeId logId = addApplicationLog("ApplicationLog", settings);
+
+    /* Organized by the Logs Folder, an instance of the LogObjectType with
+     * the Methods of the type */
+    ck_assert(browseContains(UA_NS0ID(LOGS), UA_NS0ID_ORGANIZES,
+                             UA_BROWSEDIRECTION_FORWARD, logId));
+    ck_assert(browseContains(logId, UA_NS0ID_HASTYPEDEFINITION,
+                             UA_BROWSEDIRECTION_FORWARD, UA_NS0ID(LOGOBJECTTYPE)));
+    ck_assert(browseContains(logId, UA_NS0ID_HASCOMPONENT, UA_BROWSEDIRECTION_FORWARD,
+                             UA_NS0ID(LOGOBJECTTYPE_GETRECORDS)));
+    ck_assert(browseContains(logId, UA_NS0ID_HASCOMPONENT, UA_BROWSEDIRECTION_FORWARD,
+                             UA_NS0ID(LOGOBJECTTYPE_RELEASECONTINUATIONPOINT)));
+
+    /* The Properties mirror the settings, MaxStorageDuration is not exposed */
+    UA_Variant v;
+    res = UA_Server_readObjectProperty(server, logId, UA_QUALIFIEDNAME(0, "MaxRecords"), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)v.data, 10);
+    UA_Variant_clear(&v);
+    res = UA_Server_readObjectProperty(server, logId, UA_QUALIFIEDNAME(0, "MinimumSeverity"), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt16*)v.data, 1);
+    UA_Variant_clear(&v);
+    res = UA_Server_readObjectProperty(server, logId, UA_QUALIFIEDNAME(0, "MaxStorageDuration"), &v);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+
+    /* Records land in the LogObject and, per Part 26 7.2, in the ServerLog */
+    addRecordTo(logId, 300, "shared");
+    ck_assert_uint_eq(countRecords(logId, "shared"), 1);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "shared"), 1);
+
+    /* The MinimumSeverity of every LogObject applies on its own */
+    UA_LogObjectSettings strictSettings = {10, 0.0, 500};
+    UA_NodeId strictId = addApplicationLog("StrictLog", strictSettings);
+    addRecordTo(strictId, 300, "below strict");
+    ck_assert_uint_eq(countRecords(strictId, NULL), 0);
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "below strict"), 1);
+    addRecordTo(strictId, 600, "above strict");
+    ck_assert_uint_eq(countRecords(strictId, NULL), 1);
+
+    /* A parent other than the Logs Folder gets the Organizes reference from
+     * the Logs Folder as well, the optional duration Property is exposed */
+    UA_LogObjectSettings timed = {10, 5000.0, 1};
+    UA_NodeId placedId;
+    res = UA_Server_addLogObject(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                                 UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "PlacedLog"),
+                                 attr, timed, NULL, &placedId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(browseContains(UA_NS0ID(OBJECTSFOLDER), UA_NS0ID_ORGANIZES,
+                             UA_BROWSEDIRECTION_FORWARD, placedId));
+    ck_assert(browseContains(UA_NS0ID(LOGS), UA_NS0ID_ORGANIZES,
+                             UA_BROWSEDIRECTION_FORWARD, placedId));
+    res = UA_Server_readObjectProperty(server, placedId,
+                                       UA_QUALIFIEDNAME(0, "MaxStorageDuration"), &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(*(UA_Double*)v.data == 5000.0);
+    UA_Variant_clear(&v);
+
+    UA_NodeId_clear(&logId);
+    UA_NodeId_clear(&strictId);
+    UA_NodeId_clear(&placedId);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(removeLogObject) {
+    ServerOptions o = apiOnlyOptions();
+    server = newLogObjectServer(&o);
+    UA_LogObjectSettings settings = {10, 0.0, 1};
+    UA_NodeId logId = addApplicationLog("ApplicationLog", settings);
+    for(int i = 0; i < 6; i++)
+        addRecordTo(logId, 300, "record");
+
+    /* A continuation point on the LogObject */
+    UA_LogRecordsDataType results;
+    UA_ByteString cp, cp2;
+    UA_StatusCode res = callGetRecords(logId, 0, 0, 4, 1, 0x1F, NULL, &results, &cp);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cp.length, 16);
+    UA_LogRecordsDataType_clear(&results);
+
+    /* The continuation point belongs to the LogObject it was created on */
+    ck_assert_uint_eq(callReleaseContinuationPoint(UA_NS0ID(SERVERLOG), &cp),
+                      UA_STATUSCODE_BADCONTINUATIONPOINTINVALID);
+
+    /* The ServerLog cannot be removed */
+    ck_assert_uint_eq(UA_Server_removeLogObject(server, UA_NS0ID(SERVERLOG)),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Removing the LogObject deletes the node, unregisters it and releases
+     * its continuation points */
+    ck_assert_uint_eq(UA_Server_removeLogObject(server, logId), UA_STATUSCODE_GOOD);
+    UA_NodeClass nc;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server, logId, &nc),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 300;
+    r.message = UA_LOCALIZEDTEXT("", "late");
+    ck_assert_uint_eq(UA_Server_addLogRecord(server, logId, &r),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(UA_Server_removeLogObject(server, logId),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    res = callGetRecords(logId, 0, 0, 0, 0, 0, &cp, &results, &cp2);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&cp);
+
+    /* The ServerLog keeps the mirrored records */
+    ck_assert_uint_eq(countRecords(UA_NS0ID(SERVERLOG), "record"), 6);
+
+    /* Deleting the node with the NodeManagement API unregisters it as well */
+    UA_NodeId secondId = addApplicationLog("SecondLog", settings);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, secondId, true), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addLogRecord(server, secondId, &r),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    UA_NodeId_clear(&logId);
+    UA_NodeId_clear(&secondId);
+    UA_Server_delete(server);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("LogObjects");
 
@@ -1006,6 +1201,11 @@ int main(void) {
     tcase_add_test(tc_release, releaseContinuationPoint);
     tcase_add_test(tc_release, continuationPointsReleasedWithSession);
     suite_add_tcase(s, tc_release);
+
+    TCase *tc_app = tcase_create("Application LogObjects");
+    tcase_add_test(tc_app, addLogObject);
+    tcase_add_test(tc_app, removeLogObject);
+    suite_add_tcase(s, tc_app);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     TCase *tc_overflow = tcase_create("Overflow");

@@ -1899,6 +1899,31 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addLogRecord(UA_Server *server, const UA_NodeId logObjectId,
                        const UA_LogRecord *record);
+
+/* Add an application LogObject (an instance of the LogObjectType, Part 26 5.2).
+ * The GetRecords and ReleaseContinuationPoint Methods are wired, the
+ * MaxRecords, MinimumSeverity and (when settings.maxStorageDuration > 0) the
+ * MaxStorageDuration Properties are created from the settings and the
+ * LogObject is registered with the storage backend. Every LogObject is
+ * referenced from the Logs Folder (Part 26 7.3): with a null parentNodeId the
+ * Object is created below the Logs Folder (referenceTypeId is ignored),
+ * otherwise an additional Organizes reference from the Logs Folder is added.
+ * Deleting the node with UA_Server_deleteNode or UA_Server_removeLogObject
+ * unregisters the LogObject. Records are added with UA_Server_addLogRecord. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addLogObject(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                       const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                       const UA_QualifiedName browseName,
+                       const UA_ObjectAttributes attr,
+                       const UA_LogObjectSettings settings, void *nodeContext,
+                       UA_NodeId *outNewNodeId);
+
+/* Remove an application LogObject: the continuation points that refer to it
+ * are released in all Sessions, the LogObject is unregistered from the
+ * storage backend and the node is deleted with its children. The ServerLog
+ * cannot be removed (UA_STATUSCODE_BADINVALIDARGUMENT). */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeLogObject(UA_Server *server, const UA_NodeId logObjectId);
 #endif
 
 /**
