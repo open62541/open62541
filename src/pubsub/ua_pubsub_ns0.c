@@ -14,6 +14,16 @@
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
+static UA_StatusCode
+checkMethodArgumentCounts(size_t inputSize, size_t expectedInputSize,
+                          size_t outputSize, size_t expectedOutputSize) {
+    if(inputSize < expectedInputSize || outputSize < expectedOutputSize)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(inputSize > expectedInputSize || outputSize > expectedOutputSize)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+    return UA_STATUSCODE_GOOD;
+}
+
 typedef struct {
     UA_NodeId parentNodeId;
     UA_UInt32 parentClassifier;
@@ -764,7 +774,14 @@ addPubSubConnectionLocked(UA_Server *server,
                           size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0],
+                                 &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
     UA_PubSubConnectionDataType *pubSubConnection =
         (UA_PubSubConnectionDataType *) input[0].data;
 
@@ -876,7 +893,12 @@ removeConnectionAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 0);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     retVal |= UA_Server_removePubSubConnection(server, nodeToRemove);
     if(retVal == UA_STATUSCODE_BADNOTFOUND)
@@ -961,8 +983,18 @@ addDataSetReaderLocked(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0],
+                                 &UA_TYPES[UA_TYPES_DATASETREADERDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
+    if(!rg)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     if(rg->configurationFrozen) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader cannot be done because ReaderGroup config frozen");
@@ -1002,6 +1034,12 @@ removeDataSetReaderAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output){
+    UA_StatusCode res =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *)input[0].data);
     return UA_Server_removeDataSetReader(server, nodeToRemove);
 }
@@ -1017,7 +1055,12 @@ addDataSetFolderAction(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
     /* defined in R 1.04 9.1.4.5.7 */
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_String newFolderName = *((UA_String *) input[0].data);
     UA_NodeId generatedId;
     UA_ObjectAttributes objectAttributes = UA_ObjectAttributes_default;
@@ -1054,6 +1097,12 @@ removeDataSetFolderAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_deleteNode(server, nodeToRemove, true);
 }
@@ -1149,7 +1198,17 @@ addPublishedDataItemsAction(UA_Server *server,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output){
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 4, outputSize, 3);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) ||
+       !UA_Variant_hasArrayType(&input[1], &UA_TYPES[UA_TYPES_STRING]) ||
+       !UA_Variant_hasArrayType(&input[2],
+                                &UA_TYPES[UA_TYPES_DATASETFIELDFLAGS]) ||
+       !UA_Variant_hasArrayType(&input[3],
+                                &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     size_t fieldNameAliasesSize = input[1].arrayLength;
     UA_String * fieldNameAliases = (UA_String *) input[1].data;
     size_t fieldFlagsSize = input[2].arrayLength;
@@ -1225,6 +1284,12 @@ removePublishedDataSetAction(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output){
+    UA_StatusCode res =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_removePublishedDataSet(server, nodeToRemove);
 }
@@ -1520,7 +1585,13 @@ addWriterGroupAction(UA_Server *server,
                      size_t outputSize, UA_Variant *output){
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0],
+                                 &UA_TYPES[UA_TYPES_WRITERGROUPDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_WriterGroupDataType *writerGroup = ((UA_WriterGroupDataType *) input[0].data);
     UA_NodeId writerGroupId;
     retVal |= addWriterGroupConfig(server, *objectId, writerGroup, &writerGroupId);
@@ -1542,6 +1613,12 @@ removeGroupAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output){
+    UA_StatusCode res =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
     if(wg) {
@@ -1570,7 +1647,14 @@ addReserveIdsLocked(UA_Server *server,
                     size_t inputSize, const UA_Variant *input,
                     size_t outputSize, UA_Variant *output){
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 3, outputSize, 3);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) ||
+       !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_UINT16]) ||
+       !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_UINT16]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_String transportProfileUri = *((UA_String *)input[0].data);
     UA_UInt16 numRegWriterGroupIds = *((UA_UInt16 *)input[1].data);
     UA_UInt16 numRegDataSetWriterIds = *((UA_UInt16 *)input[2].data);
@@ -1667,7 +1751,13 @@ addReaderGroupAction(UA_Server *server,
                      size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0],
+                                 &UA_TYPES[UA_TYPES_READERGROUPDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_ReaderGroupDataType *readerGroup = ((UA_ReaderGroupDataType *) input->data);
     UA_NodeId readerGroupId;
     retVal |= addReaderGroupConfig(server, *objectId, readerGroup, &readerGroupId);
@@ -1884,7 +1974,13 @@ addDataSetWriterLocked(UA_Server *server,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+    if(!UA_Variant_hasScalarType(&input[0],
+                                 &UA_TYPES[UA_TYPES_DATASETWRITERDATATYPE]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, *objectId);
     if(!wg) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -1930,6 +2026,12 @@ removeDataSetWriterAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output){
+    UA_StatusCode res =
+        checkMethodArgumentCounts(inputSize, 1, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_removeDataSetWriter(server, nodeToRemove);
 }
@@ -2340,6 +2442,11 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
                                   size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(inputSize == 1) {
+        if(outputSize != 0)
+            return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+        if(!UA_Variant_hasScalarType(&input[0],
+                                     &UA_TYPES[UA_TYPES_BYTESTRING]))
+            return UA_STATUSCODE_BADTYPEMISMATCH;
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
         UA_StatusCode res = UA_PubSubManager_loadPubSubConfigFromByteString(server, *inputStr);
         return res;
@@ -2360,6 +2467,10 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
                                     size_t inputSize, const UA_Variant *input,
                                     size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_StatusCode res =
+        checkMethodArgumentCounts(inputSize, 0, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     UA_PubSubManager_delete(server, &server->pubSubManager);
     return UA_STATUSCODE_GOOD;
 }

@@ -13,6 +13,7 @@
 #include "pubsub_test_helpers.h"
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
 
 #include "check.h"
 #include "thread_wrapper.h"
@@ -1138,6 +1139,64 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_Client_delete(client);
 } END_TEST
 
+START_TEST(AddConnectionRejectsRemotelyReplacedInputArguments) {
+    UA_Client *client = UA_Client_new();
+    ck_assert_ptr_nonnull(client);
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode res =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Replace the method metadata with a one-element ByteString definition.
+     * The service layer then accepts the ByteString, but the built-in callback
+     * must still validate the concrete value before interpreting it. */
+    const UA_NodeId inputArgumentsId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION_INPUTARGUMENTS);
+    res = UA_Client_deleteNode(client, inputArgumentsId, true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    argument.name = UA_STRING("Configuration");
+    argument.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    argument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "InputArguments");
+    attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = 1;
+    attr.arrayDimensionsSize = 1;
+    attr.arrayDimensions = &arrayDimension;
+    UA_Variant_setArray(&attr.value, &argument, 1,
+                        &UA_TYPES[UA_TYPES_ARGUMENT]);
+
+    res = UA_Client_addVariableNode(
+        client, inputArgumentsId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "InputArguments"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), attr, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString bytes = UA_BYTESTRING("x");
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &bytes, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    res = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
+        1, &input, &outputSize, &output);
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADTYPEMISMATCH);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(AddandRemoveReaderGroup){
         UA_StatusCode retVal;
         UA_Client *client = UA_Client_new();
@@ -1384,6 +1443,8 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveNewPubSubConnectionWithWriterGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithWriterGroupAndDataSetWriter);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroupandDataSetReader);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection,
+                   AddConnectionRejectsRemotelyReplacedInputArguments);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, ReserveIdsMultipleTimes);
