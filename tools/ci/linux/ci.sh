@@ -881,6 +881,10 @@ function build_option_coverage {
                      -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF
     build_option_cfg "UA_ENABLE_LOGOBJECT full NS0" -DUA_ENABLE_LOGOBJECT=ON -DUA_NAMESPACE_ZERO=FULL
 
+    # Size-optimised namespace zero and single-threaded build
+    build_option_cfg "no UA_ENABLE_DATATYPES_ALL"    -DUA_ENABLE_DATATYPES_ALL=OFF
+    build_option_cfg "UA_MULTITHREADING=0"           -DUA_MULTITHREADING=0
+
     # On by default, so only ever compiled in the enabled state
     # The PubSub information model twin exposes methods, so it has to go as well
     build_option_cfg "no UA_ENABLE_METHODCALLS"    -DUA_ENABLE_METHODCALLS=OFF \

@@ -120,6 +120,7 @@ PARSE_JSON(UInt32Field) {
     *field = out;
     return retval;
 }
+#if UA_MULTITHREADING >= 100
 PARSE_JSON(UInt64Field) {
     cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -131,6 +132,7 @@ PARSE_JSON(UInt64Field) {
     *field = out;
     return retval;
 }
+#endif
 PARSE_JSON(Int32Field) {
     cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
