@@ -163,6 +163,12 @@ struct UA_ClientConfig {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
+    /* Verify that the server ApplicationInstanceCertificate permits serverAuth.
+     * All encrypted SecurityPolicies in this release use RSA and require the
+     * EKU extension. ABORT rejects invalid usage, DEFAULT and WARN log and
+     * continue, and ACCEPT continues silently. */
+    UA_RuleHandling certificateEkuRule;
+
     /* Available SecurityPolicies for Authentication. The policy defined by the
      * AccessControl is selected. If no policy is defined, the policy of the
      * secure channel is selected.*/

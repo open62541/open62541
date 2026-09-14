@@ -217,6 +217,11 @@ void processOPNResponse(UA_Client *client, const UA_ByteString *message);
 void closeSecureChannel(UA_Client *client);
 void cleanupSession(UA_Client *client);
 
+UA_StatusCode
+verifyServerCertificateEku(const UA_ClientConfig *config,
+                           const UA_SecurityPolicy *securityPolicy,
+                           const UA_ByteString *certificate);
+
 void
 Client_warnEndpointsResult(UA_Client *client,
                            const UA_GetEndpointsResponse *response,

@@ -1074,6 +1074,11 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
      * algorithm Security header */
     UA_ByteString appInstCert = getLeafCertificate(asymHeader->senderCertificate);
 
+    UA_StatusCode res = validateCertificateEku(server, securityPolicy,
+                                               &appInstCert, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Create the channel context and parse the sender (remote) certificate used
      * for the secureChannel. */
     return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);

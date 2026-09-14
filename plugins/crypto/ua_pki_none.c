@@ -34,3 +34,15 @@ void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
     cv->verifyApplicationURI = verifyApplicationURIAllowAll;
     cv->clear = clearVerifyAllowAll;
 }
+
+#if !defined(UA_ENABLE_ENCRYPTION_OPENSSL) && \
+    !defined(UA_ENABLE_ENCRYPTION_LIBRESSL) && \
+    !defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage) {
+    if(extendedKeyUsage)
+        *extendedKeyUsage = UA_CERTIFICATEEKU_NONE;
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+#endif

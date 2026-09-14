@@ -12,6 +12,32 @@
 
 #include "ua_server_internal.h"
 
+UA_StatusCode
+validateCertificateEku(UA_Server *server,
+                       const UA_SecurityPolicy *securityPolicy,
+                       const UA_ByteString *certificate,
+                       UA_Boolean applicationCertificate) {
+    if(!securityPolicy ||
+       UA_ByteString_equal(&securityPolicy->policyUri,
+                           &UA_SECURITY_POLICY_NONE_URI))
+        return UA_STATUSCODE_GOOD;
+
+    UA_StatusCode res = UA_CertificateUtils_checkExtendedKeyUsage(
+        certificate, UA_CERTIFICATEEKU_CLIENTAUTH, applicationCertificate);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+    if(res != UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED)
+        return res;
+
+    if(server->config.certificateEkuRule <= UA_RULEHANDLING_WARN) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The client certificate does not permit clientAuth");
+    }
+    if(server->config.certificateEkuRule == UA_RULEHANDLING_ABORT)
+        return res;
+    return UA_STATUSCODE_GOOD;
+}
+
 const UA_DataType *
 UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, server->config.customDataTypes);
@@ -420,4 +446,3 @@ const UA_ViewAttributes UA_ViewAttributes_default = {
     false,                  /* containsNoLoops */
     0                       /* eventNotifier */
 };
-

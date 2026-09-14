@@ -26,6 +26,13 @@ _UA_BEGIN_DECLS
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
+/* Check whether a certificate permits the requested extended key usage. If the
+ * EKU extension is optional, its absence is accepted. */
+UA_StatusCode
+UA_CertificateUtils_checkExtendedKeyUsage(const UA_ByteString *certificate,
+                                          UA_CertificateEku requestedUsage,
+                                          UA_Boolean ekuRequired);
+
 /* The message header of the OPC UA binary protocol is structured as follows:
  *
  * - MessageType (3 Byte)

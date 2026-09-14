@@ -1392,6 +1392,31 @@ createSessionAsync(UA_Client *client) {
     return res;
 }
 
+UA_StatusCode
+verifyServerCertificateEku(const UA_ClientConfig *config,
+                           const UA_SecurityPolicy *securityPolicy,
+                           const UA_ByteString *certificate) {
+    if(!securityPolicy ||
+       UA_ByteString_equal(&securityPolicy->policyUri,
+                           &UA_SECURITY_POLICY_NONE_URI))
+        return UA_STATUSCODE_GOOD;
+
+    UA_StatusCode res = UA_CertificateUtils_checkExtendedKeyUsage(
+        certificate, UA_CERTIFICATEEKU_SERVERAUTH, true);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+    if(res != UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED)
+        return res;
+
+    if(config->certificateEkuRule <= UA_RULEHANDLING_WARN) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The server certificate does not permit serverAuth");
+    }
+    if(config->certificateEkuRule == UA_RULEHANDLING_ABORT)
+        return res;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 initSecurityPolicy(UA_Client *client) {
     /* Find the SecurityPolicy */
@@ -1411,6 +1436,11 @@ initSecurityPolicy(UA_Client *client) {
     client->channel.securityMode = client->endpoint.securityMode;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
         client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+    UA_StatusCode res = verifyServerCertificateEku(
+        &client->config, sp, &client->endpoint.serverCertificate);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Instantiate the SecurityPolicy context with the remote certificate */
     return UA_SecureChannel_setSecurityPolicy(&client->channel, sp,

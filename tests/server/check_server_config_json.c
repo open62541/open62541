@@ -84,6 +84,23 @@ START_TEST(UpdateFromFile_ValidBuildInfo_StillWorks) {
     UA_ServerConfig_clean(&config);
 } END_TEST
 
+START_TEST(UpdateFromFile_CertificateEkuRule) {
+    const char *json = "{\"certificateEkuRule\":1}";
+    UA_ByteString jsonConfig = UA_STRING((char*)(uintptr_t)json);
+    jsonConfig.length = strlen(json);
+
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+    UA_StatusCode retval = UA_ServerConfig_setDefault(&config);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_ServerConfig_updateFromFile(&config, jsonConfig);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(config.certificateEkuRule, UA_RULEHANDLING_ABORT);
+
+    UA_ServerConfig_clean(&config);
+} END_TEST
+
 static Suite *testSuite_ServerConfigJson(void) {
     Suite *s = suite_create("Server config from JSON5 file");
 
@@ -91,6 +108,7 @@ static Suite *testSuite_ServerConfigJson(void) {
     tcase_add_test(tc, UpdateFromFile_MalformedNestedFieldName_NoCrash);
     tcase_add_test(tc, NewFromFile_MalformedNestedFieldName_NoCrash);
     tcase_add_test(tc, UpdateFromFile_ValidBuildInfo_StillWorks);
+    tcase_add_test(tc, UpdateFromFile_CertificateEkuRule);
     suite_add_tcase(s, tc);
 
     return s;

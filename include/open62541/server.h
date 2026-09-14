@@ -126,6 +126,12 @@ struct UA_ServerConfig {
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
 
+    /* Verify that client ApplicationInstanceCertificates permit clientAuth.
+     * User certificates may omit the EKU extension, but a present extension
+     * must permit clientAuth. ABORT rejects invalid usage, DEFAULT and WARN log
+     * and continue, and ACCEPT continues silently. */
+    UA_RuleHandling certificateEkuRule;
+
     /**
      * Custom Data Types
      * ^^^^^^^^^^^^^^^^^

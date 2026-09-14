@@ -848,6 +848,12 @@ UA_StatusCode
 UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
                                   const UA_LocalizedText *value);
 
+UA_StatusCode
+validateCertificateEku(UA_Server *server,
+                       const UA_SecurityPolicy *securityPolicy,
+                       const UA_ByteString *certificate,
+                       UA_Boolean applicationCertificate);
+
 _UA_END_DECLS
 
 #endif /* UA_SERVER_INTERNAL_H_ */

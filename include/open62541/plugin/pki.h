@@ -63,6 +63,22 @@ struct UA_CertificateVerification {
     const UA_Logger *logging;
 };
 
+/* Extended key usages are a set. A value of UA_CERTIFICATEEKU_NONE means that
+ * the certificate does not contain an Extended Key Usage extension. The
+ * UA_CERTIFICATEEKU_OTHER flag is set if the extension contains at least one
+ * purpose that is not represented by the other flags. */
+typedef enum {
+    UA_CERTIFICATEEKU_NONE       = 0,
+    UA_CERTIFICATEEKU_SERVERAUTH = 1 << 0,
+    UA_CERTIFICATEEKU_CLIENTAUTH = 1 << 1,
+    UA_CERTIFICATEEKU_ANY        = 1 << 2,
+    UA_CERTIFICATEEKU_OTHER      = 1 << 3
+} UA_CertificateEku;
+
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage);
+
 /* Decrypt a private key in PEM format using a password. The output is the key
  * in the binary DER format. Also succeeds if the PEM private key does not
  * require a password or is already in the DER format. The outDerKey memory is

@@ -759,6 +759,43 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 #endif
 
 UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage) {
+    if(!certificate || !extendedKeyUsage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *extendedKeyUsage = UA_CERTIFICATEEKU_NONE;
+    UA_ByteString certData = copyDataFormatAware(certificate);
+    if(certificate->length > 0 && certData.length == 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    int err = mbedtls_x509_crt_parse(&cert, certData.data, certData.length);
+    UA_ByteString_clear(&certData);
+    if(err != 0) {
+        mbedtls_x509_crt_free(&cert);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    for(mbedtls_x509_sequence *eku = &cert.ext_key_usage;
+        eku && eku->buf.p; eku = eku->next) {
+        UA_CertificateEku purpose = UA_CERTIFICATEEKU_OTHER;
+        if(MBEDTLS_OID_CMP(MBEDTLS_OID_SERVER_AUTH, &eku->buf) == 0)
+            purpose = UA_CERTIFICATEEKU_SERVERAUTH;
+        else if(MBEDTLS_OID_CMP(MBEDTLS_OID_CLIENT_AUTH, &eku->buf) == 0)
+            purpose = UA_CERTIFICATEEKU_CLIENTAUTH;
+        else if(MBEDTLS_OID_CMP(MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE,
+                                &eku->buf) == 0)
+            purpose = UA_CERTIFICATEEKU_ANY;
+        *extendedKeyUsage = (UA_CertificateEku)(*extendedKeyUsage | purpose);
+    }
+
+    mbedtls_x509_crt_free(&cert);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
                          const UA_ByteString password,
                          UA_ByteString *outDerKey) {

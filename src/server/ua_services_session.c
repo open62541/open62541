@@ -667,10 +667,18 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     if(UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI))
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
+    /* User certificates may omit EKU, but a present extension must permit
+     * clientAuth. */
+    UA_StatusCode res = validateCertificateEku(server, sp,
+                                               &token->certificateData, false);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* We need a channel context with the user certificate in order to reuse
      * the signature checking code. */
     void *tempChannelContext;
-    UA_StatusCode res = sp->channelModule. newContext(sp, &token->certificateData, &tempChannelContext);
+    res = sp->channelModule.newContext(sp, &token->certificateData,
+                                       &tempChannelContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to create a context "
