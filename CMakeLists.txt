@@ -1432,7 +1432,11 @@ else()
     endif()
 
     if(UA_ENABLE_DRIVER_LOGOBJECT)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.LogObjectMinimal.xml)
         list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_logobject.txt)
+        if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+            list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.LogObjectEventsMinimal.xml)
+        endif()
     endif()
 
     if(UA_ENABLE_HISTORIZING)
