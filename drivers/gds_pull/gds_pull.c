@@ -33,6 +33,7 @@
 #define UA_GDSPULL_FINISH_REPEAT 2
 #define UA_GDSPULL_FINISH_RETRY_MS 1000
 #define UA_GDSPULL_TRUSTLIST_CHUNK 16384
+#define UA_GDSPULL_TRUSTLIST_MAX (8 * 1024 * 1024)
 
 /* Externally supplied information that PullManagement needs and that cannot be
  * derived. */
@@ -257,6 +258,70 @@ UA_GDSPull_addPendingRequest(UA_GDSPullContext *ctx, const UA_NodeId *requestId,
     return UA_STATUSCODE_GOOD;
 }
 
+#define UA_GDSPULL_THUMBPRINT_LENGTH 40
+
+static UA_Boolean
+UA_GDSPull_sameCertificate(UA_ByteString *a, UA_ByteString *b) {
+    if(a->length == 0 || b->length == 0)
+        return false;
+    if(UA_ByteString_equal(a, b))
+        return true;
+
+    UA_Byte bufA[UA_GDSPULL_THUMBPRINT_LENGTH];
+    UA_Byte bufB[UA_GDSPULL_THUMBPRINT_LENGTH];
+    UA_String thumbA = {UA_GDSPULL_THUMBPRINT_LENGTH, bufA};
+    UA_String thumbB = {UA_GDSPULL_THUMBPRINT_LENGTH, bufB};
+    if(UA_CertificateUtils_getThumbprint(a, &thumbA) != UA_STATUSCODE_GOOD ||
+       UA_CertificateUtils_getThumbprint(b, &thumbB) != UA_STATUSCODE_GOOD)
+        return false;
+    return UA_String_equal(&thumbA, &thumbB);
+}
+
+static UA_Boolean
+UA_GDSPull_identityIsCertificateType(UA_GDSPullContext *ctx, UA_ServerConfig *sc,
+                                     const UA_NodeId *certificateTypeId) {
+    for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &sc->securityPolicies[i];
+        if(UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
+           UA_GDSPull_sameCertificate(&sp->localCertificate, &ctx->certificate))
+            return true;
+    }
+    return false;
+}
+
+static void
+UA_GDSPull_updateClientIdentity(UA_GDSPullContext *ctx,
+                                const UA_ByteString certificate,
+                                const UA_ByteString privateKey) {
+    UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_ByteString_copy(&certificate, &newCertificate);
+    if(res == UA_STATUSCODE_GOOD && privateKey.length > 0)
+        res = UA_ByteString_copy(&privateKey, &newPrivateKey);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&newCertificate);
+        UA_ByteString_clear(&newPrivateKey);
+        UA_LOG_WARNING(UA_Server_getConfig(ctx->drv.server)->logging,
+                       UA_LOGCATEGORY_CLIENT,
+                       "The renewed certificate could not be taken over as the "
+                       "identity for the CertificateManager connection");
+        return;
+    }
+
+    UA_ByteString_clear(&ctx->certificate);
+    ctx->certificate = newCertificate;
+    if(newPrivateKey.length > 0) {
+        UA_ByteString_memZero(&ctx->privateKey);
+        UA_ByteString_clear(&ctx->privateKey);
+        ctx->privateKey = newPrivateKey;
+    }
+
+    UA_LOG_INFO(UA_Server_getConfig(ctx->drv.server)->logging,
+                UA_LOGCATEGORY_CLIENT,
+                "The renewed certificate is now also the identity used to "
+                "connect to the CertificateManager");
+}
+
 static UA_StatusCode
 UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
                                    const UA_GDSPullPendingRequest *pending,
@@ -297,8 +362,14 @@ UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
                            pending->certificateGroupId, UA_StatusCode_name(res));
     }
 
-    return UA_GDS_applyCertificateToPolicies(sc, &pending->certificateTypeId,
-                                             certificate, privateKey);
+    UA_Boolean renewsIdentity = UA_GDSPull_identityIsCertificateType(
+        ctx, sc, &pending->certificateTypeId);
+
+    UA_StatusCode res = UA_GDS_applyCertificateToPolicies(
+        sc, &pending->certificateTypeId, certificate, privateKey);
+    if(res == UA_STATUSCODE_GOOD && renewsIdentity)
+        UA_GDSPull_updateClientIdentity(ctx, certificate, privateKey);
+    return res;
 }
 
 /* Defined below. The dispatch loop is cyclic: a workflow step schedules this
@@ -353,6 +424,20 @@ UA_GDSPull_workflowStepReadNamespaces(UA_Client *client,
     return UA_GDSPull_scheduleDispatch(ctx, 0);
 }
 
+static UA_Boolean
+UA_GDSPull_requestIsGone(UA_StatusCode res) {
+    switch(res) {
+    case UA_STATUSCODE_BADINVALIDARGUMENT:
+    case UA_STATUSCODE_BADNODEIDINVALID:
+    case UA_STATUSCODE_BADNODEIDUNKNOWN:
+    case UA_STATUSCODE_BADNOTFOUND:
+    case UA_STATUSCODE_BADUSERACCESSDENIED:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static void
 UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                                  UA_UInt32 requestId, UA_CallResponse *cr) {
@@ -381,13 +466,19 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
         if(!retry)
             ctx->pendingRequestIndex++;
     } else if(res != UA_STATUSCODE_GOOD) {
-        /* Any other Bad result means the request is gone. A fresh one is
-         * started in the next cycle. */
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
-                       "FinishRequest failed (%s). The signing request is "
-                       "discarded.",
-                       UA_StatusCode_name(res));
-        UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex);
+        if(UA_GDSPull_requestIsGone(res)) {
+            UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                           "FinishRequest failed (%s). The signing request is "
+                           "discarded.",
+                           UA_StatusCode_name(res));
+            UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex);
+        } else {
+            UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
+                           "FinishRequest did not complete (%s). The signing "
+                           "request is kept for the next cycle.",
+                           UA_StatusCode_name(res));
+            ctx->pendingRequestIndex++;
+        }
     } else {
         UA_ByteString certificate = UA_GDSPull_byteStringOutput(result, 0);
         UA_ByteString privateKey = UA_GDSPull_byteStringOutput(result, 1);
@@ -1254,8 +1345,10 @@ static UA_StatusCode
 UA_GDSPull_appendTrustListChunk(UA_GDSPullContext *ctx,
                                 const UA_ByteString *chunk) {
     UA_UInt32 maxSize = UA_Server_getConfig(ctx->drv.server)->maxTrustListSize;
+    if(maxSize == 0 || maxSize > UA_GDSPULL_TRUSTLIST_MAX)
+        maxSize = UA_GDSPULL_TRUSTLIST_MAX;
     size_t newLength = ctx->trustList.data.length + chunk->length;
-    if(maxSize != 0 && newLength > maxSize)
+    if(newLength > maxSize)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
     UA_Byte *grown = (UA_Byte *)UA_realloc(ctx->trustList.data.data, newLength);
@@ -1606,9 +1699,23 @@ UA_GDSPull_finalizeClientConfig(UA_ClientConfig *cc, UA_GDSPullContext *ctx) {
 }
 
 static UA_StatusCode
+UA_GDSPull_privateKeyPasswordCallback(UA_ClientConfig *cc,
+                                      UA_ByteString *password) {
+    UA_GDSPullContext *ctx = (UA_GDSPullContext *)cc->clientContext;
+    UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+    if(!sc->privateKeyPasswordCallback)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return sc->privateKeyPasswordCallback(sc, password);
+}
+
+static UA_StatusCode
 UA_GDSPull_createClientConfigWithEncryption(UA_ClientConfig *cc,
-                                            const UA_GDSPullContext *ctx) {
+                                            UA_GDSPullContext *ctx) {
     memset(cc, 0, sizeof(UA_ClientConfig));
+
+    cc->clientContext = ctx;
+    cc->privateKeyPasswordCallback = UA_GDSPull_privateKeyPasswordCallback;
+
     return UA_ClientConfig_setDefaultEncryption(
         cc, ctx->certificate, ctx->privateKey, NULL, 0, NULL, 0);
 }
@@ -1616,6 +1723,14 @@ UA_GDSPull_createClientConfigWithEncryption(UA_ClientConfig *cc,
 static UA_StatusCode
 UA_GDSPull_includeServerDefaultApplicationGroupTrustList(UA_ClientConfig *cc,
                                                          UA_ServerConfig *sc) {
+    if(!sc->secureChannelPKI.getTrustList) {
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
+                       "The CertificateGroup of the DefaultApplicationGroup does "
+                       "not expose its TrustList. The CertificateManager cannot "
+                       "be authenticated.");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     UA_TrustListDataType list;
     UA_TrustListDataType_init(&list);
     list.specifiedLists = UA_TRUSTLISTMASKS_ALL;
@@ -1631,9 +1746,6 @@ UA_GDSPull_includeServerDefaultApplicationGroupTrustList(UA_ClientConfig *cc,
     res = UA_CertificateGroup_Memorystore(&cc->certificateVerification,
                                           &groupId, &list, sc->logging, NULL);
     UA_TrustListDataType_clear(&list);
-    if(res != UA_STATUSCODE_GOOD)
-        UA_ClientConfig_clear(cc);
-
     return res;
 }
 
@@ -1642,12 +1754,16 @@ buildClientConfig(UA_ClientConfig *cc, UA_GDSPullContext *ctx) {
     UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
 
     UA_StatusCode res = UA_GDSPull_createClientConfigWithEncryption(cc, ctx);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ClientConfig_clear(cc);
         return res;
+    }
 
     res = UA_GDSPull_includeServerDefaultApplicationGroupTrustList(cc, sc);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ClientConfig_clear(cc);
         return res;
+    }
 
     UA_GDSPull_removeOldEventLoop(cc);
     UA_GDSPull_mergeIntoServerEventLoop(cc, sc);
