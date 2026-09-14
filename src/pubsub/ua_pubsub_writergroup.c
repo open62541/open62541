@@ -842,10 +842,11 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Add the overhead for the security signature.
-     * There is no padding and the encryption incurs no size overhead. */
+     * There is no padding and the encryption incurs no size overhead. Use the
+     * same WriterGroup context as the signing operation below. */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
-        msgSize += sp->getSignatureSize(sp, sp->policyContext);
+        msgSize += sp->getSignatureSize(sp, wg->securityPolicyContext);
     }
 
     UA_ConnectionManager *cm = connection->cm;
@@ -1433,8 +1434,9 @@ UA_Server_triggerWriterGroupPublish(UA_Server *server,
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    unlockServer(server);
+    /* Keep the WriterGroup alive until publishing has completed */
     UA_WriterGroup_publishCallback(psm, wg);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
