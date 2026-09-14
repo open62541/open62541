@@ -122,6 +122,62 @@ START_TEST(splitCreation) {
 }
 END_TEST
 
+START_TEST(conditionRefresh_replacedInputArguments) {
+    UA_NodeId condition = UA_NODEID_NULL;
+    UA_StatusCode retval = UA_Server_createCondition(
+        server_ac, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        UA_QUALIFIEDNAME(0, "Condition refresh validation"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODEID_NULL, &condition);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    const UA_NodeId inputArgumentsId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH_INPUTARGUMENTS);
+    retval = UA_Server_deleteNode(server_ac, inputArgumentsId, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    argument.name = UA_STRING("SubscriptionId");
+    argument.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    argument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "InputArguments");
+    attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = 1;
+    attr.arrayDimensionsSize = 1;
+    attr.arrayDimensions = &arrayDimension;
+    UA_Variant_setArray(&attr.value, &argument, 1,
+                        &UA_TYPES[UA_TYPES_ARGUMENT]);
+
+    retval = UA_Server_addVariableNode(
+        server_ac, inputArgumentsId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "InputArguments"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Boolean value = true;
+    UA_Variant_setScalar(&input, &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    request.methodId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+
+    UA_CallMethodResult result = UA_Server_call(server_ac, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_CallMethodResult_clear(&result);
+}
+END_TEST
+
 #endif
 
 int main(void) {
@@ -131,6 +187,7 @@ int main(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     tcase_add_test(tc_call, createDelete);
     tcase_add_test(tc_call, splitCreation);
+    tcase_add_test(tc_call, conditionRefresh_replacedInputArguments);
 #endif
     tcase_add_checked_fixture(tc_call, setup, teardown);
 
