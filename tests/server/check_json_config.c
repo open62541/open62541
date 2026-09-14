@@ -24,6 +24,8 @@ START_TEST(UA_new_server_from_json) {
     UA_Server *server = UA_Server_newFromFile(json_config);
 
     ck_assert_ptr_ne(server, NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert_uint_eq(config->certificateEkuRule, UA_RULEHANDLING_WARN);
     UA_ByteString_clear(&json_config);
     UA_Server_delete(server);
 }
