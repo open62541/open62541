@@ -942,6 +942,55 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage) {
+    if(!certificate || !extendedKeyUsage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *extendedKeyUsage = UA_CERTIFICATEEKU_NONE;
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!cert)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    int critical = -1;
+    EXTENDED_KEY_USAGE *eku = (EXTENDED_KEY_USAGE*)
+        X509_get_ext_d2i(cert, NID_ext_key_usage, &critical, NULL);
+    if(!eku) {
+        X509_free(cert);
+        /* -1 means that the extension is absent. Other values indicate an
+         * invalid or duplicate extension. */
+        return (critical == -1) ? UA_STATUSCODE_GOOD :
+            UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+
+    for(int i = 0; i < sk_ASN1_OBJECT_num(eku); i++) {
+        ASN1_OBJECT *purpose = sk_ASN1_OBJECT_value(eku, i);
+        switch(OBJ_obj2nid(purpose)) {
+        case NID_server_auth:
+            *extendedKeyUsage = (UA_CertificateEku)
+                (*extendedKeyUsage | UA_CERTIFICATEEKU_SERVERAUTH);
+            break;
+        case NID_client_auth:
+            *extendedKeyUsage = (UA_CertificateEku)
+                (*extendedKeyUsage | UA_CERTIFICATEEKU_CLIENTAUTH);
+            break;
+        case NID_anyExtendedKeyUsage:
+            *extendedKeyUsage = (UA_CertificateEku)
+                (*extendedKeyUsage | UA_CERTIFICATEEKU_ANY);
+            break;
+        default:
+            *extendedKeyUsage = (UA_CertificateEku)
+                (*extendedKeyUsage | UA_CERTIFICATEEKU_OTHER);
+            break;
+        }
+    }
+
+    EXTENDED_KEY_USAGE_free(eku);
+    X509_free(cert);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2) {
     if(certificate1 == NULL || certificate2 == NULL)
