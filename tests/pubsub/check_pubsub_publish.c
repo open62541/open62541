@@ -539,7 +539,7 @@ START_TEST(DataSetWriterResizesSamplesAfterFieldAddition) {
 
     setupDataSetFieldTestEnvironment();
     UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
-    ck_assert_ptr_nonnull(dsw);
+    ck_assert_ptr_ne(dsw, NULL);
     dsw->config.keyFrameCount = 10;
 
     UA_DataSetMessage message;
