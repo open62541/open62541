@@ -1114,6 +1114,8 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         const UA_Byte *end = &networkMessage->securityHeader.messageNonce[8];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
         networkMessage->securityHeader.messageNonceSize = 8;
+        /* Part of the MessageNonce that makes it unique for a given key */
+        wg->nonceSequenceNumber++;
     }
 #endif
 

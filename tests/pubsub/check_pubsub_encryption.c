@@ -23,12 +23,22 @@
 UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
 UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+static size_t generatedNonces;
+
+static UA_StatusCode
+generateRepeatedNonce(void *policyContext, UA_ByteString *out) {
+    (void)policyContext;
+    memset(out->data, 0, out->length);
+    generatedNonces++;
+    return UA_STATUSCODE_GOOD;
+}
 
 UA_Server *server = NULL;
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
 
 static void setup(void) {
+    generatedNonces = 0;
     server = UA_Server_new();
     ck_assert(server != NULL);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -122,8 +132,15 @@ START_TEST(SinglePublishDataSetField) {
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
 
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup3);
+    ck_assert_ptr_nonnull(wg);
+    config->pubSubConfig.securityPolicies[0].symmetricModule.generateNonce =
+        generateRepeatedNonce;
+    ck_assert_uint_eq(wg->nonceSequenceNumber, 1);
     UA_WriterGroup_publishCallback(server, wg);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(wg->nonceSequenceNumber, 2);
+    UA_WriterGroup_publishCallback(server, wg);
+    ck_assert_uint_eq(wg->nonceSequenceNumber, 3);
+    ck_assert_uint_eq(generatedNonces, 2);
 } END_TEST
 
 int main(void) {
