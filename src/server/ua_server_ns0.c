@@ -679,6 +679,14 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
                    void *objectContext, size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
+    /* The argument metadata is mutable through the information model. Validate
+     * the actual callback arguments before accessing them. */
+    if(inputSize != 1 ||
+       !UA_Variant_hasScalarType(input, &UA_TYPES[UA_TYPES_UINT32]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(outputSize != 2)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Return two empty arrays by default */
     UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
                         0, &UA_TYPES[UA_TYPES_UINT32]);
@@ -693,11 +701,6 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(inputSize == 0 || !input[0].data) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    }
-
     /* Get the Subscription */
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Subscription *subscription = getSubscriptionById(server, subscriptionId);
