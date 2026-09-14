@@ -7,6 +7,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020-2022 Thomas Fischer, Siemens AG
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_ns0.h"
@@ -518,6 +519,16 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
 
     const UA_TargetVariablesDataType *targetVars =
         (UA_TargetVariablesDataType*)eoTargetVar->content.decoded.data;
+
+    /* The target-variable array is indexed together with the metadata fields. */
+    if(targetVars->targetVariablesSize > pMetaData->fieldsSize) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "AddSubscribedVariables: targetVariablesSize (%u) exceeds "
+                     "DataSetMetaData fieldsSize (%u)",
+                     (unsigned)targetVars->targetVariablesSize,
+                     (unsigned)pMetaData->fieldsSize);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     UA_NodeId folderId;
     UA_String folderName = pMetaData->name;
