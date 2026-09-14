@@ -1404,12 +1404,12 @@ else()
         endif()
     endif()
 
-    if(UA_ENABLE_SUBSCRIPTIONS)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
-    endif()
+    # The client subscription API is compiled even without server subscriptions.
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
 
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.EventsMinimal.xml)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_events.txt)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
@@ -1431,9 +1431,9 @@ else()
     list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Part8_Subset.xml)
 
-    if(UA_ENABLE_TYPEDESCRIPTION)
-        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
-    endif()
+    # Remote DataType discovery in the client also needs these types when the
+    # optional type and member names (UA_ENABLE_TYPEDESCRIPTION) are disabled.
+    list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
 endif()
 
 set(UA_NS0_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
