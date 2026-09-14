@@ -1106,7 +1106,7 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVER_REQUESTSERVERSTATECHANGE), true);
     deleteNode(server, UA_NS0ID(SERVER_SETSUBSCRIPTIONDURABLE), true);
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP), true);
-#ifdef UA_NS0ID_SERVERLOG
+#if defined(UA_NS0ID_SERVERLOG) && !defined(UA_ENABLE_LOGOBJECT)
     deleteNode(server, UA_NS0ID(SERVERLOG), true);
 #endif
 #ifdef UA_NS0ID_LLDP

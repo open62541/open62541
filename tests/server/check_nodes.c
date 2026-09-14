@@ -408,6 +408,178 @@ START_TEST(argumentDescriptionSubtypeHierarchy) {
 
 #endif /* UA_GENERATED_NAMESPACE_ZERO */
 
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_LOGOBJECT)
+
+/* --- OPC UA Part 26 LogObject nodes --- */
+
+static void
+assertNode(UA_UInt32 identifier, UA_NodeClass expectedClass, char *expectedName) {
+    UA_NodeId id = UA_NODEID_NUMERIC(0, identifier);
+    UA_NodeClass nc = UA_NODECLASS_UNSPECIFIED;
+    UA_StatusCode retval = UA_Server_readNodeClass(server, id, &nc);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Node i=%u is missing",
+                  (unsigned)identifier);
+    ck_assert_uint_eq(nc, expectedClass);
+    UA_QualifiedName bn;
+    retval = UA_Server_readBrowseName(server, id, &bn);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_QualifiedName expected = UA_QUALIFIEDNAME(0, expectedName);
+    ck_assert(UA_QualifiedName_equal(&bn, &expected));
+    UA_QualifiedName_clear(&bn);
+}
+
+/* Browse the references of one type and direction and expect the target */
+static void
+assertReference(UA_UInt32 source, UA_UInt32 referenceType,
+                UA_BrowseDirection direction, UA_UInt32 expectedTarget) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, source);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceType);
+    bd.includeSubtypes = false;
+    bd.browseDirection = direction;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    UA_NodeId expected = UA_NODEID_NUMERIC(0, expectedTarget);
+    UA_Boolean found = false;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &expected))
+            found = true;
+    }
+    ck_assert_msg(found, "Reference i=%u -> i=%u is missing",
+                  (unsigned)source, (unsigned)expectedTarget);
+    UA_BrowseResult_clear(&br);
+}
+
+/* LogObjectType (i=19352), its well-known ServerLog instance (i=19372) and the
+ * Logs Folder (i=19378) below Server/Resources are defined in OPC 10000-26,
+ * 5.2, 7.2 and 7.3. */
+START_TEST(logObjectNodes) {
+    assertNode(UA_NS0ID_LOGOBJECTTYPE, UA_NODECLASS_OBJECTTYPE, "LogObjectType");
+    assertNode(UA_NS0ID_LOGOBJECTTYPE_GETRECORDS, UA_NODECLASS_METHOD, "GetRecords");
+    assertNode(UA_NS0ID_LOGOBJECTTYPE_RELEASECONTINUATIONPOINT, UA_NODECLASS_METHOD,
+               "ReleaseContinuationPoint");
+    assertNode(UA_NS0ID_LOGOBJECTTYPE_MAXRECORDS, UA_NODECLASS_VARIABLE, "MaxRecords");
+    assertNode(UA_NS0ID_LOGOBJECTTYPE_MAXSTORAGEDURATION, UA_NODECLASS_VARIABLE,
+               "MaxStorageDuration");
+    assertNode(UA_NS0ID_LOGOBJECTTYPE_MINIMUMSEVERITY, UA_NODECLASS_VARIABLE,
+               "MinimumSeverity");
+    assertNode(UA_NS0ID_SERVERLOG, UA_NODECLASS_OBJECT, "ServerLog");
+    assertNode(UA_NS0ID_SERVERLOG_GETRECORDS, UA_NODECLASS_METHOD, "GetRecords");
+    assertNode(UA_NS0ID_RESOURCES, UA_NODECLASS_OBJECT, "Resources");
+    assertNode(UA_NS0ID_LOGS, UA_NODECLASS_OBJECT, "Logs");
+    assertNode(UA_NS0ID_SERVERCAPABILITIESTYPE_MAXLOGOBJECTCONTINUATIONPOINTS,
+               UA_NODECLASS_VARIABLE, "MaxLogObjectContinuationPoints");
+
+    /* The type hierarchy and the well-known instances (OPC 10000-26, Figure 7) */
+    assertReference(UA_NS0ID_LOGOBJECTTYPE, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_BASEOBJECTTYPE);
+    assertReference(UA_NS0ID_SERVERLOG, UA_NS0ID_HASTYPEDEFINITION,
+                    UA_BROWSEDIRECTION_FORWARD, UA_NS0ID_LOGOBJECTTYPE);
+    assertReference(UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT,
+                    UA_BROWSEDIRECTION_FORWARD, UA_NS0ID_SERVERLOG);
+    assertReference(UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT,
+                    UA_BROWSEDIRECTION_FORWARD, UA_NS0ID_RESOURCES);
+    assertReference(UA_NS0ID_RESOURCES, UA_NS0ID_ORGANIZES,
+                    UA_BROWSEDIRECTION_FORWARD, UA_NS0ID_LOGS);
+    assertReference(UA_NS0ID_LOGS, UA_NS0ID_HASTYPEDEFINITION,
+                    UA_BROWSEDIRECTION_FORWARD, UA_NS0ID_FOLDERTYPE);
+} END_TEST
+
+/* The DataTypes of OPC 10000-26, 5.5 - 5.10 and the matching entries of the
+ * generated type array */
+START_TEST(logObjectDataTypeNodes) {
+    assertNode(UA_NS0ID_LOGRECORD, UA_NODECLASS_DATATYPE, "LogRecord");
+    assertNode(UA_NS0ID_LOGRECORDSDATATYPE, UA_NODECLASS_DATATYPE, "LogRecordsDataType");
+    assertNode(UA_NS0ID_SPANCONTEXTDATATYPE, UA_NODECLASS_DATATYPE, "SpanContextDataType");
+    assertNode(UA_NS0ID_TRACECONTEXTDATATYPE, UA_NODECLASS_DATATYPE, "TraceContextDataType");
+    assertNode(UA_NS0ID_NAMEVALUEPAIR, UA_NODECLASS_DATATYPE, "NameValuePair");
+    assertNode(UA_NS0ID_LOGRECORDMASK, UA_NODECLASS_DATATYPE, "LogRecordMask");
+    assertNode(UA_NS0ID_LOGRECORDMASK_OPTIONSETVALUES, UA_NODECLASS_VARIABLE,
+               "OptionSetValues");
+
+    assertReference(UA_NS0ID_LOGRECORD, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_STRUCTURE);
+    assertReference(UA_NS0ID_TRACECONTEXTDATATYPE, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_SPANCONTEXTDATATYPE);
+    assertReference(UA_NS0ID_LOGRECORDMASK, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_UINT32);
+
+    UA_NodeId logRecordId = UA_NS0ID(LOGRECORD);
+    UA_NodeId binaryEncodingId = UA_NS0ID(LOGRECORD_ENCODING_DEFAULTBINARY);
+    ck_assert(UA_NodeId_equal(&UA_TYPES[UA_TYPES_LOGRECORD].typeId, &logRecordId));
+    ck_assert(UA_NodeId_equal(&UA_TYPES[UA_TYPES_LOGRECORD].binaryEncodingId,
+                              &binaryEncodingId));
+    ck_assert_uint_eq(UA_TYPES[UA_TYPES_LOGRECORD].typeKind, UA_DATATYPEKIND_OPTSTRUCT);
+} END_TEST
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+/* The DataTypeDefinition attribute of LogRecord (i=19361) reflects the five
+ * optional fields of OPC 10000-26, Table 8 */
+START_TEST(logRecordDataTypeDefinition) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NS0ID(LOGRECORD);
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&dv.value, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]));
+    UA_StructureDefinition *sd = (UA_StructureDefinition*)dv.value.data;
+    ck_assert_uint_eq(sd->structureType, UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS);
+    ck_assert_uint_eq(sd->fieldsSize, 8);
+    const UA_Boolean optional[8] = {false, false, true, true, true, false, true, true};
+    for(size_t i = 0; i < 8; i++)
+        ck_assert_uint_eq(sd->fields[i].isOptional, optional[i]);
+    UA_NodeId encodingId = UA_NS0ID(LOGRECORD_ENCODING_DEFAULTBINARY);
+    ck_assert(UA_NodeId_equal(&sd->defaultEncodingId, &encodingId));
+    UA_DataValue_clear(&dv);
+} END_TEST
+#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* The EventTypes and the ConditionClass of OPC 10000-26, 6.3 - 6.5 */
+START_TEST(logObjectEventTypeNodes) {
+    assertNode(UA_NS0ID_BASECONDITIONCLASSTYPE, UA_NODECLASS_OBJECTTYPE,
+               "BaseConditionClassType");
+    assertNode(UA_NS0ID_LOGENTRYCONDITIONCLASSTYPE, UA_NODECLASS_OBJECTTYPE,
+               "LogEntryConditionClassType");
+    assertNode(UA_NS0ID_BASELOGEVENTTYPE, UA_NODECLASS_OBJECTTYPE, "BaseLogEventType");
+    assertNode(UA_NS0ID_BASELOGEVENTTYPE_CONDITIONCLASSID, UA_NODECLASS_VARIABLE,
+               "ConditionClassId");
+    assertNode(UA_NS0ID_BASELOGEVENTTYPE_CONDITIONCLASSNAME, UA_NODECLASS_VARIABLE,
+               "ConditionClassName");
+    assertNode(UA_NS0ID_BASELOGEVENTTYPE_ERRORCODE, UA_NODECLASS_VARIABLE, "ErrorCode");
+    assertNode(UA_NS0ID_BASELOGEVENTTYPE_ERRORCODENODE, UA_NODECLASS_VARIABLE,
+               "ErrorCodeNode");
+    assertNode(UA_NS0ID_BASELOGEVENTTYPE_TRACECONTEXT, UA_NODECLASS_VARIABLE,
+               "TraceContext");
+    assertNode(UA_NS0ID_LOGOVERFLOWEVENTTYPE, UA_NODECLASS_OBJECTTYPE,
+               "LogOverflowEventType");
+
+    assertReference(UA_NS0ID_BASELOGEVENTTYPE, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_BASEEVENTTYPE);
+    assertReference(UA_NS0ID_LOGOVERFLOWEVENTTYPE, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_BASEEVENTTYPE);
+    assertReference(UA_NS0ID_LOGENTRYCONDITIONCLASSTYPE, UA_NS0ID_HASSUBTYPE,
+                    UA_BROWSEDIRECTION_INVERSE, UA_NS0ID_BASECONDITIONCLASSTYPE);
+
+    /* All three types are abstract in the standard nodeset */
+    const UA_UInt32 abstractTypes[3] = {UA_NS0ID_BASELOGEVENTTYPE,
+                                        UA_NS0ID_LOGOVERFLOWEVENTTYPE,
+                                        UA_NS0ID_LOGENTRYCONDITIONCLASSTYPE};
+    for(size_t i = 0; i < 3; i++) {
+        UA_Boolean isAbstract = false;
+        UA_StatusCode retval =
+            UA_Server_readIsAbstract(server, UA_NODEID_NUMERIC(0, abstractTypes[i]),
+                                     &isAbstract);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(isAbstract);
+    }
+} END_TEST
+#endif
+
+#endif /* UA_GENERATED_NAMESPACE_ZERO && UA_ENABLE_LOGOBJECT */
+
 int main(void) {
     Suite *s = suite_create("nodes");
 
@@ -447,6 +619,20 @@ int main(void) {
     tcase_add_test(tc_reftypes, argumentDescriptionSubtypeHierarchy);
 #endif
     suite_add_tcase(s, tc_reftypes);
+
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_LOGOBJECT)
+    TCase *tc_logobject = tcase_create("LogObjectNodes");
+    tcase_add_checked_fixture(tc_logobject, setup, teardown);
+    tcase_add_test(tc_logobject, logObjectNodes);
+    tcase_add_test(tc_logobject, logObjectDataTypeNodes);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    tcase_add_test(tc_logobject, logRecordDataTypeDefinition);
+#endif
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    tcase_add_test(tc_logobject, logObjectEventTypeNodes);
+#endif
+    suite_add_tcase(s, tc_logobject);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
