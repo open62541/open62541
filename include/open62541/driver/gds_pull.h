@@ -7,7 +7,7 @@
  * GDS Pull Driver
  * ---------------
  *
- * The GDS Pull driver implement the client side of OPC UA PullManagement. */
+ * The GDS Pull driver implements the client side of OPC UA PullManagement. */
 
 #ifdef UA_ENABLE_DRIVER_GDS_PULL
 
@@ -17,12 +17,6 @@ typedef struct UA_GDSPull {
     UA_Driver drv;
 } UA_GDSPull;
 
-/* A CertificateGroup of this application and the CertificateGroup of the
- * CertificateManager that manages it. The CertificateManager assigns its groups
- * to the application as a whole and knows nothing about the application's own
- * groups, so the pairing is established when the application is registered
- * (Part 12, 6.4) and has to be supplied here. A local group draws its
- * certificates and its TrustList from exactly one remote group. */
 typedef struct {
     /* NodeId of the CertificateGroup below the ServerConfiguration of this
      * application, e.g. the DefaultApplicationGroup */
@@ -31,20 +25,20 @@ typedef struct {
     UA_NodeId remoteGroupId;
 } UA_GDSPullGroupMapping;
 
-/* A signing request that the CertificateManager has not completed yet. */
+/* A signing request that the CertificateManager has not completed yet. Passed
+ * once during driver initialization since it cannot be queried from the CertificateManager. */
 typedef struct {
     UA_NodeId requestId;
     UA_NodeId certificateGroupId;
     UA_NodeId certificateTypeId;
 } UA_GDSPullPendingRequest;
 
-/* Called by the driver with the complete new set whenever it changes, so that
- * the application can persist it. The requests are owned by the driver and are
- * only valid for the duration of the call. */
-typedef void
-(*UA_GDSPullPendingRequestsCallback)(UA_GDSPull *pull, void *context,
-                                      const UA_GDSPullPendingRequest *requests,
-                                      size_t requestsSize);
+/* After the driver takes ownership of the initial set of signing requests, it creates
+ * new ones itself. This callback is invoked whenever the set of signing requests
+ * changes. */
+typedef void (*UA_GDSPullPendingRequestsCallback)(
+    UA_GDSPull *pull, void *context, const UA_GDSPullPendingRequest *requests,
+    size_t requestsSize);
 
 /* Create a GDS Pull driver. The returned driver is heap-allocated and must
  * either be passed to UA_Server_addDriver() or released with its ``free``
@@ -64,29 +58,36 @@ UA_EXPORT void
 UA_GDSPull_setGDSEndpointUrl(UA_GDSPull *pull, const UA_ByteString endpoint);
 
 /* Set the NodeId this application is registered under in the
- * CertificateManager. It is passed to every PullManagement method. */
+ * CertificateManager. Passed back to the CertificateManager on method calls. */
 UA_EXPORT void
 UA_GDSPull_setApplicationId(UA_GDSPull *pull, const UA_NodeId applicationId);
 
-/* Set the CertificateGroups that are managed via PullManagement. Call before
- * the driver is started; replaces the set the driver holds. Every local group
- * may appear only once. */
+/* Set the CertificateGroups that are managed via PullManagement. */
 UA_EXPORT UA_StatusCode
 UA_GDSPull_setGroups(UA_GDSPull *pull, const UA_GDSPullGroupMapping *groups,
                      size_t groupsSize);
 
 /* Restore the requests that were pending at the last shutdown. Call before the
- * driver is started; replaces the set the driver holds. */
+ * driver is started. */
 UA_EXPORT UA_StatusCode
 UA_GDSPull_setPendingRequests(UA_GDSPull *pull,
                               const UA_GDSPullPendingRequest *requests,
                               size_t requestsSize);
 
-/* Persisting the pending requests is the application's responsibility. */
+/* Whenever the set of pending requests changes, the application is notified via
+ * the `UA_GDSPullPendingRequestsCallback` callback. The application can then persist
+ * this state. */
 UA_EXPORT void
-UA_GDSPull_setPendingRequestsCallback(UA_GDSPull *pull,
-                                      UA_GDSPullPendingRequestsCallback callback,
-                                      void *context);
+UA_GDSPull_setPendingRequestsCallback(
+    UA_GDSPull *pull, UA_GDSPullPendingRequestsCallback callback,
+    void *context);
+
+/* Let the CertificateManager create the private key along with the certificate
+ * (StartNewKeyPairRequest) instead of signing the key this application already
+ * holds (StartSigningRequest). Meant for applications without a sufficient
+ * entropy source (Part 12, 7.6). Off by default. */
+UA_EXPORT void
+UA_GDSPull_setCreatePrivateKey(UA_GDSPull *pull, UA_Boolean createPrivateKey);
 
 _UA_END_DECLS
 
