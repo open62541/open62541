@@ -59,6 +59,35 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+/* UserTokenPolicies configured manually on the endpoint are served to the
+ * client as they are, without the SecurityMode/SecurityPolicy postfix that
+ * the server otherwise appends. ActivateSession must still match them. */
+static void setupManualTokenPolicies(void) {
+    running = true;
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->allowNonePolicyPassword = true;
+    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
+    UA_AccessControl_default(config, true, &sp->policyUri,
+                             usernamePasswordsSize, usernamePasswords);
+
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ed = &config->endpoints[i];
+        UA_StatusCode res =
+            UA_Array_copy(config->accessControl.userTokenPolicies,
+                          config->accessControl.userTokenPoliciesSize,
+                          (void**)&ed->userIdentityTokens,
+                          &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ed->userIdentityTokensSize = config->accessControl.userTokenPoliciesSize;
+    }
+
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
 START_TEST(Client_anonymous) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -83,6 +112,15 @@ START_TEST(Client_user_fail) {
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user0", "password");
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Client_user_pass_manualTokenPolicies) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
@@ -242,6 +280,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_user, Client_user_fail);
     tcase_add_test(tc_client_user, Client_pass_fail);
     suite_add_tcase(s,tc_client_user);
+
+    TCase *tc_manual = tcase_create("Client User/Password, manual UserTokenPolicies");
+    tcase_add_checked_fixture(tc_manual, setupManualTokenPolicies, teardown);
+    tcase_add_test(tc_manual, Client_user_pass_manualTokenPolicies);
+    suite_add_tcase(s,tc_manual);
 
     TCase *tc_server = tcase_create("Server-Side Access Control");
     tcase_add_test(tc_server, Server_sessionParameter);

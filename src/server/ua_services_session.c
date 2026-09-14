@@ -836,10 +836,18 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         if(!UA_String_equal(&policyPrefix, &pol->policyId))
             continue;
 
-        /* Get the SecurityPolicy for the endpoint from the postfix */
+        /* Get the SecurityPolicy for the endpoint from the postfix. A PolicyId
+         * without postfix (manually configured UserTokenPolicies are served
+         * unmodified) uses the SecurityPolicy of the UserTokenPolicy, or that
+         * of the channel. */
+        UA_SecurityPolicy *candidateSp;
         UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
-        UA_SecurityPolicy *candidateSp =
-            getSecurityPolicyByPostfix(server, utPolPostfix);
+        if(!UA_String_equal(&utPolPostfix, &token->policyId))
+            candidateSp = getSecurityPolicyByPostfix(server, utPolPostfix);
+        else if(pol->securityPolicyUri.length > 0)
+            candidateSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
+        else
+            candidateSp = channel->securityPolicy;
         if(!candidateSp) {
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: The UserTokenPolicy of "
