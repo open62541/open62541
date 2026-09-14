@@ -121,6 +121,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     add_example(client_event_filter_queries events/client_filter_queries.c)
 endif()
 
+if(UA_ENABLE_LOGOBJECT)
+    add_example(server_logobject logobject/server_logobject.c)
+    add_example(client_getrecords logobject/client_getrecords.c)
+endif()
+
 if(UA_ENABLE_JSON_ENCODING)
     add_example(server_json_config server_json_config.c)
     add_example(client_json_config client_json_config.c)
