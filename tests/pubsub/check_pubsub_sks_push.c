@@ -347,7 +347,7 @@ START_TEST(TestSetSecurityKeys_GOOD) {
 
 START_TEST(TestSetSecurityKeys_RejectInvalidKeyMaterial) {
     UA_Client *client = UA_Client_newForUnitTest();
-    ck_assert_ptr_nonnull(client);
+    ck_assert_ptr_ne(client, NULL);
     UA_StatusCode retval = encyrptedclientconnect(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -358,8 +358,8 @@ START_TEST(TestSetSecurityKeys_RejectInvalidKeyMaterial) {
     lockServer(server);
     UA_PubSubKeyStorage *ks =
         UA_PubSubKeyStorage_find(psm, securityGroupId);
-    ck_assert_ptr_nonnull(ks);
-    ck_assert_ptr_nonnull(ks->currentItem);
+    ck_assert_ptr_ne(ks, NULL);
+    ck_assert_ptr_ne(ks->currentItem, NULL);
     ck_assert_uint_eq(ks->currentItem->keyID, 1);
     ck_assert_uint_eq(ks->keyListSize, 2);
     unlockServer(server);
@@ -381,7 +381,7 @@ START_TEST(TestSetSecurityKeys_RejectInvalidKeyMaterial) {
     retval = callSetSecurityKeyMaterial(client, securityGroupId, 50,
                                         &shortCurrent, 1, &validFuture);
     lockServer(server);
-    ck_assert_ptr_nonnull(ks->currentItem);
+    ck_assert_ptr_ne(ks->currentItem, NULL);
     ck_assert_uint_eq(ks->currentItem->keyID, 1);
     ck_assert_uint_eq(ks->keyListSize, 2);
     unlockServer(server);
@@ -399,7 +399,7 @@ START_TEST(TestSetSecurityKeys_RejectInvalidKeyMaterial) {
     retval = callSetSecurityKeyMaterial(client, securityGroupId, 50,
                                         &validCurrent, 1, &shortFuture);
     lockServer(server);
-    ck_assert_ptr_nonnull(ks->currentItem);
+    ck_assert_ptr_ne(ks->currentItem, NULL);
     ck_assert_uint_eq(ks->currentItem->keyID, 1);
     ck_assert_uint_eq(ks->keyListSize, 2);
     unlockServer(server);

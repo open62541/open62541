@@ -537,11 +537,14 @@ UA_PubSubKeyStorage_validateGetSecurityKeysResponse(
 
     const UA_Variant *args = result->outputArguments;
     if(!UA_Variant_hasScalarType(&args[0], &UA_TYPES[UA_TYPES_STRING]) ||
-       !UA_Variant_hasScalarType(&args[1], &UA_TYPES[UA_TYPES_UINT32]) ||
+       (!UA_Variant_hasScalarType(&args[1], &UA_TYPES[UA_TYPES_UINT32]) &&
+        !UA_Variant_hasScalarType(&args[1], &UA_TYPES[UA_TYPES_INTEGERID])) ||
        !UA_Variant_hasArrayType(&args[2], &UA_TYPES[UA_TYPES_BYTESTRING]) ||
        args[2].arrayLength < 1 ||
-       !UA_Variant_hasScalarType(&args[3], &UA_TYPES[UA_TYPES_DURATION]) ||
-       !UA_Variant_hasScalarType(&args[4], &UA_TYPES[UA_TYPES_DURATION]))
+       (!UA_Variant_hasScalarType(&args[3], &UA_TYPES[UA_TYPES_DURATION]) &&
+        !UA_Variant_hasScalarType(&args[3], &UA_TYPES[UA_TYPES_DOUBLE])) ||
+       (!UA_Variant_hasScalarType(&args[4], &UA_TYPES[UA_TYPES_DURATION]) &&
+        !UA_Variant_hasScalarType(&args[4], &UA_TYPES[UA_TYPES_DOUBLE])))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     return UA_STATUSCODE_GOOD;

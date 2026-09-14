@@ -415,39 +415,28 @@ START_TEST(GetSecurityKeysAllocatesByteStringArray) {
     channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     server->adminSession.channel = &channel;
 
-    /* SetSecurityKeys stores the new batch before key activation detects that
-     * these deliberately short keys do not satisfy the policy. */
+    /* Build a deliberately malformed internal key list. Public SKS ingestion
+     * rejects short keys, but GetSecurityKeys must still size its output by
+     * element type if internal state is damaged. */
     UA_UInt32 currentTokenId = 100;
     UA_ByteString firstKey = UA_BYTESTRING("A");
     UA_ByteString futureKeys[1] = {UA_BYTESTRING("B")};
-    UA_Duration timeToNextKey = 2000;
-    UA_Duration keyLifetime = 2000;
-    UA_Variant setInput[7];
-    UA_Variant_setScalar(&setInput[0], &config.securityGroupName,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&setInput[1], &config.securityPolicyUri,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&setInput[2], &currentTokenId,
-                         &UA_TYPES[UA_TYPES_INTEGERID]);
-    UA_Variant_setScalar(&setInput[3], &firstKey,
-                         &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Variant_setArray(&setInput[4], futureKeys, 1,
-                        &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Variant_setScalar(&setInput[5], &timeToNextKey,
-                         &UA_TYPES[UA_TYPES_DURATION]);
-    UA_Variant_setScalar(&setInput[6], &keyLifetime,
-                         &UA_TYPES[UA_TYPES_DURATION]);
+    lockServer(server);
+    UA_SecurityGroup *sg =
+        UA_SecurityGroup_find(getPSM(server), securityGroupNodeId);
+    ck_assert_ptr_ne(sg, NULL);
+    UA_PubSubKeyStorage *ks = sg->keyStorage;
+    UA_PubSubKeyStorage_clearKeyList(ks);
+    ck_assert_ptr_ne(UA_PubSubKeyStorage_push(ks, &firstKey,
+                                              currentTokenId), NULL);
+    ck_assert_ptr_ne(UA_PubSubKeyStorage_push(ks, &futureKeys[0],
+                                              currentTokenId + 1), NULL);
+    retval = UA_PubSubKeyStorage_setCurrentKey(ks, currentTokenId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
     UA_CallMethodRequest request;
     UA_CallMethodRequest_init(&request);
-    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
-    request.methodId = UA_NODEID_NUMERIC(
-        0, UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS);
-    request.inputArgumentsSize = 7;
-    request.inputArguments = setInput;
-    UA_CallMethodResult result = UA_Server_call(server, &request);
-    ck_assert_uint_ne(result.statusCode, UA_STATUSCODE_GOOD);
-    UA_CallMethodResult_clear(&result);
-
     UA_UInt32 startingTokenId = 0;
     UA_UInt32 requestedKeyCount = 1;
     UA_Variant getInput[3];
@@ -462,7 +451,7 @@ START_TEST(GetSecurityKeysAllocatesByteStringArray) {
         0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     request.inputArgumentsSize = 3;
     request.inputArguments = getInput;
-    result = UA_Server_call(server, &request);
+    UA_CallMethodResult result = UA_Server_call(server, &request);
     server->adminSession.channel = NULL;
     UA_SecureChannel_clear(&channel);
 

@@ -684,7 +684,7 @@ START_TEST(DeleteKeyStorageWhileSksConnectIsPending) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
-    ck_assert_ptr_nonnull(config);
+    ck_assert_ptr_ne(config, NULL);
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
                                     testingSKSEndpointUrl,
                                     sksPullRequestCallback_publisher, NULL);
@@ -697,7 +697,7 @@ START_TEST(DeleteKeyStorageWhileSksConnectIsPending) {
 
     UA_PubSubManager *psm = getPSM(publisherApp);
     lockServer(publisherApp);
-    ck_assert_ptr_null(UA_PubSubKeyStorage_find(psm, securityGroupId));
+    ck_assert_ptr_eq(UA_PubSubKeyStorage_find(psm, securityGroupId), NULL);
     unlockServer(publisherApp);
     UA_free(config);
 }
@@ -708,7 +708,7 @@ START_TEST(ShutdownWhileSksConnectIsPending) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
-    ck_assert_ptr_nonnull(config);
+    ck_assert_ptr_ne(config, NULL);
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
                                     testingSKSEndpointUrl,
                                     sksPullRequestCallback_publisher, NULL);
