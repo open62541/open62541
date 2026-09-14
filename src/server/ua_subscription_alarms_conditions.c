@@ -1852,12 +1852,31 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
 }
 
 static UA_StatusCode
+checkConditionRefreshArguments(size_t expectedInputSize, size_t inputSize,
+                               const UA_Variant *input, size_t outputSize) {
+    if(inputSize != expectedInputSize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(outputSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(size_t i = 0; i < inputSize; i++) {
+        if(!UA_Variant_hasScalarType(&input[i], &UA_TYPES[UA_TYPES_UINT32]))
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *sessionContext, const UA_NodeId *methodId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_StatusCode argumentStatus =
+        checkConditionRefreshArguments(2, inputSize, input, outputSize);
+    if(argumentStatus != UA_STATUSCODE_GOOD)
+        return argumentStatus;
+
     lockServer(server);
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
@@ -1901,6 +1920,11 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_StatusCode argumentStatus =
+        checkConditionRefreshArguments(1, inputSize, input, outputSize);
+    if(argumentStatus != UA_STATUSCODE_GOOD)
+        return argumentStatus;
+
     lockServer(server);
 
     //TODO implement logic for subscription array
