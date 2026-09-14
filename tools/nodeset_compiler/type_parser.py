@@ -416,6 +416,15 @@ class CSVBSDTypeParser(TypeParser):
         for f in self.type_xml:
             table = self.createSymbolicNameTable(f)
 
+        # The NodeSet XML is authoritative for optional structure fields
+        # (Field IsOptional="true"). Some .bsd files omit the encoding-mask
+        # bits for them, e.g. the LogRecord of OPC UA Part 26.
+        optionalFields = {}
+        for f in self.type_xml:
+            for name, fields in self.createOptionalFieldTable(f).items():
+                optionalFields.setdefault(name, set()).update(fields)
+        self.applyOptionalFields(optionalFields)
+
         # extend the type definitions with nodeids, etc. from the csv file
         for f in self.type_csv:
             self.parseTypeDescriptions(f, table)
@@ -443,6 +452,73 @@ class CSVBSDTypeParser(TypeParser):
                 result_string = re.sub(r'^\d+:', '', nd.attributes["BrowseName"].nodeValue)
                 table[nd.attributes["SymbolicName"].nodeValue] = result_string
         return table
+
+    @staticmethod
+    def createOptionalFieldTable(f):
+        """Map the DataType names of a NodeSet XML to the set of field names
+        that are declared optional (<Field IsOptional="true">)."""
+        nodeTags = ("UAObject", "UAVariable", "UAMethod", "UAObjectType",
+                    "UAVariableType", "UAReferenceType", "UADataType", "UAView")
+        table = {}
+        for _, elem in etree.iterparse(f.name, events=("end",)):
+            tag = elem.tag.rsplit("}", 1)[-1]
+            if tag not in nodeTags:
+                continue
+            if tag == "UADataType":
+                fields = set()
+                definition = None
+                for child in elem:
+                    if child.tag.rsplit("}", 1)[-1] == "Definition":
+                        definition = child
+                        break
+                if definition is not None:
+                    for field in definition:
+                        if field.tag.rsplit("}", 1)[-1] == "Field" and \
+                           field.get("IsOptional", "false") == "true":
+                            fields.add(field.get("Name"))
+                if len(fields) > 0:
+                    names = set()
+                    for n in (elem.get("BrowseName"), definition.get("Name"),
+                              elem.get("SymbolicName")):
+                        if n:
+                            # Remove the optional namespace index prefix
+                            names.add(re.sub(r'^\d+:', '', n))
+                    for n in names:
+                        table.setdefault(n, set()).update(fields)
+            # Release the processed node to keep the memory footprint small
+            elem.clear()
+        return table
+
+    def applyOptionalFields(self, table):
+        """Mark the members listed in table as optional. Only the types
+        generated for this output are touched, imported types keep the layout
+        of their own generated header."""
+        changed = False
+        for ns in self.types:
+            for t in self.types[ns].values():
+                if not isinstance(t, StructType) or t.is_union or \
+                   t.outname != self.outname or t.name not in table:
+                    continue
+                optional = set(n[:1].lower() + n[1:] for n in table[t.name])
+                for m in t.members:
+                    if m.name in optional and not m.is_optional:
+                        m.is_optional = True
+                        changed = True
+        if not changed:
+            return
+        # Optional members are pointers. Recompute pointerfree up to a
+        # fixpoint, as structs embedding a changed struct are affected too.
+        while changed:
+            changed = False
+            for ns in self.types:
+                for t in self.types[ns].values():
+                    if not isinstance(t, StructType) or not t.pointerfree:
+                        continue
+                    for m in t.members:
+                        if m.is_array or m.is_optional or not m.member_type.pointerfree:
+                            t.pointerfree = False
+                            changed = True
+                            break
 
     def _find_type_ns(self, typeName):
         """Find the namespace URI of a type by name, preferring the namespace

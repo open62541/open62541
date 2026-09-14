@@ -121,11 +121,17 @@ option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 option(UA_ENABLE_RBAC "Enable Role-Based Access Control (EXPERIMENTAL - NOT FOR PRODUCTION)" OFF)
+option(UA_ENABLE_LOGOBJECT "Enable the OPC UA Part 26 LogObject model (ServerLog, LogObjects) (EXPERIMENTAL)" OFF)
 
 if(UA_ENABLE_RBAC)
     message(WARNING "UA_ENABLE_RBAC is EXPERIMENTAL and NOT RECOMMENDED FOR PRODUCTION USE. "
                     "The RBAC implementation is under active development and the API may change. "
                     "Use only for testing and development purposes.")
+endif()
+
+if(UA_ENABLE_LOGOBJECT)
+    message(WARNING "UA_ENABLE_LOGOBJECT is EXPERIMENTAL. OPC UA Part 26 (LogObject Model) "
+                    "has limited implementation experience and the API may change.")
 endif()
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
@@ -499,6 +505,14 @@ endif()
 
 if(UA_ENABLE_HISTORIZING AND (NOT UA_ENABLE_SUBSCRIPTIONS))
     MESSAGE(FATAL_ERROR "UA_ENABLE_HISTORIZING needs Subscriptions enabled")
+endif()
+
+if(UA_ENABLE_LOGOBJECT AND (NOT UA_ENABLE_METHODCALLS))
+    MESSAGE(FATAL_ERROR "UA_ENABLE_LOGOBJECT needs the Method service set (UA_ENABLE_METHODCALLS)")
+endif()
+
+if(UA_ENABLE_LOGOBJECT AND (NOT UA_GENERATED_NAMESPACE_ZERO))
+    MESSAGE(FATAL_ERROR "UA_ENABLE_LOGOBJECT needs UA_NAMESPACE_ZERO=REDUCED or FULL")
 endif()
 
 ######################
@@ -1505,12 +1519,20 @@ endif()
  # List of nodeset-xml files to be considered in the generated information model
 set(UA_NS0_NODESETS)
 
+# NodeSet XML handed to the datatype generator (optional structure fields)
+set(UA_NS0_TYPES_XML "")
+
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
     set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
 
     # Set the full ns0 nodeset
     list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.xml)
+
+    # The NodeSet XML is authoritative for the IsOptional flag of structure
+    # fields. The official .bsd omits the encoding-mask bits for some of them
+    # (e.g. the Part 26 LogRecord).
+    set(UA_NS0_TYPES_XML ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
 
     # Check that the submodule was checked out or manually downloaded into the folder
     if(NOT EXISTS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
@@ -1555,6 +1577,10 @@ else()
 
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.EventsMinimal.xml)
+    endif()
+
+    if(UA_ENABLE_LOGOBJECT)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_logobject.txt)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
@@ -1604,10 +1630,15 @@ endforeach()
 include(open62541Macros)
 
 # standard-defined data types
+set(UA_NS0_TYPES_XML_ARG "")
+if(UA_NS0_TYPES_XML)
+    set(UA_NS0_TYPES_XML_ARG FILE_XML "${UA_NS0_TYPES_XML}")
+endif()
 ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
                       FILE_CSV "${UA_NS0_NODEIDS}"
                       FILES_BSD "${UA_NS0_TYPES_BSD}"
-                      FILES_SELECTED ${UA_NS0_DATATYPES})
+                      FILES_SELECTED ${UA_NS0_DATATYPES}
+                      ${UA_NS0_TYPES_XML_ARG})
 
 # transport data types
 ua_generate_datatypes(INTERNAL NAME "transport" TARGET_SUFFIX "transport" NAMESPACE_IDX 1

@@ -579,6 +579,79 @@ START_TEST(binary_browseresult) {
 } END_TEST
 
 /* ========== calcSizeBinary ========== */
+/* ========== Part 26 LogRecord (structure with optional fields) ========== */
+
+#ifdef UA_TYPES_LOGRECORD
+START_TEST(binary_logrecord_optional_fields) {
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_LOGRECORD];
+    ck_assert_uint_eq(type->typeKind, UA_DATATYPEKIND_OPTSTRUCT);
+    ck_assert_uint_eq(type->membersSize, 8);
+    /* Time, Severity and Message are mandatory, the other fields optional */
+    ck_assert(!type->members[0].isOptional);
+    ck_assert(!type->members[1].isOptional);
+    ck_assert(type->members[2].isOptional);
+    ck_assert(type->members[3].isOptional);
+    ck_assert(type->members[4].isOptional);
+    ck_assert(!type->members[5].isOptional);
+    ck_assert(type->members[6].isOptional);
+    ck_assert(type->members[7].isOptional);
+    ck_assert(type->members[7].isArray);
+
+    /* No optional field set: the encoding starts with an all-zero mask
+     * (OPC UA Part 6, 5.2.7) followed by Time and Severity */
+    UA_LogRecord src, dst;
+    UA_LogRecord_init(&src);
+    UA_LogRecord_init(&dst);
+    src.time = 42;
+    src.severity = 180;
+    src.message = UA_LOCALIZEDTEXT_ALLOC("", "hello");
+    UA_ByteString buf;
+    UA_ByteString_init(&buf);
+    ck_assert_uint_eq(UA_encodeBinary(&src, type, &buf, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_ge(buf.length, 4 + 8 + 2 + 1);
+    ck_assert_uint_eq(buf.data[0], 0);
+    ck_assert_uint_eq(buf.data[1], 0);
+    ck_assert_uint_eq(buf.data[2], 0);
+    ck_assert_uint_eq(buf.data[3], 0);
+    ck_assert_uint_eq(buf.data[4], 42);
+    ck_assert_uint_eq(UA_decodeBinary(&buf, &dst, type, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(dst.eventType);
+    ck_assert_ptr_null(dst.sourceNode);
+    ck_assert_ptr_null(dst.sourceName);
+    ck_assert_ptr_null(dst.traceContext);
+    ck_assert_uint_eq(dst.additionalDataSize, 0);
+    ck_assert(UA_LogRecord_equal(&src, &dst));
+    UA_ByteString_clear(&buf);
+    UA_LogRecord_clear(&dst);
+
+    /* SourceName and AdditionalData set: bits 2 and 4 of the mask */
+    src.sourceName = UA_String_new();
+    *src.sourceName = UA_STRING_ALLOC("Server");
+    src.additionalData = (UA_NameValuePair*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_NAMEVALUEPAIR]);
+    src.additionalDataSize = 1;
+    src.additionalData[0].name = UA_STRING_ALLOC("LogLevel");
+    UA_Int32 lvl = 400;
+    UA_Variant_setScalarCopy(&src.additionalData[0].value, &lvl,
+                             &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_encodeBinary(&src, type, &buf, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(buf.data[0], (1u << 2) | (1u << 4));
+    ck_assert_uint_eq(UA_decodeBinary(&buf, &dst, type, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_nonnull(dst.sourceName);
+    ck_assert(UA_String_equal(dst.sourceName, src.sourceName));
+    ck_assert_ptr_null(dst.eventType);
+    ck_assert_ptr_null(dst.traceContext);
+    ck_assert_uint_eq(dst.additionalDataSize, 1);
+    ck_assert(UA_Variant_hasScalarType(&dst.additionalData[0].value,
+                                       &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_int_eq(*(UA_Int32*)dst.additionalData[0].value.data, 400);
+    ck_assert(UA_LogRecord_equal(&src, &dst));
+    UA_ByteString_clear(&buf);
+    UA_LogRecord_clear(&dst);
+    UA_LogRecord_clear(&src);
+} END_TEST
+#endif
+
 START_TEST(binary_calcsize) {
     UA_Int32 val = 42;
     size_t size = UA_calcSizeBinary(&val, &UA_TYPES[UA_TYPES_INT32], NULL);
@@ -963,6 +1036,9 @@ int main(void) {
     tcase_add_test(tc_structs, binary_callrequest);
     tcase_add_test(tc_structs, binary_createsubscriptionrequest);
     tcase_add_test(tc_structs, binary_modifysubscriptionrequest);
+#ifdef UA_TYPES_LOGRECORD
+    tcase_add_test(tc_structs, binary_logrecord_optional_fields);
+#endif
     suite_add_tcase(s, tc_structs);
 
     TCase *tc_misc = tcase_create("Misc");
