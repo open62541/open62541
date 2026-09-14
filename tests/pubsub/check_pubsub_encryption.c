@@ -132,7 +132,7 @@ START_TEST(SinglePublishDataSetField) {
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
 
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup3);
-    ck_assert_ptr_nonnull(wg);
+    ck_assert_ptr_ne(wg, NULL);
     config->pubSubConfig.securityPolicies[0].symmetricModule.generateNonce =
         generateRepeatedNonce;
     ck_assert_uint_eq(wg->nonceSequenceNumber, 1);
