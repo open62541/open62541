@@ -728,6 +728,46 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         UA_LocalizedText_clear(&connectionDisplayName);
     } END_TEST
 
+START_TEST(RemoveDeepPublishedDataSetFolderTree) {
+    UA_NodeId parent = UA_NS0ID(PUBLISHSUBSCRIBE_PUBLISHEDDATASETS);
+    UA_Boolean parentOwned = false;
+    UA_NodeId root = UA_NODEID_NULL;
+    for(size_t i = 0; i < 64; i++) {
+        UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+        attr.displayName = UA_LOCALIZEDTEXT("", "Nested folder");
+        UA_NodeId child = UA_NODEID_NULL;
+        UA_StatusCode res = UA_Server_addObjectNode(
+            server, UA_NODEID_NULL, parent, UA_NS0ID(ORGANIZES),
+            UA_QUALIFIEDNAME(1, "NestedFolder"), UA_NS0ID(DATASETFOLDERTYPE),
+            attr, NULL, &child);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+        if(i == 0)
+            ck_assert_int_eq(UA_NodeId_copy(&child, &root), UA_STATUSCODE_GOOD);
+        if(parentOwned)
+            UA_NodeId_clear(&parent);
+        parent = child;
+        parentOwned = true;
+    }
+    UA_NodeId_clear(&parent);
+
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &root, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NS0ID(PUBLISHSUBSCRIBE_PUBLISHEDDATASETS);
+    request.methodId = UA_NS0ID(DATASETFOLDERTYPE_REMOVEDATASETFOLDER);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_readNodeId(server, root, NULL),
+                     UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId_clear(&root);
+}
+END_TEST
+
 START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         UA_StatusCode retVal;
         UA_Client *client = UA_Client_newForUnitTest();
@@ -2339,6 +2379,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRollsBackOnChildFailure);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddConnectionRejectsInvalidPublisherIdWithoutSideEffects);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetFoldersUsingServer);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, RemoveDeepPublishedDataSetFolderTree);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetFoldersUsingClient);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetItemsUsingServer);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetItemsUsingClient);
