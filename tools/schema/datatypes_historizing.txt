@@ -18,3 +18,4 @@ HistoryUpdateResult
 UpdateDataDetails
 DeleteRawModifiedDetails
 PerformUpdateType
+DeleteEventDetails

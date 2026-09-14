@@ -989,8 +989,10 @@ static const UA_NodeId hierarchicalRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
 static const UA_NodeId aggregatesRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_AGGREGATES}};
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
 static const UA_NodeId objectsFolder =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
+#endif
 
 static UA_StatusCode
 printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Escaping esc) {
