@@ -324,8 +324,11 @@ START_TEST(Async_write) {
 
     /* Iterate and pick up the async response to be sent out */
     UA_fakeSleep(1000);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    /* Delivery can require another socket poll, especially with lwIP. */
+    for(size_t attempt = 0; attempt < 100 && clientCounter == 1; attempt++) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 10);
+    }
     ck_assert_uint_eq(clientCounter, 2);
 
     running = true;
