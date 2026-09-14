@@ -556,6 +556,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     } else if(request->clientCertificate.length > 0) {
         rh->serviceResult =
             validateCertificate(server, &server->config.secureChannelPKI,
+                                channel->securityPolicy,
                                 channel, NULL, "CreateSession",
                                 &request->clientDescription,
                                 request->clientCertificate);
@@ -986,7 +987,7 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
     }
 
     /* Validate the certificate against the SessionPKI */
-    res = validateCertificate(server, &server->config.sessionPKI,
+    res = validateCertificate(server, &server->config.sessionPKI, tokenSp,
                               session->channel, session, "ActivateSession",
                               NULL, token->certificateData);
     res = hideX509IdentityTokenValidationStatus(res);
