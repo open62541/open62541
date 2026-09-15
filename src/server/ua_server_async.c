@@ -7,7 +7,18 @@
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
+#include "ua_server_async.h"
+#include "open62541/types.h"
 #include "ua_server_internal.h"
+
+static UA_Boolean isRequestOp(UA_AsyncOperation *op) {
+  return op->asyncOperationType < UA_ASYNCOPERATIONTYPE_CALL_DIRECT;
+}
+
+static UA_Boolean isDirectOp(UA_AsyncOperation *op) {
+  return op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT;
+}
+
 
 /* The layout of the results array is:
  * [results-array] | padding | UA_AsyncResponse | padding | [UA_AsyncOperation]
@@ -52,11 +63,12 @@ UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
     switch(op->asyncOperationType) {
     case UA_ASYNCOPERATIONTYPE_READ_REQUEST:
         cancelPtr = op->output.read;
-        op->output.read->hasStatus = true;
-        op->output.read->status = opstatus;
+        /* Don't miss the status */
+        op->responseReadTarget->hasStatus = true;
+        op->responseReadTarget->status = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_READ_DIRECT:
-        cancelPtr = &op->output.directRead;
+        cancelPtr = &op->workerSlots.readDataValue;
         op->output.directRead.hasStatus = true;
         op->output.directRead.status = opstatus;
         break;
@@ -260,7 +272,12 @@ UA_AsyncManager_processReady(void *application /* UA_Server */,
         TAILQ_REMOVE(&am->readyOps, op, pointers);
         am->opsCount--;
         directOpCallback(server, op);
-        UA_AsyncOperation_delete(op);
+        if (op->acknowledged) {
+            UA_AsyncOperation_delete(op);
+        } else {
+            TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
+            am->zombieCount++;
+        }
     }
 
     /* Send out ready responses */
@@ -268,7 +285,10 @@ UA_AsyncManager_processReady(void *application /* UA_Server */,
     TAILQ_FOREACH_SAFE(ar, &am->readyResponses, pointers, temp) {
         TAILQ_REMOVE(&am->readyResponses, ar, pointers);
         sendAsyncResponse(server, ar);
-        UA_AsyncResponse_delete(ar);
+        ar->processed = true;
+        if (ar->zombieCountdown == 0) {
+            UA_AsyncResponse_delete(ar);
+        }
     }
 
     unlockServer(server);
@@ -291,9 +311,42 @@ processReadyLater(UA_Server *server) {
 }
 
 static void
+UA_AsyncManager_deleteDirectOpZombie(void *application /* UA_Server */,
+                               void *context /* UA_AsyncManager */) {
+    UA_Server *server = (UA_Server *)application;
+    UA_AsyncOperation *op= (UA_AsyncOperation *)context;
+    lockServer(server);
+    UA_AsyncOperation_delete(op);
+    unlockServer(server);
+}
+
+static void
+deleteDirectOpZombieLater(UA_Server *server, UA_AsyncOperation *op) {
+    UA_EventLoop *el = server->config.eventLoop;
+    op->dc.callback = UA_AsyncManager_deleteDirectOpZombie;
+    op->dc.application = server;
+    op->dc.context = op;
+    el->addDelayedCallback(el, &op->dc);
+    el->cancel(el); /* Wake up the EventLoop if currently waiting in select() */
+}
+
+static void
+zombifyIfUnacknowledged(UA_AsyncManager *am, UA_AsyncOperation *op) {
+    UA_assert(isRequestOp(op));
+    if(op->acknowledged) {
+        return;
+    }
+    UA_AsyncResponse *ar = op->handling.response;
+    TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
+    am->zombieCount++;
+    ar->zombieCountdown++;
+}
+
+
+static void
 processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     UA_AsyncManager *am = &server->asyncManager;
-    if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+    if(isDirectOp(op)) {
         /* Direct operation */
         TAILQ_REMOVE(&am->waitingOps, op, pointers);
         TAILQ_INSERT_TAIL(&am->readyOps, op, pointers);
@@ -301,11 +354,12 @@ processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
         /* Part of a service request */
         TAILQ_REMOVE(&am->waitingOps, op, pointers);
         am->opsCount--;
-
+        zombifyIfUnacknowledged(am, op);
         UA_AsyncResponse *ar = op->handling.response;
         ar->opCountdown -= 1;
         if(ar->opCountdown > 0)
             return;
+
 
         /* Enqueue ar in the readyResponses */
         TAILQ_REMOVE(&am->waitingResponses, ar, pointers);
@@ -315,6 +369,7 @@ processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     /* Trigger the main server thread to handle ready operations and responses */
     processReadyLater(server);
 }
+
 
 /* Check if any operations have timed out */
 static void
@@ -333,7 +388,7 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
         /* Check the timeout */
-        if(op->asyncOperationType <= UA_ASYNCOPERATIONTYPE_WRITE_REQUEST) {
+        if(isRequestOp(op)) {
             if(tNow <= op->handling.response->timeout)
                 continue;
         } else {
@@ -359,6 +414,7 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->readyResponses);
     TAILQ_INIT(&am->waitingOps);
     TAILQ_INIT(&am->readyOps);
+    TAILQ_INIT(&am->zombieOps);
 }
 
 void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
@@ -398,6 +454,21 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     /* This sends out/notifies and removes all direct operations and async requests */
     UA_AsyncManager_processReady(server, am);
     UA_assert(am->opsCount == 0);
+
+    TAILQ_FOREACH_SAFE(op, &am->zombieOps, pointers, op_tmp) {
+        TAILQ_REMOVE(&am->zombieOps, op, pointers);
+        am->zombieCount--;
+        if (isRequestOp(op)) {
+            UA_AsyncResponse *ar = op->handling.response;
+            UA_assert(ar->processed);
+            ar->zombieCountdown--;
+            if(ar->zombieCountdown == 0)
+                UA_AsyncResponse_delete(ar);
+        } else {
+            UA_AsyncOperation_delete(op);
+        }
+    }
+    UA_assert(am->zombieCount == 0);
 }
 
 void
@@ -422,8 +493,7 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_AsyncOperation *op, *op_tmp;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
-        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT ||
-           !UA_NodeId_equal(&op->handling.response->sessionId, sessionId))
+        if(isDirectOp(op) || !UA_NodeId_equal(&op->handling.response->sessionId, sessionId))
             continue;
         TAILQ_REMOVE(&am->waitingOps, op, pointers);
         TAILQ_INSERT_TAIL(&canceledOps, op, pointers);
@@ -439,6 +509,7 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
         op->pointers.tqe_next = NULL;
         op->pointers.tqe_prev = NULL;
         UA_AsyncOperation_cancel(server, op, status);
+        zombifyIfUnacknowledged(am, op);
     }
 
     UA_Boolean responseReady = false;
@@ -462,7 +533,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_AsyncManager *am = &server->asyncManager;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
         /* Only request operations own a handling.response. */
-        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+        if(isDirectOp(op))
             continue;
         UA_AsyncResponse *ar = op->handling.response;
         if(ar->requestHandle != requestHandle ||
@@ -574,8 +645,7 @@ cancelAsyncResponseOperations(UA_Server *server, UA_AsyncResponse *ar,
     TAILQ_INIT(&canceledOps);
     UA_AsyncOperation *op, *op_tmp;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
-        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT ||
-           op->handling.response != ar)
+        if(isDirectOp(op) || op->handling.response != ar)
             continue;
 
         /* Unlink first. The cancellation callback may reenter the server and
@@ -597,7 +667,26 @@ cancelAsyncResponseOperations(UA_Server *server, UA_AsyncResponse *ar,
         op->pointers.tqe_next = NULL;
         op->pointers.tqe_prev = NULL;
         UA_AsyncOperation_cancel(server, op, status);
+        zombifyIfUnacknowledged(am, op);
     }
+}
+
+/* Give the caller an independent deep copy of the results, leaving *results
+ * pointing at freshly, independently allocated memory. On failure *results
+ * is detached (set to NULL/0, owning nothing) and *serviceResult is set to
+ * the error -- the original array is left untouched for its other owner. */
+static void
+detachResultsCopy(void **results, size_t *resultsSize,
+                  const UA_DataType *resultsType, UA_StatusCode *serviceResult) {
+    void *copy = NULL;
+    UA_StatusCode res = UA_Array_copy(*results, *resultsSize, &copy, resultsType);
+    if(res != UA_STATUSCODE_GOOD) {
+        *results = NULL;
+        *resultsSize = 0;
+        *serviceResult = res;
+        return;
+    }
+    *results = copy;
 }
 
 static UA_StatusCode
@@ -637,7 +726,7 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
     /* Cancel operations that are still waiting for the result */
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
         /* Only direct operations own a handling.callback. */
-        if(op->asyncOperationType < UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+        if(isRequestOp(op))
             continue;
         if(op->handling.callback.context != context)
             continue;
@@ -652,7 +741,12 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
             TAILQ_REMOVE(&am->waitingOps, op, pointers);
             am->opsCount--;
             directOpCallback(server, op);
-            UA_AsyncOperation_delete(op);
+            if (op->acknowledged) {
+                UA_AsyncOperation_delete(op);
+            } else {
+                TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
+                am->zombieCount++;
+            }
         } else {
             processOperationResult(server, op);
         }
@@ -669,7 +763,12 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
         TAILQ_REMOVE(&am->readyOps, op, pointers);
         am->opsCount--;
         directOpCallback(server, op);
-        UA_AsyncOperation_delete(op);
+        if (op->acknowledged) {
+            UA_AsyncOperation_delete(op);
+        } else {
+            TAILQ_INSERT_TAIL(&am->zombieOps, op, pointers);
+            am->zombieCount++;
+        }
     }
 }
 
@@ -732,11 +831,16 @@ Service_Read(UA_Server *server, UA_Session *session, const void *request_, void 
     /* Execute the operations */
     for(size_t i = 0; i < request->nodesToReadSize; i++) {
         UA_Boolean done = Operation_Read(server, session, request->timestampsToReturn,
-                                         &request->nodesToRead[i], &response->results[i]);
-        if(!done)
+                                         &request->nodesToRead[i],
+                                         &aopArray[i].workerSlots.readDataValue);
+        if(done) {
+            response->results[i] = aopArray[i].workerSlots.readDataValue;
+        } else {
+            aopArray[i].responseReadTarget = &response->results[i];
             persistAsyncResponseOperation(server, &aopArray[i],
                                           UA_ASYNCOPERATIONTYPE_READ_REQUEST,
-                                          ar, &response->results[i]);
+                                          ar, &aopArray[i].workerSlots.readDataValue);
+        }
         if(session->state == UA_SESSIONSTATE_CLOSED) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
             break;
@@ -750,6 +854,21 @@ Service_Read(UA_Server *server, UA_Session *session, const void *request_, void 
     if(ar->opCountdown > 0) {
         ar->responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
         persistAsyncResponse(server, session, response, ar);
+    } else if(ar->zombieCountdown > 0) {
+        /* At least one operation became a zombie in cancelAsyncResponseOperations
+         * above. Its backing memory is embedded in the same allocation as
+         * response->results (see allocateResultsArray) and must stay alive until
+         * the zombie is acknowledged. Transfer ownership of that allocation to ar
+         * (as persistAsyncResponse would have) and return an independent copy of
+         * the results synchronously instead of a pointer into memory the zombie
+         * still needs. */
+        ar->responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
+        ar->response.readResponse.results = response->results;
+        ar->response.readResponse.resultsSize = response->resultsSize;
+        ar->processed = true;
+        detachResultsCopy((void**)&response->results, &response->resultsSize,
+                          &UA_TYPES[UA_TYPES_DATAVALUE],
+                          &response->responseHeader.serviceResult);
     }
     return (ar->opCountdown == 0);
 }
@@ -784,12 +903,13 @@ readOptionalNode_async(UA_Server *server, UA_Session *session,
     /* Call the operation */
     UA_Boolean done = node ?
         Operation_ReadWithNode(server, session, node, ttr, operation,
-                               &op->output.directRead) :
-        Operation_Read(server, session, ttr, operation, &op->output.directRead);
+                               &op->workerSlots.readDataValue) :
+        Operation_Read(server, session, ttr, operation, &op->workerSlots.readDataValue);
     if(!done)
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_READ_DIRECT,
                                            context, (uintptr_t)callback, timeoutDate);
 
+    op->output.directRead = op->workerSlots.readDataValue;
     callback(server, context, &op->output.directRead);
     UA_DataValue_clear(&op->output.directRead);
     UA_free(op);
@@ -829,15 +949,67 @@ UA_Server_read_async(UA_Server *server, const UA_ReadValueId *operation,
     return res;
 }
 
+static void
+finishZombie(UA_Server *server, UA_AsyncOperation *op) {
+    UA_AsyncManager *am = &server->asyncManager;
+    TAILQ_REMOVE(&am->zombieOps, op, pointers);
+    op->acknowledged = true;
+    am->zombieCount--;
+    if(isRequestOp(op)) {
+        UA_AsyncResponse *ar = op->handling.response;
+        if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_READ_REQUEST) {
+            UA_DataValue_clear(&op->workerSlots.readDataValue);
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+            UA_Array_delete(op->output.call->outputArguments,
+                           op->workerSlots.callOutputArgumentsSize,
+                           &UA_TYPES[UA_TYPES_VARIANT]);
+            op->output.call->outputArguments = NULL;
+        }
+        ar->zombieCountdown--;
+        /* Check if op is not part of any pending response and that no zombies are
+         * still part of the associated response */
+        if (ar->processed && ar->zombieCountdown == 0) {
+            UA_AsyncResponse_delete(op->handling.response);
+        }
+    } else {
+        if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_READ_DIRECT) {
+            UA_DataValue_clear(&op->workerSlots.readDataValue);
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+            UA_Array_delete(op->output.directCall.outputArguments,
+                           op->workerSlots.callOutputArgumentsSize,
+                           &UA_TYPES[UA_TYPES_VARIANT]);
+            op->output.directCall.outputArguments = NULL;
+        }
+        /* It is possible that an async cancel is scheduled, which will use the op in an
+         * el-iteration after this function returns. To avoid a race condition, we
+         * schedule the delete to a later iteration of the el. */
+        deleteDirectOpZombieLater(server, op);
+    }
+}
+
 UA_StatusCode
 UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result) {
     lockServer(server);
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
-        if(op->output.read == result || &op->output.directRead == result) {
+        if(&op->workerSlots.readDataValue == result) {
+            op->acknowledged = true;
+            if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_READ_REQUEST) {
+                *op->responseReadTarget = op->workerSlots.readDataValue;
+            } else {
+                op->output.directRead = op->workerSlots.readDataValue;
+            }
             processOperationResult(server, op);
             break;
+        }
+    }
+    if(!op) {
+        TAILQ_FOREACH(op, &am->zombieOps, pointers) {
+            if(&op->workerSlots.readDataValue == result) {
+                finishZombie(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);
@@ -906,6 +1078,15 @@ Service_Write(UA_Server *server, UA_Session *session,
     if(ar->opCountdown > 0) {
         ar->responseType = &UA_TYPES[UA_TYPES_WRITERESPONSE];
         persistAsyncResponse(server, session, response, ar);
+    } else if(ar->zombieCountdown > 0) {
+        /* See the identical case in Service_Read for the full explanation. */
+        ar->responseType = &UA_TYPES[UA_TYPES_WRITERESPONSE];
+        ar->response.writeResponse.results = response->results;
+        ar->response.writeResponse.resultsSize = response->resultsSize;
+        ar->processed = true;
+        detachResultsCopy((void**)&response->results, &response->resultsSize,
+                          &UA_TYPES[UA_TYPES_STATUSCODE],
+                          &response->responseHeader.serviceResult);
     }
     return (ar->opCountdown == 0);
 }
@@ -994,12 +1175,21 @@ UA_Server_setAsyncWriteResult(UA_Server *server,
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
         if(&op->context.writeValue.value == value) {
+            op->acknowledged = true;
             if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_WRITE_REQUEST)
                 *op->output.write = result;
             else
                 op->output.directWrite = result;
             processOperationResult(server, op);
             break;
+        }
+    }
+    if (!op) {
+        TAILQ_FOREACH(op, &am->zombieOps, pointers) {
+            if(&op->context.writeValue.value == value) {
+                finishZombie(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);
@@ -1046,10 +1236,13 @@ Service_Call(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < request->methodsToCallSize; i++) {
         UA_Boolean done = Operation_CallMethod(server, session, &request->methodsToCall[i],
                                                &response->results[i]);
-        if(!done)
+        if(!done) {
+            aopArray[i].workerSlots.callOutputArgumentsSize = response->results[i].outputArgumentsSize;
+            response->results[i].outputArgumentsSize = 0;
             persistAsyncResponseOperation(server, &aopArray[i],
                                           UA_ASYNCOPERATIONTYPE_CALL_REQUEST,
                                           ar, &response->results[i]);
+        }
         if(session->state == UA_SESSIONSTATE_CLOSED) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
             break;
@@ -1063,6 +1256,15 @@ Service_Call(UA_Server *server, UA_Session *session,
     if(ar->opCountdown > 0) {
         ar->responseType = &UA_TYPES[UA_TYPES_CALLRESPONSE];
         persistAsyncResponse(server, session, response, ar);
+    } else if(ar->zombieCountdown > 0) {
+        /* See the identical case in Service_Read for the full explanation. */
+        ar->responseType = &UA_TYPES[UA_TYPES_CALLRESPONSE];
+        ar->response.callResponse.results = response->results;
+        ar->response.callResponse.resultsSize = response->resultsSize;
+        ar->processed = true;
+        detachResultsCopy((void**)&response->results, &response->resultsSize,
+                          &UA_TYPES[UA_TYPES_CALLMETHODRESULT],
+                          &response->responseHeader.serviceResult);
     }
     return (ar->opCountdown == 0);
 }
@@ -1094,9 +1296,12 @@ call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *o
     /* Call the operation */
     UA_Boolean done = Operation_CallMethod(server, session, operation,
                                            &op->output.directCall);
-    if(!done)
+    if(!done) {
+        op->workerSlots.callOutputArgumentsSize = op->output.directCall.outputArgumentsSize;
+        op->output.directCall.outputArgumentsSize = 0;
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_CALL_DIRECT,
                                            context, (uintptr_t)callback, timeoutDate);
+    }
 
     /* Done, return right away */
     callback(server, context, &op->output.directCall);
@@ -1125,17 +1330,36 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
         if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
             if(op->output.call->outputArguments == output) {
+                op->acknowledged = true;
+                op->output.call->outputArgumentsSize = op->workerSlots.callOutputArgumentsSize;
                 op->output.call->statusCode = result;
                 processOperationResult(server, op);
                 break;
             }
         } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
             if(op->output.directCall.outputArguments == output) {
+                op->acknowledged = true;
+                op->output.directCall.outputArgumentsSize = op->workerSlots.callOutputArgumentsSize;
                 op->output.directCall.statusCode = result;
                 processOperationResult(server, op);
                 break;
             }
         }
+    }
+    if (!op) {
+        TAILQ_FOREACH(op, &am->zombieOps, pointers) {
+            if (op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+                if(op->output.call->outputArguments == output) {
+                    finishZombie(server, op);
+                    break;
+                }
+            } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+                if(op->output.directCall.outputArguments == output) {
+                    finishZombie(server, op);
+                    break;
+                }
+            }
+        } 
     }
     unlockServer(server);
     return (op) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
