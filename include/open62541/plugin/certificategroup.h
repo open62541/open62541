@@ -94,6 +94,22 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
                                size_t *keySize);
 
+/* Extended key usages are a set. A value of UA_CERTIFICATEEKU_NONE means that
+ * the certificate does not contain an Extended Key Usage extension. The
+ * UA_CERTIFICATEEKU_OTHER flag is set if the extension contains at least one
+ * purpose that is not represented by the other flags. */
+typedef enum {
+    UA_CERTIFICATEEKU_NONE       = 0,
+    UA_CERTIFICATEEKU_SERVERAUTH = 1 << 0,
+    UA_CERTIFICATEEKU_CLIENTAUTH = 1 << 1,
+    UA_CERTIFICATEEKU_ANY        = 1 << 2,
+    UA_CERTIFICATEEKU_OTHER      = 1 << 3
+} UA_CertificateEku;
+
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getExtendedKeyUsage(const UA_ByteString *certificate,
+                                        UA_CertificateEku *extendedKeyUsage);
+
 /* Compares the public keys from two byte strings, which can represent either
  * certificates or Certificate Signing Requests (CSR). This function extracts
  * the public keys from the provided byte strings and compares them to determine

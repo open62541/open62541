@@ -19,6 +19,7 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/certificategroup.h>
 #include <open62541/transport_generated.h>
 
 #include "open62541_queue.h"
@@ -44,6 +45,13 @@ static UA_INLINE UA_Boolean
 UA_SecurityPolicy_isAead(const UA_SecurityPolicy *policy) {
     return policy != NULL && policy->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD;
 }
+
+/* Check whether a certificate permits the requested extended key usage. If the
+ * EKU extension is optional, its absence is accepted. */
+UA_StatusCode
+UA_CertificateUtils_checkExtendedKeyUsage(const UA_ByteString *certificate,
+                                          UA_CertificateEku requestedUsage,
+                                          UA_Boolean ekuRequired);
 
 /* Forward-Declaration so the SecureChannel can point to a singly-linked list of
  * Sessions. This is only used in the server, not in the client. */
