@@ -277,6 +277,14 @@ Detailed SDK Features
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 
+**UA_ENABLE_LOGOBJECT**
+   Enable the LogObject model of OPC UA Part 26. The ServerLog Object captures
+   the output of the server logger and makes it available via the GetRecords
+   Method. Applications can add further LogObjects. Requires
+   ``UA_ENABLE_METHODCALLS`` and a generated namespace zero (``REDUCED`` or
+   ``FULL``). Off by default and marked as EXPERIMENTAL because the
+   specification itself notes limited implementation experience.
+
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
 

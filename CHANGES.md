@@ -3,6 +3,28 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### OPC UA Part 26 LogObjects (EXPERIMENTAL)
+
+With `UA_ENABLE_LOGOBJECT` the server exposes the ServerLog Object of OPC UA
+Part 26 with the GetRecords and ReleaseContinuationPoint Methods. The output of
+the server logger (`config->logging`) is captured into LogRecords. For this the
+`UA_Logger` structure that the config points to is rewritten in place; the
+original logger is restored when the server is deleted. Applications add
+LogObjects below `Server/Resources/Logs` with `UA_Server_addLogObject` and
+records with `UA_Server_addLogRecord`. The storage is a plugin
+(`UA_LogObjectBackend`, an in-memory ring buffer by default). Discarded records
+are reported with `LogOverflowEventType` Events. The feature works with the
+REDUCED and the FULL namespace zero and is off by default.
+
+### Optional structure fields from the NodeSet XML
+
+The datatype generator honours the `IsOptional` fields of the NodeSet XML
+passed via `FILE_XML` (`--xml`) and generates `UA_DATATYPEKIND_OPTSTRUCT`
+structures even when the .bsd omits the encoding-mask bits. The FULL namespace
+zero hands `Opc.Ua.NodeSet2.xml` to the generator. In namespace zero this
+affects only the Part 26 `UA_LogRecord`, whose optional fields are now pointer
+members.
+
 ### PubSub security-policy nonce lengths
 
 Custom `UA_PubSubSecurityPolicy` implementations must initialize the new

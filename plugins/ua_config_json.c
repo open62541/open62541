@@ -120,6 +120,7 @@ PARSE_JSON(UInt32Field) {
     *field = out;
     return retval;
 }
+#if UA_MULTITHREADING >= 100
 PARSE_JSON(UInt64Field) {
     cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -131,6 +132,7 @@ PARSE_JSON(UInt64Field) {
     *field = out;
     return retval;
 }
+#endif
 PARSE_JSON(Int32Field) {
     cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -1192,6 +1194,11 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = BooleanField_parseJson(&ctx, &config->historizingEnabled, NULL);
                 else if(strcmp(field, "historizing") == 0)
                     retval = HistorizingConfigurationField_parseJson(&ctx, config, NULL);
+#endif
+
+#ifdef UA_ENABLE_LOGOBJECT
+                else if(strcmp(field, "logObjectsEnabled") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->logObjectsEnabled, NULL);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
