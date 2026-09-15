@@ -391,8 +391,13 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                                  ad->applicationUri);
                 }
             }
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
-                return UA_STATUSCODE_BADCERTIFICATEINVALID;
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT) {
+                if(res == UA_STATUSCODE_BADCERTIFICATEURIINVALID) {
+                    return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+                } else {
+                    return UA_STATUSCODE_BADCERTIFICATEINVALID;
+                }
+            }
         }
     }
 
