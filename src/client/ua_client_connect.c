@@ -570,8 +570,12 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     if(res != UA_STATUSCODE_GOOD)
         goto finish_decode;
 
-    /* Is the response of the expected type? */
-    if(!UA_NodeId_equal(&responseId, &expectedId)) {
+    /* Is the response of the expected type? responseId is only needed for
+     * this check -- clear it right away regardless of the outcome so a
+     * heap-backed type (String/GUID/ByteString NodeId) can never leak. */
+    UA_Boolean typeMatches = UA_NodeId_equal(&responseId, &expectedId);
+    UA_NodeId_clear(&responseId);
+    if(!typeMatches) {
         res = UA_STATUSCODE_BADDECODINGERROR;
         goto finish_decode;
     }
@@ -588,11 +592,15 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
+    /* From here on, response has been decoded and must be cleared on every
+     * rejection as well as on success. */
+
     /* Check whether the nonce was reused */
     if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE &&
        UA_ByteString_equal(&client->channel.remoteNonce, &response.serverNonce)) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server reused the last nonce");
+        UA_OpenSecureChannelResponse_clear(&response);
         setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
@@ -636,6 +644,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
      * with the new SecurityToken is received. */
     res = UA_SecureChannel_generateLocalKeys(&client->channel);
     if(res != UA_STATUSCODE_GOOD) {
+        UA_OpenSecureChannelResponse_clear(&response);
         setConnectStatus(client, res);
         return;
     }
@@ -654,6 +663,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     }
 
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
+    UA_OpenSecureChannelResponse_clear(&response);
 }
 
 /* OPN messges to renew the channel are sent asynchronous */
