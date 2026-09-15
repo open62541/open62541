@@ -44,7 +44,7 @@ START_TEST(UA_NetworkMessage_largeFieldName_json_encode) {
     UA_String fieldName;
     fieldName.length = 256 * 1024;
     fieldName.data = (UA_Byte*)UA_malloc(fieldName.length);
-    ck_assert_ptr_nonnull(fieldName.data);
+    ck_assert_ptr_ne(fieldName.data, NULL);
     memset(fieldName.data, 'a', fieldName.length);
 
     UA_DataSetMessage dsm;

@@ -1141,7 +1141,7 @@ prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                   UA_ByteString *buf) {
-    UA_Boolean stackMatches[64];
+    UA_Boolean stackMatches[64] = {false};
     UA_Boolean *matches = stackMatches;
     if(readerGroup->readersCount > 64) {
         matches = (UA_Boolean*)UA_calloc(readerGroup->readersCount,
