@@ -325,6 +325,99 @@ START_TEST(requestMask) {
     UA_Array_delete(records, n, &UA_TYPES[UA_TYPES_LOGRECORD]);
 } END_TEST
 
+
+/* Invalid arguments are rejected instead of crashing */
+START_TEST(invalidArguments) {
+    UA_LogRecord r;
+    UA_LogRecord_init(&r);
+    r.severity = 100;
+    UA_LogObjectSettings s = {5, 0.0, 1};
+    UA_NodeId other = UA_NODEID_NUMERIC(1, 2000);
+
+    ck_assert_uint_eq(backend.registerLogObject(NULL, NULL, &logId, &s),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(backend.registerLogObject(NULL, backend.context, NULL, &s),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(backend.registerLogObject(NULL, backend.context, &other, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(backend.addRecord(NULL, backend.context, &logId, NULL, 0, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(backend.addRecord(NULL, NULL, &logId, &r, 0, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* maxRecords of zero would return nothing at all */
+    size_t size = 1;
+    UA_LogRecord *records = (UA_LogRecord*)0x1;
+    UA_LogObjectCursor next = 1;
+    UA_Boolean more = true;
+    ck_assert_uint_eq(backend.getRecords(NULL, backend.context, &logId, 0, UA_INT64_MAX,
+                                         1, 0xFF, 0, 0, 0, &size, &records, &next, &more),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(size, 0);
+    ck_assert(records == NULL);
+    ck_assert(!more);
+
+    /* Unknown LogObject */
+    ck_assert_uint_eq(backend.getRecords(NULL, backend.context, &other, 0, UA_INT64_MAX,
+                                         1, 0xFF, 0, 10, 0, &size, &records, &next, &more),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    /* Unregistering an unknown LogObject is a no-op */
+    backend.unregisterLogObject(NULL, backend.context, &other);
+    backend.unregisterLogObject(NULL, NULL, &other);
+
+    /* Clearing twice is safe */
+    backend.clear(&backend);
+    ck_assert(backend.context == NULL);
+    backend.clear(&backend);
+} END_TEST
+
+
+START_TEST(unregisterInTheMiddle) {
+    UA_NodeId second = UA_NODEID_NUMERIC(1, 1001);
+    UA_NodeId third = UA_NODEID_NUMERIC(1, 1002);
+    ck_assert_uint_eq(backend.registerLogObject(NULL, backend.context, &second, &settings),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(backend.registerLogObject(NULL, backend.context, &third, &settings),
+                      UA_STATUSCODE_GOOD);
+    add(&logId, MS(10), 100, "first");
+    add(&second, MS(10), 100, "second");
+    add(&third, MS(10), 100, "third");
+
+    /* Removing the store in the middle keeps the others intact */
+    backend.unregisterLogObject(NULL, backend.context, &second);
+    UA_LogRecord *records = NULL;
+    UA_LogObjectCursor next = 0;
+    UA_Boolean more = true;
+    size_t n = get(0, UA_INT64_MAX, 1, 0xFF, 0, 10, MS(10), &records, &next, &more);
+    ck_assert_uint_eq(n, 1);
+    UA_Array_delete(records, n, &UA_TYPES[UA_TYPES_LOGRECORD]);
+    size_t size = 0;
+    UA_StatusCode res =
+        backend.getRecords(NULL, backend.context, &third, 0, UA_INT64_MAX, 1, 0xFF,
+                           0, 10, MS(10), &size, &records, &next, &more);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(size, 1);
+    UA_Array_delete(records, size, &UA_TYPES[UA_TYPES_LOGRECORD]);
+    res = backend.getRecords(NULL, backend.context, &second, 0, UA_INT64_MAX, 1, 0xFF,
+                             0, 10, MS(10), &size, &records, &next, &more);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNODEIDUNKNOWN);
+} END_TEST
+
+/* Records after EndTime do not make further records available */
+START_TEST(endTimeBoundsTheLookahead) {
+    for(UA_UInt32 i = 1; i <= 5; i++)
+        add(&logId, MS(i * 10), 100, "record");
+    UA_LogRecord *records = NULL;
+    UA_LogObjectCursor next = 0;
+    UA_Boolean more = true;
+    size_t n = get(0, MS(20), 1, 0xFF, 0, 2, MS(50), &records, &next, &more);
+    ck_assert_uint_eq(n, 2);
+    ck_assert_int_eq(records[1].time, MS(20));
+    ck_assert(!more); /* The record at MS(30) is after EndTime */
+    UA_Array_delete(records, n, &UA_TYPES[UA_TYPES_LOGRECORD]);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("LogObject memory backend");
     TCase *tc = tcase_create("memory");
@@ -337,6 +430,9 @@ int main(void) {
     tcase_add_test(tc, filters);
     tcase_add_test(tc, moreAvailableWithFilter);
     tcase_add_test(tc, requestMask);
+    tcase_add_test(tc, unregisterInTheMiddle);
+    tcase_add_test(tc, endTimeBoundsTheLookahead);
+    tcase_add_test(tc, invalidArguments);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
