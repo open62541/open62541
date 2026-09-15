@@ -269,6 +269,14 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return UA_STATUSCODE_BADNOTFOUND;
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
+    /* Access to a SecurityGroup is granted per ClientUserId. A Session that was
+     * activated with the Anonymous UserIdentityToken has no ClientUserId, so
+     * the check below has no identity to match the SecurityGroup against and
+     * cannot come to a meaningful decision. Reject the call instead of
+     * returning the keys. */
+    if(session->clientUserIdOfSession.length == 0)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     executable = server->config.accessControl.getUserExecutableOnObject(
         server, &server->config.accessControl, sessionId, sessionContext, methodId,
         methodContext, &sg->securityGroupNodeId, sgNodeCtx);
