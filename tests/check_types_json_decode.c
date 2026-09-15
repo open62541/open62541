@@ -885,6 +885,27 @@ START_TEST(json_decode_large_object_tokenizer_realloc) {
     free(buf);
 } END_TEST
 
+START_TEST(json_decode_rejects_too_many_extensionobject_fields) {
+    size_t bufsize = 32768;
+    char *buf = (char*)malloc(bufsize);
+    ck_assert(buf != NULL);
+    int pos = snprintf(buf, bufsize, "{\"UaTypeId\":\"i=99999\"");
+    for(size_t i = 0; i < UA_DATATYPE_MEMBERS_MAX + 3; i++) {
+        ck_assert((size_t)pos < bufsize);
+        pos += snprintf(buf + pos, bufsize - (size_t)pos,
+                        ",\"field%zu\":0", i);
+    }
+    ck_assert((size_t)pos < bufsize);
+    snprintf(buf + pos, bufsize - (size_t)pos, "}");
+
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_init(&eo);
+    UA_StatusCode res = decode(buf, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_ExtensionObject_clear(&eo);
+    free(buf);
+} END_TEST
+
 /* ============================================================
  * 8. String_decodeJson – malformed strings
  * ============================================================ */
@@ -1365,6 +1386,8 @@ int main(void) {
     TCase *tc_tokenize = tcase_create("Tokenize");
     tcase_add_test(tc_tokenize, json_decode_large_json_tokenizer_realloc);
     tcase_add_test(tc_tokenize, json_decode_large_object_tokenizer_realloc);
+    tcase_add_test(tc_tokenize,
+                   json_decode_rejects_too_many_extensionobject_fields);
     suite_add_tcase(s, tc_tokenize);
 
     TCase *tc_string = tcase_create("StringDecode");
