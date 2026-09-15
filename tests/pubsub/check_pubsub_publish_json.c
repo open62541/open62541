@@ -156,11 +156,11 @@ START_TEST(PublishManyDataSetWritersOnSmallStack) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    ck_assert_ptr_nonnull(wg);
+    ck_assert_ptr_ne(wg, NULL);
     const size_t writersCount = 4096;
     UA_DataSetWriter *writers = (UA_DataSetWriter*)
         UA_calloc(writersCount, sizeof(UA_DataSetWriter));
-    ck_assert_ptr_nonnull(writers);
+    ck_assert_ptr_ne(writers, NULL);
     for(size_t i = 0; i < writersCount; i++)
         LIST_INSERT_HEAD(&wg->writers, &writers[i], listEntry);
     wg->writersCount = (UA_UInt32)writersCount;
