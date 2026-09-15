@@ -831,7 +831,7 @@ START_TEST(gds_callback_argument_counts) {
         UA_StatusCode retval =
             UA_Server_getMethodNodeCallback(server, methodId, &callback);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_ptr_ne(callback, NULL);
+        ck_assert(callback != NULL);
 
         /* Both too few and too many arguments must be rejected before use. */
         size_t inputCounts[2] = {contracts[i].inputSize + 1,
