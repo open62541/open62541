@@ -1507,9 +1507,12 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                         }
                         *offset += tmpOffset;
                     } else {
-                        /* The payload size of a single RawData DSM can only be
-                         * derived from its metadata. */
-                        return UA_STATUSCODE_BADDECODINGERROR;
+                        /* A single DSM without explicit size consumes the
+                         * remaining input. Clamp to the buffer instead of
+                         * advancing by an arbitrary fallback amount. */
+                        dst->data.keyFrameData.rawFields.length =
+                            src->length - *offset;
+                        *offset = src->length;
                     }
                 } else {
                     size_t headerSize = *offset - initialOffset;

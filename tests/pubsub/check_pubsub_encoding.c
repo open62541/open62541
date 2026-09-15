@@ -138,6 +138,17 @@ START_TEST(UA_PubSub_Decode_RawDataSizeMustFitBuffer) {
     ck_assert_ptr_eq(dsm.data.keyFrameData.rawFields.data, &validData[1]);
     ck_assert_uint_eq(dsm.data.keyFrameData.rawFields.length, 2);
     UA_DataSetMessage_clear(&dsm);
+
+    /* A single RawData DSM has no explicit size. Without metadata, the raw
+     * payload consumes the remaining input and must stay within its bounds. */
+    offset = 0;
+    res = UA_DataSetMessage_decodeBinary(
+        &validBuffer, &offset, &dsm, 0, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, sizeof(validData));
+    ck_assert_ptr_eq(dsm.data.keyFrameData.rawFields.data, &validData[1]);
+    ck_assert_uint_eq(dsm.data.keyFrameData.rawFields.length, 2);
+    UA_DataSetMessage_clear(&dsm);
 }
 END_TEST
 
