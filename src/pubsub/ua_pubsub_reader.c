@@ -256,6 +256,97 @@ disconnectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 }
 
 static void
+clearSequences(UA_DataSetReader *reader) {
+    while(reader->sequences) {
+        UA_ReaderSequence *entry = reader->sequences;
+        reader->sequences = entry->next;
+        UA_PublisherId_clear(&entry->publisherId);
+        UA_free(entry);
+    }
+}
+
+UA_Boolean
+UA_DataSetReader_checkSequence(UA_PubSubManager *psm, UA_DataSetReader *reader,
+                               const UA_NetworkMessage *nm, UA_UInt16 writerId,
+                               UA_Boolean dataSet, UA_UInt32 number, UA_Byte bits,
+                               UA_Boolean update, UA_Boolean *gap) {
+    /* Identify this stream by its received publisher, group and writer ids.
+     * NetworkMessage and DataSetMessage counters have separate histories. */
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    UA_Boolean groupEnabled = nm->groupHeaderEnabled && nm->groupHeader.writerGroupIdEnabled;
+    UA_UInt16 groupId = groupEnabled ? nm->groupHeader.writerGroupId : 0;
+    UA_ReaderSequence **pos = &reader->sequences;
+    *gap = true;
+    while(*pos) {
+        UA_ReaderSequence *entry = *pos;
+        /* The history survives the first receive timeout. Part 14 7.2.3
+         * discards it only after twice that interval without messages. */
+        if(reader->config.messageReceiveTimeout > 0.0 &&
+           (UA_Double)(now - entry->lastReceived) / UA_DATETIME_MSEC >=
+               2.0 * reader->config.messageReceiveTimeout) {
+            *pos = entry->next;
+            UA_PublisherId_clear(&entry->publisherId);
+            UA_free(entry);
+            continue;
+        }
+
+        /* Find the history for this stream, including which header ids are
+         * present. */
+        UA_Variant a, b;
+        UA_PublisherId_toVariant(&entry->publisherId, &a);
+        UA_PublisherId_toVariant(&nm->publisherId, &b);
+        if(entry->publisherIdEnabled == nm->publisherIdEnabled &&
+           (!nm->publisherIdEnabled || UA_Variant_equal(&a, &b)) &&
+           entry->writerGroupIdEnabled == groupEnabled &&
+           entry->writerGroupId == groupId && entry->writerId == writerId &&
+           entry->dataSet == dataSet) {
+            /* Refresh the receive time even for rejected numbers, then
+             * compare sequence numbers modulo the wire format's counter
+             * width. */
+            entry->lastReceived = now;
+            UA_UInt32 mask = bits == 16 ? UA_UINT16_MAX : UA_UINT32_MAX;
+            UA_UInt32 distance = (number - entry->sequenceNumber - 1) & mask;
+            /* Only the lower quarter is a forward step. This rejects both
+             * duplicate/old values and the ambiguous middle range. */
+            if(distance >= ((UA_UInt32)1 << (bits - 2)))
+                return false;
+
+            /* Report missing messages immediately, but advance the accepted
+             * sequence number only after the caller has processed the
+             * message. */
+            *gap = distance != 0;
+            if(update)
+                entry->sequenceNumber = number;
+            return true;
+        }
+        pos = &entry->next;
+    }
+
+    /* Accept the first message of a new stream without creating history
+     * during the preliminary check. Store an owned publisher id when
+     * committing it. */
+    if(!update)
+        return true;
+    UA_ReaderSequence *entry = (UA_ReaderSequence*)UA_calloc(1, sizeof(*entry));
+    if(!entry)
+        return false;
+    if(UA_PublisherId_copy(&nm->publisherId, &entry->publisherId) != UA_STATUSCODE_GOOD) {
+        UA_free(entry);
+        return false;
+    }
+    entry->publisherIdEnabled = nm->publisherIdEnabled;
+    entry->writerGroupIdEnabled = groupEnabled;
+    entry->writerGroupId = groupId;
+    entry->writerId = writerId;
+    entry->dataSet = dataSet;
+    entry->sequenceNumber = number;
+    entry->lastReceived = now;
+    *pos = entry;
+    return true;
+}
+
+static void
 clearLastUsableValues(UA_DataSetReader *dsr) {
     if(dsr->lastUsableValues)
         UA_Array_delete(dsr->lastUsableValues, dsr->lastUsableValuesSize,
@@ -496,6 +587,7 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader deleted");
 
     clearLastUsableValues(dsr);
+    clearSequences(dsr);
     UA_DataSetReaderConfig_clear(&dsr->config);
     UA_PubSubComponentHead_clear(&dsr->head);
     UA_free(dsr);
@@ -751,6 +843,10 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                        UA_PubSubState_name(oldState),
                        UA_PubSubState_name(dsr->head.state));
 
+    /* Forget stream history on disable; retain it across receive timeouts. */
+    if(dsr->head.state == UA_PUBSUBSTATE_DISABLED)
+        clearSequences(dsr);
+
     /* Inform application about state change */
     if(server->config.pubSubConfig.stateChangeCallback)
         server->config.pubSubConfig.
@@ -807,11 +903,11 @@ UA_DataSetReader_handleMessageReceiveTimeout(void *application /* UA_PubSubManag
     unlockServer(psm->drv.server);
 }
 
-void
+UA_Boolean
 UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                          UA_DataSetMessage *msg) {
     if(!dsr || !msg || !psm)
-        return;
+        return false;
 
     UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Received a network message");
 
@@ -819,13 +915,13 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
        dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Received a network message but not operational");
-        return;
+        return false;
     }
 
     if(!msg->header.dataSetMessageValid) {
         UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                            "DataSetMessage is discarded: message is not valid");
-        return;
+        return false;
     }
 
     /* A version carried by the message has to match the reader metadata.
@@ -840,7 +936,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "DataSetMessage discarded: ConfigurationVersion "
                               "MajorVersion does not match");
-        return;
+        return false;
     }
     if(expected->minorVersion != 0 &&
        msg->header.configVersionMinorVersionEnabled &&
@@ -848,7 +944,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "DataSetMessage discarded: ConfigurationVersion "
                               "MinorVersion does not match");
-        return;
+        return false;
     }
 
     /* A valid and compatible first message promotes the reader from
@@ -882,12 +978,12 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
        !deltaFrame) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "DataSetMessage is discarded: unsupported message type");
-        return;
+        return msg->header.dataSetMessageType == UA_DATASETMESSAGE_KEEPALIVE;
     }
 
     /* Received a heartbeat with no fields */
     if(msg->fieldCount == 0)
-        return;
+        return true;
 
     /* Check whether the field count matches the configuration */
     UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
@@ -895,7 +991,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Number of fields does not match the "
                               "TargetVariables configuration");
-        return;
+        return false;
     }
 
     if(deltaFrame) {
@@ -907,7 +1003,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                                   "DataSetMessage is discarded: delta frame "
                                   "does not match the configured key-frame period");
-            return;
+            return false;
         }
         dsr->deltaFrameCounter++;
     } else {
@@ -924,7 +1020,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             if(!dsr->lastUsableValues) {
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR,
                                                 UA_STATUSCODE_BADOUTOFMEMORY);
-                return;
+                return false;
             }
             dsr->lastUsableValuesSize = tvs->targetVariablesSize;
         }
@@ -942,7 +1038,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                 UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                                       "Delta-frame field index is outside the "
                                       "TargetVariables configuration");
-                return;
+                return false;
             }
         } else {
             field = &msg->data.keyFrameFields[i];
@@ -965,7 +1061,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             if(res != UA_STATUSCODE_GOOD) {
                 UA_DataValue_clear(&fallback);
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
-                return;
+                return false;
             }
             writeValue = fallback;
         }
@@ -988,7 +1084,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
                 UA_DataValue_clear(&fallback);
                 UA_Variant_clear(&rangedValue);
-                return;
+                return false;
             }
             writeValue.value = rangedValue;
             writeValue.hasValue = true;
@@ -1028,12 +1124,13 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                 UA_DataValue_clear(&fallback);
                 UA_Variant_clear(&rangedValue);
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
-                return;
+                return false;
             }
         }
         UA_DataValue_clear(&fallback);
         UA_Variant_clear(&rangedValue);
     }
+    return true;
 }
 
 /**************/
@@ -1198,6 +1295,7 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
     /* Clean up and return */
     UA_DataSetReaderConfig_clear(&oldConfig);
     clearLastUsableValues(dsr);
+    clearSequences(dsr);
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 
