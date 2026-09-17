@@ -1131,11 +1131,12 @@ END_TEST
 #endif
 
 START_TEST(Highlevel_ForEachChildNode_InvalidNode) {
-    /* forEachChildNodeCall with non-existent node — exercises the browse path.
-     * The server may return GOOD with empty results for unknown nodes. */
+    /* Operation-level Browse failures must be propagated to the helper caller. */
     UA_NodeId invalidNode = UA_NODEID_NUMERIC(99, 99999);
     unsigned int prevCount = iteratedNodeCount;
-    UA_Client_forEachChildNodeCall(client, invalidNode, nodeIter, NULL);
+    UA_StatusCode retval =
+        UA_Client_forEachChildNodeCall(client, invalidNode, nodeIter, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
     /* No children should have been iterated */
     ck_assert_uint_eq(iteratedNodeCount, prevCount);
 }
