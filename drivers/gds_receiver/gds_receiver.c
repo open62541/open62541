@@ -658,15 +658,6 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
-    /* CA certificates cannot be added using this method because it does not
-     * support adding CRLs */
-    if(UA_CertificateUtils_checkCA(certificate) == UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                     "The certificate could not be added because it is a CA certificate. "
-                     "CA certificates must be added using the FileType methods.");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
     /* This method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo =
         UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
@@ -675,13 +666,24 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
     if(fileInfo->openCount > 0)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
+    /* Ensure certificate validity before adding it */
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageInstanceCert = (certGroup == &(server->config.secureChannelPKI));
+    verSettings.allowUsageUserCert = (certGroup == &(server->config.sessionPKI));
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_VALIDITY;
+    UA_StatusCode res = certGroup->verifyCertificate(certGroup, certificate, verSettings);
+    if(retval != UA_STATUSCODE_GOOD) {
+        // mask error with UA_STATUSCODE_BADCERTIFICATEINVALID
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
     trustList.trustedCertificates = certificate;
     trustList.trustedCertificatesSize = 1;
 
-    UA_StatusCode res = certGroup->addToTrustList(certGroup, &trustList);
+    res = certGroup->addToTrustList(certGroup, &trustList);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -724,6 +726,18 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
         retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* Ensure certificate integrity before accepting it */
+    UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+    UA_CertficateGroup *certGroup = &(sc->secureChannelPKI);
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageInstanceCert= true;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_INTEGRITY;
+    retval = certGroup->verifyCertificate(certGroup, certificate, verSettings);
+    if(retval != UA_STATUSCODE_GOOD) {
+        // mask error with UA_STATUSCODE_BADCERTIFICATEINVALID
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     UA_GDSTransaction *transaction = &ctx->transaction;
