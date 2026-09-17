@@ -834,6 +834,39 @@ START_TEST(NetworkMessageClassIdMatchesIncludedDataSets) {
     ck_assert_uint_eq(writerCount, 2);
 } END_TEST
 
+
+#ifdef UA_ENABLE_JSON_ENCODING
+START_TEST(JsonNetworkMessageHasUniqueMessageId) {
+    HeaderTestContext ctx = setupHeaderTest(0);
+    ctx.wg->config.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    UA_String ids[3];
+    memset(ids, 0, sizeof(ids));
+    for(size_t i = 0; i < 3; i++) {
+        ck_assert_uint_eq(UA_Server_triggerWriterGroupPublish(server,
+                          ctx.wg->head.identifier), UA_STATUSCODE_GOOD);
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(nm));
+        ck_assert_uint_eq(UA_NetworkMessage_decodeJson(
+            TestConnectionManager_getLastSent(ctx.cm), &nm, NULL, NULL),
+            UA_STATUSCODE_GOOD);
+        ids[i] = nm.messageId;
+        nm.messageId = UA_STRING_NULL;
+        UA_NetworkMessage_clear(&nm);
+    }
+    teardownHeaderTest(&ctx);
+    for(size_t i = 0; i < 3; i++) {
+        ck_assert_uint_eq(ids[i].length, 36);
+        UA_Guid guid;
+        ck_assert_uint_eq(UA_Guid_parse(&guid, ids[i]), UA_STATUSCODE_GOOD);
+        ck_assert(!UA_Guid_equal(&guid, &UA_GUID_NULL));
+        for(size_t j = 0; j < i; j++)
+            ck_assert(!UA_String_equal(&ids[i], &ids[j]));
+    }
+    for(size_t i = 0; i < 3; i++)
+        UA_String_clear(&ids[i]);
+} END_TEST
+#endif
+
 START_TEST(PromotedFieldsAreCollectedFromPublishedValues) {
     UA_Int32 publishedValue = 62541;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -1927,6 +1960,9 @@ int main(void) {
 
     TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
+#ifdef UA_ENABLE_JSON_ENCODING
+    tcase_add_test(tc_pubsub_publish, JsonNetworkMessageHasUniqueMessageId);
+#endif
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageTimestampUsesEventLoopClock, 0, 4);
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageClassIdMatchesIncludedDataSets, 0, 4);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);

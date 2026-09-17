@@ -652,6 +652,16 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     nm.publisherIdEnabled = true;
     nm.publisherId = connection->config.publisherId;
 
+    /* Use one globally unique identifier for this message, including both the
+     * size calculation and encoding passes. */
+    UA_Guid messageId = UA_Guid_random();
+    UA_Byte messageIdBuffer[36];
+    nm.messageId = UA_BYTESTRING_NULL;
+    nm.messageId.data = messageIdBuffer;
+    nm.messageId.length = sizeof(messageIdBuffer);
+    UA_StatusCode idResult = UA_Guid_print(&messageId, &nm.messageId);
+    UA_CHECK_STATUS(idResult, return idResult);
+
     for(size_t i = 0; i < dsmCount; i++)
         nm.dataSetWriterIds[i] = writerIds[i];
 
