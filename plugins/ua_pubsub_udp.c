@@ -297,7 +297,13 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
 
     if(address->networkInterface.length > 0) {
         /* Set configured interface */
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * address->networkInterface.length + 1);
+        if(address->networkInterface.length >= sizeof(addressAsChar)) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub Connection creation problem. "
+                         "Interface name maximum length is 511.");
+            goto cleanup;
+        }
+        char interfaceAsChar[sizeof(addressAsChar)];
         memcpy(interfaceAsChar, address->networkInterface.data, address->networkInterface.length);
         interfaceAsChar[address->networkInterface.length] = 0;
 
