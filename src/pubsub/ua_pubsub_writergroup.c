@@ -851,6 +851,26 @@ generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
 
+    /* A class id describes every DataSetMessage in this NetworkMessage. */
+    if(nm->dataSetClassIdEnabled) {
+        for(size_t i = 0; i < dsmCount; i++) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(dsw->config.dataSetWriterId == writerIds[i])
+                    break;
+            }
+            if(!dsw)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            UA_Guid classId = UA_GUID_NULL;
+            if(dsw->connectedDataSet)
+                classId = dsw->connectedDataSet->dataSetMetaData.dataSetClassId;
+            if(i == 0)
+                nm->dataSetClassId = classId;
+            else if(!UA_Guid_equal(&nm->dataSetClassId, &classId))
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+
     /* Set the SecurityHeader */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         nm->securityEnabled = true;
@@ -1083,6 +1103,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
 
     /* Extract DataSetOrdering from messageSettings */
     UA_DataSetOrderingType dataSetOrdering = UA_DATASETORDERINGTYPE_UNDEFINED;
+    UA_Boolean includeClassId = false;
     if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
        wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         if(wg->config.messageSettings.content.decoded.type ==
@@ -1090,6 +1111,8 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
             UA_UadpWriterGroupMessageDataType *wgm =
                 (UA_UadpWriterGroupMessageDataType *)wg->config.messageSettings.content.decoded.data;
             dataSetOrdering = wgm->dataSetOrdering;
+            includeClassId = (wgm->networkMessageContentMask &
+                             UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
         }
     }
 
@@ -1152,6 +1175,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
     size_t dsmCount = 0;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
+    UA_STACKARRAY(UA_Guid, classIds, enabledWriters);
 
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
     for(size_t i = 0; i < enabledWriters; i++) {
@@ -1183,6 +1207,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
             continue; /* Don't increase the dsmCount, reuse the slot */
         }
 
+        classIds[dsmCount] = pds ? pds->dataSetMetaData.dataSetClassId : UA_GUID_NULL;
         dsmCount++;
     }
 
@@ -1191,6 +1216,15 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
     for(size_t i = 0; i < dsmCount; i += nmDsmCount) {
         /* How many dsm are batched in this iteration? */
         nmDsmCount = (i + maxDSM > dsmCount) ? (UA_Byte)(dsmCount - i) : maxDSM;
+        /* Preserve writer ordering while splitting different DataSet classes. */
+        if(includeClassId) {
+            for(UA_Byte j = 1; j < nmDsmCount; j++) {
+                if(!UA_Guid_equal(&classIds[i], &classIds[i + j])) {
+                    nmDsmCount = j;
+                    break;
+                }
+            }
+        }
         wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
         /* Send the batched messages */
         sendNetworkMessage(psm, wg, connection, &dsmStore[i],
