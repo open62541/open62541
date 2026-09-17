@@ -445,12 +445,29 @@ UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm,
 /*               DataSetReader                */
 /**********************************************/
 
+/* Retain the accepted counter and last receive time for one message stream.
+ * The entry owns its PublisherId; DataSet and NetworkMessage histories are
+ * separate. */
+typedef struct UA_ReaderSequence {
+    struct UA_ReaderSequence *next;
+    UA_PublisherId publisherId;
+    UA_Boolean publisherIdEnabled;
+    UA_Boolean writerGroupIdEnabled;
+    UA_UInt16 writerGroupId;
+    UA_UInt16 writerId;
+    UA_Boolean dataSet;
+    UA_UInt32 sequenceNumber;
+    UA_DateTime lastReceived;
+} UA_ReaderSequence;
+
 struct UA_DataSetReader {
     UA_PubSubComponentHead head;
     LIST_ENTRY(UA_DataSetReader) listEntry;
 
     UA_DataSetReaderConfig config;
     UA_ReaderGroup *linkedReaderGroup;
+
+    UA_ReaderSequence *sequences;
 
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
@@ -465,8 +482,18 @@ struct UA_DataSetReader {
 UA_DataSetReader *
 UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
 
-/* Process Network Message using DataSetReader */
-void
+/* Check ordering and report whether messages are missing. A preliminary check
+ * refreshes receive time; update also commits the accepted counter. */
+UA_Boolean
+UA_DataSetReader_checkSequence(UA_PubSubManager *psm, UA_DataSetReader *reader,
+                               const UA_NetworkMessage *nm, UA_UInt16 writerId,
+                               UA_Boolean dataSet, UA_UInt32 number, UA_Byte bits,
+                               UA_Boolean update, UA_Boolean *gap);
+
+/* Validate a DataSetMessage and apply its fields to the targets. Return true
+ * when the message is accepted, even if an individual target rejects its
+ * write. */
+UA_Boolean
 UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
