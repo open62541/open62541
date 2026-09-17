@@ -473,7 +473,15 @@ struct UA_InterruptManager {
  *   well. But expect accordingly longer sleep-times for timed events when the
  *   clock is set to the past. See the man-page of "clock_gettime" on how to get
  *   a clock source id for a character-device such as /dev/ptp0. (default:
- *   CLOCK_MONOTONIC_RAW) */
+ *   CLOCK_MONOTONIC_RAW)
+ *
+ * **Run-time output parameters (read-only, set after each run() iteration)**
+ *
+ * 0:work-performed [Boolean]:
+ *   ``true`` if at least one I/O callback (``eventSourceCB``) fired during the
+ *   most recent ``run()`` iteration, ``false`` otherwise. Not present before
+ *   the first ``run()`` call. Applications can use this to drive adaptive
+ *   scheduling. Only set by the POSIX EventLoop. */
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 UA_EXPORT UA_EventLoop *
