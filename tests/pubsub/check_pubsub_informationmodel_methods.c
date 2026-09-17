@@ -491,6 +491,28 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_CallMethodResult_clear(&result);
 
+        /* A Remove method may only remove a direct child of the Object on
+         * which it was invoked. The nested folder is not a direct child of
+         * PublishedDataSets. */
+        UA_Variant_init(&inputArguments);
+        UA_Variant_setScalar(&inputArguments, &createdFolder2,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+        UA_CallMethodRequest_init(&callMethodRequest);
+        callMethodRequest.inputArgumentsSize = 1;
+        callMethodRequest.inputArguments = &inputArguments;
+        callMethodRequest.objectId =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS);
+        callMethodRequest.methodId =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER);
+        result = UA_Server_call(server, &callMethodRequest);
+        ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+        UA_CallMethodResult_clear(&result);
+        UA_NodeId checkedNodeId;
+        UA_NodeId_init(&checkedNodeId);
+        retVal = UA_Server_readNodeId(server, createdFolder2, &checkedNodeId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_NodeId_clear(&checkedNodeId);
+
         //delete the folder
         UA_Variant_init(&inputArguments);
         UA_Variant_setScalar(&inputArguments, &createdFolder, &UA_TYPES[UA_TYPES_NODEID]);
