@@ -29,7 +29,8 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
                UA_Byte *msgEnd);
 
 static UA_StatusCode
-generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
+generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
+                       UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *messageSettings,
                         UA_ExtensionObject *transportSettings,
@@ -788,7 +789,8 @@ UA_WriterGroup_collectPromotedFields(UA_PubSubManager *psm, UA_WriterGroup *wg,
 }
 
 static UA_StatusCode
-generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
+generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
+                       UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
@@ -833,7 +835,13 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     nm->timestampEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
-    nm->picosecondsEnabled =
+    if(nm->timestampEnabled) {
+        UA_EventLoop *el = psm->drv.server->config.eventLoop;
+        nm->timestamp = el->dateTime_now(el);
+    }
+    /* The EventLoop clock has 100 ns resolution, so the remainder is zero. */
+    nm->picoseconds = 0;
+    nm->picosecondsEnabled = nm->timestampEnabled &&
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
     nm->dataSetClassIdEnabled =
@@ -915,7 +923,7 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 
     /* Fill the message structure */
     UA_StatusCode rv =
-        generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount,
+        generateNetworkMessage(psm, connection, wg, dsm, writerIds, dsmCount,
                                &wg->config.messageSettings,
                                &wg->config.transportSettings, &nm);
     UA_CHECK_STATUS(rv, return rv);
@@ -1824,7 +1832,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-    res = generateNetworkMessage(wg->linkedConnection, wg, dsmStore, dsWriterIds,
+    res = generateNetworkMessage(psm, wg->linkedConnection, wg, dsmStore, dsWriterIds,
                                  (UA_Byte) dsmCount, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);
     if(res != UA_STATUSCODE_GOOD)

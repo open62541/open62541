@@ -628,6 +628,128 @@ noopConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     (void)msg;
 }
 
+
+/* Capture messages emitted by the normal WriterGroup publishing path. */
+typedef struct {
+    UA_PubSubConnection *connection;
+    UA_WriterGroup *wg;
+    UA_DataSetWriter *dsw;
+    UA_ConnectionManager *cm;
+    UA_ConnectionManager *originalCm;
+    uintptr_t originalSendChannel;
+} HeaderTestContext;
+
+static HeaderTestContext
+setupHeaderTest(UA_UadpNetworkMessageContentMask mask) {
+    HeaderTestContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    UA_PublishedDataSetConfig pdc;
+    memset(&pdc, 0, sizeof(pdc));
+    pdc.name = UA_STRING("HeaderPDS");
+    UA_NodeId pdsId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdc, &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.field.variable.fieldNameAlias = UA_STRING("state");
+    field.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_UadpWriterGroupMessageDataType settings;
+    UA_UadpWriterGroupMessageDataType_init(&settings);
+    settings.networkMessageContentMask = mask |
+        UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("HeaderWG");
+    wgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_ExtensionObject_setValue(&wgc.messageSettings, &settings,
+                               &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    UA_NodeId wgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1, &wgc, &wgId),
+                      UA_STATUSCODE_GOOD);
+    UA_DataSetWriterConfig dwc;
+    memset(&dwc, 0, sizeof(dwc));
+    dwc.name = UA_STRING("HeaderDSW");
+    dwc.dataSetWriterId = 17;
+    UA_NodeId dswId;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId, &dwc, &dswId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    ctx.connection = UA_PubSubConnection_find(psm, connection1);
+    ctx.wg = UA_WriterGroup_find(psm, wgId);
+    ctx.dsw = UA_DataSetWriter_find(psm, dswId);
+    ctx.cm = TestConnectionManager_new("udp", NULL);
+    ck_assert_ptr_nonnull(ctx.cm);
+    uintptr_t channel = 0;
+    ck_assert_uint_eq(TestConnectionManager_createConnection(
+        ctx.cm, NULL, NULL, noopConnectionCallback, &channel), UA_STATUSCODE_GOOD);
+    ctx.originalCm = ctx.connection->cm;
+    ctx.originalSendChannel = ctx.connection->sendChannel;
+    ctx.connection->cm = ctx.cm;
+    ctx.connection->sendChannel = channel;
+    ctx.wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    ctx.dsw->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    return ctx;
+}
+
+static void
+teardownHeaderTest(HeaderTestContext *ctx) {
+    ctx->connection->cm = ctx->originalCm;
+    ctx->connection->sendChannel = ctx->originalSendChannel;
+    ctx->cm->eventSource.free(&ctx->cm->eventSource);
+}
+
+static UA_DateTime headerTestTime;
+
+static UA_DateTime
+headerTestNow(UA_EventLoop *el) {
+    return headerTestTime;
+}
+
+START_TEST(NetworkMessageTimestampUsesEventLoopClock) {
+    UA_UadpNetworkMessageContentMask mask = 0;
+    if(_i & 1)
+        mask |= UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP;
+    if(_i & 2)
+        mask |= UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS;
+    HeaderTestContext ctx = setupHeaderTest(mask);
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime (*originalNow)(UA_EventLoop*) = el->dateTime_now;
+    el->dateTime_now = headerTestNow;
+    headerTestTime = UA_DATETIME_UNIX_EPOCH + 123456789 * UA_DATETIME_SEC;
+
+    UA_NetworkMessage messages[2];
+    memset(messages, 0, sizeof(messages));
+    UA_DateTime timestamps[2];
+    for(size_t i = 0; i < 2; i++) {
+        headerTestTime += 123 * UA_DATETIME_MSEC;
+        timestamps[i] = headerTestTime;
+        ck_assert_uint_eq(UA_Server_triggerWriterGroupPublish(server,
+                          ctx.wg->head.identifier), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(
+            TestConnectionManager_getLastSent(ctx.cm), &messages[i], NULL, NULL),
+            UA_STATUSCODE_GOOD);
+    }
+    el->dateTime_now = originalNow;
+    teardownHeaderTest(&ctx);
+    for(size_t i = 0; i < 2; i++) {
+        UA_Boolean timestampEnabled = messages[i].timestampEnabled;
+        UA_Boolean picosecondsEnabled = messages[i].picosecondsEnabled;
+        UA_DateTime timestamp = messages[i].timestamp;
+        UA_UInt16 picoseconds = messages[i].picoseconds;
+        UA_NetworkMessage_clear(&messages[i]);
+        ck_assert_int_eq(timestampEnabled, (_i & 1) != 0);
+        ck_assert_int_eq(picosecondsEnabled, _i == 3);
+        ck_assert_int_eq(timestamp, (_i & 1) ? timestamps[i] : 0);
+        ck_assert_uint_eq(picoseconds, 0);
+    }
+} END_TEST
+
 START_TEST(PromotedFieldsAreCollectedFromPublishedValues) {
     UA_Int32 publishedValue = 62541;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -1721,6 +1843,7 @@ int main(void) {
 
     TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
+    tcase_add_loop_test(tc_pubsub_publish, NetworkMessageTimestampUsesEventLoopClock, 0, 4);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
     tcase_add_test(tc_pubsub_publish,
