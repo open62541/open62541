@@ -571,22 +571,32 @@ ENCODE_XML(QualifiedName) {
     if(ctx->namespaceMapping)
         index = UA_NamespaceMapping_local2Remote(ctx->namespaceMapping, index);
 
-    /* Write out the elements */
+    /* Write out the elements. Same rule as in encodeXmlStructure: an absent
+     * (NULL) String is skipped so it does not come back as an empty String
+     * on decoding. An empty-but-present String is still written. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
                            &index, &UA_TYPES[UA_TYPES_UINT16]);
-    ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
-                           &src->name, &UA_TYPES[UA_TYPES_STRING]);
+    if(src->name.data)
+        ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
+                               &src->name, &UA_TYPES[UA_TYPES_STRING]);
     return ret;
 }
 
 /* LocalizedText */
 ENCODE_XML(LocalizedText) {
     const UA_LocalizedText *src = (const UA_LocalizedText*)src_;
-    return writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
-                           &src->locale, &UA_TYPES[UA_TYPES_STRING]) |
-        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
-                        &src->text, &UA_TYPES[UA_TYPES_STRING]);
+    /* Same rule as in encodeXmlStructure: an absent (NULL) String is skipped
+     * so it does not come back as an empty String on decoding. An
+     * empty-but-present String is still written. */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(src->locale.data)
+        ret |= writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
+                               &src->locale, &UA_TYPES[UA_TYPES_STRING]);
+    if(src->text.data)
+        ret |= writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
+                               &src->text, &UA_TYPES[UA_TYPES_STRING]);
+    return ret;
 }
 
 /* ExtensionObject */
