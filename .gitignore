@@ -111,3 +111,4 @@ gen_review_docs.sh
 *.gcov
 *.gcda
 *.gcno
+mytest/

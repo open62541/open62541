@@ -592,6 +592,7 @@ UA_ServerConfig_setLogger(UA_ServerConfig *config, UA_Logger *newLogger) {
     if(config->logging)
         config->logging->clear(config->logging);
 
+    /* Assign the new logger passed in arguments */
     config->logging = newLogger;
 
     /* Sync every place that cached the old pointer, so nothing is
@@ -603,7 +604,6 @@ UA_ServerConfig_setLogger(UA_ServerConfig *config, UA_Logger *newLogger) {
 
     return UA_STATUSCODE_GOOD;
 }
-
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {

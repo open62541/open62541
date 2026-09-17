@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     /* Exchange the logger */
     UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
     logger.clear = config->logging->clear;
-    *config->logging = logger;
+    UA_ServerConfig_setLogger(config, &logger);
 
     /* Some data */
     UA_StatusCode retval;
