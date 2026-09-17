@@ -155,12 +155,75 @@ START_TEST(StateChangesUpdateTargetsOnce) {
     assertTarget(true, 77, UA_STATUSCODE_GOOD);
 } END_TEST
 
+
+START_TEST(UadpReaderFiltersAreEnforced) {
+    UA_UadpDataSetReaderMessageDataType settings;
+    UA_UadpDataSetReaderMessageDataType_init(&settings);
+    UA_Guid classId = UA_GUID("01234567-89ab-cdef-0123-456789abcdef");
+    if(_i == 0) settings.groupVersion = 42;
+    if(_i == 1) settings.networkMessageNumber = 2;
+    if(_i == 2) settings.dataSetClassId = classId;
+    ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&reader->config.messageSettings,
+        &settings, &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.groupHeaderEnabled = true;
+    nm.groupHeader.groupVersionEnabled = true;
+    nm.groupHeader.groupVersion = 42;
+    nm.groupHeader.networkMessageNumberEnabled = true;
+    nm.groupHeader.networkMessageNumber = 2;
+    nm.dataSetClassIdEnabled = true;
+    nm.dataSetClassId = classId;
+    nm.payloadHeaderEnabled = true;
+    nm.messageCount = 1;
+    nm.dataSetWriterIds[0] = 17;
+    UA_Int32 value = 31;
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    field.hasValue = true;
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.fieldCount = 1;
+    dsm.data.keyFrameFields = &field;
+    nm.payload.dataSetMessages = &dsm;
+    lockServer(server);
+    UA_Boolean processed = UA_ReaderGroup_process(getPSM(server), readerGroup, &nm);
+    unlockServer(server);
+    ck_assert(processed);
+    assertTarget(true, 31, UA_STATUSCODE_GOOD);
+    value = 88;
+    if(_i == 0) nm.groupHeader.groupVersion++;
+    if(_i == 1) nm.groupHeader.networkMessageNumber++;
+    if(_i == 2) nm.dataSetClassId.data1++;
+    lockServer(server);
+    processed = UA_ReaderGroup_process(getPSM(server), readerGroup, &nm);
+    unlockServer(server);
+    ck_assert(!processed);
+    assertTarget(true, 31, UA_STATUSCODE_GOOD);
+    if(_i == 0) nm.groupHeader.groupVersionEnabled = false;
+    if(_i == 1) nm.groupHeader.networkMessageNumberEnabled = false;
+    if(_i == 2) nm.dataSetClassIdEnabled = false;
+    ck_assert_uint_eq(UA_DataSetReader_checkIdentifier(getPSM(server), reader, &nm),
+                      UA_STATUSCODE_BADNOTFOUND);
+    /* Null settings disable the filters. */
+    UA_UadpDataSetReaderMessageDataType *stored =
+        (UA_UadpDataSetReaderMessageDataType*)reader->config.messageSettings.content.decoded.data;
+    stored->groupVersion = 0;
+    stored->networkMessageNumber = 0;
+    stored->dataSetClassId = UA_GUID_NULL;
+    ck_assert_uint_eq(UA_DataSetReader_checkIdentifier(getPSM(server), reader, &nm),
+                      UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *suite = suite_create("PubSub runtime");
     TCase *tc = tcase_create("Runtime");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_loop_test(tc, FallbackQualityAndInitialDefault, 0, 3);
     tcase_add_loop_test(tc, StateChangesUpdateTargetsOnce, 0, 9);
+    tcase_add_loop_test(tc, UadpReaderFiltersAreEnforced, 0, 3);
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);

@@ -129,6 +129,28 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    /* Apply the optional UADP header filters. Nonzero settings require the
+     * corresponding header field to be present and equal to the configured
+     * value. */
+    const UA_ExtensionObject *settings = &dsr->config.messageSettings;
+    if(UA_ExtensionObject_hasDecodedType(settings,
+           &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetReaderMessageDataType *uadp =
+            (const UA_UadpDataSetReaderMessageDataType*)settings->content.decoded.data;
+        if(uadp->groupVersion != 0 &&
+           (!msg->groupHeaderEnabled || !msg->groupHeader.groupVersionEnabled ||
+            msg->groupHeader.groupVersion != uadp->groupVersion))
+            return UA_STATUSCODE_BADNOTFOUND;
+        if(uadp->networkMessageNumber != 0 &&
+           (!msg->groupHeaderEnabled || !msg->groupHeader.networkMessageNumberEnabled ||
+            msg->groupHeader.networkMessageNumber != uadp->networkMessageNumber))
+            return UA_STATUSCODE_BADNOTFOUND;
+        if(!UA_Guid_equal(&uadp->dataSetClassId, &UA_GUID_NULL) &&
+           (!msg->dataSetClassIdEnabled ||
+            !UA_Guid_equal(&uadp->dataSetClassId, &msg->dataSetClassId)))
+            return UA_STATUSCODE_BADNOTFOUND;
+    }
+
     if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
         if(dsr->config.writerGroupId != msg->groupHeader.writerGroupId) {
             UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "WriterGroupId does not match. "
