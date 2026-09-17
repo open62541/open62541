@@ -750,6 +750,90 @@ START_TEST(NetworkMessageTimestampUsesEventLoopClock) {
     }
 } END_TEST
 
+
+typedef struct {
+    UA_NetworkMessage messages[4];
+    size_t count;
+} ClassIdCapture;
+
+static UA_StatusCode
+captureClassIdMessage(UA_ConnectionManager *cm, uintptr_t connectionId,
+                      const UA_KeyValueMap *params, UA_ByteString *buf) {
+    ClassIdCapture *capture = (ClassIdCapture*)TestConnectionManager_getContext(cm);
+    ck_assert_uint_lt(capture->count, 4);
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(
+        buf, &capture->messages[capture->count++], NULL, NULL), UA_STATUSCODE_GOOD);
+    cm->freeNetworkBuffer(cm, connectionId, buf);
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(NetworkMessageClassIdMatchesIncludedDataSets) {
+    HeaderTestContext ctx = setupHeaderTest(_i == 2 ? 0 :
+        UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID);
+    UA_Guid firstClass = UA_GUID("01234567-89ab-cdef-0123-456789abcdef");
+    UA_Guid secondClass = (_i == 0) ? firstClass :
+        UA_GUID("fedcba98-7654-3210-fedc-ba9876543210");
+    ctx.dsw->connectedDataSet->dataSetMetaData.dataSetClassId = firstClass;
+    ctx.wg->config.maxEncapsulatedDataSetMessageCount = 4;
+
+    ctx.wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_NodeId pdsId = UA_NODEID_NULL;
+    {
+        UA_PublishedDataSetConfig pdc;
+        memset(&pdc, 0, sizeof(pdc));
+        pdc.name = UA_STRING("SecondHeaderPDS");
+        ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdc, &pdsId).addResult,
+                          UA_STATUSCODE_GOOD);
+        UA_DataSetFieldConfig field;
+        memset(&field, 0, sizeof(field));
+        field.field.variable.fieldNameAlias = UA_STRING("state");
+        field.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+        field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &field, NULL).result,
+                          UA_STATUSCODE_GOOD);
+        if(_i == 3)
+            secondClass = UA_GUID_NULL;
+        UA_PublishedDataSet_find(getPSM(server), pdsId)->dataSetMetaData.dataSetClassId =
+            secondClass;
+    }
+    UA_DataSetWriterConfig dwc;
+    memset(&dwc, 0, sizeof(dwc));
+    dwc.name = UA_STRING("SecondHeaderDSW");
+    dwc.dataSetWriterId = 23;
+    dwc.keyFrameCount = 1;
+    UA_NodeId writerId;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, ctx.wg->head.identifier,
+                      pdsId, &dwc, &writerId), UA_STATUSCODE_GOOD);
+    UA_DataSetWriter_find(getPSM(server), writerId)->head.state =
+        UA_PUBSUBSTATE_OPERATIONAL;
+    ctx.wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    ClassIdCapture capture;
+    memset(&capture, 0, sizeof(capture));
+    TestConnectionManager_setContext(ctx.cm, &capture);
+    ctx.cm->sendWithConnection = captureClassIdMessage;
+    ck_assert_uint_eq(UA_Server_triggerWriterGroupPublish(server,
+                      ctx.wg->head.identifier), UA_STATUSCODE_GOOD);
+    teardownHeaderTest(&ctx);
+    ck_assert_uint_eq(capture.count, (_i == 0 || _i == 2) ? 1 : 2);
+    size_t writerCount = 0;
+    for(size_t i = 0; i < capture.count; i++) {
+        UA_NetworkMessage *nm = &capture.messages[i];
+        ck_assert_int_eq(nm->dataSetClassIdEnabled, _i != 2);
+        for(size_t j = 0; j < nm->messageCount; j++) {
+            UA_UInt16 id = nm->dataSetWriterIds[j];
+            ck_assert(id == 17 || id == 23);
+            if(_i != 2)
+                ck_assert(UA_Guid_equal(&nm->dataSetClassId,
+                                       id == 17 ? &firstClass : &secondClass));
+            writerCount++;
+        }
+        UA_NetworkMessage_clear(nm);
+    }
+    ck_assert_uint_eq(writerCount, 2);
+} END_TEST
+
 START_TEST(PromotedFieldsAreCollectedFromPublishedValues) {
     UA_Int32 publishedValue = 62541;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -1844,6 +1928,7 @@ int main(void) {
     TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageTimestampUsesEventLoopClock, 0, 4);
+    tcase_add_loop_test(tc_pubsub_publish, NetworkMessageClassIdMatchesIncludedDataSets, 0, 4);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
     tcase_add_test(tc_pubsub_publish,
