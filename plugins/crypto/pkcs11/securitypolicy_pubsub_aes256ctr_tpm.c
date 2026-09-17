@@ -395,9 +395,9 @@ encrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
     if(cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    CK_BYTE sizeToEncrypt;
-    int partNumber     = 0;
-    CK_ULONG decLen    = 16;
+    size_t sizeToEncrypt;
+    size_t partOffset  = 0;
+    CK_ULONG decLen    = 0;
     CK_BYTE final      = 0;
     CK_ULONG finalLen  = 0;
     UA_StatusCode rv   = UA_STATUSCODE_GOOD;
@@ -423,24 +423,28 @@ encrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
         return rv;
     }
 
-    if ((data->length % MAX_ENCRYPTION_SIZE) != 0)
-        sizeToEncrypt = (CK_BYTE)(data->length + (MAX_ENCRYPTION_SIZE - (data->length % MAX_ENCRYPTION_SIZE)));
-    else
-        sizeToEncrypt = (CK_BYTE)data->length;
+    /* AES-CTR is a stream cipher: process exactly data->length bytes, no rounding
+     * or padding. Each PKCS#11 call is given the caller's own buffer directly,
+     * chunked at MAX_ENCRYPTION_SIZE with a shorter final chunk when data->length
+     * is not itself a multiple of MAX_ENCRYPTION_SIZE. */
+    sizeToEncrypt = data->length;
 
-    CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(sizeToEncrypt * sizeof(CK_BYTE));
-    while(rv == UA_STATUSCODE_GOOD && partNumber * MAX_ENCRYPTION_SIZE <= sizeToEncrypt - MAX_ENCRYPTION_SIZE) {
+    CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(sizeToEncrypt > 0 ? sizeToEncrypt : 1);
+    while(rv == UA_STATUSCODE_GOOD && partOffset < sizeToEncrypt) {
+        CK_ULONG chunkLen = (CK_ULONG)((sizeToEncrypt - partOffset < MAX_ENCRYPTION_SIZE)
+                                       ? (sizeToEncrypt - partOffset) : MAX_ENCRYPTION_SIZE);
+        decLen = chunkLen;
         /* Continues a multiple-part encryption operation, processing another data part */
         rv = (UA_StatusCode)C_EncryptUpdate(cc->policyContext->sessionHandle,
-                                            &data->data[partNumber*MAX_ENCRYPTION_SIZE], MAX_ENCRYPTION_SIZE,
-                                            &cipherText[partNumber*MAX_ENCRYPTION_SIZE], &decLen);
+                                            &data->data[partOffset], chunkLen,
+                                            &cipherText[partOffset], &decLen);
         if (UA_STATUSCODE_GOOD != rv) {
              UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Encrypt update failed 0x%.8lX", (long unsigned int)rv);
             goto cleanup;
         }
 
-        partNumber++;
+        partOffset += chunkLen;
     }
 
     /* Finishes a multiple-part encryption operation */
@@ -451,8 +455,7 @@ encrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
         goto cleanup;
     }
 
-    for (int i=0; i< sizeToEncrypt; i++)
-        data->data[i] = cipherText[i];
+    memcpy(data->data, cipherText, sizeToEncrypt);
 
 cleanup:
     UA_free(cipherText);
@@ -466,11 +469,11 @@ decrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode rv          = UA_STATUSCODE_GOOD;
-    int decodePartNumber      = 0;
-    CK_ULONG decodeDecLen     = 16;
+    size_t decodePartOffset   = 0;
+    CK_ULONG decodeDecLen     = 0;
     CK_BYTE decodeFinal       = 0;
     CK_ULONG decodeFinalLen   = 0;
-    CK_BYTE sizeToDecrypt;
+    size_t sizeToDecrypt;
     CK_AES_CTR_PARAMS params_decrypt_256;
 
     /* Prepare the counterBlock required for decryption */
@@ -492,17 +495,21 @@ decrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
         return rv;
     }
 
-    if ((data->length % MAX_ENCRYPTION_SIZE) != 0)
-        sizeToDecrypt = (CK_BYTE)(data->length + (MAX_ENCRYPTION_SIZE - (data->length % MAX_ENCRYPTION_SIZE)));
-    else
-        sizeToDecrypt = (CK_BYTE)data->length;
+    /* AES-CTR is a stream cipher: process exactly data->length bytes, no rounding
+     * or padding. Each PKCS#11 call is given the caller's own buffer directly,
+     * chunked at MAX_ENCRYPTION_SIZE with a shorter final chunk when data->length
+     * is not itself a multiple of MAX_ENCRYPTION_SIZE. */
+    sizeToDecrypt = data->length;
 
-    CK_BYTE *decodeCiphertext = (CK_BYTE*)UA_malloc(sizeToDecrypt * sizeof(CK_BYTE));
+    CK_BYTE *decodeCiphertext = (CK_BYTE*)UA_malloc(sizeToDecrypt > 0 ? sizeToDecrypt : 1);
 
-    while(rv == UA_STATUSCODE_GOOD && decodePartNumber * MAX_ENCRYPTION_SIZE <= sizeToDecrypt - MAX_ENCRYPTION_SIZE) {
+    while(rv == UA_STATUSCODE_GOOD && decodePartOffset < sizeToDecrypt) {
+        CK_ULONG chunkLen = (CK_ULONG)((sizeToDecrypt - decodePartOffset < MAX_ENCRYPTION_SIZE)
+                                       ? (sizeToDecrypt - decodePartOffset) : MAX_ENCRYPTION_SIZE);
+        decodeDecLen = chunkLen;
         rv = (UA_StatusCode)C_DecryptUpdate(cc->policyContext->sessionHandle,
-                                            &data->data[decodePartNumber*MAX_ENCRYPTION_SIZE], MAX_ENCRYPTION_SIZE,
-                                            &decodeCiphertext[decodePartNumber*MAX_ENCRYPTION_SIZE], &decodeDecLen);
+                                            &data->data[decodePartOffset], chunkLen,
+                                            &decodeCiphertext[decodePartOffset], &decodeDecLen);
 
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -510,7 +517,7 @@ decrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
             goto cleanup;
         }
 
-        decodePartNumber++;
+        decodePartOffset += chunkLen;
     }
 
     rv = (UA_StatusCode)C_DecryptFinal(cc->policyContext->sessionHandle, &decodeFinal, &decodeFinalLen);
@@ -520,8 +527,7 @@ decrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
         goto cleanup;
     }
 
-    for (int i=0; i< sizeToDecrypt; i++)
-        data->data[i] = decodeCiphertext[i];
+    memcpy(data->data, decodeCiphertext, sizeToDecrypt);
 
 cleanup:
     UA_free(decodeCiphertext);
