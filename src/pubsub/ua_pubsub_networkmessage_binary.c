@@ -1216,7 +1216,7 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* Status */
     if(src->statusEnabled) {
-        UA_UInt16 status = (UA_UInt16)src->status;
+        UA_UInt16 status = (UA_UInt16)(src->status >> 16);
         rv = _ENCODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
@@ -1346,7 +1346,7 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
         UA_UInt16 status = 0;
         rv = _DECODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
-        dsmh->status = status;
+        dsmh->status = (UA_StatusCode)status << 16;
     } else {
         dsmh->status = 0;
     }

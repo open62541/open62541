@@ -867,6 +867,208 @@ START_TEST(JsonNetworkMessageHasUniqueMessageId) {
 } END_TEST
 #endif
 
+
+START_TEST(UadpStatusUsesHighOrderBits) {
+    const UA_StatusCode statuses[] = {
+        UA_STATUSCODE_GOOD, UA_STATUSCODE_UNCERTAIN,
+        UA_STATUSCODE_UNCERTAINSUBNORMAL, UA_STATUSCODE_BADNOCOMMUNICATION | 0x1234
+    };
+    UA_StatusCode status = statuses[_i];
+    UA_Int32 value = 42;
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    field.hasValue = true;
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.statusEnabled = true;
+    dsm.header.status = status;
+    dsm.fieldCount = 1;
+    dsm.data.keyFrameFields = &field;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.version = 1;
+    nm.messageCount = 1;
+    nm.payload.dataSetMessages = &dsm;
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&nm, &encoded, NULL),
+                      UA_STATUSCODE_GOOD);
+    /* Network flags, DSM flags, high-order status word, count, Int32 Variant. */
+    UA_Byte expected[] = {0x01, 0x11, (UA_Byte)(status >> 16),
+                          (UA_Byte)(status >> 24), 1, 0, 6, 42, 0, 0, 0};
+    ck_assert_uint_eq(encoded.length, sizeof(expected));
+    ck_assert_mem_eq(encoded.data, expected, sizeof(expected));
+    UA_ByteString_clear(&encoded);
+
+    UA_ByteString input = {sizeof(expected), expected};
+    UA_NetworkMessage decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&input, &decoded, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(decoded.payload.dataSetMessages[0].header.status,
+                      status & 0xffff0000);
+    UA_NetworkMessage_clear(&decoded);
+} END_TEST
+
+START_TEST(DataSetMessageStatusFollowsFieldRepresentation) {
+    UA_Boolean raw = _i < 2;
+    UA_Boolean array = _i == 1;
+    UA_Boolean json = _i >= 4;
+    UA_Boolean dataValue = _i == 3 || _i == 5;
+    HeaderTestContext ctx = setupHeaderTest(0);
+    teardownHeaderTest(&ctx); /* The test exercises DSM generation and encoding. */
+    ctx.wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    ctx.dsw->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_PublishedDataSet *pds = ctx.dsw->connectedDataSet;
+    UA_DataSetField *oldField = TAILQ_FIRST(&pds->fields);
+    ck_assert_uint_eq(UA_Server_removeDataSetField(server, oldField->identifier).result,
+                      UA_STATUSCODE_GOOD);
+    UA_Int32 values[2] = {42, 43};
+    UA_UInt32 dimension = 2;
+    UA_NodeId nodes[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE |
+            UA_ACCESSLEVELMASK_STATUSWRITE;
+        if(array) {
+            attr.valueRank = 1;
+            attr.arrayDimensionsSize = 1;
+            attr.arrayDimensions = &dimension;
+            UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
+        } else {
+            attr.valueRank = UA_VALUERANK_SCALAR;
+            UA_Variant_setScalar(&attr.value, &values[i], &UA_TYPES[UA_TYPES_INT32]);
+        }
+        ck_assert_uint_eq(UA_Server_addVariableNode(
+            server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "StatusSource"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &nodes[i]),
+            UA_STATUSCODE_GOOD);
+        UA_DataSetFieldConfig fc;
+        memset(&fc, 0, sizeof(fc));
+        fc.field.variable.fieldNameAlias = i == 0 ? UA_STRING("first") : UA_STRING("second");
+        fc.field.variable.publishParameters.publishedVariable = nodes[i];
+        fc.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_Server_addDataSetField(server, pds->head.identifier,
+                                                  &fc, NULL).result, UA_STATUSCODE_GOOD);
+    }
+
+    ctx.dsw->config.dataSetFieldContentMask = raw ? UA_DATASETFIELDCONTENTMASK_RAWDATA :
+        (dataValue ? UA_DATASETFIELDCONTENTMASK_STATUSCODE : 0);
+    UA_ExtensionObject_clear(&ctx.dsw->config.messageSettings);
+#ifdef UA_ENABLE_JSON_ENCODING
+    if(json) {
+        ctx.wg->config.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+        UA_JsonDataSetWriterMessageDataType ms;
+        UA_JsonDataSetWriterMessageDataType_init(&ms);
+        ms.dataSetMessageContentMask = UA_JSONDATASETMESSAGECONTENTMASK_STATUS;
+        ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&ctx.dsw->config.messageSettings,
+            &ms, &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
+    } else
+#endif
+    {
+        UA_UadpDataSetWriterMessageDataType ms;
+        UA_UadpDataSetWriterMessageDataType_init(&ms);
+        ms.dataSetMessageContentMask = UA_UADPDATASETMESSAGECONTENTMASK_STATUS;
+        ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&ctx.dsw->config.messageSettings,
+            &ms, &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
+    }
+
+    const UA_StatusCode statuses[][2] = {
+        {UA_STATUSCODE_GOOD, UA_STATUSCODE_GOOD},
+        {UA_STATUSCODE_UNCERTAINSUBSTITUTEVALUE, UA_STATUSCODE_GOOD},
+        {UA_STATUSCODE_BADNOCOMMUNICATION, UA_STATUSCODE_GOOD},
+        {UA_STATUSCODE_BADNOCOMMUNICATION, UA_STATUSCODE_BADNOCOMMUNICATION},
+        {UA_STATUSCODE_BADNOCOMMUNICATION, UA_STATUSCODE_UNCERTAIN},
+        {UA_STATUSCODE_UNCERTAIN, UA_STATUSCODE_BADNOCOMMUNICATION},
+        {UA_STATUSCODE_GOOD, UA_STATUSCODE_GOOD}
+    };
+    for(size_t iteration = 0; iteration < 7; iteration++) {
+        UA_StatusCode expected = UA_STATUSCODE_GOOD;
+        size_t badCount = 0;
+        for(size_t i = 0; i < 2; i++) {
+            UA_DataValue dv;
+            UA_DataValue_init(&dv);
+            dv.hasValue = true;
+            dv.hasStatus = true;
+            dv.status = statuses[iteration][i];
+            if(array)
+                UA_Variant_setArray(&dv.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
+            else
+                UA_Variant_setScalar(&dv.value, &values[i], &UA_TYPES[UA_TYPES_INT32]);
+            ck_assert_uint_eq(UA_Server_writeDataValue(server, nodes[i], dv), UA_STATUSCODE_GOOD);
+            if(UA_StatusCode_isBad(dv.status))
+                badCount++;
+            if((raw || (json && !dataValue)) && UA_StatusCode_isUncertain(dv.status))
+                expected = UA_STATUSCODE_UNCERTAIN;
+        }
+        if(raw && badCount > 0)
+            expected = badCount == 2 ? UA_STATUSCODE_BAD : UA_STATUSCODE_UNCERTAINSUBNORMAL;
+
+        UA_DataSetMessage dsm;
+        lockServer(server);
+        UA_StatusCode res = UA_DataSetWriter_generateDataSetMessage(getPSM(server), ctx.dsw, &dsm);
+        unlockServer(server);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert(dsm.header.statusEnabled);
+        ck_assert_uint_eq(dsm.header.status, expected);
+        if(raw) {
+            for(size_t i = 0; i < 2; i++) {
+                const UA_Variant *v = &dsm.data.keyFrameFields[i].value;
+                ck_assert_ptr_eq(v->type, &UA_TYPES[UA_TYPES_INT32]);
+                ck_assert_ptr_nonnull(v->data);
+                size_t count = array ? 2 : 1;
+                if(array)
+                    ck_assert_uint_eq(v->arrayLength, 2);
+                for(size_t j = 0; j < count; j++) {
+                    UA_Int32 expectedValue = UA_StatusCode_isBad(statuses[iteration][i]) ?
+                        0 : values[array ? j : i];
+                    ck_assert_int_eq(((UA_Int32*)v->data)[j], expectedValue);
+                }
+            }
+        }
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(nm));
+        nm.version = 1;
+        nm.messageCount = 1;
+        nm.payloadHeaderEnabled = true;
+        nm.dataSetWriterIds[0] = ctx.dsw->config.dataSetWriterId;
+        nm.payload.dataSetMessages = &dsm;
+        UA_DataSetMessage_EncodingMetaData metadata;
+        memset(&metadata, 0, sizeof(metadata));
+        metadata.dataSetWriterId = ctx.dsw->config.dataSetWriterId;
+        metadata.fields = pds->dataSetMetaData.fields;
+        metadata.fieldsSize = pds->dataSetMetaData.fieldsSize;
+        UA_NetworkMessage_EncodingOptions options;
+        memset(&options, 0, sizeof(options));
+        options.metaData = &metadata;
+        options.metaDataSize = 1;
+        UA_ByteString encoded = UA_BYTESTRING_NULL;
+        UA_NetworkMessage decoded;
+        memset(&decoded, 0, sizeof(decoded));
+#ifdef UA_ENABLE_JSON_ENCODING
+        if(json) {
+            ck_assert_uint_eq(UA_NetworkMessage_encodeJson(&nm, &encoded, &options, NULL),
+                              UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&encoded, &decoded, &options, NULL),
+                              UA_STATUSCODE_GOOD);
+        } else
+#endif
+        {
+            ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&nm, &encoded, &options),
+                              UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&encoded, &decoded, &options, NULL),
+                              UA_STATUSCODE_GOOD);
+        }
+        ck_assert_uint_eq(decoded.payload.dataSetMessages[0].header.status, expected);
+        UA_NetworkMessage_clear(&decoded);
+        UA_ByteString_clear(&encoded);
+        UA_DataSetMessage_clear(&dsm);
+    }
+} END_TEST
+
 START_TEST(PromotedFieldsAreCollectedFromPublishedValues) {
     UA_Int32 publishedValue = 62541;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -1962,6 +2164,12 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
 #ifdef UA_ENABLE_JSON_ENCODING
     tcase_add_test(tc_pubsub_publish, JsonNetworkMessageHasUniqueMessageId);
+#endif
+    tcase_add_loop_test(tc_pubsub_publish, UadpStatusUsesHighOrderBits, 0, 4);
+#ifdef UA_ENABLE_JSON_ENCODING
+    tcase_add_loop_test(tc_pubsub_publish, DataSetMessageStatusFollowsFieldRepresentation, 0, 6);
+#else
+    tcase_add_loop_test(tc_pubsub_publish, DataSetMessageStatusFollowsFieldRepresentation, 0, 4);
 #endif
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageTimestampUsesEventLoopClock, 0, 4);
     tcase_add_loop_test(tc_pubsub_publish, NetworkMessageClassIdMatchesIncludedDataSets, 0, 4);
