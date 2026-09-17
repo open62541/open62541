@@ -1708,7 +1708,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
      * "the Severity shall be BAD if the value is NULL for a non-nullable
      * Datatype". Without this check the node is left in a state that returns
      * BadWaitingForInitialData on subsequent reads. */
-    } else if(!isNullableDataType(server, &node->dataType)) {
+    } else if(!isNullableDataType(server, &node->dataType) &&
+              (!value->hasStatus || !UA_StatusCode_isBad(value->status))) {
         if(rangeptr && rangeptr->dimensions != NULL)
             UA_free(rangeptr->dimensions);
         return UA_STATUSCODE_BADTYPEMISMATCH;
