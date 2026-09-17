@@ -217,6 +217,112 @@ START_TEST(UadpReaderFiltersAreEnforced) {
                       UA_STATUSCODE_GOOD);
 } END_TEST
 
+
+static UA_Boolean
+processSequence(UA_UInt32 number, UA_Int32 value, UA_Boolean network,
+                UA_UInt16 writerId, UA_UInt16 publisherId, UA_Boolean delta) {
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.publisherIdEnabled = true;
+    nm.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    nm.publisherId.id.uint16 = publisherId;
+    nm.payloadHeaderEnabled = true;
+    nm.messageCount = 1;
+    nm.dataSetWriterIds[0] = writerId;
+    nm.groupHeaderEnabled = network;
+    nm.groupHeader.sequenceNumberEnabled = network;
+    nm.groupHeader.sequenceNumber = (UA_UInt16)number;
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    dsm.header.dataSetMessageSequenceNrEnabled = !network;
+    dsm.header.dataSetMessageSequenceNr = number;
+    dsm.fieldCount = 1;
+    UA_DataValue field;
+    UA_DataValue_init(&field);
+    UA_Variant_setScalar(&field.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    field.hasValue = true;
+    UA_DataSetMessage_DeltaFrameField deltaField;
+    memset(&deltaField, 0, sizeof(deltaField));
+    deltaField.value = field;
+    if(delta) {
+        dsm.header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+        dsm.data.deltaFrameFields = &deltaField;
+    } else {
+        dsm.data.keyFrameFields = &field;
+    }
+    nm.payload.dataSetMessages = &dsm;
+    lockServer(server);
+    UA_Boolean processed = UA_ReaderGroup_process(getPSM(server), readerGroup, &nm);
+    unlockServer(server);
+    return processed;
+}
+
+START_TEST(SequenceOrderingAndRollover) {
+    UA_Boolean network = _i == 0;
+    if(_i == 2)
+        readerGroup->config.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    UA_UInt32 max = _i == 2 ? UA_UINT32_MAX : UA_UINT16_MAX;
+    ck_assert(processSequence(max - 1, 10, network, 17, 1, false));
+    ck_assert(!processSequence(max - 1, 99, network, 17, 1, false));
+    ck_assert(!processSequence(max - 2, 99, network, 17, 1, false));
+    assertTarget(true, 10, UA_STATUSCODE_GOOD);
+    ck_assert(processSequence(max, 20, network, 17, 1, false));
+    ck_assert(processSequence(0, 30, network, 17, 1, false));
+    ck_assert(!processSequence(max, 99, network, 17, 1, false));
+    ck_assert(!processSequence((max >> 2) + 2, 99, network, 17, 1, false));
+    assertTarget(true, 30, UA_STATUSCODE_GOOD);
+    ck_assert(processSequence(1, 40, network, 17, 1, false));
+    assertTarget(true, 40, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(SequenceHistoriesArePerStream) {
+    reader->config.dataSetWriterId = 0;
+    ck_assert(processSequence(100, 10, false, 17, 1, false));
+    ck_assert(processSequence(0, 20, false, 18, 1, false));
+    ck_assert(processSequence(0, 30, false, 17, 2, false));
+    ck_assert(!processSequence(99, 99, false, 17, 1, false));
+    ck_assert(!processSequence(0, 99, false, 18, 1, false));
+    assertTarget(true, 30, UA_STATUSCODE_GOOD);
+    ck_assert(processSequence(101, 40, false, 17, 1, false));
+    assertTarget(true, 40, UA_STATUSCODE_GOOD);
+} END_TEST
+
+static UA_DateTime sequenceTime;
+static UA_DateTime sequenceNow(UA_EventLoop *el) { return sequenceTime; }
+
+START_TEST(SequenceHistoryExpiresAfterTwoTimeouts) {
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime (*originalNow)(UA_EventLoop*) = el->dateTime_nowMonotonic;
+    el->dateTime_nowMonotonic = sequenceNow;
+    sequenceTime = UA_DATETIME_SEC;
+    reader->config.messageReceiveTimeout = 100;
+    UA_Boolean first = processSequence(100, 10, false, 17, 1, false);
+    sequenceTime += 150 * UA_DATETIME_MSEC;
+    UA_Boolean premature = processSequence(0, 20, false, 17, 1, false);
+    sequenceTime += 201 * UA_DATETIME_MSEC;
+    UA_Boolean recovered = processSequence(0, 30, false, 17, 1, false);
+    el->dateTime_nowMonotonic = originalNow;
+    ck_assert(first);
+    ck_assert(!premature);
+    ck_assert(recovered);
+    assertTarget(true, 30, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(DeltaGapRequiresNewKeyFrame) {
+    reader->config.keyFrameCount = 10;
+    ck_assert(processSequence(1, 10, false, 17, 1, false));
+    ck_assert(processSequence(2, 20, false, 17, 1, true));
+    assertTarget(true, 20, UA_STATUSCODE_GOOD);
+    processSequence(4, 40, false, 17, 1, true);
+    assertTarget(true, 20, UA_STATUSCODE_GOOD);
+    processSequence(5, 50, false, 17, 1, true);
+    assertTarget(true, 20, UA_STATUSCODE_GOOD);
+    ck_assert(processSequence(6, 60, false, 17, 1, false));
+    ck_assert(processSequence(7, 70, false, 17, 1, true));
+    assertTarget(true, 70, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *suite = suite_create("PubSub runtime");
     TCase *tc = tcase_create("Runtime");
@@ -224,6 +330,10 @@ int main(void) {
     tcase_add_loop_test(tc, FallbackQualityAndInitialDefault, 0, 3);
     tcase_add_loop_test(tc, StateChangesUpdateTargetsOnce, 0, 9);
     tcase_add_loop_test(tc, UadpReaderFiltersAreEnforced, 0, 3);
+    tcase_add_loop_test(tc, SequenceOrderingAndRollover, 0, 3);
+    tcase_add_test(tc, SequenceHistoriesArePerStream);
+    tcase_add_test(tc, SequenceHistoryExpiresAfterTwoTimeouts);
+    tcase_add_test(tc, DeltaGapRequiresNewKeyFrame);
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);
