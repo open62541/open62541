@@ -614,6 +614,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     connConfig.remoteMaxMessageSize = config->tcpMaxMsgSize;
     connConfig.localMaxChunkCount = config->tcpMaxChunks;
     connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
+    connConfig.localMaxUntrustedMessageSize = config->tcpMaxUntrustedMsgSize;
 
     /* Further constrain the bufsize if the ConnectionManager has static rx/tx
      * buffers configured. Also applies when tcpBufSize is unset (0), so that
@@ -648,6 +649,8 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
         connConfig.localMaxChunkCount = 1 << 14; /* 16384 */
     if(connConfig.remoteMaxChunkCount == 0)
         connConfig.remoteMaxChunkCount = 1 << 14; /* 16384 */
+    if(connConfig.localMaxUntrustedMessageSize == 0)
+        connConfig.localMaxUntrustedMessageSize = 1 << 17; /* 128 kB */
 
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);
