@@ -279,7 +279,13 @@ setupMulticastRequest(UA_FD socket, MulticastRequest *req, const UA_KeyValueMap 
     }
 
     /* Set the interface index */
-    UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+    if(netif->length >= UA_MAXHOSTNAME_LENGTH) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP %u\t| Network interface name too long",
+                     (unsigned)socket);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    char interfaceAsChar[UA_MAXHOSTNAME_LENGTH];
     memcpy(interfaceAsChar, netif->data, netif->length);
     interfaceAsChar[netif->length] = 0;
     return setMulticastInterface(interfaceAsChar, info, req, logger);
