@@ -203,7 +203,7 @@ activateSessionDirect(UA_Client *client, UA_ExtensionObject *identityToken) {
 
     lockServer(server);
     UA_Session *session = getSessionByToken(server, &authenticationToken);
-    ck_assert_ptr_nonnull(session);
+    ck_assert(session != NULL);
     Service_ActivateSession(server, session->channel, &request, &response);
     unlockServer(server);
 

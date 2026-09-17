@@ -163,7 +163,7 @@ START_TEST(SinglePublishDataSetField) {
 
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup3);
-    ck_assert_ptr_nonnull(wg);
+    ck_assert(wg != NULL);
     config->pubSubConfig.securityPolicies[0].generateNonce = generateRepeatedNonce;
     UA_UInt32 initialSequence = wg->nonceSequenceNumber;
     UA_WriterGroup_publishCallback(psm, wg);

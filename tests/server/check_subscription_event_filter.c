@@ -634,17 +634,17 @@ START_TEST(inListOperatorEmptyArrays) {
     /* Replace the parsed predicate with two empty-array literal operands. */
     UA_ContentFilter_clear(&filter.whereClause);
     filter.whereClause.elements = UA_ContentFilterElement_new();
-    ck_assert_ptr_nonnull(filter.whereClause.elements);
+    ck_assert(filter.whereClause.elements != NULL);
     filter.whereClause.elementsSize = 1;
     UA_ContentFilterElement *element = filter.whereClause.elements;
     element->filterOperator = UA_FILTEROPERATOR_INLIST;
     element->filterOperands = (UA_ExtensionObject *)
         UA_Array_new(2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    ck_assert_ptr_nonnull(element->filterOperands);
+    ck_assert(element->filterOperands != NULL);
     element->filterOperandsSize = 2;
     for(size_t i = 0; i < 2; i++) {
         UA_LiteralOperand *literal = UA_LiteralOperand_new();
-        ck_assert_ptr_nonnull(literal);
+        ck_assert(literal != NULL);
         UA_Variant_setArray(&literal->value, UA_EMPTY_ARRAY_SENTINEL, 0,
                             &UA_TYPES[UA_TYPES_UINT32]);
         UA_ExtensionObject_setValue(&element->filterOperands[i], literal,

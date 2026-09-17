@@ -719,7 +719,7 @@ START_TEST(Server_HistorizingUpdateResultsOutOfMemory) {
     ck_assert_uint_eq(response.results[0].statusCode,
                       UA_STATUSCODE_BADOUTOFMEMORY);
     ck_assert_uint_eq(response.results[0].operationResultsSize, 0);
-    ck_assert_ptr_null(response.results[0].operationResults);
+    ck_assert(response.results[0].operationResults == NULL);
 
     UA_HistoryUpdateResponse_clear(&response);
     UA_HistoryDataBackend_Memory_clear(&backend);

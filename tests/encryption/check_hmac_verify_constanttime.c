@@ -47,7 +47,7 @@ typedef UA_StatusCode
 static void
 check_verify_helper(SignFn sign, VerifyFn verify, size_t macLen) {
     UA_Byte sigBuf[64];
-    ck_assert_uint_le(macLen, sizeof(sigBuf));
+    ck_assert(macLen <= sizeof(sigBuf));
     UA_ByteString signature = {sizeof(sigBuf), sigBuf};
 
     UA_StatusCode rv = sign(&message, &key, &signature);
@@ -92,13 +92,17 @@ START_TEST(opensslHmacSha256VerifyRejectsTamperedAndShortSignatures) {
 }
 END_TEST
 
+#endif /* OpenSSL or LibreSSL */
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
 START_TEST(opensslHmacSha384VerifyRejectsTamperedAndShortSignatures) {
     check_verify_helper(UA_OpenSSL_HMAC_SHA384_Sign, UA_OpenSSL_HMAC_SHA384_Verify, 48);
 }
 END_TEST
-#endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
+#endif
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && \
+    MBEDTLS_VERSION_NUMBER >= 0x03000000
 START_TEST(mbedtlsHmacSha256VerifyRejectsTamperedAndShortSignatures) {
     check_verify_helper(UA_mbedTLS_HMAC_SHA256_Sign,
                         UA_mbedTLS_HMAC_SHA256_Verify, 32);
@@ -120,8 +124,11 @@ testSuite_hmacVerifyConstantTime(void) {
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
     tcase_add_test(tc, opensslHmacSha1VerifyRejectsTamperedAndShortSignatures);
     tcase_add_test(tc, opensslHmacSha256VerifyRejectsTamperedAndShortSignatures);
+#endif
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
     tcase_add_test(tc, opensslHmacSha384VerifyRejectsTamperedAndShortSignatures);
-#elif defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#elif defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && \
+      MBEDTLS_VERSION_NUMBER >= 0x03000000
     tcase_add_test(tc, mbedtlsHmacSha256VerifyRejectsTamperedAndShortSignatures);
     tcase_add_test(tc, mbedtlsHmacSha384VerifyRejectsTamperedAndShortSignatures);
 #endif

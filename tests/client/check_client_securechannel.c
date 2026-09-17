@@ -53,7 +53,7 @@ static void teardown(void) {
 
 START_TEST(SecureChannel_shortServerNonceResponseIsCleared) {
     UA_Client *client = UA_Client_newForUnitTest();
-    ck_assert_ptr_nonnull(client);
+    ck_assert(client != NULL);
 
     /* Force the 1.5-specific minimum-length rejection path. */
     UA_SecurityPolicy *securityPolicy = &client->config.securityPolicies[0];
