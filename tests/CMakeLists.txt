@@ -485,6 +485,9 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_encryption_key_password.c)
     ua_add_test(encryption/check_cert_generation.c)
     ua_add_test(encryption/check_username_connect_none.c)
+    ua_add_test(encryption/check_hmac_verify_constanttime.c)
+    target_include_directories(check_hmac_verify_constanttime PRIVATE
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
 endif()
 
 # Tests for Nodeset Compiler
