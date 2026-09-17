@@ -795,6 +795,44 @@ UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId, UA_Byte *ou
 }
 
 UA_StatusCode
+UA_Server_readUserAccessLevel(UA_Server *server, const UA_NodeId sessionId,
+                              const UA_NodeId nodeId, UA_Byte *out)
+{
+    UA_StatusCode result = UA_STATUSCODE_BADINTERNALERROR;
+    const UA_Node *node = NULL;
+    const UA_Session *session = NULL;
+    lockServer(server);
+
+    node = UA_NODESTORE_GET_SELECTIVE(server, &nodeId, UA_NODEATTRIBUTESMASK_ACCESSLEVEL,
+                                      UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    if(!node) {
+        result = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto done;
+    }
+
+    if(!(node->head.nodeClass & UA_NODECLASS_VARIABLE)) {
+        result = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+        goto done;
+    }
+
+    session = getSessionById(server, &sessionId);
+    if(!session) {
+        result = UA_STATUSCODE_BADSESSIONIDINVALID;
+        goto done;
+    }
+
+    *out = getUserAccessLevel(server, session, &(node->variableNode));
+
+    result = UA_STATUSCODE_GOOD;
+done:
+    if(node)
+        UA_NODESTORE_RELEASE(server, node);
+    unlockServer(server);
+    return result;
+}
+
+
+UA_StatusCode
 UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 *out) {
     return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX, out);
 }
