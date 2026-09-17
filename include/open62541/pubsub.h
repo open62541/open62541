@@ -58,7 +58,7 @@ typedef struct {
     UA_UInt32 dataSetMessageSequenceNr;
 
     UA_Boolean statusEnabled;
-    /* UADP encodes the low 16 bits; JSON uses the full StatusCode. */
+    /* UADP encodes the high 16 bits; JSON uses the full StatusCode. */
     UA_StatusCode status;
 
     UA_Boolean configVersionMajorVersionEnabled;
