@@ -12,6 +12,7 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "test_helpers.h"
 #include "testing_clock.h"
@@ -49,6 +50,52 @@ static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
+
+START_TEST(SecureChannel_shortServerNonceResponseIsCleared) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+
+    /* Force the 1.5-specific minimum-length rejection path. */
+    UA_SecurityPolicy *securityPolicy = &client->config.securityPolicies[0];
+    securityPolicy->nonceLength = 32;
+    client->channel.securityPolicy = securityPolicy;
+
+    UA_NodeId responseType =
+        UA_NS0ID(OPENSECURECHANNELRESPONSE_ENCODING_DEFAULTBINARY);
+    UA_OpenSecureChannelResponse response;
+    UA_OpenSecureChannelResponse_init(&response);
+    response.serverNonce = UA_BYTESTRING_ALLOC("short");
+
+    UA_ByteString encodedType = UA_BYTESTRING_NULL;
+    UA_ByteString encodedResponse = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_encodeBinary(&responseType, &UA_TYPES[UA_TYPES_NODEID],
+                                     &encodedType, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_encodeBinary(
+        &response, &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE],
+        &encodedResponse, NULL), UA_STATUSCODE_GOOD);
+
+    UA_ByteString message;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(
+        &message, encodedType.length + encodedResponse.length),
+        UA_STATUSCODE_GOOD);
+    memcpy(message.data, encodedType.data, encodedType.length);
+    memcpy(message.data + encodedType.length, encodedResponse.data,
+           encodedResponse.length);
+
+    lockClient(client);
+    processOPNResponse(client, &message);
+    unlockClient(client);
+    ck_assert_uint_eq(client->connectStatus,
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_ByteString_clear(&message);
+    UA_ByteString_clear(&encodedResponse);
+    UA_ByteString_clear(&encodedType);
+    UA_OpenSecureChannelResponse_clear(&response);
+    UA_Client_delete(client);
+}
+END_TEST
 
 START_TEST(SecureChannel_timeout_max) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -324,6 +371,7 @@ END_TEST
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
+    tcase_add_test(tc_sc, SecureChannel_shortServerNonceResponseIsCleared);
     tcase_add_test(tc_sc, SecureChannel_renew);
     tcase_add_test(tc_sc, SecureChannel_repeatedRenewalWithoutServiceTraffic);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);

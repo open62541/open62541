@@ -473,6 +473,10 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     UA_Response asyncResponse;
     UA_Response *response = (ac->syncResponse) ? ac->syncResponse : &asyncResponse;
     const UA_DataType *responseType = ac->responseType;
+    /* Also initialize before decoding the type NodeId: errors there already
+     * invoke the callback and clear the response. ServiceFault decoding only
+     * initializes the header, so initialize the full expected response type. */
+    UA_init(response, responseType);
 
     /* Dequeue ac. We might disconnect the client (remove all ac) in the callback. */
     LIST_REMOVE(ac, pointers);
@@ -486,10 +490,6 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
 
     /* Verify the type of the response */
     if(!UA_NodeId_equal(&responseTypeId, &ac->responseType->binaryEncodingId)) {
-        /* Initialize before switching the responseType to ServiceFault.
-         * Otherwise the decoding will leave fields from the original response
-         * type uninitialized. */
-        UA_init(response, ac->responseType);
         if(UA_NodeId_equal(&responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
             UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,

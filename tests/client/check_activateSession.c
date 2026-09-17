@@ -185,6 +185,123 @@ START_TEST(Client_activateSession_username) {
 }
 END_TEST
 
+static UA_StatusCode
+activateSessionDirect(UA_Client *client, UA_ExtensionObject *identityToken) {
+    UA_NodeId authenticationToken = UA_NODEID_NULL;
+    UA_ByteString serverNonce = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_Client_getSessionAuthenticationToken(
+        client, &authenticationToken, &serverNonce);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_ActivateSessionRequest request;
+    UA_ActivateSessionRequest_init(&request);
+    request.requestHeader.authenticationToken = authenticationToken;
+    request.userIdentityToken = *identityToken;
+    UA_ActivateSessionResponse response;
+    UA_ActivateSessionResponse_init(&response);
+
+    lockServer(server);
+    UA_Session *session = getSessionByToken(server, &authenticationToken);
+    ck_assert_ptr_nonnull(session);
+    Service_ActivateSession(server, session->channel, &request, &response);
+    unlockServer(server);
+
+    res = response.responseHeader.serviceResult;
+    UA_ActivateSessionResponse_clear(&response);
+    UA_NodeId_clear(&authenticationToken);
+    UA_ByteString_clear(&serverNonce);
+    return res;
+}
+
+START_TEST(Client_activateSession_sameUserAllowed) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->allowNonePolicyPassword = true;
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    config->allowNonePolicyPassword = true;
+    UA_StatusCode retval = UA_ClientConfig_setAuthenticationUsername(
+        config, "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Client_activateCurrentSession(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_activateSession_userChangeRejected) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->allowNonePolicyPassword = true;
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    config->allowNonePolicyPassword = true;
+    UA_StatusCode retval = UA_ClientConfig_setAuthenticationUsername(
+        config, "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UserNameIdentityToken changedUser;
+    UA_UserNameIdentityToken_init(&changedUser);
+    changedUser.policyId = UA_STRING("open62541-username-policy-none#None");
+    changedUser.userName = UA_STRING("user2");
+    changedUser.password = UA_BYTESTRING("password1");
+    UA_ExtensionObject identityToken;
+    UA_ExtensionObject_init(&identityToken);
+    UA_ExtensionObject_setValueNoDelete(
+        &identityToken, &changedUser, &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    retval = activateSessionDirect(client, &identityToken);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+
+    /* The rejected activation does not damage the original Session. */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    retval = UA_Client_readValueAttribute(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE),
+        &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_activateSession_anonymousUserChangeRejected) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->allowNonePolicyPassword = true;
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UserNameIdentityToken changedUser;
+    UA_UserNameIdentityToken_init(&changedUser);
+    changedUser.policyId = UA_STRING("open62541-username-policy-none#None");
+    changedUser.userName = UA_STRING("user1");
+    changedUser.password = UA_BYTESTRING("password");
+    UA_ExtensionObject identityToken;
+    UA_ExtensionObject_init(&identityToken);
+    UA_ExtensionObject_setValueNoDelete(
+        &identityToken, &changedUser, &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    retval = activateSessionDirect(client, &identityToken);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_read) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
@@ -543,6 +660,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_activateSession);
     tcase_add_test(tc_client, Client_activateSession_username);
+    tcase_add_test(tc_client, Client_activateSession_sameUserAllowed);
+    tcase_add_test(tc_client, Client_activateSession_userChangeRejected);
+    tcase_add_test(tc_client, Client_activateSession_anonymousUserChangeRejected);
     tcase_add_test(tc_client, Client_read);
     tcase_add_test(tc_client, Client_renewSecureChannel);
 #ifdef UA_ENABLE_SUBSCRIPTIONS

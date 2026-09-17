@@ -560,6 +560,49 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
+START_TEST(DataSetWriterResizesSamplesAfterFieldAddition) {
+    server->config.pubSubConfig.enableDeltaFrames = true;
+    setupPublishedDataSetTestEnvironment();
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("first");
+    field.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(
+        server, publishedDataSet1, &field, NULL).result, UA_STATUSCODE_GOOD);
+
+    setupDataSetFieldTestEnvironment();
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    ck_assert_ptr_nonnull(dsw);
+    dsw->config.keyFrameCount = 10;
+
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    lockServer(server);
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dsw->lastSamplesCount, 1);
+    UA_DataSetMessage_clear(&message);
+
+    field.field.variable.fieldNameAlias = UA_STRING("second");
+    ck_assert_uint_eq(UA_Server_addDataSetField(
+        server, publishedDataSet1, &field, NULL).result, UA_STATUSCODE_GOOD);
+    memset(&message, 0, sizeof(message));
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dsw->lastSamplesCount, 2);
+    UA_DataSetMessage_clear(&message);
+}
+END_TEST
+
 /* Test DataSetOrdering reconfiguration (OPC UA Part 14, section 6.3.1.1.3) 
  * 
  * NOTE: This test validates that the DataSetOrdering mechanism is invoked correctly
@@ -1090,6 +1133,8 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
+    tcase_add_test(tc_pubsub_publish,
+                   DataSetWriterResizesSamplesAfterFieldAddition);
 
     TCase *tc_pubsub_datasetordering = tcase_create("PubSub DataSetOrdering (OPC UA Part 14)");
     tcase_add_checked_fixture(tc_pubsub_datasetordering, setup, teardown);

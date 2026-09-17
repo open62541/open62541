@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2020-2021 Kalycito Infotech Private Limited
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server_config_default.h>
@@ -1171,7 +1172,9 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         pMetaData->fields[3].builtInType = UA_NS0ID_BOOLEAN;
         pMetaData->fields[3].name =  UA_STRING ("BoolToggle");
         pMetaData->fields[3].valueRank = -1; /* scalar */
-        targetVars.targetVariablesSize = 4;
+        /* Start with one target more than the metadata describes. This used to
+         * read past the fields array while constructing the target nodes. */
+        targetVars.targetVariablesSize = 5;
         targetVars.targetVariables = (UA_FieldTargetDataType *)
             UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
         UA_ExtensionObject extensionObjectTargetVars;
@@ -1204,6 +1207,13 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
+        ck_assert_int_eq(response.results->statusCode,
+                         UA_STATUSCODE_BADINVALIDARGUMENT);
+        UA_CallResponse_clear(&response);
+
+        /* Retrying the configuration with matching sizes must succeed. */
+        targetVars.targetVariablesSize = pMetaData->fieldsSize;
+        response = UA_Client_Service_call(client, callMethodRequestFromClient);
         ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
@@ -1214,6 +1224,64 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_Client_disconnect(client);
         UA_Client_delete(client);
 } END_TEST
+
+START_TEST(AddConnectionRejectsRemotelyReplacedInputArguments) {
+    UA_Client *client = UA_Client_new();
+    ck_assert_ptr_ne(client, NULL);
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode res =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Replace the method metadata with a one-element ByteString definition.
+     * The service layer then accepts the ByteString, but the built-in callback
+     * must still validate the concrete value before interpreting it. */
+    const UA_NodeId inputArgumentsId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION_INPUTARGUMENTS);
+    res = UA_Client_deleteNode(client, inputArgumentsId, true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    argument.name = UA_STRING("Configuration");
+    argument.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    argument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "InputArguments");
+    attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = 1;
+    attr.arrayDimensionsSize = 1;
+    attr.arrayDimensions = &arrayDimension;
+    UA_Variant_setArray(&attr.value, &argument, 1,
+                        &UA_TYPES[UA_TYPES_ARGUMENT]);
+
+    res = UA_Client_addVariableNode(
+        client, inputArgumentsId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "InputArguments"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), attr, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString bytes = UA_BYTESTRING("x");
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &bytes, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    res = UA_Client_call(
+        client, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
+        1, &input, &outputSize, &output);
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADTYPEMISMATCH);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
 
 START_TEST(AddandRemoveReaderGroup){
         UA_StatusCode retVal;
@@ -2159,6 +2227,8 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveNewPubSubConnectionWithWriterGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithWriterGroupAndDataSetWriter);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroupandDataSetReader);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection,
+                   AddConnectionRejectsRemotelyReplacedInputArguments);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, ReserveIdsMultipleTimes);

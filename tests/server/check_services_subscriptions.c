@@ -10,6 +10,7 @@
 #include "server/ua_subscription.h"
 
 #include <check.h>
+#include <math.h>
 #include <stdlib.h>
 
 #include "ziptree.h"
@@ -1020,6 +1021,60 @@ START_TEST(Server_negativeSamplingInterval) {
 }
 END_TEST
 
+START_TEST(Server_nanModifiedSamplingInterval) {
+    createSubscription();
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subscriptionId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+
+    UA_MonitoredItemCreateRequest createItem;
+    UA_MonitoredItemCreateRequest_init(&createItem);
+    createItem.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    createItem.itemToMonitor.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    createItem.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    createItem.requestedParameters.samplingInterval = 100.0;
+    createRequest.itemsToCreateSize = 1;
+    createRequest.itemsToCreate = &createItem;
+
+    UA_CreateMonitoredItemsResponse createResponse;
+    UA_CreateMonitoredItemsResponse_init(&createResponse);
+    lockServer(server);
+    Service_CreateMonitoredItems(server, session, &createRequest, &createResponse);
+    unlockServer(server);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 monitoredItemId = createResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    UA_MonitoredItemModifyRequest modifyItem;
+    UA_MonitoredItemModifyRequest_init(&modifyItem);
+    modifyItem.monitoredItemId = monitoredItemId;
+    modifyItem.requestedParameters.samplingInterval = NAN;
+    modifyItem.requestedParameters.queueSize = 1;
+
+    UA_ModifyMonitoredItemsRequest modifyRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = subscriptionId;
+    modifyRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    modifyRequest.itemsToModifySize = 1;
+    modifyRequest.itemsToModify = &modifyItem;
+
+    UA_ModifyMonitoredItemsResponse modifyResponse;
+    UA_ModifyMonitoredItemsResponse_init(&modifyResponse);
+    lockServer(server);
+    Service_ModifyMonitoredItems(server, session, &modifyRequest, &modifyResponse);
+    unlockServer(server);
+    ck_assert_uint_eq(modifyResponse.resultsSize, 1);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(isfinite(modifyResponse.results[0].revisedSamplingInterval));
+    ck_assert(modifyResponse.results[0].revisedSamplingInterval ==
+              server->config.samplingIntervalLimits.min);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
+}
+END_TEST
+
 START_TEST(Server_transferSubscriptionDiagnostics) {
     /* Test that subscription diagnostics counter is correctly maintained
      * when subscriptions are transferred between sessions */
@@ -1113,6 +1168,92 @@ START_TEST(Server_transferSubscriptionDiagnostics) {
     createSession();
 }
 END_TEST
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+static UA_StatusCode
+setBrowseName(UA_Server *server, UA_Session *adminSession,
+              UA_Node *node, void *data) {
+    UA_QualifiedName_clear(&node->head.browseName);
+    return UA_QualifiedName_copy((UA_QualifiedName*)data,
+                                 &node->head.browseName);
+}
+
+START_TEST(Server_diagnosticsRejectLongBrowseNames) {
+    lockServer(server);
+    UA_String_clear(&session->sessionName);
+    session->sessionName = UA_STRING_ALLOC("diagnostics");
+    createSessionObject(server, session);
+
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = session->sessionId;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.targetName = UA_QUALIFIEDNAME(0, "SessionDiagnostics");
+    bp.relativePath.elements = &rpe;
+    bp.relativePath.elementsSize = 1;
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
+    unlockServer(server);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+
+    UA_NodeId sessionDiagnosticNode;
+    UA_NodeId_init(&sessionDiagnosticNode);
+    UA_StatusCode res = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId,
+                                       &sessionDiagnosticNode);
+    UA_BrowsePathResult_clear(&bpr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    createSubscription();
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    UA_NodeId diagnosticNode;
+    UA_NodeId_init(&diagnosticNode);
+    res = UA_NodeId_copy(&sub->ns0Id, &diagnosticNode);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    char longNameData[128];
+    memset(longNameData, 'A', sizeof(longNameData));
+    UA_QualifiedName longName;
+    UA_QualifiedName_init(&longName);
+    longName.name.length = sizeof(longNameData);
+    longName.name.data = (UA_Byte*)(uintptr_t)longNameData;
+    lockServer(server);
+    res = editNode(server, &server->adminSession, &diagnosticNode,
+                   UA_NODEATTRIBUTESMASK_BROWSENAME, UA_REFERENCETYPESET_NONE,
+                   UA_BROWSEDIRECTION_BOTH, setBrowseName, &longName);
+    res |= editNode(server, &server->adminSession, &sessionDiagnosticNode,
+                    UA_NODEATTRIBUTESMASK_BROWSENAME, UA_REFERENCETYPESET_NONE,
+                    UA_BROWSEDIRECTION_BOTH, setBrowseName, &longName);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readValue(server, diagnosticNode, &value);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    UA_Variant_clear(&value);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = sessionDiagnosticNode;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    lockServer(server);
+    UA_DataValue dv = readWithSession(server, session, &rvi,
+                                      UA_TIMESTAMPSTORETURN_NEITHER);
+    unlockServer(server);
+    ck_assert(dv.hasStatus);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    UA_DataValue_clear(&dv);
+
+    UA_NodeId_clear(&diagnosticNode);
+    UA_NodeId_clear(&sessionDiagnosticNode);
+}
+END_TEST
+#endif
 
 /* Test anonymous user subscription transfer restriction */
 START_TEST(Server_transferSubscription_anonymous) {
@@ -2393,6 +2534,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
     tcase_add_test(tc_server, Server_negativeSamplingInterval);
+    tcase_add_test(tc_server, Server_nanModifiedSamplingInterval);
     tcase_add_test(tc_server, Server_createMonitoredItems);
     tcase_add_test(tc_server, Server_modifyMonitoredItems);
     tcase_add_test(tc_server, Server_overflow);
@@ -2406,6 +2548,10 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_lifeTimeCount);
     tcase_add_test(tc_server, Server_invalidPublishingInterval);
     tcase_add_test(tc_server, Server_transferSubscriptionDiagnostics);
+#ifdef UA_ENABLE_DIAGNOSTICS
+    tcase_add_test(tc_server,
+                   Server_diagnosticsRejectLongBrowseNames);
+#endif
     tcase_add_test(tc_server, Server_transferSubscription_anonymous);
     tcase_add_test(tc_server, Server_setTriggering_nothingToDo);
     tcase_add_test(tc_server, Server_setTriggering_invalidSubscription);
