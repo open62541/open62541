@@ -102,6 +102,46 @@ START_TEST(ClientConfig_Copy){
 }
 END_TEST
 
+START_TEST(ClientConfig_CopyOwnedMembers){
+    UA_ClientConfig srcConfig;
+    UA_ClientConfig dstConfig;
+    memset(&srcConfig, 0, sizeof(srcConfig));
+    memset(&dstConfig, 0, sizeof(dstConfig));
+
+    srcConfig.endpointUrl = UA_STRING_ALLOC("opc.tcp://example:4840");
+    srcConfig.applicationUri = UA_STRING_ALLOC("urn:example:application");
+    srcConfig.authSecurityPolicyUri = UA_STRING_ALLOC("urn:example:auth-policy");
+    srcConfig.sessionName = UA_STRING_ALLOC("copied-session");
+    srcConfig.userTokenPolicy.policyId = UA_STRING_ALLOC("username-policy");
+    srcConfig.userTokenPolicy.securityPolicyUri =
+        UA_STRING_ALLOC("urn:example:user-policy");
+    srcConfig.noSession = true;
+    srcConfig.noReconnect = true;
+    srcConfig.noNewSession = true;
+
+    UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&srcConfig.endpointUrl, &dstConfig.endpointUrl));
+    ck_assert(UA_String_equal(&srcConfig.applicationUri, &dstConfig.applicationUri));
+    ck_assert(UA_String_equal(&srcConfig.authSecurityPolicyUri,
+                              &dstConfig.authSecurityPolicyUri));
+    ck_assert(UA_String_equal(&srcConfig.sessionName, &dstConfig.sessionName));
+    ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.policyId,
+                              &dstConfig.userTokenPolicy.policyId));
+    ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.securityPolicyUri,
+                              &dstConfig.userTokenPolicy.securityPolicyUri));
+    ck_assert_ptr_ne(srcConfig.endpointUrl.data, dstConfig.endpointUrl.data);
+    ck_assert_ptr_ne(srcConfig.userTokenPolicy.policyId.data,
+                     dstConfig.userTokenPolicy.policyId.data);
+    ck_assert(dstConfig.noSession);
+    ck_assert(dstConfig.noReconnect);
+    ck_assert(dstConfig.noNewSession);
+
+    UA_ClientConfig_clear(&srcConfig);
+    UA_ClientConfig_clear(&dstConfig);
+}
+END_TEST
+
 START_TEST(Client_connect) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -533,6 +573,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, ClientConfig_Copy);
+    tcase_add_test(tc_client, ClientConfig_CopyOwnedMembers);
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);

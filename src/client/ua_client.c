@@ -40,6 +40,10 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+    retval = UA_String_copy(&src->endpointUrl, &dst->endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     retval = UA_ExtensionObject_copy(&src->userIdentityToken, &dst->userIdentityToken);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -53,6 +57,19 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
         goto cleanup;
 
     retval = UA_UserTokenPolicy_copy(&src->userTokenPolicy, &dst->userTokenPolicy);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_String_copy(&src->applicationUri, &dst->applicationUri);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_String_copy(&src->authSecurityPolicyUri,
+                            &dst->authSecurityPolicyUri);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_String_copy(&src->sessionName, &dst->sessionName);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -71,6 +88,9 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->inactivityCallback = src->inactivityCallback;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logging = src->logging;
+    dst->noSession = src->noSession;
+    dst->noReconnect = src->noReconnect;
+    dst->noNewSession = src->noNewSession;
     if(src->certificateVerification.logging == NULL)
         dst->certificateVerification.logging = dst->logging;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -84,11 +104,13 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->subscriptionInactivityCallback = src->subscriptionInactivityCallback;
 #endif
     dst->timeout = src->timeout;
-    dst->userTokenPolicy = src->userTokenPolicy;
     dst->securityPolicies = src->securityPolicies;
     dst->securityPoliciesSize = src->securityPoliciesSize;
     dst->authSecurityPolicies = src->authSecurityPolicies;
     dst->authSecurityPoliciesSize = src->authSecurityPoliciesSize;
+#ifdef UA_ENABLE_ENCRYPTION
+    dst->privateKeyPasswordCallback = src->privateKeyPasswordCallback;
+#endif
 
 cleanup:
     if(retval != UA_STATUSCODE_GOOD) {
