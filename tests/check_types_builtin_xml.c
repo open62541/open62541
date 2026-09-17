@@ -1646,7 +1646,8 @@ START_TEST(UA_LocalizedText_null_locale_xml_encode) {
     status s = UA_encodeXml((void*)&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<LocalizedText><Locale>en</Locale><Text></Text></LocalizedText>";
+    /* The absent text is skipped instead of encoded as an empty element */
+    char *result = "<LocalizedText><Locale>en</Locale></LocalizedText>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1667,12 +1668,101 @@ START_TEST(UA_LocalizedText_null_xml_encode) {
     status s = UA_encodeXml((void*)&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<LocalizedText><Locale></Locale><Text></Text></LocalizedText>";
+    /* Both sub-fields are absent and are skipped */
+    char *result = "<LocalizedText></LocalizedText>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
     UA_ByteString_clear(&buf);
     UA_LocalizedText_clear(&src);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_null_locale_xml_roundtrip) {
+    /* A LocalizedText without a Locale keeps its text and the absent Locale
+     * stays absent over decode -> encode -> decode. */
+    UA_LocalizedText out;
+    UA_LocalizedText_init(&out);
+    UA_ByteString buf = UA_STRING("<LocalizedText>"
+                                    "<Text>hello</Text>"
+                                  "</LocalizedText>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(out.locale.data, NULL);
+    ck_assert_uint_eq(out.text.length, 5);
+    ck_assert_int_eq(out.text.data[0], 'h');
+
+    /* The absent Locale is not re-encoded as an empty element */
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    retval = UA_encodeXml(&out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING(
+        "<LocalizedText><Text>hello</Text></LocalizedText>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_LocalizedText out2;
+    UA_LocalizedText_init(&out2);
+    retval = UA_decodeXml(&encoded, &out2, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_order(&out, &out2, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]),
+                      UA_ORDER_EQ);
+    ck_assert_uint_eq(out2.text.length, 5);
+    ck_assert_int_eq(out2.text.data[0], 'h');
+
+    /* An empty-but-present Locale stays present as well */
+    UA_LocalizedText_clear(&out2);
+    UA_ByteString_clear(&encoded);
+    buf = UA_STRING("<LocalizedText><Locale></Locale>"
+                    "<Text>hello</Text></LocalizedText>");
+    retval = UA_decodeXml(&buf, &out2, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(out2.locale.data, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    retval = UA_encodeXml(&out2, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expected = UA_BYTESTRING(
+        "<LocalizedText><Locale></Locale><Text>hello</Text></LocalizedText>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_LocalizedText_clear(&out);
+    UA_LocalizedText_clear(&out2);
+    UA_ByteString_clear(&encoded);
+}
+END_TEST
+
+START_TEST(UA_QualifiedName_null_name_xml_roundtrip) {
+    /* A QualifiedName without a Name keeps its NamespaceIndex and the absent
+     * Name stays absent over decode -> encode -> decode. */
+    UA_QualifiedName out;
+    UA_QualifiedName_init(&out);
+    UA_ByteString buf = UA_STRING("<QualifiedName>"
+                                    "<NamespaceIndex>0</NamespaceIndex>"
+                                  "</QualifiedName>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(out.name.data, NULL);
+    ck_assert_uint_eq(out.namespaceIndex, 0);
+
+    /* The absent Name is not re-encoded as an empty element */
+    UA_ByteString encoded = UA_BYTESTRING_NULL;
+    retval = UA_encodeXml(&out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &encoded, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING(
+        "<QualifiedName><NamespaceIndex>0</NamespaceIndex></QualifiedName>");
+    ck_assert(UA_ByteString_equal(&encoded, &expected));
+
+    UA_QualifiedName out2;
+    UA_QualifiedName_init(&out2);
+    retval = UA_decodeXml(&encoded, &out2, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_order(&out, &out2, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]),
+                      UA_ORDER_EQ);
+    ck_assert_ptr_eq(out2.name.data, NULL);
+
+    UA_QualifiedName_clear(&out);
+    UA_QualifiedName_clear(&out2);
+    UA_ByteString_clear(&encoded);
 }
 END_TEST
 
@@ -4611,6 +4701,9 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_LocalizedText_empty_text_xml_encode);
     tcase_add_test(tc_xml_encode, UA_LocalizedText_null_locale_xml_encode);
     tcase_add_test(tc_xml_encode, UA_LocalizedText_null_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_LocalizedText_null_locale_xml_roundtrip);
+
+    tcase_add_test(tc_xml_encode, UA_QualifiedName_null_name_xml_roundtrip);
 
     tcase_add_test(tc_xml_encode, UA_UInt32_print_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExpandedNodeId_print_xml_encode);
