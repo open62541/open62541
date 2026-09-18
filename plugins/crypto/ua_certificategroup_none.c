@@ -56,6 +56,13 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint){
     return UA_STATUSCODE_BADNOTSUPPORTED;

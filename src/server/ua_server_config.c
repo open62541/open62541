@@ -124,5 +124,13 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
         config->roles = NULL;
         config->rolesSize = 0;
     }
+
+    if(config->wellKnownRoleMappings) {
+        for(size_t i = 0; i < config->wellKnownRoleMappingsSize; i++)
+            UA_Role_clear(&config->wellKnownRoleMappings[i]);
+        UA_free(config->wellKnownRoleMappings);
+        config->wellKnownRoleMappings = NULL;
+        config->wellKnownRoleMappingsSize = 0;
+    }
 #endif
 }

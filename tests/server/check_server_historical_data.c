@@ -133,6 +133,18 @@ setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
     return UA_Client_writeValueAttributeEx(thisClient, node, &dv);
 }
 
+static UA_Boolean
+ignoreHistoryResult(UA_Client *thisClient, const UA_NodeId *nodeId,
+                    UA_Boolean moreDataAvailable,
+                    const UA_ExtensionObject *data, void *context) {
+    (void)thisClient;
+    (void)nodeId;
+    (void)moreDataAvailable;
+    (void)data;
+    (void)context;
+    return false;
+}
+
 static UA_DateTime *
 sortDateTimes(UA_DateTime *data) {
     size_t count = 0;
@@ -585,6 +597,88 @@ START_TEST(Server_HistorizingUpdateDelete)
 }
 END_TEST
 
+#ifdef UA_ENABLE_RBAC
+START_TEST(Server_HistoryServices_enforceAccessRestrictions) {
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(
+        server, outNodeId, UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+        UA_STATUSCODE_GOOD);
+
+    UA_DateTime now = UA_DateTime_now();
+    UA_StatusCode res = UA_Client_HistoryRead_raw(
+        client, &outNodeId, ignoreHistoryResult,
+        now - UA_DATETIME_SEC, now, UA_STRING_NULL, false, 1,
+        UA_TIMESTAMPSTORETURN_BOTH, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+
+    res = UA_Client_HistoryUpdate_deleteRaw(
+        client, &outNodeId, now - UA_DATETIME_SEC, now);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+
+    /* A mixed batch must keep the rejected and backend-processed results at
+     * their original request indices. */
+    UA_ReadRawModifiedDetails readDetails;
+    UA_ReadRawModifiedDetails_init(&readDetails);
+    readDetails.startTime = now - UA_DATETIME_SEC;
+    readDetails.endTime = now;
+    UA_HistoryReadValueId readIds[2];
+    UA_HistoryReadValueId_init(&readIds[0]);
+    UA_HistoryReadValueId_init(&readIds[1]);
+    readIds[0].nodeId = outNodeId;
+    readIds[1].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_HistoryReadRequest readRequest;
+    UA_HistoryReadRequest_init(&readRequest);
+    readRequest.historyReadDetails.encoding = UA_EXTENSIONOBJECT_DECODED;
+    readRequest.historyReadDetails.content.decoded.type =
+        &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
+    readRequest.historyReadDetails.content.decoded.data = &readDetails;
+    readRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    readRequest.nodesToReadSize = 2;
+    readRequest.nodesToRead = readIds;
+    UA_HistoryReadResponse readResponse =
+        UA_Client_Service_historyRead(client, readRequest);
+    ck_assert_uint_eq(readResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readResponse.resultsSize, 2);
+    ck_assert_uint_eq(readResponse.results[0].statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    ck_assert_uint_ne(readResponse.results[1].statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_HistoryReadResponse_clear(&readResponse);
+
+    UA_DeleteRawModifiedDetails updateDetails[2];
+    UA_DeleteRawModifiedDetails_init(&updateDetails[0]);
+    UA_DeleteRawModifiedDetails_init(&updateDetails[1]);
+    updateDetails[0].nodeId = outNodeId;
+    updateDetails[1].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    updateDetails[0].startTime = updateDetails[1].startTime =
+        now - UA_DATETIME_SEC;
+    updateDetails[0].endTime = updateDetails[1].endTime = now;
+    UA_ExtensionObject updateObjects[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_ExtensionObject_init(&updateObjects[i]);
+        updateObjects[i].encoding = UA_EXTENSIONOBJECT_DECODED;
+        updateObjects[i].content.decoded.type =
+            &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS];
+        updateObjects[i].content.decoded.data = &updateDetails[i];
+    }
+    UA_HistoryUpdateRequest updateRequest;
+    UA_HistoryUpdateRequest_init(&updateRequest);
+    updateRequest.historyUpdateDetailsSize = 2;
+    updateRequest.historyUpdateDetails = updateObjects;
+    UA_HistoryUpdateResponse updateResponse =
+        UA_Client_Service_historyUpdate(client, updateRequest);
+    ck_assert_uint_eq(updateResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(updateResponse.resultsSize, 2);
+    ck_assert_uint_eq(updateResponse.results[0].statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    ck_assert_uint_ne(updateResponse.results[1].statusCode,
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_HistoryUpdateResponse_clear(&updateResponse);
+}
+END_TEST
+#endif
+
 START_TEST(Server_HistorizingUpdateInsert)
 {
     UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
@@ -966,6 +1060,9 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_HistorizingBackendMemory);
     tcase_add_test(tc_server, Server_HistorizingRandomIndexBackend);
     tcase_add_test(tc_server, Server_HistorizingUpdateDelete);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc_server, Server_HistoryServices_enforceAccessRestrictions);
+#endif
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
     tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);

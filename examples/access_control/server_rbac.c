@@ -4,15 +4,21 @@
  * This example demonstrates how to configure Role-Based Access Control (RBAC)
  * in an OPC UA server using:
  * 1. User authentication via username/password
- * 2. Identity mapping to well-known roles (e.g. ConfigureAdmin)
- * 3. Namespace default role permissions (OPC UA Part 5, 6.3.13)
- * 4. Explicit per-node role permissions with recursive flag
+ * 2. Identity mapping for the well-known roles from the server configuration
+ * 3. Adding a custom role at runtime through the C API
+ * 4. Namespace default role permissions (OPC UA Part 5, 6.3.13)
+ * 5. Explicit per-node role permissions with recursive flag
  *
- * The default access control plugin (ua_accesscontrol_default.c) implements
- * automatic role assignment by evaluating IdentityCriteriaType:
+ * Roles are assigned to a Session by matching its identity against the
+ * IdentityCriteriaType entries of every role (OPC UA Part 18, 4.4.2):
  * - Anonymous: Matches anonymous sessions
  * - AuthenticatedUser: Matches any authenticated (non-anonymous) session
  * - UserName: Matches if the username equals the criteria string
+ *
+ * The well-known roles are registered by the server itself, but - apart from
+ * Anonymous, AuthenticatedUser and TrustedApplication - none of them has a
+ * default identity mapping. Without configuring one, no Session is ever
+ * granted ConfigureAdmin or SecurityAdmin. That is what Step 2 is for.
  */
 
 #include <open62541/plugin/accesscontrol.h>
@@ -61,7 +67,48 @@ int main(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Configured users: admin, operator, guest and anonymous");
 
-    /* Create the server (well-known roles are initialized during creation) */
+    /* Step 2: Give the well-known roles an identity mapping.
+     *
+     * config.wellKnownRoleMappings is applied to the roles the server registers
+     * during startup, so the mapping is in place before the first Session is
+     * activated. Each entry names its target by roleName (or roleId) and
+     * replaces that role's mapping rules and filters.
+     *
+     * 'admin' is mapped to both ConfigureAdmin - whose permissions arrive
+     * indirectly through the namespace defaults in Step 4 - and SecurityAdmin,
+     * which is the role the RoleSet management Methods require. There is no
+     * default SecurityAdmin, so without this no client could ever administer
+     * the RoleSet over the wire.
+     *
+     * The mandatory Anonymous, AuthenticatedUser and TrustedApplication roles
+     * cannot be remapped; an entry for one of them is rejected. */
+    {
+        const char *adminRoles[2] = {"ConfigureAdmin", "SecurityAdmin"};
+        UA_Role *mappings = (UA_Role*)UA_calloc(2, sizeof(UA_Role));
+        if(!mappings) {
+            UA_ServerConfig_clear(&config);
+            return EXIT_FAILURE;
+        }
+        for(size_t i = 0; i < 2; i++) {
+            UA_Role_init(&mappings[i]);
+            mappings[i].roleName = UA_QUALIFIEDNAME_ALLOC(0, adminRoles[i]);
+            mappings[i].identityMappingRules = (UA_IdentityMappingRuleType*)
+                UA_calloc(1, sizeof(UA_IdentityMappingRuleType));
+            if(!mappings[i].identityMappingRules)
+                continue;
+            UA_IdentityMappingRuleType_init(&mappings[i].identityMappingRules[0]);
+            mappings[i].identityMappingRules[0].criteriaType =
+                UA_IDENTITYCRITERIATYPE_USERNAME;
+            mappings[i].identityMappingRules[0].criteria = UA_STRING_ALLOC("admin");
+            mappings[i].identityMappingRulesSize = 1;
+        }
+        /* Ownership moves to the config; UA_ServerConfig_clear frees it */
+        config.wellKnownRoleMappings = mappings;
+        config.wellKnownRoleMappingsSize = 2;
+    }
+
+    /* Create the server. The well-known roles are registered and the mappings
+     * configured above are applied during creation. */
     UA_Server *server = UA_Server_newWithConfig(&config);
     if(!server) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -69,46 +116,24 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    /* Step 2: Map 'admin' user to the standard ConfigureAdmin role.
-     * ConfigureAdmin is a well-known role defined in OPC UA Part 18.
-     * Its permissions are assigned indirectly via namespace defaults (Step 4). */
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "Mapped 'admin' to the ConfigureAdmin and SecurityAdmin roles");
+
     UA_NodeId configureAdminRoleId = UA_NODEID_NULL;
     {
         UA_Role confAdminRole;
-        retval = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "ConfigureAdmin"),
-                                   &confAdminRole);
-        if(retval == UA_STATUSCODE_GOOD) {
+        if(UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "ConfigureAdmin"),
+                             &confAdminRole) == UA_STATUSCODE_GOOD) {
             UA_NodeId_copy(&confAdminRole.roleId, &configureAdminRoleId);
-            UA_IdentityMappingRuleType *rules = (UA_IdentityMappingRuleType*)
-                UA_realloc(confAdminRole.identityMappingRules,
-                           (confAdminRole.identityMappingRulesSize + 1) *
-                           sizeof(UA_IdentityMappingRuleType));
-            if(rules) {
-                confAdminRole.identityMappingRules = rules;
-                UA_IdentityMappingRuleType_init(
-                    &rules[confAdminRole.identityMappingRulesSize]);
-                rules[confAdminRole.identityMappingRulesSize].criteriaType =
-                    UA_IDENTITYCRITERIATYPE_USERNAME;
-                rules[confAdminRole.identityMappingRulesSize].criteria =
-                    UA_STRING_ALLOC("admin");
-                confAdminRole.identityMappingRulesSize++;
-                retval = UA_Server_updateRole(server, &confAdminRole);
-            } else {
-                retval = UA_STATUSCODE_BADOUTOFMEMORY;
-            }
             UA_Role_clear(&confAdminRole);
-        }
-        if(retval == UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Mapped 'admin' user to standard ConfigureAdmin role");
-        } else {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                         "Failed to map admin to ConfigureAdmin: %s",
-                         UA_StatusCode_name(retval));
         }
     }
 
-    /* Step 3: Add an OperatorRole at runtime with UserName identity mapping */
+    /* Step 3: Add a custom role at runtime, the counterpart to Step 2.
+     * Custom roles can also be defined up front in config.roles (or under the
+     * "rbac" key of a JSON server configuration); those are protected and
+     * cannot be removed again at runtime. Roles added here can. Either way the
+     * identity mapping rules are what decide who is granted the role. */
     UA_Role operatorRole;
     UA_Role_init(&operatorRole);
     operatorRole.roleName = UA_QUALIFIEDNAME(0, "OperatorRole");
@@ -282,6 +307,8 @@ int main(void) {
                             criteriaTypeName = "Application"; break;
                         case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
                             criteriaTypeName = "X509Subject"; break;
+                        case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
+                            criteriaTypeName = "TrustedApplication"; break;
                         default: break;
                     }
                     if(role.identityMappingRules[j].criteria.length > 0) {
@@ -305,9 +332,20 @@ int main(void) {
                 "\n=== Role Assignment ===\n"
                 "When clients connect, roles are automatically assigned based on:\n"
                 "  - Anonymous login -> Anonymous role\n"
-                "  - user 'admin'    -> ConfigureAdmin + AuthenticatedUser\n"
+                "  - user 'admin'    -> ConfigureAdmin + SecurityAdmin + "
+                "AuthenticatedUser\n"
                 "  - user 'operator' -> OperatorRole + AuthenticatedUser\n"
-                "  - user 'guest'    -> AuthenticatedUser only");
+                "  - user 'guest'    -> AuthenticatedUser only\n"
+                "Every Session additionally holds the Anonymous role.");
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "\n=== Administering the RoleSet ===\n"
+                "The RoleSet and its Methods (AddRole, AddIdentity, ...) require\n"
+                "the SecurityAdmin role AND an encrypted SecureChannel. This\n"
+                "example runs without encryption, so 'admin' can be seen to hold\n"
+                "SecurityAdmin but the Methods still answer BadSecurityMode-\n"
+                "Insufficient. Configure a SecurityPolicy with SignAndEncrypt to\n"
+                "use them.");
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "\nServer is running...\n"

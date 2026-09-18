@@ -86,6 +86,13 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName);
 
+/* Build the canonical X.509 subject and issuer strings used by the Part 18
+ * X509Subject identity criterion. Both output strings are newly allocated. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria);
+
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint);

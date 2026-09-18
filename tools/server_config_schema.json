@@ -196,6 +196,10 @@
       "$ref": "#/definitions/PubsubConfiguration",
       "description": "PubSub configuration (only if PubSub enabled)"
     },
+    "rbac": {
+      "$ref": "#/definitions/RbacConfiguration",
+      "description": "Role-Based Access Control configuration (only if RBAC enabled)"
+    },
     "securityPolicies": {
       "type": "array",
       "items": {
@@ -597,6 +601,114 @@
           "type": "boolean",
           "description": "Enable information model methods (only if information model enabled)",
           "default": false
+        }
+      }
+    },
+    "RbacConfiguration": {
+      "type": "object",
+      "properties": {
+        "roles": {
+          "type": "array",
+          "description": "Initial role definitions (protected, cannot be removed at runtime)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roleId": {
+                "type": "string",
+                "description": "NodeId of the role (e.g. \"ns=0;i=15637\" for a well-known role). Auto-assigned if empty"
+              },
+              "roleName": {
+                "type": "string",
+                "description": "BrowseName name component of the role"
+              },
+              "roleNameNamespaceIndex": {
+                "type": "integer",
+                "description": "Namespace index of the BrowseName",
+                "default": 0
+              },
+              "identityMappingRules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "criteriaType": {
+                      "type": "string",
+                      "description": "One of UserName, Thumbprint, Role, GroupId, Anonymous, AuthenticatedUser, Application, X509Subject, TrustedApplication"
+                    },
+                    "criteria": {
+                      "type": "string",
+                      "description": "Criteria value (null/empty for Anonymous, AuthenticatedUser, TrustedApplication)"
+                    }
+                  }
+                }
+              },
+              "applicationsExclude": {
+                "type": "boolean",
+                "description": "If true, the applications list is an exclude list; default true for empty lists",
+                "default": true
+              },
+              "applications": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "endpointsExclude": {
+                "type": "boolean",
+                "description": "If true, the endpoints list is an exclude list; default true for empty lists",
+                "default": true
+              },
+              "endpoints": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "endpointUrl": { "type": "string" },
+                    "securityMode": { "type": "string", "description": "Invalid, None, Sign, SignAndEncrypt" },
+                    "securityPolicyUri": { "type": "string" },
+                    "transportProfileUri": { "type": "string" }
+                  }
+                }
+              },
+              "customConfiguration": {
+                "type": "boolean",
+                "description": "If true, the role configuration and assignment is vendor-specific (Part 18 §4.4.1)",
+                "default": false
+              }
+            }
+          }
+        },
+        "wellKnownRoleMappings": {
+          "type": "array",
+          "description": "Mappings and filters applied to mutable well-known Roles during startup; identify each Role by roleId or roleName",
+          "items": {
+            "type": "object",
+            "description": "Uses the same fields as entries in roles; mandatory Anonymous, AuthenticatedUser and TrustedApplication Roles cannot be updated"
+          }
+        },
+        "rolePermissionPresets": {
+          "type": "array",
+          "description": "Initial role-permission presets (protected, never deleted at runtime)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rolePermissions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "roleId": { "type": "string", "description": "NodeId of the role (e.g. \"ns=0;i=15637\")" },
+                    "permissions": { "type": "integer", "description": "PermissionType bitmask" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "allPermissionsForAnonymous": {
+          "type": "boolean",
+          "description": "If true, nodes without explicit RolePermissions are fully permissive (testing only)",
+          "default": true
         }
       }
     }
