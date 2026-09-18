@@ -5,6 +5,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "certificates.h"
 #include "check.h"
@@ -287,6 +288,26 @@ START_TEST(setBasics_overridesServerUrls) {
     UA_ServerConfig_clear(&config);
 }
 END_TEST
+START_TEST(setLogger_syncsCachedPointers) {
+    UA_StatusCode retval;
+    UA_ServerConfig config;
+
+    memset(&config, 0, sizeof(config));
+    retval = UA_ServerConfig_setBasics_withPort(&config, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Logger *newLogger = UA_Log_Stdout_new(UA_LOGLEVEL_WARNING);
+    retval = UA_ServerConfig_setLogger(&config, newLogger);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_ptr_eq(config.logging, newLogger);
+    ck_assert_ptr_eq(config.eventLoop->logger, newLogger);
+    ck_assert_ptr_eq(config.secureChannelPKI.logging, newLogger);
+    ck_assert_ptr_eq(config.sessionPKI.logging, newLogger);
+
+    UA_ServerConfig_clear(&config);
+}
+END_TEST
 
 START_TEST(setDefaultWithSecureSecurityPolicies_withTrustLists) {
     UA_StatusCode retval;
@@ -465,6 +486,8 @@ testSuite_server_config_default(void) {
     tcase_add_test(testCase, addAllSecureEndpoints_skipsLevel0Policies);
     tcase_add_test(testCase, setDefaultWithSecureSecurityPolicies_excludesNone);
     tcase_add_test(testCase, setBasics_overridesServerUrls);
+    tcase_add_test(testCase, setLogger_syncsCachedPointers);
+    tcase_add_test(testCase, setDefaultWithSecureSecurityPolicies_withTrustLists);
     tcase_add_test(testCase, setDefaultWithSecureSecurityPolicies_withTrustLists);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_withTrustLists);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_passwordCallback_success);
