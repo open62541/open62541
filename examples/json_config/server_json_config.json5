@@ -259,8 +259,8 @@
   //       applications: ["urn:open62541.client.application"],
   //       endpointsExclude: true,
   //       endpoints: [],
-  //       // Part 18 4.4.1: only a Role with CustomConfiguration=true may be
-  //       // granted while its Identities list is empty.
+  //       // Part 18 4.4.1: assignment is vendor-specific when this is true.
+  //       // Empty Identities are assigned only through the session roles API.
   //       customConfiguration: false
   //     }
   //   ],

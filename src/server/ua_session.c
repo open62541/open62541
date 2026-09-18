@@ -233,6 +233,11 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
                        &sub->ownerUserId) == UA_STATUSCODE_GOOD &&
         UA_String_copy(&session->clientDescription.applicationUri,
                        &sub->ownerApplicationUri) == UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_RBAC
+    /* Also remember the RBAC context. The detached Subscription is only
+     * transferred to a Session with the same Roles and identity context. */
+    UA_SubscriptionRbacContext_copyFromSession(&sub->ownerRbacContext, session);
+#endif
 
     /* Detach from the session */
     sub->session = NULL;

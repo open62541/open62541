@@ -2369,6 +2369,89 @@ START_TEST(namespaceDefault_explicitEmptyDenies) {
 }
 END_TEST
 
+START_TEST(namespaceDefault_reportedByAttributesAndMetadata) {
+    UA_NodeId roleId;
+    ck_assert_uint_eq(addTestRole("NsReportedRole", 1, 51100, &roleId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_RolePermission entry;
+    entry.roleId = roleId;
+    entry.permissions = UA_PERMISSIONTYPE_BROWSE |
+                        UA_PERMISSIONTYPE_READROLEPERMISSIONS;
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 1, &entry), UA_STATUSCODE_GOOD);
+
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 51101);
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "InheritedPermissions"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId adminSessionId = UA_NODEID_GUID(
+        0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    UA_Variant roles;
+    UA_Variant_setArray(&roles, &roleId, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(
+        server, &adminSessionId, UA_QUALIFIEDNAME(0, "roles"), &roles),
+        UA_STATUSCODE_GOOD);
+
+    UA_Variant reported;
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readRolePermissions(server, nodeId, &reported),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(
+        &reported, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]));
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    UA_RolePermissionType *rp = (UA_RolePermissionType*)reported.data;
+    ck_assert(UA_NodeId_equal(&rp[0].roleId, &roleId));
+    ck_assert_uint_eq(rp[0].permissions, entry.permissions);
+    UA_Variant_clear(&reported);
+
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readUserRolePermissions(server, nodeId,
+                                                        &reported),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    rp = (UA_RolePermissionType*)reported.data;
+    ck_assert(UA_NodeId_equal(&rp[0].roleId, &roleId));
+    UA_Variant_clear(&reported);
+
+    /* The Namespace Zero metadata Properties use the same live policy. */
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 0, 1, &entry), UA_STATUSCODE_GOOD);
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readValue(
+        server,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTROLEPERMISSIONS),
+        &reported), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    UA_Variant_clear(&reported);
+
+    UA_Variant_init(&reported);
+    ck_assert_uint_eq(UA_Server_readValue(
+        server,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTUSERROLEPERMISSIONS),
+        &reported), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(reported.arrayLength, 1);
+    UA_Variant_clear(&reported);
+
+    (void)UA_Server_deleteSessionAttribute(
+        server, &adminSessionId, UA_QUALIFIEDNAME(0, "roles"));
+    UA_Server_deleteNode(server, nodeId, true);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 0, 0, NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 0, NULL), UA_STATUSCODE_GOOD);
+    removeTestRole("NsReportedRole", 1);
+    UA_NodeId_clear(&roleId);
+}
+END_TEST
+
 START_TEST(allPermissionsForAnonymous_config) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->allPermissionsForAnonymous == true);
@@ -2791,6 +2874,27 @@ START_TEST(roleFilters_evaluated) {
     UA_NodeId epId = UA_NODEID_NULL;
     ck_assert_uint_eq(UA_Server_addRole(server, &ep, &epId), UA_STATUSCODE_GOOD);
 
+    /* Empty include lists match no application or endpoint. */
+    UA_Role emptyApp;
+    UA_Role_init(&emptyApp);
+    emptyApp.roleName = UA_QUALIFIEDNAME(1, "EmptyAppInclude");
+    emptyApp.identityMappingRules = &authRule;
+    emptyApp.identityMappingRulesSize = 1;
+    emptyApp.applicationsExclude = false;
+    UA_NodeId emptyAppId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &emptyApp, &emptyAppId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role emptyEp;
+    UA_Role_init(&emptyEp);
+    emptyEp.roleName = UA_QUALIFIEDNAME(1, "EmptyEpInclude");
+    emptyEp.identityMappingRules = &authRule;
+    emptyEp.identityMappingRulesSize = 1;
+    emptyEp.endpointsExclude = false;
+    UA_NodeId emptyEpId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &emptyEp, &emptyEpId),
+                      UA_STATUSCODE_GOOD);
+
     UA_SessionIdentityContext ctx;
 
     /* Include: matching application granted, others denied */
@@ -2820,9 +2924,19 @@ START_TEST(roleFilters_evaluated) {
     ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
     ck_assert(!roleGrantedForContext(&ctx, &epId));
 
+    /* Empty include lists must not become an unrestricted Role. */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.applicationUri = UA_STRING("urn:any");
+    ctx.trustedApplication = true;
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &emptyAppId));
+    ck_assert(!roleGrantedForContext(&ctx, &emptyEpId));
+
     UA_NodeId_clear(&inclId);
     UA_NodeId_clear(&exclId);
     UA_NodeId_clear(&epId);
+    UA_NodeId_clear(&emptyAppId);
+    UA_NodeId_clear(&emptyEpId);
 }
 END_TEST
 
@@ -3097,8 +3211,8 @@ START_TEST(customConfiguration_storedAndCopied) {
 }
 END_TEST
 
-/* A non-custom Role with empty Identities cannot be granted to any Session
- * (Part 18 §4.4.1). A custom Role with empty Identities can be granted. */
+/* An empty Identities array is never an automatic match. CustomConfiguration
+ * leaves assignment vendor-specific; it must not grant the Role to everyone. */
 START_TEST(customConfiguration_grantEnforcement) {
     /* Non-custom role with no identity rules */
     UA_Role nc;
@@ -3122,9 +3236,8 @@ START_TEST(customConfiguration_grantEnforcement) {
 
     /* The non-custom empty role is NOT granted */
     ck_assert(!roleGrantedForContext(&ctx, &ncId));
-    /* The custom empty role CAN be granted (custom roles bypass the
-     * empty-Identities restriction) */
-    ck_assert(roleGrantedForContext(&ctx, &crId));
+    /* The custom empty role is assigned only through the session roles API. */
+    ck_assert(!roleGrantedForContext(&ctx, &crId));
 
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyNonCustom"));
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyCustom"));
@@ -3335,6 +3448,7 @@ static Suite *testSuite_NamespaceDefaults(void) {
     tcase_add_test(tc, namespaceDefault_perNamespaceIsolation);
     tcase_add_test(tc, namespaceDefault_invalidNamespaceIndex);
     tcase_add_test(tc, namespaceDefault_explicitEmptyDenies);
+    tcase_add_test(tc, namespaceDefault_reportedByAttributesAndMetadata);
     suite_add_tcase(s, tc);
     return s;
 }

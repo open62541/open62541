@@ -630,6 +630,32 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
+#ifdef UA_ENABLE_RBAC
+    /* The AccessControl callback verifies the user identity. Part 18 can still
+     * assign different Roles to that user for a different application or
+     * Endpoint, and AccessRestrictions can depend on the channel. Moving the
+     * queued and retransmission data across such a boundary would disclose
+     * data authorized only in the old Session. A detached Subscription is
+     * compared with the RBAC context of the Session it was detached from. */
+    UA_Boolean sameRbacContext;
+    if(oldSession) {
+        UA_SubscriptionRbacContext oldContext;
+        memset(&oldContext, 0, sizeof(UA_SubscriptionRbacContext));
+        UA_SubscriptionRbacContext_copyFromSession(&oldContext, oldSession);
+        sameRbacContext =
+            UA_SubscriptionRbacContext_matchesSession(&oldContext, session);
+        UA_SubscriptionRbacContext_clear(&oldContext);
+    } else {
+        sameRbacContext =
+            UA_SubscriptionRbacContext_matchesSession(&sub->ownerRbacContext,
+                                                      session);
+    }
+    if(!sameRbacContext) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+#endif
+
     /* Check limits for the number of subscriptions for this Session */
     if((server->config.maxSubscriptionsPerSession != 0) &&
        (session->subscriptionsSize >= server->config.maxSubscriptionsPerSession)) {
@@ -661,6 +687,9 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     newSub->ownerKnown = false;
     UA_String_init(&newSub->ownerUserId);
     UA_String_init(&newSub->ownerApplicationUri);
+#ifdef UA_ENABLE_RBAC
+    memset(&newSub->ownerRbacContext, 0, sizeof(UA_SubscriptionRbacContext));
+#endif
 
     /* Set to the same state as the original subscription */
     newSub->publishCallbackId = 0;

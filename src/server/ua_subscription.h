@@ -256,6 +256,41 @@ typedef enum {
     UA_SUBSCRIPTIONSTATE_ENABLED
 } UA_SubscriptionState;
 
+#ifdef UA_ENABLE_RBAC
+/* RBAC context of a Session that TransferSubscriptions compares. The user
+ * identity alone is not enough: Part 18 can assign different Roles to the same
+ * user for a different application or Endpoint, and AccessRestrictions depend
+ * on the SecureChannel. A detached Subscription keeps a copy of the context of
+ * the Session it was detached from. */
+typedef struct {
+    UA_Boolean known;
+    UA_Boolean hasIdentityContext;
+    UA_Boolean hasChannel;
+    UA_MessageSecurityMode channelSecurityMode;
+    UA_Boolean trustedApplication;
+    UA_MessageSecurityMode endpointSecurityMode;
+    size_t rolesSize;
+    UA_NodeId *roles;
+    UA_String applicationUri;
+    UA_String endpointUrl;
+    UA_String securityPolicyUri;
+    UA_String transportProfileUri;
+} UA_SubscriptionRbacContext;
+
+/* Copy the RBAC context of the Session. Sets known=false if the copy fails. */
+void
+UA_SubscriptionRbacContext_copyFromSession(UA_SubscriptionRbacContext *ctx,
+                                           const UA_Session *session);
+
+void
+UA_SubscriptionRbacContext_clear(UA_SubscriptionRbacContext *ctx);
+
+/* The Session has the same RBAC context */
+UA_Boolean
+UA_SubscriptionRbacContext_matchesSession(const UA_SubscriptionRbacContext *ctx,
+                                          const UA_Session *session);
+#endif
+
 /* Subscriptions are managed in a server-wide linked list. If they are attached
  * to a Session, then they are additionally in the per-Session linked-list. A
  * subscription is always generated for a Session. But the CloseSession Service
@@ -278,6 +313,9 @@ struct UA_Subscription {
     UA_UserTokenType ownerTokenType;
     UA_String ownerUserId;
     UA_String ownerApplicationUri;
+#ifdef UA_ENABLE_RBAC
+    UA_SubscriptionRbacContext ownerRbacContext;
+#endif
 
     /* Settings */
     UA_UInt32 lifeTimeCount;
@@ -382,6 +420,12 @@ UA_Subscription_localPublish(void *application /* UA_Server */,
 
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);
+
+/* Drop notifications sampled under a former RBAC role set and immediately
+ * re-sample data MonitoredItems in the Session's current authorization
+ * context. Published retransmission entries remain available for Republish. */
+void
+UA_Session_invalidateRoleNotifications(UA_Server *server, UA_Session *session);
 
 UA_StatusCode
 UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,

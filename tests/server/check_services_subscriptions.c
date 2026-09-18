@@ -8,6 +8,9 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "server/ua_subscription.h"
+#ifdef UA_ENABLE_RBAC
+#include "server/ua_server_rbac.h"
+#endif
 
 #include <check.h>
 #include <math.h>
@@ -1341,6 +1344,122 @@ START_TEST(Server_transferSubscription_anonymous) {
     unlockServer(server);
 }
 END_TEST
+
+#ifdef UA_ENABLE_RBAC
+START_TEST(Server_transferSubscription_rejectsDifferentRoles) {
+    lockServer(server);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("testuser");
+    UA_NodeId oldRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session, &oldRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    createSubscription();
+    createMonitoredItem();
+    UA_Session *session2 = createAuthenticatedSession("testuser");
+    lockServer(server);
+    UA_NodeId newRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session2, &newRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    UA_TransferSubscriptionsRequest request;
+    UA_TransferSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse response;
+    UA_TransferSubscriptionsResponse_init(&response);
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_TransferSubscriptionsResponse_clear(&response);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+}
+END_TEST
+
+/* A detached Subscription keeps the RBAC context of the Session it was detached
+ * from. Only a Session of the same user with the same Roles can transfer it. */
+START_TEST(Server_transferDetachedSubscription_requiresSameRoles) {
+    lockServer(server);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("testuser");
+    UA_NodeId oldRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session, &oldRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    createSubscription();
+    createMonitoredItem();
+
+    /* Force session timeout */
+    lockServer(server);
+    session->validTill = UA_DateTime_nowMonotonic() - UA_DATETIME_SEC;
+    cleanupSessions(server, UA_DateTime_nowMonotonic());
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_ptr_eq(sub->session, NULL);
+    unlockServer(server);
+    session = NULL;
+
+    /* Same user, different Roles */
+    UA_Session *session2 = createAuthenticatedSession("testuser");
+    lockServer(server);
+    UA_NodeId newRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session2, &newRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    UA_TransferSubscriptionsRequest request;
+    UA_TransferSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse response;
+    UA_TransferSubscriptionsResponse_init(&response);
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_TransferSubscriptionsResponse_clear(&response);
+
+    /* Same user with the Roles of the former Session */
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session2, &oldRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    UA_TransferSubscriptionsResponse_init(&response);
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &request, &response);
+    sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_ptr_eq(sub->session, session2);
+    unlockServer(server);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_TransferSubscriptionsResponse_clear(&response);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+
+    createSession();
+}
+END_TEST
+#endif
 
 /* --- Extended coverage tests --- */
 
@@ -2833,6 +2952,10 @@ static Suite* testSuite_Client(void) {
                    Server_diagnosticsRejectLongBrowseNames);
 #endif
     tcase_add_test(tc_server, Server_transferSubscription_anonymous);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc_server, Server_transferSubscription_rejectsDifferentRoles);
+    tcase_add_test(tc_server, Server_transferDetachedSubscription_requiresSameRoles);
+#endif
     tcase_add_test(tc_server, Server_setTriggering_nothingToDo);
     tcase_add_test(tc_server, Server_setTriggering_invalidSubscription);
     tcase_add_test(tc_server, Server_setTriggering_invalidMonitoredItem);

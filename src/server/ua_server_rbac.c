@@ -18,13 +18,12 @@
  *   UserName, TrustedApplication (signed or encrypted SecureChannel with a
  *   validated application certificate, per Part 18 §4.4.3), Thumbprint and
  *   X509Subject (of the X509 user certificate), Application (client
- *   ApplicationUri) and Role (references an already-granted Role by
- *   BrowseName, resolved transitively). GroupId is evaluated when the
- *   AccessControl getUserGroups hook is configured.
+ *   ApplicationUri) and Role (a claim from an accepted access token). GroupId
+ *   is evaluated when the AccessControl getUserGroups hook is configured.
  *
  * - The Application and Endpoint role filters (including the Exclude variants)
- *   are evaluated during role resolution. An empty filter list means "no
- *   restriction" (Part 18 §4.4.1).
+ *   are evaluated during role resolution. An empty exclude list is
+ *   unrestricted; an empty include list matches no Session (Part 18 §4.4.1).
  *
  * - Active Sessions are re-evaluated and their Roles reassigned when the
  *   RoleSet changes through addRole/removeRole/updateRole (and the RoleType
@@ -33,7 +32,8 @@
  *
  * - AccessRestrictions (Part 3 §5.2.11: Signing/Encryption/Session required,
  *   ApplyRestrictionsToBrowse) are stored per node with a namespace default and
- *   enforced on Read, Write and Call. The local admin session is exempt.
+ *   enforced on Read, Write, HistoryRead, HistoryUpdate, Call, Browse and
+ *   TranslateBrowsePathsToNodeIds. The local admin session is exempt.
  *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
@@ -78,9 +78,8 @@
  *   exposed as a read-only NS0 Property backed by the role registry, and
  *   enforced: a Role with an empty Identities array and CustomConfiguration ==
  *   FALSE cannot be granted to any Session. For CustomConfiguration == TRUE the
- *   spec leaves the assignment vendor-specific; this implementation grants such
- *   a Role to every Session that passes its Application/Endpoint filters, so an
- *   empty custom Role with default filters is granted to *all* Sessions.
+ *   spec leaves the assignment vendor-specific. Roles without standard identity
+ *   rules are therefore assigned only through the session "roles" attribute.
  *
  * - The role registry, the RolePermission presets and allPermissionsForAnonymous
  *   can be set from a JSON server configuration under the "rbac" key (see
@@ -1780,6 +1779,10 @@ endpointFilterMatches(const UA_EndpointType *ep,
  * (Exclude=true) the list. */
 static UA_Boolean
 roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
+    /* An explicitly empty include list includes no application. The default
+     * Exclude value for an unconfigured/empty list is TRUE (Part 18 §4.4.1). */
+    if(role->applicationsSize == 0 && !role->applicationsExclude)
+        return false;
     if(role->applicationsSize > 0) {
         /* Part 18 §4.4.1: a configured Applications list is evaluated against
          * the ApplicationUri from a trusted Client ApplicationInstance
@@ -1797,6 +1800,9 @@ roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
         if(inList == role->applicationsExclude)
             return false;
     }
+    /* The same include/exclude semantics apply to Endpoint filters. */
+    if(role->endpointsSize == 0 && !role->endpointsExclude)
+        return false;
     if(role->endpointsSize > 0) {
         UA_Boolean inList = false;
         for(size_t i = 0; i < role->endpointsSize; i++) {
@@ -1832,19 +1838,13 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
      * Part 18 §4.4.1: a Role with an empty Identities array and
      * CustomConfiguration == FALSE cannot be granted to any Session. Skip
      * such roles entirely; they can only be assigned via the session "roles"
-     * attribute override. A custom Role with empty Identities bypasses the
-     * rule-matching requirement (granting is vendor-specific) and is granted
-     * when its Application/Endpoint filters pass. */
+     * attribute override. CustomConfiguration makes assignment vendor-specific;
+     * it must not turn an empty Identities array into a match for every Session. */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
-        if(role->identityMappingRulesSize == 0) {
-            if(role->customConfiguration && roleFiltersMatch(role, ctx)) {
-                matchedRoles[i] = true;
-                matchCount++;
-            }
+        if(role->identityMappingRulesSize == 0)
             continue;
-        }
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
             if(identityRuleMatches(&role->identityMappingRules[j], ctx)) {
                 if(roleFiltersMatch(role, ctx)) {
@@ -1885,7 +1885,13 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     for(size_t i = 0; i < server->rolesSize && idx < matchCount; i++) {
         if(!matchedRoles[i])
             continue;
-        UA_NodeId_copy(&server->roles[i].roleId, &matched[idx]);
+        UA_StatusCode res =
+            UA_NodeId_copy(&server->roles[i].roleId, &matched[idx]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(matched, matchCount, &UA_TYPES[UA_TYPES_NODEID]);
+            UA_free(matchedRoles);
+            return res;
+        }
         idx++;
     }
     UA_free(matchedRoles);
@@ -1893,6 +1899,25 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
     *outRoleIds = matched;
     *outRolesSize = matchCount;
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+sessionRolesEqual(const UA_Session *session,
+                  size_t rolesSize, const UA_NodeId *roleIds) {
+    if(session->rolesSize != rolesSize)
+        return false;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        UA_Boolean found = false;
+        for(size_t j = 0; j < rolesSize; j++) {
+            if(UA_NodeId_equal(&session->roles[i], &roleIds[j])) {
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            return false;
+    }
+    return true;
 }
 
 void
@@ -1903,13 +1928,42 @@ UA_Server_reevaluateSessionRoles(UA_Server *server) {
         UA_Session *session = &entry->session;
         if(!session->hasIdentityContext)
             continue;
+        if(session->passwordChangeRequired)
+            continue;
         size_t rolesSize = 0;
         UA_NodeId *roleIds = NULL;
         UA_StatusCode res = UA_Server_evaluateSessionRoles(
             server, &session->identityContext, &rolesSize, &roleIds);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Boolean changed = (session->rolesSize > 0);
+            /* A changed RoleSet must never leave the former privileges active
+             * merely because the replacement set could not be allocated. */
+            (void)UA_Session_setRoles(server, session, NULL, 0);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            if(changed)
+                UA_Session_invalidateRoleNotifications(server, session);
+#endif
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "RBAC: Could not re-evaluate roles; cleared "
+                                 "the Session roles with StatusCode %s",
+                                 UA_StatusCode_name(res));
             continue;
-        UA_Session_setRoles(server, session, roleIds, rolesSize);
+        }
+        UA_Boolean changed = !sessionRolesEqual(session, rolesSize, roleIds);
+        UA_Boolean hadRoles = (session->rolesSize > 0);
+        res = UA_Session_setRoles(server, session, roleIds, rolesSize);
+        if(res != UA_STATUSCODE_GOOD) {
+            changed = hadRoles;
+            (void)UA_Session_setRoles(server, session, NULL, 0);
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "RBAC: Could not install re-evaluated roles; "
+                                 "cleared the Session roles with StatusCode %s",
+                                 UA_StatusCode_name(res));
+        }
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        if(changed)
+            UA_Session_invalidateRoleNotifications(server, session);
+#endif
         UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
     }
 }
@@ -2677,6 +2731,57 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions) {
+    if(!server || !effectivePermissions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    const UA_NamespaceMetadata *metadata = NULL;
+    if(server->namespaceMetadata &&
+       namespaceIndex < server->namespaceMetadataSize &&
+       server->namespaceMetadata[namespaceIndex].hasDefaultRolePermissions)
+        metadata = &server->namespaceMetadata[namespaceIndex];
+
+    if(!metadata) {
+        *effectivePermissions = server->config.allPermissionsForAnonymous ?
+            UA_PERMISSIONTYPE_ALL : 0;
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    size_t rolesSize = 0;
+    const UA_NodeId *roles = NULL;
+    if(sessionId) {
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && session->rolesSize > 0) {
+            rolesSize = session->rolesSize;
+            roles = session->roles;
+        }
+    }
+
+    UA_PermissionType permissions = 0;
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t j = 0; j < metadata->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &metadata->entries[j].roleId)) {
+                permissions |= metadata->entries[j].permissions;
+                break;
+            }
+        }
+    }
+    *effectivePermissions = permissions;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Internal helper. Caller holds the lock.
  * Missing node -> UA_PERMISSIONTYPE_ALL (permissive sentinel). */
 UA_StatusCode
@@ -2725,16 +2830,24 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    /* If node has no permission configuration, return empty array */
-    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID ||
-       node->head.permissionIndex >= server->rolePermissionsSize) {
-        UA_NODESTORE_RELEASE(server, node);
-        unlockServer(server);
-        return UA_STATUSCODE_GOOD;
+    const UA_RolePermission *permissionEntries = NULL;
+    size_t permissionEntriesSize = 0;
+    if(node->head.permissionIndex != UA_PERMISSION_INDEX_INVALID &&
+       node->head.permissionIndex < server->rolePermissionsSize) {
+        const UA_RolePermissionEntry *rp =
+            &server->rolePermissions[node->head.permissionIndex];
+        permissionEntries = rp->rolePermissions;
+        permissionEntriesSize = rp->rolePermissionsSize;
+    } else {
+        UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+        if(server->namespaceMetadata && ns < server->namespaceMetadataSize &&
+           server->namespaceMetadata[ns].hasDefaultRolePermissions) {
+            permissionEntries = server->namespaceMetadata[ns].entries;
+            permissionEntriesSize = server->namespaceMetadata[ns].entriesSize;
+        }
     }
 
-    const UA_RolePermissionEntry *rp = &server->rolePermissions[node->head.permissionIndex];
-    if(!rp->rolePermissions || rp->rolePermissionsSize == 0) {
+    if(!permissionEntries || permissionEntriesSize == 0) {
         UA_NODESTORE_RELEASE(server, node);
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
@@ -2755,8 +2868,8 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     /* Count how many roles the session has that also have permissions on this node */
     size_t matchCount = 0;
     for(size_t i = 0; i < rolesSize; i++) {
-        for(size_t j = 0; j < rp->rolePermissionsSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->rolePermissions[j].roleId)) {
+        for(size_t j = 0; j < permissionEntriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &permissionEntries[j].roleId)) {
                 matchCount++;
                 break;
             }
@@ -2782,8 +2895,8 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     size_t resultIdx = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rolesSize && resultIdx < matchCount; i++) {
-        for(size_t j = 0; j < rp->rolePermissionsSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->rolePermissions[j].roleId)) {
+        for(size_t j = 0; j < permissionEntriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &permissionEntries[j].roleId)) {
                 res = UA_NodeId_copy(&roles[i], &result[resultIdx].roleId);
                 if(res != UA_STATUSCODE_GOOD) {
                     UA_Array_delete(result, resultIdx, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
@@ -2791,7 +2904,7 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
                     unlockServer(server);
                     return res;
                 }
-                result[resultIdx].permissions = rp->rolePermissions[j].permissions;
+                result[resultIdx].permissions = permissionEntries[j].permissions;
                 resultIdx++;
                 break;
             }

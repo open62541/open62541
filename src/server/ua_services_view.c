@@ -692,6 +692,18 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
         UA_NODESTORE_RELEASE(bc->server, target);
         return NULL;
     }
+
+    /* Browse permission controls visibility of references both to and from a
+     * Node (Part 3, Browse Permission). Checking only the source would expose
+     * the identity and metadata of a hidden target through an allowed parent. */
+    if(bc->session != &bc->server->adminSession &&
+       !bc->server->config.accessControl.allowBrowseNode(
+           bc->server, &bc->server->config.accessControl,
+           &bc->session->sessionId, bc->session->context,
+           &target->head.nodeId, target->head.context)) {
+        UA_NODESTORE_RELEASE(bc->server, target);
+        return NULL;
+    }
 #endif
     
     /* The node class has to match */
@@ -854,10 +866,8 @@ browseResolvedNode(struct BrowseContext *bc, const UA_Node *node) {
      * ApplyRestrictionsToBrowse flag is present. BrowseNext reaches this same
      * path and therefore re-checks the current Session/SecureChannel. */
     bc->status = checkNodeAccessRestrictions(bc->server, bc->session, node, true);
-    if(bc->status != UA_STATUSCODE_GOOD) {
-        UA_NODESTORE_RELEASE(bc->server, node);
+    if(bc->status != UA_STATUSCODE_GOOD)
         return;
-    }
 #endif
 
     /* Check AccessControl rights */
@@ -1333,7 +1343,8 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_RBAC
         if(checkNodeAccessRestrictions(server, session, node, true) !=
            UA_STATUSCODE_GOOD) {
-            UA_NODESTORE_RELEASE(server, node);
+            if(releaseNode)
+                UA_NODESTORE_RELEASE(server, node);
             continue;
         }
 #endif
