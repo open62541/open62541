@@ -140,6 +140,12 @@ class OpaqueType(Type):
     def __init__(self, outname, xml, namespace, base_type):
         Type.__init__(self, outname, xml, namespace)
         self.base_type = base_type
+        # If the opaque type is based on a builtin type that is pointer-free,
+        # inherit that property so generated types reflect the base semantics.
+        try:
+            self.pointerfree = base_type in builtin_pointerfree
+        except Exception:
+            self.pointerfree = False
 
 
 class StructMember:
