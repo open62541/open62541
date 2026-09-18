@@ -1868,6 +1868,10 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  const UA_DataSetMessage_EncodingMetaData *emd,
                                  const UA_DataSetMessage *p,
                                  size_t size) {
+    /* Remember the start of this DataSetMessage so padding is measured
+     * relative to the payload, even when size already includes outer headers.
+     */
+    const size_t start = size;
     UA_PubSubOffsetTable *ot = ctx->ot;
 
     size += 1; /* byte: DataSetMessage Type + Flags */
@@ -1924,11 +1928,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
     if(p->header.configVersionMinorVersionEnabled)
         size += 4; /* UA_UInt32_calcSizeBinary(&p->header.configVersionMinorVersion) */
 
-    /* Keyframe with no fields is a heartbeat */
-    if(p->header.dataSetMessageType == UA_DATASETMESSAGE_KEEPALIVE ||
-       (p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME && p->fieldCount == 0))
-        return size;
-
+    /* Count the key-frame payload and record field offsets. Empty non-RawData
+     * frames still include the field count; keep-alive messages have no
+     * payload. */
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
         if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
            (!emd || p->fieldCount > emd->fieldsSize))
@@ -1996,7 +1998,7 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
             else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE)
                 size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
         }
-    } else {
+    } else if(p->header.dataSetMessageType != UA_DATASETMESSAGE_KEEPALIVE) {
         /* Unknown message type */
         return 0;
     }
@@ -2004,8 +2006,11 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
     /* A configured size pads smaller messages. Oversized messages retain their
      * actual size and are marked invalid by the encoder without mutating p. */
     if(emd && emd->configuredSize > 0) {
-        if(emd->configuredSize > size)
-            size = emd->configuredSize;
+        if(emd->configuredSize > size - start) {
+            if(emd->configuredSize > SIZE_MAX - start)
+                return 0;
+            size = start + emd->configuredSize;
+        }
     }
     
     return size;

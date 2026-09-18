@@ -677,6 +677,12 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        if(UA_ExtensionObject_hasDecodedType(&dsw->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetWriterMessageDataType *settings =
+                (const UA_UadpDataSetWriterMessageDataType*)dsw->config.messageSettings.content.decoded.data;
+            emd[i].configuredSize = settings->configuredSize;
+        }
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(pds) {
             emd[i].fields = pds->dataSetMetaData.fields;
@@ -971,8 +977,8 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     PubSubEncodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeCtx));
 
-    /* Prepare the metadata with information from the readers to decode the
-     * DataSetMessages */
+    /* Pass each writer's field metadata and configured size to the encoder.
+     * ConfiguredSize controls padding inside the NetworkMessage. */
     size_t i = 0;
     UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
     memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
@@ -981,6 +987,12 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        if(UA_ExtensionObject_hasDecodedType(&dsw->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetWriterMessageDataType *settings =
+                (const UA_UadpDataSetWriterMessageDataType*)dsw->config.messageSettings.content.decoded.data;
+            emd[i].configuredSize = settings->configuredSize;
+        }
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(pds) {
             emd[i].fields = pds->dataSetMetaData.fields;
@@ -1848,6 +1860,12 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        if(UA_ExtensionObject_hasDecodedType(&dsw->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetWriterMessageDataType *settings =
+                (const UA_UadpDataSetWriterMessageDataType*)dsw->config.messageSettings.content.decoded.data;
+            emd[i].configuredSize = settings->configuredSize;
+        }
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(pds) {
             emd[i].fields = pds->dataSetMetaData.fields;
