@@ -6,6 +6,7 @@
 #include <open62541/server_pubsub.h>
 #include "ua_pubsub_internal.h"
 #include "test_helpers.h"
+#include "testing_networklayers.h"
 #include <check.h>
 
 static UA_Server *server;
@@ -323,6 +324,115 @@ START_TEST(DeltaGapRequiresNewKeyFrame) {
     assertTarget(true, 70, UA_STATUSCODE_GOOD);
 } END_TEST
 
+
+typedef struct {
+    UA_ByteString messages[16];
+    size_t count;
+} PublishCapture;
+
+static void connectionCallback(UA_ConnectionManager *cm, uintptr_t id,
+    void *app, void **context, UA_ConnectionState state,
+    const UA_KeyValueMap *params, UA_ByteString msg) { }
+
+static UA_StatusCode captureMessage(UA_ConnectionManager *cm, uintptr_t id,
+    const UA_KeyValueMap *params, UA_ByteString *msg) {
+    PublishCapture *capture = (PublishCapture*)TestConnectionManager_getContext(cm);
+    ck_assert_uint_lt(capture->count, 16);
+    UA_StatusCode res = UA_ByteString_copy(msg, &capture->messages[capture->count++]);
+    cm->freeNetworkBuffer(cm, id, msg);
+    return res;
+}
+
+static UA_WriterGroup *createPublisher(UA_UInt16 writers, UA_UInt16 configuredSize) {
+    UA_PublishedDataSetConfig pc;
+    memset(&pc, 0, sizeof(pc));
+    pc.name = UA_STRING("source");
+    UA_NodeId pdsId, wgId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pc, &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+    UA_DataSetFieldConfig fc;
+    memset(&fc, 0, sizeof(fc));
+    fc.field.variable.fieldNameAlias = UA_STRING("value");
+    fc.field.variable.publishParameters.publishedVariable = targetId;
+    fc.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &fc, NULL).result, UA_STATUSCODE_GOOD);
+    UA_UadpWriterGroupMessageDataType ms;
+    UA_UadpWriterGroupMessageDataType_init(&ms);
+    ms.networkMessageContentMask = UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER |
+        UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER | UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER;
+    UA_WriterGroupConfig wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.name = UA_STRING("publisher");
+    wc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    wc.maxEncapsulatedDataSetMessageCount = 1;
+    UA_ExtensionObject_setValue(&wc.messageSettings, &ms,
+                               &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, readerGroup->linkedConnection->head.identifier,
+                                              &wc, &wgId), UA_STATUSCODE_GOOD);
+    UA_UadpDataSetWriterMessageDataType ds;
+    UA_UadpDataSetWriterMessageDataType_init(&ds);
+    ds.configuredSize = configuredSize;
+    for(UA_UInt16 i = 0; i < writers; i++) {
+        UA_DataSetWriterConfig dc;
+        memset(&dc, 0, sizeof(dc));
+        dc.name = UA_STRING("writer");
+        dc.dataSetWriterId = 17 + i;
+        UA_ExtensionObject_setValue(&dc.messageSettings, &ds,
+                                   &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]);
+        ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId, &dc, NULL), UA_STATUSCODE_GOOD);
+    }
+    UA_WriterGroup *wg = UA_WriterGroup_find(getPSM(server), wgId);
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry)
+        dsw->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    return wg;
+}
+
+static PublishCapture capturePublishes(UA_WriterGroup *wg, size_t cycles) {
+    PublishCapture capture;
+    memset(&capture, 0, sizeof(capture));
+    UA_PubSubConnection *connection = wg->linkedConnection;
+    UA_ConnectionManager *originalCm = connection->cm;
+    uintptr_t originalChannel = connection->sendChannel;
+    UA_ConnectionManager *cm = TestConnectionManager_new("udp", NULL);
+    ck_assert_ptr_nonnull(cm);
+    uintptr_t channel;
+    ck_assert_uint_eq(TestConnectionManager_createConnection(cm, NULL, NULL,
+        connectionCallback, &channel), UA_STATUSCODE_GOOD);
+    TestConnectionManager_setContext(cm, &capture);
+    cm->sendWithConnection = captureMessage;
+    connection->cm = cm;
+    connection->sendChannel = channel;
+    for(size_t i = 0; i < cycles; i++)
+        UA_Server_triggerWriterGroupPublish(server, wg->head.identifier);
+    connection->cm = originalCm;
+    connection->sendChannel = originalChannel;
+    cm->eventSource.free(&cm->eventSource);
+    return capture;
+}
+
+static void clearCapture(PublishCapture *capture) {
+    for(size_t i = 0; i < capture->count; i++)
+        UA_ByteString_clear(&capture->messages[i]);
+}
+
+START_TEST(NetworkMessageNumbersRestartEachCycle) {
+    UA_WriterGroup *wg = createPublisher(3, 0);
+    PublishCapture capture = capturePublishes(wg, 2);
+    ck_assert_uint_eq(capture.count, 6);
+    for(size_t i = 0; i < capture.count; i++) {
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(nm));
+        ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(&capture.messages[i], &nm, NULL, NULL),
+                          UA_STATUSCODE_GOOD);
+        ck_assert(nm.groupHeader.networkMessageNumberEnabled);
+        ck_assert_uint_eq(nm.groupHeader.networkMessageNumber, i % 3 + 1);
+        UA_NetworkMessage_clear(&nm);
+    }
+    clearCapture(&capture);
+} END_TEST
+
 int main(void) {
     Suite *suite = suite_create("PubSub runtime");
     TCase *tc = tcase_create("Runtime");
@@ -334,6 +444,7 @@ int main(void) {
     tcase_add_test(tc, SequenceHistoriesArePerStream);
     tcase_add_test(tc, SequenceHistoryExpiresAfterTwoTimeouts);
     tcase_add_test(tc, DeltaGapRequiresNewKeyFrame);
+    tcase_add_test(tc, NetworkMessageNumbersRestartEachCycle);
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);
