@@ -588,8 +588,12 @@ UA_ServerConfig_setLogger(UA_ServerConfig *config, UA_Logger *newLogger) {
     if(!config || !newLogger)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* Free the old logger if one exists */
-    if(config->logging)
+    /* Guard against replacing the logger with itself */
+    if(config->logging == newLogger)
+        return UA_STATUSCODE_GOOD;
+
+    /* Free the old logger if one exists and is clearable */
+    if(config->logging && config->logging->clear)
         config->logging->clear(config->logging);
 
     /* Assign the new logger passed in arguments */

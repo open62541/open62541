@@ -52,9 +52,8 @@ int main(int argc, char **argv) {
     UA_ServerConfig_setDefault(config);
 
     /* Exchange the logger */
-    UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
-    logger.clear = config->logging->clear;
-    UA_ServerConfig_setLogger(config, &logger);
+    UA_Logger *logger = UA_Log_Stdout_new(log_level);
+    UA_ServerConfig_setLogger(config, logger);
 
     /* Some data */
     UA_StatusCode retval;

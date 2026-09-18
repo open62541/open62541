@@ -1072,9 +1072,7 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     ctx.result = r;
     ctx.index = 1; // The first token is ignored because it is known and not needed.
 
-
-
-ctx.logging = config->logging; /* Ensure ctx points to valid logger */
+    ctx.logging = config->logging;
 
     /* Buffer for the field name */
     char field[256];

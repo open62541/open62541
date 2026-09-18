@@ -488,7 +488,6 @@ testSuite_server_config_default(void) {
     tcase_add_test(testCase, setBasics_overridesServerUrls);
     tcase_add_test(testCase, setLogger_syncsCachedPointers);
     tcase_add_test(testCase, setDefaultWithSecureSecurityPolicies_withTrustLists);
-    tcase_add_test(testCase, setDefaultWithSecureSecurityPolicies_withTrustLists);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_withTrustLists);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_passwordCallback_success);
     tcase_add_test(testCase, setDefaultWithSecurityPolicies_passwordCallback_failure);

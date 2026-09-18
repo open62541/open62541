@@ -118,7 +118,6 @@ UA_ClientConfig_newForUnitTestWithEncryption(UA_ClientConfig *config,
                                              const UA_ByteString certificate,
                                              const UA_ByteString privateKey) {
     memset(config, 0, sizeof(UA_ClientConfig));
-   
     config->logging = UA_Log_Stdout_new(TESTING_LOGLEVEL);
 #ifdef UA_ENABLE_ENCRYPTION
     UA_ClientConfig_setDefaultEncryption(config, certificate, privateKey,
