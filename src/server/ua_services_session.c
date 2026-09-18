@@ -1439,6 +1439,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         }
         UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
     }
+    session->passwordChangeRequired = passwordChangeRequired;
 #endif
 
     /* Attach the session to the currently used channel if the session isn't

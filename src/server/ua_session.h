@@ -145,6 +145,7 @@ struct UA_Session {
      * assigned Roles when the RoleSet changes (Part 18 §4.4.1). */
     UA_SessionIdentityContext identityContext;
     UA_Boolean hasIdentityContext;
+    UA_Boolean passwordChangeRequired;
 #endif
 };
 
