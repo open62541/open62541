@@ -77,6 +77,8 @@ void
 UA_PubSubComponent_freeWithoutLifecycleCallback(UA_PubSubManager *psm,
                                                 void *component,
                                                 UA_PubSubComponentType type) {
+    /* Suppress application lifecycle vetoes while rolling back partial
+     * creation, then restore the callback after releasing the component. */
     UA_Server *server = psm->drv.server;
     UA_StatusCode (*savedCb)(UA_Server*, const UA_NodeId,
                              const UA_PubSubComponentType, UA_Boolean) =
@@ -442,6 +444,8 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* Enable children before their parent groups and connections. Their state
+     * machines wait for the parent to become operational. */
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
         UA_WriterGroup *wg;
@@ -472,6 +476,8 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
 
 static void
 disableAllPubSubComponents(UA_PubSubManager *psm) {
+    /* Disable readers and writers before shutting down their groups and
+     * connections so target updates and publish timers stop first. */
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
         UA_ReaderGroup *rg;
@@ -509,6 +515,8 @@ UA_Server_disableAllPubSubComponents(UA_Server *server) {
 static UA_StatusCode
 getPubSubComponentType(UA_PubSubManager *psm, UA_NodeId componentId,
                        UA_PubSubComponentType *outType) {
+    /* Walk the connection hierarchy and return the type of the matching
+     * connection, group, reader or writer. */
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
         if(UA_NodeId_equal(&componentId, &c->head.identifier)) {
@@ -568,6 +576,8 @@ UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
 static UA_StatusCode
 getPubSubComponentParent(UA_PubSubManager *psm, UA_NodeId componentId,
                          UA_NodeId *outParent) {
+    /* Resolve the parent from the containing list. Connections have no parent
+     * within this component hierarchy. */
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
         if(UA_NodeId_equal(&componentId, &c->head.identifier))

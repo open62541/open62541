@@ -475,12 +475,15 @@ applyFieldContentMask(const UA_DataSetWriter *dsw, UA_DataValue *value) {
 static UA_StatusCode
 setRawDefaultValue(UA_PubSubManager *psm, const UA_DataSetField *field,
                    UA_DataValue *value) {
+    /* Resolve the field type, including application-defined types, before
+     * replacing the unusable value. */
     const UA_FieldMetaData *fmd = &field->fieldMetaData;
     const UA_DataType *type = UA_findDataTypeWithCustom(
         &fmd->dataType, psm->drv.server->config.customDataTypes);
     if(!type)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
+    /* Create a zero-initialized scalar or array with the metadata's shape. */
     UA_Variant_clear(&value->value);
     value->hasValue = false;
     if(fmd->valueRank == UA_VALUERANK_SCALAR) {
@@ -496,6 +499,8 @@ setRawDefaultValue(UA_PubSubManager *psm, const UA_DataSetField *field,
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             length *= dim;
         }
+
+        /* Attach owned element storage and a copy of the array dimensions. */
         void *data = UA_Array_new(length, type);
         if(!data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -572,6 +577,9 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
         }
         counter++;
     }
+
+    /* Summarize substituted RawData fields: all Bad yields Bad; a mixture of
+     * usable and substituted fields yields UncertainSubNormal. */
     if(badFields > 0)
         dataSetMessage->header.status = (badFields == pds->fieldSize) ?
             UA_STATUSCODE_BAD : UA_STATUSCODE_UNCERTAINSUBNORMAL;
@@ -770,10 +778,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         dsm = &defaultUadpConfiguration; /* type is UADP */
     }
 
-    /* The field encoding depends on the flags inside the writer config.
-     * Spec Table 32: "If one of the bits 0 to 4 is set, the fields are
-     * represented as DataValue." Bit 2 (SERVERTIMESTAMP) was previously
-     * missing from this mask check. */
+    /* Use RawData when requested. Otherwise select DataValue for status or
+     * timestamps, and Variant for values without these extra fields. */
     if(dsw->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
@@ -913,13 +919,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
             return res;
         }
 
-        /* The standard defines: if a PDS contains only one fields no delta messages
-         * should be generated because they need more memory than a keyframe with 1
-         * field.
-         * Spec 6.2.4.3: "If the KeyFrameCount is set to 1, every message contains
-         * a key frame." The previous `<=` comparison generated a delta frame
-         * when deltaFrameCounter == keyFrameCount (e.g., keyFrameCount=1
-         * produced delta frames). Changed to `<`. */
+        /* Emit deltas only between scheduled key frames and only for datasets
+         * with multiple fields. KeyFrameCount equal to one produces only key
+         * frames. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
            dsw->deltaFrameCounter < dsw->config.keyFrameCount) {
             UA_StatusCode res =

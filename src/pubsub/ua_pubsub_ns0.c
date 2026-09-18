@@ -266,6 +266,8 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     const UA_NodePropertyContext *nodeContext = (const UA_NodePropertyContext*)context;
     const UA_NodeId *myNodeId = &nodeContext->parentNodeId;
 
+    /* Resolve the property's owning PubSub component and copy its current
+     * value into the read result. */
     switch(nodeContext->parentClassifier) {
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
         UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, *myNodeId);
@@ -290,6 +292,8 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         }
         break;
     }
+
+    /* Expose the reader's publisher filter and current runtime state. */
     case UA_NS0ID_DATASETREADERTYPE: {
         UA_DataSetReader *dataSetReader = UA_DataSetReader_find(psm, *myNodeId);
         if(!dataSetReader)
@@ -309,6 +313,8 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         }
         break;
     }
+
+    /* Expose the publishing interval and the writer group's runtime state. */
     case UA_NS0ID_WRITERGROUPTYPE: {
         UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, *myNodeId);
         if(!writerGroup)
@@ -346,6 +352,9 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         }
         break;
     }
+
+    /* Build PublishedData from the configured fields, or copy the dataset
+     * metadata and version requested by the property. */
     case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_find(psm, *myNodeId);
         if(!publishedDataSet)
@@ -392,6 +401,8 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         }
         break;
     }
+
+    /* Read standalone dataset targets, metadata and reader attachment state. */
     case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
         UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(psm, *myNodeId);
         if(!sds)
@@ -455,6 +466,9 @@ WriteCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
             UA_Duration interval = *((UA_Duration *) data->value.data);
             if(interval <= 0.0)
                 return UA_STATUSCODE_BADOUTOFRANGE;
+
+            /* Apply the interval and reschedule publishing if the group is
+             * running. */
             writerGroup->config.publishingInterval = interval;
             if(writerGroup->head.state == UA_PUBSUBSTATE_OPERATIONAL) {
                 UA_WriterGroup_removePublishCallback(psm, writerGroup);
@@ -806,9 +820,8 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
     retVal |= UA_ExtensionObject_copy(&dataSetReader->transportSettings,
                                       &readerConfig.transportSettings);
 
-    /* Preserve the complete metadata. The previous field-by-field conversion
-     * lost configuration versions, array dimensions and string bounds, which
-     * made fixed-layout DataSetMessages impossible to reproduce. */
+    /* Copy the complete metadata, including configuration versions, array
+     * dimensions and string bounds. */
     retVal |= UA_DataSetMetaDataType_copy(&dataSetReader->dataSetMetaData,
                                           &readerConfig.dataSetMetaData);
     if(retVal != UA_STATUSCODE_GOOD) {
@@ -880,6 +893,8 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
 
     retVal |= addNode_finish(server, &server->adminSession, &connection->head.identifier);
 
+    /* Locate the instantiated address and configuration properties before
+     * populating them from the runtime connection. */
     UA_NodeId addressNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
                             UA_NS0ID(HASCOMPONENT), connection->head.identifier);
@@ -909,6 +924,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    /* Populate the static connection properties and transport address. */
     retVal |= writePubSubNs0VariableArray(server, connectionPropertyNode,
                                           connection->config.connectionProperties.map,
                                           connection->config.connectionProperties.mapSize,
@@ -928,6 +944,8 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_Variant_setScalar(&value, &connection->config.transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
     writeValueAttribute(server, transportProfileUri, &value);
 
+    /* Bind PublisherId and State to runtime reads so clients see current
+     * values. */
     UA_NodePropertyContext *connectionPublisherIdContext =
         (UA_NodePropertyContext *)UA_malloc(sizeof(UA_NodePropertyContext));
     connectionPublisherIdContext->parentNodeId = connection->head.identifier;
@@ -951,6 +969,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
         }
     }
 
+    /* Expose connection configuration and state methods when enabled. */
     if(server->config.pubSubConfig.enableInformationModelMethods) {
         retVal |= addRef(server, connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDWRITERGROUP), true);
@@ -996,7 +1015,7 @@ addPubSubConnectionAction(UA_Server *server,
     UA_PubSubConnectionDataType *pubSubConnection =
         (UA_PubSubConnectionDataType *) input[0].data;
 
-    //call API function and create the connection
+    /* Create the connection through the configuration API. */
     UA_NodeId connectionId;
     retVal = addPubSubConnectionConfig(server, pubSubConnection, &connectionId);
     if(retVal != UA_STATUSCODE_GOOD) {
@@ -1353,6 +1372,8 @@ disablePubSubComponent(UA_PubSubManager *psm, const UA_NodeId nodeId) {
 
 static UA_StatusCode
 disablePubSubFolderChildren(UA_Server *server, const UA_NodeId nodeId) {
+    /* Collect object descendants through hierarchical references before
+     * disabling the PubSub components represented by the folder. */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = nodeId;
@@ -1368,6 +1389,8 @@ disablePubSubFolderChildren(UA_Server *server, const UA_NodeId nodeId) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* Disable the folder's own component and all local descendants before the
+     * caller removes their information-model nodes. */
     UA_PubSubManager *psm = getPSM(server);
     res = disablePubSubComponent(psm, nodeId);
     for(size_t i = 0; i < childrenSize; i++) {
@@ -1424,7 +1447,8 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = NULL;
-    //ToDo: Need to move the browse name from namespaceindex 0 to 1
+
+    /* ToDo: Need to move the browse name from namespaceindex 0 to 1 */
     UA_NodeId configurationVersionNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                             UA_NS0ID(HASPROPERTY), publishedDataSet->head.identifier);
@@ -1570,6 +1594,8 @@ addVariablesAction(UA_Server *server,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output){
+    /* Validate the method argument count and types before reading their
+     * values. */
     if(inputSize != 4 || outputSize != 2)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     if(!UA_Variant_hasScalarType(&input[0],
@@ -1583,6 +1609,9 @@ addVariablesAction(UA_Server *server,
     size_t count = input[1].arrayLength;
     if(input[2].arrayLength != count || input[3].arrayLength != count)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Resolve the dataset and require the caller's configuration version to
+     * match before changing its fields. */
     UA_PublishedDataSet *pds =
         UA_PublishedDataSet_find(getPSM(server), *objectId);
     if(!pds)
@@ -1593,6 +1622,8 @@ addVariablesAction(UA_Server *server,
                                   &pds->dataSetMetaData.configurationVersion))
         return UA_STATUSCODE_BADINVALIDSTATE;
 
+    /* Keep one result per requested field so individual failures can be
+     * reported alongside the final configuration version. */
     UA_StatusCode *results = (UA_StatusCode*)
         UA_calloc(count, sizeof(UA_StatusCode));
     if(count > 0 && !results)
@@ -1602,6 +1633,9 @@ addVariablesAction(UA_Server *server,
     UA_PublishedVariableDataType *variables =
         (UA_PublishedVariableDataType*)input[3].data;
     UA_ConfigurationVersionDataType version = *requested;
+
+    /* Create fields in request order and retain the version from the last
+     * successful addition. */
     for(size_t i = 0; i < count; i++) {
         UA_DataSetFieldConfig config;
         memset(&config, 0, sizeof(config));
@@ -1615,6 +1649,9 @@ addVariablesAction(UA_Server *server,
         if(fieldResult.result == UA_STATUSCODE_GOOD)
             version = fieldResult.configurationVersion;
     }
+
+    /* Return the resulting version and transfer the per-field results to the
+     * method output. */
     UA_StatusCode res = UA_Variant_setScalarCopy(&output[0], &version,
         &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
     if(res != UA_STATUSCODE_GOOD) {
@@ -1633,12 +1670,17 @@ removeVariablesAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output){
+    /* Validate the method argument count and types before reading their
+     * values. */
     if(inputSize != 2 || outputSize != 2)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     if(!UA_Variant_hasScalarType(&input[0],
             &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]) ||
        !UA_Variant_hasArrayType(&input[1], &UA_TYPES[UA_TYPES_UINT32]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Resolve the dataset and require the caller's configuration version to
+     * match before changing its fields. */
     UA_PublishedDataSet *pds =
         UA_PublishedDataSet_find(getPSM(server), *objectId);
     if(!pds)
@@ -1651,11 +1693,17 @@ removeVariablesAction(UA_Server *server,
 
     size_t count = input[1].arrayLength;
     UA_UInt32 *indices = (UA_UInt32*)input[1].data;
+
+    /* Keep one result per requested field so individual failures can be
+     * reported alongside the final configuration version. */
     UA_StatusCode *results = (UA_StatusCode*)
         UA_calloc(count, sizeof(UA_StatusCode));
     if(count > 0 && !results)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_ConfigurationVersionDataType version = *requested;
+
+    /* Resolve each requested index against the current field list, remove the
+     * field when present and record its result. */
     for(size_t i = 0; i < count; i++) {
         UA_DataSetField *field = TAILQ_FIRST(&pds->fields);
         for(UA_UInt32 j = 0; field && j < indices[i]; j++)
@@ -1670,6 +1718,9 @@ removeVariablesAction(UA_Server *server,
         if(fieldResult.result == UA_STATUSCODE_GOOD)
             version = fieldResult.configurationVersion;
     }
+
+    /* Return the resulting version and transfer the per-field results to the
+     * method output. */
     UA_StatusCode res = UA_Variant_setScalarCopy(&output[0], &version,
         &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
     if(res != UA_STATUSCODE_GOOD) {
@@ -2023,8 +2074,9 @@ addWriterGroupAction(UA_Server *server,
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
         return retVal;
     }
-    // TODO: Need to handle the UA_Server_setWriterGroupOperational based on the
-    // status variable in information model
+
+    /* TODO: Need to handle the UA_Server_setWriterGroupOperational based on
+     * the status variable in information model */
 
     UA_Variant_setScalarCopy(output, &writerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
@@ -2048,10 +2100,8 @@ removeGroupAction(UA_Server *server,
 
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
 
-    /* Scope the removal to the invoking connection. Spec 9.1.5.5: the group
-     * must be a child of the connection the method was called on. The
-     * previous code searched globally, allowing removal of groups from
-     * other connections. */
+    /* Resolve the group within the invoking connection so the method can
+     * remove only one of that connection's children. */
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, nodeToRemove);
     if(wg) {
         if(!wg->linkedConnection ||
@@ -2214,8 +2264,9 @@ addReaderGroupAction(UA_Server *server,
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
         return retVal;
     }
-    // TODO: Need to handle the UA_Server_setReaderGroupOperational based on the
-    // status variable in information model
+
+    /* TODO: Need to handle the UA_Server_setReaderGroupOperational based on
+     * the status variable in information model */
 
     UA_Variant_setScalarCopy(output, &readerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
@@ -2246,7 +2297,8 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                 UA_QUALIFIEDNAME(0, dswName), UA_NS0ID(DATASETWRITERTYPE), &object_attr,
                 &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                      NULL, &dataSetWriter->head.identifier);
-    //if connected dataset is null this means it's configured for heartbeats
+
+    /* A null connected dataset configures a heartbeat writer. */
     if(dataSetWriter->connectedDataSet) {
         retVal |= addRef(server, dataSetWriter->connectedDataSet->head.identifier,
                          UA_NS0ID(DATASETTOWRITER), dataSetWriter->head.identifier, true);
@@ -2273,8 +2325,8 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
                             UA_NS0ID(HASCOMPONENT), statusIdNode);
 
-    // TODO: The keyFrameNode is NULL here, should be check
-    // does not depend on the pubsub changes
+    /* TODO: The keyFrameNode is NULL here, should be check does not depend on
+     * the pubsub changes */
     if(UA_NodeId_isNull(&dataSetWriterIdNode) ||
        UA_NodeId_isNull(&dataSetFieldContentMaskNode) ||
        UA_NodeId_isNull(&stateIdNode))

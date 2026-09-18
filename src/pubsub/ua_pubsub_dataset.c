@@ -32,7 +32,7 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
     res |= UA_String_copy(&src->name, &dst->name);
     switch(src->publishedDataSetType) {
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
-            //no additional items
+            /* no additional items */
             break;
 
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
@@ -92,11 +92,11 @@ UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name) {
 
 void
 UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
-    //delete pds config
+    /* delete pds config */
     UA_String_clear(&pdsConfig->name);
     switch (pdsConfig->publishedDataSetType){
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
-            //no additional items
+            /* no additional items */
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
             if(pdsConfig->config.itemsTemplate.variablesToAddSize > 0){
@@ -486,21 +486,21 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     }
 
     if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
-        // DataSet has to have a valid name
+        /* DataSet has to have a valid name */
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
     if(UA_PublishedDataSet_findByName(psm, publishedDataSetConfig->name)) {
-        // DataSet name has to be unique in the publisher
+        /* DataSet name has to be unique in the publisher */
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         return result;
     }
 
-    /* Create new PDS and add to UA_PubSubManager */
+    /* Allocate the published dataset and attach its owned configuration. */
     UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
         UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPDS) {
@@ -760,7 +760,8 @@ addSubscribedDataSet(UA_PubSubManager *psm,
         return res;
     }
 
-    /* Create new PDS and add to UA_PubSubManager */
+    /* Allocate the standalone subscribed dataset and attach its owned config.
+     */
     UA_SubscribedDataSet *newSubscribedDataSet = (UA_SubscribedDataSet *)
             UA_calloc(1, sizeof(UA_SubscribedDataSet));
     if(!newSubscribedDataSet) {
@@ -983,6 +984,9 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
     if(config->publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS &&
        current->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS)
         goto done;
+
+    /* Create a replacement under a temporary name so validation and
+     * allocation can fail without changing the live dataset. */
     UA_PublishedDataSetConfig stagedConfig = *config;
     char name[64];
     UA_Guid guid = UA_Guid_random();
@@ -998,6 +1002,8 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
     if(res != UA_STATUSCODE_GOOD)
         goto done;
     UA_PublishedDataSet *staged = UA_PublishedDataSet_find(psm, stagedId);
+
+    /* Prepare the new parent ids for both sets of fields before moving them. */
     size_t count = (size_t)current->fieldSize + staged->fieldSize;
     UA_NodeId *parents = (UA_NodeId*)UA_Array_new(count, &UA_TYPES[UA_TYPES_NODEID]);
     if(!parents) { res = UA_STATUSCODE_BADOUTOFMEMORY; goto cleanup; }
@@ -1008,6 +1014,9 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
             goto cleanup;
         }
     }
+
+    /* Exchange the field lists and transfer each prepared parent id into its
+     * field. The temporary dataset takes ownership of the old fields. */
     UA_PublishedDataSet temporary;
     TAILQ_INIT(&temporary.fields);
     UA_DataSetField *field;
@@ -1030,6 +1039,9 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
     }
     /* NodeId ownership moved into the fields. Also handle the empty-array sentinel. */
     UA_Array_delete(parents, 0, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Exchange configuration and metadata while preserving each dataset's
+     * name. */
 #define SWAP_DATASET_MEMBER(member, type) do { \
     type tmp = current->member; current->member = staged->member; staged->member = tmp; \
 } while(0)
@@ -1040,6 +1052,8 @@ UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
     SWAP_DATASET_MEMBER(promotedFieldsCount, UA_UInt16);
 #undef SWAP_DATASET_MEMBER
  cleanup:
+    /* Remove the staged dataset, which owns the old content after a
+     * successful exchange or the uncommitted replacement after a failure. */
     UA_PublishedDataSet_remove(psm, staged);
     UA_NodeId_clear(&stagedId);
  done:
