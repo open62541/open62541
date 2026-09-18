@@ -60,6 +60,7 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     return resultNodeId;
 }
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 static UA_Boolean
 isDirectlyReferencedBy(UA_Server *server, const UA_NodeId *parentId,
                        const UA_NodeId *childId, UA_UInt32 referenceType) {
@@ -84,6 +85,7 @@ isDirectlyReferencedBy(UA_Server *server, const UA_NodeId *parentId,
     UA_BrowseResult_clear(&br);
     return found;
 }
+#endif
 
 static void
 onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
