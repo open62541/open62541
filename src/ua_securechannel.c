@@ -60,8 +60,16 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                          UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not create the certificate thumbprint");
 
-    /* Set the policy */
-    channel->securityPolicy = securityPolicy;
+    /* Keep a private copy of the SecurityPolicy instead of pointing into the
+     * caller's array (typically UA_ClientConfig.securityPolicies). That array
+     * can be reallocated (e.g. by UA_ClientConfig_setDefaultEncryption) for
+     * as long as the channel is open, which would leave a raw pointer into
+     * it dangling. */
+    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
+    if(!sp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *sp = *securityPolicy;
+    channel->securityPolicy = sp;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -179,9 +187,12 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
         }
     }
 
-    /* Delete the channel context for the security policy */
+    /* Delete the channel context for the security policy, and the channel's
+     * private copy of the SecurityPolicy itself (see
+     * UA_SecureChannel_setSecurityPolicy) */
     if(channel->securityPolicy) {
         channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+        UA_free(channel->securityPolicy);
         channel->securityPolicy = NULL;
         channel->channelContext = NULL;
     }

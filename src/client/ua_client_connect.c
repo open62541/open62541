@@ -1412,9 +1412,13 @@ initSecurityPolicy(UA_Client *client) {
     if(!sp)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Already initialized -- check we are using the configured SecurityPolicy */
+    /* Already initialized - check we are using the configured SecurityPolicy.
+     * The channel keeps its own copy of the SecurityPolicy (see
+     * UA_SecureChannel_setSecurityPolicy), so this can no longer compare by
+     * pointer identity -- compare the policyUri instead. */
     if(client->channel.securityPolicy)
-        return (client->channel.securityPolicy == sp) ?
+        return UA_String_equal(&client->channel.securityPolicy->policyUri,
+                               &sp->policyUri) ?
             UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
 
     /* Set the SecurityMode -- none if no endpoint is selected so far */
