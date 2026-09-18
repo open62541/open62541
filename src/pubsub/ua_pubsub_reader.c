@@ -198,6 +198,16 @@ UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id) {
 
 static UA_StatusCode
 validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    /* Reject fixed byte offsets: the default reader locates DataSetMessages
+     * through the decoded payload rather than configured positions. */
+    if(UA_ExtensionObject_hasDecodedType(&dsr->config.messageSettings,
+           &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetReaderMessageDataType *settings =
+            (const UA_UadpDataSetReaderMessageDataType*)dsr->config.messageSettings.content.decoded.data;
+        if(settings->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     /* Check if used dataSet metaData is valid in context of the rest of the config */
     if(dsr->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
