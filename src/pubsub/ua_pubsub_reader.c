@@ -113,11 +113,8 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     if(json) {
-        /* For JSON-encoded messages, match by DataSetWriterId. The JSON
-         * decoder populates nm->dataSetWriterIds[dsmIndex] from the
-         * "DataSetWriterId" key in each DataSetMessage. The previous code
-         * always returned BadNotFound, making the JSON subscriber path
-         * non-functional. */
+        /* Match the writer ids decoded from the JSON DataSetMessage headers.
+         * A zero reader id accepts messages from any writer. */
         if(dsr->config.dataSetWriterId == 0)
             return UA_STATUSCODE_GOOD;
         for(size_t i = 0; i < msg->messageCount; i++) {
@@ -818,11 +815,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         dsr->msgRcvTimeoutTimerId = 0;
     }
 
-    /* Spec 6.2.9.6: "The time starts when the state of the DataSetReader
-     * changes to Operational." Start the receive timeout timer on the
-     * Operational transition — not only when the first message arrives
-     * (which was the previous behavior). If no message ever arrives, the
-     * reader correctly goes to Error after the timeout. */
+    /* Start receive-timeout monitoring when the reader becomes Operational,
+     * including readers that have not yet received their first message. */
     if(dsr->head.state == UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->config.messageReceiveTimeout > 0.0 &&
        dsr->msgRcvTimeoutTimerId == 0) {
@@ -963,11 +957,8 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
                                         UA_STATUSCODE_GOOD);
 
-    /* Reset the message receive timeout before discarding non-keyframe
-     * messages. Spec 6.2.9.6: "The DataSetMessages that reset the period
-     * include keep-alive and heartbeat messages." The previous code placed
-     * this reset AFTER the keyframe check, so keep-alive/delta/event
-     * messages did not reset the timer. */
+    /* Reset receive-timeout monitoring for a compatible message before
+     * handling its payload, including keep-alive and heartbeat messages. */
     if(dsr->config.messageReceiveTimeout > 0.0) {
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
@@ -1100,12 +1091,9 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             writeValue.hasValue = true;
         }
 
-        /* Write via the Write-Service.
-         * Spec Table 69: ReceiverIndexRange extracts a sub-range from the
-         * received data; WriteIndexRange controls writing to the target node.
-         * The previous code used receiverIndexRange for the write, which is
-         * the wrong field — it writes to the wrong array elements or fails
-         * with Bad_IndexRangeInvalid. */
+        /* Write the selected value through the Write service. WriteIndexRange
+         * selects the target elements; ReceiverIndexRange was applied to the
+         * input. */
         UA_WriteValue writeVal;
         UA_WriteValue_init(&writeVal);
         writeVal.attributeId = tv->attributeId;

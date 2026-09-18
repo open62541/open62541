@@ -556,11 +556,11 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
         return UA_STATUSCODE_BADDECODINGERROR;
     size_t size = getTokenLength(&ctx->ctx.tokens[searchResultMessageType]);
     const char* msgType = &ctx->ctx.json5[ctx->ctx.tokens[searchResultMessageType].start];
-    if(size == 7) { //ua-data
+    if(size == 7) { /* ua-data */
         if(strncmp(msgType, "ua-data", size) != 0)
             return UA_STATUSCODE_BADDECODINGERROR;
         isUaData = true;
-    } else if(size == 11) { //ua-metadata
+    } else if(size == 11) { /* ua-metadata */
         if(strncmp(msgType, "ua-metadata", size) != 0)
             return UA_STATUSCODE_BADDECODINGERROR;
         isUaData = false;
@@ -568,7 +568,7 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    //TODO: MetaData
+    /* Reject metadata messages until their payload decoder is implemented. */
     if(!isUaData)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 

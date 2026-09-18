@@ -50,7 +50,7 @@ updateSecurityGroupProperties(UA_Server *server, UA_NodeId *securityGroupNodeId,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /*AddCallbackValueSource*/
+    /* Publish the security policy, key lifetime and retained key counts. */
     UA_Variant_setScalar(&value, &config->securityPolicyUri, &UA_TYPES[UA_TYPES_STRING]);
     retval = writeObjectProperty(server, *securityGroupNodeId,
                                  UA_QUALIFIEDNAME(0, "SecurityPolicyUri"), value);
@@ -90,6 +90,7 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
     if(securityGroupConfig->securityGroupName.length <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* Create the SecurityGroup object under the validated folder. */
     UA_QualifiedName browseName;
     UA_QualifiedName_init(&browseName);
     browseName.name = securityGroupConfig->securityGroupName;
@@ -110,6 +111,8 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
         return retval;
     }
 
+    /* Populate the group properties and remove the node if initialization
+     * fails. */
     retval = updateSecurityGroupProperties(server,
                                            &securityGroup->securityGroupNodeId,
                                            securityGroupConfig);
@@ -119,6 +122,9 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      UA_StatusCode_name(retval));
         deleteNode(server, securityGroup->securityGroupNodeId, true);
     }
+
+    /* Expose key invalidation and rotation methods when information-model
+     * methods are enabled. */
     if(retval == UA_STATUSCODE_GOOD &&
        server->config.pubSubConfig.enableInformationModelMethods) {
         retval |= addRef(server, securityGroup->securityGroupNodeId,
@@ -333,10 +339,9 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     /* Keys */
     UA_PubSubKeyListItem *iterator = startingItem;
-    /* Allocate an array of UA_ByteString, not a flat byte buffer.
-     * The previous code used UA_calloc(requestedKeyCount, startingItem->key.length)
-     * which allocated count*keyLength bytes but then indexed the result as
-     * UA_ByteString (16 bytes each) -> heap overflow when keyLength < 16. */
+
+    /* Allocate ByteString entries for the response, then copy each requested
+     * key into its own buffer. */
     output[2].data = (UA_ByteString *)
         UA_calloc(keysToReturn, sizeof(UA_ByteString));
     if(keysToReturn > 0 && !output[2].data)
@@ -439,6 +444,9 @@ forceKeyRotationAction(UA_Server *server, const UA_NodeId *sessionId,
     UA_SecurityGroup *sg = UA_SecurityGroup_find(getPSM(server), *objectId);
     if(!sg || !sg->keyStorage)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Rotate the keys and verify that the active token advanced before
+     * reporting success to the method caller. */
     UA_UInt32 oldCurrentKeyId = sg->keyStorage->currentItem ?
         sg->keyStorage->currentItem->keyID : 0;
     res = UA_SecurityGroup_rotateKeys(getPSM(server), sg);
