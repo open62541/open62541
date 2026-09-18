@@ -173,6 +173,7 @@ typedef struct {
     /* For Json NetworkMessage */
     UA_Boolean messageIdEnabled;
     UA_String messageId;
+    UA_Boolean jsonSingleDataSetMessage; /* Messages contains an object instead of an array */
 
     /* The PayloadHeader contains the number of DataSetMessages and the
      * DataSetWriterId for each of them. If the PayloadHeader is disabled, then

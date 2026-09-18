@@ -50,8 +50,10 @@ START_TEST(SinglePublishDataSetField){
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type =
         &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
-    UA_JsonDataSetWriterMessageDataType d;
-    d.dataSetMessageContentMask = UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
+    UA_JsonWriterGroupMessageDataType d;
+    UA_JsonWriterGroupMessageDataType_init(&d);
+    d.networkMessageContentMask = UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+        UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER | UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID;
     writerGroupConfig.messageSettings.content.decoded.data = &d;
 
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
