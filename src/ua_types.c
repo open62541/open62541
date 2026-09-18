@@ -1768,7 +1768,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
 
     /* Compute the strides */
     size_t count, block, stride, first;
-    computeStrides(v, range, &count, &block, &stride, &first);
+    computeStrides(v, thisrange, &count, &block, &stride, &first);
     if(count != arraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 

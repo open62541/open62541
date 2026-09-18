@@ -75,6 +75,38 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer) {
+    UA_Byte data[] = {0x01, 0xff, 0xff};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = buffer.data;
+    ctx.ctx.end = buffer.data + buffer.length;
+    UA_StatusCode res = UA_DataSetMessage_decodeBinary(&ctx, NULL, &dsm, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_eq(dsm.data.keyFrameFields, NULL);
+    UA_DataSetMessage_clear(&dsm);
+}
+END_TEST
+
+START_TEST(UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer) {
+    UA_Byte data[] = {0x81, 0x01, 0xff, 0xff};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = buffer.data;
+    ctx.ctx.end = buffer.data + buffer.length;
+    UA_StatusCode res = UA_DataSetMessage_decodeBinary(&ctx, NULL, &dsm, 0);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_eq(dsm.data.deltaFrameFields, NULL);
+    UA_DataSetMessage_clear(&dsm);
+}
+END_TEST
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -1969,6 +2001,8 @@ int main(void) {
 
     TCase *tc_decode = tcase_create("decode");
     tcase_add_test(tc_decode, UA_PubSub_Decode_WithBufferTooSmallShallReturnError);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer);
 
     TCase *tc_ende1 = tcase_create("encode_decode1DS");
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame);

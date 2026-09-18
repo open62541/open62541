@@ -71,6 +71,7 @@ struct UA_Session {
                                       * SecureChannel. If the SecureChannel is
                                       * #None, verify and store here. */
     UA_String clientUserIdOfSession;
+    UA_UserTokenType userTokenType;
     UA_Double timeout; /* in ms */
     UA_DateTime validTill;
 

@@ -40,6 +40,41 @@ static UA_NodeId outNodeId;
 
 static UA_DateTime *testDataSorted;
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+static UA_Boolean failHistoryDataAllocation;
+static UA_Boolean failHistoryUpdateResultsAllocation;
+static UA_Boolean historyReadBackendCalled;
+
+static void *
+historyDataTestCalloc(size_t nelem, size_t elsize) {
+    if(failHistoryDataAllocation && nelem == 1 &&
+       elsize == UA_TYPES[UA_TYPES_HISTORYDATA].memSize) {
+        failHistoryDataAllocation = false;
+        return NULL;
+    }
+    if(failHistoryUpdateResultsAllocation && nelem == 1 &&
+       elsize == UA_TYPES[UA_TYPES_STATUSCODE].memSize) {
+        failHistoryUpdateResultsAllocation = false;
+        return NULL;
+    }
+    return calloc(nelem, elsize);
+}
+
+static void
+historyReadTestBackend(UA_Server *server, void *hdbContext,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_RequestHeader *requestHeader,
+                       const UA_ReadRawModifiedDetails *historyReadDetails,
+                       UA_TimestampsToReturn timestampsToReturn,
+                       UA_Boolean releaseContinuationPoints,
+                       size_t nodesToReadSize,
+                       const UA_HistoryReadValueId *nodesToRead,
+                       UA_HistoryReadResponse *response,
+                       UA_HistoryData * const * const historyData) {
+    historyReadBackendCalled = true;
+}
+#endif
+
 THREAD_CALLBACK(serverloop) {
     while(running) {
         UA_Server_run_iterate(server, false);
@@ -585,6 +620,113 @@ START_TEST(Server_HistorizingUpdateDelete)
 }
 END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+START_TEST(Server_HistorizingReadHistoryDataOutOfMemory) {
+    UA_ReadRawModifiedDetails details;
+    UA_ReadRawModifiedDetails_init(&details);
+
+    UA_HistoryReadValueId valueId;
+    UA_HistoryReadValueId_init(&valueId);
+    valueId.nodeId = outNodeId;
+
+    UA_HistoryReadRequest request;
+    UA_HistoryReadRequest_init(&request);
+    request.historyReadDetails.encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.historyReadDetails.content.decoded.type =
+        &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
+    request.historyReadDetails.content.decoded.data = &details;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.nodesToReadSize = 1;
+    request.nodesToRead = &valueId;
+
+    UA_HistoryReadResponse response;
+    UA_HistoryReadResponse_init(&response);
+
+    lockServer(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    void (*readRaw)(UA_Server*, void*, const UA_NodeId*, void*,
+                    const UA_RequestHeader*, const UA_ReadRawModifiedDetails*,
+                    UA_TimestampsToReturn, UA_Boolean, size_t,
+                    const UA_HistoryReadValueId*, UA_HistoryReadResponse*,
+                    UA_HistoryData * const * const) =
+        config->historyDatabase.readRaw;
+    void *(*callocFunc)(size_t, size_t) = UA_callocSingleton;
+    config->historyDatabase.readRaw = historyReadTestBackend;
+    UA_callocSingleton = historyDataTestCalloc;
+    failHistoryDataAllocation = true;
+    historyReadBackendCalled = false;
+    Service_HistoryRead(server, &server->adminSession, &request, &response);
+    UA_callocSingleton = callocFunc;
+    config->historyDatabase.readRaw = readRaw;
+    unlockServer(server);
+
+    ck_assert(!failHistoryDataAllocation);
+    ck_assert(!historyReadBackendCalled);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADOUTOFMEMORY);
+    UA_HistoryReadResponse_clear(&response);
+}
+END_TEST
+
+START_TEST(Server_HistorizingUpdateResultsOutOfMemory) {
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context,
+                                                  &outNodeId, setting);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    UA_Int64 scalar = 1;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    UA_Variant_setScalar(&value.value, &scalar, &UA_TYPES[UA_TYPES_INT64]);
+    value.hasValue = true;
+    value.hasSourceTimestamp = true;
+    value.sourceTimestamp = 1;
+
+    UA_UpdateDataDetails details;
+    UA_UpdateDataDetails_init(&details);
+    details.nodeId = outNodeId;
+    details.performInsertReplace = UA_PERFORMUPDATETYPE_INSERT;
+    details.updateValuesSize = 1;
+    details.updateValues = &value;
+
+    UA_ExtensionObject updateDetails;
+    UA_ExtensionObject_init(&updateDetails);
+    updateDetails.encoding = UA_EXTENSIONOBJECT_DECODED;
+    updateDetails.content.decoded.type = &UA_TYPES[UA_TYPES_UPDATEDATADETAILS];
+    updateDetails.content.decoded.data = &details;
+    UA_HistoryUpdateRequest request;
+    UA_HistoryUpdateRequest_init(&request);
+    request.historyUpdateDetailsSize = 1;
+    request.historyUpdateDetails = &updateDetails;
+    UA_HistoryUpdateResponse response;
+    UA_HistoryUpdateResponse_init(&response);
+
+    lockServer(server);
+    void *(*callocFunc)(size_t, size_t) = UA_callocSingleton;
+    UA_callocSingleton = historyDataTestCalloc;
+    failHistoryUpdateResultsAllocation = true;
+    Service_HistoryUpdate(server, &server->adminSession, &request, &response);
+    UA_callocSingleton = callocFunc;
+    unlockServer(server);
+
+    ck_assert(!failHistoryUpdateResultsAllocation);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_uint_eq(response.results[0].operationResultsSize, 0);
+    ck_assert(response.results[0].operationResults == NULL);
+
+    UA_HistoryUpdateResponse_clear(&response);
+    UA_HistoryDataBackend_Memory_clear(&backend);
+}
+END_TEST
+#endif
+
 START_TEST(Server_HistorizingUpdateInsert)
 {
     UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
@@ -970,6 +1112,14 @@ testSuite_Client(void) {
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
     tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);
     suite_add_tcase(s, tc_server);
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+    TCase *tc_oom = tcase_create("Server Historical Data Out Of Memory");
+    tcase_add_checked_fixture(tc_oom, setup, teardown);
+    tcase_add_test(tc_oom, Server_HistorizingReadHistoryDataOutOfMemory);
+    tcase_add_test(tc_oom, Server_HistorizingUpdateResultsOutOfMemory);
+    suite_add_tcase(s, tc_oom);
+#endif
 
     return s;
 }
