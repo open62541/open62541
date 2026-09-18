@@ -16,6 +16,18 @@ UA_Server_getEffectivePermissions(UA_Server *server,
                                   const UA_NodeId *sessionId,
                                   const UA_NodeId *nodeId,
                                   UA_PermissionType *effectivePermissions);
+
+UA_StatusCode
+UA_Server_getUserRolePermissions(UA_Server *server,
+                                 const UA_NodeId *sessionId,
+                                 const UA_NodeId *nodeId,
+                                 size_t *entriesSize, UA_RolePermissionType **entries);
+
+UA_StatusCode
+UA_Server_getRolePermissions(UA_Server *server,
+                             const UA_NodeId *nodeId,
+                             size_t *entriesSize, UA_RolePermissionType **entries);
+
 #endif
 
 /* Example access control management. Anonymous and username / password login.
@@ -363,6 +375,39 @@ allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+static UA_Boolean
+allowReadRolePermissions_default(UA_Server *server,  UA_AccessControl *ac,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *nodeId, void *nodeContext) {
+#ifdef UA_ENABLE_RBAC
+    UA_PermissionType effectivePerms = 0;
+    UA_StatusCode res = UA_Server_getEffectivePermissions(server, sessionId,
+                                                          nodeId, &effectivePerms);
+    if(res != UA_STATUSCODE_GOOD)
+        return false;
+    return (effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS) != 0;
+#else
+    return false;
+#endif
+}
+
+#ifdef UA_ENABLE_RBAC
+static UA_StatusCode
+readRolePermissions_default(UA_Server *server,  UA_AccessControl *ac,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            size_t *entriesSize, UA_RolePermissionType **entries) {
+    return UA_Server_getRolePermissions(server, nodeId, entriesSize, entries);
+}
+
+static UA_StatusCode
+readUserRolePermissions_default(UA_Server *server,  UA_AccessControl *ac,
+                                const UA_NodeId *sessionId, void *sessionContext,
+                                const UA_NodeId *nodeId, void *nodeContext,
+                                size_t *entriesSize, UA_RolePermissionType **entries) {
+    return UA_Server_getUserRolePermissions(server, sessionId, nodeId, entriesSize, entries);
+}
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_Boolean
 allowCreateSubscription_default(UA_Server *server, UA_AccessControl *ac,
@@ -579,6 +624,15 @@ UA_AccessControl_default(UA_ServerConfig *config,
     ac->allowAddNode = allowAddNode_default;
     ac->allowAddReference = allowAddReference_default;
     ac->allowBrowseNode = allowBrowseNode_default;
+    ac->allowReadRolePermissions = allowReadRolePermissions_default;
+
+#ifdef UA_ENABLE_RBAC
+    ac->readRolePermissions = readRolePermissions_default;
+    ac->readUserRolePermissions = readUserRolePermissions_default;
+#else
+    ac->readRolePermissions = NULL;
+    ac->readUserRolePermissions = NULL;
+#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     ac->allowCreateSubscription = allowCreateSubscription_default;
