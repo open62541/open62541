@@ -32,7 +32,7 @@ static UA_StatusCode
 generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                        UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
-                       UA_ExtensionObject *messageSettings,
+                       UA_UInt16 networkMessageNumber, UA_ExtensionObject *messageSettings,
                         UA_ExtensionObject *transportSettings,
                          UA_NetworkMessage *networkMessage);
 
@@ -802,7 +802,7 @@ static UA_StatusCode
 generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                        UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
-                       UA_ExtensionObject *messageSettings,
+                       UA_UInt16 networkMessageNumber, UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *nm) {
     /* Defense-in-depth: the dataSetWriterIds array in UA_NetworkMessage is
@@ -934,7 +934,7 @@ generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 
     nm->groupHeader.writerGroupId = wg->config.writerGroupId;
     /* number of the NetworkMessage inside a PublishingInterval */
-    nm->groupHeader.networkMessageNumber = 1;
+    nm->groupHeader.networkMessageNumber = networkMessageNumber;
     nm->payload.dataSetMessages = dsm;
     nm->messageCount = dsmCount;
 
@@ -947,14 +947,14 @@ generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 static UA_StatusCode
 sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                          UA_WriterGroup *wg, UA_DataSetMessage *dsm, UA_UInt16 *writerIds,
-                         UA_Byte dsmCount) {
+                         UA_Byte dsmCount, UA_UInt16 networkMessageNumber) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
     /* Fill the message structure */
     UA_StatusCode rv =
         generateNetworkMessage(psm, connection, wg, dsm, writerIds, dsmCount,
-                               &wg->config.messageSettings,
+                               networkMessageNumber,                                &wg->config.messageSettings,
                                &wg->config.transportSettings, &nm);
     UA_CHECK_STATUS(rv, return rv);
 
@@ -1054,7 +1054,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 
 static void
 sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnection *connection,
-                   UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount) {
+                   UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
+                   UA_UInt32 networkMessageNumber) {
+    /* Stop publishing if the message number for this interval cannot fit in
+     * the UADP header, or the batch exceeds the supported payload count. */
+    if(networkMessageNumber > UA_UINT16_MAX) {
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
+        return;
+    }
     if(dsmCount > UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "More DataSetMessages than allowed in "
@@ -1066,7 +1073,8 @@ sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnectio
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(wg->config.encodingMimeType) {
     case UA_PUBSUB_ENCODING_UADP:
-        res = sendNetworkMessageBinary(psm, connection, wg, dsm, writerIds, dsmCount);
+        res = sendNetworkMessageBinary(psm, connection, wg, dsm, writerIds, dsmCount,
+                                       (UA_UInt16)networkMessageNumber);
         break;
 #ifdef UA_ENABLE_JSON_ENCODING
     case UA_PUBSUB_ENCODING_JSON:
@@ -1178,11 +1186,11 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         }
     }
 
-    /* It is possible to put several DataSetMessages into one NetworkMessage.
-     * But only if they do not contain promoted fields. NM with promoted fields
-     * are sent out right away. The others are kept in a buffer for
-     * "batching". */
+    /* Send promoted fields immediately and retain other messages for
+     * batching. Number all NetworkMessages in this publishing interval
+     * consecutively, starting at one. */
     size_t dsmCount = 0;
+    UA_UInt32 networkMessageNumber = 1;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
     UA_STACKARRAY(UA_Guid, classIds, enabledWriters);
@@ -1211,7 +1219,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         if(pds && pds->promotedFieldsCount > 0) {
             wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
             sendNetworkMessage(psm, wg, connection, &dsmStore[dsmCount],
-                               &dsWriterIds[dsmCount], 1);
+                               &dsWriterIds[dsmCount], 1, networkMessageNumber++);
 
             UA_DataSetMessage_clear(&dsmStore[dsmCount]);
             continue; /* Don't increase the dsmCount, reuse the slot */
@@ -1238,7 +1246,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
         /* Send the batched messages */
         sendNetworkMessage(psm, wg, connection, &dsmStore[i],
-                           &dsWriterIds[i], nmDsmCount);
+                           &dsWriterIds[i], nmDsmCount, networkMessageNumber++);
     }
 
     /* Clean up DSM */
@@ -1877,7 +1885,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         goto cleanup;
     }
     res = generateNetworkMessage(psm, wg->linkedConnection, wg, dsmStore, dsWriterIds,
-                                 (UA_Byte) dsmCount, &wg->config.messageSettings,
+                                 (UA_Byte) dsmCount, 1, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
