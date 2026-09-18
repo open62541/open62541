@@ -30,11 +30,8 @@ START_TEST(certificate_generation) {
                             UA_STRING_STATIC("O=SampleOrganization"),
                             UA_STRING_STATIC("CN=Open62541Server@localhost")};
     UA_UInt32 lenSubject = 3;
-    UA_String subjectAltName[2]= {
-        UA_STRING_STATIC("DNS:localhost"),
-        UA_STRING_STATIC("URI:urn:open62541.unconfigured.application")
-    };
-    UA_UInt32 lenSubjectAltName = 2;
+    UA_String subjectAltName[] = {UA_STRING_STATIC("DNS:localhost")};
+    UA_UInt32 lenSubjectAltName = 1;
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();
     UA_UInt16 expiresIn = 14;
     UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
@@ -49,6 +46,10 @@ START_TEST(certificate_generation) {
     ck_assert(status == UA_STATUSCODE_GOOD);
     ck_assert(derPrivKey.length > 0);
     ck_assert(derCert.length > 0);
+
+    UA_String emptyUri = UA_STRING_NULL;
+    status = UA_CertificateUtils_verifyApplicationUri(&derCert, &emptyUri);
+    ck_assert(status == UA_STATUSCODE_BADCERTIFICATEURIINVALID);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     status = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &derCert, &derPrivKey,

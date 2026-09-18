@@ -792,10 +792,11 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
         }
     }
 
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(subjectURI.length != applicationURI->length ||
-       memcmp(subjectURI.data, applicationURI->data, applicationURI->length) != 0)
-        ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    UA_StatusCode ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    if(subjectURI.length > 0 &&
+       subjectURI.length == applicationURI->length &&
+       memcmp(subjectURI.data, applicationURI->data, subjectURI.length) == 0)
+        ret = UA_STATUSCODE_GOOD;
 
     X509_free(certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
