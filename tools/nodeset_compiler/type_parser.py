@@ -437,12 +437,37 @@ class CSVBSDTypeParser(TypeParser):
             raise Exception("contains no or more then 1 nodeset")
         nodeset = nodesets[0]
         dataTypeNodes = nodeset.getElementsByTagName("UADataType")
+        self.applyNodeSetOptionalFields(dataTypeNodes)
         for nd in dataTypeNodes:
             if nd.hasAttribute("SymbolicName"):
                 # Remove the optional namespace index prefix.
                 result_string = re.sub(r'^\d+:', '', nd.attributes["BrowseName"].nodeValue)
                 table[nd.attributes["SymbolicName"].nodeValue] = result_string
         return table
+
+    def applyNodeSetOptionalFields(self, dataTypeNodes):
+        """Marks members optional when the NodeSet DataTypeDefinition does."""
+        for node in dataTypeNodes:
+            browseName = node.getAttribute("BrowseName")
+            typeName = re.sub(r'^\d+:', '', browseName)
+            ns, key = self._find_type_ns(typeName)
+            if ns is None:
+                continue
+            dataType = self.types[ns][key]
+            if not isinstance(dataType, StructType):
+                continue
+
+            optionalFields = {
+                field.getAttribute("Name")
+                for definition in node.getElementsByTagName("Definition")
+                for field in definition.getElementsByTagName("Field")
+                if field.getAttribute("IsOptional").lower() == "true"
+            }
+            for member in dataType.members:
+                fieldName = member.name[:1].upper() + member.name[1:]
+                if fieldName in optionalFields:
+                    member.is_optional = True
+                    dataType.pointerfree = False
 
     def _find_type_ns(self, typeName):
         """Find the namespace URI of a type by name, preferring the namespace

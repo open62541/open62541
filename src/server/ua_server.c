@@ -306,7 +306,9 @@ UA_Server_delete(UA_Server *server) {
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
         UA_Session_remove(server, &current->session, UA_SHUTDOWNREASON_CLOSE);
     }
-    UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(server->namespaces, server->namespacesSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    UA_free(server->ns0CleanupSignatures);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Remove subscriptions without a session */
@@ -487,6 +489,8 @@ UA_Server_init(UA_Server *server) {
     res = initNS0_dataSources(server);
 #endif
     UA_CHECK_STATUS(res, goto cleanup);
+
+    snapshotNS0CleanupReferences(server);
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
     res = UA_Server_injectNodesets(server);
@@ -1144,6 +1148,9 @@ UA_Server_run_startup(UA_Server *server) {
     UA_NodeId startTime =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
+
+    /* Remove NS0 cleanup candidates that remain unused. */
+    removeUnusedNS0Nodes(server);
 
     /* Start all drivers */
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
