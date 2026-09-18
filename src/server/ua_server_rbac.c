@@ -18,13 +18,12 @@
  *   UserName, TrustedApplication (signed or encrypted SecureChannel with a
  *   validated application certificate, per Part 18 §4.4.3), Thumbprint and
  *   X509Subject (of the X509 user certificate), Application (client
- *   ApplicationUri) and Role (references an already-granted Role by
- *   BrowseName, resolved transitively). GroupId is evaluated when the
- *   AccessControl getUserGroups hook is configured.
+ *   ApplicationUri) and Role (a claim from an accepted access token). GroupId
+ *   is evaluated when the AccessControl getUserGroups hook is configured.
  *
  * - The Application and Endpoint role filters (including the Exclude variants)
- *   are evaluated during role resolution. An empty filter list means "no
- *   restriction" (Part 18 §4.4.1).
+ *   are evaluated during role resolution. An empty exclude list is
+ *   unrestricted; an empty include list matches no Session (Part 18 §4.4.1).
  *
  * - Active Sessions are re-evaluated and their Roles reassigned when the
  *   RoleSet changes through addRole/removeRole/updateRole (and the RoleType
@@ -33,7 +32,8 @@
  *
  * - AccessRestrictions (Part 3 §5.2.11: Signing/Encryption/Session required,
  *   ApplyRestrictionsToBrowse) are stored per node with a namespace default and
- *   enforced on Read, Write and Call. The local admin session is exempt.
+ *   enforced on Read, Write, HistoryRead, HistoryUpdate, Call, Browse and
+ *   TranslateBrowsePathsToNodeIds. The local admin session is exempt.
  *
  * Known limitations (single source of truth for the whole RBAC subsystem;
  * OPC UA Part 18 / Part 3 / Part 5, all v1.05):
@@ -73,9 +73,8 @@
  *   exposed as a read-only NS0 Property backed by the role registry, and
  *   enforced: a Role with an empty Identities array and CustomConfiguration ==
  *   FALSE cannot be granted to any Session. For CustomConfiguration == TRUE the
- *   spec leaves the assignment vendor-specific; this implementation grants such
- *   a Role to every Session that passes its Application/Endpoint filters, so an
- *   empty custom Role with default filters is granted to *all* Sessions.
+ *   spec leaves the assignment vendor-specific. Roles without standard identity
+ *   rules are therefore assigned only through the session "roles" attribute.
  *
  * - The role registry, the RolePermission presets and allPermissionsForAnonymous
  *   can be set from a JSON server configuration under the "rbac" key (see
@@ -1769,6 +1768,10 @@ endpointFilterMatches(const UA_EndpointType *ep,
  * (Exclude=true) the list. */
 static UA_Boolean
 roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
+    /* An explicitly empty include list includes no application. The default
+     * Exclude value for an unconfigured/empty list is TRUE (Part 18 §4.4.1). */
+    if(role->applicationsSize == 0 && !role->applicationsExclude)
+        return false;
     if(role->applicationsSize > 0) {
         /* Part 18 §4.4.1: a configured Applications list is evaluated against
          * the ApplicationUri from a trusted Client ApplicationInstance
@@ -1786,6 +1789,9 @@ roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
         if(inList == role->applicationsExclude)
             return false;
     }
+    /* The same include/exclude semantics apply to Endpoint filters. */
+    if(role->endpointsSize == 0 && !role->endpointsExclude)
+        return false;
     if(role->endpointsSize > 0) {
         UA_Boolean inList = false;
         for(size_t i = 0; i < role->endpointsSize; i++) {
@@ -1821,19 +1827,13 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
      * Part 18 §4.4.1: a Role with an empty Identities array and
      * CustomConfiguration == FALSE cannot be granted to any Session. Skip
      * such roles entirely; they can only be assigned via the session "roles"
-     * attribute override. A custom Role with empty Identities bypasses the
-     * rule-matching requirement (granting is vendor-specific) and is granted
-     * when its Application/Endpoint filters pass. */
+     * attribute override. CustomConfiguration makes assignment vendor-specific;
+     * it must not turn an empty Identities array into a match for every Session. */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
-        if(role->identityMappingRulesSize == 0) {
-            if(role->customConfiguration && roleFiltersMatch(role, ctx)) {
-                matchedRoles[i] = true;
-                matchCount++;
-            }
+        if(role->identityMappingRulesSize == 0)
             continue;
-        }
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
             if(identityRuleMatches(&role->identityMappingRules[j], ctx)) {
                 if(roleFiltersMatch(role, ctx)) {
