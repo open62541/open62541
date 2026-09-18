@@ -158,7 +158,7 @@ option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
 # Drivers
-option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
+option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Push Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
 option(UA_ENABLE_DRIVER_GDS_PULL "Enable the GDS Pull driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_PULL)

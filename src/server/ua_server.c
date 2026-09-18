@@ -194,7 +194,7 @@ addDriver(UA_Server *server, UA_Driver *drv) {
         while(registered) {
             if(registered->driverType == UA_DRIVERTYPE_GDS_RECEIVER) {
                 UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                             "Cannot add the driver \"%S\". A GDS Receiver "
+                             "Cannot add the driver \"%S\". A GDS Push Receiver "
                              "driver is already configured",
                              drv->name);
                 return UA_STATUSCODE_BADALREADYEXISTS;
