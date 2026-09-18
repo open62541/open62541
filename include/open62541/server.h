@@ -243,7 +243,22 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
  * from the secureChannelNotificationCallback once it has looked at the
  * channel's SecurityMode.
  *
- * One attribute key is interpreted by the server itself:
+ * Once a SecureChannel has fully opened, the map is pre-populated with the
+ * same background information as the
+ * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED notification (see
+ * common.h): ``0:securechannel-id``, ``0:connection-manager-name``,
+ * ``0:connection-id``, ``0:remote-address``, ``0:protocol-version``,
+ * ``0:recv-buffer-size``, ``0:recv-max-message-size``,
+ * ``0:recv-max-chunk-count``, ``0:send-buffer-size``,
+ * ``0:send-max-message-size``, ``0:send-max-chunk-count``,
+ * ``0:endpoint-url``, ``0:security-mode``, ``0:security-policy-url``,
+ * ``0:certificate-type-id`` and ``0:remote-certificate``. These are
+ * read-only -- UA_Server_setSecureChannelAttribute and
+ * UA_Server_deleteSecureChannelAttribute reject them with
+ * UA_STATUSCODE_BADNOTWRITABLE.
+ *
+ * One further attribute key is interpreted by the server itself, and is the
+ * one attribute the application may write:
  *
  * - ``0:maxMessageSize`` (``UA_UInt32``): If set, tightens (but never
  *   loosens) UA_ServerConfig.tcpMaxMsgSize for this specific channel. Useful
@@ -267,12 +282,12 @@ UA_Server_getSecureChannelAttributeCopy(UA_Server *server, UA_UInt32 channelId,
                                         const UA_QualifiedName key,
                                         UA_Variant *outValue);
 
-/* Returns NULL if the attribute is not defined or not a scalar or not of the
- * right datatype. Otherwise a shallow copy of the scalar value is created at
- * the target location of the void pointer (don't _clear or _delete manually).
- * While the method is thread-safe, the returned value is not protected. Only
- * use it in a (callback) context where the server is locked for the current
- * thread. */
+/* Returns UA_STATUSCODE_BADNOTFOUND if the attribute is not defined, not a
+ * scalar or not of the right datatype. Otherwise a shallow copy of the
+ * scalar value is written to the target location of the void pointer (don't
+ * _clear or _delete manually). While the method is thread-safe, the
+ * returned value is not protected. Only use it in a (callback) context
+ * where the server is locked for the current thread. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getSecureChannelAttribute_scalar(UA_Server *server,
                                            UA_UInt32 channelId,

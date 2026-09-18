@@ -260,8 +260,10 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     UA_Variant_setScalar(&notifySCData[0].value, &channel->securityToken.channelId,
                          &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[1].value,
-                         &channel->connectionManager->eventSource.name,
+    UA_String connectionManagerName = UA_STRING_NULL;
+    if(channel->connectionManager)
+        connectionManagerName = channel->connectionManager->eventSource.name;
+    UA_Variant_setScalar(&notifySCData[1].value, &connectionManagerName,
                          &UA_TYPES[UA_TYPES_STRING]);
     UA_UInt64 connectionId = channel->connectionId;
     UA_Variant_setScalar(&notifySCData[2].value, &connectionId,
@@ -298,6 +300,13 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                          &UA_TYPES[UA_TYPES_NODEID]);
     UA_Variant_setScalar(&notifySCData[15].value, &channel->remoteCertificate,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    /* Expose the same background information as read-only SecureChannel
+     * attributes (UA_Server_getSecureChannelAttribute and friends). Only
+     * done once, when the channel has fully opened -- this information does
+     * not change afterwards. */
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED)
+        UA_KeyValueMap_merge(&channel->attributes, &notifySCMap);
 
     /* Notify the application */
     notifyApplication(server, type, notifySCMap);
