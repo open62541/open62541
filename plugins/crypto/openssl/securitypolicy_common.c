@@ -2102,6 +2102,11 @@ UA_Openssl_ECDSA_Verify(const UA_ByteString * message,
         goto errout;
     }
 
+    if(!signature->data || signature->length != 2 * sizeEncCoordinate) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto errout;
+    }
+
     pr = BN_bin2bn(signature->data, sizeEncCoordinate, NULL);
     ps = BN_bin2bn(signature->data + sizeEncCoordinate, sizeEncCoordinate, NULL);
     if(pr == NULL || ps == NULL) {
