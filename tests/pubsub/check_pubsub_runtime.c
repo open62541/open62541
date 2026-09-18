@@ -523,6 +523,167 @@ START_TEST(ConfiguredSizePadsEmptyMessages) {
     UA_ByteString_clear(&buf);
 } END_TEST
 
+#ifdef UA_ENABLE_JSON_ENCODING
+static const UA_UInt32 jsonHeaders = UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+    UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER;
+
+static void configureJsonPublisher(UA_WriterGroup *wg, UA_UInt32 mask) {
+    wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_WriterGroupConfig wc;
+    ck_assert_uint_eq(UA_Server_getWriterGroupConfig(server, wg->head.identifier, &wc),
+                      UA_STATUSCODE_GOOD);
+    UA_ExtensionObject_clear(&wc.messageSettings);
+    UA_JsonWriterGroupMessageDataType ms;
+    UA_JsonWriterGroupMessageDataType_init(&ms);
+    ms.networkMessageContentMask = (UA_JsonNetworkMessageContentMask)mask;
+    ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&wc.messageSettings, &ms,
+        &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
+    wc.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    wc.maxEncapsulatedDataSetMessageCount = 10;
+    ck_assert_uint_eq(UA_Server_updateWriterGroupConfig(server, wg->head.identifier, &wc),
+                      UA_STATUSCODE_GOOD);
+    UA_WriterGroupConfig_clear(&wc);
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        UA_ExtensionObject_clear(&dsw->config.messageSettings);
+        UA_JsonDataSetWriterMessageDataType ds;
+        UA_JsonDataSetWriterMessageDataType_init(&ds);
+        ds.dataSetMessageContentMask = UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
+            UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
+        ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&dsw->config.messageSettings, &ds,
+            &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
+        dsw->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    }
+    wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+}
+
+START_TEST(JsonNetworkContentMaskControlsOutput) {
+    UA_WriterGroup *wg = createPublisher(2, 0);
+    UA_UInt32 mask = jsonHeaders;
+    if(_i & 1) mask |= UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID;
+    if(_i & 2) mask |= UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID;
+    if(_i & 4) mask |= UA_JSONNETWORKMESSAGECONTENTMASK_SINGLEDATASETMESSAGE;
+    configureJsonPublisher(wg, mask);
+    UA_Guid classId = {0x12345678, 0x1234, 0x5678, {1, 2, 3, 4, 5, 6, 7, 8}};
+    LIST_FIRST(&wg->writers)->connectedDataSet->dataSetMetaData.dataSetClassId = classId;
+    PublishCapture capture = capturePublishes(wg, 1);
+    ck_assert_uint_eq(capture.count, (_i & 4) ? 2 : 1);
+    for(size_t i = 0; i < capture.count; i++) {
+        char json[4096];
+        ck_assert_uint_lt(capture.messages[i].length, sizeof(json));
+        memcpy(json, capture.messages[i].data, capture.messages[i].length);
+        json[capture.messages[i].length] = 0;
+        ck_assert_int_eq(strstr(json, "\"PublisherId\":") != NULL, (_i & 1) != 0);
+        ck_assert_int_eq(strstr(json, "\"DataSetClassId\":") != NULL, (_i & 2) != 0);
+        if(_i & 2)
+            ck_assert_ptr_nonnull(strstr(json, "12345678-1234-5678-0102-030405060708"));
+        ck_assert_ptr_nonnull(strstr(json, (_i & 4) ? "\"Messages\":{" : "\"Messages\":[{"));
+        ck_assert_ptr_nonnull(strstr(json, "\"DataSetWriterId\":"));
+        ck_assert_ptr_nonnull(strstr(json, "ua-keyframe"));
+        ck_assert_ptr_nonnull(strstr(json, "\"value\":"));
+        ck_assert_ptr_null(strstr(json, "\"SequenceNumber\":"));
+        ck_assert_ptr_null(strstr(json, "\"Timestamp\":"));
+        UA_NetworkMessage decoded;
+        memset(&decoded, 0, sizeof(decoded));
+        ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&capture.messages[i], &decoded, NULL, NULL),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(decoded.messageCount, (_i & 4) ? 1 : 2);
+        ck_assert_int_eq(decoded.jsonSingleDataSetMessage, (_i & 4) != 0);
+        ck_assert_uint_eq(decoded.payload.dataSetMessages[0].fieldCount, 1);
+        ck_assert_int_eq(*(UA_Int32*)decoded.payload.dataSetMessages[0].data.keyFrameFields[0].value.data, 123);
+        UA_NetworkMessage_clear(&decoded);
+    }
+    clearCapture(&capture);
+} END_TEST
+
+START_TEST(JsonClassIdsControlBatching) {
+    UA_WriterGroup *wg = createPublisher(2, 0);
+    UA_PublishedDataSetConfig pc;
+    memset(&pc, 0, sizeof(pc));
+    pc.name = UA_STRING("other source");
+    UA_NodeId otherId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pc, &otherId).addResult, UA_STATUSCODE_GOOD);
+    UA_DataSetFieldConfig fc;
+    memset(&fc, 0, sizeof(fc));
+    fc.field.variable.fieldNameAlias = UA_STRING("value");
+    fc.field.variable.publishParameters.publishedVariable = targetId;
+    fc.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, otherId, &fc, NULL).result, UA_STATUSCODE_GOOD);
+    UA_PublishedDataSet *otherPds = UA_PublishedDataSet_find(getPSM(server), otherId);
+    otherPds->dataSetMetaData.dataSetClassId.data1 = 1234;
+    wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_DataSetWriterConfig dc;
+    memset(&dc, 0, sizeof(dc));
+    dc.name = UA_STRING("other class");
+    dc.dataSetWriterId = 42;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wg->head.identifier,
+        otherPds->head.identifier, &dc, NULL), UA_STATUSCODE_GOOD);
+    configureJsonPublisher(wg, jsonHeaders | (_i ? UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID : 0));
+    PublishCapture capture = capturePublishes(wg, 1);
+    ck_assert_uint_eq(capture.count, _i ? 2 : 1);
+    for(size_t i = 0; i < capture.count; i++) {
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(nm));
+        ck_assert_uint_eq(UA_NetworkMessage_decodeJson(&capture.messages[i], &nm, NULL, NULL),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(nm.messageCount, _i ? (i == 0 ? 2 : 1) : 3);
+        ck_assert_int_eq(nm.dataSetClassIdEnabled, _i != 0);
+        if(_i)
+            ck_assert_uint_eq(nm.dataSetClassId.data1, i == 0 ? 0 : 1234);
+        UA_NetworkMessage_clear(&nm);
+    }
+    clearCapture(&capture);
+} END_TEST
+
+START_TEST(UnsupportedJsonLayoutsAreRejected) {
+    UA_JsonWriterGroupMessageDataType ms;
+    UA_JsonWriterGroupMessageDataType_init(&ms);
+    UA_UInt32 masks[] = {0, UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER,
+        UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER,
+        jsonHeaders | UA_JSONNETWORKMESSAGECONTENTMASK_REPLYTO, jsonHeaders | 0x40};
+    ms.networkMessageContentMask = (UA_JsonNetworkMessageContentMask)masks[_i];
+    UA_WriterGroupConfig wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.name = UA_STRING("unsupported json layout");
+    wc.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+    UA_ExtensionObject_setValue(&wc.messageSettings, &ms,
+                               &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]);
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, readerGroup->linkedConnection->head.identifier,
+                                              &wc, NULL), UA_STATUSCODE_BADNOTSUPPORTED);
+    UA_WriterGroup *wg = createPublisher(1, 0);
+    wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    ck_assert_uint_eq(UA_Server_updateWriterGroupConfig(server, wg->head.identifier, &wc),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(wg->config.encodingMimeType, UA_PUBSUB_ENCODING_UADP);
+} END_TEST
+
+START_TEST(UnsupportedJsonDataSetHeadersAreRejected) {
+    UA_WriterGroup *wg = createPublisher(1, 0);
+    configureJsonPublisher(wg, jsonHeaders);
+    wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_JsonDataSetWriterMessageDataType ms;
+    UA_JsonDataSetWriterMessageDataType_init(&ms);
+    UA_UInt32 required = UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
+        UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
+    UA_UInt32 masks[] = {0, UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID,
+        UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE,
+        required | UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERNAME, required | 0x100};
+    ms.dataSetMessageContentMask = (UA_JsonDataSetMessageContentMask)masks[_i];
+    UA_DataSetWriterConfig dc;
+    memset(&dc, 0, sizeof(dc));
+    dc.name = UA_STRING("json writer");
+    dc.dataSetWriterId = 42;
+    UA_ExtensionObject_setValue(&dc.messageSettings, &ms,
+                               &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]);
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wg->head.identifier,
+        LIST_FIRST(&wg->writers)->connectedDataSet->head.identifier, &dc, NULL),
+        UA_STATUSCODE_BADNOTSUPPORTED);
+    ms.dataSetMessageContentMask = (UA_JsonDataSetMessageContentMask)required;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wg->head.identifier,
+        LIST_FIRST(&wg->writers)->connectedDataSet->head.identifier, &dc, NULL), UA_STATUSCODE_GOOD);
+} END_TEST
+#endif
+
 int main(void) {
     Suite *suite = suite_create("PubSub runtime");
     TCase *tc = tcase_create("Runtime");
@@ -538,6 +699,12 @@ int main(void) {
     tcase_add_loop_test(tc, ConfiguredSizeReachesRuntimeEncoder, 0, 2);
     tcase_add_loop_test(tc, ConfiguredSizePadsEmptyMessages, 0, 6);
     tcase_add_loop_test(tc, UnsupportedFixedPlacementIsRejected, 0, 2);
+#ifdef UA_ENABLE_JSON_ENCODING
+    tcase_add_loop_test(tc, JsonNetworkContentMaskControlsOutput, 0, 8);
+    tcase_add_loop_test(tc, JsonClassIdsControlBatching, 0, 2);
+    tcase_add_loop_test(tc, UnsupportedJsonLayoutsAreRejected, 0, 5);
+    tcase_add_loop_test(tc, UnsupportedJsonDataSetHeadersAreRejected, 0, 5);
+#endif
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);
