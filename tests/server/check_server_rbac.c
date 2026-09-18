@@ -2790,6 +2790,27 @@ START_TEST(roleFilters_evaluated) {
     UA_NodeId epId = UA_NODEID_NULL;
     ck_assert_uint_eq(UA_Server_addRole(server, &ep, &epId), UA_STATUSCODE_GOOD);
 
+    /* Empty include lists match no application or endpoint. */
+    UA_Role emptyApp;
+    UA_Role_init(&emptyApp);
+    emptyApp.roleName = UA_QUALIFIEDNAME(1, "EmptyAppInclude");
+    emptyApp.identityMappingRules = &authRule;
+    emptyApp.identityMappingRulesSize = 1;
+    emptyApp.applicationsExclude = false;
+    UA_NodeId emptyAppId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &emptyApp, &emptyAppId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role emptyEp;
+    UA_Role_init(&emptyEp);
+    emptyEp.roleName = UA_QUALIFIEDNAME(1, "EmptyEpInclude");
+    emptyEp.identityMappingRules = &authRule;
+    emptyEp.identityMappingRulesSize = 1;
+    emptyEp.endpointsExclude = false;
+    UA_NodeId emptyEpId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &emptyEp, &emptyEpId),
+                      UA_STATUSCODE_GOOD);
+
     UA_SessionIdentityContext ctx;
 
     /* Include: matching application granted, others denied */
@@ -2819,9 +2840,19 @@ START_TEST(roleFilters_evaluated) {
     ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
     ck_assert(!roleGrantedForContext(&ctx, &epId));
 
+    /* Empty include lists must not become an unrestricted Role. */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.applicationUri = UA_STRING("urn:any");
+    ctx.trustedApplication = true;
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &emptyAppId));
+    ck_assert(!roleGrantedForContext(&ctx, &emptyEpId));
+
     UA_NodeId_clear(&inclId);
     UA_NodeId_clear(&exclId);
     UA_NodeId_clear(&epId);
+    UA_NodeId_clear(&emptyAppId);
+    UA_NodeId_clear(&emptyEpId);
 }
 END_TEST
 
@@ -3096,8 +3127,8 @@ START_TEST(customConfiguration_storedAndCopied) {
 }
 END_TEST
 
-/* A non-custom Role with empty Identities cannot be granted to any Session
- * (Part 18 §4.4.1). A custom Role with empty Identities can be granted. */
+/* An empty Identities array is never an automatic match. CustomConfiguration
+ * leaves assignment vendor-specific; it must not grant the Role to everyone. */
 START_TEST(customConfiguration_grantEnforcement) {
     /* Non-custom role with no identity rules */
     UA_Role nc;
@@ -3121,9 +3152,8 @@ START_TEST(customConfiguration_grantEnforcement) {
 
     /* The non-custom empty role is NOT granted */
     ck_assert(!roleGrantedForContext(&ctx, &ncId));
-    /* The custom empty role CAN be granted (custom roles bypass the
-     * empty-Identities restriction) */
-    ck_assert(roleGrantedForContext(&ctx, &crId));
+    /* The custom empty role is assigned only through the session roles API. */
+    ck_assert(!roleGrantedForContext(&ctx, &crId));
 
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyNonCustom"));
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "EmptyCustom"));

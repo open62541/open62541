@@ -2179,8 +2179,9 @@ typedef struct {
     UA_EndpointType *endpoints;
 
     /* CustomConfiguration (Part 18 §4.4.1): when TRUE the configuration and
-     * assignment of the Role is vendor-specific; when FALSE a Role with an
-     * empty Identities array cannot be granted to any Session. */
+     * assignment of the Role is vendor-specific. A Role with an empty Identities
+     * array is not assigned automatically and can be assigned through the
+     * session "roles" attribute. */
     UA_Boolean customConfiguration;
 } UA_Role;
 
