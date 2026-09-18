@@ -207,16 +207,21 @@ UA_NetworkMessage_encodeJsonInternal(PubSubEncodeJsonCtx *ctx,
             return rv;
     }
 
-    /* Payload: DataSetMessages */
+    /* Encode Messages as a single object or an array. The single-object
+     * layout requires exactly one DataSetMessage. */
     size_t count = src->messageCount;
+    if(src->jsonSingleDataSetMessage && count != 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
     if(count > 0) {
         rv |= writeJsonKey(&ctx->ctx, UA_DECODEKEY_MESSAGES);
-        rv |= writeJsonArrStart(&ctx->ctx); /* start array */
+        if(!src->jsonSingleDataSetMessage)
+            rv |= writeJsonArrStart(&ctx->ctx); /* start array */
         const UA_DataSetMessage *dsm = src->payload.dataSetMessages;
         for(size_t i = 0; i < count; i++) {
             const UA_DataSetMessage_EncodingMetaData *emd =
                 findEncodingMetaData(&ctx->eo, src->dataSetWriterIds[i]);
-            rv |= writeJsonBeforeElement(&ctx->ctx, true);
+            if(!src->jsonSingleDataSetMessage)
+                rv |= writeJsonBeforeElement(&ctx->ctx, true);
             rv |= UA_DataSetMessage_encodeJson_internal(&ctx->ctx, emd, &dsm[i]);
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
@@ -224,7 +229,8 @@ UA_NetworkMessage_encodeJsonInternal(PubSubEncodeJsonCtx *ctx,
             ctx->ctx.commaNeeded[ctx->ctx.depth] = true;
         }
 
-        rv |= writeJsonArrEnd(&ctx->ctx, NULL); /* end array */
+        if(!src->jsonSingleDataSetMessage)
+            rv |= writeJsonArrEnd(&ctx->ctx, NULL); /* end array */
     }
 
     rv |= writeJsonObjEnd(&ctx->ctx);
@@ -526,7 +532,8 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
     if(currentTokenType(&ctx->ctx) != CJ5_TOKEN_OBJECT)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Is Messages an Array? How big? */
+    /* Determine the number of DataSetMessages from Messages and remember
+     * whether the sender used the single-object layout. */
     size_t searchResultMessages = 0;
     status found = lookAheadForKey(&ctx->ctx, UA_DECODEKEY_MESSAGES, &searchResultMessages);
     if(found != UA_STATUSCODE_GOOD)
@@ -535,6 +542,7 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
     size_t messageCount = 1;
     if(bodyToken->type == CJ5_TOKEN_ARRAY)
         messageCount = (size_t)bodyToken->size;
+    dst->jsonSingleDataSetMessage = (bodyToken->type == CJ5_TOKEN_OBJECT);
 
     /* Too many DataSetMessages */
     if(messageCount > UA_NETWORKMESSAGE_MAXMESSAGECOUNT)

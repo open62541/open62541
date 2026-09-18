@@ -203,6 +203,22 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
+    /* Accept only JSON header masks the encoder can honor. WriterId and
+     * MessageType are required; unsupported optional fields are rejected. */
+    if(UA_ExtensionObject_hasDecodedType(&dswConfig->messageSettings,
+           &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE])) {
+        const UA_JsonDataSetWriterMessageDataType *settings =
+            (const UA_JsonDataSetWriterMessageDataType*)dswConfig->messageSettings.content.decoded.data;
+        UA_UInt32 mask = (UA_UInt32)settings->dataSetMessageContentMask;
+        UA_UInt32 required = UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
+            UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
+        UA_UInt32 supported = required | UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION |
+            UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER | UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP |
+            UA_JSONDATASETMESSAGECONTENTMASK_STATUS | UA_JSONDATASETMESSAGECONTENTMASK_REVERSIBLEFIELDENCODING;
+        if((mask & required) != required || (mask & ~supported) != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     UA_PublishedDataSet *pds = NULL;
 
     if(!UA_NodeId_isNull(&dataSet)) {
