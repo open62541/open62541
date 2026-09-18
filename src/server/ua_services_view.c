@@ -854,10 +854,8 @@ browseResolvedNode(struct BrowseContext *bc, const UA_Node *node) {
      * ApplyRestrictionsToBrowse flag is present. BrowseNext reaches this same
      * path and therefore re-checks the current Session/SecureChannel. */
     bc->status = checkNodeAccessRestrictions(bc->server, bc->session, node, true);
-    if(bc->status != UA_STATUSCODE_GOOD) {
-        UA_NODESTORE_RELEASE(bc->server, node);
+    if(bc->status != UA_STATUSCODE_GOOD)
         return;
-    }
 #endif
 
     /* Check AccessControl rights */
@@ -1333,7 +1331,8 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_RBAC
         if(checkNodeAccessRestrictions(server, session, node, true) !=
            UA_STATUSCODE_GOOD) {
-            UA_NODESTORE_RELEASE(server, node);
+            if(releaseNode)
+                UA_NODESTORE_RELEASE(server, node);
             continue;
         }
 #endif
