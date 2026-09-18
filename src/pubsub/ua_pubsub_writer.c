@@ -212,9 +212,19 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         UA_UInt32 mask = (UA_UInt32)settings->dataSetMessageContentMask;
         UA_UInt32 required = UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
             UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
+#ifdef UA_JSONDATASETMESSAGECONTENTMASK_FIELDENCODING1
+        /* The current schema calls bit 7 FieldEncoding1. Older schemas call
+         * the same bit ReversibleFieldEncoding. In both schemas it selects
+         * the reversible encoding produced by the JSON encoder. */
+        UA_UInt32 reversibleEncoding =
+            UA_JSONDATASETMESSAGECONTENTMASK_FIELDENCODING1;
+#else
+        UA_UInt32 reversibleEncoding =
+            UA_JSONDATASETMESSAGECONTENTMASK_REVERSIBLEFIELDENCODING;
+#endif
         UA_UInt32 supported = required | UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION |
             UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER | UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP |
-            UA_JSONDATASETMESSAGECONTENTMASK_STATUS | UA_JSONDATASETMESSAGECONTENTMASK_REVERSIBLEFIELDENCODING;
+            UA_JSONDATASETMESSAGECONTENTMASK_STATUS | reversibleEncoding;
         if((mask & required) != required || (mask & ~supported) != 0)
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }

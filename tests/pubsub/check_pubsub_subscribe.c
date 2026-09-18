@@ -150,11 +150,13 @@ static void checkReceived(void) {
         rvi.nodeId = UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID);
         UA_DataValue subscribedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
         
-        /* Check if data sent from Publisher is being received by Subscriber */
-        ck_assert(publishedNodeData.value.type == subscribedNodeData.value.type);
-        UA_Boolean eq = 
-            (UA_order(&publishedNodeData, &subscribedNodeData,
-                      &UA_TYPES[UA_TYPES_DATAVALUE]) == UA_ORDER_EQ);
+        /* The reader can apply its Disabled-state fallback before the first
+         * packet. Wait until the target has received the published type. */
+        UA_Boolean eq = false;
+        if(publishedNodeData.value.type == subscribedNodeData.value.type) {
+            eq = (UA_order(&publishedNodeData, &subscribedNodeData,
+                           &UA_TYPES[UA_TYPES_DATAVALUE]) == UA_ORDER_EQ);
+        }
         UA_DataValue_clear(&subscribedNodeData);
         UA_DataValue_clear(&publishedNodeData);
         if(eq)

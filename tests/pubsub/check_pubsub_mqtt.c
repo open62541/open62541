@@ -89,16 +89,16 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_DataSetMetaDataType_init (pMetaData);
     pMetaData->name = UA_STRING ("DataSet 1");
 
-    /* The published ServerStatus.State value is a UInt32. */
+    /* The published ServerStatus.State value is a ServerState enum. */
     pMetaData->fieldsSize = 1;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
     /* ServerStatus.State DataType */
     UA_FieldMetaData_init (&pMetaData->fields[0]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT32].typeId,
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_SERVERSTATE].typeId,
                     &pMetaData->fields[0].dataType);
-    pMetaData->fields[0].builtInType = UA_NS0ID_UINT32;
+    pMetaData->fields[0].builtInType = UA_NS0ID_INT32;
     pMetaData->fields[0].name =  UA_STRING ("ServerState");
     pMetaData->fields[0].valueRank = -1; /* scalar */
 }
@@ -310,8 +310,8 @@ START_TEST(SinglePublishSubscribeDateTime){
                                      &receivedValue);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(UA_Variant_hasScalarType(&receivedValue,
-                                           &UA_TYPES[UA_TYPES_UINT32]));
-        UA_UInt32 serverState = *(UA_UInt32*)receivedValue.data;
+                                           &UA_TYPES[UA_TYPES_SERVERSTATE]));
+        UA_ServerState serverState = *(UA_ServerState*)receivedValue.data;
         ck_assert_uint_eq(serverState, UA_SERVERSTATE_RUNNING);
         UA_Variant_clear(&receivedValue);
 
