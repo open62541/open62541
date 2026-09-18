@@ -107,6 +107,51 @@ START_TEST(UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_Decode_RawDataSizeMustFitBuffer) {
+    /* A DSM size smaller than its header must not rewind the offset. */
+    UA_Byte shortSizeData[] = {0x0b, 0x00, 0x00, 0xaa};
+    UA_ByteString shortSizeBuffer = {sizeof(shortSizeData), shortSizeData};
+    UA_DataSetMessage dsm;
+    size_t offset = 0;
+    UA_StatusCode res = UA_DataSetMessage_decodeBinary(
+        &shortSizeBuffer, &offset, &dsm, 1, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_DataSetMessage_clear(&dsm);
+
+    /* The complete DSM, including its header, must fit the input buffer. */
+    UA_Byte oversizedData[] = {0x03, 0xaa};
+    UA_ByteString oversizedBuffer = {sizeof(oversizedData), oversizedData};
+    offset = 0;
+    res = UA_DataSetMessage_decodeBinary(
+        &oversizedBuffer, &offset, &dsm, 3, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_DataSetMessage_clear(&dsm);
+
+    /* Expose only the RawData payload, without the DSM header. */
+    UA_Byte validData[] = {0x03, 0xaa, 0xbb};
+    UA_ByteString validBuffer = {sizeof(validData), validData};
+    offset = 0;
+    res = UA_DataSetMessage_decodeBinary(
+        &validBuffer, &offset, &dsm, 3, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, sizeof(validData));
+    ck_assert_ptr_eq(dsm.data.keyFrameData.rawFields.data, &validData[1]);
+    ck_assert_uint_eq(dsm.data.keyFrameData.rawFields.length, 2);
+    UA_DataSetMessage_clear(&dsm);
+
+    /* A single RawData DSM has no explicit size. Without metadata, the raw
+     * payload consumes the remaining input and must stay within its bounds. */
+    offset = 0;
+    res = UA_DataSetMessage_decodeBinary(
+        &validBuffer, &offset, &dsm, 0, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, sizeof(validData));
+    ck_assert_ptr_eq(dsm.data.keyFrameData.rawFields.data, &validData[1]);
+    ck_assert_uint_eq(dsm.data.keyFrameData.rawFields.length, 2);
+    UA_DataSetMessage_clear(&dsm);
+}
+END_TEST
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -1375,6 +1420,7 @@ int main(void) {
     tcase_add_test(tc_decode, UA_PubSub_Decode_WithBufferTooSmallShallReturnError);
     tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_RawDataSizeMustFitBuffer);
 
     TCase *tc_ende1 = tcase_create("encode_decode1DS");
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame);

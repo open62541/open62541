@@ -8,6 +8,7 @@
 #include <open62541/plugin/pki_default.h>
 
 #include "server/ua_server_internal.h"
+#include "server/ua_services.h"
 #include "../encryption/certificates.h"
 
 #include <fcntl.h>
@@ -616,6 +617,33 @@ START_TEST(Server_new_shutdown_delete) {
 }
 END_TEST
 
+START_TEST(Server_getEndpoints_emptyPolicyId) {
+    UA_Server *pServer = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(pServer);
+    ck_assert_uint_gt(config->accessControl.userTokenPoliciesSize, 0);
+
+    UA_UserTokenPolicy *policy = &config->accessControl.userTokenPolicies[0];
+    UA_String_clear(&policy->policyId);
+    policy->policyId = UA_STRING_ALLOC("");
+    ck_assert_ptr_eq(policy->policyId.data,
+                     (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+
+    UA_EndpointDescription *endpoints = NULL;
+    size_t endpointsSize = 0;
+    UA_StatusCode res =
+        setCurrentEndPointsArray(pServer, UA_STRING("opc.tcp://localhost:4840"),
+                                 NULL, 0, &endpoints, &endpointsSize);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(endpointsSize, 0);
+    ck_assert_uint_gt(endpoints[0].userIdentityTokensSize, 0);
+    ck_assert_uint_gt(endpoints[0].userIdentityTokens[0].policyId.length, 0);
+
+    UA_Array_delete(endpoints, endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    UA_Server_delete(pServer);
+}
+END_TEST
+
 START_TEST(Server_registerUnregister) {
     registerServer();
     registerServer(); // register twice just for fun
@@ -684,6 +712,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_new_del = tcase_create("New Delete");
     tcase_add_test(tc_new_del, Server_new_delete);
     tcase_add_test(tc_new_del, Server_new_shutdown_delete);
+    tcase_add_test(tc_new_del, Server_getEndpoints_emptyPolicyId);
     suite_add_tcase(s,tc_new_del);
 
     TCase *tc_register = tcase_create("RegisterServer");
