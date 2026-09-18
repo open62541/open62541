@@ -1892,6 +1892,8 @@ UA_Server_reevaluateSessionRoles(UA_Server *server) {
         UA_Session *session = &entry->session;
         if(!session->hasIdentityContext)
             continue;
+        if(session->passwordChangeRequired)
+            continue;
         size_t rolesSize = 0;
         UA_NodeId *roleIds = NULL;
         UA_StatusCode res = UA_Server_evaluateSessionRoles(

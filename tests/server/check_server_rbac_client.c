@@ -19,6 +19,7 @@
 
 #include "test_helpers.h"
 #include "thread_wrapper.h"
+#include "server/ua_server_internal.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -673,6 +674,71 @@ START_TEST(Client_mustChangePassword_activatesWithAnonymousOnly) {
 }
 END_TEST
 
+/* Re-evaluating Roles must not upgrade a Session whose user is still required
+ * to change its password. */
+START_TEST(Client_mustChangePassword_staysAnonymousAfterRoleChange) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectUsername(client,
+        "opc.tcp://localhost:4840", "mustchange", "password");
+    ck_assert(!UA_StatusCode_isBad(retval));
+
+    UA_String mustChange = UA_STRING("mustchange");
+    UA_Role operatorRole;
+    ck_assert_uint_eq(UA_Server_getRole(server,
+        UA_QUALIFIEDNAME(0, "OperatorRole"), &operatorRole), UA_STATUSCODE_GOOD);
+    UA_NodeId operatorRoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_NodeId_copy(&operatorRole.roleId, &operatorRoleId),
+                      UA_STATUSCODE_GOOD);
+    UA_Role_clear(&operatorRole);
+
+    UA_Boolean found = false;
+    UA_Boolean hasOperator = false;
+    lockServer(server);
+    session_list_entry *entry;
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        UA_Session *session = &entry->session;
+        if(!session->hasIdentityContext ||
+           !UA_String_equal(&session->identityContext.userName, &mustChange))
+            continue;
+        found = true;
+        for(size_t i = 0; i < session->rolesSize; i++)
+            hasOperator |= UA_NodeId_equal(&session->roles[i], &operatorRoleId);
+    }
+    unlockServer(server);
+    ck_assert(found);
+    ck_assert(!hasOperator);
+
+    /* Adding even an unrelated Role re-evaluates all active Sessions. */
+    UA_Role unrelated;
+    UA_Role_init(&unrelated);
+    unrelated.roleName = UA_QUALIFIEDNAME(1, "UnrelatedRole");
+    UA_NodeId unrelatedId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &unrelated, &unrelatedId),
+                      UA_STATUSCODE_GOOD);
+
+    found = false;
+    hasOperator = false;
+    lockServer(server);
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        UA_Session *session = &entry->session;
+        if(!session->hasIdentityContext ||
+           !UA_String_equal(&session->identityContext.userName, &mustChange))
+            continue;
+        found = true;
+        for(size_t i = 0; i < session->rolesSize; i++)
+            hasOperator |= UA_NodeId_equal(&session->roles[i], &operatorRoleId);
+    }
+    unlockServer(server);
+    ck_assert(found);
+    ck_assert_msg(!hasOperator,
+                  "Role re-evaluation restored privileges before the required password change");
+    UA_NodeId_clear(&operatorRoleId);
+    UA_NodeId_clear(&unrelatedId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* A Disabled account is refused at ActivateSession. */
 START_TEST(Client_disabledUser_cannotActivate) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -714,6 +780,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_roles_reevaluated_on_roleAdd);
     tcase_add_test(tc, Client_accessRestrictions_enforced);
     tcase_add_test(tc, Client_mustChangePassword_activatesWithAnonymousOnly);
+    tcase_add_test(tc, Client_mustChangePassword_staysAnonymousAfterRoleChange);
     tcase_add_test(tc, Client_disabledUser_cannotActivate);
     tcase_add_test(tc, Client_tokenRoles_notQueriedForNonIssuedTokens);
 #ifdef UA_ENABLE_METHODCALLS
