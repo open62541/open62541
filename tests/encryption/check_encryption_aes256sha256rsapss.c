@@ -302,6 +302,55 @@ START_TEST(encryption_connect_pem) {
 }
 END_TEST
 
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+START_TEST(securitypolicy_rejects_malformed_signature_length) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_String policyUri = UA_STRING(
+        "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
+    UA_SecurityPolicy *sp = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(UA_String_equal(&config->securityPolicies[i].policyUri, &policyUri)) {
+            sp = &config->securityPolicies[i];
+            break;
+        }
+    }
+    ck_assert_ptr_ne(sp, NULL);
+
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    void *channelContext = NULL;
+    UA_StatusCode retval =
+        sp->newChannelContext(sp, &certificate, &channelContext);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString message = UA_BYTESTRING("signature length regression");
+    size_t expectedSize = sp->asymSignatureAlgorithm.
+        getRemoteSignatureSize(sp, channelContext);
+    UA_ByteString signature = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&signature, expectedSize + 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    signature.length = expectedSize;
+    retval = sp->asymSignatureAlgorithm.sign(sp, channelContext,
+                                             &message, &signature);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = sp->asymSignatureAlgorithm.verify(sp, channelContext,
+                                               &message, &signature);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    const size_t invalidSizes[] = {0, 1, expectedSize - 1, expectedSize + 1};
+    for(size_t i = 0; i < sizeof(invalidSizes) / sizeof(invalidSizes[0]); i++) {
+        signature.length = invalidSizes[i];
+        retval = sp->asymSignatureAlgorithm.verify(sp, channelContext,
+                                                   &message, &signature);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    }
+
+    signature.length = expectedSize + 1;
+    UA_ByteString_clear(&signature);
+    sp->deleteChannelContext(sp, channelContext);
+}
+END_TEST
+#endif /* defined(UA_ENABLE_ENCRYPTION_MBEDTLS) */
+
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 START_TEST(securitypolicy_aes256sha256rsapss_null_cert_no_underflow) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
@@ -338,6 +387,9 @@ static Suite* testSuite_encryption(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);
     tcase_add_test(tc_encryption, encryption_connect_pem);
+# if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    tcase_add_test(tc_encryption, securitypolicy_rejects_malformed_signature_length);
+# endif
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 

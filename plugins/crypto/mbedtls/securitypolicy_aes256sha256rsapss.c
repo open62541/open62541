@@ -73,6 +73,10 @@ asym_verify_aes256sha256rsapss(const UA_SecurityPolicy *policy,
     Aes256Sha256RsaPss_ChannelContext *cc =
         (Aes256Sha256RsaPss_ChannelContext*)channelContext;
 
+    if(!signature->data ||
+       signature->length != mbedtls_pk_get_len(&cc->remoteCertificate.pk))
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     unsigned char hash[UA_SHA256_LENGTH];
 #if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     // TODO check return status
