@@ -3,6 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/server_config_default.h>
@@ -10,10 +12,12 @@
 
 #include "test_helpers.h"
 #include "pubsub_test_helpers.h"
+#include "testing_networklayers.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_internal.h"
 
 #include <check.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -203,6 +207,57 @@ START_TEST(AddDataSetWriterWithValidConfiguration){
     UA_WriterGroup *wg1 = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert_ptr_ne(wg1, NULL);
     ck_assert_uint_eq(wg1->writersCount, 1);
+} END_TEST
+
+START_TEST(AddDataSetWriterRejectsDuplicateIdInWriterGroup) {
+    setupDataSetWriterTestEnvironment();
+    setupPublishedDataSetTestEnvironment();
+
+    UA_DataSetWriterConfig config;
+    memset(&config, 0, sizeof(config));
+    config.name = UA_STRING("Ascending 10");
+    config.dataSetWriterId = 10;
+    UA_StatusCode res = UA_Server_addDataSetWriter(
+        server, writerGroup1, publishedDataSet1, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Ascending 20");
+    config.dataSetWriterId = 20;
+    res = UA_Server_addDataSetWriter(server, writerGroup1,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Ascending duplicate 10");
+    config.dataSetWriterId = 10;
+    res = UA_Server_addDataSetWriter(server, writerGroup1,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    config.name = UA_STRING("Descending 20");
+    config.dataSetWriterId = 20;
+    res = UA_Server_addDataSetWriter(server, writerGroup2,
+                                     publishedDataSet1, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Descending 10");
+    config.dataSetWriterId = 10;
+    res = UA_Server_addDataSetWriter(server, writerGroup2,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    config.name = UA_STRING("Descending duplicate 20");
+    config.dataSetWriterId = 20;
+    res = UA_Server_addDataSetWriter(server, writerGroup2,
+                                     publishedDataSet2, &config, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg1 = UA_WriterGroup_find(psm, writerGroup1);
+    UA_WriterGroup *wg2 = UA_WriterGroup_find(psm, writerGroup2);
+    ck_assert_ptr_nonnull(wg1);
+    ck_assert_ptr_nonnull(wg2);
+    ck_assert_uint_eq(wg1->writersCount, 2);
+    ck_assert_uint_eq(wg2->writersCount, 2);
 } END_TEST
 
 START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
@@ -559,6 +614,126 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
+static void
+noopConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                       void *application, void **connectionContext,
+                       UA_ConnectionState state, const UA_KeyValueMap *params,
+                       UA_ByteString msg) {
+    (void)cm;
+    (void)connectionId;
+    (void)application;
+    (void)connectionContext;
+    (void)state;
+    (void)params;
+    (void)msg;
+}
+
+START_TEST(PromotedFieldsAreCollectedFromPublishedValues) {
+    UA_Int32 publishedValue = 62541;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Variant_setScalar(&attr.value, &publishedValue,
+                         &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId sourceId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "PromotedFieldSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL,
+        &sourceId), UA_STATUSCODE_GOOD);
+
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name = UA_STRING("PromotedFieldPDS");
+    UA_NodeId pdsId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdsConfig,
+                                                    &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig fieldConfig;
+    memset(&fieldConfig, 0, sizeof(fieldConfig));
+    fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("promoted");
+    fieldConfig.field.variable.promotedField = true;
+    fieldConfig.field.variable.publishParameters.publishedVariable = sourceId;
+    fieldConfig.field.variable.publishParameters.attributeId =
+        UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &fieldConfig,
+                                                NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_UadpWriterGroupMessageDataType messageSettings;
+    UA_UadpWriterGroupMessageDataType_init(&messageSettings);
+    messageSettings.networkMessageContentMask =
+        UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER |
+        UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS;
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name = UA_STRING("PromotedFieldWG");
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_ExtensionObject_setValue(
+        &writerGroupConfig.messageSettings, &messageSettings,
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    UA_NodeId wgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1,
+                                               &writerGroupConfig, &wgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig writerConfig;
+    memset(&writerConfig, 0, sizeof(writerConfig));
+    writerConfig.name = UA_STRING("PromotedFieldDSW");
+    writerConfig.dataSetWriterId = 17;
+    UA_NodeId dswId;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId,
+                                                 &writerConfig, &dswId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ConnectionManager *testCm = TestConnectionManager_new("udp", NULL);
+    ck_assert_ptr_nonnull(testCm);
+    uintptr_t sendChannel = 0;
+    ck_assert_uint_eq(TestConnectionManager_createConnection(
+        testCm, NULL, NULL, noopConnectionCallback, &sendChannel),
+        UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(psm, connection1);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    ck_assert_ptr_nonnull(connection);
+    ck_assert_ptr_nonnull(wg);
+    ck_assert_ptr_nonnull(dsw);
+    UA_ConnectionManager *originalCm = connection->cm;
+    uintptr_t originalSendChannel = connection->sendChannel;
+    connection->cm = testCm;
+    connection->sendChannel = sendChannel;
+    wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    dsw->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    ck_assert_uint_eq(UA_Server_triggerWriterGroupPublish(server, wgId),
+                      UA_STATUSCODE_GOOD);
+    const UA_ByteString *sent = TestConnectionManager_getLastSent(testCm);
+    ck_assert_ptr_nonnull(sent);
+    ck_assert_uint_gt(sent->length, 0);
+
+    UA_NetworkMessage decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    ck_assert_uint_eq(UA_NetworkMessage_decodeBinary(sent, &decoded, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(decoded.promotedFieldsEnabled);
+    ck_assert_uint_eq(decoded.promotedFieldsSize, 1);
+    ck_assert_ptr_eq(decoded.promotedFields[0].type,
+                     &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(*(UA_Int32*)decoded.promotedFields[0].data,
+                     publishedValue);
+    UA_NetworkMessage_clear(&decoded);
+
+    connection->cm = originalCm;
+    connection->sendChannel = originalSendChannel;
+    testCm->eventSource.free(&testCm->eventSource);
+} END_TEST
+
 START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         setupPublishedDataSetTestEnvironment();
 
@@ -641,7 +816,8 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         psm = getPSM(server);
         dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
         ck_assert_ptr_nonnull(dsw);
-        retVal = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &deltaFrame);
+        retVal = UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm, &deltaFrame,
+                                                                  dsw);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deltaFrame.header.dataSetMessageType,
                           UA_DATASETMESSAGE_DATADELTAFRAME);
@@ -657,6 +833,313 @@ START_TEST(DeltaFrameFieldCountMatchesChangedFields){
         UA_NodeId_clear(&node1);
         UA_NodeId_clear(&node2);
     } END_TEST
+
+START_TEST(DataSetWriterResizesSamplesAfterFieldAddition) {
+    setupPublishedDataSetTestEnvironment();
+    UA_Server_getConfig(server)->pubSubConfig.enableDeltaFrames = true;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 values[2] = {10, 20};
+    UA_NodeId nodes[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&attr.value, &values[i],
+                             &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_addVariableNode(
+            server, UA_NODEID_NULL,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+            UA_QUALIFIEDNAME(1, "ResizableSampleSource"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL,
+            &nodes[i]), UA_STATUSCODE_GOOD);
+    }
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("first");
+    field.field.variable.publishParameters.publishedVariable = nodes[0];
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+    setupDataSetFieldTestEnvironment();
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    ck_assert_ptr_nonnull(dsw);
+    dsw->config.keyFrameCount = 10;
+
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    lockServer(server);
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dsw->lastSamplesCount, 1);
+    UA_DataSetMessage_clear(&message);
+
+    field.field.variable.fieldNameAlias = UA_STRING("second");
+    field.field.variable.publishParameters.publishedVariable = nodes[1];
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+    memset(&message, 0, sizeof(message));
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(dsw->lastSamplesCount, 2);
+    ck_assert_uint_eq(message.fieldCount, 2);
+    UA_DataSetMessage_clear(&message);
+} END_TEST
+
+static size_t deltaSizeReadCount;
+
+static void
+countDeltaSizeRead(UA_Server *srv, const UA_NodeId *sessionId,
+                   void *sessionContext, const UA_NodeId *nodeId,
+                   void *nodeContext, const UA_NumericRange *range,
+                   const UA_DataValue *value) {
+    deltaSizeReadCount++;
+}
+
+START_TEST(KeepAliveAndDeltaSizeSelection) {
+    setupPublishedDataSetTestEnvironment();
+    UA_Server_getConfig(server)->pubSubConfig.enableDeltaFrames = true;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 values[2] = {10, 20};
+    UA_NodeId nodes[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&attr.value, &values[i], &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_addVariableNode(
+            server, UA_NODEID_NULL,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+            UA_QUALIFIEDNAME(1, "DeltaSizeField"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+            attr, NULL, &nodes[i]), UA_STATUSCODE_GOOD);
+
+        UA_DataSetFieldConfig field;
+        memset(&field, 0, sizeof(field));
+        field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        field.field.variable.fieldNameAlias = UA_STRING("field");
+        field.field.variable.publishParameters.publishedVariable = nodes[i];
+        field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                    &field, NULL).result,
+                          UA_STATUSCODE_GOOD);
+    }
+    setupDataSetFieldTestEnvironment();
+    UA_ValueSourceNotifications notifications = {countDeltaSizeRead, NULL};
+    for(size_t i = 0; i < 2; i++)
+        ck_assert_uint_eq(UA_Server_setVariableNode_internalValueSource(
+            server, nodes[i], NULL, &notifications), UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    UA_WriterGroup *wg = dsw->linkedWriterGroup;
+    dsw->config.keyFrameCount = 10;
+    dsw->config.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
+    UA_UadpDataSetWriterMessageDataType settings;
+    UA_UadpDataSetWriterMessageDataType_init(&settings);
+    settings.dataSetMessageContentMask =
+        UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER |
+        UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP |
+        UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION;
+    UA_ExtensionObject_clear(&dsw->config.messageSettings);
+    ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&dsw->config.messageSettings,
+        &settings, &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]),
+        UA_STATUSCODE_GOOD);
+    wg->config.keepAliveTime = 100;
+
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATAKEYFRAME);
+    UA_DataSetMessage_clear(&message);
+
+    /* No change before KeepAliveTime produces no message. */
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOODNODATA);
+    UA_EventLoop *el = server->config.eventLoop;
+    lockServer(server);
+    dsw->lastDataSetMessageTime = el->dateTime_nowMonotonic(el) -
+        (UA_DateTime)(wg->config.keepAliveTime * UA_DATETIME_MSEC) - 1;
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_KEEPALIVE);
+    ck_assert_uint_eq(message.fieldCount, 0);
+    UA_DataSetMessage_clear(&message);
+
+    /* Changing all fields makes the indexed delta larger than the key frame;
+     * the writer selects the key frame. */
+    values[0] = 11;
+    values[1] = 21;
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant updated;
+        UA_Variant_setScalar(&updated, &values[i], &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_uint_eq(UA_Server_writeValue(server, nodes[i], updated),
+                          UA_STATUSCODE_GOOD);
+    }
+    lockServer(server);
+    memset(&message, 0, sizeof(message));
+    deltaSizeReadCount = 0;
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATAKEYFRAME);
+    ck_assert_uint_eq(deltaSizeReadCount, 2);
+    ck_assert_uint_eq(message.header.fieldEncoding, UA_FIELDENCODING_DATAVALUE);
+    ck_assert(message.header.dataSetMessageSequenceNrEnabled);
+    ck_assert(message.header.timestampEnabled);
+    ck_assert(message.header.configVersionMajorVersionEnabled);
+    UA_DataSetMessage_clear(&message);
+} END_TEST
+
+static UA_StatusCode
+readBadPublishedValue(UA_Server *serverArg, const UA_NodeId *sessionId,
+                      void *sessionContext, const UA_NodeId *nodeId,
+                      void *nodeContext, UA_Boolean includeSourceTimestamp,
+                      const UA_NumericRange *range, UA_DataValue *value) {
+    (void)serverArg;
+    (void)sessionId;
+    (void)sessionContext;
+    (void)nodeId;
+    (void)nodeContext;
+    (void)includeSourceTimestamp;
+    (void)range;
+    value->hasStatus = true;
+    value->status = UA_STATUSCODE_BADNODATA;
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(PublishedVariableDeadbandAndSubstituteValue) {
+    setupPublishedDataSetTestEnvironment();
+    UA_Server_getConfig(server)->pubSubConfig.enableDeltaFrames = true;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    UA_Double source = 100;
+    UA_Variant_setScalar(&attr.value, &source, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_NodeId sourceId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "DeadbandSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &sourceId), UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("deadband");
+    field.field.variable.publishParameters.publishedVariable = sourceId;
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    field.field.variable.publishParameters.deadbandType = UA_DEADBANDTYPE_ABSOLUTE;
+    field.field.variable.publishParameters.deadbandValue = 5;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_Double badInitial = 0;
+    UA_Variant_setScalar(&attr.value, &badInitial, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_NodeId badSourceId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SubstituteSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &badSourceId), UA_STATUSCODE_GOOD);
+    UA_CallbackValueSource badSource = {readBadPublishedValue, NULL};
+    ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(
+        server, badSourceId, badSource), UA_STATUSCODE_GOOD);
+
+    UA_Double substitute = 777;
+    field.field.variable.fieldNameAlias = UA_STRING("substitute");
+    field.field.variable.publishParameters.publishedVariable = badSourceId;
+    field.field.variable.publishParameters.deadbandType = UA_DEADBANDTYPE_NONE;
+    UA_Variant_setScalar(&field.field.variable.publishParameters.substituteValue,
+                         &substitute, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, publishedDataSet1,
+                                                &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+    setupDataSetFieldTestEnvironment();
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
+    dsw->config.keyFrameCount = 10;
+    dsw->config.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    UA_StatusCode res =
+        UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(message.fieldCount, 2);
+    ck_assert_uint_eq(message.data.keyFrameFields[1].status,
+                      UA_STATUSCODE_UNCERTAINSUBSTITUTEVALUE);
+    ck_assert_double_eq(*(UA_Double*)message.data.keyFrameFields[1].value.data,
+                     substitute);
+    UA_DataSetMessage_clear(&message);
+
+    source = 104;
+    UA_Variant updated;
+    UA_Variant_setScalar(&updated, &source, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, sourceId, updated),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOODNODATA);
+
+    source = 106;
+    UA_Variant_setScalar(&updated, &source, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, sourceId, updated),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* Only the changed field is needed, including its DataValue encoding. */
+    ck_assert_uint_eq(message.header.dataSetMessageType,
+                      UA_DATASETMESSAGE_DATADELTAFRAME);
+    ck_assert_uint_eq(message.fieldCount, 1);
+    ck_assert_double_eq(*(UA_Double*)message.data.deltaFrameFields[0].value.value.data,
+                     source);
+    UA_DataSetMessage_clear(&message);
+
+    /* A transition into or out of NaN must not disappear in the deadband. */
+    UA_Double transitions[2] = {NAN, 107.0};
+    for(size_t i = 0; i < 2; i++) {
+        UA_Variant_setScalar(&updated, &transitions[i], &UA_TYPES[UA_TYPES_DOUBLE]);
+        ck_assert_uint_eq(UA_Server_writeValue(server, sourceId, updated),
+                          UA_STATUSCODE_GOOD);
+        lockServer(server);
+        res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &message);
+        unlockServer(server);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        UA_DataSetMessage_clear(&message);
+    }
+} END_TEST
 
 
 /* Test DataSetOrdering reconfiguration (OPC UA Part 14, section 6.3.1.1.3) 
@@ -1086,6 +1569,55 @@ START_TEST(GetWriterGroupLastPublishTimestampInvalid) {
     ck_assert_int_eq(r, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+START_TEST(WriterGroupRejectsOversizedNetworkMessage) {
+    UA_PublishedDataSetConfig pdc;
+    memset(&pdc, 0, sizeof(pdc));
+    pdc.name = UA_STRING("PDS-SizeLimit");
+    UA_NodeId pdsId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdc, &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("state");
+    field.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("WG-SizeLimit");
+    wgc.publishingInterval = 100;
+    wgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    wgc.maxNetworkMessageSize = 1;
+    UA_NodeId wgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1, &wgc, &wgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig dswc;
+    memset(&dswc, 0, sizeof(dswc));
+    dswc.name = UA_STRING("DSW-SizeLimit");
+    UA_NodeId dswId;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId,
+                                                 &dswc, &dswId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_enableAllPubSubComponents(server),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    ck_assert_ptr_nonnull(wg);
+    UA_WriterGroup_publishCallback(psm, wg);
+    ck_assert_uint_eq(wg->head.state, UA_PUBSUBSTATE_ERROR);
+
+    UA_Server_disableAllPubSubComponents(server);
+    UA_Server_removeWriterGroup(server, wgId);
+    UA_Server_removePublishedDataSet(server, pdsId);
+} END_TEST
+
 START_TEST(GetDataSetWriterStateAndConfigInvalid) {
     UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
     UA_StatusCode r =
@@ -1097,6 +1629,64 @@ START_TEST(GetDataSetWriterStateAndConfigInvalid) {
     r = UA_Server_getDataSetWriterConfig(server,
             UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dswc);
     ck_assert_int_ne(r, UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Regression test for stack overflow in UA_Server_computeWriterGroupOffsetTable
+ * when a WriterGroup has more writers than UA_NETWORKMESSAGE_MAXMESSAGECOUNT (32).
+ * The offset-table path called generateNetworkMessage directly, bypassing the
+ * dsmCount guard present in sendNetworkMessage, writing past the fixed-size
+ * dataSetWriterIds[32] array on the stack. */
+START_TEST(ComputeOffsetTableMoreThanMaxWriters) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Create a PublishedDataSet with one field */
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name = UA_STRING("PDS-MaxWriters");
+    UA_NodeId pdsId;
+    retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsId).addResult;
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig fieldConfig;
+    memset(&fieldConfig, 0, sizeof(fieldConfig));
+    fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("Field");
+    fieldConfig.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    retVal = UA_Server_addDataSetField(server, pdsId, &fieldConfig, NULL).result;
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Create a WriterGroup */
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("WG-MaxWriters");
+    wgc.publishingInterval = 100;
+    UA_NodeId wgId;
+    retVal = UA_Server_addWriterGroup(server, connection1, &wgc, &wgId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Add 33 DataSetWriters (one more than UA_NETWORKMESSAGE_MAXMESSAGECOUNT) */
+    UA_DataSetWriterConfig dswConfig;
+    memset(&dswConfig, 0, sizeof(dswConfig));
+    dswConfig.name = UA_STRING("DSW");
+    for(size_t i = 0; i < 33; i++) {
+        UA_NodeId dswId;
+        retVal = UA_Server_addDataSetWriter(server, wgId, pdsId,
+                                             &dswConfig, &dswId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    }
+
+    /* Compute the offset table. Without the guard this would write past
+     * the on-stack dataSetWriterIds array and corrupt the stack. With the
+     * guard, computeWriterGroupOffsetTable returns an error status. */
+    UA_PubSubOffsetTable ot;
+    retVal = UA_Server_computeWriterGroupOffsetTable(server, wgId, &ot);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    UA_PubSubOffsetTable_clear(&ot);
+
+    UA_Server_removeWriterGroup(server, wgId);
+    UA_Server_removePublishedDataSet(server, pdsId);
 } END_TEST
 
 int main(void) {
@@ -1111,6 +1701,8 @@ int main(void) {
     TCase *tc_add_pubsub_datasetwriter = tcase_create("PubSub DataSetWriter items handling");
     tcase_add_checked_fixture(tc_add_pubsub_datasetwriter, setup, teardown);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddDataSetWriterWithValidConfiguration);
+    tcase_add_test(tc_add_pubsub_datasetwriter,
+                   AddDataSetWriterRejectsDuplicateIdInWriterGroup);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddRemoveAddDataSetWriterWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddDataSetWriterWithNullConfig);
     tcase_add_test(tc_add_pubsub_datasetwriter, AddDataSetWriterWithInvalidPDSId);
@@ -1131,7 +1723,14 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
+    tcase_add_test(tc_pubsub_publish,
+                   PromotedFieldsAreCollectedFromPublishedValues);
     tcase_add_test(tc_pubsub_publish, DeltaFrameFieldCountMatchesChangedFields);
+    tcase_add_test(tc_pubsub_publish,
+                   DataSetWriterResizesSamplesAfterFieldAddition);
+    tcase_add_test(tc_pubsub_publish, KeepAliveAndDeltaSizeSelection);
+    tcase_add_test(tc_pubsub_publish,
+                   PublishedVariableDeadbandAndSubstituteValue);
 
     TCase *tc_pubsub_datasetordering = tcase_create("PubSub DataSetOrdering (OPC UA Part 14)");
     tcase_add_checked_fixture(tc_pubsub_datasetordering, setup, teardown);
@@ -1150,7 +1749,10 @@ int main(void) {
     tcase_add_test(tc_pubsub_lifecycle, GetWriterGroupStateInvalid);
     tcase_add_test(tc_pubsub_lifecycle, TriggerWriterGroupPublishOnDisabledGroup);
     tcase_add_test(tc_pubsub_lifecycle, GetWriterGroupLastPublishTimestampInvalid);
+    tcase_add_test(tc_pubsub_lifecycle,
+                   WriterGroupRejectsOversizedNetworkMessage);
     tcase_add_test(tc_pubsub_lifecycle, GetDataSetWriterStateAndConfigInvalid);
+    tcase_add_test(tc_pubsub_lifecycle, ComputeOffsetTableMoreThanMaxWriters);
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);

@@ -24,6 +24,14 @@ endif()
 include_directories(${CHECK_INCLUDE_DIRS})
 link_directories(${CHECK_LIBRARY_DIRS})
 
+# Apply compatibility assertions to every test, including optional test suites.
+set(UA_CHECK_COMPAT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins/check_compat.h")
+if(MSVC)
+    add_compile_options("/FI${UA_CHECK_COMPAT_HEADER}")
+else()
+    add_compile_options("SHELL:-include \"${UA_CHECK_COMPAT_HEADER}\"")
+endif()
+
 # Valgrind dependency
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
@@ -42,7 +50,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/util")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
-include_directories("${PROJECT_BINARY_DIR}/../plugins")
+include_directories("${PROJECT_SOURCE_DIR}/plugins")
 
 if(UA_ARCHITECTURE_LWIP)
     # lwip includes
@@ -390,6 +398,7 @@ else()
 endif()
 
 if (UA_MULTITHREADING GREATER_EQUAL 100)
+    ua_add_test(multithreading/check_mt_shutdown.c)
     ua_add_test(multithreading/check_mt_addVariableNode.c)
     ua_add_test(multithreading/check_mt_addVariableTypeNode.c)
     ua_add_test(multithreading/check_mt_addObjectNode.c)
@@ -456,7 +465,13 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions_modify.c)
     ua_add_test(server/check_local_monitored_item.c)
-ua_add_test(server/check_datachange_deadband_typekinds.c)
+    ua_add_test(server/check_datachange_deadband_typekinds.c)
+endif()
+
+if(UA_ENABLE_DISCOVERY AND UA_ENABLE_DISCOVERY_MULTICAST AND NOT WIN32)
+    ua_add_test(server/check_findservers_on_network.c)
+    target_include_directories(check_findservers_on_network PRIVATE
+                               "${PROJECT_BINARY_DIR}/src_generated/mdnsd")
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -557,6 +572,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(client/check_client_subscriptions.c)
     ua_add_test(client/check_client_subscriptions_datachange.c)
     ua_add_test(client/check_subscriptionWithactivateSession.c)
+    ua_add_test(client/check_client_reconnect.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
@@ -669,9 +685,7 @@ endif()
 add_subdirectory(nodeset-compiler)
 
 # Tests for Nodeset Loader
-if(UA_ENABLE_NODESETLOADER)
-    add_subdirectory(nodeset-loader)
-endif()
+add_subdirectory(nodeset-loader)
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")

@@ -56,11 +56,6 @@ config OPEN62541_ENABLE_XML_ENCODING
     default n
     help
         Enable XML encoding (EXPERIMENTAL)
-config OPEN62541_ENABLE_NODESETLOADER
-    bool "Enable nodeset loader"
-    default n
-    help
-        Enable nodesetLoader public API
 config OPEN62541_ENABLE_DATATYPES_ALL
     bool "Enable all data types"
     default y

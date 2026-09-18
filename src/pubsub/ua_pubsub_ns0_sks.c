@@ -4,6 +4,8 @@
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright (c) 2025 Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_pubsub_internal.h"
@@ -117,6 +119,15 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      UA_StatusCode_name(retval));
         deleteNode(server, securityGroup->securityGroupNodeId, true);
     }
+    if(retval == UA_STATUSCODE_GOOD &&
+       server->config.pubSubConfig.enableInformationModelMethods) {
+        retval |= addRef(server, securityGroup->securityGroupNodeId,
+                         UA_NS0ID(HASCOMPONENT),
+                         UA_NS0ID(SECURITYGROUPTYPE_INVALIDATEKEYS), true);
+        retval |= addRef(server, securityGroup->securityGroupNodeId,
+                         UA_NS0ID(HASCOMPONENT),
+                         UA_NS0ID(SECURITYGROUPTYPE_FORCEKEYROTATION), true);
+    }
     return retval;
 }
 
@@ -177,19 +188,11 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!UA_String_equal(securityPolicyUri, &ks->policy->policyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, currentKeyId);
-    if(!current) {
-        UA_PubSubKeyStorage_clearKeyList(ks);
-        retval |= (UA_PubSubKeyStorage_push(ks, currentKey, currentKeyId)) ?
-            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_PubSubKeyStorage_setCurrentKey(ks, currentKeyId);
-    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, futureKeySize,
-                                                  futureKeys, currentKeyId);
-    ks->keyLifeTime = msKeyLifeTime;
+    UA_StatusCode retval = UA_PubSubKeyStorage_installKeyBatch(
+        ks, currentKeyId, currentKey, futureKeySize, futureKeys);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    ks->keyLifeTime = msKeyLifeTime;
 
     retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
                                                              ks->securityGroupID);
@@ -243,8 +246,6 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_StatusCode retval = UA_STATUSCODE_BAD;
-    UA_UInt32 currentKeyCount = 1;
-
     /* Input */
     UA_String *securityGroupId = (UA_String *)input[0].data;
     UA_UInt32 startingTokenId = *(UA_UInt32 *)input[1].data;
@@ -257,6 +258,8 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     UA_Boolean executable = false;
     UA_SecurityGroup *sg = UA_SecurityGroup_findByName(psm, *securityGroupId);
+    if(!sg || sg->keyStorage != ks)
+        return UA_STATUSCODE_BADNOTFOUND;
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
     executable = server->config.accessControl.getUserExecutableOnObject(
@@ -266,18 +269,14 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!executable)
         return UA_STATUSCODE_BADUSERACCESSDENIED;
 
-    /* If the caller requests a number larger than the Security Key Service
-     * permits, then the SKS shall return the maximum it allows.*/
-    if(requestedKeyCount > sg->config.maxFutureKeyCount)
-        requestedKeyCount =(UA_UInt32) sg->keyStorage->keyListSize;
-    else
-        requestedKeyCount = requestedKeyCount + currentKeyCount; /* Add Current keyCount */
-
     /* The current token is requested by passing 0. */
     UA_PubSubKeyListItem *startingItem = NULL;
     if(startingTokenId == 0) {
-        /* currentItem is always set by the server when a security group is added */
-        UA_assert(sg->keyStorage->currentItem != NULL);
+        /* InvalidateKeys deliberately clears the current item until new keys
+         * are installed. Do not turn that valid method sequence into an
+         * assertion failure. */
+        if(!sg->keyStorage->currentItem)
+            return UA_STATUSCODE_BADNOTFOUND;
         startingItem = sg->keyStorage->currentItem;
     } else {
         startingItem = UA_PubSubKeyStorage_getKeyByKeyId(sg->keyStorage, startingTokenId);
@@ -286,6 +285,19 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         if(!startingItem)
             startingItem = TAILQ_FIRST(&sg->keyStorage->keyList);
     }
+
+    /* RequestedKeyCount excludes the first key. Bound the response by the
+     * entries actually reachable from StartingTokenId. This avoids UInt32
+     * overflow and does not allocate slots that cannot be filled. */
+    size_t availableKeys = 0;
+    UA_PubSubKeyListItem *available = startingItem;
+    while(available) {
+        availableKeys++;
+        available = TAILQ_NEXT(available, keyListEntry);
+    }
+    UA_UInt64 requestedWithFirst = (UA_UInt64)requestedKeyCount + 1u;
+    size_t keysToReturn = (size_t)UA_MIN(requestedWithFirst,
+                                             (UA_UInt64)availableKeys);
 
     /* SecurityPolicyUri */
     retval = UA_Variant_setScalarCopy(&output[0], &(sg->keyStorage->policy->policyUri),
@@ -304,9 +316,10 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_DateTime baseTime = sg->baseTime;
     UA_DateTime currentTime = el->dateTime_nowMonotonic(el);
     UA_Duration interval = sg->config.keyLifeTime;
-    UA_Duration timeToNextKey =
+    UA_Duration elapsed =
         (UA_Duration)((currentTime - baseTime) / UA_DATETIME_MSEC);
-    timeToNextKey = interval - timeToNextKey;
+    UA_Duration timeToNextKey =
+        (elapsed < interval) ? interval - elapsed : 0.0;
     retval = UA_Variant_setScalarCopy(&output[3], &timeToNextKey,
                                       &UA_TYPES[UA_TYPES_DURATION]);
     if(retval != UA_STATUSCODE_GOOD)
@@ -320,26 +333,121 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     /* Keys */
     UA_PubSubKeyListItem *iterator = startingItem;
+    /* Allocate an array of UA_ByteString, not a flat byte buffer.
+     * The previous code used UA_calloc(requestedKeyCount, startingItem->key.length)
+     * which allocated count*keyLength bytes but then indexed the result as
+     * UA_ByteString (16 bytes each) -> heap overflow when keyLength < 16. */
     output[2].data = (UA_ByteString *)
-        UA_calloc(requestedKeyCount, startingItem->key.length);
-    if(!output[2].data)
+        UA_calloc(keysToReturn, sizeof(UA_ByteString));
+    if(keysToReturn > 0 && !output[2].data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_ByteString *requestedKeys = (UA_ByteString *)output[2].data;
     UA_UInt32 retkeyCount = 0;
-    for(size_t i = 0; i < requestedKeyCount; i++) {
-        UA_ByteString_copy(&iterator->key, &requestedKeys[i]);
+    for(size_t i = 0; i < keysToReturn; i++) {
+        retval = UA_ByteString_copy(&iterator->key, &requestedKeys[i]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            keysToReturn = retkeyCount;
+            break;
+        }
         ++retkeyCount;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
         if(!iterator) {
-            requestedKeyCount = retkeyCount;
+            keysToReturn = retkeyCount;
             break;
         }
     }
 
-    UA_Variant_setArray(&output[2], requestedKeys, requestedKeyCount,
+    UA_Variant_setArray(&output[2], requestedKeys, keysToReturn,
                         &UA_TYPES[UA_TYPES_BYTESTRING]);
     return retval;
+}
+
+static UA_StatusCode
+getSecurityGroupAction(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *methodId,
+                       void *methodContext, const UA_NodeId *objectId,
+                       void *objectContext, size_t inputSize,
+                       const UA_Variant *input, size_t outputSize,
+                       UA_Variant *output) {
+    (void)sessionId; (void)sessionContext; (void)methodId;
+    (void)methodContext; (void)objectId; (void)objectContext;
+    if(inputSize != 1 || outputSize != 1)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_SecurityGroup *sg = UA_SecurityGroup_findByName(
+        getPSM(server), *(UA_String*)input[0].data);
+    if(!sg)
+        return UA_STATUSCODE_BADNOTFOUND;
+    return UA_Variant_setScalarCopy(&output[0], &sg->securityGroupNodeId,
+                                    &UA_TYPES[UA_TYPES_NODEID]);
+}
+
+/* Local administrative calls have no SecureChannel. Remote calls require
+ * signing, as specified for the SecurityGroup key-management methods. */
+static UA_StatusCode
+checkSecurityGroupMethodChannel(UA_Server *server, const UA_NodeId *sessionId) {
+    if(!sessionId)
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    if(UA_NodeId_equal(sessionId, &server->adminSession.sessionId))
+        return UA_STATUSCODE_GOOD;
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session || !session->channel)
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    UA_MessageSecurityMode mode = session->channel->securityMode;
+    if(mode != UA_MESSAGESECURITYMODE_SIGN &&
+       mode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+invalidateKeysAction(UA_Server *server, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_NodeId *methodId,
+                     void *methodContext, const UA_NodeId *objectId,
+                     void *objectContext, size_t inputSize,
+                     const UA_Variant *input, size_t outputSize,
+                     UA_Variant *output) {
+    (void)sessionContext; (void)methodId; (void)methodContext;
+    (void)objectContext; (void)input; (void)output;
+    if(inputSize != 0 || outputSize != 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode res = checkSecurityGroupMethodChannel(server, sessionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(getPSM(server), *objectId);
+    if(!sg || !sg->keyStorage)
+        return UA_STATUSCODE_BADNOTFOUND;
+    return UA_SecurityGroup_invalidateKeys(getPSM(server), sg);
+}
+
+static UA_StatusCode
+forceKeyRotationAction(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *methodId,
+                       void *methodContext, const UA_NodeId *objectId,
+                       void *objectContext, size_t inputSize,
+                       const UA_Variant *input, size_t outputSize,
+                       UA_Variant *output) {
+    (void)sessionContext; (void)methodId; (void)methodContext;
+    (void)objectContext; (void)input; (void)output;
+    if(inputSize != 0 || outputSize != 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_StatusCode res = checkSecurityGroupMethodChannel(server, sessionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(getPSM(server), *objectId);
+    if(!sg || !sg->keyStorage)
+        return UA_STATUSCODE_BADNOTFOUND;
+    UA_UInt32 oldCurrentKeyId = sg->keyStorage->currentItem ?
+        sg->keyStorage->currentItem->keyID : 0;
+    res = UA_SecurityGroup_rotateKeys(getPSM(server), sg);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!sg->keyStorage->currentItem ||
+       sg->keyStorage->currentItem->keyID == oldCurrentKeyId)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -352,6 +460,12 @@ initPubSubNS0_SKS(UA_Server *server) {
         /* Set SKS method callbacks */
         retVal |= setMethodNode_callback(server, UA_NS0ID(PUBLISHSUBSCRIBE_SETSECURITYKEYS), setSecurityKeysAction);
         retVal |= setMethodNode_callback(server, UA_NS0ID(PUBLISHSUBSCRIBE_GETSECURITYKEYS), getSecurityKeysAction);
+        retVal |= setMethodNode_callback(server,
+            UA_NS0ID(PUBLISHSUBSCRIBE_GETSECURITYGROUP), getSecurityGroupAction);
+        retVal |= setMethodNode_callback(server,
+            UA_NS0ID(SECURITYGROUPTYPE_INVALIDATEKEYS), invalidateKeysAction);
+        retVal |= setMethodNode_callback(server,
+            UA_NS0ID(SECURITYGROUPTYPE_FORCEKEYROTATION), forceKeyRotationAction);
     }
 
     return retVal;

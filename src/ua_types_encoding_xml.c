@@ -11,7 +11,9 @@
 #include "ua_types_encoding_xml.h"
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
+#include <stdint.h>
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
@@ -106,6 +108,8 @@ xml_tokenize(const char *xml, unsigned int len,
         }
         case YXML_CONTENT:
         case YXML_ATTRVAL:
+            if(ctx.isReference && xml_status == YXML_CONTENT)
+                stack[top]->contentEscaped = true;
             if(val_begin == 0)
                 val_begin = pos;
             stack[top]->end = pos;
@@ -152,6 +156,75 @@ xml_tokenize(const char *xml, unsigned int len,
     return res;
 }
 
+/* Get the complete raw element content, including CDATA markers. */
+static status
+getTokenContent(const char *xml, const xml_token *token, UA_String *content) {
+    size_t begin = token->start;
+    char quote = 0;
+    for(; begin < token->end; begin++) {
+        char c = xml[begin];
+        if(quote) {
+            if(c == quote)
+                quote = 0;
+        } else if(c == '\'' || c == '"') {
+            quote = c;
+        } else if(c == '>') {
+            begin++;
+            break;
+        }
+    }
+    if(begin >= token->end)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    size_t end = token->end;
+    while(end > begin && xml[end - 1] != '<')
+        end--;
+    if(end <= begin)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    end--;
+
+    content->data = (UA_Byte*)(uintptr_t)&xml[begin];
+    content->length = end - begin;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Decode character and entity references and remove CDATA markers in the
+ * already copied content. Output never overtakes unread input, so rewriting
+ * in-place is safe. */
+static status
+decodeTokenContentInPlace(UA_String *content) {
+    yxml_t parser;
+    char parserStack[512];
+    yxml_init_content(&parser, parserStack, sizeof(parserStack));
+    unsigned depth = 0;
+    size_t outPos = 0;
+
+    for(size_t pos = 0; pos < content->length; pos++) {
+        yxml_ret_t event = yxml_parse(&parser, content->data[pos]);
+        if(event < YXML_OK)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        if(event == YXML_ELEMSTART) {
+            depth++;
+        } else if(event == YXML_ELEMEND) {
+            if(depth == 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            depth--;
+        } else if(event == YXML_CONTENT && depth == 0) {
+            size_t eventLength = strlen(parser.data);
+            if(outPos > content->length ||
+               eventLength > content->length - outPos)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            memcpy(&content->data[outPos], parser.data, eventLength);
+            outPos += eventLength;
+        }
+    }
+
+    if(depth != 0 || yxml_eof(&parser) != YXML_OK)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    content->length = outPos;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Map for decoding a XML complex object type. An array of this is passed to the
  * decodeXmlFields function. If the xml element with name "fieldName" is found
  * in the xml complex object (mark as found) decode the value with the "function"
@@ -192,12 +265,47 @@ typedef struct {
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
-    if(ctx->pos + len > ctx->end)
+    if(ctx->calcOnly) {
+        uintptr_t pos = (uintptr_t)ctx->pos;
+        if(len > UINTPTR_MAX - pos)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        ctx->pos = (uint8_t*)(pos + len);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(len > (size_t)(ctx->end - ctx->pos))
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly && len)
+    if(len)
         memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
+}
+
+/* Element content cannot carry '&' and '<' as they are. The other three
+ * predefined entities are only needed in attributes or where a CDATA section
+ * would end, escaping all five everywhere is simpler and decodes back the
+ * same. */
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+xmlEncodeWriteEscapedChars(CtxXml *ctx, const char *c, size_t len) {
+    if(len == 0)
+        return UA_STATUSCODE_GOOD;
+    status ret = UA_STATUSCODE_GOOD;
+    size_t start = 0;
+    for(size_t i = 0; i < len; i++) {
+        const char *entity;
+        size_t entityLen;
+        switch(c[i]) {
+        case '&':  entity = "&amp;";  entityLen = 5; break;
+        case '<':  entity = "&lt;";   entityLen = 4; break;
+        case '>':  entity = "&gt;";   entityLen = 4; break;
+        case '"':  entity = "&quot;"; entityLen = 6; break;
+        case '\'': entity = "&apos;"; entityLen = 6; break;
+        default: continue;
+        }
+        ret |= xmlEncodeWriteChars(ctx, &c[start], i - start);
+        ret |= xmlEncodeWriteChars(ctx, entity, entityLen);
+        start = i + 1;
+    }
+    return ret | xmlEncodeWriteChars(ctx, &c[start], len - start);
 }
 
 static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
@@ -361,7 +469,7 @@ ENCODE_XML(Double) {
 /* String */
 ENCODE_XML(String) {
     const UA_String *src = (const UA_String*)src_;
-    return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
+    return xmlEncodeWriteEscapedChars(ctx, (const char*)src->data, src->length);
 }
 
 /* XmlElement */
@@ -463,22 +571,32 @@ ENCODE_XML(QualifiedName) {
     if(ctx->namespaceMapping)
         index = UA_NamespaceMapping_local2Remote(ctx->namespaceMapping, index);
 
-    /* Write out the elements */
+    /* Write out the elements. Same rule as in encodeXmlStructure: an absent
+     * (NULL) String is skipped so it does not come back as an empty String
+     * on decoding. An empty-but-present String is still written. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
                            &index, &UA_TYPES[UA_TYPES_UINT16]);
-    ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
-                           &src->name, &UA_TYPES[UA_TYPES_STRING]);
+    if(src->name.data)
+        ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
+                               &src->name, &UA_TYPES[UA_TYPES_STRING]);
     return ret;
 }
 
 /* LocalizedText */
 ENCODE_XML(LocalizedText) {
     const UA_LocalizedText *src = (const UA_LocalizedText*)src_;
-    return writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
-                           &src->locale, &UA_TYPES[UA_TYPES_STRING]) |
-        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
-                        &src->text, &UA_TYPES[UA_TYPES_STRING]);
+    /* Same rule as in encodeXmlStructure: an absent (NULL) String is skipped
+     * so it does not come back as an empty String on decoding. An
+     * empty-but-present String is still written. */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(src->locale.data)
+        ret |= writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
+                               &src->locale, &UA_TYPES[UA_TYPES_STRING]);
+    if(src->text.data)
+        ret |= writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
+                               &src->text, &UA_TYPES[UA_TYPES_STRING]);
+    return ret;
 }
 
 /* ExtensionObject */
@@ -506,7 +624,8 @@ ENCODE_XML(ExtensionObject) {
            ret |= writeXmlElement(ctx, "ByteString", &src->content.encoded.body,
                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
         else
-            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
+            /* An XML encoded body is markup already, it goes out as it is */
+            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, XmlElement);
         ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     } else {
         /* Write the decoded value */
@@ -991,6 +1110,15 @@ Enum_decodeXml(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
             return UA_STATUSCODE_GOOD;
         }
     }
+
+    /* Be lenient with XML produced by implementations that encode enum values
+     * as bare integers instead of the schema-defined "Name_Value" form. */
+    UA_Int64 value = 0;
+    UA_StatusCode ret = decodeSigned(data, length, &value);
+    if(ret == UA_STATUSCODE_GOOD && value >= UA_INT32_MIN && value <= UA_INT32_MAX) {
+        *(UA_Int32*)dst = (UA_Int32)value;
+        return UA_STATUSCODE_GOOD;
+    }
     return UA_STATUSCODE_BADDECODINGERROR;
 }
 
@@ -1099,6 +1227,7 @@ DECODE_XML(Float) {
 DECODE_XML(String) {
     UA_String *dst = (UA_String*)dst_;
     CHECK_DATA_BOUNDS;
+    const xml_token *token = &ctx->tokens[ctx->index];
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
 
@@ -1110,7 +1239,20 @@ DECODE_XML(String) {
     }
 
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-    return UA_String_copy(&str, dst);
+    status ret = UA_STATUSCODE_GOOD;
+    if(token->contentEscaped)
+        ret = getTokenContent(ctx->xml, token, &str);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    ret = UA_String_copy(&str, dst);
+    if(ret != UA_STATUSCODE_GOOD || !token->contentEscaped)
+        return ret;
+
+    ret = decodeTokenContentInPlace(dst);
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_String_clear(dst);
+    return ret;
 }
 
 DECODE_XML(DateTime) {
@@ -1579,7 +1721,7 @@ unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
     }
 
     /* Allocate the array */
-    void *unpacked = UA_calloc(dst->arrayLength, type->memSize);
+    void *unpacked = UA_Array_new(dst->arrayLength, type);
     if(!unpacked)
         return;
 
@@ -1643,8 +1785,12 @@ decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
 
     /* Check that the ArrayDimensions match */
     size_t dimLen = 1;
-    for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
+    for(size_t i = 0; i < dst->arrayDimensionsSize; i++) {
+        if(dst->arrayDimensions[i] != 0 &&
+           dimLen > SIZE_MAX / dst->arrayDimensions[i])
+            return UA_STATUSCODE_BADDECODINGERROR;
         dimLen *= dst->arrayDimensions[i];
+    }
 
     return (dimLen == dst->arrayLength) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADDECODINGERROR;
 }
@@ -1810,7 +1956,7 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
-    u8 membersSize = type->membersSize;
+    size_t membersSize = type->membersSize;
     UA_STACKARRAY(XmlDecodeEntry, entries, membersSize);
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
@@ -1837,6 +1983,44 @@ decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
+    return ret;
+}
+
+static status
+decodeXmlUnion(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    CHECK_DATA_BOUNDS;
+    UA_String switchName = UA_STRING_STATIC("SwitchField");
+    UA_String switchContent;
+    status ret = getChildContent(ctx, switchName, &switchContent);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    UA_UInt64 selection = 0;
+    ret = decodeUnsigned(switchContent.data, switchContent.length, &selection);
+    if(ret != UA_STATUSCODE_GOOD || selection > type->membersSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    *(UA_UInt32 *)dst = (UA_UInt32)selection;
+
+    /* Decode only the selected field. All union members share their storage. */
+    XmlDecodeEntry entries[2] = {
+        {switchName, dst, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
+        {UA_STRING_NULL, NULL, NULL, false, NULL}
+    };
+    size_t entriesSize = 1;
+    if(selection > 0) {
+        const UA_DataTypeMember *member = &type->members[selection - 1];
+        entries[1].name = UA_STRING((char *)(uintptr_t)member->memberName);
+        entries[1].fieldPointer = (UA_Byte *)dst + member->padding;
+        entries[1].function = member->isArray ? Array_decodeXml : NULL;
+        entries[1].type = member->memberType;
+        entriesSize++;
+    }
+
+    ret = decodeXmlFields(ctx, entries, entriesSize);
+    if(ret == UA_STATUSCODE_GOOD &&
+       (!entries[0].found || *(UA_UInt32 *)dst != selection ||
+        (selection > 0 && !entries[1].found)))
+        ret = UA_STATUSCODE_BADDECODINGERROR;
     return ret;
 }
 
@@ -1885,7 +2069,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     Enum_decodeXml,             /* Enum */
     decodeXmlStructure,         /* Structure */
     decodeXmlStructure,         /* Structure with optional fields */
-    decodeXmlNotImplemented,    /* Union */
+    decodeXmlUnion,             /* Union */
     decodeXmlNotImplemented     /* BitfieldCluster */
 };
 
@@ -1894,6 +2078,8 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
              const UA_DecodeXmlOptions *options) {
     if(!dst || !src || !type)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(src->length > UINT_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Tokenize. Add a fake wrapper element if options->unwrapped is enabled. */
     unsigned tokensSize = 63;
@@ -1903,7 +2089,12 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     xml_result res = xml_tokenize((char*)src->data, (unsigned)src->length,
                                   tokens + 1, tokensSize);
     if(res.error == XML_ERROR_OVERFLOW) {
-        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * (res.num_tokens + 1));
+        if(res.num_tokens == UINT_MAX)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        size_t requiredTokens = (size_t)res.num_tokens + 1;
+        if(requiredTokens > SIZE_MAX / sizeof(xml_token))
+            return UA_STATUSCODE_BADDECODINGERROR;
+        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * requiredTokens);
         if(!tokens)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         res = xml_tokenize((char*)src->data, (unsigned)src->length,

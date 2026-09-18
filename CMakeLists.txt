@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
-set(OPEN62541_VER_PATCH 6)
+set(OPEN62541_VER_PATCH 8)
 set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -119,7 +119,6 @@ option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
-option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 option(UA_ENABLE_RBAC "Enable Role-Based Access Control (EXPERIMENTAL - NOT FOR PRODUCTION)" OFF)
 
@@ -938,12 +937,14 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/mp_printf.h
                 ${PROJECT_SOURCE_DIR}/deps/utf8.h
                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
+                ${PROJECT_SOURCE_DIR}/deps/yxml.h
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util_internal.h
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset_loader_internal.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
@@ -964,6 +965,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_encryptedsecret.c
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset.c
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset_loader.c
+                ${PROJECT_SOURCE_DIR}/src/util/nodeset_loader/ua_nodeset_loader_apply.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
@@ -1004,6 +1008,13 @@ if(UA_ENABLE_DRIVER_GDS_RECEIVER)
 endif()
 
 if(UA_ENABLE_RBAC)
+    # RBAC uses the well-known TrustedApplication role and the matching
+    # IdentityCriteriaType value. Both are missing from tools/schema, which is
+    # an older revision than the ua-nodeset submodule used for FULL.
+    # TODO: lift the restriction by aligning tools/schema with that revision.
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "RBAC requires UA_NAMESPACE_ZERO=FULL")
+    endif()
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.h)
@@ -1024,6 +1035,7 @@ set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/mp_printf.c
                 ${PROJECT_SOURCE_DIR}/deps/utf8.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
+                ${PROJECT_SOURCE_DIR}/deps/yxml.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
 
@@ -1051,6 +1063,14 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
                             ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
+endif()
+
+if(UA_ENABLE_DIAGNOSTICS)
+    # ua_server_ns0_diagnostics.c looks up struct members by name via
+    # UA_DataType_getStructMember, which only exists with type descriptions
+    if(NOT UA_ENABLE_TYPEDESCRIPTION)
+        message(FATAL_ERROR "Diagnostics require type descriptions to be enabled")
+    endif()
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
@@ -1090,10 +1110,8 @@ if(UA_ENABLE_XML_ENCODING)
     if(NOT UA_ENABLE_TYPEDESCRIPTION)
         message(FATAL_ERROR "XML encoding requires parsing and type descriptions to be enabled")
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
@@ -1480,20 +1498,6 @@ if(UA_ENABLE_DISCOVERY)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c)
 endif()
 
-if(UA_ENABLE_NODESETLOADER)
-    # This is required because of issues with policy CMP0077.
-    # Source: https://stackoverflow.com/a/54404924
-    option(ENABLE_BUILD_INTO_OPEN62541 "make nodesetLoader part of the open62541 library" off)
-    set(ENABLE_BUILD_INTO_OPEN62541 on)
-
-    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
-
-    list(APPEND lib_sources ${NODESETLOADER_SOURCES})
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
-    list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
-endif()
-
 #########################
 # Generate source files #
 #########################
@@ -1636,14 +1640,14 @@ if(UA_ENABLE_AMALGAMATION)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                               ${exported_headers} ${NODESETLOADER_PUBLIC_HEADERS} ${plugin_headers}
+                               ${exported_headers} ${plugin_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${exported_headers} ${plugin_headers})
 
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                               ${lib_headers} ${NODESETLOADER_PRIVATE_HEADERS} ${lib_sources} ${plugin_sources}
+                               ${lib_headers} ${lib_sources} ${plugin_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
                                ${lib_sources} ${plugin_sources})
 
@@ -1769,9 +1773,6 @@ endif()
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     include_directories_private(${LIBRESSL_INCLUDE_DIR})
 endif()
-if(UA_ENABLE_NODESETLOADER)
-    include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
-endif()
 if(UA_ENABLE_LWS)
     include_directories_private(${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
@@ -1787,10 +1788,6 @@ endfunction()
 include_directories_public("${PROJECT_SOURCE_DIR}/include"
                            "${PROJECT_SOURCE_DIR}/plugins/include"
                            "${PROJECT_BINARY_DIR}/src_generated")
-
-if(UA_ENABLE_NODESETLOADER)
-    include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
-endif()
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
 add_library(open62541::open62541 ALIAS open62541)
@@ -1933,9 +1930,12 @@ endif()
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 # On the FreeRTOS architecture the open62541 target links against build-only
 # targets (freertos_kernel/freertos_config) that are not part of any export
-# set, so exporting the target fails at configure time. Still install the
-# library artifacts, but leave the target out of the export set there.
-if(UA_ARCHITECTURE_FREERTOS)
+# set, so exporting the target fails at configure time. The same applies when
+# open62541 is consumed as a Zephyr module: the target then links the
+# Zephyr-provided mbedTLS targets (mbedTLSBase/mbedTLSX509/mbedTLSCrypto),
+# which are likewise not in any export set of ours. Still install the library
+# artifacts, but leave the target out of the export set in both cases.
+if(UA_ARCHITECTURE_FREERTOS OR ZEPHYR_BASE)
 install(TARGETS open62541
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -1959,7 +1959,7 @@ endforeach()
 # Create the CMake package files (open62541Config.cmake, ConfigVersion,
 # Targets). open62541Config.cmake includes open62541Targets.cmake, so they
 # must be installed together or not at all.
-if(NOT UA_ARCHITECTURE_FREERTOS)
+if(NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE)
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
@@ -1988,7 +1988,7 @@ install(EXPORT open62541Targets
 export(TARGETS open62541
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
-endif()
+endif() # NOT UA_ARCHITECTURE_FREERTOS AND NOT ZEPHYR_BASE
 
 # Generate and install open62541.pc
 set(pkgcfgpubliclibs "")

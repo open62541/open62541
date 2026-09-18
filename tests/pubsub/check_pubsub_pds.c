@@ -80,16 +80,14 @@ START_TEST(AddPDSWithUnsupportedType){
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.name = UA_STRING("TEST PDS 1");
-    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE;
-    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, NULL).addResult;
-    ck_assert_uint_eq(psm->publishedDataSetsSize, 0);
-    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
+    retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, NULL).addResult;
     ck_assert_uint_eq(psm->publishedDataSetsSize, 0);
-    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADINVALIDARGUMENT);
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE;
+    retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, NULL).addResult;
     ck_assert_uint_eq(psm->publishedDataSetsSize, 0);
-    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADINVALIDARGUMENT);
 } END_TEST
 
 START_TEST(GetPDSConfigurationAndCompareValues){

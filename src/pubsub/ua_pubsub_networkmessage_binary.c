@@ -40,6 +40,7 @@
 #define SECURITY_HEADER_NM_ENCRYPTED 2
 #define SECURITY_HEADER_SEC_FOOTER_ENABLED 4
 #define SECURITY_HEADER_FORCE_KEY_RESET 8
+#define SECURITY_HEADER_KNOWN_FLAGS 15
 #define DS_MESSAGEHEADER_DS_MSG_VALID 1
 #define DS_MESSAGEHEADER_FIELD_ENCODING_MASK 6
 #define DS_MESSAGEHEADER_SEQ_NR_ENABLED_MASK 8
@@ -56,6 +57,41 @@
 static UA_Boolean UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
+
+static UA_StatusCode
+validateSecurityHeader(const UA_NetworkMessage *nm, UA_Boolean encoding) {
+    if(!nm->securityEnabled)
+        return UA_STATUSCODE_GOOD;
+
+    const UA_NetworkMessageSecurityHeader *sh = &nm->securityHeader;
+    /* UADP exposes Sign and SignAndEncrypt, but no Encrypt-only mode. */
+    if(sh->networkMessageEncrypted && !sh->networkMessageSigned)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    /* The nonce is the input to the encryption counter. Its policy-specific
+     * exact length is checked by setMessageNonce after reader dispatch. */
+    if(sh->networkMessageEncrypted && sh->messageNonceSize == 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    if(sh->messageNonceSize > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    /* A footer and ForceKeyReset affect security processing and therefore
+     * have to be authenticated. */
+    if((sh->securityFooterEnabled || sh->forceKeyReset) &&
+       !sh->networkMessageSigned)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    if(encoding) {
+        if(sh->securityFooterEnabled) {
+            if(sh->securityFooterSize == 0 ||
+               sh->securityFooterSize > nm->securityFooter.length ||
+               !nm->securityFooter.data)
+                return UA_STATUSCODE_BADENCODINGERROR;
+        } else if(sh->securityFooterSize != 0 ||
+                  nm->securityFooter.length != 0) {
+            return UA_STATUSCODE_BADENCODINGERROR;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 UA_NetworkMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
@@ -309,7 +345,13 @@ UA_NetworkMessage_encodePayload(PubSubEncodeCtx *ctx,
             UA_DataSetMessage *dsm = &src->payload.dataSetMessages[i];
             const UA_DataSetMessage_EncodingMetaData *emd =
                 findEncodingMetaData(&ctx->eo, src->dataSetWriterIds[i]);
-            UA_UInt16 sz = (UA_UInt16)UA_DataSetMessage_calcSizeBinary(ctx, emd, dsm, 0);
+            size_t dsmSize = UA_DataSetMessage_calcSizeBinary(ctx, emd, dsm, 0);
+            /* Spec Table 161: "If the payload size exceeds 65535, the
+             * DataSetMessages shall be allocated to separate NetworkMessages."
+             * The Sizes field is UInt16, so oversized DSMs are invalid. */
+            if(dsmSize > UA_UINT16_MAX)
+                return UA_STATUSCODE_BADENCODINGERROR;
+            UA_UInt16 sz = (UA_UInt16)dsmSize;
             rv = _ENCODE_BINARY(&sz, UINT16);
             UA_CHECK_STATUS(rv, return rv);
         }
@@ -379,7 +421,9 @@ UA_StatusCode
 UA_NetworkMessage_encodeBinaryWithEncryptStart(PubSubEncodeCtx *ctx,
                                                const UA_NetworkMessage* src,
                                                UA_Byte **dataToEncryptStart) {
-    UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(ctx, src);
+    UA_StatusCode rv = validateSecurityHeader(src, true);
+    UA_CHECK_STATUS(rv, return rv);
+    rv = UA_NetworkMessage_encodeHeaders(ctx, src);
     if(dataToEncryptStart)
         *dataToEncryptStart = ctx->ctx.pos;
     rv |= UA_NetworkMessage_encodePayload(ctx, src);
@@ -609,6 +653,9 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
     UA_StatusCode rv = _DECODE_BINARY(&decoded, BYTE);
     UA_CHECK_STATUS(rv, return rv);
 
+    if(decoded & (UA_Byte)~SECURITY_HEADER_KNOWN_FLAGS)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     if((decoded & SECURITY_HEADER_NM_SIGNED) != 0)
         nm->securityHeader.networkMessageSigned = true;
 
@@ -644,7 +691,8 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
     /* SecurityFooterSize */
     if(nm->securityHeader.securityFooterEnabled)
         rv = _DECODE_BINARY(&nm->securityHeader.securityFooterSize, UINT16);
-    return rv;
+    UA_CHECK_STATUS(rv, return rv);
+    return validateSecurityHeader(nm, false);
 }
 
 /* If no PayloadHeader is defined, then assume the EncodingOptions reflect the
@@ -899,6 +947,8 @@ UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p,
 size_t
 UA_NetworkMessage_calcSizeBinaryInternal(PubSubEncodeCtx *ctx,
                                          const UA_NetworkMessage *p) {
+    if(validateSecurityHeader(p, true) != UA_STATUSCODE_GOOD)
+        return 0;
     UA_PubSubOffsetTable *ot = ctx->ot;
 
     size_t size = 1; /* byte */
@@ -1145,7 +1195,10 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* DataSetMessageSequenceNr */
     if(src->dataSetMessageSequenceNrEnabled) {
-        rv = _ENCODE_BINARY(&src->dataSetMessageSequenceNr, UINT16);
+        if(src->dataSetMessageSequenceNr > UA_UINT16_MAX)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        UA_UInt16 sequenceNumber = (UA_UInt16)src->dataSetMessageSequenceNr;
+        rv = _ENCODE_BINARY(&sequenceNumber, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1163,7 +1216,8 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
     /* Status */
     if(src->statusEnabled) {
-        rv = _ENCODE_BINARY(&src->status, UINT16);
+        UA_UInt16 status = (UA_UInt16)src->status;
+        rv = _ENCODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1266,8 +1320,10 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
      * } */
 
     if(dsmh->dataSetMessageSequenceNrEnabled) {
-        rv = _DECODE_BINARY(&dsmh->dataSetMessageSequenceNr, UINT16);
+        UA_UInt16 sequenceNumber = 0;
+        rv = _DECODE_BINARY(&sequenceNumber, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        dsmh->dataSetMessageSequenceNr = sequenceNumber;
     } else {
         dsmh->dataSetMessageSequenceNr = 0;
     }
@@ -1287,8 +1343,10 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
     }
 
     if(dsmh->statusEnabled) {
-        rv = _DECODE_BINARY(&dsmh->status, UINT16);
+        UA_UInt16 status = 0;
+        rv = _DECODE_BINARY(&status, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        dsmh->status = status;
     } else {
         dsmh->status = 0;
     }
@@ -1324,6 +1382,9 @@ UA_DataSetMessage_keyFrame_rawScalar_encodeBinary(PubSubEncodeCtx *ctx,
         if(str->length > fmd->maxStringLength)
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         size_t padding = fmd->maxStringLength - str->length;
+        if(ctx->ctx.pos > ctx->ctx.end ||
+           padding > (size_t)(ctx->ctx.end - ctx->ctx.pos))
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         memset(ctx->ctx.pos, 0, padding);
         ctx->ctx.pos += padding;
     }
@@ -1385,10 +1446,19 @@ static UA_StatusCode
 UA_DataSetMessage_keyFrame_encodeBinary(PubSubEncodeCtx *ctx,
                                         const UA_DataSetMessage_EncodingMetaData *emd,
                                         const UA_DataSetMessage *src) {
+    if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
+       (!emd || src->fieldCount > emd->fieldsSize))
+        return UA_STATUSCODE_BADENCODINGERROR;
     /* Heartbeat: "DataSetMessage is a key frame that only contains header
-     * information" */
-    if(src->fieldCount == 0)
+     * information". For non-RawData encoding, FieldCount=0 is part of the
+     * representation and is consumed unconditionally by the decoder. */
+    if(src->fieldCount == 0) {
+        if(src->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
+            UA_UInt16 zero = 0;
+            return _ENCODE_BINARY(&zero, UINT16);
+        }
         return UA_STATUSCODE_GOOD;
+    }
 
     /* Part 14: The FieldCount shall be omitted if RawData field encoding is set */
     UA_StatusCode rv = UA_STATUSCODE_BADINTERNALERROR;
@@ -1443,8 +1513,23 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
     /* Store the beginning */
     UA_Byte *begin = ctx->ctx.pos;
     
+    /* Compute the Valid bit without mutating the caller's message. */
+    UA_DataSetMessageHeader header = src->header;
+    if(emd && emd->configuredSize > 0) {
+        UA_DataSetMessage_EncodingMetaData unconfigured = *emd;
+        unconfigured.configuredSize = 0;
+        /* Size calculation must not append a second set of entries to an
+         * offset table that belongs to the actual encoding operation. */
+        PubSubEncodeCtx sizeCtx = *ctx;
+        sizeCtx.ot = NULL;
+        size_t actualSize = UA_DataSetMessage_calcSizeBinary(
+            &sizeCtx, &unconfigured, src, 0);
+        if(actualSize > emd->configuredSize)
+            header.dataSetMessageValid = false;
+    }
+
     /* Encode Header */
-    UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(ctx, &src->header);
+    UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(ctx, &header);
     UA_CHECK_STATUS(rv, return rv);
 
     /* Encode Payload */
@@ -1461,11 +1546,13 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    /* Zero-Padding according to a ConfiguredSize */
-    if(emd && emd->configuredSize > 0 && src->header.dataSetMessageValid) {
-        UA_Byte *configuredEnd = begin + emd->configuredSize;
-        if(configuredEnd > ctx->ctx.end)
+    /* Zero-padding according to a ConfiguredSize. Oversized payloads are
+     * marked invalid without mutating the caller's message. */
+    if(emd && emd->configuredSize > 0 && header.dataSetMessageValid) {
+        size_t remaining = (size_t)(ctx->ctx.end - begin);
+        if(emd->configuredSize > remaining)
             return UA_STATUSCODE_BADENCODINGERROR;
+        UA_Byte *configuredEnd = begin + emd->configuredSize;
         if(configuredEnd > ctx->ctx.pos) {
             size_t padding = (size_t)(configuredEnd - ctx->ctx.pos);
             memset(ctx->ctx.pos, 0, padding);
@@ -1473,6 +1560,31 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
         }
     }
     UA_CHECK_STATUS(rv, return rv);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_DataSetMessage_keyFrame_rawScalar_decodeBinary(PubSubDecodeCtx *ctx,
+                                                  const UA_FieldMetaData *fmd,
+                                                  const UA_DataType *type,
+                                                  void *dst) {
+    UA_StatusCode rv = decodeBinaryJumpTable[type->typeKind](&ctx->ctx, dst, type);
+    UA_CHECK_STATUS(rv, return rv);
+
+    /* TODO: Padding not yet supported for strings inside structures */
+    if(fmd->maxStringLength != 0 &&
+       (type->typeKind == UA_DATATYPEKIND_STRING ||
+        type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+        const UA_String *str = (const UA_String *)dst;
+        if(str->length > fmd->maxStringLength)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        size_t padding = fmd->maxStringLength - str->length;
+        if(ctx->ctx.pos > ctx->ctx.end ||
+           padding > (size_t)(ctx->ctx.end - ctx->ctx.pos))
+            return UA_STATUSCODE_BADDECODINGERROR;
+        ctx->ctx.pos += padding;
+    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -1504,7 +1616,8 @@ decodeRawField(PubSubDecodeCtx *ctx,
         value->value.data = ctxCalloc(&ctx->ctx, 1, type->memSize);
         if(!value->value.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        return decodeBinaryJumpTable[type->typeKind](&ctx->ctx, value->value.data, type);
+        return UA_DataSetMessage_keyFrame_rawScalar_decodeBinary(ctx, fmd, type,
+                                                                 value->value.data);
     }
 
     /* Decode the ArrayDimensions */
@@ -1537,7 +1650,9 @@ decodeRawField(PubSubDecodeCtx *ctx,
     /* Decode the content */
     uintptr_t val = (uintptr_t)value->value.data;
     for(size_t i = 0; i < count; i++) {
-        rv |= decodeBinaryJumpTable[type->typeKind](&ctx->ctx, (void*)val, type);
+        rv = UA_DataSetMessage_keyFrame_rawScalar_decodeBinary(ctx, fmd, type,
+                                                               (void*)val);
+        UA_CHECK_STATUS(rv, return rv);
         val += type->memSize;
     }
 
@@ -1655,11 +1770,14 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    /* If the message could not be decoded (e.g. no metadata for the raw
-     * encoding), but technically the message is not fauly, jump to the next
-     * dsm. */
+    /* An invalid message with a known size is skipped to the next DSM. */
     if(!dsm->header.dataSetMessageValid) {
         if(dsmSize == 0) /* Only possible if the size is known */
+            return UA_STATUSCODE_BADDECODINGERROR;
+        /* The declared span contains the consumed header and remaining data. */
+        size_t remaining = (size_t)(ctx->ctx.end - begin);
+        size_t consumed = (size_t)(ctx->ctx.pos - begin);
+        if(dsmSize > remaining || dsmSize < consumed)
             return UA_STATUSCODE_BADDECODINGERROR;
         ctx->ctx.pos = begin + dsmSize;
     }
@@ -1677,7 +1795,7 @@ UA_DataSetMessage_rawScalar_calcSizeBinary(void *p, const UA_DataType *type,
         type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
         UA_String *str = (UA_String *)p;
         if(str->length > fmd->maxStringLength)
-            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+            return 0;
         size_t padding = fmd->maxStringLength - str->length;
         size += padding;
     }
@@ -1738,7 +1856,7 @@ UA_DataSetMessage_raw_calcSizeBinary(const UA_Variant *v, const UA_FieldMetaData
 size_t
 UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  const UA_DataSetMessage_EncodingMetaData *emd,
-                                 UA_DataSetMessage *p,
+                                 const UA_DataSetMessage *p,
                                  size_t size) {
     UA_PubSubOffsetTable *ot = ctx->ot;
 
@@ -1802,6 +1920,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
         return size;
 
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
+        if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA &&
+           (!emd || p->fieldCount > emd->fieldsSize))
+            return 0;
         if(p->header.fieldEncoding != UA_FIELDENCODING_RAWDATA)
             size += 2; /* p->data.keyFrameData.fieldCount */
 
@@ -1810,6 +1931,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                 return 0;
             UA_PubSubOffset *offset = NULL;
             const UA_DataValue *v = &p->data.keyFrameFields[i];
+            const UA_FieldMetaData *fmd = NULL;
+            if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA)
+                fmd = getFieldMetaData(emd, i);
             if(ot) {
                 size_t pos = ot->offsetsSize;
                 if(!incrOffsetTable(ot))
@@ -1819,8 +1943,14 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                 if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                     offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT;
                 } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                    if(!v->value.type || !v->value.type->pointerFree)
-                        return 0; /* only integer types for now */
+                    if(!v->value.type)
+                        return 0;
+                    UA_Boolean fixedSizeString =
+                        fmd && fmd->maxStringLength > 0 &&
+                        (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                         v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING);
+                    if(!v->value.type->pointerFree && !fixedSizeString)
+                        return 0;
                     offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
                 } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                     offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE;
@@ -1830,8 +1960,9 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                const UA_FieldMetaData *fmd = getFieldMetaData(emd, i);
                 size = UA_DataSetMessage_raw_calcSizeBinary(&v->value, fmd, ot, size);
+                if(size == 0)
+                    return 0;
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
             } else {
@@ -1860,12 +1991,11 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
         return 0;
     }
 
-    /* Minimum message size configured.
-     * If the message is larger than the configuredSize, it shall be set to not valid. */
+    /* A configured size pads smaller messages. Oversized messages retain their
+     * actual size and are marked invalid by the encoder without mutating p. */
     if(emd && emd->configuredSize > 0) {
-        if(emd->configuredSize < size) 
-            p->header.dataSetMessageValid = false;
-        size = emd->configuredSize;
+        if(emd->configuredSize > size)
+            size = emd->configuredSize;
     }
     
     return size;

@@ -188,6 +188,9 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *dv) {
+    if(UA_MonitoredItem_isDeleting(mon))
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+
     /* Copy the value */
     UA_DataValue valueCopy;
     UA_StatusCode retval = UA_DataValue_copy(dv, &valueCopy);
@@ -223,6 +226,12 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
                                      UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Application-backed reads can reenter and delete the MonitoredItem. */
+    if(UA_MonitoredItem_isDeleting(mon)) {
+        UA_DataValue_clear(value);
+        return;
+    }
 
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = mon->semanticsChangedPending ||
@@ -289,6 +298,9 @@ void
 UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
+
+    if(UA_MonitoredItem_isDeleting(mon))
+        return;
 
     UA_Subscription *sub = mon->subscription;
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32

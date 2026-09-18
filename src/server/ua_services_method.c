@@ -26,6 +26,29 @@ struct GetArgumentsNodeContext {
     UA_String withBrowseName;
 };
 
+static UA_StatusCode
+getArgumentsValue(const UA_VariableNode *argRequirements,
+                  const UA_Variant **argVal, size_t *argsSize) {
+    if(argRequirements->valueSourceType != UA_VALUESOURCETYPE_INTERNAL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!argRequirements->valueSource.internal.value.hasValue)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    const UA_Variant *value =
+        &argRequirements->valueSource.internal.value.value;
+    if(value->type != &UA_TYPES[UA_TYPES_ARGUMENT])
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(argVal)
+        *argVal = value;
+    *argsSize = value->arrayLength;
+    if(UA_Variant_isScalar(value))
+        *argsSize = 1;
+    if(*argsSize > UA_MAX_METHOD_ARGUMENTS)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+    return UA_STATUSCODE_GOOD;
+}
+
 static void *
 getArgumentsNodeCallback(void *context, UA_ReferenceTarget *t) {
     struct GetArgumentsNodeContext *ctx = (struct GetArgumentsNodeContext*)context;
@@ -71,27 +94,21 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
                      UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
-    if(argRequirements->valueSourceType != UA_VALUESOURCETYPE_INTERNAL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(!argRequirements->valueSource.internal.value.hasValue)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    const UA_Variant *argVal;
+    size_t argReqsSize;
+    UA_StatusCode retval =
+        getArgumentsValue(argRequirements, &argVal, &argReqsSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    const UA_Variant *argVal = &argRequirements->valueSource.internal.value.value;
-    if(argVal->type != &UA_TYPES[UA_TYPES_ARGUMENT])
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* Verify the number of arguments. A scalar argument value is interpreted as
-     * an array of length 1. */
-    size_t argReqsSize = argVal->arrayLength;
-    if(UA_Variant_isScalar(argVal))
-        argReqsSize = 1;
+    /* Verify the number of arguments */
     if(argReqsSize > argsSize)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     if(argReqsSize < argsSize)
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
 
     /* Type-check every argument against the definition */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argVal->data;
     const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
@@ -230,16 +247,17 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
      * pointer as the key for async operations. The memory gets deleted in
      * UA_Array_delete even if the outputArgumentsSize is zero. */
     size_t outputArgsSize = 0;
-    if(outputArguments)
-        outputArgsSize = outputArguments->valueSource.internal.value.value.arrayLength;
+    if(outputArguments) {
+        res = getArgumentsValue(outputArguments, NULL, &outputArgsSize);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
     result->outputArguments = (UA_Variant*)
         UA_Array_new(outputArgsSize+1, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!result->outputArguments)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     result->outputArgumentsSize = outputArgsSize;
-
-    /* Release the output arguments node */
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
     /* Call the method. If this is an async method, unlock the server lock for
      * the duration of the (long-running) call. */

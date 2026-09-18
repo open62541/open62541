@@ -20,6 +20,7 @@
 
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
+    session->state = UA_SESSIONSTATE_CREATED;
     TAILQ_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
@@ -248,7 +249,8 @@ UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
-        if(sub->statusChange != UA_STATUSCODE_GOOD)
+        if(sub->statusChange != UA_STATUSCODE_GOOD ||
+           sub->state == UA_SUBSCRIPTIONSTATE_REMOVING)
             continue;
         if(sub->subscriptionId == subscriptionId)
             break;
@@ -261,7 +263,8 @@ getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
         /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
-        if(sub->statusChange != UA_STATUSCODE_GOOD)
+        if(sub->statusChange != UA_STATUSCODE_GOOD ||
+           sub->state == UA_SUBSCRIPTIONSTATE_REMOVING)
             continue;
         if(sub->subscriptionId == subscriptionId)
             break;

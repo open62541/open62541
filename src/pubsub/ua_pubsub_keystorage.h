@@ -4,6 +4,8 @@
  *
  * Copyright (c) 2019 ifak e.V. Magdeburg (Holger Zipper)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_PUBSUB_KEYSTORAGE
@@ -120,10 +122,15 @@ typedef TAILQ_HEAD(keyListItems, UA_PubSubKeyListItem) keyListItems;
  * fetch the security keys */
 typedef struct UA_PubSubSKSConfig {
     UA_ClientConfig clientConfig;
-    const char *endpointUrl;
+    UA_String endpointUrl;
     UA_Server_sksPullRequestCallback userNotifyCallback;
     void *context;
     UA_UInt32 reqId;
+    /* Covers the entire asynchronous lifecycle, including connection setup
+     * before a service request id exists and client shutdown afterwards. */
+    UA_Boolean requestActive;
+    UA_Client *client;
+    void *clientContext;
 } UA_PubSubSKSConfig;
 
 /* Holds all info and keys related to one SecurityGroup */
@@ -154,13 +161,7 @@ struct UA_PubSubKeyStorage {
 
     /* Maximum keylist size, calculated from maxPastKeyCount and
      * maxFutureKeyCount */
-    UA_UInt32 maxKeyListSize;
-
-    /* The SecurityTokenId that appears in the header of messages secured with
-     * the CurrentKey. It starts at 1 and is incremented by 1 each time the
-     * KeyLifetime elapses even if no keys are requested. If the CurrentTokenId
-     * increments past the maximum value of UInt32 it restarts a 1. */
-    UA_UInt32 currentTokenId;
+    size_t maxKeyListSize;
 
     /* The current key used to secure the messages */
     UA_PubSubKeyListItem *currentItem;
@@ -172,14 +173,30 @@ struct UA_PubSubKeyStorage {
      * security group */
     UA_UInt64 callBackId;
 
+    /* One-shot timer used to start the next SKS pull. This is tracked
+     * separately from the key-rollover timer so both can be cancelled before
+     * the key storage is freed. */
+    UA_UInt64 refetchCallbackId;
+
     /* Sks related information to connect with SKS server and fetch security
      * keys */
     UA_PubSubSKSConfig sksConfig;
 
+    /* Set when deletion is requested while an asynchronous SKS client still
+     * owns this storage. The client cleanup callback performs final deletion. */
+    UA_Boolean pendingDelete;
+
     /* Pointer to the key storage list */
     LIST_ENTRY(UA_PubSubKeyStorage) keyStorageList;
+    UA_Boolean listed;
 
 };
+
+/* Validate the response shape and types of a GetSecurityKeys method call
+ * before the asynchronous client callback dereferences its Variants. */
+UA_StatusCode
+UA_PubSubKeyStorage_validateGetSecurityKeysResponse(
+    const UA_CallResponse *response);
 
 /**
  * @brief Find the Keystorage from the KeyStorageList and returns the pointer to
@@ -215,6 +232,13 @@ void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm,
                            UA_PubSubKeyStorage *keyStorage);
 
+/* Unconditionally frees the key storage. Called by UA_PubSubKeyStorage_delete
+ * when no SKS pull is in flight, and by storeFetchedKeys when a deferred
+ * deletion completes. */
+void
+UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm,
+                              UA_PubSubKeyStorage *keyStorage);
+
 /**
  * @brief Initializes an empty Keystorage for the SecurityGroupId and add it to the Server
  * KeyStorageList
@@ -233,6 +257,34 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm,
                          const UA_String *securityGroupId,
                          UA_PubSubSecurityPolicy *policy,
                          UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount);
+
+/* Acquire one reference to the key storage for a PubSub group. A storage is
+ * created when this is the first user of the SecurityGroupId. */
+UA_StatusCode
+UA_PubSubKeyStorage_acquire(UA_PubSubManager *psm,
+                            const UA_String *securityGroupId,
+                            UA_PubSubSecurityPolicy *policy,
+                            UA_UInt32 maxPastKeyCount,
+                            UA_UInt32 maxFutureKeyCount,
+                            UA_PubSubKeyStorage **keyStorage);
+
+/* Acquire the key storage required by a ReaderGroup or WriterGroup. For
+ * security modes that do not use keys, this succeeds with a NULL result. */
+UA_StatusCode
+UA_PubSubKeyStorage_acquireForGroup(UA_PubSubManager *psm,
+                                    const UA_String *securityGroupId,
+                                    UA_PubSubSecurityPolicy *policy,
+                                    UA_MessageSecurityMode securityMode,
+                                    UA_PubSubKeyStorage **keyStorage);
+
+/* Atomically install a current key and its future keys. The live key list is
+ * unchanged if validation or allocation fails. */
+UA_StatusCode
+UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *keyStorage,
+                                    UA_UInt32 currentKeyId,
+                                    const UA_ByteString *currentKey,
+                                    size_t futureKeysSize,
+                                    const UA_ByteString *futureKeys);
 
 void
 UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks);

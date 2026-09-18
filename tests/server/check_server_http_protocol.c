@@ -694,6 +694,35 @@ START_TEST(uascLimitDoesNotPurgeDirectChannel) {
 }
 END_TEST
 
+START_TEST(uascZeroLimitIsUnlimited) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    server->config.maxSecureChannels = 0;
+
+    UA_ConnectionManager cm;
+    memset(&cm, 0, sizeof(cm));
+    UA_ConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    UA_SecureChannel *created = NULL;
+
+    lockServer(server);
+    UA_StatusCode res = createServerSecureChannel(
+        server, &connectionConfig, &cm, 1, NULL, &created);
+    UA_Boolean channelCreated = (created != NULL);
+    if(created) {
+        unregisterSecureChannel(server, created);
+        server->secureChannelStatistics.currentChannelCount--;
+        UA_SecureChannel_clear(created);
+        UA_free(created);
+    }
+    unlockServer(server);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(channelCreated);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 START_TEST(mixedTransportChannelIdsAreUnique) {
     UA_Server *server = UA_Server_new();
     ck_assert_ptr_nonnull(server);
@@ -838,6 +867,7 @@ testSuite(void) {
     tcase_add_test(tc, closingHttpListenerCleansOnlyItsChannels);
     tcase_add_test(tc, trustUpdateClosesOpenUascChannel);
     tcase_add_test(tc, uascLimitDoesNotPurgeDirectChannel);
+    tcase_add_test(tc, uascZeroLimitIsUnlimited);
     tcase_add_test(tc, mixedTransportChannelIdsAreUnique);
     tcase_add_test(tc, closingHttpChannelDrainsUntilCarrierCloses);
     tcase_add_test(tc, httpRequestTimeoutAndEncodingMetadata);

@@ -4,7 +4,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/nodesetloader.h>
+#include "nodeset_loader_test.h"
 
 #include "check.h"
 #include "testing_clock.h"
@@ -17,14 +17,13 @@ static void setup(void) {
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
 }
-
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
 
 START_TEST(Server_loadInvalidOrderingDiNodeset) {
-    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = loadNodesetFile(server,
         OPEN62541_ORDERING_DIR "Opc.Ua.Di.NodeSet2_invalid_ordering.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
 }

@@ -363,7 +363,9 @@ shutdownHttpSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Detach activated Sessions and reject incomplete ones. */
     while(channel->sessions) {
         UA_Session *session = channel->sessions;
-        if(session->activated)
+        if(session->state == UA_SESSIONSTATE_CLOSED)
+            UA_Session_detachFromSecureChannel(server, session);
+        else if(session->state == UA_SESSIONSTATE_ACTIVATED)
             UA_Session_detachFromSecureChannel(server, session);
         else
             UA_Session_remove(server, session, reason);

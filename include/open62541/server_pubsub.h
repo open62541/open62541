@@ -7,6 +7,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -476,7 +477,7 @@ UA_Server_addPublishedDataSet(UA_Server *server,
                               const UA_PublishedDataSetConfig *pdsConfig,
                               UA_NodeId *pdsId);
 
-/* Returns a deep copy of the config */
+/* Return an owned copy; release it with UA_PublishedDataSetConfig_clear. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pdsId,
                                     UA_PublishedDataSetConfig *config);
@@ -585,6 +586,15 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+
+    /* Fields defined by PubSubGroupDataType and preserved by file-config
+     * save/load. securityPolicy remains the runtime policy implementation. */
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+    UA_UInt32 maxNetworkMessageSize;
+    size_t localeIdsSize;
+    UA_String *localeIds;
+    UA_String headerLayoutUri;
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -772,6 +782,9 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
 typedef struct {
     UA_PUBSUBCOMPONENT_COMMON
     UA_PublisherId publisherId;
+    /* A zero-initialized config keeps the legacy wildcard behavior. Set this
+     * to true to filter explicitly for the legitimate Byte PublisherId 0. */
+    UA_Boolean publisherIdFilterEnabled;
     UA_UInt16 writerGroupId;
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;
@@ -781,6 +794,10 @@ typedef struct {
                                       * message. Gets reset after every received
                                       * message. If <= 0.0, then no timeout is
                                       * configured. */
+    UA_UInt32 keyFrameCount; /* Maximum key-frame period. A value <= 1
+                              * accepts key frames only. */
+    UA_String headerLayoutUri;
+    UA_KeyValueMap dataSetReaderProperties;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetType subscribedDataSetType;
@@ -861,6 +878,7 @@ typedef struct {
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
+    UA_ExtensionObject messageSettings;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information
@@ -868,6 +886,9 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+    UA_UInt32 maxNetworkMessageSize;
 } UA_ReaderGroupConfig;
 
 void UA_EXPORT
@@ -910,6 +931,21 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
                                        const UA_ByteString keyNonce);
+
+/* Return an owned copy; release it with UA_SubscribedDataSetConfig_clear. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                    UA_SubscribedDataSetConfig *config);
+
+/* Update the settings of a disabled dataset in place. Name and NodeId are
+ * immutable. Disable attached writers/readers before updating and restore
+ * their states afterwards. Plain PublishedItems fields are retained. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                      const UA_PublishedDataSetConfig *config);
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                       const UA_SubscribedDataSetConfig *config);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
@@ -1031,7 +1067,8 @@ typedef void
  *        the securityGroupId is deleted. The input config is copied to an
  *        internal config object and the content of input config object will be
  *        reset to zero.
- * @param endpointUrl holds the endpointUrl of the SKS server
+ * @param endpointUrl holds the endpointUrl of the SKS server. It is copied and
+ *        does not need to outlive this call.
  * @param securityGroupId the SecurityGroupId of the securityGroup on SKS and
  *        reader/writergroups
  * @param callback the user defined callback to notify the user about the status
@@ -1059,7 +1096,12 @@ UA_Server_setWriterGroupActivateKey(UA_Server *server,
  * When the content of a PubSub Networkmessage has a fixed length, then only a
  * few "content bytes" at known locations within the NetworkMessage change
  * between publish cycles. The so-called offset table exposes this to enable
- * fast-path implementations for realtime applications. */
+ * fast-path implementations for realtime applications.
+ *
+ * String and ByteString fields with RawData encoding have a fixed length when
+ * MaxStringLength is configured in the FieldMetaData. This is supported for
+ * direct fields, but not for String and ByteString members nested inside
+ * structures. */
 
 typedef enum {
     UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION,   /* UInt32 */

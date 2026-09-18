@@ -118,7 +118,8 @@ START_TEST(Client_activateSession_async) {
     cc->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     cc->sessionLocaleIds[0] = UA_STRING_ALLOC("de");
     cc->sessionLocaleIds[1] = UA_STRING_ALLOC("en-US");
-    UA_Client_activateCurrentSessionAsync(client);
+    retval = UA_Client_activateCurrentSessionAsync(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
 
     // read locale,it must not be changed
@@ -131,12 +132,14 @@ START_TEST(Client_activateSession_async) {
 
     ck_assert_uint_eq(server->sessionCount, 1);
 
-    /* Manual clock for unit tests */
+    /* Drive both EventLoops until the asynchronous activation completes. The
+     * client iteration waits briefly so the lwIP timers can make progress. */
     UA_SessionState sessionState = UA_SESSIONSTATE_CLOSED;
     do {
-        retval = UA_Client_run_iterate(client, 0);
-        UA_Client_getState(client, NULL, &sessionState, NULL);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         UA_Server_run_iterate(server, false);
+        UA_Client_getState(client, NULL, &sessionState, NULL);
     } while(sessionState != UA_SESSIONSTATE_ACTIVATED);
 
     loc = LIST_FIRST(&server->sessions)->session.localeIds[0];

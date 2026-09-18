@@ -3,6 +3,16 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub security-policy nonce lengths
+
+Custom `UA_PubSubSecurityPolicy` implementations must initialize the new
+`messageNonceLength` member with the nonce size carried in each secured
+NetworkMessage. The `nonceLength` member is renamed to `keyMaterialLength`
+and describes the complete SKS key-material item.
+SignAndEncrypt groups reject policies that do not provide a valid message nonce
+length. This changes the public policy structure ABI; custom policies must be
+rebuilt and updated.
+
 ### Automatic ModelChange and SemanticChange notifications
 
 Servers built with `UA_ENABLE_SUBSCRIPTIONS_EVENTS` now emit the standard
@@ -13,12 +23,70 @@ Property. Semantic changes also set the `SemanticsChanged` StatusCode bit on
 the next DataChange notification for Value MonitoredItems on the affected
 Variable.
 
+### UA_DataTypeArray.types is const
+
+The `types` field in `UA_DataTypeArray` changed from `UA_DataType *` to
+`const UA_DataType *`. The built-in `UA_TYPES` array is now declared
+`const` as well. DataType definitions are immutable at runtime; declaring
+them `const` makes this explicit in the API, protects against accidental
+modification and allows the toolchain to place the definitions in
+read-only memory. DataType arrays generated for additional nodesets
+remain mutable by default (see below).
+
+The `members` field in `UA_DataType` changed from `UA_DataTypeMember *`
+to `const UA_DataTypeMember *`. Generated member arrays are declared
+`const` for all type arrays. Member definitions carry no
+namespace-dependent data, so this also applies to type arrays generated
+for additional nodesets. Code that builds DataType definitions at
+runtime must populate the members array through its own mutable pointer
+before assigning it to the `members` field.
+
+### Const DataType arrays for additional nodesets (companion specifications)
+
+Type arrays generated for additional nodesets (e.g. companion
+specifications like DI) can now also be declared `const` and placed in
+read-only memory. Pass the new `NAMESPACE_MAP` argument to the CMake
+generation macros (`--namespaceMap` to generate_datatypes.py) to pin the
+namespace indices at generation time, e.g.
+`NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"`. The generated init
+code then verifies each contributing namespace URI against its pinned
+index and fails with `UA_STATUSCODE_BADINTERNALERROR` otherwise, before
+registering any type arrays or adding nodes. This checks all supplied
+const arrays, including dependency arrays and arrays spanning multiple
+namespaces, independently of the generated nodeset's filename. Dependency
+nodesets must still be initialized before their dependent nodes. Without pinning,
+the generated array remains mutable and its namespace indices continue
+to be adjusted in-place when the nodeset is loaded (unchanged behavior;
+the `xmlEncodingId` is now adjusted as well, and null encoding NodeIds
+are left untouched instead of receiving the namespace index).
+
+Pinning is all-or-nothing: every namespace that contributes a type to the
+array must be pinned, otherwise the load-time rewrite would overwrite the
+pinned indices again. Namespaces that are only imported (they contribute
+no type to this array) do not need to be pinned. An incomplete
+`NAMESPACE_MAP`, a namespace URI that matches no namespace of the type
+array, one index pinned to two namespaces, one namespace pinned to conflicting
+indices, or an index outside the UInt16 range is reported as an error at
+generation time.
+
+For a pinned namespace the pinned index takes precedence over an
+explicit `ns=` prefix in the NodeId strings of the type definition files.
+Unpinned namespaces keep the previous behavior (the `ns=` prefix if
+present, otherwise 0).
+
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
 Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
 6.3.1.1.3 has been implemented for UADP encoding. The ordering of DataSetMessages
 within NetworkMessages can be controlled via the `dataSetOrdering` field in the
 `UA_UadpWriterGroupMessageDataType` configuration.
+
+### PubSub AddConnection rolls back incomplete configurations
+
+The `PublishSubscribe.AddConnection` information model method now removes the
+new connection and its children if any part of the supplied configuration
+cannot be created. Invalid PublisherIds are rejected before creating a
+connection.
 
 ### Event API uses string-encoded of BrowsePaths
 

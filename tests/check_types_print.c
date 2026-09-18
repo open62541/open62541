@@ -7,6 +7,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
+#include "util/ua_util_internal.h"
 #include <check.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,6 +107,30 @@ START_TEST(string_append_to_empty) {
     UA_StatusCode res = UA_String_append(&s, s2);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(s.length, 5);
+    UA_String_clear(&s);
+} END_TEST
+
+/* An empty (but not null) string carries the UA_EMPTY_ARRAY_SENTINEL in the
+ * data pointer. That must not be handed over to realloc. */
+START_TEST(string_append_to_empty_sentinel) {
+    UA_String s = UA_STRING_ALLOC("");
+    ck_assert_ptr_eq(s.data, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    UA_String s2 = UA_STRING("World");
+    UA_StatusCode res = UA_String_append(&s, s2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.length, 5);
+    ck_assert(memcmp(s.data, "World", 5) == 0);
+    UA_String_clear(&s);
+} END_TEST
+
+START_TEST(string_escapeAppend_to_empty_sentinel) {
+    UA_String s = UA_STRING_ALLOC("");
+    ck_assert_ptr_eq(s.data, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    UA_String s2 = UA_STRING("a/b");
+    UA_StatusCode res = UA_String_escapeAppend(&s, s2, UA_ESCAPING_AND);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(s.length, 4);
+    ck_assert(memcmp(s.data, "a&/b", 4) == 0);
     UA_String_clear(&s);
 } END_TEST
 
@@ -424,6 +449,8 @@ static Suite *testSuite_typesExtra3(void) {
     tcase_add_test(tc_string, string_append_normal);
     tcase_add_test(tc_string, string_append_empty);
     tcase_add_test(tc_string, string_append_to_empty);
+    tcase_add_test(tc_string, string_append_to_empty_sentinel);
+    tcase_add_test(tc_string, string_escapeAppend_to_empty_sentinel);
     tcase_add_test(tc_string, string_format_test);
 
     TCase *tc_print = tcase_create("TypePrint");

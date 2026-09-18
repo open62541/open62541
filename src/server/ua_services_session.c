@@ -59,16 +59,35 @@ notifySession(UA_Server *server, UA_Session *session,
     notifyApplication(server, type, payloadMap);
 }
 
-/* Delayed callback to free the session memory */
 static void
-removeSessionCallback(void *application /* UA_Server */,
-                      void *context /* session_list_entry */) {
+cleanupSessionEntry(UA_Server *server, session_list_entry *entry) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_Session *session = &entry->session;
+
+    /* Callback into userland access control. The session context remains valid
+     * until this delayed teardown runs. */
+    if(server->config.accessControl.closeSession) {
+        server->config.accessControl.
+            closeSession(server, &server->config.accessControl,
+                         &session->sessionId, session->context);
+    }
+
+    UA_Session_clear(session, server);
+    UA_free(entry);
+}
+
+/* Delayed callback for destructive session teardown. Logical closure and
+ * detachment happen synchronously in UA_Session_remove. Keeping the Session
+ * resources alive until the current jobs have completed lets callbacks safely
+ * close the Session they are currently using. */
+static void
+cleanupSessionEntryCallback(void *application /* UA_Server */,
+                            void *context /* session_list_entry */) {
     UA_Server *server = (UA_Server*)application;
     session_list_entry *entry = (session_list_entry*)context;
     lockServer(server);
-    UA_Session_clear(&entry->session, server);
+    cleanupSessionEntry(server, entry);
     unlockServer(server);
-    UA_free(entry);
 }
 
 void
@@ -76,8 +95,42 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
                   UA_ShutdownReason shutdownReason) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    /* When the session times out, detach
-     * subscriptions so they can be recovered via TransferSubscriptions. */
+    /* Closing a Session can invoke user callbacks that re-enter the server.
+     * Mark it closed before teardown and make repeated removal idempotent. */
+    if(session->state == UA_SESSIONSTATE_CLOSED)
+        return;
+    UA_Boolean wasActivated =
+        (session->state == UA_SESSIONSTATE_ACTIVATED);
+    session->state = UA_SESSIONSTATE_CLOSED;
+
+    /* Detach the Session from the SecureChannel immediately so transport
+     * teardown and new requests cannot retain the logically closed Session.
+     * Session-owned resources are kept until the delayed callback. */
+    UA_Session_detachFromSecureChannel(server, session);
+
+    /* Deactivate the session */
+    if(wasActivated)
+        server->activeSessionCount--;
+
+    /* Detach the session from the session manager and make the capacity
+     * available */
+    session_list_entry *sentry = container_of(session, session_list_entry, session);
+    LIST_REMOVE(sentry, pointers);
+    server->sessionCount--;
+
+#if UA_MULTITHREADING >= 100
+    /* Pending service responses cannot be delivered after the Session has
+     * been removed. Cancel their operations and finish the response lifecycle
+     * without sending them on the closed Session. */
+    UA_AsyncManager_cancelSession(server, &session->sessionId,
+                                  UA_STATUSCODE_BADSESSIONCLOSED);
+#endif
+
+    /* Detach recoverable Subscriptions immediately when the Session times out.
+     * Otherwise remove them now. The Session is already closed and absent from
+     * lookup, so callbacks during Subscription teardown cannot remove it again.
+     * Keeping this synchronous also makes the Subscription state consistent
+     * as soon as UA_Session_remove returns. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
@@ -90,34 +143,12 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         }
     }
 
-    UA_PublishResponseEntry *entry;
-    while((entry = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse_clear(&entry->response);
-        UA_free(entry);
+    UA_PublishResponseEntry *pre;
+    while((pre = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse_clear(&pre->response);
+        UA_free(pre);
     }
 #endif
-
-    /* Callback into userland access control */
-    if(server->config.accessControl.closeSession) {
-        server->config.accessControl.
-            closeSession(server, &server->config.accessControl,
-                         &session->sessionId, session->context);
-    }
-
-    /* Detach the Session from the SecureChannel */
-    UA_Session_detachFromSecureChannel(server, session);
-
-    /* Deactivate the session */
-    if(session->activated) {
-        session->activated = false;
-        server->activeSessionCount--;
-    }
-
-    /* Detach the session from the session manager and make the capacity
-     * available */
-    session_list_entry *sentry = container_of(session, session_list_entry, session);
-    LIST_REMOVE(sentry, pointers);
-    server->sessionCount--;
 
     switch(shutdownReason) {
     case UA_SHUTDOWNREASON_CLOSE:
@@ -149,9 +180,17 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     /* Notify the application */
     notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
 
-    /* Add a delayed callback to remove the session when the currently
-     * scheduled jobs have completed */
-    sentry->cleanupCallback.callback = removeSessionCallback;
+    /* There cannot be callbacks still using the Session once the Server is
+     * stopped. In particular, UA_Server_delete should not enqueue work into an
+     * EventLoop that it is about to delete. */
+    if(server->state == UA_LIFECYCLESTATE_STOPPED) {
+        cleanupSessionEntry(server, sentry);
+        return;
+    }
+
+    /* Destructively tear down and free the Session after the currently
+     * scheduled jobs have completed. */
+    sentry->cleanupCallback.callback = cleanupSessionEntryCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
     UA_EventLoop *el = server->config.eventLoop;
@@ -429,10 +468,23 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
                   const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    if(server->sessionCount >= server->config.maxSessions) {
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "CreateSession: Could not create a Session - "
-                             "Server limits reached");
+    if(server->config.maxSessions != 0 &&
+       server->sessionCount >= server->config.maxSessions) {
+        if(channel) {
+            UA_LOG_WARNING_CHANNEL(
+                server->config.logging, channel,
+                "CreateSession: Rejecting Session creation because the configured "
+                "Session resource limit has been reached (%u active, limit %u)",
+                (unsigned)server->sessionCount,
+                (unsigned)server->config.maxSessions);
+        } else {
+            UA_LOG_WARNING(
+                server->config.logging, UA_LOGCATEGORY_SESSION,
+                "CreateSession: Rejecting Session creation because the configured "
+                "Session resource limit has been reached (%u active, limit %u)",
+                (unsigned)server->sessionCount,
+                (unsigned)server->config.maxSessions);
+        }
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
     }
 
@@ -467,6 +519,8 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
     /* Notify the application */
     notifySession(server, &newentry->session,
                   UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED);
+    if(newentry->session.state == UA_SESSIONSTATE_CLOSED)
+        return UA_STATUSCODE_BADSESSIONCLOSED;
 
     /* Return */
     *session = &newentry->session;
@@ -1113,7 +1167,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
      * SecureChannel is not same as the one associated with the
      * CreateSession request. Subsequent calls to ActivateSession may be
      * associated with different SecureChannels. */
-    if(!session->activated && session->channel != channel) {
+    if(session->state == UA_SESSIONSTATE_CREATED &&
+       session->channel != channel) {
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                              "ActivateSession: The Session has to be initially "
                              "activated on the SecureChannel that created it");
@@ -1229,6 +1284,10 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
                         &req->userIdentityToken, &session->context);
+    if(session->state == UA_SESSIONSTATE_CLOSED) {
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+        return;
+    }
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: The AccessControl plugin "
@@ -1335,8 +1394,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Activate the session */
-    if(!session->activated) {
-        session->activated = true;
+    if(session->state != UA_SESSIONSTATE_ACTIVATED) {
+        session->state = UA_SESSIONSTATE_ACTIVATED;
         server->activeSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
@@ -1382,6 +1441,10 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
     /* Notify the application */
     notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED);
+    if(session->state == UA_SESSIONSTATE_CLOSED) {
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+        return;
+    }
 
     /* Log the user for which the Session was activated */
     UA_LOG_INFO_SESSION(server->config.logging, session,

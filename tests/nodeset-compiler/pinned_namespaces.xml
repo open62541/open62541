@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>urn:open62541:test:pinned-a</Uri>
+    <Uri>urn:open62541:test:pinned-b</Uri>
+  </NamespaceUris>
+  <UADataType NodeId="ns=1;i=1001" BrowseName="1:PinnedA">
+    <DisplayName>PinnedA</DisplayName>
+    <References>
+      <Reference ReferenceType="i=45" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="PinnedA">
+      <Field Name="Zero" Value="0"/>
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=2001" BrowseName="2:PinnedB">
+    <DisplayName>PinnedB</DisplayName>
+    <References>
+      <Reference ReferenceType="i=45" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="PinnedB">
+      <Field Name="One" Value="1"/>
+    </Definition>
+  </UADataType>
+</UANodeSet>

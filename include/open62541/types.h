@@ -1031,6 +1031,8 @@ typedef enum {
     UA_DATATYPEKIND_BITFIELDCLUSTER = 30 /* bitfields + padding */
 } UA_DataTypeKind;
 
+#define UA_DATATYPE_MEMBERS_MAX 511
+
 struct UA_DataType {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *typeName;
@@ -1039,13 +1041,13 @@ struct UA_DataType {
     UA_NodeId binaryEncodingId; /* NodeId of datatype when encoded as binary */
     UA_NodeId xmlEncodingId;    /* NodeId of datatype when encoded as XML */
     UA_UInt32 memSize     : 16; /* Size of the struct in memory */
-    UA_UInt32 typeKind    : 6;  /* Dispatch index for the handling routines */
+    UA_UInt32 typeKind    : 5;  /* Dispatch index for the handling routines */
     UA_UInt32 pointerFree : 1;  /* The type (and its members) contains no
                                  * pointers that need to be freed */
     UA_UInt32 overlayable : 1;  /* The type has the identical memory layout
                                  * in memory and on the binary stream. */
-    UA_UInt32 membersSize : 8;  /* How many members does the type have? */
-    UA_DataTypeMember *members;
+    UA_UInt32 membersSize : 9;  /* How many members does the type have? */
+    const UA_DataTypeMember *members;
 };
 
 /* Clean up type definition with heap-allocated data */
@@ -1060,7 +1062,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2);
 typedef struct UA_DataTypeArray {
     struct UA_DataTypeArray *next;
     size_t typesSize;
-    UA_DataType *types;
+    const UA_DataType *types;
     UA_Boolean cleanup; /* Free the array structure and its content when the
                          * client or server configuration containing it is
                          * cleaned up */

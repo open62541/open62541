@@ -15,7 +15,6 @@ Here is an overview of the licenses for all plugins:
 | ua_debug_dump_pkgs                                | CC0     |
 | ua_log_stdout                                     | CC0     |
 | ua_log_syslog                                     | CC0     |
-| ua_nodesetloader                                  | CC0     |
 | ua_nodestore_hashmap                              | CC0     |
 | ua_nodestore_ziptree                              | CC0     |
 | crypto/mbedtls/securitypolicy_common              | CC0     |

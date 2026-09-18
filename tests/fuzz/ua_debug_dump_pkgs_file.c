@@ -16,9 +16,8 @@
 #include <open62541/types.h>
 
 #include "server/ua_server_internal.h"
-#include "testing_networklayers.h"
-
-#define RECEIVE_BUFFER_SIZE 65535
+#include "ua_securechannel.h"
+#include "ua_types_encoding_binary.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,8 +39,7 @@ struct UA_dump_filename {
     char serviceName[100];
 };
 
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
-                                UA_ByteString *messageBuffer);
+void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_ByteString *messageBuffer);
 
 /**
  * Gets a pointer to the string representing the given message type from UA_dump_messageTypes.
@@ -105,56 +103,61 @@ UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100
 }
 
 /**
- * We need to decode the given binary message to get the name of the called service.
- * This method is used if the connection an established secure channel.
+ * Derive the file name from the first chunk in the received buffer.
  *
- * message is the decoded message starting at the nodeid of the content type.
+ * The message type is taken from the chunk header, which is never encrypted.
+ * The service name additionally requires the request body, which is readable
+ * because the corpus is generated over an unencrypted channel (see
+ * corpus_generator.c). With SecurityMode Sign/SignAndEncrypt the body stays
+ * opaque here and the name is left empty.
  */
-static UA_StatusCode
-UA_debug_dump_setName(void *application, UA_SecureChannel *channel,
-                      UA_MessageType messagetype, UA_UInt32 requestId,
-                      UA_ByteString *message) {
-    struct UA_dump_filename *dump_filename = (struct UA_dump_filename *)application;
-    dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(messagetype);
-    if(messagetype == UA_MESSAGETYPE_MSG)
-        UA_debug_dumpSetServiceName(message, dump_filename->serviceName);
-    return UA_STATUSCODE_GOOD;
+static void
+UA_debug_dumpSetNames(const UA_ByteString *buffer, struct UA_dump_filename *dump_filename) {
+    if(buffer->length < UA_SECURECHANNEL_MESSAGEHEADER_LENGTH)
+        return;
+
+    size_t offset = 0;
+    UA_TcpMessageHeader header;
+    UA_StatusCode res =
+        UA_decodeBinaryInternal(buffer, &offset, &header,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return;
+
+    UA_MessageType messageType =
+        (UA_MessageType)(header.messageTypeAndChunkType & 0x00ffffff);
+    dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(messageType);
+
+    /* Only MSG chunks carry a service request. Skip the symmetric security and
+     * sequence headers to get to the request body. */
+    if(messageType != UA_MESSAGETYPE_MSG ||
+       buffer->length <= UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH)
+        return;
+
+    UA_ByteString body;
+    body.data = buffer->data + UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH;
+    body.length = buffer->length - UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH;
+    UA_debug_dumpSetServiceName(&body, dump_filename->serviceName);
 }
 
 /**
- * Called in processCompleteChunk for every complete chunk which is received by the server.
+ * Called for every buffer which is received by the server.
  *
- * It will first try to decode the message to get the name of the called service.
- * When we have a name the message is dumped as binary to that file.
- * If the file already exists a new file will be created with a counter at the end.
+ * The name of the file is derived from the first chunk in the buffer. The
+ * buffer is then dumped verbatim, as that is what the server consumes and
+ * therefore what the fuzzer has to replay. If the file already exists a new
+ * file will be created with a counter at the end.
  */
 void
-UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
-                           UA_ByteString *messageBuffer) {
+UA_debug_dumpCompleteChunk(UA_Server *const server, UA_ByteString *messageBuffer) {
+    /* The first callback of a connection carries no data yet */
+    if(messageBuffer->length == 0)
+        return;
+
     struct UA_dump_filename dump_filename;
     dump_filename.messageType = NULL;
     dump_filename.serviceName[0] = 0;
-
-    UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
-    UA_SecureChannel dummy;
-    UA_SecureChannel_init(&dummy, &connection->channel->config);
-    dummy.securityPolicy = connection->channel->securityPolicy;
-    dummy.state = connection->channel->state;
-    dummy.securityMode = connection->channel->securityMode;
-    dummy.connection = &c;
-    UA_ChannelSecurityToken_copy(&connection->channel->securityToken,
-                                 &dummy.securityToken);
-    UA_ChannelSecurityToken_copy(&connection->channel->altSecurityToken,
-                                 &dummy.altSecurityToken);
-
-    UA_ByteString messageBufferCopy;
-    UA_ByteString_copy(messageBuffer, &messageBufferCopy);
-    UA_SecureChannel_processBuffer(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
-    UA_ByteString_clear(&messageBufferCopy);
-
-    dummy.securityPolicy = NULL;
-    UA_SecureChannel_deleteBuffered(&dummy);
-    c.close(&c);
+    UA_debug_dumpSetNames(messageBuffer, &dump_filename);
 
     char fileName[250];
     snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,

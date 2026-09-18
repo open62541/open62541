@@ -361,16 +361,16 @@ process_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     if(recordCount == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Iterate over all candidate records, apply the capability filter first
-     * and only then enforce the response size limit. */
-    UA_UInt32 filteredCount = 0;
-    UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
+    /* Count matching records first. This avoids a temporary stack array sized
+     * from the unbounded discovery cache. The service mutex keeps the array
+     * stable between this pass and the copy pass below. */
+    size_t filteredCount = 0;
     for(size_t i = 0; i < recordCount; i++) {
         UA_ServerOnNetwork *son = &server->serversOnNetwork[i + recordOffset];
         if(!entryMatchesCapabilityFilter(serverCapabilityFilterSize,
                                          serverCapabilityFilter, son))
             continue;
-        filtered[filteredCount++] = son;
+        filteredCount++;
         if(maxRecordsToReturn > 0 && filteredCount >= maxRecordsToReturn)
             break;
     }
@@ -386,10 +386,17 @@ process_FindServersOnNetwork(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     *outServersSize = filteredCount;
 
-    /* Copy the server entries */
+    /* Copy the matching entries in their original order */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < filteredCount; i++) {
-        res |= UA_ServerOnNetwork_copy(filtered[i], &(*outServers)[i]);
+    size_t pos = 0;
+    for(size_t i = 0; i < recordCount && pos < filteredCount; i++) {
+        UA_ServerOnNetwork *son = &server->serversOnNetwork[i + recordOffset];
+        if(!entryMatchesCapabilityFilter(serverCapabilityFilterSize,
+                                         serverCapabilityFilter, son))
+            continue;
+        res = UA_ServerOnNetwork_copy(son, &(*outServers)[pos++]);
+        if(res != UA_STATUSCODE_GOOD)
+            break;
     }
 
     /* Clean up the array if copying failed */
@@ -683,7 +690,9 @@ updateEndpointUserIdentityToken(UA_Server *server,
             postfix = securityPolicyUriPostfix(ed->securityPolicyUri);
         size_t newLen = utp->policyId.length + postfix.length +
             strlen(securityModeStrs[ed->securityMode]);
-        UA_Byte *newString = (UA_Byte*)UA_realloc(utp->policyId.data, newLen);
+        UA_Byte *newString = (UA_Byte*)
+            UA_realloc((void*)((uintptr_t)utp->policyId.data &
+                               ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL), newLen);
         if(!newString)
             continue;
         size_t pos = utp->policyId.length;

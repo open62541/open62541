@@ -45,6 +45,7 @@
   //    WARN = 2   /* Print a message in the logs and continue */
   //    ACCEPT = 3 /* Continue and disregard the broken rule */
   allowEmptyVariables: 0,
+  allowUnattachedMethods: 2, // UA_RULEHANDLING_WARN
 
   // Networking
   // Set up the local ServerUrls. They are used during startup to initialize the server sockets.

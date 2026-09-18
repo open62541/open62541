@@ -39,7 +39,7 @@ UA_DateTime_localTimeUtcOffset(void) {
 
 UA_DateTime
 UA_DateTime_nowMonotonic(void) {
-    return k_uptime_get();
+    return (UA_DateTime)(k_ticks_to_ns_floor64(k_uptime_ticks()) / 100);
 }
 
 #endif

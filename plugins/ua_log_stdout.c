@@ -93,7 +93,7 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
            logCategoryNames[category]);
     mp_vsnprintf(logbuf, STDOUT_LOGBUFSIZE, msg, args);
     printf("%s\n", logbuf);
-    fflush(stdout);
+    (void)fflush(stdout); /* Logging is best-effort and cannot report failure. */
 
     /* Unlock */
 #if UA_MULTITHREADING >= 100

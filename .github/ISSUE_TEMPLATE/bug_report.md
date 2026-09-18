@@ -4,9 +4,7 @@ about: 'Report a bug'
 ---
 <!--
 !ATTENTION!
-Please read the following page carefully and provide us with all the
-information requested:
-https://github.com/open62541/open62541/wiki/Writing-Good-Issue-Reports
+Please provide us with all the information requested below.
 
 Use Github Markdown to format your text:
 https://help.github.com/articles/basic-writing-and-formatting-syntax/

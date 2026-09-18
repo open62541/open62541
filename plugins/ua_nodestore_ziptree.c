@@ -58,7 +58,7 @@ typedef struct {
 
     /* Maps ReferenceTypeIndex to the NodeId of the ReferenceType */
     UA_NodeId referenceTypeIds[UA_REFERENCETYPESET_MAX];
-    UA_Byte referenceTypeCounter;
+    UA_UInt16 referenceTypeCounter;
 } ZipNodestore;
 
 ZIP_FUNCTIONS(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
@@ -335,8 +335,9 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
         }
 
         /* Assign the ReferenceTypeIndex to the new ReferenceTypeNode */
-        refNode->referenceTypeIndex = zns->referenceTypeCounter;
-        refNode->subTypes = UA_REFTYPESET(zns->referenceTypeCounter);
+        UA_Byte refTypeIndex = (UA_Byte)zns->referenceTypeCounter;
+        refNode->referenceTypeIndex = refTypeIndex;
+        refNode->subTypes = UA_REFTYPESET(refTypeIndex);
         zns->referenceTypeCounter++;
     }
 
@@ -367,6 +368,15 @@ zipNsReplaceNode(UA_Nodestore *ns, UA_Node *node) {
         zipNsReleaseNode(NULL, oldNode);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* All failure checks have passed. Move the runtime associations only at
+     * the commit point so a failed replacement leaves the old node intact. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Node *oldMutableNode = (UA_Node*)&oldEntry->nodeId;
+    UA_assert(node->head.monitoredItems == NULL);
+    node->head.monitoredItems = oldMutableNode->head.monitoredItems;
+    oldMutableNode->head.monitoredItems = NULL;
+#endif
 
     /* Replace */
     ZipNodestore *zns = (ZipNodestore*)ns;

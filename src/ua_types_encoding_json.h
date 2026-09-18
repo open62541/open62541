@@ -91,6 +91,8 @@ typedef struct {
 } DecodeEntry;
 
 UA_StatusCode decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
+UA_StatusCode decodeFieldsAllowUnknown(ParseCtx *ctx, DecodeEntry *entries,
+                                       size_t entryCount);
 
 /* Expose the jump tables and some methods for PubSub JSON decoding */
 extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];

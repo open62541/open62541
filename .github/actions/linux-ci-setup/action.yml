@@ -1,0 +1,37 @@
+name: "Linux CI setup"
+description: >
+  Enable IPv6 on the container network and install the build dependencies
+  shared by all Linux CI jobs. Requires the repository to be checked out
+  already, because this is a local action.
+
+inputs:
+  extra-deps:
+    description: >
+      Shell snippet installing the additional packages a specific job needs.
+      Passed through verbatim, so it may span multiple lines.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Work around disabled ipv6 on actions container networks
+      shell: bash
+      run: |
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "Current IPv6 status on eth0: $IPV6"
+        # Nothing to do if IPv6 is already enabled. Plain "exit" would
+        # propagate the failed test as exit status 1 and fail the step.
+        [ "$IPV6" = "1" ] || exit 0
+
+        echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "New IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx check libxml2-dev libpcap-dev libreadline-dev
+        ${{ inputs.extra-deps }}

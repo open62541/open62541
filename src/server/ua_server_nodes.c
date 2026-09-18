@@ -596,7 +596,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->permissionIndex = srchead->permissionIndex;
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    dsthead->monitoredItems = srchead->monitoredItems;
+    dsthead->monitoredItems = NULL;
 #endif
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_clear(dst);

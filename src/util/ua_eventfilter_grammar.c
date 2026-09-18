@@ -770,7 +770,7 @@ static YYACTIONTYPE yy_find_reduce_action(
 #else
   assert( stateno<=YY_REDUCE_COUNT );
 #endif
-  i = yy_reduce_ofst[stateno];
+  i = yy_reduce_ofst[stateno]; /* NOLINT(cert-str34-c): Signed parser offset. */
   assert( iLookAhead!=YYNOCODE );
   i += iLookAhead;
 #ifdef YYERRORSYMBOL
@@ -1055,7 +1055,7 @@ static YYACTIONTYPE yy_reduce(
   }
   assert( yyruleno<sizeof(yyRuleInfoLhs)/sizeof(yyRuleInfoLhs[0]) );
   yygoto = yyRuleInfoLhs[yyruleno];
-  yysize = yyRuleInfoNRhs[yyruleno];
+  yysize = yyRuleInfoNRhs[yyruleno]; /* NOLINT(cert-str34-c): Signed rule length. */
   yyact = yy_find_reduce_action(yymsp[yysize].stateno,(YYCODETYPE)yygoto);
 
   /* There are no SHIFTREDUCE actions on nonterminals because the table

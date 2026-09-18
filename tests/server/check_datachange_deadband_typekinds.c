@@ -87,7 +87,7 @@ static void teardown(void) {
  * the given absolute deadband, and prime the lastReportedValue so
  * the next delivery is the post-prime one. */
 static void
-addMonitoredVariable(UA_DataType *type, UA_Int32 deadband) {
+addMonitoredVariable(const UA_DataType *type, UA_Int32 deadband) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Variant value;
     UA_Variant_init(&value);

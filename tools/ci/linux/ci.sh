@@ -20,6 +20,47 @@ fi
 # Allow to reuse TIME-WAIT sockets for new connections
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
+# CTest arguments for the memcheck jobs. Running the full unit test suite under
+# Valgrind takes hours, so the CI splits it round-robin over several runners
+# (ctest -I <start>,,<stride>). CTEST_SHARDS is the number of runners and
+# CTEST_SHARD the 1-based index of this one. Both default to running the
+# complete suite, so a local "source ci.sh && unit_tests_valgrind MBEDTLS"
+# behaves as before.
+#
+# Two things to keep in mind when reusing this helper:
+#
+#  - "-I" selects tests by their index in the *unfiltered* list. Sharding must
+#    therefore not be combined with a "-R" name filter, or the shards silently
+#    end up covering only part of the filtered set.
+#  - "--no-tests=error" catches a shard that ends up selecting no test at all.
+#    It requires CMake >= 3.18 and is therefore only passed when the installed
+#    ctest advertises it; ubuntu-20.04 still ships CMake 3.16.
+function ctest_args {
+    local args="--output-on-failure"
+    local shards="${CTEST_SHARDS:-1}"
+    local shard="${CTEST_SHARD:-1}"
+    if [ "${shards}" != "1" ]; then
+        # Fail loudly on a misconfigured matrix. Falling back to the full suite
+        # would run the complete multi-hour testsuite in every single shard.
+        case "${shards}:${shard}" in
+            *[!0-9:]*|:*|*:)
+                echo "ci.sh: CTEST_SHARDS/CTEST_SHARD must be positive integers," \
+                     "got '${shards}'/'${shard}'" >&2
+                return 1
+                ;;
+        esac
+        # Probed instead of piped into grep, so that neither "set -o pipefail"
+        # nor a SIGPIPE from an early-exiting reader can flip the result.
+        local help_output
+        help_output="$(ctest --help 2>/dev/null || true)"
+        case "${help_output}" in
+            *--no-tests=*) args="${args} --no-tests=error" ;;
+        esac
+        args="${args} -I ${shard},,${shards}"
+    fi
+    printf '%s' "${args}"
+}
+
 #####################################
 # Build Documentation including PDF #
 #####################################
@@ -225,7 +266,6 @@ function unit_tests {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -357,7 +397,6 @@ function unit_tests_32 {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_32BIT=ON \
@@ -394,7 +433,6 @@ function unit_tests_diag {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
@@ -462,7 +500,6 @@ function unit_tests_alarms {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_DA=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \
@@ -479,7 +516,6 @@ function unit_tests_alarms_memcheck {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DA=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
@@ -489,7 +525,8 @@ function unit_tests_alarms_memcheck {
 
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "make test ARGS=\"-V\""
+    local args; args="$(ctest_args)"
+    sudo -E bash -c "make test ARGS=\"${args}\""
 }
 
 function unit_tests_encryption {
@@ -541,7 +578,9 @@ function unit_tests_pubsub_sks {
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
-    sudo -E bash -c "make test ARGS=\"-V -R sks\""
+    # Never sharded: "-I" would index into the unfiltered list, not into "-R sks"
+    local args; args="$(CTEST_SHARDS=1 ctest_args)"
+    sudo -E bash -c "make test ARGS=\"${args} -R sks\""
     make gcov
 }
 
@@ -557,7 +596,6 @@ function unit_tests_valgrind {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -566,7 +604,8 @@ function unit_tests_valgrind {
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "make test ARGS=\"-V\""
+    local args; args="$(ctest_args)"
+    sudo -E bash -c "make test ARGS=\"${args}\""
 }
 
 ##########################
@@ -599,7 +638,6 @@ function run_examples {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_FORCE_WERROR=ON \
@@ -647,7 +685,6 @@ function examples_valgrind {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_FORCE_WERROR=ON \
@@ -681,7 +718,6 @@ function build_clang_analyzer {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
@@ -790,4 +826,70 @@ UAFX-Data\;UAFX-AC\;UAFX-CM\;Robotics \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
+}
+
+#########################
+# Build option coverage #
+#########################
+
+# Compile the library once per build option that no other job configures:
+# options that are off by default, and default-on features in their off state.
+# Only the library is built, so a configuration costs about a minute.
+#
+# Failures are collected instead of aborting, so one run reports every broken
+# configuration. "set -e" does not apply here: the CI step runs
+# "source ci.sh && <action>", and errexit is suspended inside an && list.
+
+function build_option_coverage {
+    local failed=()
+
+    # Usage: build_option_cfg <name> <cmake options...>
+    build_option_cfg() {
+        local name=$1; shift
+        echo "::group::${name}"
+        rm -rf build; mkdir -p build; cd build
+        if cmake -DCMAKE_BUILD_TYPE=Debug \
+                 -DUA_BUILD_EXAMPLES=OFF \
+                 -DUA_FORCE_WERROR=ON \
+                 "$@" \
+                 .. && make ${MAKEOPTS}; then
+            echo "::endgroup::"
+        else
+            echo "::endgroup::"
+            echo "::error::build_option_coverage: ${name} failed"
+            failed+=("${name}")
+        fi
+        cd ..
+    }
+
+    # Debug instrumentation
+    build_option_cfg "UA_DEBUG"                -DUA_DEBUG=ON -DUA_DEBUG_FILE_LINE_INFO=ON
+    build_option_cfg "UA_DEBUG_DUMP_PKGS"      -DUA_DEBUG_DUMP_PKGS=ON
+    # Defines UA_DEBUG_DUMP_PKGS_FILE and builds the corpus generator
+    build_option_cfg "UA_BUILD_FUZZING_CORPUS"  -DUA_BUILD_FUZZING_CORPUS=ON
+
+    # Off by default
+    build_option_cfg "UA_ENABLE_QUERY"             -DUA_ENABLE_QUERY=ON
+    build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
+    build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
+
+    # On by default, so only ever compiled in the enabled state
+    # The PubSub information model twin exposes methods, so it has to go as well
+    build_option_cfg "no UA_ENABLE_METHODCALLS"    -DUA_ENABLE_METHODCALLS=OFF \
+                     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF
+    build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF
+    build_option_cfg "no UA_ENABLE_AUDITING"       -DUA_ENABLE_AUDITING=OFF
+    build_option_cfg "no UA_ENABLE_STATUSCODE_DESCRIPTIONS" -DUA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF
+    build_option_cfg "no UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS" -DUA_ENABLE_NODESET_COMPILER_DESCRIPTIONS=OFF
+    # Type descriptions are required by the diagnostics, the JSON encoding and
+    # the event filter parser
+    build_option_cfg "no UA_ENABLE_TYPEDESCRIPTION" -DUA_ENABLE_TYPEDESCRIPTION=OFF \
+                     -DUA_ENABLE_DIAGNOSTICS=OFF -DUA_ENABLE_JSON_ENCODING=OFF \
+                     -DUA_ENABLE_XML_ENCODING=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF
+
+    if [ ${#failed[@]} -ne 0 ]; then
+        echo "Failed configurations: ${failed[*]}"
+        return 1
+    fi
+    echo "All build option configurations compiled"
 }

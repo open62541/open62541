@@ -146,8 +146,16 @@ addDataType(UA_Server *server, UA_DataType *dt) {
         }
     }
 
-    /* Move the datatype into the stable location in the server */
-    current->types[current->typesSize] = *dt;
+    /* Move the datatype into the stable location in the server. Repair
+     * self-referential members because their source pointer is about to go
+     * out of scope. */
+    UA_DataType *target = (UA_DataType*)(uintptr_t)&current->types[current->typesSize];
+    *target = *dt;
+    UA_DataTypeMember *members = (UA_DataTypeMember*)(uintptr_t)target->members;
+    for(size_t i = 0; i < target->membersSize; i++) {
+        if(members[i].memberType == dt)
+            members[i].memberType = target;
+    }
     current->typesSize++;
     return UA_STATUSCODE_GOOD;
 }

@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ */
 
 #include <check.h>
 #include <stdlib.h>
@@ -195,6 +198,8 @@ static THREAD_HANDLE serverThreadLds;
 static THREAD_HANDLE serverThreadRegister;
 
 typedef struct {
+    size_t openedListenConnections;
+    size_t openedSendConnections;
     size_t sentMessages;
     size_t sentNonEmptyMessages;
     UA_ByteString lastMessage;
@@ -253,7 +258,7 @@ resetDiscoveryCounters(void) {
     memset(&discoveryCounters, 0, sizeof(discoveryCounters));
 }
 
-static void
+static UA_MdnsDriver *
 addMdnsDriverWithQueries(UA_Server *s, UA_Boolean listen, UA_Boolean announce,
                          UA_Boolean queryPresence, UA_Boolean queryDetails,
                          UA_UInt32 queryInterval) {
@@ -276,6 +281,7 @@ addMdnsDriverWithQueries(UA_Server *s, UA_Boolean listen, UA_Boolean announce,
     UA_MdnsDriver *mdns = UA_MdnsDriver_Mdnsd(paramsMap);
     ck_assert_ptr_ne(mdns, NULL);
     ck_assert_uint_eq(UA_Server_addDriver(s, &mdns->drv), UA_STATUSCODE_GOOD);
+    return mdns;
 }
 
 static void
@@ -405,6 +411,35 @@ serverOnNetworkHasTxtData(const UA_ServerOnNetwork *serverOnNetwork) {
 }
 
 static UA_StatusCode
+interceptingOpen(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
+                 void *application, void *context,
+                 UA_ConnectionManager_connectionCallback callback) {
+    TestUdpIntercept *intercept =
+        (TestUdpIntercept*)TestConnectionManager_getContext(cm);
+    const UA_Boolean *listen = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "listen"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!intercept || !listen)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(*listen)
+        intercept->openedListenConnections++;
+    else
+        intercept->openedSendConnections++;
+
+    uintptr_t connectionId;
+    UA_StatusCode res =
+        TestConnectionManager_createConnection(cm, application, context,
+                                               callback, &connectionId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    return TestConnectionManager_inject(cm, connectionId,
+                                        UA_CONNECTIONSTATE_ESTABLISHED,
+                                        NULL, NULL);
+}
+
+static UA_StatusCode
 interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
                  const UA_KeyValueMap *params, UA_ByteString *buf) {
     (void)connectionId;
@@ -449,7 +484,7 @@ interceptingSend(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static const TestConnectionManager_CallbackOverloads interceptingUdpOverloads = {
-    NULL, interceptingSend, NULL
+    interceptingOpen, interceptingSend, NULL
 };
 
 static void
@@ -1084,6 +1119,43 @@ buildInjectedARecordPacket(const char *name, unsigned short clazz,
 }
 
 static void
+writeUint16(unsigned char **pos, unsigned value) {
+    *(*pos)++ = (unsigned char)(value >> 8);
+    *(*pos)++ = (unsigned char)value;
+}
+
+/* Place an AAAA record at the end of a 511-byte datagram and claim 16 bytes of
+ * resource data although only eight bytes remain. The mdnsd parser may inspect
+ * the claimed bytes while validating the record. */
+static UA_ByteString
+buildTruncatedAaaaPacket(void) {
+    UA_ByteString packet;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&packet, 511),
+                      UA_STATUSCODE_GOOD);
+    memset(packet.data, 0, packet.length);
+    unsigned char *pos = packet.data;
+    writeUint16(&pos, 0);  /* Id */
+    writeUint16(&pos, 0);  /* Flags */
+    writeUint16(&pos, 96); /* Questions */
+    writeUint16(&pos, 1);  /* Answers */
+    writeUint16(&pos, 0);  /* Authority */
+    writeUint16(&pos, 0);  /* Additional */
+    for(size_t i = 0; i < 96; i++) {
+        *pos++ = 0;         /* Root name */
+        writeUint16(&pos, QTYPE_A);
+        writeUint16(&pos, QCLASS_IN);
+    }
+    *pos++ = 0;             /* Root name */
+    writeUint16(&pos, QTYPE_AAAA);
+    writeUint16(&pos, QCLASS_IN);
+    pos += 4;               /* TTL */
+    writeUint16(&pos, 16);  /* Resource-data length */
+    pos += 8;
+    ck_assert_ptr_eq(pos, packet.data + packet.length);
+    return packet;
+}
+
+static void
 injectMdnsPacket(UA_ConnectionManager *cm, const UA_ByteString *packet) {
     UA_KeyValuePair params[2];
     UA_KeyValueMap paramsMap = {2, params};
@@ -1471,6 +1543,20 @@ setDiscoveryTestClientDefaults(UA_ClientConfig *cc) {
     cc->securityMode = UA_MESSAGESECURITYMODE_NONE;
 }
 
+/* Called with the registering server's background thread stopped. The public
+ * API only queues the request; finish it before querying the LDS or submitting
+ * another request. The LDS continues to run on its own thread. */
+static UA_Boolean
+finishDiscoveryRequest(void) {
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
+    while(UA_DiscoveryManager_getPendingRegistration(serverRegister, NULL)) {
+        if(UA_DateTime_nowMonotonic() >= deadline)
+            return false;
+        UA_Server_run_iterate(serverRegister, true);
+    }
+    return true;
+}
+
 static void
 registerWithLdsPublicApi(void) {
     UA_ClientConfig cc;
@@ -1485,10 +1571,13 @@ registerWithLdsPublicApi(void) {
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING_NULL);
 
+    UA_Boolean completed = (retval == UA_STATUSCODE_GOOD) && finishDiscoveryRequest();
+
     *runningRegister = true;
     THREAD_CREATE(serverThreadRegister, serverloop_register_public);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(completed, "Timed out waiting for the discovery request to finish");
 }
 
 static void
@@ -1504,23 +1593,21 @@ deregisterFromLdsPublicApi(void) {
         UA_Server_deregisterDiscovery(serverRegister, &cc,
                                       UA_STRING("opc.tcp://localhost:4840"));
 
+    UA_Boolean completed = (retval == UA_STATUSCODE_GOOD) && finishDiscoveryRequest();
+
     *runningRegister = true;
     THREAD_CREATE(serverThreadRegister, serverloop_register_public);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(completed, "Timed out waiting for the discovery request to finish");
 }
 
 static UA_Boolean
 isServerRegisteredAtLds(void) {
     UA_Client *client = UA_Client_new();
-    if(!client)
-        return false;
+    ck_assert_ptr_nonnull(client);
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     setDiscoveryTestClientDefaults(cc);
-    /* The default 5s timeout would stretch the for-loop into tens of
-     * minutes when the discovery handshake never completes. Use a short
-     * timeout so the test fails fast and reports a clear problem. */
-    cc->timeout = 200;
     UA_ApplicationDescription *servers = NULL;
     size_t serversSize = 0;
 
@@ -1535,6 +1622,7 @@ isServerRegisteredAtLds(void) {
                               &serversSize, &servers);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         return false;
     }
 
@@ -1632,6 +1720,96 @@ START_TEST(MdnsStartupTriggersSendPath) {
     waitForMdnsMessageAndAssert(intercepts, 1, 0, &expectation);
 }
 END_TEST
+
+START_TEST(MdnsStartupOpensReceiveAndSendConnections) {
+    ck_assert_uint_eq(testUdpIntercept->openedListenConnections, 1);
+    ck_assert_uint_eq(testUdpIntercept->openedSendConnections, 1);
+}
+END_TEST
+
+START_TEST(MdnsShortDatagramUsesParserSizedBuffer) {
+    UA_ByteString packet = buildTruncatedAaaaPacket();
+    injectMdnsPacket(testUdpCm, &packet);
+    UA_ByteString_clear(&packet);
+}
+END_TEST
+
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+
+static UA_Server *realUdpReceiver, *realUdpSender;
+
+static void
+useLoopbackInterface(UA_MdnsDriver *mdns) {
+#ifdef __APPLE__
+    UA_String interface = UA_STRING("lo0");
+#else
+    UA_String interface = UA_STRING("lo");
+#endif
+    ck_assert_uint_eq(UA_KeyValueMap_setScalar(
+                          &mdns->drv.params, UA_QUALIFIEDNAME(0, "interface"),
+                          &interface, &UA_TYPES[UA_TYPES_STRING]),
+                      UA_STATUSCODE_GOOD);
+}
+
+static UA_Server *
+newRealUdpMdnsServer(UA_UInt16 port) {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(config));
+    ck_assert_uint_eq(UA_ServerConfig_setMinimal(&config, port, NULL), UA_STATUSCODE_GOOD);
+    config.tcpReuseAddr = true;
+    config.serversOnNetworkEnabled = true;
+    return UA_Server_newWithConfig(&config);
+}
+
+static void
+setupRealUdpMdnsServers(void) {
+    realUdpReceiver = newRealUdpMdnsServer(4840);
+    ck_assert_ptr_ne(realUdpReceiver, NULL);
+    UA_MdnsDriver *receiverMdns =
+        addMdnsDriverWithQueries(realUdpReceiver, true, false, true, false, 0);
+    useLoopbackInterface(receiverMdns);
+    ck_assert_uint_eq(UA_Server_run_startup(realUdpReceiver), UA_STATUSCODE_GOOD);
+
+    realUdpSender = newRealUdpMdnsServer(16664);
+    ck_assert_ptr_ne(realUdpSender, NULL);
+    UA_MdnsDriver *senderMdns =
+        addMdnsDriverWithQueries(realUdpSender, false, true, false, false, 0);
+    useLoopbackInterface(senderMdns);
+    ck_assert_uint_eq(UA_Server_run_startup(realUdpSender), UA_STATUSCODE_GOOD);
+
+    const char *capabilities[] = {"E2E"};
+    registerServerOnNetwork(realUdpSender, "mdns-real-udp-e2e",
+                            "opc.tcp://mdns-e2e-host:16664/e2e", capabilities, 1);
+}
+
+static void
+teardownRealUdpMdnsServers(void) {
+    if(realUdpSender) {
+        UA_Server_run_shutdown(realUdpSender);
+        UA_Server_delete(realUdpSender);
+    }
+    if(realUdpReceiver) {
+        UA_Server_run_shutdown(realUdpReceiver);
+        UA_Server_delete(realUdpReceiver);
+    }
+}
+
+START_TEST(MdnsAnnouncementTraversesRealUdpMulticastLoopback) {
+    const char *expectedName = "mdns-real-udp-e2e";
+    for(size_t i = 0;
+        i < 2000 && countServersOnNetworkByName(realUdpReceiver, expectedName) == 0;
+        i++) {
+        UA_Server_run_iterate(realUdpSender, false);
+        UA_Server_run_iterate(realUdpReceiver, false);
+        struct timespec ts = {0, 1000000}; /* Let the kernel deliver multicast. */
+        nanosleep(&ts, NULL);
+    }
+
+    ck_assert_uint_eq(countServersOnNetworkByName(realUdpReceiver, expectedName), 1);
+}
+END_TEST
+
+#endif
 
 static UA_Server *
 createMdnsQueryTestServer(UA_ConnectionManager **outCm,
@@ -1760,8 +1938,6 @@ START_TEST(PublicApiFindServersOnNetworkListsRegisteredServers) {
     expectedServerNames[0] = "LDS_public_api";
 
     registerWithLdsPublicApi();
-    for(size_t i = 0; i < 30 && !isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
     ck_assert(isServerRegisteredAtLds());
 
     UA_fakeSleep(4000);
@@ -1929,33 +2105,20 @@ END_TEST
 
 START_TEST(PublicApiRegisterDeregisterCallback) {
     registerWithLdsPublicApi();
-
-    for(size_t i = 0; i < 30 && !isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
-
     ck_assert(isServerRegisteredAtLds());
 
     deregisterFromLdsPublicApi();
-
-    for(size_t i = 0; i < 30 && isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
-
     ck_assert(!isServerRegisteredAtLds());
 }
 END_TEST
 
 START_TEST(PublicApiDeregisterDiscoveryKeepsLocalMdnsRecord) {
     registerWithLdsPublicApi();
-    for(size_t i = 0; i < 30 && !isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
     ck_assert(isServerRegisteredAtLds());
     ck_assert_uint_eq(countServersOnNetworkByName(serverRegister,
                                                   "Register_public_api"), 1);
 
     deregisterFromLdsPublicApi();
-
-    for(size_t i = 0; i < 30 && isServerRegisteredAtLds(); i++)
-        iterateDiscoveryServers(1);
     ck_assert(!isServerRegisteredAtLds());
     ck_assert_uint_eq(countServersOnNetworkByName(serverRegister,
                                                   "Register_public_api"), 1);
@@ -2391,12 +2554,22 @@ testSuite_DiscoveryMdnsd(void) {
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     TCase *tc = tcase_create("Send path scaffolding");
     tcase_add_unchecked_fixture(tc, setup_server, teardown_server);
+    tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);
+    tcase_add_test(tc, MdnsShortDatagramUsesParserSizedBuffer);
     tcase_add_test(tc, MdnsStartupTriggersSendPath);
     tcase_add_test(tc, MdnsShutdownSendsSelfGoodbyeAndDrainsQueue);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineTriggersSendPath);
     tcase_add_test(tc, MdnsUpdateOnlineOfflineIsIdempotent);
     tcase_add_test(tc, PublicApiRegisterDeregisterServerOnNetworkTriggersMdnsSendPath);
     suite_add_tcase(s, tc);
+
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
+    TCase *tc_real_udp = tcase_create("Real UDP integration");
+    tcase_add_checked_fixture(tc_real_udp, setupRealUdpMdnsServers,
+                             teardownRealUdpMdnsServers);
+    tcase_add_test(tc_real_udp, MdnsAnnouncementTraversesRealUdpMulticastLoopback);
+    suite_add_tcase(s, tc_real_udp);
+#endif
 
     TCase *tc_query = tcase_create("Query behavior");
     tcase_add_test(tc_query, MdnsQueryPresenceSendsStartupPtrQuery);

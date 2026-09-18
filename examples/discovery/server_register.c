@@ -19,10 +19,10 @@
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
-static UA_Boolean running = true;
+static volatile UA_Boolean running = true;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    (void)sign;
     running = false;
 }
 

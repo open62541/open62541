@@ -13,6 +13,16 @@
 
 #define STATIC_NS0ID(ID) {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_##ID}}
 
+/* OutputArguments metadata is resolved dynamically and may have changed. */
+static UA_StatusCode
+checkGDSMethodOutputArguments(size_t outputSize, size_t expectedOutputSize) {
+    if(outputSize < expectedOutputSize)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(outputSize > expectedOutputSize)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -199,6 +209,10 @@ updateCertificateAction(UA_Server *server,
                         const UA_NodeId *objectId, void *objectContext,
                         size_t inputSize, const UA_Variant *input,
                         size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Check for input types */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
@@ -218,7 +232,7 @@ updateCertificateAction(UA_Server *server,
     UA_ByteString *privateKey = (UA_ByteString *)input[5].data;
 
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
-    UA_StatusCode res =
+    res =
         UA_GDSReceiver_stageCertificateUpdate(ctx, sessionId,
                                               certificateGroupId,
                                               certificateTypeId, certificate,
@@ -240,6 +254,10 @@ createSigningRequestAction(UA_Server *server,
                            const UA_NodeId *objectId, void *objectContext,
                            size_t inputSize, const UA_Variant *input,
                            size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateGroupId*/
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]) || /*CertificateTypeId*/
        !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_STRING]) || /*SubjectName*/
@@ -279,6 +297,10 @@ getRejectedListAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_getRejectedList(ctx, outputSize, output);
 }
@@ -360,6 +382,10 @@ openTrustListWithMaskAction(UA_Server *server,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* Mask */
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -381,6 +407,10 @@ closeAndUpdateTrustListAction(UA_Server *server,
                               const UA_NodeId *objectId, void *objectContext,
                               size_t inputSize, const UA_Variant *input,
                               size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -402,6 +432,10 @@ openFileAction(UA_Server *server,
                const UA_NodeId *objectId, void *objectContext,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTE])) /* FileMode */
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -441,6 +475,10 @@ readFileAction(UA_Server *server,
                const UA_NodeId *objectId, void *objectContext,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
+    UA_StatusCode outputRes = checkGDSMethodOutputArguments(outputSize, 1);
+    if(outputRes != UA_STATUSCODE_GOOD)
+        return outputRes;
+
     /* Check inputs */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_INT32]))    /* Length */
@@ -567,6 +605,10 @@ getPositionFileAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
         return UA_STATUSCODE_BADTYPEMISMATCH;

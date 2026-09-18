@@ -439,11 +439,33 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check available capacity */
-    if(!cmc->localMon &&
-       (((server->config.maxMonitoredItems != 0) &&
-         (server->monitoredItemsSize >= server->config.maxMonitoredItems)) ||
-        ((server->config.maxMonitoredItemsPerSubscription != 0) &&
-         (cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription)))) {
+    UA_Boolean serverLimitReached =
+        (server->config.maxMonitoredItems != 0 &&
+         server->monitoredItemsSize >= server->config.maxMonitoredItems);
+    UA_Boolean subscriptionLimitReached =
+        (server->config.maxMonitoredItemsPerSubscription != 0 &&
+         cmc->sub->monitoredItemsSize >=
+             server->config.maxMonitoredItemsPerSubscription);
+    if(!cmc->localMon && (serverLimitReached || subscriptionLimitReached)) {
+        if(serverLimitReached) {
+            UA_LOG_WARNING_SESSION(
+                server->config.logging, session,
+                "CreateMonitoredItems: Rejecting MonitoredItem creation because "
+                "the configured server-wide MonitoredItem resource limit has been "
+                "reached (%lu active, limit %u)",
+                (unsigned long)server->monitoredItemsSize,
+                (unsigned)server->config.maxMonitoredItems);
+        } else {
+            UA_LOG_WARNING_SESSION(
+                server->config.logging, session,
+                "CreateMonitoredItems: Rejecting MonitoredItem creation for "
+                "Subscription %u because the configured per-Subscription "
+                "MonitoredItem resource limit has been reached (%u active, "
+                "limit %u)",
+                (unsigned)cmc->sub->subscriptionId,
+                (unsigned)cmc->sub->monitoredItemsSize,
+                (unsigned)server->config.maxMonitoredItemsPerSubscription);
+        }
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
@@ -563,6 +585,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Register the Monitoreditem in the server and subscription */
     UA_MonitoredItem_register(server, newMon);
 
+    /* Snapshot the response before entering application code. Deletion clears
+     * the MonitoredItem settings while deallocation remains delayed. */
+    UA_Double revisedSamplingInterval = newMon->parameters.samplingInterval;
+    UA_UInt32 revisedQueueSize = newMon->parameters.queueSize;
+    UA_UInt32 monitoredItemId = newMon->monitoredItemId;
+
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
@@ -576,6 +604,11 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     notifyMonitoredItem(server, newMon,
                         UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
 
+    /* Deletion from the CREATED callback has already queued delayed cleanup.
+     * Do not reactivate or sample the logically removed MonitoredItem. */
+    if(UA_MonitoredItem_isDeleting(newMon))
+        goto prepareResponse;
+
     /* Activate the MonitoredItem */
     result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,
                                                             request->monitoringMode);
@@ -585,9 +618,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     }
 
     /* Prepare the response */
-    result->revisedSamplingInterval = newMon->parameters.samplingInterval;
-    result->revisedQueueSize = newMon->parameters.queueSize;
-    result->monitoredItemId = newMon->monitoredItemId;
+prepareResponse:
+    result->revisedSamplingInterval = revisedSamplingInterval;
+    result->revisedQueueSize = revisedQueueSize;
+    result->monitoredItemId = monitoredItemId;
 }
 
 UA_Boolean
@@ -996,7 +1030,6 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-
     UA_MonitoredItem_delete(server, mon, true);
 }
 
@@ -1040,12 +1073,9 @@ UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     lockServer(server);
 
-    UA_Subscription *sub = server->adminSubscription;
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
+    UA_MonitoredItem *mon =
+        UA_Subscription_getMonitoredItem(server->adminSubscription,
+                                         monitoredItemId);
 
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {

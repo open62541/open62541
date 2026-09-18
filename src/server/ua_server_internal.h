@@ -680,6 +680,16 @@ UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback);
 
+/* OutputArguments metadata is resolved dynamically and may have changed. */
+static UA_INLINE UA_StatusCode
+checkMethodOutputArguments(size_t outputSize, size_t expectedOutputSize) {
+    if(outputSize < expectedOutputSize)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(outputSize > expectedOutputSize)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle);

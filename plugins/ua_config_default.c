@@ -509,6 +509,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
+    conf->maxSubscriptions = 1024;
+    conf->maxSubscriptionsPerSession = 64;
     conf->publishingIntervalLimits = UA_DURATIONRANGE(100.0, 3600.0 * 1000.0);
     conf->lifeTimeCountLimits = UA_UINT32RANGE(3, 15000);
     conf->keepAliveCountLimits = UA_UINT32RANGE(1, 100);
@@ -521,6 +523,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 # endif
 
     /* Limits for MonitoredItems */
+    conf->maxMonitoredItems = 1024 * 32;
+    conf->maxMonitoredItemsPerSubscription = 1024 * 32;
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
 #endif

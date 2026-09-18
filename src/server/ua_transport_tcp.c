@@ -26,8 +26,7 @@
 #include "ua_services.h"
 
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
-                                UA_ByteString *messageBuffer);
+void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_ByteString *messageBuffer);
 #endif
 
 static void
@@ -50,7 +49,9 @@ deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
      * channel. Non-activated sessions are deleted (Part 4, §5.6.3). */
     while(channel->sessions) {
         UA_Session *session = channel->sessions;
-        if(!session->activated)
+        if(session->state == UA_SESSIONSTATE_CLOSED)
+            UA_Session_detachFromSecureChannel(server, session);
+        else if(session->state != UA_SESSIONSTATE_ACTIVATED)
             UA_Session_remove(server, session, UA_SHUTDOWNREASON_PURGE);
         else
             UA_Session_detachFromSecureChannel(server, session);
@@ -338,6 +339,9 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
         if(!UA_NodeId_equal(token, &s->authenticationToken))
             continue;
 
+        if(s->state == UA_SESSIONSTATE_CLOSED)
+            return UA_STATUSCODE_BADSESSIONCLOSED;
+
         /* Has the session timed out? */
         if(s->validTill < nowMonotonic)
             return UA_STATUSCODE_BADSESSIONCLOSED;
@@ -509,7 +513,8 @@ createServerSecureChannel(UA_Server *server,
     UA_ServerConfig *config = &server->config;
 
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
-    if(scs->currentChannelCount >= config->maxSecureChannels &&
+    if(config->maxSecureChannels != 0 &&
+       scs->currentChannelCount >= config->maxSecureChannels &&
        !purgeFirstUascChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -714,10 +719,10 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Received a message on a normal connection */
 #ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(message->data, message->length);
+    UA_dump_hex_pkg(msg.data, msg.length);
 #endif
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
-    UA_debug_dumpCompleteChunk(server, channel->connection, message);
+    UA_debug_dumpCompleteChunk(bpm->drv.server, &msg);
 #endif
 
     UA_EventLoop *el = bpm->drv.server->config.eventLoop;

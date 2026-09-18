@@ -92,7 +92,7 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
                               const UA_String storePath,
                               const UA_Logger *logger,
                               const UA_KeyValueMap *params);
-#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+#endif /* supported filestore platforms */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 

@@ -1218,6 +1218,20 @@ UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                       void *nodeContext, UA_NodeId *outNewNodeId);
 
 /**
+ * NodeSet Import
+ * ~~~~~~~~~~~~~~
+ * Load a UANodeSet XML document into the server.
+ *
+ * Load dependencies first by calling this function once for each document.
+ * The XML input is borrowed for the duration of the call. Individual nodes
+ * that cannot be added are logged and skipped. The return status reports
+ * failures that prevent loading the document as a whole. The operation is not
+ * transactional; nodes and namespaces added before a failure remain in the
+ * server. */
+UA_EXPORT UA_StatusCode
+UA_Server_loadNodeset(UA_Server *server, const UA_XmlElement nodesetXml);
+
+/**
  * .. _node-lifecycle:
  *
  * Node Lifecycle: Constructors, Destructors and Node Contexts
@@ -2226,6 +2240,12 @@ struct UA_ServerConfig {
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
 
+    /* Methods shall be the target of at least one HasComponent reference from
+     * an Object or ObjectType. Some legacy NodeSets contain detached Methods.
+     * DEFAULT and WARN log and accept them, ABORT rejects them and ACCEPT
+     * accepts them silently. */
+    UA_RuleHandling allowUnattachedMethods;
+
     UA_RuleHandling allowAllCertificateUris;
 
     /* Verify that client ApplicationInstanceCertificates and X509IdentityTokens
@@ -2399,11 +2419,11 @@ struct UA_ServerConfig {
     /* Limits
      * ~~~~~~ */
     /* Limits for SecureChannels */
-    UA_UInt16 maxSecureChannels;
+    UA_UInt16 maxSecureChannels; /* 0 => unlimited */
     UA_UInt32 maxSecurityTokenLifetime; /* in ms */
 
     /* Limits for Sessions */
-    UA_UInt16 maxSessions;
+    UA_UInt16 maxSessions; /* 0 => unlimited */
     UA_Double maxSessionTimeout; /* in ms */
 
     /* Operation limits */
@@ -2473,8 +2493,8 @@ struct UA_ServerConfig {
     UA_Boolean subscriptionsEnabled;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
-    UA_UInt32 maxSubscriptions;
-    UA_UInt32 maxSubscriptionsPerSession;
+    UA_UInt32 maxSubscriptions; /* 0 => unlimited */
+    UA_UInt32 maxSubscriptionsPerSession; /* 0 => unlimited */
     UA_DurationRange publishingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
@@ -2486,8 +2506,8 @@ struct UA_ServerConfig {
 # endif
 
     /* Limits for MonitoredItems */
-    UA_UInt32 maxMonitoredItems;
-    UA_UInt32 maxMonitoredItemsPerSubscription;
+    UA_UInt32 maxMonitoredItems; /* 0 => unlimited */
+    UA_UInt32 maxMonitoredItemsPerSubscription; /* 0 => unlimited */
     UA_DurationRange samplingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 

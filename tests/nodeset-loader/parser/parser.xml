@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<x:UANodeSet xmlns:x="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+             xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+  <x:Aliases>
+    <x:Alias Alias="StringAlias">ns=1;s=StringType</x:Alias>
+  </x:Aliases>
+  <x:UADataType NodeId="i=50003" BrowseName="DependentType">
+    <x:Definition>
+      <x:Field Name="Member" DataType="i=50002"/>
+    </x:Definition>
+  </x:UADataType>
+  <x:UADataType NodeId="i=50002" BrowseName="MemberType"/>
+  <x:UAObject NodeId="i=50000" BrowseName="A&amp;B">
+    <x:DisplayName Locale="en&amp;US">A &lt; B<![CDATA[ & C]]></x:DisplayName>
+    <x:Unknown><x:DisplayName>Must be ignored</x:DisplayName></x:Unknown>
+    <x:Definition><x:Field Name="MustBeIgnored"/></x:Definition>
+  </x:UAObject>
+  <x:Unknown>
+    <x:UAObject NodeId="i=59999" BrowseName="MustNotBeImported"/>
+  </x:Unknown>
+  <x:UAVariable NodeId="i=50001" BrowseName="Value" DataType="StringAlias"
+                ValueRank="" AccessLevel="invalid" UserAccessLevel=""
+                MinimumSamplingInterval="" Historizing="1">
+    <x:DisplayName>Value</x:DisplayName>
+    <x:Value><uax:String>hello &amp; goodbye</uax:String></x:Value>
+    <x:Description Locale="en">After Value</x:Description>
+  </x:UAVariable>
+</x:UANodeSet>

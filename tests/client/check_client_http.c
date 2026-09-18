@@ -204,9 +204,25 @@ getAdvertisedPort(UA_ServerConfig *config, const char *prefix,
 typedef enum {
     HTTP_CLIENT_SCENARIO_SECURITY,
     HTTP_CLIENT_SCENARIO_SERVICES,
+    HTTP_CLIENT_SCENARIO_SESSION_REENTRANCY,
     HTTP_CLIENT_SCENARIO_ENDPOINT,
     HTTP_CLIENT_SCENARIO_JSON
 } HttpClientScenario;
+
+static UA_Boolean closeHttpSessionAtServiceBegin;
+static UA_StatusCode closeHttpSessionResult;
+
+static void
+closeHttpSessionFromServiceNotification(
+    UA_Server *server, UA_ApplicationNotificationType type,
+    const UA_KeyValueMap payload) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN ||
+       !closeHttpSessionAtServiceBegin)
+        return;
+    closeHttpSessionAtServiceBegin = false;
+    const UA_NodeId *sessionId = (const UA_NodeId *)payload.map[1].value.data;
+    closeHttpSessionResult = UA_Server_closeSession(server, sessionId);
+}
 
 static void
 runClientScenario(HttpClientScenario scenario) {
@@ -690,6 +706,42 @@ runClientScenario(HttpClientScenario scenario) {
     UA_Client_delete(client);
     }
 
+    if(scenario == HTTP_CLIENT_SCENARIO_SESSION_REENTRANCY) {
+    memset(&clientConfig, 0, sizeof(clientConfig));
+    clientConfig.eventLoop = serverConfig->eventLoop;
+    clientConfig.externalEventLoop = true;
+    ck_assert_uint_eq(UA_ClientConfig_setDefault(&clientConfig),
+                      UA_STATUSCODE_GOOD);
+    clientConfig.httpAllowUnencrypted = true;
+    clientConfig.noReconnect = true;
+    clientConfig.noNewSession = true;
+    client = UA_Client_newWithConfig(&clientConfig);
+    ck_assert_ptr_nonnull(client);
+    ck_assert_uint_eq(UA_Client_connect(client, endpoint), UA_STATUSCODE_GOOD);
+
+    serverConfig->serviceNotificationCallback =
+        closeHttpSessionFromServiceNotification;
+    closeHttpSessionAtServiceBegin = true;
+    closeHttpSessionResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(
+                          client, UA_NODEID_NUMERIC(
+                              0, UA_NS0ID_SERVER_SERVERSTATUS_STATE),
+                          &value),
+                      UA_STATUSCODE_BADSESSIONCLOSED);
+    UA_Variant_clear(&value);
+    ck_assert_uint_eq(closeHttpSessionResult, UA_STATUSCODE_GOOD);
+
+    serverConfig->serviceNotificationCallback = NULL;
+    ck_assert_uint_eq(UA_Client_disconnect(client), UA_STATUSCODE_GOOD);
+    UA_Client_delete(client);
+    for(size_t i = 0; i < 10; i++)
+        serverConfig->eventLoop->run(serverConfig->eventLoop, 1);
+    lockServer(server);
+    ck_assert_uint_eq(server->sessionCount, 0);
+    unlockServer(server);
+    }
+
     if(scenario == HTTP_CLIENT_SCENARIO_ENDPOINT) {
     /* An explicitly selected EndpointDescription takes precedence over the
      * initial URL. This exercises the same URL handoff used after discovery. */
@@ -791,6 +843,11 @@ START_TEST(httpClientServicesSubscriptionsAndReconnect) {
 }
 END_TEST
 
+START_TEST(httpClientSessionNotificationCloseIsReentrant) {
+    runClientScenario(HTTP_CLIENT_SCENARIO_SESSION_REENTRANCY);
+}
+END_TEST
+
 START_TEST(httpClientEndpointSelection) {
     runClientScenario(HTTP_CLIENT_SCENARIO_ENDPOINT);
 }
@@ -809,6 +866,7 @@ int main(void) {
     tcase_set_timeout(tc, 30);
     tcase_add_test(tc, httpClientSecurityValidation);
     tcase_add_test(tc, httpClientServicesSubscriptionsAndReconnect);
+    tcase_add_test(tc, httpClientSessionNotificationCloseIsReentrant);
     tcase_add_test(tc, httpClientEndpointSelection);
 #ifdef UA_ENABLE_JSON_ENCODING
     tcase_add_test(tc, httpJsonClientServiceAndMalformedResponse);

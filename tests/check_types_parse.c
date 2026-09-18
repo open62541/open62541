@@ -434,9 +434,28 @@ START_TEST(parseQualifiedNameWithNamespaceUri) {
     uris[2] = UA_STRING("urn:test");
     nsMapping.namespaceUris = uris;
     nsMapping.namespaceUrisSize = 3;
+    UA_UInt16 remote2local[3] = {0, 2, 1};
+    nsMapping.remote2local = remote2local;
+    nsMapping.remote2localSize = 3;
 
     UA_QualifiedName qn;
     UA_StatusCode res = UA_QualifiedName_parseEx(&qn, UA_STRING("urn:test;MyName"), &nsMapping);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(qn.namespaceIndex, 2);
+    UA_String expected = UA_STRING("MyName");
+    ck_assert(UA_String_equal(&qn.name, &expected));
+    UA_QualifiedName_clear(&qn);
+} END_TEST
+
+START_TEST(parseQualifiedNameWithNamespaceIndexMapping) {
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+    UA_UInt16 remote2local[3] = {0, 2, 1};
+    nsMapping.remote2local = remote2local;
+    nsMapping.remote2localSize = 3;
+
+    UA_QualifiedName qn;
+    UA_StatusCode res = UA_QualifiedName_parseEx(&qn, UA_STRING("1:MyName"), &nsMapping);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(qn.namespaceIndex, 2);
     UA_String expected = UA_STRING("MyName");
@@ -468,6 +487,7 @@ int main(void) {
     tcase_add_test(tc, parseDateTime);
     tcase_add_test(tc, parseQualifiedNameWithSemicolon);
     tcase_add_test(tc, parseQualifiedNameWithNamespaceUri);
+    tcase_add_test(tc, parseQualifiedNameWithNamespaceIndexMapping);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

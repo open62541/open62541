@@ -1107,6 +1107,8 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->verifyRequestTimestamp, NULL);
                 else if(strcmp(field, "allowEmptyVariables") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->allowEmptyVariables, NULL);
+                else if(strcmp(field, "allowUnattachedMethods") == 0)
+                    retval = RuleHandlingField_parseJson(&ctx, &config->allowUnattachedMethods, NULL);
                 else if(strcmp(field, "certificateEkuRule") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
                 else if(strcmp(field, "serverUrls") == 0)
@@ -1825,14 +1827,14 @@ loadCertificateFile(const char *const path) {
 
     /* Get the file length, allocate the data and read */
     if(fseek(fp, 0, SEEK_END) != 0) {
-        fclose(fp);
+        (void)fclose(fp); /* The preceding file operation already failed. */
         errno = 0;
         return fileContents;
     }
 
     long length = ftell(fp);
     if(length < 0) {
-        fclose(fp);
+        (void)fclose(fp); /* The preceding file operation already failed. */
         errno = 0;
         return fileContents;
     }
@@ -1841,7 +1843,7 @@ loadCertificateFile(const char *const path) {
     fileContents.data = (UA_Byte *)UA_malloc(fileContents.length * sizeof(UA_Byte));
     if(fileContents.data) {
         if(fseek(fp, 0, SEEK_SET) != 0) {
-            fclose(fp);
+            (void)fclose(fp); /* The preceding file operation already failed. */
             UA_ByteString_clear(&fileContents);
             errno = 0;
             return fileContents;
@@ -1852,7 +1854,8 @@ loadCertificateFile(const char *const path) {
     } else {
         fileContents.length = 0;
     }
-    fclose(fp);
+    if(fclose(fp) != 0)
+        UA_ByteString_clear(&fileContents);
 
     return fileContents;
 }

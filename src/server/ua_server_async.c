@@ -9,20 +9,30 @@
 
 #include "ua_server_internal.h"
 
-/* The layout of the results array is is:
+/* The layout of the results array is:
  * [results-array] | padding | UA_AsyncResponse | padding | [UA_AsyncOperation]
  *
  * We need to take care about memory alignment (padding). */
 static void *
 allocateResultsArray(const UA_DataType *resultsType, size_t resultsLen,
                      UA_AsyncResponse **resp, UA_AsyncOperation **ops) {
-    uintptr_t align = sizeof(size_t);
-    size_t arrEnd = resultsType->memSize * resultsLen;
-    uintptr_t responseBegin = (arrEnd + align - 1) & ~(align - 1);
-    uintptr_t responseEnd = responseBegin + sizeof(UA_AsyncResponse);
-    uintptr_t opsBegin = (responseEnd + align - 1) & ~(align - 1);
-    uintptr_t opsEnd =  opsBegin + (sizeof(UA_AsyncOperation) * resultsLen);
-    void *arr = UA_calloc(1, opsEnd);
+    const size_t padding = sizeof(size_t) - 1;
+    const size_t fixedSize = sizeof(UA_AsyncResponse) + 2 * padding;
+    const size_t elementSize =
+        resultsType->memSize + sizeof(UA_AsyncOperation);
+
+    /* Reserve the maximum padding at both alignment boundaries. */
+    if(resultsLen > (SIZE_MAX - fixedSize) / elementSize)
+        return NULL;
+
+    size_t responseBegin =
+        (resultsType->memSize * resultsLen + padding) & ~padding;
+    size_t opsBegin =
+        (responseBegin + sizeof(UA_AsyncResponse) + padding) & ~padding;
+    size_t allocationSize =
+        opsBegin + sizeof(UA_AsyncOperation) * resultsLen;
+
+    void *arr = UA_calloc(1, allocationSize);
     if(!arr)
         return NULL;
     uintptr_t arrMem = (uintptr_t)arr;
@@ -265,6 +275,22 @@ UA_AsyncManager_processReady(void *application /* UA_Server */,
 }
 
 static void
+processReadyLater(UA_Server *server) {
+    UA_AsyncManager *am = &server->asyncManager;
+    /* UA_AsyncManager_clear drains ready work synchronously after stop. */
+    if(am->dc.callback != NULL ||
+       server->state == UA_LIFECYCLESTATE_STOPPED)
+        return;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    am->dc.callback = UA_AsyncManager_processReady;
+    am->dc.application = server;
+    am->dc.context = am;
+    el->addDelayedCallback(el, &am->dc);
+    el->cancel(el); /* Wake up the EventLoop if currently waiting in select() */
+}
+
+static void
 processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     UA_AsyncManager *am = &server->asyncManager;
     if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
@@ -287,14 +313,7 @@ processOperationResult(UA_Server *server, UA_AsyncOperation *op) {
     }
 
     /* Trigger the main server thread to handle ready operations and responses */
-    if(am->dc.callback == NULL) {
-        UA_EventLoop *el = server->config.eventLoop;
-        am->dc.callback = UA_AsyncManager_processReady;
-        am->dc.application = server;
-        am->dc.context = am;
-        el->addDelayedCallback(el, &am->dc);
-        el->cancel(el); /* Wake up the EventLoop if currently waiting in select() */
-    }
+    processReadyLater(server);
 }
 
 /* Check if any operations have timed out */
@@ -381,6 +400,58 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     UA_assert(am->opsCount == 0);
 }
 
+void
+UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
+                              UA_StatusCode status) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_AsyncManager *am = &server->asyncManager;
+    TAILQ_HEAD(, UA_AsyncResponse) canceledResponses;
+    TAILQ_HEAD(, UA_AsyncOperation) canceledOps;
+    TAILQ_INIT(&canceledResponses);
+    TAILQ_INIT(&canceledOps);
+
+    /* Unlink all matching responses and operations before invoking user
+     * cancellation callbacks, which may reenter and mutate the manager. */
+    UA_AsyncResponse *ar, *ar_tmp;
+    TAILQ_FOREACH_SAFE(ar, &am->waitingResponses, pointers, ar_tmp) {
+        if(!UA_NodeId_equal(&ar->sessionId, sessionId))
+            continue;
+        TAILQ_REMOVE(&am->waitingResponses, ar, pointers);
+        TAILQ_INSERT_TAIL(&canceledResponses, ar, pointers);
+    }
+
+    UA_AsyncOperation *op, *op_tmp;
+    TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT ||
+           !UA_NodeId_equal(&op->handling.response->sessionId, sessionId))
+            continue;
+        TAILQ_REMOVE(&am->waitingOps, op, pointers);
+        TAILQ_INSERT_TAIL(&canceledOps, op, pointers);
+        am->opsCount--;
+        UA_assert(op->handling.response->opCountdown > 0);
+        op->handling.response->opCountdown--;
+    }
+
+    while((op = TAILQ_FIRST(&canceledOps))) {
+        TAILQ_REMOVE(&canceledOps, op, pointers);
+        /* TAILQ_REMOVE does not clear the links in release builds. Avoid
+         * retaining the stack-local queue head across the callback. */
+        op->pointers.tqe_next = NULL;
+        op->pointers.tqe_prev = NULL;
+        UA_AsyncOperation_cancel(server, op, status);
+    }
+
+    UA_Boolean responseReady = false;
+    while((ar = TAILQ_FIRST(&canceledResponses))) {
+        TAILQ_REMOVE(&canceledResponses, ar, pointers);
+        UA_assert(ar->opCountdown == 0);
+        TAILQ_INSERT_TAIL(&am->readyResponses, ar, pointers);
+        responseReady = true;
+    }
+    if(responseReady)
+        processReadyLater(server);
+}
+
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -390,6 +461,9 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_AsyncOperation *op, *op_tmp;
     UA_AsyncManager *am = &server->asyncManager;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        /* Only request operations own a handling.response. */
+        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+            continue;
         UA_AsyncResponse *ar = op->handling.response;
         if(ar->requestHandle != requestHandle ||
            !UA_NodeId_equal(&session->sessionId, &ar->sessionId))
@@ -487,6 +561,45 @@ persistAsyncResponseOperation(UA_Server *server, UA_AsyncOperation *op,
     am->opsCount++;
 }
 
+/* A service callback can close its own session after earlier operations in the
+ * same request have already gone asynchronous. The session is removed from the
+ * server immediately, so such a response can no longer be delivered. Cancel
+ * the pending operations and let the service return BadSessionClosed
+ * synchronously instead of retaining an orphaned response. */
+static void
+cancelAsyncResponseOperations(UA_Server *server, UA_AsyncResponse *ar,
+                              UA_StatusCode status) {
+    UA_AsyncManager *am = &server->asyncManager;
+    TAILQ_HEAD(, UA_AsyncOperation) canceledOps;
+    TAILQ_INIT(&canceledOps);
+    UA_AsyncOperation *op, *op_tmp;
+    TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT ||
+           op->handling.response != ar)
+            continue;
+
+        /* Unlink first. The cancellation callback may reenter the server and
+         * attempt to complete this operation. */
+        TAILQ_REMOVE(&am->waitingOps, op, pointers);
+        TAILQ_INSERT_TAIL(&canceledOps, op, pointers);
+        am->opsCount--;
+        UA_assert(ar->opCountdown > 0);
+        ar->opCountdown--;
+    }
+    UA_assert(ar->opCountdown == 0);
+
+    /* Notify only after every matching operation has been unlinked. A
+     * cancellation callback may reenter and mutate the waiting queue. */
+    while((op = TAILQ_FIRST(&canceledOps))) {
+        TAILQ_REMOVE(&canceledOps, op, pointers);
+        /* TAILQ_REMOVE does not clear the links in release builds. Avoid
+         * retaining the stack-local queue head across the callback. */
+        op->pointers.tqe_next = NULL;
+        op->pointers.tqe_prev = NULL;
+        UA_AsyncOperation_cancel(server, op, status);
+    }
+}
+
 static UA_StatusCode
 persistAsyncDirectOperation(UA_Server *server, UA_AsyncOperation *op,
                             UA_AsyncOperationType opType, void *context,
@@ -523,6 +636,9 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
 
     /* Cancel operations that are still waiting for the result */
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
+        /* Only direct operations own a handling.callback. */
+        if(op->asyncOperationType < UA_ASYNCOPERATIONTYPE_CALL_DIRECT)
+            continue;
         if(op->handling.callback.context != context)
             continue;
 
@@ -621,10 +737,16 @@ Service_Read(UA_Server *server, UA_Session *session, const void *request_, void 
             persistAsyncResponseOperation(server, &aopArray[i],
                                           UA_ASYNCOPERATIONTYPE_READ_REQUEST,
                                           ar, &response->results[i]);
+        if(session->state == UA_SESSIONSTATE_CLOSED) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+            break;
+        }
     }
 
     /* If async operations are pending, persist them and signal the service is
      * not done */
+    if(session->state == UA_SESSIONSTATE_CLOSED && ar->opCountdown > 0)
+        cancelAsyncResponseOperations(server, ar, UA_STATUSCODE_BADSESSIONCLOSED);
     if(ar->opCountdown > 0) {
         ar->responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
         persistAsyncResponse(server, session, response, ar);
@@ -771,10 +893,16 @@ Service_Write(UA_Server *server, UA_Session *session,
         if(!done)
             persistAsyncResponseOperation(server, aop, UA_ASYNCOPERATIONTYPE_WRITE_REQUEST,
                                           ar, &response->results[i]);
+        if(session->state == UA_SESSIONSTATE_CLOSED) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+            break;
+        }
     }
 
     /* If async operations are pending, persist them and signal the service is
      * not done */
+    if(session->state == UA_SESSIONSTATE_CLOSED && ar->opCountdown > 0)
+        cancelAsyncResponseOperations(server, ar, UA_STATUSCODE_BADSESSIONCLOSED);
     if(ar->opCountdown > 0) {
         ar->responseType = &UA_TYPES[UA_TYPES_WRITERESPONSE];
         persistAsyncResponse(server, session, response, ar);
@@ -922,10 +1050,16 @@ Service_Call(UA_Server *server, UA_Session *session,
             persistAsyncResponseOperation(server, &aopArray[i],
                                           UA_ASYNCOPERATIONTYPE_CALL_REQUEST,
                                           ar, &response->results[i]);
+        if(session->state == UA_SESSIONSTATE_CLOSED) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONCLOSED;
+            break;
+        }
     }
 
     /* If async operations are pending, persist them and signal the service is
      * not done */
+    if(session->state == UA_SESSIONSTATE_CLOSED && ar->opCountdown > 0)
+        cancelAsyncResponseOperations(server, ar, UA_STATUSCODE_BADSESSIONCLOSED);
     if(ar->opCountdown > 0) {
         ar->responseType = &UA_TYPES[UA_TYPES_CALLRESPONSE];
         persistAsyncResponse(server, session, response, ar);

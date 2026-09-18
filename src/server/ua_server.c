@@ -381,8 +381,8 @@ UA_Server_delete(UA_Server *server) {
         for(size_t i = 0; i < server->customTypes_internalSize; i++) {
             UA_DataTypeArray *curr = &server->customTypes_internal[i];
             for(size_t j = 0; j < curr->typesSize; j++)
-                UA_DataType_clear(&curr->types[j]);
-            UA_free(curr->types);
+                UA_DataType_clear((UA_DataType*)(uintptr_t)&curr->types[j]);
+            UA_free((void*)(uintptr_t)curr->types);
         }
         UA_free(server->customTypes_internal);
     }
@@ -436,6 +436,7 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
+    server->adminSession.state = UA_SESSIONSTATE_ACTIVATED;
     server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
@@ -935,7 +936,7 @@ setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
     /* Call the application notification callback */
     UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED;
     switch(state) {
-    case UA_LIFECYCLESTATE_STOPPED: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING; break;
+    case UA_LIFECYCLESTATE_STOPPED: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED; break;
     case UA_LIFECYCLESTATE_STOPPING: nt = UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING; break;
     default: break;
     }
@@ -1247,7 +1248,10 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_EventLoop *el = server->config.eventLoop;
     while(!testStoppedCondition(server) &&
           res == UA_STATUSCODE_GOOD) {
+        /* Event-loop callbacks on other threads may need the server lock. */
+        unlockServer(server);
         res = el->run(el, 100);
+        lockServer(server);
     }
 
     /* Stop the EventLoop. Iterate until stopped. */
@@ -1255,7 +1259,10 @@ UA_Server_run_shutdown(UA_Server *server) {
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           el->state != UA_EVENTLOOPSTATE_FRESH &&
           res == UA_STATUSCODE_GOOD) {
+        /* Event-loop callbacks on other threads may need the server lock. */
+        unlockServer(server);
         res = el->run(el, 100);
+        lockServer(server);
     }
 
     /* Set server lifecycle state to stopped if not already the case */

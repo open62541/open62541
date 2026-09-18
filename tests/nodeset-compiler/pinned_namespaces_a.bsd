@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<opc:TypeDictionary xmlns:opc="http://opcfoundation.org/BinarySchema/"
+                    TargetNamespace="urn:open62541:test:pinned-a">
+  <opc:EnumeratedType Name="PinnedA" LengthInBits="32">
+    <opc:EnumeratedValue Name="Zero" Value="0"/>
+  </opc:EnumeratedType>
+</opc:TypeDictionary>

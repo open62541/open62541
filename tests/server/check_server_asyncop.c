@@ -16,6 +16,7 @@
 #include "thread_wrapper.h"
 
 #include "ua_server_internal.h"
+#include "ua_services.h"
 
 #include <check.h>
 
@@ -36,9 +37,16 @@ THREAD_HANDLE server_thread;
 static UA_Server *server;
 static size_t clientCounter;
 static UA_UInt64 lastTimedCallback;
+static UA_StatusCode closeFromReadResult;
+static UA_Boolean closeAtServiceAsync;
+static UA_StatusCode closeAtServiceAsyncResult;
+static size_t closeServiceAsyncCount;
+static size_t closeServiceEndCount;
 
 static const void *canceledCallRequest = NULL;
 static const void *expectedCanceledCallRequest = NULL;
+static UA_Boolean completeCanceledRead;
+static UA_StatusCode completeCanceledReadResult;
 
 // Store active async reads and remove when cancelled
 static void *activeReads[16];
@@ -51,6 +59,30 @@ asyncOperationCancelCallback(UA_Server *server, const void *out) {
         if(activeReads[i] == out)
             activeReads[i] = NULL;
     }
+    if(completeCanceledRead) {
+        completeCanceledRead = false;
+        completeCanceledReadResult =
+            UA_Server_setAsyncReadResult(server, (UA_DataValue*)(uintptr_t)out);
+    }
+}
+
+static void
+closeFromAsyncServiceNotification(
+    UA_Server *server, UA_ApplicationNotificationType type,
+    const UA_KeyValueMap payload) {
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END) {
+        closeServiceEndCount++;
+        return;
+    }
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC)
+        return;
+
+    closeServiceAsyncCount++;
+    if(!closeAtServiceAsync)
+        return;
+    closeAtServiceAsync = false;
+    const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[1].value.data;
+    closeAtServiceAsyncResult = UA_Server_closeSession(server, sessionId);
 }
 
 static void
@@ -90,6 +122,15 @@ readCallback_async(UA_Server *server, const UA_NodeId *sessionId,
     UA_Server_addTimedCallback(server, asyncRead, value, callTime, &lastTimedCallback);
     activeReads[i] = value; /* store to see if canceled */
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static UA_StatusCode
+readCallback_closeSession(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                          const UA_NumericRange *range, UA_DataValue *value) {
+    closeFromReadResult = UA_Server_closeSession(server, sessionId);
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -166,6 +207,10 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     clientCounter = 0;
+    completeCanceledRead = false;
+    closeAtServiceAsync = false;
+    closeServiceAsyncCount = 0;
+    closeServiceEndCount = 0;
     running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -221,13 +266,28 @@ static void setup(void) {
 
     UA_Server_setVariableNode_callbackValueSource(server, UA_NODEID_STRING(1, "asyncVar"), evs);
 
+    /* Variable that closes the calling Session from its read callback */
+    UA_CallbackValueSource closeSessionSource = {readCallback_closeSession, NULL};
+    res = UA_Server_addVariableNode(server,
+                                    UA_NODEID_STRING(1, "closeSessionVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "closeSessionVar"),
+                                    UA_NS0ID(BASEDATAVARIABLETYPE),
+                                    varAttr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_Server_setVariableNode_callbackValueSource(
+        server, UA_NODEID_STRING(1, "closeSessionVar"), closeSessionSource);
+
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {
-    running = false;
-    THREAD_JOIN(server_thread);
+    if(running) {
+        running = false;
+        THREAD_JOIN(server_thread);
+    }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -257,7 +317,7 @@ START_TEST(Async_call) {
 
     /* Receive the answer of the sync call */
     while(clientCounter == 0) {
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
     }
     ck_assert_uint_eq(clientCounter, 1);
@@ -300,7 +360,7 @@ START_TEST(Async_read) {
 
     /* Receive the answer of the sync call */
     while(clientCounter == 0) {
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
     }
     ck_assert_uint_eq(clientCounter, 1);
@@ -316,6 +376,95 @@ START_TEST(Async_read) {
     running = true;
     THREAD_CREATE(server_thread, serverloop);
 
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_multiRead_closingSessionCancelsPendingOperation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId nodes[2];
+    UA_ReadValueId_init(&nodes[0]);
+    nodes[0].nodeId = UA_NODEID_STRING(1, "asyncVar");
+    nodes[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_ReadValueId_init(&nodes[1]);
+    nodes[1].nodeId = UA_NODEID_STRING(1, "closeSessionVar");
+    nodes[1].attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    request.nodesToRead = nodes;
+    request.nodesToReadSize = 2;
+
+    closeFromReadResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    canceledCallRequest = NULL;
+    completeCanceledRead = true;
+    completeCanceledReadResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    ck_assert_uint_eq(closeFromReadResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSESSIONCLOSED);
+    ck_assert_ptr_nonnull(canceledCallRequest);
+    ck_assert_uint_eq(completeCanceledReadResult, UA_STATUSCODE_BADNOTFOUND);
+    for(size_t i = 0; i < 16; i++)
+        ck_assert_ptr_null(activeReads[i]);
+    UA_ReadResponse_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_Client_getConfig(client)->noReconnect = true;
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->serviceNotificationCallback = closeFromAsyncServiceNotification;
+    closeAtServiceAsync = true;
+    closeAtServiceAsyncResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    canceledCallRequest = NULL;
+    completeCanceledRead = true;
+    completeCanceledReadResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    retval = UA_Client_readValueAttribute_async(
+        client, UA_NODEID_STRING(1, "asyncVar"),
+        clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    for(size_t i = 0;
+        i < 20 && closeAtServiceAsyncResult == UA_STATUSCODE_BADUNEXPECTEDERROR;
+        i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(closeAtServiceAsyncResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(closeServiceAsyncCount, 1);
+    ck_assert_ptr_nonnull(canceledCallRequest);
+    ck_assert_uint_eq(completeCanceledReadResult, UA_STATUSCODE_BADNOTFOUND);
+
+    /* Async service notifications are paired with an eventual SERVICE_END,
+     * even when closing the session cancels the pending operation. */
+    for(size_t i = 0; i < 20 && closeServiceEndCount == 0; i++)
+        UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(closeServiceEndCount, 1);
+
+    lockServer(server);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.waitingResponses));
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.readyResponses));
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.waitingOps));
+    unlockServer(server);
+
+    config->serviceNotificationCallback = NULL;
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
@@ -346,7 +495,7 @@ START_TEST(Async_write) {
 
     /* Receive the answer of the sync call */
     while(clientCounter == 0) {
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
     }
     ck_assert_uint_eq(clientCounter, 1);
@@ -785,6 +934,37 @@ START_TEST(Async_service_read_validation_paths) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_service_read_allocation_size_overflow) {
+    UA_ReadValueId node;
+    UA_ReadValueId_init(&node);
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    request.nodesToRead = &node;
+    request.nodesToReadSize =
+        SIZE_MAX / UA_TYPES[UA_TYPES_DATAVALUE].memSize + 1;
+
+    UA_ReadResponse response;
+    UA_ReadResponse_init(&response);
+
+    lockServer(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UInt32 oldMaxNodesPerRead = config->maxNodesPerRead;
+    config->maxNodesPerRead = 0;
+    UA_Boolean done = Service_Read(server, &server->adminSession,
+                                   &request, &response);
+    config->maxNodesPerRead = oldMaxNodesPerRead;
+    unlockServer(server);
+
+    ck_assert(done);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADOUTOFMEMORY);
+    ck_assert_ptr_null(response.results);
+    ck_assert_uint_eq(response.resultsSize, 0);
+    UA_ReadResponse_clear(&response);
+} END_TEST
+
 START_TEST(Async_service_read_toomanyoperations) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -1077,6 +1257,69 @@ START_TEST(Async_cancelDirectOperation) {
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
+/* A network CancelRequest must ignore locally initiated direct async
+ * operations that share the async-manager queue. */
+START_TEST(Async_service_cancel_with_direct_operation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = UA_NODEID_STRING(1, "asyncVar");
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+    retval = UA_Server_read_async(server, &rvid,
+                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                  serverAsyncReadNoopCallback, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_UInt32 cancelCount = 0;
+    retval = UA_Client_cancelByRequestHandle(client, 0x12345678, &cancelCount);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cancelCount, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* The local direct-operation cancel API must ignore request-backed operations
+ * in the shared async-manager queue. */
+START_TEST(Async_direct_cancel_with_service_operation) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+    UA_StatusCode retval =
+        UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    retval = UA_Client_readValueAttribute_async(
+        client, UA_NODEID_STRING(1, "asyncVar"),
+        clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+
+    UA_Server_cancelAsync(server, NULL,
+                          UA_STATUSCODE_BADOPERATIONABANDONED, true);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(Async_call_error_result) {
     /* Test async method call that returns an error status */
     UA_Client *client = UA_Client_newForUnitTest();
@@ -1257,6 +1500,9 @@ static Suite* method_async_suite(void) {
     tcase_add_checked_fixture(tc_manager, setup, teardown);
     tcase_add_test(tc_manager, Async_call);
     tcase_add_test(tc_manager, Async_read);
+    tcase_add_test(tc_manager, Async_multiRead_closingSessionCancelsPendingOperation);
+    tcase_add_test(tc_manager,
+                   Async_serviceNotificationCloseCancelsPersistedResponse);
     tcase_add_test(tc_manager, Async_write);
     tcase_add_test(tc_manager, Async_timeout);
     tcase_add_test(tc_manager, Async_forget);
@@ -1270,6 +1516,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_sync_method_call);
     tcase_add_test(tc_manager, Async_read_sync_variable);
     tcase_add_test(tc_manager, Async_service_read_validation_paths);
+    tcase_add_test(tc_manager, Async_service_read_allocation_size_overflow);
     tcase_add_test(tc_manager, Async_service_read_toomanyoperations);
     tcase_add_test(tc_manager, Async_service_write_validation_paths);
     tcase_add_test(tc_manager, Async_service_write_toomanyoperations);
@@ -1286,6 +1533,8 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_direct_read_completed_synchronously);
     tcase_add_test(tc_manager, Async_call_multiple_outputs);
     tcase_add_test(tc_manager, Async_cancelDirectOperation);
+    tcase_add_test(tc_manager, Async_service_cancel_with_direct_operation);
+    tcase_add_test(tc_manager, Async_direct_cancel_with_service_operation);
     tcase_add_test(tc_manager, Async_call_error_result);
     tcase_add_test(tc_manager, Async_multiple_parallel_operations);
     suite_add_tcase(s, tc_manager);

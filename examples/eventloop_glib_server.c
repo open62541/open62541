@@ -29,7 +29,6 @@ static GMainLoop *loop;
 static void
 stopHandler(int sign) {
     (void)sign;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Received Ctrl-C, shutting down");
     g_main_loop_quit(loop);
 }
 

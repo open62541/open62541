@@ -259,6 +259,10 @@ addRoleMethodCallback(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkMethodOutputArguments(outputSize, 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_StatusCode access = checkRBACMethodAccess(server, sessionId);
     if(access != UA_STATUSCODE_GOOD)
         return access;
@@ -277,7 +281,7 @@ addRoleMethodCallback(UA_Server *server,
     /* Per specification, use NS1 if no namespaceUri is given */
     if(namespaceUri->length > 0) {
         size_t nsIdx = 0;
-        UA_StatusCode res = UA_Server_getNamespaceByName(server, *namespaceUri, &nsIdx);
+        res = UA_Server_getNamespaceByName(server, *namespaceUri, &nsIdx);
         if(res != UA_STATUSCODE_GOOD) {
             UA_Role_clear(&role);
             return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -295,8 +299,7 @@ addRoleMethodCallback(UA_Server *server,
 
     /* UA_Server_addRole already published the Role Object under the RoleSet
      * (Part 18 §4.2.2, §4.3). */
-    if(outputSize >= 1)
-        UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
 
     UA_NodeId_clear(&newRoleId);
     return UA_STATUSCODE_GOOD;

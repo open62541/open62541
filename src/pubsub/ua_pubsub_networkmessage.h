@@ -5,6 +5,7 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Tino Bischoff)
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2025 Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_
@@ -81,7 +82,7 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
 size_t
 UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  const UA_DataSetMessage_EncodingMetaData *em,
-                                 UA_DataSetMessage *src,
+                                 const UA_DataSetMessage *src,
                                  size_t currentOffset);
 
 /******************/

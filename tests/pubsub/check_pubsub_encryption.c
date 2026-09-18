@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/server_config_default.h>
@@ -13,6 +14,7 @@
 #include "pubsub_test_helpers.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_internal.h"
+#include "ua_pubsub_keystorage.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -28,6 +30,283 @@ UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 UA_Server *server = NULL;
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
+
+static size_t generatedNonceLength;
+
+static UA_StatusCode
+stubNewContext(UA_PubSubSecurityPolicy *policy, const UA_ByteString *signingKey,
+               const UA_ByteString *encryptingKey, const UA_ByteString *keyNonce,
+               void **context) {
+    (void)signingKey;
+    (void)encryptingKey;
+    (void)keyNonce;
+    *context = policy;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+stubDeleteContext(UA_PubSubSecurityPolicy *policy, void *context) {
+    (void)policy;
+    (void)context;
+}
+
+static UA_StatusCode
+stubVerify(const UA_PubSubSecurityPolicy *policy, void *context,
+           const UA_ByteString *message, const UA_ByteString *signature) {
+    (void)policy;
+    (void)context;
+    (void)message;
+    (void)signature;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+stubSign(const UA_PubSubSecurityPolicy *policy, void *context,
+         const UA_ByteString *message, UA_ByteString *signature) {
+    return stubVerify(policy, context, message, signature);
+}
+
+static size_t
+stubGetSize(const UA_PubSubSecurityPolicy *policy, const void *context) {
+    (void)policy;
+    (void)context;
+    return 0;
+}
+
+static UA_StatusCode
+stubCrypt(const UA_PubSubSecurityPolicy *policy, void *context,
+          UA_ByteString *data) {
+    (void)policy;
+    (void)context;
+    (void)data;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+stubSetKeys(UA_PubSubSecurityPolicy *policy, void *context,
+            const UA_ByteString *signingKey, const UA_ByteString *encryptingKey,
+            const UA_ByteString *keyNonce) {
+    (void)policy;
+    (void)context;
+    (void)signingKey;
+    (void)encryptingKey;
+    (void)keyNonce;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+stubGenerateKey(UA_PubSubSecurityPolicy *policy, void *context,
+                const UA_ByteString *secret, const UA_ByteString *seed,
+                UA_ByteString *out) {
+    (void)policy;
+    (void)context;
+    (void)secret;
+    (void)seed;
+    memset(out->data, 0, out->length);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+stubGenerateNonce(UA_PubSubSecurityPolicy *policy, void *context,
+                  UA_ByteString *out) {
+    (void)policy;
+    (void)context;
+    generatedNonceLength = out->length;
+    memset(out->data, 0x5a, out->length);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+stubSetMessageNonce(UA_PubSubSecurityPolicy *policy, void *context,
+                    const UA_ByteString *nonce) {
+    (void)context;
+    return nonce->length == policy->messageNonceLength ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+}
+
+static void
+stubClear(UA_PubSubSecurityPolicy *policy) {
+    (void)policy;
+}
+
+static UA_PubSubSecurityPolicy
+makeStubPolicy(size_t messageNonceLength) {
+    UA_PubSubSecurityPolicy policy;
+    memset(&policy, 0, sizeof(policy));
+    policy.policyUri = UA_STRING("urn:open62541:test:variable-nonce");
+    policy.newGroupContext = stubNewContext;
+    policy.deleteGroupContext = stubDeleteContext;
+    policy.verify = stubVerify;
+    policy.sign = stubSign;
+    policy.getSignatureSize = stubGetSize;
+    policy.getSignatureKeyLength = stubGetSize;
+    policy.getEncryptionKeyLength = stubGetSize;
+    policy.encrypt = stubCrypt;
+    policy.decrypt = stubCrypt;
+    policy.setSecurityKeys = stubSetKeys;
+    policy.generateKey = stubGenerateKey;
+    policy.generateNonce = stubGenerateNonce;
+    policy.keyMaterialLength = 4;
+    policy.messageNonceLength = messageNonceLength;
+    policy.setMessageNonce = stubSetMessageNonce;
+    policy.clear = stubClear;
+    return policy;
+}
+
+START_TEST(SecurityTokenIdMustMatchActiveKey) {
+    UA_PubSubSecurityPolicy policy = makeStubPolicy(8);
+    UA_ReaderGroup rg;
+    memset(&rg, 0, sizeof(rg));
+    rg.config.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    rg.config.securityPolicy = &policy;
+    rg.securityPolicyContext = &policy;
+    rg.securityTokenId = 1;
+
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.securityEnabled = true;
+    nm.securityHeader.networkMessageSigned = true;
+    nm.securityHeader.securityTokenId = 2;
+
+    UA_Byte storage;
+    UA_ByteString buffer = {0, &storage};
+    Ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = &storage;
+    ctx.end = &storage;
+
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, buffer, &ctx, &nm, &rg),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_ptr_eq(rg.securityPolicyContext, &policy);
+    ck_assert_uint_eq(rg.securityTokenId, 1);
+} END_TEST
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+keyedNewContext(UA_PubSubSecurityPolicy *policy,
+                const UA_ByteString *signingKey,
+                const UA_ByteString *encryptingKey,
+                const UA_ByteString *keyNonce, void **context) {
+    (void)policy;
+    (void)encryptingKey;
+    (void)keyNonce;
+    if(!signingKey || signingKey->length != 1)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    UA_Byte *key = (UA_Byte*)UA_malloc(1);
+    if(!key)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *key = signingKey->data[0];
+    *context = key;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+keyedDeleteContext(UA_PubSubSecurityPolicy *policy, void *context) {
+    (void)policy;
+    UA_free(context);
+}
+
+static UA_StatusCode
+keyedVerify(const UA_PubSubSecurityPolicy *policy, void *context,
+            const UA_ByteString *message, const UA_ByteString *signature) {
+    (void)policy;
+    (void)message;
+    if(!context || signature->length != 1 ||
+       *(UA_Byte*)context != signature->data[0])
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+keyedSetKeys(UA_PubSubSecurityPolicy *policy, void *context,
+             const UA_ByteString *signingKey,
+             const UA_ByteString *encryptingKey,
+             const UA_ByteString *keyNonce) {
+    (void)policy;
+    (void)encryptingKey;
+    (void)keyNonce;
+    if(!context || !signingKey || signingKey->length != 1)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    *(UA_Byte*)context = signingKey->data[0];
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+stubGetOne(const UA_PubSubSecurityPolicy *policy, const void *context) {
+    (void)policy;
+    (void)context;
+    return 1;
+}
+
+START_TEST(SecurityTokenRolloverIsCommittedAfterVerification) {
+    UA_PubSubSecurityPolicy policy = makeStubPolicy(0);
+    policy.newGroupContext = keyedNewContext;
+    policy.deleteGroupContext = keyedDeleteContext;
+    policy.verify = keyedVerify;
+    policy.setSecurityKeys = keyedSetKeys;
+    policy.getSignatureSize = stubGetOne;
+    policy.getSignatureKeyLength = stubGetOne;
+    policy.keyMaterialLength = 1;
+
+    UA_PubSubKeyStorage ks;
+    memset(&ks, 0, sizeof(ks));
+    TAILQ_INIT(&ks.keyList);
+    ks.policy = &policy;
+    UA_Byte key2Data = 2;
+    UA_Byte key3Data = 3;
+    UA_ByteString key2 = {1, &key2Data};
+    UA_ByteString key3 = {1, &key3Data};
+    ck_assert_ptr_nonnull(UA_PubSubKeyStorage_push(&ks, &key2, 2));
+    ck_assert_ptr_nonnull(UA_PubSubKeyStorage_push(&ks, &key3, 3));
+
+    UA_ReaderGroup rg;
+    memset(&rg, 0, sizeof(rg));
+    rg.config.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    rg.config.securityPolicy = &policy;
+    rg.keyStorage = &ks;
+    rg.securityTokenId = 1;
+    UA_Byte key1Data = 1;
+    UA_ByteString key1 = {1, &key1Data};
+    ck_assert_uint_eq(keyedNewContext(&policy, &key1, NULL, NULL,
+                                     &rg.securityPolicyContext),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.securityEnabled = true;
+    nm.securityHeader.networkMessageSigned = true;
+    nm.securityHeader.securityTokenId = 2;
+
+    UA_Byte validSignature = 2;
+    UA_ByteString validBuffer = {1, &validSignature};
+    Ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = &validSignature;
+    ctx.end = &validSignature + 1;
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, validBuffer, &ctx,
+                                                     &nm, &rg),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rg.securityTokenId, 2);
+    ck_assert_uint_eq(*(UA_Byte*)rg.securityPolicyContext, 2);
+
+    /* A forged packet for another stored token must not replace the active
+     * context when its signature does not verify with that token's key. */
+    nm.securityHeader.securityTokenId = 3;
+    UA_Byte invalidSignature = 0;
+    UA_ByteString invalidBuffer = {1, &invalidSignature};
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = &invalidSignature;
+    ctx.end = &invalidSignature + 1;
+    ck_assert_uint_eq(verifyAndDecryptNetworkMessage(NULL, invalidBuffer, &ctx,
+                                                     &nm, &rg),
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(rg.securityTokenId, 2);
+    ck_assert_uint_eq(*(UA_Byte*)rg.securityPolicyContext, 2);
+
+    policy.deleteGroupContext(&policy, rg.securityPolicyContext);
+    UA_PubSubKeyStorage_clearKeyList(&ks);
+} END_TEST
+#endif
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
@@ -129,10 +408,108 @@ START_TEST(SinglePublishDataSetField) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(SecurityPolicyContractIsValidatedAtGroupCreation) {
+    UA_PubSubSecurityPolicy policy = makeStubPolicy(0);
+    ck_assert_uint_eq(policy.keyMaterialLength, 4);
+    ck_assert_uint_eq(policy.messageNonceLength, 0);
+
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("invalid-policy-writer");
+    wgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    wgc.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    wgc.securityPolicy = &policy;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1, &wgc, NULL),
+                      UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("invalid-policy-reader");
+    rgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    rgc.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    rgc.securityPolicy = &policy;
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connection1, &rgc, NULL),
+                      UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+
+    /* Publishers and subscribers with externally supplied keys do not need
+     * key derivation (for example, the PKCS#11 policies). */
+    policy = makeStubPolicy(8);
+    policy.generateKey = NULL;
+    UA_NodeId wgId, rgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1, &wgc, &wgId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connection1, &rgc, &rgId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_removeWriterGroup(server, wgId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_removeReaderGroup(server, rgId), UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(CustomMessageNonceLengthIsUsed) {
+    UA_PubSubSecurityPolicy policy = makeStubPolicy(12);
+    ck_assert_uint_eq(policy.messageNonceLength, 12);
+
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("variable-nonce-writer");
+    wgc.publishingInterval = 100;
+    wgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    wgc.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    wgc.securityPolicy = &policy;
+    UA_NodeId wgId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection1, &wgc, &wgId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_PublishedDataSetConfig pdc;
+    memset(&pdc, 0, sizeof(pdc));
+    pdc.name = UA_STRING("variable-nonce-data");
+    UA_NodeId pdsId;
+    ck_assert_uint_eq(UA_Server_addPublishedDataSet(server, &pdc, &pdsId).addResult,
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig field;
+    memset(&field, 0, sizeof(field));
+    field.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    field.field.variable.fieldNameAlias = UA_STRING("state");
+    field.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    field.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_uint_eq(UA_Server_addDataSetField(server, pdsId, &field, NULL).result,
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig dswc;
+    memset(&dswc, 0, sizeof(dswc));
+    dswc.name = UA_STRING("variable-nonce-dsw");
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wgId, pdsId, &dswc, NULL),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_Server_setWriterGroupEncryptionKeys(server, wgId, 1,
+                                                             empty, empty, empty),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_enableAllPubSubComponents(server),
+                      UA_STATUSCODE_GOOD);
+    generatedNonceLength = 0;
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    UA_WriterGroup_publishCallback(psm, wg);
+    ck_assert_uint_eq(generatedNonceLength, 8);
+    ck_assert_uint_eq(wg->config.securityPolicy->messageNonceLength, 12);
+
+    UA_Server_removeWriterGroup(server, wgId);
+    UA_Server_removePublishedDataSet(server, pdsId);
+} END_TEST
+
 int main(void) {
     TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
+    tcase_add_test(tc_pubsub_publish, SecurityPolicyContractIsValidatedAtGroupCreation);
+    tcase_add_test(tc_pubsub_publish, CustomMessageNonceLengthIsUsed);
+    tcase_add_test(tc_pubsub_publish, SecurityTokenIdMustMatchActiveKey);
+#ifdef UA_ENABLE_PUBSUB_SKS
+    tcase_add_test(tc_pubsub_publish,
+                   SecurityTokenRolloverIsCommittedAfterVerification);
+#endif
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_pubsub_publish);
