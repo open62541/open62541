@@ -725,7 +725,7 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     PubSubEncodeJsonCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeJsonCtx));
 
-    /* Prepare the metadata to encode the DataSetMessages */
+    /* Collect field metadata for the DataSetMessages in this group. */
     size_t i = 0;
     UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
     memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
@@ -1004,10 +1004,8 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                                &wg->config.transportSettings, &nm);
     UA_CHECK_STATUS(rv, return rv);
 
-    /* Populate promoted field values if the flag was set by
-     * generateNetworkMessage. Spec: promoted field values must be copied
-     * into the header. The previous code set the flag but never populated
-     * the values, so subscribers saw an empty promoted-fields block. */
+    /* Copy promoted field values into the header when the content mask
+     * requests them. Collect only fields from writers in this message. */
     if(nm.promotedFieldsEnabled) {
         rv = UA_WriterGroup_collectPromotedFields(psm, wg, writerIds,
                                                    dsmCount, &nm);
@@ -1171,7 +1169,8 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         return;
     }
 
-    /* Extract DataSetOrdering from messageSettings */
+    /* Read the ordering and layout settings that determine how writers can
+     * share a NetworkMessage. */
     UA_DataSetOrderingType dataSetOrdering = UA_DATASETORDERINGTYPE_UNDEFINED;
     UA_Boolean includeClassId = false;
     UA_Boolean singleJsonMessage = false;

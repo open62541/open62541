@@ -421,6 +421,8 @@ UA_StatusCode
 UA_NetworkMessage_encodeBinaryWithEncryptStart(PubSubEncodeCtx *ctx,
                                                const UA_NetworkMessage* src,
                                                UA_Byte **dataToEncryptStart) {
+    /* Encode the cleartext headers first and report where payload encryption
+     * starts. Append the payload and footer within the same buffer. */
     UA_StatusCode rv = validateSecurityHeader(src, true);
     UA_CHECK_STATUS(rv, return rv);
     rv = UA_NetworkMessage_encodeHeaders(ctx, src);
@@ -434,6 +436,7 @@ UA_NetworkMessage_encodeBinaryWithEncryptStart(PubSubEncodeCtx *ctx,
 static UA_StatusCode
 UA_NetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
                                      UA_NetworkMessage *nm) {
+    /* Read the base flags to determine which optional headers follow. */
     UA_Byte decoded;
     UA_StatusCode rv = _DECODE_BINARY(&decoded, BYTE);
     UA_CHECK_STATUS(rv, return rv);
@@ -449,6 +452,8 @@ UA_NetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
     if((decoded & NM_PAYLOAD_HEADER_ENABLED_MASK) != 0)
         nm->payloadHeaderEnabled = true;
 
+    /* Decode the extended flags for publisher type, security and timestamps.
+     * A second flag byte selects chunking, promoted fields and message type. */
     if((decoded & NM_EXTENDEDFLAGS1_ENABLED_MASK) != 0) {
         rv = _DECODE_BINARY(&decoded, BYTE);
         UA_CHECK_STATUS(rv, return rv);
@@ -482,6 +487,8 @@ UA_NetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
         }
     }
 
+    /* Read the PublisherId using the type selected by the flags, followed by
+     * the optional DataSetClassId. */
     if(nm->publisherIdEnabled) {
         switch(nm->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
@@ -836,21 +843,9 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
     if(bo)
         ctx.ctx.opts = *bo;
 
-    /* headers only need to be decoded when not in encryption mode
-     * because headers are already decoded when encryption mode is enabled
-     * to check for security parameters and decrypt/verify
-     *
-     * TODO: check if there is a workaround to use this function
-     *       also when encryption is enabled
-     */
-    // #ifndef UA_ENABLE_PUBSUB_ENCRYPTION
-    // if(*offset == 0) {
-    //    rv = UA_NetworkMessage_decodeHeaders(src, offset, nm);
-    //    UA_CHECK_STATUS(rv, return rv);
-    // }
-    // #endif
-
-    /* Initialize the NetworkMessage */
+    /* Initialize a complete message for decoding. Secured reader paths use
+     * the separate header and payload decoders around
+     * verification/decryption. */
     memset(nm, 0, sizeof(UA_NetworkMessage));
 
     /* Decode the header */
@@ -1214,7 +1209,7 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
         UA_CHECK_STATUS(rv, return rv);
     }
 
-    /* Status */
+    /* UADP carries only the upper 16 bits of the StatusCode. */
     if(src->statusEnabled) {
         UA_UInt16 status = (UA_UInt16)(src->status >> 16);
         rv = _ENCODE_BINARY(&status, UINT16);
@@ -1342,6 +1337,7 @@ UA_DataSetMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
         dsmh->picoSeconds = 0;
     }
 
+    /* Restore the transmitted status bits to their position in a StatusCode. */
     if(dsmh->statusEnabled) {
         UA_UInt16 status = 0;
         rv = _DECODE_BINARY(&status, UINT16);
@@ -1683,6 +1679,8 @@ UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
     if(!dsm->data.keyFrameFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    /* Decode each field according to the advertised representation. RawData
+     * uses metadata to supply the type and shape absent from the wire. */
     switch(dsm->header.fieldEncoding) {
     case UA_FIELDENCODING_VARIANT:
         for(UA_UInt16 i = 0; i < dsm->fieldCount; i++) {

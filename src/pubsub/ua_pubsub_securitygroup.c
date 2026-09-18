@@ -132,6 +132,9 @@ UA_SecurityGroup_invalidateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
             goto cleanup;
         }
     }
+
+    /* Generate a fresh current key and the configured number of future keys,
+     * using token ids after the existing list. */
     res = UA_ByteString_allocBuffer(&key, ks->policy->keyMaterialLength);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -151,6 +154,8 @@ UA_SecurityGroup_invalidateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
             replacement.currentItem = item;
     }
 
+    /* Commit the replacement keys, restart their lifetime and activate the
+     * new current key in the associated reader and writer groups. */
     UA_PubSubKeyStorage_clearKeyList(ks);
     while((item = TAILQ_FIRST(&replacement.keyList))) {
         TAILQ_REMOVE(&replacement.keyList, item, keyListEntry);
@@ -182,6 +187,7 @@ UA_SecurityGroup_rotateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     size_t keyLength = sp->keyMaterialLength;
 
+    /* Generate the new tail key before changing the retained key window. */
     UA_StatusCode retval = UA_ByteString_allocBuffer(&newKey, keyLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
@@ -198,6 +204,8 @@ UA_SecurityGroup_rotateKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         UA_ByteString_clear(&newKey);
         return retval;
     }
+
+    /* Assign the next nonzero token id after the last stored key. */
     UA_PubSubKeyListItem *last = TAILQ_LAST(&keyStorage->keyList, keyListItems);
     if(!last) {
         UA_ByteString_clear(&newKey);
@@ -286,6 +294,7 @@ static UA_StatusCode
 initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
+    /* Resolve the policy and acquire storage shared by this security group. */
     UA_PubSubSecurityPolicy *policy =
         findPubSubSecurityPolicy(psm, &sg->config.securityPolicyUri);
     if(!policy)
@@ -299,6 +308,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         return retval;
     sg->keyStorage = ks;
 
+    /* Prepare the current key and future key window in temporary storage. */
     UA_ByteString currentKey = UA_BYTESTRING_NULL;
     UA_ByteString *futurekeys = NULL;
     size_t keyLength = ks->policy->keyMaterialLength;
@@ -326,6 +336,7 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
             goto cleanup;
     }
 
+    /* Register periodic rollover before committing the prepared key batch. */
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
     sg->baseTime = el->dateTime_nowMonotonic(el);
     retval = el->addTimer(el, updateSKSKeyStorage, psm,
