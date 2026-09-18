@@ -458,7 +458,7 @@ int main(int argc, char* argv[]) {
 
     UA_Server *server = UA_Server_new();
 #ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
-    UA_GDSReceiver *gds_receiver = UA_GDSReceiver_new();
+    UA_GDSPushReceiver *gds_receiver = UA_GDSPushReceiver_new();
     if (gds_receiver) {
         UA_Server_addDriver(server, &gds_receiver->drv);
     }

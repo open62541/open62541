@@ -15,13 +15,13 @@
 
 _UA_BEGIN_DECLS
 
-typedef struct UA_GDSReceiverContext UA_GDSReceiverContext;
+typedef struct UA_GDSPushReceiverContext UA_GDSPushReceiverContext;
 
 UA_StatusCode
-initNS0PushManagement(UA_GDSReceiverContext *ctx);
+initNS0PushManagement(UA_GDSPushReceiverContext *ctx);
 
 void
-clearNS0PushManagement(UA_GDSReceiverContext *ctx);
+clearNS0PushManagement(UA_GDSPushReceiverContext *ctx);
 
 #ifdef UA_ENABLE_RBAC
 /* Restrict the GDS PushManagement methods to the SecurityAdmin role
@@ -34,75 +34,75 @@ UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 
 UA_StatusCode
-writeOpenCountVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group);
+writeOpenCountVariable(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *group);
 
 UA_StatusCode
-writeLastUpdateVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group);
+writeLastUpdateVariable(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *group);
 
 UA_StatusCode
-UA_GDSReceiver_initFileInfos(UA_GDSReceiverContext *ctx, UA_UtcTime lastUpdateTime);
+UA_GDSPushReceiver_initFileInfos(UA_GDSPushReceiverContext *ctx, UA_UtcTime lastUpdateTime);
 
 UA_StatusCode
-UA_GDSReceiver_getFileInfoMetadata(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_getFileInfoMetadata(UA_GDSPushReceiverContext *ctx,
                                   const UA_NodeId certificateGroupId,
                                   UA_UInt16 *openCount,
                                   UA_UtcTime *lastUpdateTime);
 
 UA_Boolean
-UA_GDSReceiver_transactionPending(UA_GDSReceiverContext *ctx);
+UA_GDSPushReceiver_transactionPending(UA_GDSPushReceiverContext *ctx);
 
 UA_StatusCode
-UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_applyChangesForSession(UA_GDSPushReceiverContext *ctx,
                                      const UA_NodeId *sessionId);
 
 UA_StatusCode
-UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_openTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_Byte fileOpenMode,
                             UA_Variant *output);
 UA_StatusCode
-UA_GDSReceiver_getPositionTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_getPositionTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_Variant *output);
 UA_StatusCode
-UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_closeTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId, UA_UInt32 fileHandle);
 UA_StatusCode
-UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_closeAndUpdateTrustList(UA_GDSPushReceiverContext *ctx,
                                       UA_CertificateGroup *certGroup,
                                       const UA_NodeId *sessionId,
                                       UA_UInt32 fileHandle, UA_Variant *output);
 UA_StatusCode
-UA_GDSReceiver_setPositionTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_setPositionTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position);
 UA_StatusCode
-UA_GDSReceiver_writeTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_writeTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                              const UA_ByteString data);
 UA_StatusCode
-UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_openTrustListWithMask(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
                                     UA_Variant *output);
 UA_StatusCode
-UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
+UA_GDSPushReceiver_getRejectedList(UA_GDSPushReceiverContext *ctx, size_t outputSize,
                               UA_Variant *output);
 UA_StatusCode
-UA_GDSReceiver_readTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_readTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                             UA_Int32 length, UA_Variant *output);
 UA_StatusCode
-UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx, const UA_NodeId *sessionId,
+UA_GDSPushReceiver_stageCertificateUpdate(UA_GDSPushReceiverContext *ctx, const UA_NodeId *sessionId,
                                 const UA_NodeId *certificateGroupId,
                                 const UA_NodeId *certificateTypeId,
                                 const UA_ByteString *certificate,
                                 const UA_String *privateKeyFormat,
                                 const UA_ByteString *privateKey);
 UA_StatusCode
-UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_addCertificate(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate);
 UA_StatusCode
-UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_removeCertificate(UA_GDSPushReceiverContext *ctx,
                                 UA_CertificateGroup *certGroup,
                                 const UA_NodeId *sessionId,
                                 const UA_String *thumbprint,

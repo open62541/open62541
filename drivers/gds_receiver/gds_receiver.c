@@ -68,7 +68,7 @@ typedef struct ChannelMetadata {
     UA_ByteString certificate;
 } ChannelMetadata;
 
-struct UA_GDSReceiverContext {
+struct UA_GDSPushReceiverContext {
     UA_Driver drv;
     UA_Boolean initialized;
     UA_GDSTransaction transaction;
@@ -86,7 +86,7 @@ typedef enum UA_GDSTransactionChanges {
 } UA_GDSTransactionChanges;
 
 static UA_StatusCode
-UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx);
+UA_GDSPushReceiver_applyChanges(UA_GDSPushReceiverContext *ctx);
 
 static UA_FileContext*
 getFileContext(UA_FileInfo *fileInfo, const UA_NodeId *sessionId,
@@ -304,7 +304,7 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
 /********************/
 
 static UA_FileInfo *
-UA_GDSReceiver_getFileInfo(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_getFileInfo(UA_GDSPushReceiverContext *ctx,
                           UA_NodeId certificateGroupId) {
     UA_FileInfo *fi = (UA_FileInfo*)ctx->fileInfos;
     while(fi) {
@@ -316,7 +316,7 @@ UA_GDSReceiver_getFileInfo(UA_GDSReceiverContext *ctx,
 }
 
 UA_StatusCode
-UA_GDSReceiver_initFileInfos(UA_GDSReceiverContext *ctx, UA_UtcTime lastUpdateTime) {
+UA_GDSPushReceiver_initFileInfos(UA_GDSPushReceiverContext *ctx, UA_UtcTime lastUpdateTime) {
     UA_FileInfo *fi = (UA_FileInfo*)UA_calloc(1, sizeof(UA_FileInfo));
     if(!fi)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -339,11 +339,11 @@ UA_GDSReceiver_initFileInfos(UA_GDSReceiverContext *ctx, UA_UtcTime lastUpdateTi
 }
 
 UA_StatusCode
-UA_GDSReceiver_getFileInfoMetadata(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_getFileInfoMetadata(UA_GDSPushReceiverContext *ctx,
                                   const UA_NodeId certificateGroupId,
                                   UA_UInt16 *openCount,
                                   UA_UtcTime *lastUpdateTime) {
-    UA_FileInfo *fi = UA_GDSReceiver_getFileInfo(ctx, certificateGroupId);
+    UA_FileInfo *fi = UA_GDSPushReceiver_getFileInfo(ctx, certificateGroupId);
     if(!fi)
         return UA_STATUSCODE_BADNOTFOUND;
     *openCount = fi->openCount;
@@ -352,19 +352,19 @@ UA_GDSReceiver_getFileInfoMetadata(UA_GDSReceiverContext *ctx,
 }
 
 UA_Boolean
-UA_GDSReceiver_transactionPending(UA_GDSReceiverContext *ctx) {
+UA_GDSPushReceiver_transactionPending(UA_GDSPushReceiverContext *ctx) {
     return ctx->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH;
 }
 
 UA_StatusCode
-UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_applyChangesForSession(UA_GDSPushReceiverContext *ctx,
                                      const UA_NodeId *sessionId) {
     UA_GDSTransaction *transaction = &ctx->transaction;
     if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
         return UA_STATUSCODE_BADUSERACCESSDENIED;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADNOTHINGTODO;
-    return UA_GDSReceiver_applyChanges(ctx);
+    return UA_GDSPushReceiver_applyChanges(ctx);
 }
 
 /* This callback is triggered at regular intervals as long as a transaction is ongoing
@@ -377,7 +377,7 @@ checkSessionActive(UA_Server *server, void *data) {
     UA_EventLoop *el = sc->eventLoop;
     el->lock(el);
 
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)data;
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)data;
     UA_GDSTransaction *transaction = &ctx->transaction;
     UA_Boolean removingCallback = false;
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
@@ -443,12 +443,12 @@ checkSessionActive(UA_Server *server, void *data) {
 }
 
 UA_StatusCode
-UA_GDSReceiver_getPositionTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_getPositionTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_Variant *output) {
     UA_assert(certGroup != NULL);
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -461,12 +461,12 @@ UA_GDSReceiver_getPositionTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGr
 }
 
 UA_StatusCode
-UA_GDSReceiver_setPositionTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_setPositionTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                                    UA_UInt64 position) {
     UA_assert(certGroup != NULL);
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -484,7 +484,7 @@ UA_GDSReceiver_setPositionTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGr
 }
 
 UA_StatusCode
-UA_GDSReceiver_writeTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_writeTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                              const UA_ByteString data) {
     UA_assert(certGroup != NULL);
@@ -492,7 +492,7 @@ UA_GDSReceiver_writeTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *c
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -517,7 +517,7 @@ UA_GDSReceiver_writeTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *c
 }
 
 UA_StatusCode
-UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_closeAndUpdateTrustList(UA_GDSPushReceiverContext *ctx,
                                       UA_CertificateGroup *certGroup,
                                       const UA_NodeId *sessionId,
                                       UA_UInt32 fileHandle,
@@ -526,7 +526,7 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
 
     UA_GDSTransaction *transaction = &ctx->transaction;
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -575,7 +575,7 @@ UA_GDSReceiver_closeAndUpdateTrustList(UA_GDSReceiverContext *ctx,
 }
 
 UA_StatusCode
-UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_closeTrustList(UA_GDSPushReceiverContext *ctx,
                              UA_CertificateGroup *certGroup,
                              const UA_NodeId *sessionId,
                              UA_UInt32 fileHandle) {
@@ -583,7 +583,7 @@ UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
 
     UA_GDSTransaction *transaction = &ctx->transaction;
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -610,13 +610,13 @@ UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
 }
 
 UA_StatusCode
-UA_GDSReceiver_readTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_readTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_UInt32 fileHandle,
                             UA_Int32 length, UA_Variant *output) {
     UA_assert(certGroup != NULL);
 
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -650,7 +650,7 @@ UA_GDSReceiver_readTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
 
 /* TODO: Handle isTrustedCertificate */
 UA_StatusCode
-UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_addCertificate(UA_GDSPushReceiverContext *ctx,
                              UA_CertificateGroup *certGroup,
                              UA_ByteString *certificate,
                              const UA_Boolean *isTrustedCertificate) {
@@ -669,7 +669,7 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
 
     /* This method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(fileInfo->openCount > 0)
@@ -692,7 +692,7 @@ UA_GDSReceiver_addCertificate(UA_GDSReceiverContext *ctx,
 }
 
 UA_StatusCode
-UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_stageCertificateUpdate(UA_GDSPushReceiverContext *ctx,
                                 const UA_NodeId *sessionId,
                                 const UA_NodeId *certificateGroupId,
                                 const UA_NodeId *certificateTypeId,
@@ -774,7 +774,7 @@ String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
 }
 
 UA_StatusCode
-UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
+UA_GDSPushReceiver_removeCertificate(UA_GDSPushReceiverContext *ctx,
                                 UA_CertificateGroup *certGroup,
                                 const UA_NodeId *sessionId,
                                 const UA_String *thumbprint,
@@ -789,7 +789,7 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
 
     /* This Method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(fileInfo->openCount > 0)
@@ -886,7 +886,7 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
         goto cleanup;
 
     /* Apply */
-    retval = UA_GDSReceiver_applyChanges(ctx);
+    retval = UA_GDSPushReceiver_applyChanges(ctx);
 
 cleanup:
     UA_TrustListDataType_clear(&trustList);
@@ -897,7 +897,7 @@ cleanup:
 }
 
 UA_StatusCode
-UA_GDSReceiver_getRejectedList(UA_GDSReceiverContext *ctx, size_t outputSize,
+UA_GDSPushReceiver_getRejectedList(UA_GDSPushReceiverContext *ctx, size_t outputSize,
                               UA_Variant *output) {
     if(outputSize < 1)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
@@ -1003,7 +1003,7 @@ createFileHandleId(UA_FileInfo *fileInfo, UA_UInt32 *fileHandle) {
 }
 
 UA_StatusCode
-UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_openTrustListWithMask(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                                     const UA_NodeId *sessionId, UA_UInt32 mask,
                                     UA_Variant *output) {
     UA_assert(certGroup != NULL);
@@ -1013,7 +1013,7 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1081,7 +1081,7 @@ UA_GDSReceiver_openTrustListWithMask(UA_GDSReceiverContext *ctx, UA_CertificateG
 }
 
 UA_StatusCode
-UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *certGroup,
+UA_GDSPushReceiver_openTrustList(UA_GDSPushReceiverContext *ctx, UA_CertificateGroup *certGroup,
                             const UA_NodeId *sessionId, UA_Byte fileOpenMode,
                             UA_Variant *output) {
     UA_assert(certGroup != NULL);
@@ -1093,7 +1093,7 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_FileInfo *fileInfo =
-        UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+        UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -1179,7 +1179,7 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
 
 static void
 secureChannel_delayedClose(void *application, void *context) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)context;
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)context;
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_GDSTransactionChanges *changes = (UA_GDSTransactionChanges*)application;
@@ -1235,14 +1235,14 @@ secureChannel_delayedClose(void *application, void *context) {
 
 typedef struct {
     UA_DelayedCallback dc;
-    UA_GDSReceiverContext *ctx;
+    UA_GDSPushReceiverContext *ctx;
     UA_NodeId certificateTypeId;
 } CloseChannelsCallback;
 
 static void
 closeChannelsAfterCertificateUpdate(void *application, void *context) {
     CloseChannelsCallback *ccb = (CloseChannelsCallback*)context;
-    UA_GDSReceiverContext *ctx = ccb->ctx;
+    UA_GDSPushReceiverContext *ctx = ccb->ctx;
     ChannelMetadata *cm, *cmTmp;
     LIST_FOREACH_SAFE(cm, &ctx->secureChannels, pointers, cmTmp) {
         if(!UA_NodeId_equal(&cm->certificateTypeId, &ccb->certificateTypeId))
@@ -1260,12 +1260,12 @@ closeChannelsAfterCertificateUpdate(void *application, void *context) {
 }
 
 static UA_StatusCode
-updateCertificateLocked(UA_GDSReceiver *receiver,
+updateCertificateLocked(UA_GDSPushReceiver *receiver,
                         const UA_NodeId certificateGroupId,
                         const UA_NodeId certificateTypeId,
                         const UA_ByteString certificate,
                         const UA_ByteString *privateKey) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)receiver;
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)receiver;
     if(ctx->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
     if(ctx->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
@@ -1322,11 +1322,11 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
 }
 
 UA_StatusCode
-UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
-                                 const UA_NodeId certificateGroupId,
-                                 const UA_NodeId certificateTypeId,
-                                 const UA_ByteString certificate,
-                                 const UA_ByteString *privateKey) {
+UA_GDSPushReceiver_updateCertificate(UA_GDSPushReceiver *receiver,
+                                     const UA_NodeId certificateGroupId,
+                                     const UA_NodeId certificateTypeId,
+                                     const UA_ByteString certificate,
+                                     const UA_ByteString *privateKey) {
     if(!receiver || certificate.length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!receiver->drv.server)
@@ -1342,14 +1342,14 @@ UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
 }
 
 static UA_StatusCode
-createSigningRequestLocked(UA_GDSReceiver *receiver,
+createSigningRequestLocked(UA_GDSPushReceiver *receiver,
                            const UA_NodeId certificateGroupId,
                            const UA_NodeId certificateTypeId,
                            const UA_String *subjectName,
                            const UA_Boolean *regenerateKey,
                            const UA_ByteString *nonce,
                            UA_ByteString *csr) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)receiver;
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)receiver;
     if(ctx->drv.state != UA_LIFECYCLESTATE_STARTED)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
@@ -1418,13 +1418,13 @@ cleanup:
 }
 
 UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
-                                    const UA_NodeId certificateGroupId,
-                                    const UA_NodeId certificateTypeId,
-                                    const UA_String *subjectName,
-                                    const UA_Boolean *regenerateKey,
-                                    const UA_ByteString *nonce,
-                                    UA_ByteString *csr) {
+UA_GDSPushReceiver_createSigningRequest(UA_GDSPushReceiver *receiver,
+                                        const UA_NodeId certificateGroupId,
+                                        const UA_NodeId certificateTypeId,
+                                        const UA_String *subjectName,
+                                        const UA_Boolean *regenerateKey,
+                                        const UA_ByteString *nonce,
+                                        UA_ByteString *csr) {
     if(!receiver || !csr)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!receiver->drv.server)
@@ -1440,7 +1440,7 @@ UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
 }
 
 static UA_StatusCode
-UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
+UA_GDSPushReceiver_applyChanges(UA_GDSPushReceiverContext *ctx) {
     UA_Server *server = ctx->drv.server;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     UA_GDSTransaction *transaction = &ctx->transaction;
@@ -1451,7 +1451,7 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     for(size_t i = 0; i < transaction->certGroupSize; i++) {
         UA_CertificateGroup *certGroup = &transaction->certGroups[i];
         UA_FileInfo *fileInfo =
-            UA_GDSReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
+            UA_GDSPushReceiver_getFileInfo(ctx, certGroup->certificateGroupId);
         if(!fileInfo)
             return UA_STATUSCODE_BADINTERNALERROR;
         if(fileInfo->openCount > 0)
@@ -1532,7 +1532,7 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
     /* Publish metadata only after the complete transaction has succeeded. */
     for(size_t i = 0; i < groupsSize; i++) {
         UA_FileInfo *fileInfo =
-            UA_GDSReceiver_getFileInfo(ctx, groups[i]->certificateGroupId);
+            UA_GDSPushReceiver_getFileInfo(ctx, groups[i]->certificateGroupId);
         UA_assert(fileInfo != NULL);
         fileInfo->lastUpdateTime = UA_DateTime_now();
         writeLastUpdateVariable(ctx, groups[i]);
@@ -1566,7 +1566,7 @@ rollback:
             groups[appliedGroups], &oldTrustLists[appliedGroups]);
         if(rollbackRes != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                         "Could not roll back a GDS Receiver trust-list update");
+                         "Could not roll back a GDS Push Receiver trust-list update");
     }
 
 cleanup:
@@ -1590,7 +1590,7 @@ static void
 secureChannelNotificationCallback(UA_Driver *drv,
                                   UA_ApplicationNotificationType type,
                                   const UA_KeyValueMap payload) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)drv;
     if(type == UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED) {
         UA_UInt32 channelId = *(const UA_UInt32*)
             UA_KeyValueMap_getScalar(&payload,
@@ -1644,8 +1644,8 @@ secureChannelNotificationCallback(UA_Driver *drv,
 }
 
 static UA_StatusCode
-UA_GDSReceiver_start(UA_Driver *drv) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
+UA_GDSPushReceiver_start(UA_Driver *drv) {
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)drv;
 
     /* Initialize ns0 entries only once */
     if(!ctx->initialized) {
@@ -1668,8 +1668,8 @@ UA_GDSReceiver_start(UA_Driver *drv) {
 }
 
 static void
-UA_GDSReceiver_stop(UA_Driver *drv) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
+UA_GDSPushReceiver_stop(UA_Driver *drv) {
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)drv;
     if(ctx->initialized) {
         clearNS0PushManagement(ctx);
         ctx->initialized = false;
@@ -1685,18 +1685,18 @@ UA_GDSReceiver_stop(UA_Driver *drv) {
 }
 
 static UA_StatusCode
-UA_GDSReceiver_free(UA_Driver *drv) {
+UA_GDSPushReceiver_free(UA_Driver *drv) {
     if(drv->state != UA_LIFECYCLESTATE_STOPPED) {
         if(drv->server) {
             UA_ServerConfig *sc = UA_Server_getConfig(drv->server);
             UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
-                         "Cannot delete the GDS Receiver driver because "
+                         "Cannot delete the GDS Push Receiver driver because "
                          "it is not stopped");
         }
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)drv;
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)drv;
     ctx->checkSessionCallbackId = 0;
     UA_GDSTransaction_clear(&ctx->transaction);
     UA_FileInfo *fi = (UA_FileInfo*)ctx->fileInfos;
@@ -1732,22 +1732,22 @@ UA_GDSReceiver_free(UA_Driver *drv) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_GDSReceiver *
-UA_GDSReceiver_new(void) {
-    UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)UA_calloc(1, sizeof(UA_GDSReceiverContext));
+UA_GDSPushReceiver *
+UA_GDSPushReceiver_new(void) {
+    UA_GDSPushReceiverContext *ctx = (UA_GDSPushReceiverContext*)UA_calloc(1, sizeof(UA_GDSPushReceiverContext));
     if(!ctx)
         return NULL;
 
     ctx->drv.driverType = UA_DRIVERTYPE_GDS_RECEIVER;
     ctx->drv.name = UA_STRING("gds-receiver");
-    ctx->drv.start = UA_GDSReceiver_start;
-    ctx->drv.stop = UA_GDSReceiver_stop;
-    ctx->drv.free = UA_GDSReceiver_free;
+    ctx->drv.start = UA_GDSPushReceiver_start;
+    ctx->drv.stop = UA_GDSPushReceiver_stop;
+    ctx->drv.free = UA_GDSPushReceiver_free;
 
     ctx->drv.notificationCallback = secureChannelNotificationCallback;
     ctx->drv.notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL;
 
-    return (UA_GDSReceiver*)ctx;
+    return (UA_GDSPushReceiver*)ctx;
 }
 
 #endif

@@ -20,7 +20,7 @@
 #include "certificates.h"
 
 UA_Server *server;
-UA_GDSReceiver *receiver;
+UA_GDSPushReceiver *receiver;
 UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
@@ -80,7 +80,7 @@ static void setup(void) {
                                                           revocationList, revocationListSize);
     ck_assert(server != NULL);
 
-    receiver = UA_GDSReceiver_new();
+    receiver = UA_GDSPushReceiver_new();
     ck_assert_ptr_nonnull(receiver);
     UA_StatusCode res = UA_Server_addDriver(server, &receiver->drv);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
