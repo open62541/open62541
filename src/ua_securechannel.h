@@ -122,7 +122,9 @@ struct UA_SecureChannel {
     UA_ChannelSecurityToken altSecurityToken; /* Alternative token for the rollover.
                                                * See the renewState. */
 
-    /* The endpoint and context of the channel */
+    /* The endpoint and context of the channel. securityPolicy is a private
+     * copy owned by the channel (see UA_SecureChannel_setSecurityPolicy), not
+     * a pointer into the caller's SecurityPolicy array. */
     UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
 
