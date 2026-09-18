@@ -1165,6 +1165,9 @@ UA_mbedTLS_ECDSA_Verify(const UA_ByteString *message,
                         mbedtls_md_type_t mdType,
                         size_t hashLen,
                         const UA_ByteString *signature) {
+    if(!signature->data || signature->length != 2 * hashLen)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     unsigned char hash[64];
     size_t sizeEncCoordinate = signature->length / 2;
 
