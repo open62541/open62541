@@ -32,7 +32,7 @@ static UA_StatusCode
 generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                        UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
-                       UA_ExtensionObject *messageSettings,
+                       UA_UInt16 networkMessageNumber, UA_ExtensionObject *messageSettings,
                         UA_ExtensionObject *transportSettings,
                          UA_NetworkMessage *networkMessage);
 
@@ -111,6 +111,18 @@ validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead
                                   "of type JSONWriterGroupMessageDataType");
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
+
+        /* Require both JSON headers and reject fields the encoder cannot
+         * emit. The remaining mask bits select supported envelope layouts. */
+        const UA_JsonWriterGroupMessageDataType *settings =
+            (const UA_JsonWriterGroupMessageDataType*)ms->content.decoded.data;
+        UA_UInt32 mask = (UA_UInt32)settings->networkMessageContentMask;
+        UA_UInt32 required = UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+            UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER;
+        UA_UInt32 supported = required | UA_JSONNETWORKMESSAGECONTENTMASK_SINGLEDATASETMESSAGE |
+            UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID | UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID;
+        if((mask & required) != required || (mask & ~supported) != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
     } else if(config->encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
         if(!UA_ExtensionObject_hasDecodedType(ms,
                 &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
@@ -637,6 +649,36 @@ sendNetworkMessageBuffer(UA_PubSubManager *psm, UA_WriterGroup *wg,
     wg->sequenceNumber++;
 }
 
+static UA_StatusCode
+setDataSetClassId(UA_WriterGroup *wg, UA_NetworkMessage *nm,
+                  const UA_UInt16 *writerIds, size_t dsmCount) {
+    /* A class id describes every DataSetMessage in this NetworkMessage. */
+    if(nm->dataSetClassIdEnabled) {
+        for(size_t i = 0; i < dsmCount; i++) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(dsw->config.dataSetWriterId == writerIds[i])
+                    break;
+            }
+            if(!dsw)
+                return UA_STATUSCODE_BADINTERNALERROR;
+
+            /* Use the first writer's class for the envelope and require all
+             * other writers in this batch to share it. Heartbeats use the
+             * null class. */
+            UA_Guid classId = UA_GUID_NULL;
+            if(dsw->connectedDataSet)
+                classId = dsw->connectedDataSet->dataSetMetaData.dataSetClassId;
+            if(i == 0)
+                nm->dataSetClassId = classId;
+            else if(!UA_Guid_equal(&nm->dataSetClassId, &classId))
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_StatusCode
 sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, UA_WriterGroup *wg,
@@ -651,6 +693,21 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     nm.messageCount = dsmCount;
     nm.publisherIdEnabled = true;
     nm.publisherId = connection->config.publisherId;
+
+    /* Apply explicit JSON header and layout choices. Without message
+     * settings, keep the default envelope with a PublisherId and Messages
+     * array. */
+    if(UA_ExtensionObject_hasDecodedType(&wg->config.messageSettings,
+           &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
+        const UA_JsonWriterGroupMessageDataType *settings =
+            (const UA_JsonWriterGroupMessageDataType*)wg->config.messageSettings.content.decoded.data;
+        UA_UInt32 mask = (UA_UInt32)settings->networkMessageContentMask;
+        nm.publisherIdEnabled = (mask & UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
+        nm.dataSetClassIdEnabled = (mask & UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
+        nm.jsonSingleDataSetMessage = (mask & UA_JSONNETWORKMESSAGECONTENTMASK_SINGLEDATASETMESSAGE) != 0;
+    }
+    UA_StatusCode classResult = setDataSetClassId(wg, &nm, writerIds, dsmCount);
+    UA_CHECK_STATUS(classResult, return classResult);
 
     /* Use one globally unique identifier for this message, including both the
      * size calculation and encoding passes. */
@@ -668,7 +725,7 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     PubSubEncodeJsonCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeJsonCtx));
 
-    /* Prepare the metadata to encode the DataSetMessages */
+    /* Collect field metadata for the DataSetMessages in this group. */
     size_t i = 0;
     UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
     memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
@@ -677,6 +734,12 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        if(UA_ExtensionObject_hasDecodedType(&dsw->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetWriterMessageDataType *settings =
+                (const UA_UadpDataSetWriterMessageDataType*)dsw->config.messageSettings.content.decoded.data;
+            emd[i].configuredSize = settings->configuredSize;
+        }
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(pds) {
             emd[i].fields = pds->dataSetMetaData.fields;
@@ -802,7 +865,7 @@ static UA_StatusCode
 generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                        UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
-                       UA_ExtensionObject *messageSettings,
+                       UA_UInt16 networkMessageNumber, UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *nm) {
     /* Defense-in-depth: the dataSetWriterIds array in UA_NetworkMessage is
@@ -861,25 +924,8 @@ generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
 
-    /* A class id describes every DataSetMessage in this NetworkMessage. */
-    if(nm->dataSetClassIdEnabled) {
-        for(size_t i = 0; i < dsmCount; i++) {
-            UA_DataSetWriter *dsw;
-            LIST_FOREACH(dsw, &wg->writers, listEntry) {
-                if(dsw->config.dataSetWriterId == writerIds[i])
-                    break;
-            }
-            if(!dsw)
-                return UA_STATUSCODE_BADINTERNALERROR;
-            UA_Guid classId = UA_GUID_NULL;
-            if(dsw->connectedDataSet)
-                classId = dsw->connectedDataSet->dataSetMetaData.dataSetClassId;
-            if(i == 0)
-                nm->dataSetClassId = classId;
-            else if(!UA_Guid_equal(&nm->dataSetClassId, &classId))
-                return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        }
-    }
+    UA_StatusCode classResult = setDataSetClassId(wg, nm, writerIds, dsmCount);
+    UA_CHECK_STATUS(classResult, return classResult);
 
     /* Set the SecurityHeader */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
@@ -934,7 +980,7 @@ generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 
     nm->groupHeader.writerGroupId = wg->config.writerGroupId;
     /* number of the NetworkMessage inside a PublishingInterval */
-    nm->groupHeader.networkMessageNumber = 1;
+    nm->groupHeader.networkMessageNumber = networkMessageNumber;
     nm->payload.dataSetMessages = dsm;
     nm->messageCount = dsmCount;
 
@@ -947,21 +993,19 @@ generateNetworkMessage(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 static UA_StatusCode
 sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                          UA_WriterGroup *wg, UA_DataSetMessage *dsm, UA_UInt16 *writerIds,
-                         UA_Byte dsmCount) {
+                         UA_Byte dsmCount, UA_UInt16 networkMessageNumber) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
     /* Fill the message structure */
     UA_StatusCode rv =
         generateNetworkMessage(psm, connection, wg, dsm, writerIds, dsmCount,
-                               &wg->config.messageSettings,
+                               networkMessageNumber, &wg->config.messageSettings,
                                &wg->config.transportSettings, &nm);
     UA_CHECK_STATUS(rv, return rv);
 
-    /* Populate promoted field values if the flag was set by
-     * generateNetworkMessage. Spec: promoted field values must be copied
-     * into the header. The previous code set the flag but never populated
-     * the values, so subscribers saw an empty promoted-fields block. */
+    /* Copy promoted field values into the header when the content mask
+     * requests them. Collect only fields from writers in this message. */
     if(nm.promotedFieldsEnabled) {
         rv = UA_WriterGroup_collectPromotedFields(psm, wg, writerIds,
                                                    dsmCount, &nm);
@@ -971,8 +1015,8 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     PubSubEncodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeCtx));
 
-    /* Prepare the metadata with information from the readers to decode the
-     * DataSetMessages */
+    /* Pass each writer's field metadata and configured size to the encoder.
+     * ConfiguredSize controls padding inside the NetworkMessage. */
     size_t i = 0;
     UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
     memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
@@ -981,6 +1025,12 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        if(UA_ExtensionObject_hasDecodedType(&dsw->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetWriterMessageDataType *settings =
+                (const UA_UadpDataSetWriterMessageDataType*)dsw->config.messageSettings.content.decoded.data;
+            emd[i].configuredSize = settings->configuredSize;
+        }
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(pds) {
             emd[i].fields = pds->dataSetMetaData.fields;
@@ -1054,7 +1104,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 
 static void
 sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnection *connection,
-                   UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount) {
+                   UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
+                   UA_UInt32 networkMessageNumber) {
+    /* Stop publishing if the message number for this interval cannot fit in
+     * the UADP header, or the batch exceeds the supported payload count. */
+    if(networkMessageNumber > UA_UINT16_MAX) {
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
+        return;
+    }
     if(dsmCount > UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "More DataSetMessages than allowed in "
@@ -1066,7 +1123,8 @@ sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnectio
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(wg->config.encodingMimeType) {
     case UA_PUBSUB_ENCODING_UADP:
-        res = sendNetworkMessageBinary(psm, connection, wg, dsm, writerIds, dsmCount);
+        res = sendNetworkMessageBinary(psm, connection, wg, dsm, writerIds, dsmCount,
+                                       (UA_UInt16)networkMessageNumber);
         break;
 #ifdef UA_ENABLE_JSON_ENCODING
     case UA_PUBSUB_ENCODING_JSON:
@@ -1111,9 +1169,11 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         return;
     }
 
-    /* Extract DataSetOrdering from messageSettings */
+    /* Read the ordering and layout settings that determine how writers can
+     * share a NetworkMessage. */
     UA_DataSetOrderingType dataSetOrdering = UA_DATASETORDERINGTYPE_UNDEFINED;
     UA_Boolean includeClassId = false;
+    UA_Boolean singleJsonMessage = false;
     if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
        wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         if(wg->config.messageSettings.content.decoded.type ==
@@ -1123,6 +1183,14 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
             dataSetOrdering = wgm->dataSetOrdering;
             includeClassId = (wgm->networkMessageContentMask &
                              UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
+        } else if(wg->config.messageSettings.content.decoded.type ==
+                  &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
+            const UA_JsonWriterGroupMessageDataType *settings =
+                (const UA_JsonWriterGroupMessageDataType*)wg->config.messageSettings.content.decoded.data;
+            includeClassId = (settings->networkMessageContentMask &
+                             UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
+            singleJsonMessage = (settings->networkMessageContentMask &
+                                 UA_JSONNETWORKMESSAGECONTENTMASK_SINGLEDATASETMESSAGE) != 0;
         }
     }
 
@@ -1133,8 +1201,8 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
     if(maxDSM == 0)
         maxDSM = 1; /* Send at least one dsm */
 
-    /* For AscendingWriterIdSingle, only one DataSetMessage per NetworkMessage */
-    if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE)
+    /* Single-message layouts override the configured batch size. */
+    if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE || singleJsonMessage)
         maxDSM = 1;
 
     if(wg->writersCount == 0) {
@@ -1178,11 +1246,11 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         }
     }
 
-    /* It is possible to put several DataSetMessages into one NetworkMessage.
-     * But only if they do not contain promoted fields. NM with promoted fields
-     * are sent out right away. The others are kept in a buffer for
-     * "batching". */
+    /* Send promoted fields immediately and retain other messages for
+     * batching. Number all NetworkMessages in this publishing interval
+     * consecutively, starting at one. */
     size_t dsmCount = 0;
+    UA_UInt32 networkMessageNumber = 1;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
     UA_STACKARRAY(UA_Guid, classIds, enabledWriters);
@@ -1211,7 +1279,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         if(pds && pds->promotedFieldsCount > 0) {
             wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
             sendNetworkMessage(psm, wg, connection, &dsmStore[dsmCount],
-                               &dsWriterIds[dsmCount], 1);
+                               &dsWriterIds[dsmCount], 1, networkMessageNumber++);
 
             UA_DataSetMessage_clear(&dsmStore[dsmCount]);
             continue; /* Don't increase the dsmCount, reuse the slot */
@@ -1238,7 +1306,7 @@ UA_WriterGroup_publishCallback(void *application /* UA_PubSubManager */,
         wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
         /* Send the batched messages */
         sendNetworkMessage(psm, wg, connection, &dsmStore[i],
-                           &dsWriterIds[i], nmDsmCount);
+                           &dsWriterIds[i], nmDsmCount, networkMessageNumber++);
     }
 
     /* Clean up DSM */
@@ -1840,6 +1908,12 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        if(UA_ExtensionObject_hasDecodedType(&dsw->config.messageSettings,
+               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+            const UA_UadpDataSetWriterMessageDataType *settings =
+                (const UA_UadpDataSetWriterMessageDataType*)dsw->config.messageSettings.content.decoded.data;
+            emd[i].configuredSize = settings->configuredSize;
+        }
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(pds) {
             emd[i].fields = pds->dataSetMetaData.fields;
@@ -1877,7 +1951,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         goto cleanup;
     }
     res = generateNetworkMessage(psm, wg->linkedConnection, wg, dsmStore, dsWriterIds,
-                                 (UA_Byte) dsmCount, &wg->config.messageSettings,
+                                 (UA_Byte) dsmCount, 1, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;

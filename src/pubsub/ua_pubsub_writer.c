@@ -192,6 +192,43 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Validate UADP placement before storing the writer configuration. The
+     * default sender supports padding but not fixed message or byte
+     * positions. */
+    if(UA_ExtensionObject_hasDecodedType(&dswConfig->messageSettings,
+           &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetWriterMessageDataType *settings =
+            (const UA_UadpDataSetWriterMessageDataType*)dswConfig->messageSettings.content.decoded.data;
+        if(settings->networkMessageNumber != 0 || settings->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* Accept only JSON header masks the encoder can honor. WriterId and
+     * MessageType are required; unsupported optional fields are rejected. */
+    if(UA_ExtensionObject_hasDecodedType(&dswConfig->messageSettings,
+           &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE])) {
+        const UA_JsonDataSetWriterMessageDataType *settings =
+            (const UA_JsonDataSetWriterMessageDataType*)dswConfig->messageSettings.content.decoded.data;
+        UA_UInt32 mask = (UA_UInt32)settings->dataSetMessageContentMask;
+        UA_UInt32 required = UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
+            UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
+#ifdef UA_JSONDATASETMESSAGECONTENTMASK_FIELDENCODING1
+        /* The current schema calls bit 7 FieldEncoding1. Older schemas call
+         * the same bit ReversibleFieldEncoding. In both schemas it selects
+         * the reversible encoding produced by the JSON encoder. */
+        UA_UInt32 reversibleEncoding =
+            UA_JSONDATASETMESSAGECONTENTMASK_FIELDENCODING1;
+#else
+        UA_UInt32 reversibleEncoding =
+            UA_JSONDATASETMESSAGECONTENTMASK_REVERSIBLEFIELDENCODING;
+#endif
+        UA_UInt32 supported = required | UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION |
+            UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER | UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP |
+            UA_JSONDATASETMESSAGECONTENTMASK_STATUS | reversibleEncoding;
+        if((mask & required) != required || (mask & ~supported) != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     UA_PublishedDataSet *pds = NULL;
 
     if(!UA_NodeId_isNull(&dataSet)) {
@@ -448,12 +485,15 @@ applyFieldContentMask(const UA_DataSetWriter *dsw, UA_DataValue *value) {
 static UA_StatusCode
 setRawDefaultValue(UA_PubSubManager *psm, const UA_DataSetField *field,
                    UA_DataValue *value) {
+    /* Resolve the field type, including application-defined types, before
+     * replacing the unusable value. */
     const UA_FieldMetaData *fmd = &field->fieldMetaData;
     const UA_DataType *type = UA_findDataTypeWithCustom(
         &fmd->dataType, psm->drv.server->config.customDataTypes);
     if(!type)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
+    /* Create a zero-initialized scalar or array with the metadata's shape. */
     UA_Variant_clear(&value->value);
     value->hasValue = false;
     if(fmd->valueRank == UA_VALUERANK_SCALAR) {
@@ -469,6 +509,8 @@ setRawDefaultValue(UA_PubSubManager *psm, const UA_DataSetField *field,
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             length *= dim;
         }
+
+        /* Attach owned element storage and a copy of the array dimensions. */
         void *data = UA_Array_new(length, type);
         if(!data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -545,6 +587,9 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
         }
         counter++;
     }
+
+    /* Summarize substituted RawData fields: all Bad yields Bad; a mixture of
+     * usable and substituted fields yields UncertainSubNormal. */
     if(badFields > 0)
         dataSetMessage->header.status = (badFields == pds->fieldSize) ?
             UA_STATUSCODE_BAD : UA_STATUSCODE_UNCERTAINSUBNORMAL;
@@ -743,10 +788,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         dsm = &defaultUadpConfiguration; /* type is UADP */
     }
 
-    /* The field encoding depends on the flags inside the writer config.
-     * Spec Table 32: "If one of the bits 0 to 4 is set, the fields are
-     * represented as DataValue." Bit 2 (SERVERTIMESTAMP) was previously
-     * missing from this mask check. */
+    /* Use RawData when requested. Otherwise select DataValue for status or
+     * timestamps, and Variant for values without these extra fields. */
     if(dsw->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
@@ -762,15 +805,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
     }
 
     if(dsm) {
-        /* Sanity-test the configuration */
-        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0 ||
-           dsm->configuredSize != 0) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                                  "Static DSM configuration not supported, using defaults");
-            dsm->networkMessageNumber = 0;
-            dsm->dataSetOffset = 0;
-            // dsm->configuredSize = 0;
-        }
+        /* Recheck placement settings before generation, including
+         * configurations changed through application callbacks. */
+        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
 
         /* Std: 'The DataSetMessageContentMask defines the flags for the content
          * of the DataSetMessage header.' */
@@ -891,13 +929,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
             return res;
         }
 
-        /* The standard defines: if a PDS contains only one fields no delta messages
-         * should be generated because they need more memory than a keyframe with 1
-         * field.
-         * Spec 6.2.4.3: "If the KeyFrameCount is set to 1, every message contains
-         * a key frame." The previous `<=` comparison generated a delta frame
-         * when deltaFrameCounter == keyFrameCount (e.g., keyFrameCount=1
-         * produced delta frames). Changed to `<`. */
+        /* Emit deltas only between scheduled key frames and only for datasets
+         * with multiple fields. KeyFrameCount equal to one produces only key
+         * frames. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
            dsw->deltaFrameCounter < dsw->config.keyFrameCount) {
             UA_StatusCode res =

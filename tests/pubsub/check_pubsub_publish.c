@@ -963,7 +963,8 @@ START_TEST(DataSetMessageStatusFollowsFieldRepresentation) {
         ctx.wg->config.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
         UA_JsonDataSetWriterMessageDataType ms;
         UA_JsonDataSetWriterMessageDataType_init(&ms);
-        ms.dataSetMessageContentMask = UA_JSONDATASETMESSAGECONTENTMASK_STATUS;
+        ms.dataSetMessageContentMask = UA_JSONDATASETMESSAGECONTENTMASK_STATUS |
+            UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID | UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
         ck_assert_uint_eq(UA_ExtensionObject_setValueCopy(&ctx.dsw->config.messageSettings,
             &ms, &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]), UA_STATUSCODE_GOOD);
     } else

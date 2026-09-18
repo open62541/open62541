@@ -463,39 +463,73 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
            reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
 
+        /* Apply the reader's header filters before checking sequence history.
+         */
         UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, reader, nm);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
-        /* Update the ReaderGroup state if this is the first received message.
-         * Only set hasReceived after a reader claims the message — the previous
-         * code set it unconditionally at the top, before the matching loop, so
-         * the ReaderGroup transitioned to Operational even on messages no
-         * reader claimed. */
-        if(!rg->hasReceived) {
-            rg->hasReceived = true;
-            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
-        }
-
-        /* The message was processed by at least one reader */
-        processed = true;
-
-        UA_LOG_TRACE_PUBSUB(psm->logging, rg, "Processing a NetworkMessage");
-
-        /* No payload header. The message contains a single DataSetMessage that
-         * is processed by every Reader. However, if messageCount > 1, all DSMs
-         * must be processed, not just index 0. */
-        if(!nm->payloadHeaderEnabled) {
-            for(size_t i = 0; i < nm->messageCount; i++)
-                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
+        /* Reject repeated or out-of-order NetworkMessages without advancing
+         * the accepted counter until a contained DataSetMessage is processed.
+         */
+        UA_Boolean gap;
+        if(nm->groupHeaderEnabled && nm->groupHeader.sequenceNumberEnabled &&
+           !UA_DataSetReader_checkSequence(psm, reader, nm, 0, false,
+                                           nm->groupHeader.sequenceNumber, 16, false, &gap))
             continue;
+
+        /* Select the DataSetMessages for this reader. Headerless messages use
+         * the reader's configured writer id as their stream identity. */
+        UA_Boolean readerProcessed = false;
+        for(size_t i = 0; i < nm->messageCount; i++) {
+            UA_UInt16 writerId = nm->payloadHeaderEnabled ? nm->dataSetWriterIds[i] :
+                reader->config.dataSetWriterId;
+            if(nm->payloadHeaderEnabled && reader->config.dataSetWriterId != 0 &&
+               reader->config.dataSetWriterId != writerId)
+                continue;
+            UA_DataSetMessage *dsm = &nm->payload.dataSetMessages[i];
+            if(!dsm->header.dataSetMessageValid)
+                continue;
+
+            /* Check the writer's counter using the width of the message
+             * encoding. */
+            if(dsm->header.dataSetMessageSequenceNrEnabled) {
+                UA_Byte bits = rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON ? 32 : 16;
+                if(!UA_DataSetReader_checkSequence(psm, reader, nm, writerId, true,
+                        dsm->header.dataSetMessageSequenceNr, bits, false, &gap))
+                    continue;
+                /* A missing delta may have changed a field absent from this
+                 * delta. Recover only once a complete key frame arrives. */
+                if(gap && dsm->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME)
+                    reader->receivedKeyFrame = false;
+            }
+
+            /* Promote the group when a matching message arrives, then let the
+             * reader validate the payload and update its targets. */
+            if(!rg->hasReceived) {
+                rg->hasReceived = true;
+                UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+            }
+            if(UA_DataSetReader_process(psm, reader, dsm)) {
+                readerProcessed = true;
+
+                /* Commit the writer's sequence number only for an accepted
+                 * payload. */
+                if(dsm->header.dataSetMessageSequenceNrEnabled) {
+                    UA_Byte bits = rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON ? 32 : 16;
+                    UA_DataSetReader_checkSequence(psm, reader, nm, writerId, true,
+                        dsm->header.dataSetMessageSequenceNr, bits, true, &gap);
+                }
+            }
         }
 
-        /* Process only the payloads where the WriterId from the header is expected */
-        for(size_t i = 0; i < nm->messageCount; i++) {
-            if(reader->config.dataSetWriterId == 0 ||
-               reader->config.dataSetWriterId == nm->dataSetWriterIds[i])
-                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
+        /* Commit the group counter once, after at least one payload was
+         * accepted. */
+        if(readerProcessed) {
+            processed = true;
+            if(nm->groupHeaderEnabled && nm->groupHeader.sequenceNumberEnabled)
+                UA_DataSetReader_checkSequence(psm, reader, nm, 0, false,
+                    nm->groupHeader.sequenceNumber, 16, true, &gap);
         }
     }
 

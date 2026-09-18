@@ -150,11 +150,8 @@ UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
         ks->listed = false;
     }
 
-    /* Remove the key-rollover callback timer if it is armed.
-     * The previous guard was inverted (`!ks->callBackId`), which removed the
-     * timer only when callBackId was 0 (no timer) and skipped removal when a
-     * timer was actually armed. The freed key storage was then dereferenced by
-     * the EventLoop on the next rollover tick -> use-after-free. */
+    /* Cancel the armed rollover timer before releasing storage that its
+     * callback would otherwise access. */
     if(ks->callBackId != 0) {
         removeCallback(psm->drv.server, ks->callBackId);
         ks->callBackId = 0;
@@ -305,6 +302,8 @@ UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *ks,
     if(!ks->policy || ks->policy->keyMaterialLength == 0)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
+    /* Validate the complete batch against the policy's key length before
+     * allocating or changing stored keys. */
     const size_t expectedLen = ks->policy->keyMaterialLength;
     if(currentKey->length != expectedLen || !currentKey->data)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -313,6 +312,8 @@ UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *ks,
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
+    /* Build an owned replacement list so allocation failures leave the live
+     * key storage unchanged. */
     keyListItems replacement;
     TAILQ_INIT(&replacement);
     UA_PubSubKeyListItem *item;
@@ -321,6 +322,8 @@ UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *ks,
             goto oom;
     }
 
+    /* Retain existing history when the current token is already known.
+     * Otherwise start a new history from the supplied current key. */
     UA_PubSubKeyListItem *newCurrent =
         findTemporaryKey(&replacement, currentKeyId);
     if(!newCurrent) {
@@ -330,6 +333,8 @@ UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *ks,
             goto oom;
     }
 
+    /* Append missing future keys with consecutive token ids, skipping zero
+     * when the id wraps. */
     UA_UInt32 keyId = currentKeyId;
     for(size_t i = 0; i < futureKeysSize; i++) {
         if(++keyId == 0)
@@ -339,6 +344,8 @@ UA_PubSubKeyStorage_installKeyBatch(UA_PubSubKeyStorage *ks,
             goto oom;
     }
 
+    /* Replace the live list only after every key has been copied, and select
+     * the requested current token. */
     UA_PubSubKeyStorage_clearKeyList(ks);
     while((item = TAILQ_FIRST(&replacement))) {
         TAILQ_REMOVE(&replacement, item, keyListEntry);
@@ -726,6 +733,8 @@ UA_PubSubKeyStorage_validateGetSecurityKeysResponse(
     if(result->outputArgumentsSize < 5 || !result->outputArguments)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Require a policy URI, token id, nonempty key array and two durations
+     * before the response values are consumed. */
     const UA_Variant *args = result->outputArguments;
     if(!UA_Variant_hasScalarType(&args[0], &UA_TYPES[UA_TYPES_STRING]) ||
        (!UA_Variant_hasScalarType(&args[1], &UA_TYPES[UA_TYPES_UINT32]) &&
@@ -799,11 +808,8 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
         goto cleanup;
     ks->keyLifeTime = msKeyLifeTime;
 
-    /* After a new batch of keys is fetched from SKS server, the key storage is
-     * updated with new keys and new keylifetime. Also the remaining time for
-     * current keyRollover is also returned. When setting a new keyRollover
-     * callback, the previous callback must be removed so that the keyRollover
-     * does not happen twice */
+    /* Replace the rollover timer with the remaining lifetime reported by SKS,
+     * so only one callback advances the current key. */
     if(ks->callBackId != 0) {
         psm->drv.server->config.eventLoop->removeTimer(psm->drv.server->config.eventLoop,
                                                        ks->callBackId);
@@ -840,6 +846,8 @@ callGetSecurityKeysMethod(UA_Client *client) {
 
     sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
 
+    /* Request keys for this security group, starting at the selected token.
+     * The response callback installs the batch and schedules its rollover. */
     UA_Variant inputArguments[3];
     UA_Variant_setScalar(&inputArguments[0], &ctx->ks->securityGroupID,
                          &UA_TYPES[UA_TYPES_STRING]);
@@ -869,6 +877,8 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         return;
     }
 
+    /* Send the key request once the session is activated. Connection or
+     * request failures notify the application and schedule client cleanup. */
     UA_Boolean triggerSKSCleanup = false;
     if(connectStatus != UA_STATUSCODE_GOOD &&
        connectStatus != UA_STATUSCODE_BADNOTCONNECTED &&
@@ -1033,7 +1043,8 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
 
     ks->sksConfig.userNotifyCallback = callback;
     ks->sksConfig.context = context;
-    /* if keys are not previously fetched, then first call GetSecurityKeys*/
+
+    /* Fetch the initial key batch when storage has no keys. */
     if(ks->keyListSize == 0) {
         retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
     } else

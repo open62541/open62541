@@ -150,11 +150,13 @@ static void checkReceived(void) {
         rvi.nodeId = UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID);
         UA_DataValue subscribedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
         
-        /* Check if data sent from Publisher is being received by Subscriber */
-        ck_assert(publishedNodeData.value.type == subscribedNodeData.value.type);
-        UA_Boolean eq = 
-            (UA_order(&publishedNodeData, &subscribedNodeData,
-                      &UA_TYPES[UA_TYPES_DATAVALUE]) == UA_ORDER_EQ);
+        /* The reader can apply its Disabled-state fallback before the first
+         * packet. Wait until the target has received the published type. */
+        UA_Boolean eq = false;
+        if(publishedNodeData.value.type == subscribedNodeData.value.type) {
+            eq = (UA_order(&publishedNodeData, &subscribedNodeData,
+                           &UA_TYPES[UA_TYPES_DATAVALUE]) == UA_ORDER_EQ);
+        }
         UA_DataValue_clear(&subscribedNodeData);
         UA_DataValue_clear(&publishedNodeData);
         if(eq)
@@ -3043,6 +3045,9 @@ START_TEST(DataSetReaderOverrideValueHandling) {
         rvi.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_DataValue received =
             UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        if(modes[modeIndex] == UA_OVERRIDEVALUEHANDLING_DISABLED)
+            ck_assert(UA_Variant_isEmpty(&received.value));
+        else {
         ck_assert(received.hasValue);
         ck_assert_ptr_eq(received.value.type, &UA_TYPES[UA_TYPES_UINT32]);
         UA_UInt32 expected = (modes[modeIndex] ==
@@ -3050,16 +3055,17 @@ START_TEST(DataSetReaderOverrideValueHandling) {
                              (modes[modeIndex] ==
                               UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) ? 30 : 99;
         ck_assert_uint_eq(*(UA_UInt32*)received.value.data, expected);
+        }
         if(modes[modeIndex] == UA_OVERRIDEVALUEHANDLING_DISABLED) {
             ck_assert(received.hasStatus);
             ck_assert_uint_eq(received.status, UA_STATUSCODE_BADINTERNALERROR);
         } else if(modes[modeIndex] ==
                   UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) {
             ck_assert(received.hasStatus);
-            ck_assert_uint_eq(received.status, UA_STATUSCODE_UNCERTAIN);
+            ck_assert_uint_eq(received.status, UA_STATUSCODE_UNCERTAINLASTUSABLEVALUE);
         } else {
             ck_assert(received.hasStatus);
-            ck_assert_uint_eq(received.status, UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(received.status, UA_STATUSCODE_GOODLOCALOVERRIDE);
         }
         UA_DataValue_clear(&received);
         UA_Server_removeReaderGroup(server, rgId);
