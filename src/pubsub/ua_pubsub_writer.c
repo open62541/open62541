@@ -192,6 +192,17 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Validate UADP placement before storing the writer configuration. The
+     * default sender supports padding but not fixed message or byte
+     * positions. */
+    if(UA_ExtensionObject_hasDecodedType(&dswConfig->messageSettings,
+           &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetWriterMessageDataType *settings =
+            (const UA_UadpDataSetWriterMessageDataType*)dswConfig->messageSettings.content.decoded.data;
+        if(settings->networkMessageNumber != 0 || settings->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     UA_PublishedDataSet *pds = NULL;
 
     if(!UA_NodeId_isNull(&dataSet)) {
@@ -762,15 +773,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
     }
 
     if(dsm) {
-        /* Sanity-test the configuration */
-        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0 ||
-           dsm->configuredSize != 0) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                                  "Static DSM configuration not supported, using defaults");
-            dsm->networkMessageNumber = 0;
-            dsm->dataSetOffset = 0;
-            // dsm->configuredSize = 0;
-        }
+        /* Recheck placement settings before generation, including
+         * configurations changed through application callbacks. */
+        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
 
         /* Std: 'The DataSetMessageContentMask defines the flags for the content
          * of the DataSetMessage header.' */

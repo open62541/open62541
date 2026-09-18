@@ -433,6 +433,96 @@ START_TEST(NetworkMessageNumbersRestartEachCycle) {
     clearCapture(&capture);
 } END_TEST
 
+
+START_TEST(ConfiguredSizeReachesRuntimeEncoder) {
+    UA_UInt16 size = _i == 0 ? 32 : 1;
+    UA_WriterGroup *wg = createPublisher(2, size);
+    wg->config.maxEncapsulatedDataSetMessageCount = 2;
+    PublishCapture capture = capturePublishes(wg, 1);
+    ck_assert_uint_eq(capture.count, 1);
+    const UA_ByteString *buf = &capture.messages[0];
+    /* UADP flags, GroupFlags/NetworkMessageNumber, payload count/writer ids,
+     * then two UInt16 DataSetMessage sizes. */
+    size_t sizesOffset = 9;
+    ck_assert_uint_gt(buf->length, sizesOffset + 4);
+    UA_UInt16 firstSize = (UA_UInt16)(buf->data[sizesOffset] | buf->data[sizesOffset + 1] << 8);
+    UA_UInt16 secondSize = (UA_UInt16)(buf->data[sizesOffset + 2] | buf->data[sizesOffset + 3] << 8);
+    ck_assert_uint_eq(firstSize, _i == 0 ? 32 : 8);
+    ck_assert_uint_eq(secondSize, firstSize);
+    size_t payload = sizesOffset + 4;
+    ck_assert_int_eq((buf->data[payload] & 1) != 0, _i == 0);
+    ck_assert_int_eq((buf->data[payload + firstSize] & 1) != 0, _i == 0);
+    if(_i == 0) {
+        for(size_t i = 8; i < 32; i++) {
+            ck_assert_uint_eq(buf->data[payload + i], 0);
+            ck_assert_uint_eq(buf->data[payload + 32 + i], 0);
+        }
+    }
+    clearCapture(&capture);
+} END_TEST
+
+START_TEST(UnsupportedFixedPlacementIsRejected) {
+    UA_WriterGroup *wg = createPublisher(1, 0);
+    wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_DataSetWriter *existing = LIST_FIRST(&wg->writers);
+    UA_UadpDataSetWriterMessageDataType ms;
+    UA_UadpDataSetWriterMessageDataType_init(&ms);
+    if(_i == 0) ms.networkMessageNumber = 2;
+    else ms.dataSetOffset = 40;
+    UA_DataSetWriterConfig dc;
+    memset(&dc, 0, sizeof(dc));
+    dc.name = UA_STRING("fixed");
+    dc.dataSetWriterId = 42;
+    UA_ExtensionObject_setValue(&dc.messageSettings, &ms,
+                               &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]);
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wg->head.identifier,
+        existing->connectedDataSet->head.identifier, &dc, NULL), UA_STATUSCODE_BADNOTSUPPORTED);
+    readerGroup->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_UadpDataSetReaderMessageDataType rm;
+    UA_UadpDataSetReaderMessageDataType_init(&rm);
+    rm.dataSetOffset = 40;
+    UA_DataSetReaderConfig rc;
+    memset(&rc, 0, sizeof(rc));
+    rc.name = UA_STRING("fixed reader");
+    UA_ExtensionObject_setValue(&rc.messageSettings, &rm,
+                               &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]);
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, readerGroup->head.identifier,
+                                                &rc, NULL), UA_STATUSCODE_BADNOTSUPPORTED);
+} END_TEST
+
+START_TEST(ConfiguredSizePadsEmptyMessages) {
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    dsm.header.dataSetMessageValid = true;
+    if(_i % 3 == 1) dsm.header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+    if(_i % 3 == 2) dsm.header.dataSetMessageType = UA_DATASETMESSAGE_KEEPALIVE;
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    emd.dataSetWriterId = 17;
+    emd.configuredSize = _i < 3 ? 32 : 0;
+    UA_NetworkMessage_EncodingOptions eo;
+    memset(&eo, 0, sizeof(eo));
+    eo.metaDataSize = 1;
+    eo.metaData = &emd;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.version = 1;
+    nm.payloadHeaderEnabled = true;
+    nm.messageCount = 1;
+    nm.dataSetWriterIds[0] = 17;
+    nm.payload.dataSetMessages = &dsm;
+    size_t payloadSize = _i < 3 ? 32 : (_i % 3 == 0 ? 3 : (_i % 3 == 1 ? 1 : 2));
+    ck_assert_uint_eq(UA_NetworkMessage_calcSizeBinary(&nm, &eo), 4 + payloadSize);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_NetworkMessage_encodeBinary(&nm, &buf, &eo), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(buf.length, 4 + payloadSize);
+    if(_i < 3) {
+        for(size_t i = 7; i < buf.length; i++)
+            ck_assert_uint_eq(buf.data[i], 0);
+    }
+    UA_ByteString_clear(&buf);
+} END_TEST
+
 int main(void) {
     Suite *suite = suite_create("PubSub runtime");
     TCase *tc = tcase_create("Runtime");
@@ -445,6 +535,9 @@ int main(void) {
     tcase_add_test(tc, SequenceHistoryExpiresAfterTwoTimeouts);
     tcase_add_test(tc, DeltaGapRequiresNewKeyFrame);
     tcase_add_test(tc, NetworkMessageNumbersRestartEachCycle);
+    tcase_add_loop_test(tc, ConfiguredSizeReachesRuntimeEncoder, 0, 2);
+    tcase_add_loop_test(tc, ConfiguredSizePadsEmptyMessages, 0, 6);
+    tcase_add_loop_test(tc, UnsupportedFixedPlacementIsRejected, 0, 2);
     suite_add_tcase(suite, tc);
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);
