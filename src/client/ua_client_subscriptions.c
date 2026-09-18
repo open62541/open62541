@@ -1167,6 +1167,9 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
             continue;
         }
 
+        if(!mon->handler.eventCallback)
+            continue;
+
         void *subC = sub->context;
         void *monC = mon->context;
         UA_UInt32 monId = mon->monitoredItemId;
