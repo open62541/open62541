@@ -144,11 +144,71 @@ START_TEST(encryption_reconnect_session) {
 }
 END_TEST
 
+/* Regression test for a heap-use-after-free: UA_ClientConfig_setDefaultEncryption
+ * reallocates config->securityPolicies. The SecureChannel used to keep a raw
+ * pointer into that array, so reallocating it while the channel was still
+ * open left a dangling pointer that crashed on the next use. The channel now
+ * keeps its own private copy of the SecurityPolicy instead, so reconfiguring
+ * encryption on a still-connected client no longer affects it at all -- this
+ * test confirms the reconfiguration succeeds and the client keeps working
+ * normally afterwards, both on the still-open channel and after a fresh
+ * reconnect that actually uses the newly configured encryption. */
+START_TEST(encryption_setDefaultEncryption_whileConnected_doesNotCrash) {
+    UA_Client *client = UA_Client_new();
+    ck_assert(client != NULL);
+
+    /* Connect first with the default (unencrypted) configuration */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    /* Reconfiguring encryption while the SecureChannel is still open and in
+     * use must not crash -- and, since the channel no longer references
+     * config->securityPolicies directly, it now succeeds outright. */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                  NULL, 0, NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+
+    /* The still-open (unencrypted) channel must remain fully usable */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    /* A fresh channel using the newly configured encryption must also work */
+    UA_String_clear(&cc->securityPolicyUri);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_Client_disconnectSecureChannel(client);
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption basic256sha256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
     tcase_add_test(tc_encryption, encryption_reconnect_session);
+    tcase_add_test(tc_encryption, encryption_setDefaultEncryption_whileConnected_doesNotCrash);
     suite_add_tcase(s,tc_encryption);
     return s;
 }
