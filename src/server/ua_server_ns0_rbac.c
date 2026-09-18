@@ -1158,6 +1158,7 @@ addRoleManagementPermissions(UA_Server *server, const UA_NodeId *nodeId) {
                                      UA_PERMISSIONTYPE_BROWSE |
                                      UA_PERMISSIONTYPE_READ |
                                      UA_PERMISSIONTYPE_CALL |
+                                     UA_PERMISSIONTYPE_RECEIVEEVENTS |
                                      UA_PERMISSIONTYPE_READROLEPERMISSIONS,
                                      false, false);
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
@@ -1347,6 +1348,20 @@ initRoleSetRolePermissions(UA_Server *server) {
                                           false, false);
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
         return retval;
+
+#ifdef UA_NS0ID_ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE
+    /* Role changes use the affected Role Object as SourceNode. ReceiveEvents
+     * is checked independently on that source and on the EventType. The Role
+     * Objects are covered by addRoleManagementPermissions above; grant the
+     * matching EventType permission here as well. */
+    UA_NodeId roleAuditEventType = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE);
+    retval = UA_Server_addRolePermissions(server, roleAuditEventType, secAdmin,
+                                          UA_PERMISSIONTYPE_RECEIVEEVENTS,
+                                          false, false);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+        return retval;
+#endif
 
     for(size_t i = 0; i < sizeof(callNodes) / sizeof(callNodes[0]); i++) {
         UA_NodeId nodeId = UA_NODEID_NUMERIC(0, callNodes[i]);
