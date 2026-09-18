@@ -81,6 +81,23 @@ static void teardown_utils(void) {
     UA_Server_delete(utilServer);
 }
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+START_TEST(verify_malformed_pem_chain) {
+    UA_ByteString cert;
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&cert, 128), UA_STATUSCODE_GOOD);
+    memset(cert.data, 'A', cert.length);
+    memcpy(&cert.data[54], "-----BEGIN CERTIFICATE-----", 27);
+    cert.data[81] = 0;
+
+    UA_ServerConfig *config = UA_Server_getConfig(utilServer);
+    UA_StatusCode retval = config->secureChannelPKI.verifyCertificate(
+        &config->secureChannelPKI, &cert);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_ByteString_clear(&cert);
+}
+END_TEST
+#endif
+
 START_TEST(verify_application_uri_match) {
     UA_ByteString cert;
     cert.length = CERT_DER_LENGTH;
@@ -981,6 +998,9 @@ static Suite *testSuite_crypto_coverage(void) {
     TCase *tc_utils = tcase_create("CertificateUtils");
     tcase_add_checked_fixture(tc_utils, setup_utils, teardown_utils);
 #ifdef UA_ENABLE_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    tcase_add_test(tc_utils, verify_malformed_pem_chain);
+#endif
     tcase_add_test(tc_utils, verify_application_uri_match);
     tcase_add_test(tc_utils, verify_application_uri_mismatch);
     tcase_add_test(tc_utils, get_expiration_date);
