@@ -607,12 +607,18 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     const UA_String *interface = (const UA_String*)
         UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_IFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
-    if(interface->length >= 128) {
+    /* Interface names are copied into struct ifreq below. Reject embedded NUL
+     * bytes as well: if_nametoindex would resolve only the prefix while the
+     * later copy would still use the full UA_String length. */
+    if(interface->length >= IFNAMSIZ ||
+       (interface->length > 0 &&
+        memchr(interface->data, 0, interface->length))) {
         UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    char ifname[128];
-    memcpy(ifname, interface->data, interface->length);
+    char ifname[IFNAMSIZ];
+    if(interface->length)
+        memcpy(ifname, interface->data, interface->length);
     ifname[interface->length] = 0;
     int ifindex = (int)if_nametoindex(ifname);
     if(ifindex == 0) {
@@ -661,8 +667,8 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     if(!listen || !*listen) {
         /* Get the source address for the interface */
         struct ifreq ifr;
-        memcpy(ifr.ifr_name, ifname, interface->length);
-        ifr.ifr_name[interface->length] = 0;
+        memset(&ifr, 0, sizeof(ifr));
+        memcpy(ifr.ifr_name, ifname, interface->length + 1);
         int result = ioctl(conn->rfd.fd, SIOCGIFHWADDR, &ifr);
         if(result == -1) {
             UA_LOG_SOCKET_ERRNO_WRAP(
@@ -929,4 +935,3 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName) {
 }
 
 #endif /* defined(UA_ARCHITECTURE_POSIX) && defined(__linux__) */
-
