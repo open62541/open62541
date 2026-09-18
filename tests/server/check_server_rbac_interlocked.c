@@ -958,22 +958,28 @@ START_TEST(DeleteNode_checked_on_target) {
 }
 END_TEST
 
-START_TEST(AddNode_checked_on_parent) {
+START_TEST(AddNode_checked_on_target_namespace) {
     UA_NodeId roleId = addRole("AddNodeRole");
     assignRoleToAdminSession(roleId);
 
-    /* Parent is an Object child of ObjectsFolder, RBAC engaged with
-     * BROWSE only. */
+    /* The parent allows AddNode, but namespace 2 does not. AddNode is a
+     * namespace-default permission and must be checked for the namespace of
+     * the requested NodeId. */
     UA_NodeId parent = addObject("AddNodeParent");
     ck_assert_uint_eq(UA_Server_addRolePermissions(server, parent, roleId,
-        UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
+        UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_ADDNODE,
+        false, false), UA_STATUSCODE_GOOD);
+    UA_UInt16 ns2 = UA_Server_addNamespace(server, "urn:rbac:addnode-denied");
+    UA_RolePermission namespacePermission = {roleId, UA_PERMISSIONTYPE_BROWSE};
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, ns2, 1, &namespacePermission), UA_STATUSCODE_GOOD);
 
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.parentNodeId.nodeId = parent;
     item.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
-    item.requestedNewNodeId.nodeId = UA_NODEID_NULL;
-    item.browseName = UA_QUALIFIEDNAME(1, "ChildVar");
+    item.requestedNewNodeId.nodeId = UA_NODEID_NUMERIC(ns2, 62001);
+    item.browseName = UA_QUALIFIEDNAME(ns2, "ChildVar");
     item.nodeClass = UA_NODECLASS_VARIABLE;
     item.typeDefinition.nodeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -982,16 +988,20 @@ START_TEST(AddNode_checked_on_parent) {
     UA_Boolean allowed = ac->allowAddNode(server, ac,
         &adminSessionId, NULL, &item);
     ck_assert_msg(allowed == false,
-        "Spec §8.55 bit 16: AddNode must be denied without bit on the "
-        "parent (allowAddNode returned true)");
+        "Spec §8.55 bit 16: AddNode must be denied without the bit in "
+        "the target namespace default (allowAddNode returned true)");
 
-    ck_assert_uint_eq(UA_Server_addRolePermissions(server, parent, roleId,
-        UA_PERMISSIONTYPE_ADDNODE, false, false),
+    namespacePermission.permissions |= UA_PERMISSIONTYPE_ADDNODE;
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, ns2, 1, &namespacePermission),
         UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, parent, roleId,
+        UA_PERMISSIONTYPE_BROWSE, true, false), UA_STATUSCODE_GOOD);
     allowed = ac->allowAddNode(server, ac,
         &adminSessionId, NULL, &item);
     ck_assert_msg(allowed == true,
-        "AddNode must be allowed once bit 16 is granted on parent");
+        "AddNode must be allowed once bit 16 is granted by the target "
+        "namespace, regardless of the parent permission");
 
     clearAdminSessionRoles();
     UA_Server_deleteNode(server, parent, true);
@@ -1041,7 +1051,7 @@ static Suite *testSuite(void) {
     tcase_add_test(tc_nm, AddReference_checked_on_source);
     tcase_add_test(tc_nm, RemoveReference_checked_on_source);
     tcase_add_test(tc_nm, DeleteNode_checked_on_target);
-    tcase_add_test(tc_nm, AddNode_checked_on_parent);
+    tcase_add_test(tc_nm, AddNode_checked_on_target_namespace);
     suite_add_tcase(s, tc_nm);
 
     TCase *tc_multi = tcase_create("Multi-role OR semantics");

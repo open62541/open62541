@@ -2666,6 +2666,57 @@ UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions) {
+    if(!server || !effectivePermissions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    if(namespaceIndex >= server->namespacesSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    }
+
+    const UA_NamespaceMetadata *metadata = NULL;
+    if(server->namespaceMetadata &&
+       namespaceIndex < server->namespaceMetadataSize &&
+       server->namespaceMetadata[namespaceIndex].hasDefaultRolePermissions)
+        metadata = &server->namespaceMetadata[namespaceIndex];
+
+    if(!metadata) {
+        *effectivePermissions = server->config.allPermissionsForAnonymous ?
+            UA_PERMISSIONTYPE_ALL : 0;
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    size_t rolesSize = 0;
+    const UA_NodeId *roles = NULL;
+    if(sessionId) {
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && session->rolesSize > 0) {
+            rolesSize = session->rolesSize;
+            roles = session->roles;
+        }
+    }
+
+    UA_PermissionType permissions = 0;
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t j = 0; j < metadata->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &metadata->entries[j].roleId)) {
+                permissions |= metadata->entries[j].permissions;
+                break;
+            }
+        }
+    }
+    *effectivePermissions = permissions;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Internal helper. Caller holds the lock.
  * Missing node -> UA_PERMISSIONTYPE_ALL (permissive sentinel). */
 UA_StatusCode

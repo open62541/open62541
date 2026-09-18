@@ -130,6 +130,12 @@ getEffectivePermissions(UA_Server *server,
                         UA_PermissionType *effectivePermissions);
 
 UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions);
+
+UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server,
                                  const UA_NodeId *sessionId,
                                  const UA_NodeId *nodeId,
