@@ -19,6 +19,9 @@
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
+#ifdef UA_ENABLE_LOGOBJECT
+#include <open62541/plugin/logobject_backend_memory.h>
+#endif
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
@@ -42,7 +45,8 @@
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
- * heterogeneous across the three. */
+ * heterogeneous across the three. Only used for the Subscription limits. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_INLINE UA_UInt32Range
 UA_UINT32RANGE(UA_UInt32 min, UA_UInt32 max) {
     UA_UInt32Range range = {min, max};
@@ -54,6 +58,7 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     UA_DurationRange range = {min, max};
     return range;
 }
+#endif
 
 /* Request the private key password from stdin if no callback is defined */
 #ifdef UA_ENABLE_ENCRYPTION
@@ -553,6 +558,17 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* conf->deleteRawCapability = false; */
     /* conf->deleteEventCapability = false; */
     /* conf->deleteAtTimeDataCapability = false; */
+#endif
+
+#ifdef UA_ENABLE_LOGOBJECT
+    conf->logObjectsEnabled = true;
+    if(!conf->logObjectBackend.addRecord)
+        conf->logObjectBackend = UA_LogObjectBackend_Memory();
+    conf->serverLog.maxRecords = 1000;
+    conf->serverLog.maxStorageDuration = 0.0; /* No time-based expiry */
+    conf->serverLog.minimumSeverity = 51;     /* Information and above (Part 26, Table 9) */
+    conf->maxLogRecordsPerCall = 1000;
+    conf->maxLogObjectContinuationPoints = 32;
 #endif
 
 #if UA_MULTITHREADING >= 100

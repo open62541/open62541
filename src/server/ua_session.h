@@ -28,6 +28,17 @@ typedef TAILQ_HEAD(ContinuationPointQueue, ContinuationPoint)
 void
 ContinuationPointQueue_clear(ContinuationPointQueue *queue);
 
+#ifdef UA_ENABLE_LOGOBJECT
+/* Continuation points of the GetRecords Method of the LogObjects (OPC UA
+ * Part 26). The structure is defined in ua_server_logobject.h. */
+struct UA_LogObjectContinuationPoint;
+typedef TAILQ_HEAD(UA_LogObjectCPQueue, UA_LogObjectContinuationPoint)
+    UA_LogObjectCPQueue;
+
+void
+UA_LogObjectCPQueue_clear(UA_LogObjectCPQueue *queue);
+#endif
+
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
 
@@ -83,6 +94,10 @@ struct UA_Session {
 
     size_t continuationPointsSize;
     ContinuationPointQueue continuationPoints;
+#ifdef UA_ENABLE_LOGOBJECT
+    size_t logObjectCPsSize;
+    UA_LogObjectCPQueue logObjectCPs;
+#endif
 
     /* Localization information */
     size_t localeIdsSize;

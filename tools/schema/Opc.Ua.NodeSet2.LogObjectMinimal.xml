@@ -1,0 +1,557 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2018 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2019-01-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-01-31T00:00:00Z" />
+  </Models>
+  <UAObject NodeId="i=24226" BrowseName="Resources">
+    <DisplayName>Resources</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=19378" BrowseName="Logs">
+    <DisplayName>Logs</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24226</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObjectType NodeId="i=19352" BrowseName="LogObjectType">
+    <DisplayName>LogObjectType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=19353</Reference>
+      <Reference ReferenceType="HasProperty">i=19356</Reference>
+      <Reference ReferenceType="HasProperty">i=19357</Reference>
+      <Reference ReferenceType="HasProperty">i=19744</Reference>
+      <Reference ReferenceType="HasComponent">i=24372</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAMethod NodeId="i=19353" BrowseName="GetRecords" ParentNodeId="i=19352">
+    <DisplayName>GetRecords</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=19354</Reference>
+      <Reference ReferenceType="HasProperty">i=19355</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=19352</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=19354" BrowseName="InputArguments" ParentNodeId="i=19353" DataType="i=296" ValueRank="1" ArrayDimensions="6">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19353</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>StartTime</Name>
+              <DataType>
+                <Identifier>i=13</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>EndTime</Name>
+              <DataType>
+                <Identifier>i=13</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>MaxReturnRecords</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>MinimumSeverity</Name>
+              <DataType>
+                <Identifier>i=5</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>RequestMask</Name>
+              <DataType>
+                <Identifier>i=19749</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ContinuationPointIn</Name>
+              <DataType>
+                <Identifier>i=15</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=19355" BrowseName="OutputArguments" ParentNodeId="i=19353" DataType="i=296" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19353</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Results</Name>
+              <DataType>
+                <Identifier>i=19745</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ContinuationPointOut</Name>
+              <DataType>
+                <Identifier>i=15</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=19356" BrowseName="MaxRecords" ParentNodeId="i=19352" DataType="UInt32">
+    <DisplayName>MaxRecords</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19352</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=19357" BrowseName="MaxStorageDuration" ParentNodeId="i=19352" DataType="i=290">
+    <DisplayName>MaxStorageDuration</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19352</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=19744" BrowseName="MinimumSeverity" ParentNodeId="i=19352" DataType="UInt16">
+    <DisplayName>MinimumSeverity</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19352</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="i=24372" BrowseName="ReleaseContinuationPoint" ParentNodeId="i=19352">
+    <DisplayName>ReleaseContinuationPoint</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24373</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=19352</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=24373" BrowseName="InputArguments" ParentNodeId="i=24372" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24372</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ContinuationPointIn</Name>
+              <DataType>
+                <Identifier>i=15</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=19372" BrowseName="ServerLog">
+    <DisplayName>ServerLog</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=19373</Reference>
+      <Reference ReferenceType="HasProperty">i=19376</Reference>
+      <Reference ReferenceType="HasProperty">i=19377</Reference>
+      <Reference ReferenceType="HasProperty">i=19751</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19352</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="i=19373" BrowseName="GetRecords" ParentNodeId="i=19372" MethodDeclarationId="i=19353">
+    <DisplayName>GetRecords</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=19374</Reference>
+      <Reference ReferenceType="HasProperty">i=19375</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=19372</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=19374" BrowseName="InputArguments" ParentNodeId="i=19373" DataType="i=296" ValueRank="1" ArrayDimensions="6">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19373</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>StartTime</Name>
+              <DataType>
+                <Identifier>i=13</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>EndTime</Name>
+              <DataType>
+                <Identifier>i=13</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>MaxReturnRecords</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>MinimumSeverity</Name>
+              <DataType>
+                <Identifier>i=5</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>RequestMask</Name>
+              <DataType>
+                <Identifier>i=19749</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ContinuationPointIn</Name>
+              <DataType>
+                <Identifier>i=15</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=19375" BrowseName="OutputArguments" ParentNodeId="i=19373" DataType="i=296" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19373</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Results</Name>
+              <DataType>
+                <Identifier>i=19745</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ContinuationPointOut</Name>
+              <DataType>
+                <Identifier>i=15</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=19376" BrowseName="MaxRecords" ParentNodeId="i=19372" DataType="UInt32">
+    <DisplayName>MaxRecords</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19372</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=19377" BrowseName="MaxStorageDuration" ParentNodeId="i=19372" DataType="i=290">
+    <DisplayName>MaxStorageDuration</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19372</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=19751" BrowseName="MinimumSeverity" ParentNodeId="i=19372" DataType="UInt16">
+    <DisplayName>MinimumSeverity</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19372</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=19809" BrowseName="MaxLogObjectContinuationPoints" ParentNodeId="i=2013" DataType="UInt16">
+    <DisplayName>MaxLogObjectContinuationPoints</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2013</Reference>
+    </References>
+  </UAVariable>
+  <UADataType NodeId="i=19748" BrowseName="NameValuePair">
+    <DisplayName>NameValuePair</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="NameValuePair">
+      <Field Name="Name" DataType="i=12" />
+      <Field Name="Value" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=19746" BrowseName="SpanContextDataType">
+    <DisplayName>SpanContextDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="SpanContextDataType">
+      <Field Name="TraceId" DataType="i=14" />
+      <Field Name="SpanId" DataType="i=9" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=19747" BrowseName="TraceContextDataType">
+    <DisplayName>TraceContextDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=19746</Reference>
+    </References>
+    <Definition Name="TraceContextDataType">
+      <Field Name="ParentSpanId" DataType="i=9" />
+      <Field Name="ParentIdentifier" DataType="i=12" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=19361" BrowseName="LogRecord">
+    <DisplayName>LogRecord</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="LogRecord">
+      <Field Name="Time" DataType="i=13" />
+      <Field Name="Severity" DataType="i=5" />
+      <Field Name="EventType" DataType="i=17" IsOptional="true" />
+      <Field Name="SourceNode" DataType="i=17" IsOptional="true" />
+      <Field Name="SourceName" DataType="i=12" IsOptional="true" />
+      <Field Name="Message" DataType="i=21" />
+      <Field Name="TraceContext" DataType="i=19747" IsOptional="true" />
+      <Field Name="AdditionalData" DataType="i=19748" ValueRank="1" IsOptional="true" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=19745" BrowseName="LogRecordsDataType">
+    <DisplayName>LogRecordsDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="LogRecordsDataType">
+      <Field Name="LogRecordArray" DataType="i=19361" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=19749" BrowseName="LogRecordMask">
+    <DisplayName>LogRecordMask</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=19750</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+    <Definition Name="LogRecordMask" IsOptionSet="true">
+      <Field Name="EventType" Value="0" />
+      <Field Name="SourceNode" Value="1" />
+      <Field Name="SourceName" Value="2" />
+      <Field Name="TraceContext" Value="3" />
+      <Field Name="AdditionalData" Value="4" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=19750" BrowseName="OptionSetValues" ParentNodeId="i=19749" DataType="LocalizedText" ValueRank="1" ArrayDimensions="5">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=19749</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Text>EventType</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Text>SourceNode</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Text>SourceName</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Text>TraceContext</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Text>AdditionalData</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+</UANodeSet>

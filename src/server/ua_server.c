@@ -343,6 +343,11 @@ UA_Server_delete(UA_Server *server) {
     }
     UA_assert(TAILQ_EMPTY(&server->channels));
 
+#ifdef UA_ENABLE_LOGOBJECT
+    /* Restore the original logger and release the LogObjects */
+    UA_Server_cleanupLogObjects(server);
+#endif
+
     unlockServer(server); /* The timer has its own mutex */
 
     /* Clean up internal RBAC state (before config clear) */
@@ -499,6 +504,12 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialize RBAC: copy config presets into internal array */
     res = UA_Server_initRBAC(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
+#ifdef UA_ENABLE_LOGOBJECT
+    /* Create the ServerLog and capture the logger */
+    res = UA_Server_initLogObjects(server);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 

@@ -43,6 +43,21 @@ START_TEST(SetBasicsZeroConfigSucceeds) {
     ck_assert_uint_eq(cfg.securityPoliciesSize, 0);
 } END_TEST
 
+#ifdef UA_ENABLE_LOGOBJECT
+START_TEST(LogObjectDefaults) {
+    UA_StatusCode r = UA_ServerConfig_setBasics(&cfg);
+    ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
+    ck_assert(cfg.logObjectsEnabled);
+    ck_assert(cfg.logObjectBackend.addRecord != NULL);
+    ck_assert(cfg.logObjectBackend.clear != NULL);
+    ck_assert_uint_eq(cfg.serverLog.maxRecords, 1000);
+    ck_assert(cfg.serverLog.maxStorageDuration == 0.0);
+    ck_assert_uint_eq(cfg.serverLog.minimumSeverity, 51);
+    ck_assert_uint_eq(cfg.maxLogRecordsPerCall, 1000);
+    ck_assert_uint_eq(cfg.maxLogObjectContinuationPoints, 32);
+} END_TEST
+#endif
+
 START_TEST(SetBasicsWithPortZeroIsAccepted) {
     UA_StatusCode r = UA_ServerConfig_setBasics_withPort(&cfg, 0);
     ck_assert_uint_eq(r, UA_STATUSCODE_GOOD);
@@ -177,6 +192,9 @@ int main(void) {
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, SetBasicsZeroConfigSucceeds);
     tcase_add_test(tc, SetBasicsWithPortZeroIsAccepted);
+#ifdef UA_ENABLE_LOGOBJECT
+    tcase_add_test(tc, LogObjectDefaults);
+#endif
     tcase_add_test(tc, SetBasicsNullConfigRejected);
     tcase_add_test(tc, AddSecurityPolicyNoneAndAllEndpoints);
     tcase_add_test(tc, AddEndpointWithUnknownPolicyRejected);
