@@ -288,46 +288,35 @@ testStoppedCondition(UA_Server *server) {
  * server lock. */
 static UA_StatusCode
 finishShutdown(UA_Server *server) {
-    /* Are we already stopped? */
-    if(testStoppedCondition(server)) {
-        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+    /* Only stop the EventLoop if it is coupled to the server lifecycle. */
+    if(server->config.externalEventLoop) {
+        if(testStoppedCondition(server))
+            setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+        return UA_STATUSCODE_GOOD;
     }
 
-    /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-    if(server->config.externalEventLoop)
-        return UA_STATUSCODE_GOOD;
-
-    /* Unlock and do one "normal" iteration. This allows threads waiting for the
-     * server lock to proceed before the server lock is destroyed. */
-    unlockServer(server);
-    UA_Server_run_iterate(server, true);
-    lockServer(server);
-
-    /* Iterate the EventLoop until the server is stopped */
+    /* Iterate the EventLoop until all drivers have stopped. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = server->config.eventLoop;
-    while(!testStoppedCondition(server) &&
-          res == UA_STATUSCODE_GOOD) {
-        /* Event-loop callbacks on other threads may need the server lock. */
+    while(!testStoppedCondition(server) && res == UA_STATUSCODE_GOOD) {
         unlockServer(server);
         res = el->run(el, 100);
         lockServer(server);
     }
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Stop the EventLoop. Iterate until stopped. */
-    el->stop(el);
+    if(el->state == UA_EVENTLOOPSTATE_STARTED)
+        el->stop(el);
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
-          el->state != UA_EVENTLOOPSTATE_FRESH &&
-          res == UA_STATUSCODE_GOOD) {
-        /* Event-loop callbacks on other threads may need the server lock. */
+          el->state != UA_EVENTLOOPSTATE_FRESH && res == UA_STATUSCODE_GOOD) {
         unlockServer(server);
         res = el->run(el, 100);
         lockServer(server);
     }
-
-    /* Set server lifecycle state to stopped if not already the case */
-    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-
+    if(res == UA_STATUSCODE_GOOD)
+        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
     return res;
 }
 
