@@ -16,15 +16,15 @@
 
 /* The body of this test exercises the auditing notification path and uses
  * threading. Guard the platform-specific includes AND the body so reduced
- * build configs that don't enable auditing still compile cleanly. */
-#ifdef UA_ENABLE_AUDITING
+ * configs without auditing or thread-safe server support compile cleanly. */
+#if defined(UA_ENABLE_AUDITING) && UA_MULTITHREADING >= 100
 #include <stdio.h>
 #include "thread_wrapper.h"
-#endif /* UA_ENABLE_AUDITING */
+#endif
 
-#ifdef UA_ENABLE_AUDITING
+#if defined(UA_ENABLE_AUDITING) && UA_MULTITHREADING >= 100
 static UA_Server *server = NULL;
-static UA_Boolean running = false;
+static UA_atomic(UA_Boolean) running = false;
 static THREAD_HANDLE server_thread;
 
 /* Counters per audit-event type. Updated from the server thread and from the
@@ -85,7 +85,7 @@ globalCb(UA_Server *s, UA_ApplicationNotificationType type,
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -112,12 +112,12 @@ static void setup(void) {
     cfg->globalNotificationCallback = globalCb;
     resetCounters();
     UA_Server_run_startup(server);
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -289,6 +289,6 @@ int main(void) {
     return (failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-#else  /* !UA_ENABLE_AUDITING */
+#else /* Auditing disabled or no thread-safe server support */
 int main(void) { return EXIT_SUCCESS; }
 #endif
