@@ -411,6 +411,7 @@ if (UA_MULTITHREADING GREATER_EQUAL 100)
 endif()
 
 if(UA_ENABLE_METHODCALLS)
+    ua_add_test(server/check_server_async_tutorial.c)
     ua_add_test(server/check_services_call.c)
     ua_add_test(server/check_services_method_coverage.c)
 endif()
