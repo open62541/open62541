@@ -19,6 +19,12 @@ now available with every `UA_ENABLE_ENCRYPTION` backend. They were limited to
 mbedTLS before. The PubSub security tests and the encrypted PubSub examples
 build with OpenSSL and LibreSSL as well.
 
+### Monitored-item deletion
+
+Deleting a monitored item no longer cancels asynchronous reads already started
+to sample its value. Applications must still complete those reads with
+`UA_Server_setAsyncReadResult`; the server discards the results.
+
 ### PubSub security-policy nonce lengths
 
 Custom `UA_PubSubSecurityPolicy` implementations must initialize the new
