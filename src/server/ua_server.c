@@ -331,11 +331,6 @@ stopServer(UA_Server *server) {
     /* Set to stopping and notify the application */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
 
-#if UA_MULTITHREADING >= 100
-    /* Stop regular callback for async operation processing */
-    UA_AsyncManager_stop(&server->asyncManager, server);
-#endif
-
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {
         removeCallback(server, server->houseKeepingCallbackId);
@@ -362,13 +357,18 @@ UA_Server_delete(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(server->state != UA_LIFECYCLESTATE_STOPPED) {
+    lockServer(server);
+    if(server->state != UA_LIFECYCLESTATE_STOPPED ||
+       !testStoppedCondition(server)) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "The server must be fully stopped before it can be deleted");
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    lockServer(server);
+    /* Prevent reentrant lifecycle calls and new operation storage during
+     * teardown. The driver list still owns the drained async manager. */
+    server->state = UA_LIFECYCLESTATE_STOPPING;
+    server->asyncManager.driver.server = NULL;
 
     /* All Session cleanup must complete during shutdown, before the EventLoop
      * and its delayed callbacks are destroyed. */
@@ -389,8 +389,6 @@ UA_Server_delete(UA_Server *server) {
     }
 
 #endif
-
-    UA_AsyncManager_clear(&server->asyncManager, server);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_assert(server->modelChangeDepth == 0);
@@ -545,6 +543,8 @@ UA_Server_init(UA_Server *server) {
     server->lastTokenId = STARTTOKENID;
 
     UA_AsyncManager_init(&server->asyncManager, server);
+    res = addDriver(server, &server->asyncManager.driver);
+    UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialize namespace 0 */
 #if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
@@ -1048,6 +1048,9 @@ UA_Server_run_startup(UA_Server *server) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    /* Startup failure can drain drivers; never wait on our own dispatch frame. */
+    if(server->asyncManager.activeDispatch != 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
     UA_ServerConfig *config = &server->config;
 
     if(config->webSocketEnabled) {
@@ -1186,12 +1189,6 @@ UA_Server_run_startup(UA_Server *server) {
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
-    /* Async operation timeouts are only enforced with multithreading */
-#if UA_MULTITHREADING >= 100
-    /* Add regulare callback for async operation processing */
-    UA_AsyncManager_start(&server->asyncManager, server);
-#endif
-
     /* Are there enough SecureChannels possible for the max number of sessions? */
     if(config->maxSecureChannels != 0 &&
        (config->maxSessions == 0 || config->maxSessions > config->maxSecureChannels)) {
@@ -1242,7 +1239,8 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start all drivers. A failed transport aborts the startup only if the
+    /* Start all drivers. The async manager is required for Read/Write/Call.
+     * A failed transport aborts the startup only if the
      * server cannot be reached otherwise. Other drivers can fail in normal
      * setups (e.g. mDNS without multicast) and are only logged. */
     UA_StatusCode transportRes = UA_STATUSCODE_GOOD;
@@ -1250,6 +1248,13 @@ UA_Server_run_startup(UA_Server *server) {
         UA_StatusCode res = drv->start(drv);
         if(res == UA_STATUSCODE_GOOD)
             continue;
+        if(drv == &server->asyncManager.driver) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "Could not start the async driver (%s)",
+                         UA_StatusCode_name(res));
+            retVal = res;
+            goto undo;
+        }
         if(drv == server->binaryDriver || drv == server->webSocketDriver ||
            drv == server->httpDriver) {
             UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
@@ -1347,6 +1352,14 @@ UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Never wait for dispatch frames on our own call stack. */
+    lockServer(server);
+    if(server->asyncManager.activeDispatch != 0) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+    unlockServer(server);
 
     UA_Server_run_shutdown_async(server);
     UA_EventLoop *el = server->config.eventLoop;

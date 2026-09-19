@@ -80,7 +80,7 @@ static void setup(void) {
         attr, evs, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    /* processReadyLater() does nothing while the server is stopped */
+    /* Async operations are admitted only while the server is started. */
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
 
     /* From here on the source is asynchronous. */
@@ -97,10 +97,8 @@ static void teardown(void) {
  * TAILQ_INSERT_TAIL dereferences tqh_last */
 START_TEST(AsyncOp_managerInitialisedWithoutMultithreading) {
     UA_AsyncManager *am = &server->asyncManager;
-    ck_assert_ptr_ne(am->waitingOps.tqh_last, NULL);
-    ck_assert_ptr_ne(am->readyOps.tqh_last, NULL);
-    ck_assert_ptr_ne(am->waitingResponses.tqh_last, NULL);
-    ck_assert_ptr_ne(am->readyResponses.tqh_last, NULL);
+    ck_assert_ptr_ne(am->responses.tqh_last, NULL);
+    ck_assert_uint_eq(am->driver.state, UA_LIFECYCLESTATE_STARTED);
 } END_TEST
 
 /* Only a value source answering GoodCompletesAsynchronously enqueues */
@@ -118,7 +116,7 @@ START_TEST(AsyncOp_readAsyncCompletesWithoutMultithreading) {
     /* Asynchronous, so nothing has been reported yet, and the operation is
      * accounted for. */
     ck_assert_uint_eq(resultCalled, false);
-    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
 
     /* Complete it from outside, the way an application would. */
     UA_Int32 answer = 42;
@@ -136,7 +134,7 @@ START_TEST(AsyncOp_readAsyncCompletesWithoutMultithreading) {
 
     ck_assert_uint_eq(resultCalled, true);
     ck_assert_int_eq(resultValue, 42);
-    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
 } END_TEST
 
 static Suite* testSuite_AsyncOpSingleThreaded(void) {
