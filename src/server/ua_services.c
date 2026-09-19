@@ -251,6 +251,25 @@ getUacpRequestId(const UA_SecureChannel *channel, UA_UInt64 responseToken) {
     return (UA_UInt32)responseToken;
 }
 
+void
+notifyService(UA_Server *server, UA_ApplicationNotificationType type,
+               UA_UInt32 channelId, UA_NodeId sessionId,
+               UA_UInt32 requestId, UA_NodeId serviceTypeId) {
+    /* Stack-local payload remains intact across reentrant notifications. */
+    UA_KeyValuePair payload[4] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("session-id")}, {0}},
+        {{0, UA_STRING_STATIC("request-id")}, {0}},
+        {{0, UA_STRING_STATIC("service-type")}, {0}}
+    };
+    UA_Variant_setScalar(&payload[0].value, &channelId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&payload[1].value, &sessionId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&payload[2].value, &requestId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&payload[3].value, &serviceTypeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_KeyValueMap map = {4, payload};
+    notifyApplication(server, type, map);
+}
+
 static UA_Boolean
 processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                        UA_UInt64 responseToken, UA_ServiceDescription *sd,
@@ -348,7 +367,6 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     server->asyncManager.currentResponseToken = responseToken;
     server->asyncManager.currentUacpRequestId =
         getUacpRequestId(channel, responseToken);
-    server->asyncManager.currentRequestHandle = request->requestHeader.requestHandle;
 
     /* Execute the service. A user callback inside the service can close the
      * Session. For synchronous services, do not return a successful response
@@ -389,25 +407,9 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
     UA_UInt32 uacpRequestId = getUacpRequestId(channel, responseToken);
 
-    /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
-        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
-        {{0, UA_STRING_STATIC("session-id")}, {0}},
-        {{0, UA_STRING_STATIC("request-id")}, {0}},
-        {{0, UA_STRING_STATIC("service-type")}, {0}}
-    };
-    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
-    UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&notifyPayload[2].value, &uacpRequestId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifyPayload[3].value,
-                         (void *)(uintptr_t)&sd->requestType->typeId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN;
-    notifyApplication(server, nt, notifyPayloadMap);
+    UA_UInt32 channelId = channel->securityToken.channelId;
+    notifyService(server, UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN,
+                  channelId, sessionId, uacpRequestId, sd->requestType->typeId);
 
     /* Process the service */
     beginModelChange(server);
@@ -422,9 +424,9 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END if the service was
      * completed synchronously. For async completion of a service, this gets
      * called eventually in ua_server_async.c. */
-    nt = (done) ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END :
+    UA_ApplicationNotificationType nt = done ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END :
         UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC;
-    notifyApplication(server, nt, notifyPayloadMap);
+    notifyService(server, nt, channelId, sessionId, uacpRequestId, sd->requestType->typeId);
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS

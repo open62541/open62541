@@ -269,6 +269,11 @@ UA_Server_getDrivers(UA_Server *server) {
 
 static void
 stopDrivers(UA_Server *server) {
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
+    if(server->houseKeepingCallbackId != 0) {
+        removeCallback(server, server->houseKeepingCallbackId);
+        server->houseKeepingCallbackId = 0;
+    }
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
         drv->stop(drv);
     }
@@ -284,8 +289,8 @@ testStoppedCondition(UA_Server *server) {
     return true;
 }
 
-/* Drain a shutdown already initiated by stopDrivers. The caller holds the
- * server lock. */
+/* Drain a shutdown already initiated by stopDrivers. Also used to clean up a
+ * failed startup. The caller holds the server lock. */
 static UA_StatusCode
 finishShutdown(UA_Server *server) {
     /* Only stop the EventLoop if it is coupled to the server lifecycle. */
@@ -330,13 +335,18 @@ UA_Server_delete(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(server->state != UA_LIFECYCLESTATE_STOPPED) {
+    lockServer(server);
+    if(server->state != UA_LIFECYCLESTATE_STOPPED ||
+       !testStoppedCondition(server)) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "The server must be fully stopped before it can be deleted");
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    lockServer(server);
+    /* Prevent reentrant lifecycle calls and new operation storage during
+     * teardown. The driver list still owns the drained async manager. */
+    server->state = UA_LIFECYCLESTATE_STOPPING;
+    server->asyncManager.driver.server = NULL;
 
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
@@ -351,10 +361,6 @@ UA_Server_delete(UA_Server *server) {
         UA_Subscription_delete(server, sub, true);
     }
 
-#endif
-
-#if UA_MULTITHREADING >= 100
-    UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -509,9 +515,9 @@ UA_Server_init(UA_Server *server) {
     server->nextChannelId = STARTCHANNELID;
     server->lastTokenId = STARTTOKENID;
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
-#endif
+    res = addDriver(server, &server->asyncManager.driver);
+    UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialize namespace 0 */
 #if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
@@ -1000,6 +1006,9 @@ UA_Server_run_startup(UA_Server *server) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    /* Startup failure can drain drivers; never wait on our own dispatch frame. */
+    if(server->asyncManager.activeDispatch != 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
     UA_ServerConfig *config = &server->config;
 
     if(config->webSocketEnabled) {
@@ -1128,11 +1137,6 @@ UA_Server_run_startup(UA_Server *server) {
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
-#if UA_MULTITHREADING >= 100
-    /* Add regulare callback for async operation processing */
-    UA_AsyncManager_start(&server->asyncManager, server);
-#endif
-
     /* Are there enough SecureChannels possible for the max number of sessions? */
     if(config->maxSecureChannels != 0 &&
        (config->maxSessions == 0 || config->maxSessions > config->maxSecureChannels)) {
@@ -1183,7 +1187,14 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Start all drivers */
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
-        drv->start(drv);
+        retVal = drv->start(drv);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            /* Clean up partially started drivers through normal shutdown. */
+            stopDrivers(server);
+            finishShutdown(server);
+            unlockServer(server);
+            return retVal;
+        }
     }
 
     /* Set the server to STARTED. From here on, only use
@@ -1212,6 +1223,15 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_UInt32 timeout = (waitInternal) ? UA_MAXTIMEOUT : 0;
     el->run(el, timeout);
 
+    /* External event loops may keep the server in STOPPING while drivers drain. */
+    if(server->config.externalEventLoop) {
+        lockServer(server);
+        if(server->state == UA_LIFECYCLESTATE_STOPPING &&
+           testStoppedCondition(server))
+            setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+        unlockServer(server);
+    }
+
     /* Return the time until the next scheduled callback */
     UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime nextTimeout = (el->nextTimer(el) - now) / UA_DATETIME_MSEC;
@@ -1238,6 +1258,18 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     lockServer(server);
 
+    /* Shutdown is already in progress, possibly on our own call stack. */
+    if(server->state == UA_LIFECYCLESTATE_STOPPING) {
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Never wait for or tear down dispatch frames on our own call stack. */
+    if(server->asyncManager.activeDispatch != 0) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
     if(server->state != UA_LIFECYCLESTATE_STARTED) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "The server is not started, cannot be shut down");
@@ -1245,23 +1277,7 @@ UA_Server_run_shutdown(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Set to stopping and notify the application */
-    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
-
-#if UA_MULTITHREADING >= 100
-    /* Stop regular callback for async operation processing */
-    UA_AsyncManager_stop(&server->asyncManager, server);
-#endif
-
-    /* Stop the regular housekeeping tasks */
-    if(server->houseKeepingCallbackId != 0) {
-        removeCallback(server, server->houseKeepingCallbackId);
-        server->houseKeepingCallbackId = 0;
-    }
-
-    /* Stop all drivers */
     stopDrivers(server);
-
     UA_StatusCode res = finishShutdown(server);
     unlockServer(server);
     return res;

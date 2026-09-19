@@ -44,6 +44,8 @@ static UA_StatusCode deleteAtMonitoredItemDeleteResult;
 static UA_Boolean captureCreatedForDataSource;
 static UA_UInt32 deleteFromDataSourceMonitoredItemId;
 static UA_StatusCode deleteFromDataSourceResult;
+static UA_Boolean deletedReadCompletesAsync;
+static UA_DataValue *deletedReadOutput;
 
 UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
@@ -140,6 +142,8 @@ monitoredItemLifecycleCallback(UA_Server *thisServer,
 }
 
 START_TEST(Server_LocalMonitoredItem_deleteFromCreatedNotification) {
+    if(_i == 1)
+        ASSERT_STATUSCODE(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->globalNotificationCallback = monitoredItemLifecycleCallback;
     deleteAtMonitoredItemCreated = true;
@@ -286,6 +290,10 @@ readDataSource(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
         /* Deletion must not reclaim the read description still in use. */
         for(size_t i = 0; i < 2; i++)
             UA_Server_run_iterate(s, false);
+        if(deletedReadCompletesAsync) {
+            deletedReadOutput = value;
+            return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+        }
     }
 
     UA_Variant_setScalar(&value->value, &staticUInt32, &UA_TYPES[UA_TYPES_UINT32]);
@@ -326,6 +334,8 @@ START_TEST(Server_LocalMonitoredItem_dataSource) {
 END_TEST
 
 START_TEST(Server_LocalMonitoredItem_deleteFromDataSourceRead) {
+    deletedReadCompletesAsync = (_i % 2 == 1);
+    deletedReadOutput = NULL;
     callbackCount = 0;
     captureCreatedForDataSource = true;
     deleteFromDataSourceMonitoredItemId = 0;
@@ -350,12 +360,29 @@ START_TEST(Server_LocalMonitoredItem_deleteFromDataSourceRead) {
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
     ASSERT_STATUSCODE(deleteFromDataSourceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(callbackCount, 0);
-    UA_Server_run_iterate(server, false);
+    if(deletedReadCompletesAsync) {
+        UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
+        ck_assert_ptr_nonnull(op);
+        ck_assert_uint_eq(op->resultIndex, 0);
+        ck_assert_ptr_nonnull(op->handling.callback.context);
+    }
+    for(size_t i = 0; i < 5; i++)
+        UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 0);
     ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(
         server, result.monitoredItemId),
         UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
     config->globalNotificationCallback = NULL;
+    if(deletedReadCompletesAsync) {
+        ck_assert_ptr_nonnull(deletedReadOutput);
+        ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, deletedReadOutput),
+                          UA_STATUSCODE_GOOD);
+        for(size_t i = 0; i < 5; i++)
+            UA_Server_run_iterate(server, false);
+        ck_assert_uint_eq(callbackCount, 0);
+        ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+    }
+    deletedReadCompletesAsync = false;
 }
 END_TEST
 
@@ -394,7 +421,7 @@ finishReadDuringDeletion(UA_Server *s, UA_ApplicationNotificationType type,
         UA_fakeSleep(100);
         UA_Server_run_iterate(s, false);
     }
-    ck_assert_uint_eq(s->asyncManager.opsCount, 0);
+    ck_assert_uint_eq(s->asyncManager.trackedOpsCount, 0);
     const UA_UInt32 *id = (const UA_UInt32*)UA_KeyValueMap_getScalar(
         &payload, UA_QUALIFIEDNAME(0, "monitoreditem-id"), &UA_TYPES[UA_TYPES_UINT32]);
     ck_assert_ptr_nonnull(id);
@@ -425,7 +452,7 @@ START_TEST(Server_LocalMonitoredItem_completeReadDuringDeletion) {
 END_TEST
 
 /* Delete with all reads pending, with a ready result, or from inside the ready
- * result's notification. Complete after deletion without cancelling the pending reads. */
+ * result's notification. Complete after deletion, or cancel during shutdown. */
 START_TEST(Server_LocalMonitoredItem_deletePendingReads) {
     pendingReadCount = 0;
     canceledReadCount = 0;
@@ -463,7 +490,7 @@ START_TEST(Server_LocalMonitoredItem_deletePendingReads) {
     ck_assert_uint_eq(other->outstandingAsyncReads, 1);
     unlockServer(server);
     ck_assert_uint_eq(pendingReadCount, 3);
-    ck_assert_uint_eq(server->asyncManager.opsCount, 3);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 3);
 
     if(_i == 1 || _i == 2) {
         UA_UInt32 value = 42;
@@ -482,15 +509,13 @@ START_TEST(Server_LocalMonitoredItem_deletePendingReads) {
     if(_i != 2)
         ck_assert_ptr_null(mon->subscription);
     /* Deleted items survive event-loop iterations until their reads finish. */
-    for(size_t i = 0; i < 10 && server->asyncManager.opsCount > 0; i++) {
-        UA_fakeSleep(100);
+    for(size_t i = 0; i < 10 && server->asyncManager.trackedOpsCount > 0; i++)
         UA_Server_run_iterate(server, false);
-    }
 
     ck_assert_uint_eq(callbackCount, _i == 2 ? 1 : 0);
     ck_assert_ptr_null(mon->subscription);
     ck_assert_ptr_null(other->subscription);
-    ck_assert_uint_eq(mon->outstandingAsyncReads, _i == 0 ? 2 : 1);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, (_i == 0 || _i == 3) ? 2 : 1);
     ck_assert_uint_eq(other->outstandingAsyncReads, 1);
     if(_i == 2)
         ASSERT_STATUSCODE(deleteStatus, UA_STATUSCODE_GOOD);
@@ -499,21 +524,24 @@ START_TEST(Server_LocalMonitoredItem_deletePendingReads) {
                       UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
     ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, second.monitoredItemId),
                       UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
-    ck_assert_uint_eq(server->asyncManager.opsCount, _i == 0 ? 3 : 2);
-    for(size_t i = (_i == 0 ? 0 : 1); i < pendingReadCount; i++) {
-        UA_UInt32 value = 43;
-        ASSERT_STATUSCODE(UA_Variant_setScalarCopy(&pendingReadOutputs[i]->value, &value,
-                          &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
-        pendingReadOutputs[i]->hasValue = true;
-        ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[i]),
-                          UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < 5; i++) {
-        UA_fakeSleep(100);
-        UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, (_i == 0 || _i == 3) ? 3 : 2);
+    if(_i == 3) {
+        ASSERT_STATUSCODE(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(canceledReadCount, 3);
+    } else {
+        for(size_t i = (_i == 0 ? 0 : 1); i < pendingReadCount; i++) {
+            UA_UInt32 value = 43;
+            ASSERT_STATUSCODE(UA_Variant_setScalarCopy(&pendingReadOutputs[i]->value, &value,
+                              &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+            pendingReadOutputs[i]->hasValue = true;
+            ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[i]),
+                              UA_STATUSCODE_GOOD);
+        }
+        for(size_t i = 0; i < 5; i++)
+            UA_Server_run_iterate(server, false);
     }
     ck_assert_uint_eq(callbackCount, _i == 2 ? 1 : 0);
-    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
 }
 END_TEST
 
@@ -573,6 +601,99 @@ START_TEST(Server_LocalMonitoredItem_immediateBatch) {
 }
 END_TEST
 
+/* Neither timed nor write-triggered sampling runs outside STARTED. Restart
+ * resumes normal triggers without forcing an initial zero-interval sample. */
+START_TEST(Server_LocalMonitoredItem_samplingRequiresStarted) {
+    server->config.externalEventLoop = (_i == 1);
+    ASSERT_STATUSCODE(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     _i == 1 ? UA_LIFECYCLESTATE_STOPPING : UA_LIFECYCLESTATE_STOPPED);
+    callbackCount = 0;
+
+    UA_MonitoredItem *items[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
+        request.requestedParameters.samplingInterval = i == 0 ? 0.0 : 1000.0;
+        UA_MonitoredItemCreateResult result = UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL, pooledSample);
+        ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+        items[i] = UA_Subscription_getMonitoredItem(server->adminSubscription,
+                                                   result.monitoredItemId);
+        ck_assert_ptr_nonnull(items[i]);
+        ck_assert(!items[i]->lastValue.hasValue);
+        UA_MonitoredItemCreateResult_clear(&result);
+    }
+
+    /* Writes still succeed, but neither sampling entry point produces data. */
+    UA_UInt32 number = 41;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    ASSERT_STATUSCODE(UA_Server_writeValue(server, outNodeId, value), UA_STATUSCODE_GOOD);
+    lockServer(server);
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItem_sample(server, items[i]);
+        ck_assert_uint_eq(items[i]->outstandingAsyncReads, 0);
+        ck_assert(!items[i]->lastValue.hasValue);
+        ck_assert_uint_eq(items[i]->lastValue.status, ~(UA_StatusCode)0);
+        ck_assert_uint_eq(items[i]->queueSize, 0);
+    }
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+    unlockServer(server);
+    if(_i == 1) {
+        UA_fakeSleep(1000);
+        for(size_t i = 0; i < 5; i++)
+            UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_eq(callbackCount, 0);
+    server->config.externalEventLoop = false;
+
+    /* The timed item resumes on its tick; the zero-interval item waits for a write. */
+    ASSERT_STATUSCODE(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_fakeSleep(1000);
+    for(size_t i = 0; i < 5; i++)
+        UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(callbackCount, 1);
+    ck_assert(!items[0]->lastValue.hasValue);
+    ck_assert(items[1]->lastValue.hasValue);
+    number = 42;
+    ASSERT_STATUSCODE(UA_Server_writeValue(server, outNodeId, value), UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(callbackCount, 2);
+    ck_assert(items[0]->lastValue.hasValue);
+}
+END_TEST
+
+/* Shutdown returns read ownership without publishing a cancellation as data. */
+START_TEST(Server_LocalMonitoredItem_shutdownPendingSample) {
+    UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.requestedParameters.samplingInterval = 10000.0;
+    UA_MonitoredItemCreateResult result = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL, pooledSample);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    callbackCount = pendingReadCount = canceledReadCount = 0;
+    UA_CallbackValueSource source = {pendingRead, NULL};
+    ASSERT_STATUSCODE(UA_Server_setVariableNode_callbackValueSource(server, outNodeId, source),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(
+        server->adminSubscription, result.monitoredItemId);
+    UA_MonitoredItem_sample(server, mon);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, 1);
+    unlockServer(server);
+
+    server->config.asyncOperationCancelCallback = acknowledgeCanceledRead;
+    ASSERT_STATUSCODE(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(canceledReadCount, 1);
+    ck_assert_uint_eq(callbackCount, 0);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, 0);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+    ck_assert(mon->lastValue.hasValue);
+    ASSERT_STATUSCODE(mon->lastValue.status, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(*(UA_UInt32*)mon->lastValue.value.data, 40);
+    UA_MonitoredItemCreateResult_clear(&result);
+} END_TEST
+
 START_TEST(Server_LocalMonitoredItem_readContextLimit) {
     UA_MonitoredItem *items[2];
     UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
@@ -606,7 +727,6 @@ START_TEST(Server_LocalMonitoredItem_readContextLimit) {
     for(size_t i = 0; i < pendingReadCount; i++)
         ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[i]),
                           UA_STATUSCODE_GOOD);
-    UA_fakeSleep(100);
     UA_Server_run_iterate(server, false);
     lockServer(server);
     for(size_t i = 0; i < 2; i++) {
@@ -694,11 +814,9 @@ START_TEST(Server_MonitoredItem_readAfterSessionRemoval) {
     UA_Session_remove(server, session,
                       _i == 1 ? UA_SHUTDOWNREASON_TIMEOUT : UA_SHUTDOWNREASON_CLOSE);
     unlockServer(server);
-    for(size_t i = 0; i < 5; i++) {
-        UA_fakeSleep(100);
+    for(size_t i = 0; i < 5; i++)
         UA_Server_run_iterate(server, false);
-    }
-    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
 
     /* Deletion detaches the retained item from its now-freed subscription. */
     if(_i == 0)
@@ -713,11 +831,9 @@ START_TEST(Server_MonitoredItem_readAfterSessionRemoval) {
     pendingReadOutputs[0]->hasValue = true;
     ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[0]),
                       UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 5; i++) {
-        UA_fakeSleep(100);
+    for(size_t i = 0; i < 5; i++)
         UA_Server_run_iterate(server, false);
-    }
-    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
     lockServer(server);
     sub = getSubscriptionById(server, subscriptionId);
     if(_i == 0) {
@@ -1021,16 +1137,18 @@ static Suite * testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_NotificationFilterDoesNotOutliveItem);
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
-    tcase_add_test(tc_server,
-                   Server_LocalMonitoredItem_deleteFromCreatedNotification);
+    tcase_add_loop_test(tc_server,
+                       Server_LocalMonitoredItem_deleteFromCreatedNotification, 0, 2);
     tcase_add_test(tc_server,
                    Server_LocalMonitoredItem_deleteFromDeleteNotification);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteInCallback);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
-    tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteFromDataSourceRead);
-    tcase_add_loop_test(tc_server, Server_LocalMonitoredItem_deletePendingReads, 0, 3);
+    tcase_add_loop_test(tc_server, Server_LocalMonitoredItem_deleteFromDataSourceRead, 0, 2);
+    tcase_add_loop_test(tc_server, Server_LocalMonitoredItem_deletePendingReads, 0, 4);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_completeReadDuringDeletion);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_immediateBatch);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_shutdownPendingSample);
+    tcase_add_loop_test(tc_server, Server_LocalMonitoredItem_samplingRequiresStarted, 0, 2);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_readContextLimit);
     tcase_add_loop_test(tc_server, Server_MonitoredItem_readAfterSessionRemoval, 0, 3);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);

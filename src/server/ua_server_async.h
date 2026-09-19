@@ -19,30 +19,17 @@
 #include <open62541/server.h>
 
 #include "open62541_queue.h"
-#include "../util/ua_util_internal.h"
-#include "ua_session.h"
 
 _UA_BEGIN_DECLS
 
-struct UA_AsyncResponse;
+struct UA_Session;
+struct UA_SecureChannel;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
-/* Synchronous and asynchronous operations go through the same initial control
- * flow. Only inside the read/write/call callback can the return code
- * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY be used to signal asynchronous
- * processing.
- *
- * Also multiple operations come in at the same time from the same request. We
- * do all of this with as little overhead as possible for the case that all
- * operations are synchonous:
- *
- * The results-array for the response message is allocated "too long". After
- * every regular entry follows enough space for another array of
- * UA_AsyncOperation. This is used for ad-hoc asynchronous processing. Otherwise
- * the additional bytes at the end are simply ignored. */
+/* Responses own their results arrays. Service and local operations share a
+ * pool of independent allocations, valid until ownership returns. */
 
-/* REQUEST -> received over the network
- * DIRECT -> local C API call */
+/* The low two bits identify Call/Read/Write; bit 2 selects a local C API call. */
 typedef enum {
     UA_ASYNCOPERATIONTYPE_CALL_REQUEST  = 0,
     UA_ASYNCOPERATIONTYPE_READ_REQUEST  = 1,
@@ -52,17 +39,29 @@ typedef enum {
     UA_ASYNCOPERATIONTYPE_WRITE_DIRECT  = (2 + 4)
 } UA_AsyncOperationType;
 
+typedef union {
+    UA_CallMethodResult call;
+    UA_StatusCode write;
+    UA_DataValue read;
+} UA_AsyncOperationOutput;
+
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
+    /* Clear the previous link when ownership returns. The next pointer doubles
+     * as the operation free-list link. */
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
+    /* Service result index; zero for local operations. SIZE_MAX means canceled,
+     * without changing the application-owned output storage. */
+    size_t resultIndex;
     UA_AsyncOperationType asyncOperationType;
-
     union {
-        /* The operation is part of a service request */
+        /* Retained until completion or the cancellation notification */
         UA_AsyncResponse *response;
 
         /* The operation was called directly */
         struct {
+            UA_DelayedCallback dc;
+            UA_StatusCode cancellationStatus; /* Local result while the application owns output */
             UA_DateTime timeout;
             void *context;
             union {
@@ -73,22 +72,16 @@ typedef struct UA_AsyncOperation {
         } callback;
     } handling;
 
-    /* For service requests: the pointer to the output value in the response
-     * For direct calls: the memory for the output value */
-    union {
-        UA_CallMethodResult *call;
-        UA_StatusCode *write;
-        UA_DataValue *read;
-        UA_CallMethodResult directCall;
-        UA_StatusCode directWrite;
-        UA_DataValue directRead;
-    } output;
+    /* Stable output storage, shared by service and local operations */
+    UA_AsyncOperationOutput output;
 
     union {
-        /* Forward the pointer to writeValue to the operationCallback. So the
-         * pointer is stable and the memory location unique, also when the
-         * original request has been freed. But this uses a shallow copy. So
-         * don't access the writeValue after the operationCallback. */
+        struct {
+            UA_TimestampsToReturn timestamps;
+            UA_Boolean nonNullable; /* Snapshot while the Value's node is held */
+        } read;
+        /* Shallow copy: &writeValue.value is a stable completion identifier.
+         * After the initiating callback, use only its address, not its contents. */
         UA_WriteValue writeValue;
     } context;
 } UA_AsyncOperation;
@@ -96,16 +89,21 @@ typedef struct UA_AsyncOperation {
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
 
+    /* Armed after dispatch; queued once the response is ready. */
+    UA_DelayedCallback dc;
     UA_UInt64 responseToken;
     UA_UInt32 uacpRequestId; /* Zero for transports without a UACP RequestId */
-    UA_UInt32 requestHandle;
     UA_DateTime timeout;
-    UA_NodeId sessionId;
-    UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
-                            * only be deleted when all have returned. */
+    /* Session removal finishes responses before delayed Session cleanup.
+     * NULL for records that only owe cancellation notifications. */
+    struct UA_Session *session;
+    UA_UInt32 pendingResults; /* Results still needed before the response is ready */
     UA_Boolean abandoned;  /* The transport carrier closed before completion */
 
-    const UA_DataType *responseType;
+    UA_AsyncOperationType kind; /* Call, Read or Write */
+    /* Own the response during dispatch, then return it to the synchronous
+     * caller or retain it for delivery. All three types begin with responseHeader
+     * and resultsSize; zero resultsSize means only notifications remain. */
     union {
         UA_CallResponse callResponse;
         UA_ReadResponse readResponse;
@@ -114,65 +112,57 @@ struct UA_AsyncResponse {
 };
 
 typedef struct {
+    /* STARTED admits async work. STOPPING retains outstanding operation storage
+     * and callbacks; STOPPED means completely drained. */
+    UA_Driver driver;
+
     /* Forward the transport response token here as the "UA_Service" method
      * signature does not contain it. */
     UA_UInt64 currentResponseToken;
     UA_UInt32 currentUacpRequestId;
-    UA_UInt32 currentRequestHandle;
 
-    /* Async responses */
-    TAILQ_HEAD(, UA_AsyncResponse) waitingResponses;
-    TAILQ_HEAD(, UA_AsyncResponse) readyResponses;
+    /* Responses remain listed through dispatch and delivery. */
+    TAILQ_HEAD(, UA_AsyncResponse) responses;
 
-    /* Async operations (some direct, some part of an async response) */
-    TAILQ_HEAD(, UA_AsyncOperation) waitingOps;
-    TAILQ_HEAD(, UA_AsyncOperation) readyOps;
-    size_t opsCount; /* Both waiting and ready */
+    /* Index of operations whose ownership has not yet returned. */
+    TAILQ_HEAD(, UA_AsyncOperation) operations;
+    size_t trackedOpsCount; /* Also counts local results awaiting delivery */
+    size_t activeDispatch; /* Stack-owned operations and executing callbacks */
+
+    /* Reusable operation storage shared by services, local APIs and facades.
+     * Only completed operations enter this pool. Push/pop at the head. */
+    UA_AsyncOperation *freeOps;
+    size_t freeOpsSize;
+
+    /* Completed response records, also reused in LIFO order. */
+    UA_AsyncResponse *freeResponses;
+    size_t freeResponsesSize;
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
 
-    UA_DelayedCallback dc; /* Delayed callback to have the main thread handle
-                            * ready operations and responses */
 } UA_AsyncManager;
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);
-void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server);
-void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server);
-void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
 
 /* Finalize service responses before detaching a closed Session. */
 void
-UA_AsyncManager_cancelSession(UA_Server *server, UA_Session *session,
-                              UA_StatusCode status);
+UA_AsyncManager_cancelSession(UA_Server *server, struct UA_Session *session);
 
 /* Cancel all outstanding operations for matching session+requestHandle.
  * Then sends out the responses with a StatusCode. */
 UA_UInt32
-UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
+UA_AsyncManager_cancel(UA_Server *server, struct UA_Session *session, UA_UInt32 requestHandle);
 
 /* Abandon an asynchronous response whose transport carrier has closed. */
 void
-UA_AsyncManager_abandon(UA_Server *server, UA_SecureChannel *channel,
+UA_AsyncManager_abandon(UA_Server *server, struct UA_SecureChannel *channel,
                         UA_UInt64 responseToken);
 
 /* Internal async API */
 UA_StatusCode
-read_async(UA_Server *server, UA_Session *session, const UA_ReadValueId *operation,
+read_async(UA_Server *server, struct UA_Session *session, const UA_ReadValueId *operation,
            UA_TimestampsToReturn ttr, UA_ServerAsyncReadResultCallback callback,
            void *context, UA_UInt32 timeout);
-
-UA_StatusCode
-write_async(UA_Server *server, UA_Session *session, const UA_WriteValue *operation,
-            UA_ServerAsyncWriteResultCallback callback, void *context,
-            UA_UInt32 timeout);
-
-UA_StatusCode
-call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *operation,
-           UA_ServerAsyncMethodResultCallback callback, void *context, UA_UInt32 timeout);
-
-void
-async_cancel(UA_Server *server, void *context, UA_StatusCode status,
-             UA_Boolean cancelSynchronous);
 
 _UA_END_DECLS
 

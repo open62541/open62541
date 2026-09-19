@@ -738,28 +738,36 @@ readWithSession(UA_Server *server, UA_Session *session,
 UA_Boolean
 Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                        const UA_Node *node, UA_TimestampsToReturn ttr,
-                       const UA_ReadValueId *rvi, UA_DataValue *dv);
+                       const UA_ReadValueId *rvi, UA_DataValue *dv,
+                       UA_Boolean *nonNullable);
 
 UA_Boolean
 Operation_WriteWithNode(UA_Server *server, UA_Session *session,
                         UA_Node *node, const UA_WriteValue *wv,
                         UA_StatusCode *result);
 
-/* Direct asynchronous wrappers for callers that already own a stable node
- * pointer. They retain the same async-operation storage and callbacks as the
- * NodeId-based UA_Server_*_async entry points. */
-UA_StatusCode
-readWithNode_async(UA_Server *server, UA_Session *session,
-                   const UA_Node *node, const UA_ReadValueId *operation,
-                   UA_TimestampsToReturn ttr,
-                   UA_ServerAsyncReadResultCallback callback,
-                   void *context, UA_UInt32 timeout);
+/* Synchronous facades. Results must be initialized. The optional node is
+ * borrowed for the duration of the read. All require the service mutex. */
+void
+readNoAsync(UA_Server *server, UA_Session *session, const UA_Node *node,
+            UA_TimestampsToReturn ttr, const UA_ReadValueId *rvi,
+            UA_DataValue *result);
 
 UA_StatusCode
-writeWithNode_async(UA_Server *server, UA_Session *session,
-                    UA_Node *node, const UA_WriteValue *operation,
-                    UA_ServerAsyncWriteResultCallback callback,
-                    void *context, UA_UInt32 timeout);
+writeNoAsync(UA_Server *server, UA_Session *session, const UA_WriteValue *value);
+
+void
+callNoAsync(UA_Server *server, UA_Session *session,
+            const UA_CallMethodRequest *request, UA_CallMethodResult *result);
+
+UA_StatusCode
+readValueAttributeRaw(UA_Server *server, UA_Session *session,
+                      const UA_VariableNode *node, UA_DataValue *result);
+
+void
+Operation_Read_complete(UA_Server *server, UA_DataValue *value,
+                        UA_TimestampsToReturn ttr, UA_UInt32 attributeId,
+                        UA_Boolean nonNullable);
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,

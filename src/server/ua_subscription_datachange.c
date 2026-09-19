@@ -291,7 +291,8 @@ processMonitoredItemAsyncRead(UA_Server *server,
 
     /* Ignore controlled-shutdown results */
     UA_DataValue *mut_result = (UA_DataValue*)(uintptr_t)result;
-    if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST)
+    if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST ||
+       mut_result->status == UA_STATUSCODE_BADSHUTDOWN)
         goto release; /* Controlled shut-down */
 
     /* Process the sample and transfer ownership of its value */
@@ -306,7 +307,8 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
-    if(UA_MonitoredItem_isDeleting(mon))
+    /* Sampling starts and stops with the server. */
+    if(server->state != UA_LIFECYCLESTATE_STARTED || UA_MonitoredItem_isDeleting(mon))
         return;
 
     UA_Subscription *sub = mon->subscription;
@@ -319,8 +321,6 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Session *session = (sub) ? sub->session : &server->adminSession;
 
     /* Retain the item and its read description before application code runs. */
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
     mon->outstandingAsyncReads++;
 
     /* Read the value possibly asynchronous */
@@ -332,6 +332,8 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
             return;
     }
     /* Rejected reads do not invoke the result callback. */
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
     dv.hasStatus = true;
     dv.status = res;
     UA_MonitoredItem_processSampledValue(server, mon, &dv);

@@ -304,7 +304,8 @@ typedef uint64_t UA_ApplicationNotificationType;
  * operation from the request is signaled with the _SERVICE_ASYNC enum. The
  * _SERVICE_END enum is signalled when the response is processed, even if it
  * cannot be sent. Session closure finishes outstanding async responses before
- * detaching the Session.
+ * detaching the Session. After cancellation, setter calls only return result
+ * storage; they do not emit another _SERVICE_END.
  *
  * 0:securechannel-id [UInt32]
  *    Identifier of the SecureChannel to which the Session is connected.
