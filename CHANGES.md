@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Monitored-item deletion
+
+Deleting a monitored item no longer cancels asynchronous reads already started
+to sample its value. Applications must still complete those reads with
+`UA_Server_setAsyncReadResult`; the server discards the results.
+
 ### PubSub security-policy nonce lengths
 
 Custom `UA_PubSubSecurityPolicy` implementations must initialize the new

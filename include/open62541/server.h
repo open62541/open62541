@@ -695,8 +695,11 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-/* Delete a local MonitoredItem. Used for both DataChange- and
- * Event-MonitoredItems. */
+/* Delete a local DataChange- or Event-MonitoredItem.
+ *
+ * If an application read callback has deferred completion, deletion does not
+ * cancel the read. The application must still call UA_Server_setAsyncReadResult;
+ * the completed sample is discarded. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 

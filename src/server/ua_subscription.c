@@ -1430,7 +1430,7 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
 }
 
 static void
-clearMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+clearMonitoredItem(UA_MonitoredItem *mon, UA_Boolean local) {
     /* Remove the settings */
     UA_ReadValueId_clear(&mon->itemToMonitor);
     UA_MonitoringParameters_clear(&mon->parameters);
@@ -1438,8 +1438,8 @@ clearMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     /* Remove the last samples */
     UA_DataValue_clear(&mon->lastValue);
 
-    /* If this is a local MonitoredItem, clean up additional values */
-    if(mon->subscription == server->adminSubscription) {
+    /* Local event callbacks may use the field map until they return. */
+    if(local) {
         UA_LocalMonitoredItem *lm = (UA_LocalMonitoredItem*)mon;
         for(size_t i = 0; i < lm->eventFields.mapSize; i++)
             UA_Variant_init(&lm->eventFields.map[i].value);
@@ -1448,14 +1448,34 @@ clearMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     UA_free(mon);
 }
 
+/* Reclamation runs only after logical deletion and the last read release. */
 static void
 delayedFreeMonitoredItem(void *application, void *context) {
-    UA_Server *server = (UA_Server*)application;
-    UA_MonitoredItem *mon = (UA_MonitoredItem*)context;
-    lockServer(server);
+    clearMonitoredItem((UA_MonitoredItem*)context, false);
+}
 
-    clearMonitoredItem(server, mon);
-    unlockServer(server);
+static void
+delayedFreeLocalMonitoredItem(void *application, void *context) {
+    clearMonitoredItem((UA_MonitoredItem*)context, true);
+}
+
+/* Release a read or deletion callback's reference. Logical deletion prevents
+ * new reads; the last reference can therefore schedule reclamation once. */
+void
+UA_MonitoredItem_release(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_assert(mon->outstandingAsyncReads > 0);
+    if(--mon->outstandingAsyncReads > 0 || !UA_MonitoredItem_isDeleting(mon))
+        return;
+
+    /* Teardown also removes items after the EventLoop has stopped. */
+    UA_EventLoop *el = server->config.eventLoop;
+    if(server->state == UA_LIFECYCLESTATE_STOPPED ||
+       el->state == UA_EVENTLOOPSTATE_STOPPED || el->state == UA_EVENTLOOPSTATE_FRESH) {
+        mon->delayedFreePointers.callback(server, mon);
+        return;
+    }
+    el->addDelayedCallback(el, &mon->delayedFreePointers);
 }
 
 static void
@@ -1467,22 +1487,19 @@ deleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
      * callback only once. */
     if(UA_MonitoredItem_isDeleting(mon))
         return;
-    mon->delayedFreePointers.callback = delayedFreeMonitoredItem;
+    mon->delayedFreePointers.callback = (mon->subscription == server->adminSubscription) ?
+        delayedFreeLocalMonitoredItem : delayedFreeMonitoredItem;
     mon->delayedFreePointers.application = server;
     mon->delayedFreePointers.context = mon;
+
+    /* Keep the item alive if deletion callbacks deliver the final read. */
+    mon->outstandingAsyncReads++;
 
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampling(server, mon);
 
     /* Deregister in Server and Subscription */
     unregisterMonitoredItem(server, mon, removeFromIndex);
-
-    /* Cancel outstanding async reads. The status code avoids the sample being
-     * processed. Call _processReady to ensure that the callbacks have been
-     * triggered. */
-    if(mon->outstandingAsyncReads > 0)
-        async_cancel(server, mon, UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST, true);
-    UA_assert(mon->outstandingAsyncReads == 0);
 
     /* Remove the TriggeringLinks */
     if(mon->triggeringLinksSize > 0) {
@@ -1504,17 +1521,9 @@ deleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
         notifyMonitoredItem(server, mon,
                             UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED);
 
-    /* No callback can still reference the MonitoredItem after shutdown. */
-    if(server->state == UA_LIFECYCLESTATE_STOPPED) {
-        clearMonitoredItem(server, mon);
-        return;
-    }
-
-    /* Add a delayed callback to remove the MonitoredItem when the current jobs
-     * have completed. This is needed to allow that a local MonitoredItem can
-     * remove itself in the callback. */
-    UA_EventLoop *el = server->config.eventLoop;
-    el->addDelayedCallback(el, &mon->delayedFreePointers);
+    /* Pending samples retain only the item, not its subscription or session. */
+    mon->subscription = NULL;
+    UA_MonitoredItem_release(server, mon);
 }
 
 void

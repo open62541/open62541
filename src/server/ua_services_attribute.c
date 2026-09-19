@@ -1867,12 +1867,36 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 static void
 triggerImmediateDataChange(UA_Server *server, UA_Session *session,
                            UA_Node *node, const UA_WriteValue *wvalue) {
-    UA_MonitoredItem *mon = node->head.monitoredItems;
-    for(; mon != NULL; mon = mon->nodeListNext) {
-        /* Zero-interval items form the list prefix. Only items with a
-         * positive sampling interval follow. */
-        if(mon->parameters.samplingInterval > 0.0)
+    /* Snapshot and retain the zero-interval prefix before application code.
+     * Callbacks can remove any listener or change the node's listener list. */
+    size_t count = 0;
+    UA_MonitoredItem *mon;
+    for(mon = node->head.monitoredItems;
+        mon && mon->parameters.samplingInterval == 0.0; mon = mon->nodeListNext)
+        count++;
+    if(count == 0)
+        return;
+    UA_MonitoredItem *localItems[16];
+    UA_MonitoredItem **items = localItems;
+    if(count > 16) {
+        items = (UA_MonitoredItem**)UA_malloc(count * sizeof(*items));
+        if(!items) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not snapshot immediate sampling listeners");
             return;
+        }
+    }
+    mon = node->head.monitoredItems;
+    for(size_t i = 0; i < count; i++, mon = mon->nodeListNext) {
+        items[i] = mon;
+        mon->outstandingAsyncReads++;
+    }
+
+    /* Keep one read per listener, with its own range and timestamps. */
+    for(size_t i = 0; i < count; i++) {
+        mon = items[i];
+        if(UA_MonitoredItem_isDeleting(mon) || mon->parameters.samplingInterval != 0.0)
+            continue;
         switch(mon->samplingType) {
         case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
             /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
@@ -1904,6 +1928,10 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         }
         UA_MonitoredItem_processSampledValue(server, mon, &value);
     }
+    for(size_t i = 0; i < count; i++)
+        UA_MonitoredItem_release(server, items[i]);
+    if(items != localItems)
+        UA_free(items);
 }
 #endif
 
