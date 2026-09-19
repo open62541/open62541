@@ -605,7 +605,10 @@ END_TEST
  * resumes normal triggers without forcing an initial zero-interval sample. */
 START_TEST(Server_LocalMonitoredItem_samplingRequiresStarted) {
     server->config.externalEventLoop = (_i == 1);
-    ASSERT_STATUSCODE(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    if(_i == 1)
+        ck_assert_int_eq(UA_Server_run_shutdown_async(server), UA_LIFECYCLESTATE_STOPPING);
+    else
+        ASSERT_STATUSCODE(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_Server_getLifecycleState(server),
                      _i == 1 ? UA_LIFECYCLESTATE_STOPPING : UA_LIFECYCLESTATE_STOPPED);
     callbackCount = 0;
