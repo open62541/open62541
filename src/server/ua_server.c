@@ -284,6 +284,53 @@ testStoppedCondition(UA_Server *server) {
     return true;
 }
 
+/* Drain a shutdown already initiated by stopDrivers. The caller holds the
+ * server lock. */
+static UA_StatusCode
+finishShutdown(UA_Server *server) {
+    /* Are we already stopped? */
+    if(testStoppedCondition(server)) {
+        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+    }
+
+    /* Only stop the EventLoop if it is coupled to the server lifecycle  */
+    if(server->config.externalEventLoop)
+        return UA_STATUSCODE_GOOD;
+
+    /* Unlock and do one "normal" iteration. This allows threads waiting for the
+     * server lock to proceed before the server lock is destroyed. */
+    unlockServer(server);
+    UA_Server_run_iterate(server, true);
+    lockServer(server);
+
+    /* Iterate the EventLoop until the server is stopped */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_EventLoop *el = server->config.eventLoop;
+    while(!testStoppedCondition(server) &&
+          res == UA_STATUSCODE_GOOD) {
+        /* Event-loop callbacks on other threads may need the server lock. */
+        unlockServer(server);
+        res = el->run(el, 100);
+        lockServer(server);
+    }
+
+    /* Stop the EventLoop. Iterate until stopped. */
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          el->state != UA_EVENTLOOPSTATE_FRESH &&
+          res == UA_STATUSCODE_GOOD) {
+        /* Event-loop callbacks on other threads may need the server lock. */
+        unlockServer(server);
+        res = el->run(el, 100);
+        lockServer(server);
+    }
+
+    /* Set server lifecycle state to stopped if not already the case */
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+
+    return res;
+}
+
 /********************/
 /* Server Lifecycle */
 /********************/
@@ -1226,48 +1273,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Stop all drivers */
     stopDrivers(server);
 
-    /* Are we already stopped? */
-    if(testStoppedCondition(server)) {
-        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-    }
-
-    /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-    if(server->config.externalEventLoop) {
-        unlockServer(server);
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Unlock and do one "normal" iteration. This allows threads waiting for the
-     * server lock to proceed before the server lock is destroyed. */
-    unlockServer(server);
-    UA_Server_run_iterate(server, true);
-    lockServer(server);
-
-    /* Iterate the EventLoop until the server is stopped */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventLoop *el = server->config.eventLoop;
-    while(!testStoppedCondition(server) &&
-          res == UA_STATUSCODE_GOOD) {
-        /* Event-loop callbacks on other threads may need the server lock. */
-        unlockServer(server);
-        res = el->run(el, 100);
-        lockServer(server);
-    }
-
-    /* Stop the EventLoop. Iterate until stopped. */
-    el->stop(el);
-    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
-          el->state != UA_EVENTLOOPSTATE_FRESH &&
-          res == UA_STATUSCODE_GOOD) {
-        /* Event-loop callbacks on other threads may need the server lock. */
-        unlockServer(server);
-        res = el->run(el, 100);
-        lockServer(server);
-    }
-
-    /* Set server lifecycle state to stopped if not already the case */
-    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-
+    UA_StatusCode res = finishShutdown(server);
     unlockServer(server);
     return res;
 }
