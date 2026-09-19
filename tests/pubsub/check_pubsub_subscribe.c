@@ -3316,6 +3316,83 @@ START_TEST(DataSetReaderMatchesConfiguredKeyFramePeriod) {
     UA_Server_removeReaderGroup(server, rgId);
 } END_TEST
 
+static const UA_DataValue *asyncWriteId;
+static const void *asyncWriteCanceled;
+
+static UA_StatusCode
+asyncTargetWrite(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *nodeId, void *nodeContext,
+                  const UA_NumericRange *range, const UA_DataValue *value) {
+    ck_assert(value->hasValue);
+    ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)value->value.data, 42);
+    asyncWriteId = value;
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static void
+cancelTargetWrite(UA_Server *s, const void *id) {
+    asyncWriteCanceled = id; /* Identity only; do not read worker memory. */
+}
+
+START_TEST(TargetWriteUsesSynchronousFacade) {
+    UA_CallbackValueSource source = {NULL, asyncTargetWrite};
+    ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(server, nodeId32, source),
+                      UA_STATUSCODE_GOOD);
+    config->asyncOperationCancelCallback = cancelTargetWrite;
+    UA_ReaderGroupConfig rgc;
+    memset(&rgc, 0, sizeof(rgc));
+    rgc.name = UA_STRING("Async target group");
+    UA_NodeId rgId;
+    ck_assert_uint_eq(UA_Server_addReaderGroup(server, connectionId, &rgc, &rgId),
+                      UA_STATUSCODE_GOOD);
+    UA_FieldMetaData metadata;
+    memset(&metadata, 0, sizeof(metadata));
+    metadata.builtInType = UA_NS0ID_UINT32;
+    metadata.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    metadata.valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetReaderConfig rc;
+    memset(&rc, 0, sizeof(rc));
+    rc.name = UA_STRING("Async target reader");
+    rc.dataSetMetaData.fields = &metadata;
+    rc.dataSetMetaData.fieldsSize = 1;
+    UA_NodeId dsrId;
+    ck_assert_uint_eq(UA_Server_addDataSetReader(server, rgId, &rc, &dsrId),
+                      UA_STATUSCODE_GOOD);
+    UA_FieldTargetDataType target;
+    UA_FieldTargetDataType_init(&target);
+    target.attributeId = UA_ATTRIBUTEID_VALUE;
+    target.targetNodeId = nodeId32;
+    ck_assert_uint_eq(UA_Server_DataSetReader_createTargetVariables(server, dsrId, 1, &target),
+                      UA_STATUSCODE_GOOD);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    dsr->linkedReaderGroup->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    dsr->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+    UA_UInt32 number = 42;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    UA_Variant_setScalar(&value.value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    value.hasValue = true;
+    UA_DataSetMessage message;
+    memset(&message, 0, sizeof(message));
+    message.header.dataSetMessageValid = true;
+    message.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+    message.fieldCount = 1;
+    message.data.keyFrameFields = &value;
+    asyncWriteId = NULL;
+    asyncWriteCanceled = NULL;
+    lockServer(server);
+    UA_DataSetReader_process(psm, dsr, &message);
+    unlockServer(server);
+    ck_assert_ptr_ne(asyncWriteId, NULL);
+    ck_assert_ptr_eq(asyncWriteCanceled, asyncWriteId);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
+    ck_assert_uint_eq(UA_Server_setAsyncWriteResult(server, asyncWriteId, UA_STATUSCODE_GOOD),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -3332,6 +3409,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithValidConfig);
 
     /* Test cases for DataSetReader functionality */
+    tcase_add_test(tc_add_pubsub_readergroup, TargetWriteUsesSynchronousFacade);
     tcase_add_test(tc_add_pubsub_readergroup, AddDataSetReaderWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, AddDataSetReaderWithNullConfig);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveDataSetReaderWithValidConfiguration);

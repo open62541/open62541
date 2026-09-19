@@ -103,11 +103,9 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         (session->state == UA_SESSIONSTATE_ACTIVATED);
     session->state = UA_SESSIONSTATE_CLOSED;
 
-#if UA_MULTITHREADING >= 100
     /* Finalize async responses, including SERVICE_END, while the Session and
-     * channel are still attached. */
-    UA_AsyncManager_cancelSession(server, session, UA_STATUSCODE_BADSESSIONCLOSED);
-#endif
+     * channel are still attached. Late results only return operation storage. */
+    UA_AsyncManager_cancelSession(server, session);
 
     /* New requests already reject the logically closed Session. Keep its
      * resources until the delayed cleanup callback. */
