@@ -103,9 +103,14 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         (session->state == UA_SESSIONSTATE_ACTIVATED);
     session->state = UA_SESSIONSTATE_CLOSED;
 
-    /* Detach the Session from the SecureChannel immediately so transport
-     * teardown and new requests cannot retain the logically closed Session.
-     * Session-owned resources are kept until the delayed callback. */
+#if UA_MULTITHREADING >= 100
+    /* Finalize async responses, including SERVICE_END, while the Session and
+     * channel are still attached. */
+    UA_AsyncManager_cancelSession(server, session, UA_STATUSCODE_BADSESSIONCLOSED);
+#endif
+
+    /* New requests already reject the logically closed Session. Keep its
+     * resources until the delayed cleanup callback. */
     UA_Session_detachFromSecureChannel(server, session);
 
     /* Deactivate the session */
@@ -117,14 +122,6 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     session_list_entry *sentry = container_of(session, session_list_entry, session);
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
-
-#if UA_MULTITHREADING >= 100
-    /* Pending service responses cannot be delivered after the Session has
-     * been removed. Cancel their operations and finish the response lifecycle
-     * without sending them on the closed Session. */
-    UA_AsyncManager_cancelSession(server, &session->sessionId,
-                                  UA_STATUSCODE_BADSESSIONCLOSED);
-#endif
 
     /* Detach recoverable Subscriptions immediately when the Session times out.
      * Otherwise remove them now. The Session is already closed and absent from

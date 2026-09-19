@@ -83,6 +83,7 @@ closeFromAsyncServiceNotification(
     closeAtServiceAsync = false;
     const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[1].value.data;
     closeAtServiceAsyncResult = UA_Server_closeSession(server, sessionId);
+    ck_assert_uint_eq(closeServiceEndCount, 1);
 }
 
 static void
@@ -450,10 +451,7 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
     ck_assert_ptr_nonnull(canceledCallRequest);
     ck_assert_uint_eq(completeCanceledReadResult, UA_STATUSCODE_BADNOTFOUND);
 
-    /* Async service notifications are paired with an eventual SERVICE_END,
-     * even when closing the session cancels the pending operation. */
-    for(size_t i = 0; i < 20 && closeServiceEndCount == 0; i++)
-        UA_Server_run_iterate(server, false);
+    /* Session closure already emitted SERVICE_END. */
     ck_assert_uint_eq(closeServiceEndCount, 1);
 
     lockServer(server);
@@ -464,6 +462,70 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
 
     config->serviceNotificationCallback = NULL;
     UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+static size_t abandonedServiceStage;
+static UA_UInt32 abandonedRequestId;
+
+static void
+abandonFromServiceNotification(UA_Server *serverArg,
+                               UA_ApplicationNotificationType type,
+                               const UA_KeyValueMap payload) {
+    const UA_UInt32 *requestId = (const UA_UInt32*)payload.map[2].value.data;
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN) {
+        ck_assert_uint_eq(abandonedServiceStage, 0);
+        abandonedRequestId = *requestId;
+        abandonedServiceStage = 1;
+    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC) {
+        ck_assert_uint_eq(abandonedServiceStage, 1);
+        ck_assert_uint_eq(*requestId, abandonedRequestId);
+        const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[1].value.data;
+        UA_Session *session = getSessionById(serverArg, sessionId);
+        ck_assert_ptr_nonnull(session);
+        /* For TCP, the response token is the request id. Abandon only the
+         * response carrier, leaving the service and its session alive. */
+        abandonServiceRequest(serverArg, session->channel, *requestId);
+        abandonedServiceStage = 2;
+    } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END) {
+        ck_assert_uint_eq(abandonedServiceStage, 2);
+        ck_assert_uint_eq(*requestId, abandonedRequestId);
+        abandonedServiceStage = 3;
+    }
+}
+
+START_TEST(Async_abandonedResponseStillNotifiesServiceEnd) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    running = false;
+    THREAD_JOIN(server_thread);
+    abandonedServiceStage = 0;
+    clientCounter = 0;
+    server->config.serviceNotificationCallback = abandonFromServiceNotification;
+
+    ck_assert_uint_eq(UA_Client_readValueAttribute_async(
+        client, UA_NODEID_STRING(1, "asyncVar"), clientReadCallback, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 20 && abandonedServiceStage < 2; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(abandonedServiceStage, 2);
+    ck_assert_ptr_nonnull(activeReads[0]);
+    UA_Server_removeCallback(server, lastTimedCallback);
+    asyncRead(server, activeReads[0]);
+    for(size_t i = 0; i < 20; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(abandonedServiceStage, 3);
+    ck_assert_uint_eq(clientCounter, 0); /* No response was transmitted. */
+
+    server->config.serviceNotificationCallback = NULL;
+    running = true;
     THREAD_CREATE(server_thread, serverloop);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -1507,6 +1569,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager,
                    Async_serviceNotificationCloseCancelsPersistedResponse);
     tcase_add_test(tc_manager, Async_write);
+    tcase_add_test(tc_manager, Async_abandonedResponseStillNotifiesServiceEnd);
     tcase_add_test(tc_manager, Async_timeout);
     tcase_add_test(tc_manager, Async_forget);
     tcase_add_test(tc_manager, Async_cancel);
