@@ -176,6 +176,13 @@ static void
 sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
     UA_assert(ar->opCountdown == 0);
 
+    /* Get the session */
+    UA_Session *session = getSessionById(server, &ar->sessionId);
+    UA_SecureChannel *channel = (session) ? session->channel : NULL;
+
+    /* Notify that processing the service has ended */
+    notifyServiceEnd(server, ar, session, channel);
+
     if(ar->abandoned) {
         UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Async response for closed transport carrier token %"
@@ -183,12 +190,10 @@ sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
         return;
     }
 
-    /* Get the session */
-    UA_Session *session = getSessionById(server, &ar->sessionId);
-    UA_SecureChannel *channel = (session) ? session->channel : NULL;
-
-    /* Notify that processing the service has ended */
-    notifyServiceEnd(server, ar, session, channel);
+    /* Notifications can close the Session or abandon its transport carrier. */
+    session = getSessionById(server, &ar->sessionId);
+    if(session && session->channel != channel)
+        return;
 
     /* Check the session */
     if(!session) {
@@ -264,8 +269,8 @@ UA_AsyncManager_processReady(void *application /* UA_Server */,
     }
 
     /* Send out ready responses */
-    UA_AsyncResponse *ar, *temp;
-    TAILQ_FOREACH_SAFE(ar, &am->readyResponses, pointers, temp) {
+    UA_AsyncResponse *ar;
+    while((ar = TAILQ_FIRST(&am->readyResponses))) {
         TAILQ_REMOVE(&am->readyResponses, ar, pointers);
         sendAsyncResponse(server, ar);
         UA_AsyncResponse_delete(ar);
@@ -401,7 +406,7 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
 }
 
 void
-UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
+UA_AsyncManager_cancelSession(UA_Server *server, UA_Session *session,
                               UA_StatusCode status) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_AsyncManager *am = &server->asyncManager;
@@ -414,16 +419,22 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
      * cancellation callbacks, which may reenter and mutate the manager. */
     UA_AsyncResponse *ar, *ar_tmp;
     TAILQ_FOREACH_SAFE(ar, &am->waitingResponses, pointers, ar_tmp) {
-        if(!UA_NodeId_equal(&ar->sessionId, sessionId))
+        if(!UA_NodeId_equal(&ar->sessionId, &session->sessionId))
             continue;
         TAILQ_REMOVE(&am->waitingResponses, ar, pointers);
+        TAILQ_INSERT_TAIL(&canceledResponses, ar, pointers);
+    }
+    TAILQ_FOREACH_SAFE(ar, &am->readyResponses, pointers, ar_tmp) {
+        if(!UA_NodeId_equal(&ar->sessionId, &session->sessionId))
+            continue;
+        TAILQ_REMOVE(&am->readyResponses, ar, pointers);
         TAILQ_INSERT_TAIL(&canceledResponses, ar, pointers);
     }
 
     UA_AsyncOperation *op, *op_tmp;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
         if(op->asyncOperationType >= UA_ASYNCOPERATIONTYPE_CALL_DIRECT ||
-           !UA_NodeId_equal(&op->handling.response->sessionId, sessionId))
+           !UA_NodeId_equal(&op->handling.response->sessionId, &session->sessionId))
             continue;
         TAILQ_REMOVE(&am->waitingOps, op, pointers);
         TAILQ_INSERT_TAIL(&canceledOps, op, pointers);
@@ -431,6 +442,11 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
         UA_assert(op->handling.response->opCountdown > 0);
         op->handling.response->opCountdown--;
     }
+
+    /* Finish service processing while the Session is still attached. All
+     * records are unlinked, so notification callbacks cannot finish them twice. */
+    TAILQ_FOREACH(ar, &canceledResponses, pointers)
+        notifyServiceEnd(server, ar, session, session->channel);
 
     while((op = TAILQ_FIRST(&canceledOps))) {
         TAILQ_REMOVE(&canceledOps, op, pointers);
@@ -441,15 +457,11 @@ UA_AsyncManager_cancelSession(UA_Server *server, const UA_NodeId *sessionId,
         UA_AsyncOperation_cancel(server, op, status);
     }
 
-    UA_Boolean responseReady = false;
     while((ar = TAILQ_FIRST(&canceledResponses))) {
         TAILQ_REMOVE(&canceledResponses, ar, pointers);
         UA_assert(ar->opCountdown == 0);
-        TAILQ_INSERT_TAIL(&am->readyResponses, ar, pointers);
-        responseReady = true;
+        UA_AsyncResponse_delete(ar);
     }
-    if(responseReady)
-        processReadyLater(server);
 }
 
 UA_UInt32
