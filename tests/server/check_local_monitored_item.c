@@ -283,6 +283,9 @@ readDataSource(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
         deleteFromDataSourceMonitoredItemId = 0;
         deleteFromDataSourceResult =
             UA_Server_deleteMonitoredItem(s, monitoredItemId);
+        /* Deletion must not reclaim the read description still in use. */
+        for(size_t i = 0; i < 2; i++)
+            UA_Server_run_iterate(s, false);
     }
 
     UA_Variant_setScalar(&value->value, &staticUInt32, &UA_TYPES[UA_TYPES_UINT32]);
@@ -353,6 +356,381 @@ START_TEST(Server_LocalMonitoredItem_deleteFromDataSourceRead) {
         server, result.monitoredItemId),
         UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
     config->globalNotificationCallback = NULL;
+}
+END_TEST
+
+static UA_DataValue *pendingReadOutputs[3 * UA_MONITOREDITEM_ASYNC_MAX];
+static size_t pendingReadCount;
+static size_t canceledReadCount;
+
+static UA_StatusCode
+pendingRead(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+            const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
+            const UA_NumericRange *range, UA_DataValue *value) {
+    ck_assert_uint_lt(pendingReadCount,
+                      sizeof(pendingReadOutputs) / sizeof(pendingReadOutputs[0]));
+    pendingReadOutputs[pendingReadCount++] = value;
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static void
+acknowledgeCanceledRead(UA_Server *s, const void *out) {
+    canceledReadCount++;
+    ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(s, (UA_DataValue*)(uintptr_t)out),
+                      UA_STATUSCODE_GOOD);
+}
+
+/* Deliver the last sample from inside the deletion notification. The item
+ * must remain alive until both the notification and deletion have returned. */
+static void
+finishReadDuringDeletion(UA_Server *s, UA_ApplicationNotificationType type,
+                         const UA_KeyValueMap payload) {
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETED)
+        return;
+    ck_assert_uint_eq(pendingReadCount, 1);
+    ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(s, pendingReadOutputs[0]),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 3; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(s, false);
+    }
+    ck_assert_uint_eq(s->asyncManager.opsCount, 0);
+    const UA_UInt32 *id = (const UA_UInt32*)UA_KeyValueMap_getScalar(
+        &payload, UA_QUALIFIEDNAME(0, "monitoreditem-id"), &UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_ptr_nonnull(id);
+    ck_assert_uint_ne(*id, 0);
+}
+
+START_TEST(Server_LocalMonitoredItem_completeReadDuringDeletion) {
+    pendingReadCount = 0;
+    UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.monitoringMode = UA_MONITORINGMODE_DISABLED;
+    UA_MonitoredItemCreateResult result = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL, dataChangeNotificationCallback);
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallbackValueSource source = {pendingRead, NULL};
+    ASSERT_STATUSCODE(UA_Server_setVariableNode_callbackValueSource(server, outNodeId, source),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(
+        server->adminSubscription, result.monitoredItemId);
+    UA_MonitoredItem_sample(server, mon);
+    unlockServer(server);
+    server->config.globalNotificationCallback = finishReadDuringDeletion;
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, result.monitoredItemId),
+                      UA_STATUSCODE_GOOD);
+    server->config.globalNotificationCallback = NULL;
+    UA_Server_run_iterate(server, false);
+}
+END_TEST
+
+/* Delete with all reads pending, with a ready result, or from inside the ready
+ * result's notification. Complete after deletion without cancelling the pending reads. */
+START_TEST(Server_LocalMonitoredItem_deletePendingReads) {
+    pendingReadCount = 0;
+    canceledReadCount = 0;
+    callbackCount = 0;
+    UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.requestedParameters.samplingInterval = 10000;
+    request.monitoringMode = UA_MONITORINGMODE_DISABLED;
+    UA_StatusCode deleteStatus = UA_STATUSCODE_BADINTERNALERROR;
+    UA_MonitoredItemCreateResult first = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, &deleteStatus, deleteMonitoredItemCallback);
+    UA_MonitoredItemCreateResult second = UA_Server_createDataChangeMonitoredItem(
+        server, UA_TIMESTAMPSTORETURN_NEITHER, request, &deleteStatus, deleteMonitoredItemCallback);
+    ASSERT_STATUSCODE(first.statusCode, UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(second.statusCode, UA_STATUSCODE_GOOD);
+
+    /* Complete creation's synchronous validation reads before installing the
+     * deferred source. Enabling reporting then starts the actual async samples. */
+    UA_CallbackValueSource source = {pendingRead, NULL};
+    ASSERT_STATUSCODE(UA_Server_setVariableNode_callbackValueSource(server, outNodeId, source),
+                      UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server)->asyncOperationCancelCallback = acknowledgeCanceledRead;
+    lockServer(server);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(
+        server->adminSubscription, first.monitoredItemId);
+    UA_MonitoredItem *other = UA_Subscription_getMonitoredItem(
+        server->adminSubscription, second.monitoredItemId);
+    ck_assert_ptr_nonnull(mon);
+    ck_assert_ptr_nonnull(other);
+    ASSERT_STATUSCODE(UA_MonitoredItem_setMonitoringMode(server, mon, UA_MONITORINGMODE_REPORTING),
+                      UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_MonitoredItem_setMonitoringMode(server, other, UA_MONITORINGMODE_REPORTING),
+                      UA_STATUSCODE_GOOD);
+    UA_MonitoredItem_sample(server, mon);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, 2);
+    ck_assert_uint_eq(other->outstandingAsyncReads, 1);
+    unlockServer(server);
+    ck_assert_uint_eq(pendingReadCount, 3);
+    ck_assert_uint_eq(server->asyncManager.opsCount, 3);
+
+    if(_i == 1 || _i == 2) {
+        UA_UInt32 value = 42;
+        ASSERT_STATUSCODE(UA_Variant_setScalarCopy(&pendingReadOutputs[0]->value, &value,
+                                                  &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+        pendingReadOutputs[0]->hasValue = true;
+        ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[0]),
+                          UA_STATUSCODE_GOOD);
+    }
+    if(_i != 2)
+        ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, first.monitoredItemId),
+                          UA_STATUSCODE_GOOD);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, second.monitoredItemId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(other->subscription);
+    if(_i != 2)
+        ck_assert_ptr_null(mon->subscription);
+    /* Deleted items survive event-loop iterations until their reads finish. */
+    for(size_t i = 0; i < 10 && server->asyncManager.opsCount > 0; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+
+    ck_assert_uint_eq(callbackCount, _i == 2 ? 1 : 0);
+    ck_assert_ptr_null(mon->subscription);
+    ck_assert_ptr_null(other->subscription);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, _i == 0 ? 2 : 1);
+    ck_assert_uint_eq(other->outstandingAsyncReads, 1);
+    if(_i == 2)
+        ASSERT_STATUSCODE(deleteStatus, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(canceledReadCount, 0);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, first.monitoredItemId),
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+    ASSERT_STATUSCODE(UA_Server_deleteMonitoredItem(server, second.monitoredItemId),
+                      UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+    ck_assert_uint_eq(server->asyncManager.opsCount, _i == 0 ? 3 : 2);
+    for(size_t i = (_i == 0 ? 0 : 1); i < pendingReadCount; i++) {
+        UA_UInt32 value = 43;
+        ASSERT_STATUSCODE(UA_Variant_setScalarCopy(&pendingReadOutputs[i]->value, &value,
+                          &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+        pendingReadOutputs[i]->hasValue = true;
+        ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[i]),
+                          UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_eq(callbackCount, _i == 2 ? 1 : 0);
+    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+}
+END_TEST
+
+static UA_Boolean
+allowReadSubscriptionTransfer(UA_Server *s, UA_AccessControl *ac,
+                              const UA_NodeId *oldSessionId, void *oldContext,
+                              const UA_NodeId *newSessionId, void *newContext) {
+    return true;
+}
+
+static void
+pooledSample(UA_Server *s, UA_UInt32 id, void *context, const UA_NodeId *nodeId,
+              void *nodeContext, UA_UInt32 attributeId, const UA_DataValue *value) {
+    callbackCount++;
+}
+
+static UA_MonitoredItem *immediateItems[20];
+static size_t immediateReads;
+
+/* The entire listener snapshot must be retained before any read callback. */
+static void
+checkImmediateReferences(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                         const UA_NodeId *nodeId, void *nodeContext,
+                         const UA_NumericRange *range, const UA_DataValue *value) {
+    for(size_t i = 0; i < 20; i++)
+        ck_assert_uint_gt(immediateItems[i]->outstandingAsyncReads, 0);
+    immediateReads++;
+}
+
+START_TEST(Server_LocalMonitoredItem_immediateBatch) {
+    UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.requestedParameters.samplingInterval = 0.0;
+    for(size_t i = 0; i < 20; i++) {
+        UA_MonitoredItemCreateResult result = UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_BOTH, request, NULL, pooledSample);
+        ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+        immediateItems[i] = UA_Subscription_getMonitoredItem(server->adminSubscription,
+                                                            result.monitoredItemId);
+        ck_assert_ptr_nonnull(immediateItems[i]);
+        ck_assert_uint_eq(immediateItems[i]->outstandingAsyncReads, 0);
+    }
+    UA_Server_run_iterate(server, false);
+    callbackCount = 0;
+    immediateReads = 0;
+    UA_ValueSourceNotifications notifications = {checkImmediateReferences, NULL};
+    ASSERT_STATUSCODE(UA_Server_setVariableNode_internalValueSource(
+        server, outNodeId, NULL, &notifications), UA_STATUSCODE_GOOD);
+    UA_UInt32 number = 42;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &number, &UA_TYPES[UA_TYPES_UINT32]);
+    ASSERT_STATUSCODE(UA_Server_writeValue(server, outNodeId, value), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(immediateReads, 20);
+    for(size_t i = 0; i < 20; i++)
+        ck_assert_uint_eq(immediateItems[i]->outstandingAsyncReads, 0);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(callbackCount, 20);
+}
+END_TEST
+
+START_TEST(Server_LocalMonitoredItem_readContextLimit) {
+    UA_MonitoredItem *items[2];
+    UA_MonitoredItemCreateRequest request = UA_MonitoredItemCreateRequest_default(outNodeId);
+    request.monitoringMode = UA_MONITORINGMODE_DISABLED;
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItemCreateResult result = UA_Server_createDataChangeMonitoredItem(
+            server, UA_TIMESTAMPSTORETURN_NEITHER, request, NULL, pooledSample);
+        ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+        lockServer(server);
+        items[i] = UA_Subscription_getMonitoredItem(server->adminSubscription,
+                                                   result.monitoredItemId);
+        unlockServer(server);
+        UA_MonitoredItemCreateResult_clear(&result);
+    }
+    UA_CallbackValueSource source = {pendingRead, NULL};
+    ASSERT_STATUSCODE(UA_Server_setVariableNode_callbackValueSource(server, outNodeId, source),
+                      UA_STATUSCODE_GOOD);
+    pendingReadCount = 0;
+    lockServer(server);
+    for(size_t i = 0; i < 2; i++) {
+        for(size_t j = 0; j < UA_MONITOREDITEM_ASYNC_MAX; j++)
+            UA_MonitoredItem_sample(server, items[i]);
+        ck_assert_uint_eq(items[i]->outstandingAsyncReads, UA_MONITOREDITEM_ASYNC_MAX);
+    }
+    ck_assert_uint_eq(pendingReadCount, 2 * UA_MONITOREDITEM_ASYNC_MAX);
+    /* The per-item limit still applies without starting another read. */
+    UA_MonitoredItem_sample(server, items[0]);
+    ck_assert_uint_eq(pendingReadCount, 2 * UA_MONITOREDITEM_ASYNC_MAX);
+    unlockServer(server);
+
+    for(size_t i = 0; i < pendingReadCount; i++)
+        ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[i]),
+                          UA_STATUSCODE_GOOD);
+    UA_fakeSleep(100);
+    UA_Server_run_iterate(server, false);
+    lockServer(server);
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(items[i]->outstandingAsyncReads, 0);
+    }
+    unlockServer(server);
+} END_TEST
+
+/* The initiating session is freed before completion. The subscription is
+ * deleted, detached on timeout, or transferred to a different session. */
+START_TEST(Server_MonitoredItem_readAfterSessionRemoval) {
+    pendingReadCount = 0;
+    lockServer(server);
+    UA_CreateSessionRequest sessionRequest;
+    UA_CreateSessionRequest_init(&sessionRequest);
+    sessionRequest.requestedSessionTimeout = UA_UINT32_MAX;
+    UA_Session *session = NULL;
+    ASSERT_STATUSCODE(UA_Session_create(server, NULL, &sessionRequest, &session),
+                      UA_STATUSCODE_GOOD);
+    UA_CreateSubscriptionRequest subRequest;
+    UA_CreateSubscriptionRequest_init(&subRequest);
+    subRequest.requestedPublishingInterval = 10000;
+    UA_CreateSubscriptionResponse subResponse;
+    UA_CreateSubscriptionResponse_init(&subResponse);
+    Service_CreateSubscription(server, session, &subRequest, &subResponse);
+    ASSERT_STATUSCODE(subResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subscriptionId = subResponse.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&subResponse);
+
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
+    item.monitoringMode = UA_MONITORINGMODE_DISABLED;
+    item.requestedParameters.samplingInterval = 10000;
+    UA_CreateMonitoredItemsRequest monRequest;
+    UA_CreateMonitoredItemsRequest_init(&monRequest);
+    monRequest.subscriptionId = subscriptionId;
+    monRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    monRequest.itemsToCreateSize = 1;
+    monRequest.itemsToCreate = &item;
+    UA_CreateMonitoredItemsResponse monResponse;
+    UA_CreateMonitoredItemsResponse_init(&monResponse);
+    Service_CreateMonitoredItems(server, session, &monRequest, &monResponse);
+    ASSERT_STATUSCODE(monResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(monResponse.resultsSize, 1);
+    ASSERT_STATUSCODE(monResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 monitoredItemId = monResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&monResponse);
+    unlockServer(server);
+
+    UA_CallbackValueSource source = {pendingRead, NULL};
+    ASSERT_STATUSCODE(UA_Server_setVariableNode_callbackValueSource(server, outNodeId, source),
+                      UA_STATUSCODE_GOOD);
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, monitoredItemId);
+    ASSERT_STATUSCODE(UA_MonitoredItem_setMonitoringMode(server, mon, UA_MONITORINGMODE_REPORTING),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pendingReadCount, 1);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, 1);
+    /* An admission failure must undo only its own read count, leaving the
+     * first sample outstanding. */
+    size_t previousLimit = server->config.maxAsyncOperationQueueSize;
+    server->config.maxAsyncOperationQueueSize = 1;
+    UA_MonitoredItem_sample(server, mon);
+    server->config.maxAsyncOperationQueueSize = previousLimit;
+    ck_assert_uint_eq(pendingReadCount, 1);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, 1);
+    ASSERT_STATUSCODE(mon->lastValue.status, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    if(_i == 2) {
+        UA_Session *target = NULL;
+        ASSERT_STATUSCODE(UA_Session_create(server, NULL, &sessionRequest, &target),
+                          UA_STATUSCODE_GOOD);
+        server->config.accessControl.allowTransferSubscription = allowReadSubscriptionTransfer;
+        UA_TransferSubscriptionsRequest transfer;
+        UA_TransferSubscriptionsRequest_init(&transfer);
+        transfer.subscriptionIdsSize = 1;
+        transfer.subscriptionIds = &subscriptionId;
+        UA_TransferSubscriptionsResponse response;
+        UA_TransferSubscriptionsResponse_init(&response);
+        Service_TransferSubscriptions(server, target, &transfer, &response);
+        ASSERT_STATUSCODE(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(response.resultsSize, 1);
+        ASSERT_STATUSCODE(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+        UA_TransferSubscriptionsResponse_clear(&response);
+    }
+    UA_Session_remove(server, session,
+                      _i == 1 ? UA_SHUTDOWNREASON_TIMEOUT : UA_SHUTDOWNREASON_CLOSE);
+    unlockServer(server);
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_eq(server->asyncManager.opsCount, 1);
+
+    /* Deletion detaches the retained item from its now-freed subscription. */
+    if(_i == 0)
+        ck_assert_ptr_null(mon->subscription);
+    else
+        ck_assert_ptr_nonnull(mon->subscription);
+    ck_assert_uint_eq(mon->outstandingAsyncReads, 1);
+
+    UA_UInt32 value = 42;
+    ASSERT_STATUSCODE(UA_Variant_setScalarCopy(&pendingReadOutputs[0]->value, &value,
+                                              &UA_TYPES[UA_TYPES_UINT32]), UA_STATUSCODE_GOOD);
+    pendingReadOutputs[0]->hasValue = true;
+    ASSERT_STATUSCODE(UA_Server_setAsyncReadResult(server, pendingReadOutputs[0]),
+                      UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, false);
+    }
+    ck_assert_uint_eq(server->asyncManager.opsCount, 0);
+    lockServer(server);
+    sub = getSubscriptionById(server, subscriptionId);
+    if(_i == 0) {
+        ck_assert_ptr_null(sub);
+    } else {
+        ck_assert_ptr_nonnull(sub);
+        mon = UA_Subscription_getMonitoredItem(sub, monitoredItemId);
+        ck_assert_ptr_nonnull(mon);
+        ck_assert_uint_eq(mon->outstandingAsyncReads, 0);
+        ck_assert(mon->lastValue.hasValue);
+        ck_assert_uint_eq(*(UA_UInt32*)mon->lastValue.value.data, 42);
+    }
+    unlockServer(server);
 }
 END_TEST
 
@@ -650,6 +1028,11 @@ static Suite * testSuite_Client(void) {
     tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteInCallback);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_deleteFromDataSourceRead);
+    tcase_add_loop_test(tc_server, Server_LocalMonitoredItem_deletePendingReads, 0, 3);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_completeReadDuringDeletion);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_immediateBatch);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_readContextLimit);
+    tcase_add_loop_test(tc_server, Server_MonitoredItem_readAfterSessionRemoval, 0, 3);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_EventNotifierRejected);
     tcase_add_test(tc_server, Server_Subscription_resendData_emptySubscription);
