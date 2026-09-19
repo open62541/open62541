@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import argparse
+import datetime
 import os.path
 import re
 
@@ -25,6 +26,16 @@ if pos > 0:
 include_re = re.compile("^#[\\s]*include (\".*\").*$|^#[\\s]*include (<open62541/.*>).*$")
 guard_re = re.compile(r"^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
 
+# End year of the copyright range. Honor SOURCE_DATE_EPOCH so that
+# reproducible builds get a stable header
+# (https://reproducible-builds.org/specs/source-date-epoch/).
+source_date_epoch = os.environ.get("SOURCE_DATE_EPOCH")
+if source_date_epoch:
+    copyright_year = datetime.datetime.fromtimestamp(
+        int(source_date_epoch), datetime.timezone.utc).year
+else:
+    copyright_year = datetime.date.today().year
+
 print ("Starting amalgamating file "+ args.outfile)
 
 file = open(args.outfile, 'w', encoding='utf8', errors='replace')
@@ -34,7 +45,7 @@ file.write("""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62
  */
 
 /*
- * Copyright (C) 2014-2026 the open62541 contributors, as named in the
+ * Copyright (C) 2014-%d the open62541 contributors, as named in the
  * per-file copyright headers reproduced below
  *
  * This file is part of open62541. open62541 is free software: you can
@@ -44,7 +55,7 @@ file.write("""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62
  * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE.
- */\n\n""" % args.version)
+ */\n\n""" % (args.version, copyright_year))
 
 if is_c:
     file.write('''#ifndef UA_DYNAMIC_LINKING_EXPORT
