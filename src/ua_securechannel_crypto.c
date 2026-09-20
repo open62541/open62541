@@ -1057,6 +1057,8 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
     case UA_SECURECHANNELRENEWSTATE_NORMAL:
     case UA_SECURECHANNELRENEWSTATE_SENT:
     default:
+        if(tokenId != channel->securityToken.tokenId)
+            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         break;
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER:

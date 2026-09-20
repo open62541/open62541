@@ -712,7 +712,9 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                 auditCertificateDataMismatchEvent(server, channel, session, logPrefix,
                                                   res, certificate, ad->applicationUri);
 #endif
-                return UA_STATUSCODE_BADCERTIFICATEINVALID;
+                return (res == UA_STATUSCODE_BADCERTIFICATEURIINVALID) ?
+                    UA_STATUSCODE_BADCERTIFICATEURIINVALID :
+                    UA_STATUSCODE_BADCERTIFICATEINVALID;
             }
 
             /* Ignore the bad result depending on the server configuration.
