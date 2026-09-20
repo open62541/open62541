@@ -19,6 +19,7 @@
 
 #include "test_helpers.h"
 #include "thread_wrapper.h"
+#include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
 
 #include <check.h>
@@ -884,6 +885,121 @@ START_TEST(Client_disabledUser_cannotActivate) {
 }
 END_TEST
 
+/* Report whether the Session of the connected Client holds the Role. */
+static UA_Boolean
+sessionHasRole(UA_Client *client, const UA_NodeId *roleId) {
+    UA_Boolean hasRole = false;
+    lockServer(server);
+    UA_Session *session = getSessionById(server, &client->sessionId);
+    if(session) {
+        for(size_t i = 0; i < session->rolesSize; i++)
+            hasRole |= UA_NodeId_equal(&session->roles[i], roleId);
+    }
+    unlockServer(server);
+    return hasRole;
+}
+
+/* Copy the user name of the identity snapshot the Session currently carries. */
+static UA_String
+sessionIdentityUserName(UA_Client *client) {
+    UA_String userName = UA_STRING_NULL;
+    lockServer(server);
+    UA_Session *session = getSessionById(server, &client->sessionId);
+    if(session && session->hasIdentityContext)
+        UA_String_copy(&session->identityContext.userName, &userName);
+    unlockServer(server);
+    return userName;
+}
+
+/* A rejected re-activation must not leave the Session with the identity of the
+ * refused user. Otherwise the next re-evaluation of the RoleSet assigns that
+ * user's Roles to a Session that was never activated for it. */
+START_TEST(Client_rejectedReactivation_keepsPreviousIdentity) {
+    UA_NodeId productName =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "operator", "password"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client, productName, &value),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_Role operatorRole;
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "OperatorRole"),
+                                        &operatorRole), UA_STATUSCODE_GOOD);
+    UA_NodeId operatorRoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_NodeId_copy(&operatorRole.roleId, &operatorRoleId),
+                      UA_STATUSCODE_GOOD);
+    UA_Role_clear(&operatorRole);
+    ck_assert(sessionHasRole(client, &operatorRoleId));
+
+    /* The Endpoint composes a unique PolicyId per SecurityMode and
+     * SecurityPolicy, so take the one the Client itself selected. */
+    UA_String userNamePolicyId = UA_STRING_NULL;
+    for(size_t i = 0; i < client->endpoint.userIdentityTokensSize; i++) {
+        if(client->endpoint.userIdentityTokens[i].tokenType ==
+           UA_USERTOKENTYPE_USERNAME) {
+            userNamePolicyId = client->endpoint.userIdentityTokens[i].policyId;
+            break;
+        }
+    }
+    ck_assert(userNamePolicyId.length > 0);
+
+    /* Re-activate the very same Session as the disabled user. The request is
+     * built by hand: UA_Client_activateCurrentSession tears the Client-side
+     * Session down on any error, which would end the test early. */
+    UA_ActivateSessionRequest req;
+    UA_ActivateSessionRequest_init(&req);
+    UA_UserNameIdentityToken token;
+    UA_UserNameIdentityToken_init(&token);
+    token.policyId = userNamePolicyId;
+    token.userName = UA_STRING("disabled");
+    token.password = UA_STRING("password");
+    UA_ExtensionObject_setValueNoDelete(&req.userIdentityToken, &token,
+                                        &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    UA_ActivateSessionResponse resp;
+    UA_ActivateSessionResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADIDENTITYTOKENINVALID);
+    UA_ActivateSessionResponse_clear(&resp);
+
+    /* The Session kept the identity and the Roles of the previous activation */
+    UA_String userName = sessionIdentityUserName(client);
+    UA_String expected = UA_STRING("operator");
+    ck_assert_msg(UA_String_equal(&userName, &expected),
+                  "The rejected identity was stored on the Session");
+    UA_String_clear(&userName);
+    ck_assert(sessionHasRole(client, &operatorRoleId));
+
+    /* Adding a Role re-evaluates every active Session from its snapshot */
+    UA_Role unrelated;
+    UA_Role_init(&unrelated);
+    unrelated.roleName = UA_QUALIFIEDNAME(1, "ReactivationRole");
+    UA_NodeId unrelatedId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &unrelated, &unrelatedId),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_msg(sessionHasRole(client, &operatorRoleId),
+                  "Re-evaluation dropped the Roles of the activated user");
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client, productName, &value),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_NodeId_clear(&operatorRoleId);
+    UA_NodeId_clear(&unrelatedId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* The Access Token Role provider is reserved for IssuedIdentityTokens. The
  * hook is installed for the whole fixture, so reaching this point without it
  * having fired covers every user name login the suite performed before it, in
@@ -916,6 +1032,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_mustChangePassword_activatesWithAnonymousOnly);
     tcase_add_test(tc, Client_mustChangePassword_staysAnonymousAfterRoleChange);
     tcase_add_test(tc, Client_disabledUser_cannotActivate);
+    tcase_add_test(tc, Client_rejectedReactivation_keepsPreviousIdentity);
     tcase_add_test(tc, Client_tokenRoles_notQueriedForNonIssuedTokens);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);

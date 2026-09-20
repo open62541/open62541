@@ -1589,7 +1589,8 @@ checkRBACMethodAccess(UA_Server *server, const UA_NodeId *sessionId) {
 }
 
 /* Set roles on a session. Validates all role IDs against the server registry.
- * Must be called with the server lock held. */
+ * Must be called with the server lock held. The new set is prepared before the
+ * old one is released, so a failure leaves the Session with the Roles it had. */
 UA_StatusCode
 UA_Session_setRoles(UA_Server *server, UA_Session *session,
                     const UA_NodeId *roleIds, size_t rolesSize) {
@@ -1598,18 +1599,17 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
-    session->roles = NULL;
-    session->rolesSize = 0;
-
+    UA_NodeId *copy = NULL;
     if(rolesSize > 0) {
-        UA_StatusCode res = UA_Array_copy(roleIds, rolesSize,
-                                          (void**)&session->roles,
+        UA_StatusCode res = UA_Array_copy(roleIds, rolesSize, (void**)&copy,
                                           &UA_TYPES[UA_TYPES_NODEID]);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-        session->rolesSize = rolesSize;
     }
+
+    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    session->roles = copy;
+    session->rolesSize = rolesSize;
     return UA_STATUSCODE_GOOD;
 }
 
