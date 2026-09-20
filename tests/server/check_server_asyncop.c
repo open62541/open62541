@@ -32,6 +32,7 @@
 # define ck_assert_ptr_nonnull(p) ck_assert_msg((p) != NULL, #p " == NULL")
 #endif
 #include <stdlib.h>
+#include <time.h>
 
 static UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
@@ -2150,6 +2151,7 @@ START_TEST(Async_internal_read_trampolines_and_shutdown) {
  * Atomics coordinate the test phases, not access to the result contents. */
 typedef struct {
     THREAD_HANDLE thread;
+    UA_Boolean joinable;
     UA_DataValue *read;
     UA_Variant *call;
     const UA_DataValue *write;
@@ -2158,6 +2160,33 @@ typedef struct {
     UA_atomic(uintptr_t) done;
     UA_StatusCode status;
 } ConcurrentWorker;
+
+/* Check can leave a failing test via longjmp. The fixture, not its stack frame,
+ * owns every thread and callback context until teardown has joined the threads. */
+static ConcurrentWorker workers[2];
+static UA_Client *concurrentClient;
+
+static void
+yieldWorker(void) {
+#ifdef UA_ARCHITECTURE_WIN32
+    Sleep(1);
+#else
+    struct timespec delay = {0, 1000000};
+    nanosleep(&delay, NULL);
+#endif
+}
+
+static void
+joinResultWorker(ConcurrentWorker *w) {
+    if(!w->joinable)
+        return;
+    UA_atomic_store(&w->finish, true);
+    THREAD_JOIN(w->thread);
+#ifdef UA_ARCHITECTURE_WIN32
+    CloseHandle(w->thread);
+#endif
+    w->joinable = false;
+}
 
 THREAD_CALLBACK_PARAM(resultWorker, data) {
     ConcurrentWorker *w = (ConcurrentWorker*)data;
@@ -2174,6 +2203,8 @@ THREAD_CALLBACK_PARAM(resultWorker, data) {
             UA_Variant_setScalarCopy(w->call, &text, &UA_TYPES[UA_TYPES_STRING]);
         }
         UA_atomic_store(&w->started, true);
+        /* Let the event-loop thread progress under instrumentation as well. */
+        yieldWorker();
     } while(!UA_atomic_load(&w->finish));
 
     if(w->read)
@@ -2193,6 +2224,7 @@ concurrentRead(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
     ConcurrentWorker *w = (ConcurrentWorker*)nodeContext;
     w->read = value;
     THREAD_CREATE_PARAM(w->thread, resultWorker, *w);
+    w->joinable = true;
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
@@ -2203,6 +2235,7 @@ concurrentWrite(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
     ConcurrentWorker *w = (ConcurrentWorker*)nodeContext;
     w->write = value; /* Identifier only; input contents are not retained. */
     THREAD_CREATE_PARAM(w->thread, resultWorker, *w);
+    w->joinable = true;
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
@@ -2215,6 +2248,7 @@ concurrentCall(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
     ConcurrentWorker *w = (ConcurrentWorker*)methodContext;
     w->call = output;
     THREAD_CREATE_PARAM(w->thread, resultWorker, *w);
+    w->joinable = true;
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
@@ -2225,6 +2259,8 @@ typedef struct {
     const UA_DataType *type;
     void *response;
 } ConcurrentResponse;
+
+static ConcurrentResponse received;
 
 static void
 concurrentResponse(UA_Client *client, void *context, UA_UInt32 id, void *response) {
@@ -2286,18 +2322,16 @@ checkConcurrentResponse(ConcurrentResponse *r) {
  * The completed first result must survive cancellation of the second while
  * its worker repeatedly edits/frees/reallocates output during wire encoding. */
 START_TEST(Async_concurrent_worker_ownership) {
-    UA_Client *client = UA_Client_newForUnitTest();
+    UA_Client *client = concurrentClient = UA_Client_newForUnitTest();
     ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
                       UA_STATUSCODE_GOOD);
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     server->config.asyncOperationCancelCallback = NULL;
-    ConcurrentWorker workers[2];
-    memset(workers, 0, sizeof(workers));
     UA_atomic_store(&workers[0].finish, true);
     size_t kind = (size_t)_i / 3;
     size_t mode = (size_t)_i % 3;
-    ConcurrentResponse received = {kind, 0, mode == 0 ? UA_STATUSCODE_GOOD :
+    received = (ConcurrentResponse){kind, 0, mode == 0 ? UA_STATUSCODE_GOOD :
         (mode == 1 ? UA_STATUSCODE_BADOPERATIONABANDONED : UA_STATUSCODE_BADTIMEOUT),
         &UA_TYPES[kind == 0 ? UA_TYPES_READRESPONSE :
                   (kind == 1 ? UA_TYPES_CALLRESPONSE : UA_TYPES_WRITERESPONSE)], NULL};
@@ -2371,13 +2405,14 @@ START_TEST(Async_concurrent_worker_ownership) {
             &UA_TYPES[UA_TYPES_WRITEREQUEST], concurrentResponse,
             &UA_TYPES[UA_TYPES_WRITERESPONSE], &received, NULL), UA_STATUSCODE_GOOD);
     }
-    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 5 * UA_DATETIME_SEC;
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
     while(!UA_atomic_load(&workers[0].done) || !UA_atomic_load(&workers[1].started)) {
         ck_assert(UA_DateTime_nowMonotonic() < deadline);
         UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
+        yieldWorker();
     }
-    THREAD_JOIN(workers[0].thread);
+    joinResultWorker(&workers[0]);
     ck_assert_uint_eq(workers[0].status, UA_STATUSCODE_GOOD);
     if(mode == 0) {
         UA_atomic_store(&workers[1].finish, true);
@@ -2391,35 +2426,33 @@ START_TEST(Async_concurrent_worker_ownership) {
     } else {
         UA_fakeSleep(2500);
     }
+    deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
     while(received.received == 0) {
         ck_assert(UA_DateTime_nowMonotonic() < deadline);
         UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
+        yieldWorker();
     }
     if(mode != 0) {
         ck_assert(!UA_atomic_load(&workers[1].done));
         ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
     }
-    UA_atomic_store(&workers[1].finish, true);
-    THREAD_JOIN(workers[1].thread);
+    joinResultWorker(&workers[1]);
     ck_assert_uint_eq(workers[1].status, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
     checkConcurrentResponse(&received);
-    UA_delete(received.response, received.type);
     UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
     UA_Client_disconnect(client);
-    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(Async_local_worker_ownership) {
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     server->config.asyncOperationCancelCallback = NULL;
-    ConcurrentWorker worker;
-    memset(&worker, 0, sizeof(worker));
+    ConcurrentWorker *worker = &workers[0];
     UA_NodeId node = UA_NODEID_STRING(1, "asyncVar");
-    ck_assert_uint_eq(UA_Server_setNodeContext(server, node, &worker), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeContext(server, node, worker), UA_STATUSCODE_GOOD);
     UA_CallbackValueSource source = {concurrentRead, NULL};
     ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(server, node, source),
                       UA_STATUSCODE_GOOD);
@@ -2434,11 +2467,13 @@ START_TEST(Async_local_worker_ownership) {
         UA_DataValue_clear(&value);
     } else {
         ck_assert_uint_eq(UA_Server_read_async(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH,
-            recordLocalReadResult, &worker, _i == 0 ? 500 : 0), UA_STATUSCODE_GOOD);
+            recordLocalReadResult, worker, _i == 0 ? 500 : 0), UA_STATUSCODE_GOOD);
     }
-    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 5 * UA_DATETIME_SEC;
-    while(!UA_atomic_load(&worker.started))
+    UA_DateTime deadline = UA_DateTime_nowMonotonic() + 60 * UA_DATETIME_SEC;
+    while(!UA_atomic_load(&worker->started)) {
         ck_assert(UA_DateTime_nowMonotonic() < deadline);
+        yieldWorker();
+    }
     if(_i == 0) {
         UA_fakeSleep(1500);
     } else if(_i == 1) {
@@ -2454,9 +2489,8 @@ START_TEST(Async_local_worker_ownership) {
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
     if(_i == 1)
         ck_assert_int_eq(UA_Server_getLifecycleState(server), UA_LIFECYCLESTATE_STOPPING);
-    UA_atomic_store(&worker.finish, true);
-    THREAD_JOIN(worker.thread);
-    ck_assert_uint_eq(worker.status, UA_STATUSCODE_GOOD);
+    joinResultWorker(worker);
+    ck_assert_uint_eq(worker->status, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 10; i++)
         UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(localResultCount, _i == 2 ? 0 : 1);
@@ -2467,12 +2501,41 @@ START_TEST(Async_local_worker_ownership) {
     }
 } END_TEST
 
+static void
+setupWorkers(void) {
+    memset(workers, 0, sizeof(workers));
+    memset(&received, 0, sizeof(received));
+    concurrentClient = NULL;
+    setup();
+}
+
+static void
+teardownWorkers(void) {
+    if(UA_atomic_load(&running)) {
+        UA_atomic_store(&running, false);
+        THREAD_JOIN(server_thread);
+    }
+    for(size_t i = 0; i < 2; i++)
+        joinResultWorker(&workers[i]);
+    if(concurrentClient) {
+        UA_Client_disconnectAsync(concurrentClient);
+        UA_Client_delete(concurrentClient);
+    }
+    if(received.response)
+        UA_delete(received.response, received.type);
+    /* A failed shutdown test can leave an external event loop configured. */
+    server->config.externalEventLoop = false;
+    while(UA_Server_getLifecycleState(server) == UA_LIFECYCLESTATE_STOPPING)
+        UA_Server_run_iterate(server, false);
+    teardown();
+}
+
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
 
     TCase *tc_workers = tcase_create("Workers");
-    tcase_add_checked_fixture(tc_workers, setup, teardown);
+    tcase_add_checked_fixture(tc_workers, setupWorkers, teardownWorkers);
     tcase_add_loop_test(tc_workers, Async_concurrent_worker_ownership, 0, 9);
     tcase_add_loop_test(tc_workers, Async_local_worker_ownership, 0, 3);
     suite_add_tcase(s, tc_workers);
