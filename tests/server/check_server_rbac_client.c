@@ -360,16 +360,73 @@ START_TEST(Client_anonymous_restricted_access) {
     ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(resp.resultsSize, 1);
 
-    if(resp.results[0].status == UA_STATUSCODE_GOOD && resp.results[0].hasValue) {
-        UA_Byte userAccessLevel = *(UA_Byte*)resp.results[0].value.data;
-        printf("Anonymous UserAccessLevel on ProductUri: 0x%02x\n", userAccessLevel);
-        /* Anonymous should NOT have write access */
-        ck_assert_uint_eq(userAccessLevel & UA_ACCESSLEVELMASK_WRITE, 0);
-    }
+    /* UserAccessLevel is a non-Value attribute and therefore requires Browse
+     * permission on the Node. */
+    ck_assert_uint_eq(resp.results[0].status,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
 
     UA_ReadResponse_clear(&resp);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_browse_hides_denied_targets_and_metadata) {
+    UA_Role operatorRole;
+    ck_assert_uint_eq(UA_Server_getRole(
+        server, UA_QUALIFIEDNAME(0, "OperatorRole"), &operatorRole),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId parent = UA_NODEID_NUMERIC(1, 61200);
+    UA_NodeId child = UA_NODEID_NUMERIC(1, 61201);
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "VisibleParent"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, child, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "HiddenChild"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(
+        server, parent, operatorRole.roleId, UA_PERMISSIONTYPE_BROWSE,
+        false, false), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(
+        server, child,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER),
+        UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
+    UA_Role_clear(&operatorRole);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(
+        client, "opc.tcp://localhost:4840", "operator", "password"),
+        UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName browseName;
+    UA_QualifiedName_init(&browseName);
+    ck_assert_uint_eq(UA_Client_readBrowseNameAttribute(
+        client, child, &browseName), UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_QualifiedName_clear(&browseName);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parent;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < br.referencesSize; i++)
+        ck_assert(!UA_NodeId_equal(&br.references[i].nodeId.nodeId, &child));
+    UA_BrowseResult_clear(&br);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_Server_deleteNode(server, parent, true);
 }
 END_TEST
 
@@ -598,6 +655,81 @@ START_TEST(Client_accessRestrictions_enforced) {
 }
 END_TEST
 
+START_TEST(Client_accessRestrictions_cover_node_management) {
+    UA_Role operatorRole;
+    ck_assert_uint_eq(UA_Server_getRole(
+        server, UA_QUALIFIEDNAME(0, "OperatorRole"), &operatorRole),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId source = UA_NODEID_NUMERIC(1, 61110);
+    UA_NodeId target = UA_NODEID_NUMERIC(1, 61111);
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, source, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "RefSource"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, target, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "RefTarget"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    UA_PermissionType management = UA_PERMISSIONTYPE_BROWSE |
+        UA_PERMISSIONTYPE_ADDREFERENCE | UA_PERMISSIONTYPE_REMOVEREFERENCE |
+        UA_PERMISSIONTYPE_DELETENODE;
+    ck_assert_uint_eq(UA_Server_addRolePermissions(
+        server, source, operatorRole.roleId, management, false, false),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(
+        server, target, operatorRole.roleId, management, false, false),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(
+        server, target, UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+        UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(
+        client, "opc.tcp://localhost:4840", "operator", "password"),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_addReference(
+        client, source, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+        UA_STRING_NULL, UA_EXPANDEDNODEID_NUMERIC(1, 61111),
+        UA_NODECLASS_OBJECT), UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    ck_assert_uint_eq(UA_Client_deleteNode(client, target, true),
+                      UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+
+    UA_RolePermission nsEntry;
+    nsEntry.roleId = operatorRole.roleId;
+    nsEntry.permissions = UA_PERMISSIONTYPE_ADDNODE | UA_PERMISSIONTYPE_BROWSE;
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 1, &nsEntry), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultAccessRestrictions(
+        server, 1, UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+        UA_STATUSCODE_GOOD);
+    UA_NodeId added = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Client_addObjectNode(
+        client, UA_NODEID_NUMERIC(1, 61112),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "RestrictedAdd"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, &added),
+        UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_NodeId_clear(&added);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultAccessRestrictions(
+        server, 1, UA_ACCESSRESTRICTIONTYPE_NONE), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, 1, 0, NULL), UA_STATUSCODE_GOOD);
+    UA_Server_deleteNode(server, source, true);
+    UA_Server_deleteNode(server, target, true);
+    UA_Role_clear(&operatorRole);
+}
+END_TEST
+
 #ifdef UA_ENABLE_METHODCALLS
 /* A non-admin client over an unencrypted channel must not be able to call the
  * RoleSet AddRole Method: C2 grants CALL only to SecurityAdmin and C1 requires
@@ -775,10 +907,12 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_login_assigns_roles);
     tcase_add_test(tc, Client_buildinfo_recursive_permissions);
     tcase_add_test(tc, Client_anonymous_restricted_access);
+    tcase_add_test(tc, Client_browse_hides_denied_targets_and_metadata);
     tcase_add_test(tc, Client_guest_limited_access);
     tcase_add_test(tc, Client_userwritemask_reflects_rbac);
     tcase_add_test(tc, Client_roles_reevaluated_on_roleAdd);
     tcase_add_test(tc, Client_accessRestrictions_enforced);
+    tcase_add_test(tc, Client_accessRestrictions_cover_node_management);
     tcase_add_test(tc, Client_mustChangePassword_activatesWithAnonymousOnly);
     tcase_add_test(tc, Client_mustChangePassword_staysAnonymousAfterRoleChange);
     tcase_add_test(tc, Client_disabledUser_cannotActivate);
