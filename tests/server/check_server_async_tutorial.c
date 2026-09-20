@@ -6,6 +6,7 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include <open62541/client_subscriptions.h>
+#include <open62541/plugin/log_stdout.h>
 #include <check.h>
 
 /* Exercise the actual tutorial callbacks, not a copy of the example. */
@@ -226,14 +227,17 @@ START_TEST(session_close_releases_response) {
     ck_assert_ptr_ne(ar, NULL);
     ck_assert_ptr_eq(ar->session, session);
     UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
+    ck_assert_ptr_eq(TAILQ_FIRST(&server->asyncManager.responses), ar);
+    ck_assert_uint_eq(ar->pendingResults, 0);
+    ck_assert(ar->dc.callback != NULL);
     UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
     ck_assert_ptr_ne(op, NULL);
-    ck_assert_ptr_eq(op->handling.response, NULL);
+    ck_assert_ptr_eq(op->handling.response, ar);
     ck_assert(op->resultIndex == SIZE_MAX);
     unlockServer(server);
     UA_Server_run_iterate(server, false);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
+    ck_assert_ptr_eq(op->handling.response, NULL);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
     UA_fakeSleep(2000);
     UA_Server_run_iterate(server, false);
@@ -293,7 +297,7 @@ closeAtServiceEnd(UA_Server *server, UA_ApplicationNotificationType type,
     checkDispatchGuard(server);
     UA_AsyncResponse *ar = TAILQ_FIRST(&server->asyncManager.responses);
     ck_assert_ptr_ne(ar, NULL);
-    ck_assert(!ar->dc.callback);
+    ck_assert(ar->dc.callback != NULL);
     ck_assert_uint_gt(ar->response.readResponse.resultsSize, 0);
     UA_Session *session = ar->session;
     ck_assert_ptr_ne(session, NULL);
@@ -635,8 +639,22 @@ normalizedReadResult(UA_Server *server, void *context, const UA_DataValue *value
 }
 
 static UA_Session *closingSession;
-static size_t closingEnds, closingCancels, closingNotifications;
+static size_t closingEnds, closingCancels, closingNotifications, closingCleanups;
 static UA_Boolean completeDuringClose, iterateDuringClose;
+static UA_Callback queuedResponseCallback;
+static void (*closingAccessControl)(UA_Server *, UA_AccessControl *,
+                                    const UA_NodeId *, void *);
+
+static void
+sessionCloseCleanup(UA_Server *server, UA_AccessControl *ac,
+                    const UA_NodeId *sessionId, void *sessionContext) {
+    ck_assert_uint_eq(closingEnds, 2);
+    ck_assert_uint_eq(closingNotifications, 1);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
+    closingCleanups++;
+    if(closingAccessControl)
+        closingAccessControl(server, ac, sessionId, sessionContext);
+}
 
 static void
 sessionCloseNotification(UA_Server *server, UA_ApplicationNotificationType type,
@@ -651,11 +669,16 @@ sessionCloseNotification(UA_Server *server, UA_ApplicationNotificationType type,
         ck_assert(UA_NodeId_equal(id, &closingSession->sessionId));
         ck_assert_uint_eq(*channelId, 123);
         ck_assert_ptr_ne(closingSession->channel, NULL);
-        ck_assert_ptr_eq(findSessionByToken(server, &closingSession->authenticationToken),
-                         closingSession);
+        ck_assert_ptr_null(findSessionByToken(server, &closingSession->authenticationToken));
         ck_assert_int_eq(closingSession->state, UA_SESSIONSTATE_CLOSED);
         ck_assert_uint_eq(closingNotifications, 0);
         closingEnds++;
+        UA_AsyncResponse *delivering = TAILQ_FIRST(&server->asyncManager.responses);
+        while(delivering && delivering->session != closingSession)
+            delivering = TAILQ_NEXT(delivering, pointers);
+        ck_assert_ptr_ne(delivering, NULL);
+        if(queuedResponseCallback)
+            ck_assert(delivering->dc.callback == queuedResponseCallback);
         /* Reentry must not detach the Session beneath this notification. */
         UA_Session_remove(server, closingSession, UA_SHUTDOWNREASON_CLOSE);
         ck_assert_ptr_ne(closingSession->channel, NULL);
@@ -664,12 +687,13 @@ sessionCloseNotification(UA_Server *server, UA_ApplicationNotificationType type,
             while(ar->session != closingSession)
                 ar = TAILQ_NEXT(ar, pointers);
             UA_Server_run_iterate(server, false);
-            /* Inline delivery still owns ar even if its queued callback ran. */
+            /* Recursive iteration must not run Session cleanup beneath us. */
             UA_AsyncResponse *cached;
             for(cached = server->asyncManager.freeResponses; cached;
                 cached = TAILQ_NEXT(cached, pointers))
                 ck_assert_ptr_ne(cached, ar);
             ck_assert_ptr_eq(ar->session, closingSession);
+            ck_assert_uint_eq(closingCleanups, 0);
         }
     } else if(type == UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED) {
         ck_assert_uint_eq(closingEnds, 2);
@@ -698,9 +722,9 @@ closeSessionFromDelayedCallback(void *application, void *context) {
     unlockServer(server);
 }
 
-/* Pending and already-ready responses, including an expired Session and
- * reentrant completion/iteration. Also close from the same delayed-callback
- * batch as the ready response, so it cannot be removed from the pending queue. */
+/* Pending and already-ready responses, including an expired Session, early or
+ * late completion and reentrant iteration. Also close from the same delayed
+ * batch as the ready response. All deliveries must precede Session cleanup. */
 START_TEST(session_close_finishes_services) {
     UA_Server *server = UA_Server_newForUnitTest();
     UA_NodeId id = UA_NODEID_NUMERIC(1, 60002);
@@ -746,41 +770,56 @@ START_TEST(session_close_finishes_services) {
         close.context = closingSession;
         server->config.eventLoop->addDelayedCallback(server->config.eventLoop, &close);
     }
-    if(ready)
+    queuedResponseCallback = NULL;
+    if(ready) {
         ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[0]), UA_STATUSCODE_GOOD);
+        queuedResponseCallback = TAILQ_FIRST(&server->asyncManager.responses)->dc.callback;
+    }
     if(_i & 2)
         closingSession->validTill = 0;
     completeDuringClose = (_i & 4) != 0;
     iterateDuringClose = (_i & 8) != 0;
-    closingEnds = closingCancels = closingNotifications = 0;
+    closingEnds = closingCancels = closingNotifications = closingCleanups = 0;
     server->config.globalNotificationCallback = sessionCloseNotification;
     server->config.asyncOperationCancelCallback = sessionCloseCancellation;
+    closingAccessControl = server->config.accessControl.closeSession;
+    server->config.accessControl.closeSession = sessionCloseCleanup;
     if(_i & 16)
         UA_Server_run_iterate(server, false);
     else
         UA_Session_remove(server, closingSession, (_i & 2) ?
                            UA_SHUTDOWNREASON_TIMEOUT : UA_SHUTDOWNREASON_CLOSE);
-    ck_assert_uint_eq(closingEnds, 2);
-    ck_assert_uint_eq(closingNotifications, 1);
-    ck_assert_uint_eq(closingCancels, ready ? 1 : 2);
-    ck_assert_ptr_eq(channel.sessions, NULL);
-    if(!completeDuringClose) {
+    ck_assert_uint_eq(closingNotifications, 0);
+    ck_assert_uint_eq(closingCleanups, 0);
+    if(!(_i & 16)) {
+        ck_assert_uint_eq(closingEnds, 0);
+        ck_assert_uint_eq(closingCancels, 0);
+    }
+    if(_i & 32) {
         for(size_t i = ready ? 1 : 0; i < 2; i++)
             ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[i]), UA_STATUSCODE_GOOD);
     }
-    if(ready && !iterateDuringClose && !(_i & 16)) {
-        UA_AsyncResponse *ar = TAILQ_FIRST(&server->asyncManager.responses);
-        ck_assert_ptr_nonnull(ar);
-        ck_assert_ptr_null(ar->session);
-        ck_assert_uint_eq(ar->response.readResponse.resultsSize, 0);
-        ck_assert(ar->dc.callback); /* Queued cleanup, no second notification */
-    } else {
-        ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
+    UA_AsyncResponse *ar;
+    TAILQ_FOREACH(ar, &server->asyncManager.responses, pointers) {
+        ck_assert_ptr_eq(ar->session, closingSession);
+        ck_assert_uint_eq(ar->pendingResults, 0);
+        ck_assert(ar->dc.callback != NULL);
+        if(queuedResponseCallback)
+            ck_assert(ar->dc.callback == queuedResponseCallback);
     }
     unlockServer(server);
     UA_Server_run_iterate(server, false);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
     ck_assert_uint_eq(closingEnds, 2);
+    ck_assert_uint_eq(closingNotifications, 1);
+    ck_assert_uint_eq(closingCleanups, 1);
+    ck_assert_uint_eq(closingCancels, (_i & 32) ? 0 : (ready ? 1 : 2));
+    ck_assert_ptr_null(channel.sessions);
+    if(!completeDuringClose && !(_i & 32)) {
+        for(size_t i = ready ? 1 : 0; i < 2; i++)
+            ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[i]), UA_STATUSCODE_GOOD);
+    }
+    server->config.accessControl.closeSession = closingAccessControl;
     server->config.globalNotificationCallback = NULL;
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
@@ -788,6 +827,43 @@ START_TEST(session_close_finishes_services) {
 
 static UA_ReadValueId pooledRead;
 static size_t pooledResults, pooledCancels;
+
+static size_t finalSessionCleanups;
+
+static void
+countFinalSessionCleanup(UA_Server *server, UA_AccessControl *ac,
+                         const UA_NodeId *sessionId, void *sessionContext) {
+    finalSessionCleanups++;
+}
+
+/* Final Session notifications belong to server deletion, not the external loop. */
+START_TEST(external_loop_session_cleanup) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_EventLoop *el = server->config.eventLoop;
+    server->config.externalEventLoop = true;
+    el->logger = UA_Log_Stdout;
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    UA_Session *session = NULL;
+    lockServer(server);
+    ck_assert_uint_eq(UA_Session_create(server, NULL, &request, &session), UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    finalSessionCleanups = 0;
+    server->config.accessControl.closeSession = countFinalSessionCleanup;
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 100 && server->state != UA_LIFECYCLESTATE_STOPPED; i++)
+        UA_Server_run_iterate(server, false);
+    ck_assert_int_eq(server->state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(finalSessionCleanups, 1);
+
+    el->stop(el);
+    for(size_t i = 0; i < 100 && el->state != UA_EVENTLOOPSTATE_STOPPED; i++)
+        ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(el->state, UA_EVENTLOOPSTATE_STOPPED);
+    ck_assert_uint_eq(el->free(el), UA_STATUSCODE_GOOD);
+} END_TEST
 
 START_TEST(response_callback_pool) {
     UA_Server *server = UA_Server_newForUnitTest();
@@ -1015,7 +1091,7 @@ earlyCancellation(UA_Server *server, const void *operation) {
     ck_assert_ptr_ne(ar, NULL);
     ck_assert_uint_eq(ar->response.readResponse.resultsSize, 0);
     ck_assert_ptr_null(ar->session);
-    ck_assert(!ar->dc.callback);
+    ck_assert(ar->dc.callback != NULL);
 }
 
 static UA_StatusCode
@@ -1039,7 +1115,7 @@ completeEarlierRead(UA_Server *server, const UA_NodeId *sessionId, void *session
     UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
     ck_assert_ptr_ne(op, NULL);
     UA_AsyncResponse *ar = op->handling.response;
-    ck_assert(!ar->dc.callback);
+    ck_assert(ar->dc.callback == NULL);
     ck_assert_uint_eq(ar->response.readResponse.resultsSize, earlyRejection ? 3 : 2);
     ck_assert_uint_eq(op->resultIndex, 0);
     UA_DataValue *destination = &ar->response.readResponse.results[op->resultIndex];
@@ -1050,7 +1126,7 @@ completeEarlierRead(UA_Server *server, const UA_NodeId *sessionId, void *session
         server->config.maxAsyncOperationQueueSize = 0;
     }
     ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, earlyReadOutput), UA_STATUSCODE_GOOD);
-    ck_assert(!ar->dc.callback);
+    ck_assert(ar->dc.callback == NULL);
     ck_assert_uint_eq(ar->response.readResponse.resultsSize, earlyRejection ? 3 : 2);
     ck_assert_uint_eq(ar->pendingResults, 0);
     ck_assert(destination->hasValue);
@@ -1100,7 +1176,7 @@ START_TEST(completion_before_response_registration) {
     if(earlySecondAsync) {
         UA_AsyncResponse *ar = TAILQ_FIRST(&server->asyncManager.responses);
         ck_assert_ptr_ne(ar, NULL);
-        ck_assert(ar->dc.callback && ar->pendingResults > 0);
+        ck_assert(!ar->dc.callback && ar->pendingResults > 0);
         ck_assert_ptr_eq(ar->session, &server->adminSession);
         if(earlyRejection) {
             ck_assert(ar->response.readResponse.results[0].hasValue);
@@ -1127,7 +1203,7 @@ START_TEST(completion_before_response_registration) {
             ck_assert_uint_eq(response.results[1].status, UA_STATUSCODE_BADTOOMANYOPERATIONS);
             UA_AsyncResponse *ar = TAILQ_FIRST(&server->asyncManager.responses);
             ck_assert_ptr_ne(ar, NULL);
-            ck_assert(ar->dc.callback);
+            ck_assert(ar->dc.callback != NULL);
             ck_assert_ptr_eq(ar->response.readResponse.results, NULL);
             ck_assert_uint_eq(ar->response.readResponse.resultsSize, 0);
             ck_assert_ptr_null(ar->session);
@@ -1199,9 +1275,10 @@ int main(void) {
     tcase_add_loop_test(tc, tutorial_completion, 0, 5);
     tcase_add_loop_test(tc, shutdown_already_stopping, 0, 2);
     tcase_add_test(tc, session_close_releases_response);
-    tcase_add_loop_test(tc, session_close_finishes_services, 0, 32);
+    tcase_add_loop_test(tc, session_close_finishes_services, 0, 64);
     tcase_add_test(tc, response_callback_pool);
     tcase_add_test(tc, service_and_local_operation_pool);
+    tcase_add_test(tc, external_loop_session_cleanup);
     tcase_add_test(tc, dispatch_guards_and_pool_bound);
     tcase_add_test(tc, service_dispatch_notification);
     tcase_add_test(tc, service_notification_reentrancy);

@@ -89,12 +89,13 @@ typedef struct UA_AsyncOperation {
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
 
-    /* Armed after dispatch; queued once the response is ready. */
+    /* Queued once when ready; delivery recycles the response. Session cleanup
+     * is queued after its responses, keeping their context alive. */
     UA_DelayedCallback dc;
     UA_UInt64 responseToken;
     UA_UInt32 uacpRequestId; /* Zero for transports without a UACP RequestId */
     UA_DateTime timeout;
-    /* Session removal finishes responses before delayed Session cleanup.
+    /* Session removal queues responses before delayed Session cleanup.
      * NULL for records that only owe cancellation notifications. */
     struct UA_Session *session;
     UA_UInt32 pendingResults; /* Results still needed before the response is ready */
@@ -144,7 +145,7 @@ typedef struct {
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);
 
-/* Finalize service responses before detaching a closed Session. */
+/* Queue canceled service responses before the caller queues Session cleanup. */
 void
 UA_AsyncManager_cancelSession(UA_Server *server, struct UA_Session *session);
 

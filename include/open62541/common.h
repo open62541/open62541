@@ -299,13 +299,13 @@ typedef uint64_t UA_ApplicationNotificationType;
     ((0x04ULL << 32) | 0x04)
 
 /**
- * Processing of a service request or response. The server-side processing
- * of a request can be asynchronous. The existence of a yet-unfinished async
- * operation from the request is signaled with the _SERVICE_ASYNC enum. The
- * _SERVICE_END enum is signalled when the response is processed, even if it
- * cannot be sent. Session closure finishes outstanding async responses before
- * detaching the Session. After cancellation, setter calls only return result
- * storage; they do not emit another _SERVICE_END.
+ * Every _SERVICE_BEGIN is followed by exactly one _SERVICE_END, even when
+ * the request is canceled or its response cannot be sent. For asynchronous
+ * server-side processing, _SERVICE_ASYNC is emitted in between and _SERVICE_END
+ * is deferred until response handling.
+ *
+ * On session closure, outstanding requests emit _SERVICE_END before
+ * _SESSION_CLOSED and before the session context is released.
  *
  * 0:securechannel-id [UInt32]
  *    Identifier of the SecureChannel to which the Session is connected.
