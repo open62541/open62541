@@ -1063,6 +1063,8 @@ skipValueSubtree(ParsingCtx *ctx) {
 */
 static void
 skipUnknownItem(ParsingCtx* ctx) {
+    if(!ctx->result.tokens || ctx->index >= ctx->result.num_tokens)
+        return;
     cj5_skip(&ctx->result, &ctx->index); /* Field name -> value token */
     skipValueSubtree(ctx);               /* Value's children, if any */
 }
@@ -1117,12 +1119,26 @@ parseElementArray(ParsingCtx *ctx, const char *fieldName,
     if(tok.size == 0)
         return UA_STATUSCODE_GOOD; /* Keep NULL for an empty array */
 
+    unsigned int arrayIndex = ctx->index;
     void *elements = UA_calloc((size_t)tok.size, elemSize);
     if(!elements)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     size_t size = 0;
     for(size_t i = 0; i < (size_t)tok.size; i++) {
+        /* Every element parser walks tok.size/2 key-value pairs of an object.
+         * For a token that is not an object, size is the length of its text,
+         * so the walk would run into the tokens behind the array. */
+        if(ctx->index + 1 >= ctx->result.num_tokens ||
+           ctx->result.tokens[ctx->index + 1].type != CJ5_TOKEN_OBJECT) {
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                         "The elements of the config field '%s' must be "
+                         "JSON objects.", fieldName);
+            clearElementArray(elements, size, elemSize, clearElement);
+            ctx->index = arrayIndex;
+            skipValueSubtree(ctx);
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
         UA_StatusCode res =
             parseElement(ctx, arrayElement(elements, elemSize, i));
         if(res != UA_STATUSCODE_GOOD) {
