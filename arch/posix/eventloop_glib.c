@@ -267,7 +267,8 @@ checkClosedGLib(UA_EventLoopPOSIX *el) {
     }
 
     /* Not closed until all delayed callbacks are processed */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+    if(UA_atomic_load(&el->delayedHead1) != NULL &&
+       UA_atomic_load(&el->delayedHead2) != NULL)
         return;
 
     /* Detach and destroy the GSource. It is recreated the next time the
