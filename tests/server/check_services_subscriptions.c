@@ -223,7 +223,7 @@ createSubscription(void) {
 }
 
 static void
-createMonitoredItem(void) {
+createMonitoredItemForAttribute(UA_UInt32 attributeId) {
     UA_CreateMonitoredItemsRequest request;
     UA_CreateMonitoredItemsRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -233,7 +233,7 @@ createMonitoredItem(void) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.attributeId = attributeId;
     rvi.indexRange = UA_STRING_NULL;
     item.itemToMonitor = rvi;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
@@ -259,6 +259,11 @@ createMonitoredItem(void) {
 
     UA_MonitoredItemCreateRequest_clear(&item);
     UA_CreateMonitoredItemsResponse_clear(&response);
+}
+
+static void
+createMonitoredItem(void) {
+    createMonitoredItemForAttribute(UA_ATTRIBUTEID_BROWSENAME);
 }
 
 START_TEST(Server_createSubscription) {
@@ -2107,6 +2112,51 @@ START_TEST(Server_detachedSubscription_anonymousInsecureNotTransferable) {
     createSession();
 }END_TEST
 
+/* A detached Subscription keeps sampling its MonitoredItems without a Session.
+ * The attributes gated by RBAC must then be denied instead of dereferencing the
+ * missing Session. */
+START_TEST(Server_detachedSubscriptionSamplesWithoutSession) {
+    const UA_UInt32 attributeIds[] = {
+        UA_ATTRIBUTEID_BROWSENAME, UA_ATTRIBUTEID_DISPLAYNAME,
+#ifdef UA_ENABLE_RBAC
+        UA_ATTRIBUTEID_ROLEPERMISSIONS
+#endif
+    };
+    const size_t attributeIdsSize = sizeof(attributeIds) / sizeof(attributeIds[0]);
+    UA_UInt32 itemIds[3];
+
+    createSubscription();
+    for(size_t i = 0; i < attributeIdsSize; i++) {
+        createMonitoredItemForAttribute(attributeIds[i]);
+        itemIds[i] = monitoredItemId;
+    }
+
+    /* Force a session timeout. The Subscription survives detached. */
+    lockServer(server);
+    session->validTill = UA_DateTime_nowMonotonic() - UA_DATETIME_SEC;
+    cleanupSessions(server, UA_DateTime_nowMonotonic());
+    unlockServer(server);
+    session = NULL;
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_ptr_eq(sub->session, NULL);
+    for(size_t i = 0; i < attributeIdsSize; i++) {
+        UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, itemIds[i]);
+        ck_assert_ptr_ne(mon, NULL);
+        UA_MonitoredItem_sample(server, mon);
+        UA_Notification *notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+        ck_assert_ptr_ne(notification, NULL);
+        ck_assert(notification->data.dataChange.value.hasStatus);
+        ck_assert_uint_eq(notification->data.dataChange.value.status,
+                          UA_STATUSCODE_BADUSERACCESSDENIED);
+    }
+    unlockServer(server);
+
+    createSession();
+}END_TEST
+
 /* Companion to the previous test: a custom allowTransferSubscription hook is
  * consulted (with oldSessionId NULL) for a detached subscription after the
  * server has verified that the new session has the same user. */
@@ -2970,6 +3020,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_transferSubscription_keepsMonitoredItemsTree);
     tcase_add_test(tc_server, Server_deleteMonitoredItems_partial_keepsTreeConsistent);
     tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeoutTransferableToSameUser);
+    tcase_add_test(tc_server, Server_detachedSubscriptionSamplesWithoutSession);
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
     tcase_add_test(tc_server, Server_transferSubscription_statusChangeWithNextPublish);
     tcase_add_test(tc_server, Server_detachedSubscription_anonymousInsecureNotTransferable);

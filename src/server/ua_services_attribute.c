@@ -137,6 +137,11 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 static UA_StatusCode
 readRolePermissions(UA_Server *server, UA_Session *session,
                     const UA_Node *node, UA_DataValue *v) {
+    /* A detached Subscription samples without a Session. Without roles the
+     * effective permissions would fall back to allPermissionsForAnonymous. */
+    if(!session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Check if the user has ReadRolePermissions permission on this node */
     UA_UInt32 effectivePerms = 0;
     UA_StatusCode retval = UA_Server_getEffectivePermissions(
@@ -196,6 +201,10 @@ readRolePermissions(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 readUserRolePermissions(UA_Server *server, UA_Session *session,
                         const UA_Node *node, UA_DataValue *v) {
+    /* A detached Subscription samples without a Session */
+    if(!session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Return only the roles that the current session has been granted */
     size_t entriesSize = 0;
     UA_RolePermissionType *entries = NULL;
@@ -2552,6 +2561,24 @@ checkHistoryAccessRestrictions(UA_Server *server, const UA_Session *session,
 #endif
 }
 
+/* Release the scratch memory of the AccessRestrictions compaction.
+ * backendResults is NULL when its allocation failed and aliases
+ * response->results when nothing had to be compacted; UA_Array_delete does not
+ * take NULL. */
+static void
+freeHistoryReadScratch(void **historyData, UA_HistoryReadValueId *allowedNodes,
+                       size_t *allowedIndices,
+                       UA_HistoryReadResult *backendResults,
+                       const UA_HistoryReadResponse *response,
+                       size_t allowedSize) {
+    UA_free(historyData);
+    UA_free(allowedNodes);
+    UA_free(allowedIndices);
+    if(backendResults && backendResults != response->results)
+        UA_Array_delete(backendResults, allowedSize,
+                        &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+}
+
 UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const void *request_, void *response_) {
@@ -2666,12 +2693,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     }
     if(!historyData || (allowedSize != request->nodesToReadSize &&
        (!allowedNodes || !allowedIndices || !backendResults))) {
-        UA_free(historyData);
-        UA_free(allowedNodes);
-        UA_free(allowedIndices);
-        if(backendResults != response->results)
-            UA_Array_delete(backendResults, allowedSize,
-                            &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+        freeHistoryReadScratch(historyData, allowedNodes, allowedIndices,
+                               backendResults, response, allowedSize);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
     }
@@ -2695,12 +2718,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         j++;
     }
     if(j != allowedSize) {
-        UA_free(historyData);
-        UA_free(allowedNodes);
-        UA_free(allowedIndices);
-        if(backendResults != response->results)
-            UA_Array_delete(backendResults, allowedSize,
-                            &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+        freeHistoryReadScratch(historyData, allowedNodes, allowedIndices,
+                               backendResults, response, allowedSize);
         return true;
     }
 

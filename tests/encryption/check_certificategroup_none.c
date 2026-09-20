@@ -104,6 +104,14 @@ START_TEST(CertificateUtils_StubsAreSafeWithoutEncryption) {
 
     rv = UA_CertificateUtils_checkCA(&cert);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
+
+    UA_String subjectCriteria = UA_STRING("stale");
+    UA_String issuerCriteria = UA_STRING("stale");
+    rv = UA_CertificateUtils_getRoleSubjectCriteria(&cert, &subjectCriteria,
+                                                    &issuerCriteria);
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(subjectCriteria.length, 0);
+    ck_assert_uint_eq(issuerCriteria.length, 0);
 }
 END_TEST
 #endif

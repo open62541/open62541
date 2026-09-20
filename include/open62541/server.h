@@ -2199,6 +2199,35 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * creating the Server to make unconfigured Nodes deny by default. Explicitly
  * configured RolePermissions are enforced with either setting.
  *
+ * Identity Mapping Criteria
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * A Role is granted to a Session when one of its IdentityMappingRules matches
+ * (Part 18 §4.4.3). The format of the ``criteria`` string depends on the
+ * ``criteriaType``:
+ *
+ * - ``Anonymous``, ``AuthenticatedUser``, ``TrustedApplication``: empty.
+ * - ``UserName``: the user name of the UserNameIdentityToken.
+ * - ``Thumbprint``: the SHA1 thumbprint of the user Certificate as 40
+ *   hexadecimal digits. Configure it in upper case; the comparison ignores
+ *   case.
+ * - ``X509Subject``: the subject of the user Certificate as name-value pairs
+ *   separated by ``/``, each value in quotes, in the order CN, O, OU, DC, L,
+ *   S, C, dnQualifier, serialNumber (Part 18 §4.4.3 Table 10). For example
+ *   ``CN="Jörg Müller"/O="Müller GmbH"/C="DE"``. The value is UTF-8 and may
+ *   contain any character except the quote. The rule matches the subject of
+ *   the user Certificate or the subject of its issuer. The comparison is
+ *   byte-wise, so write the criteria in the same normalization as the
+ *   Certificate (normally NFC).
+ * - ``Application``: the ApplicationUri of the client, which is evaluated only
+ *   for a signed SecureChannel with an accepted client Certificate.
+ * - ``GroupId``: a group returned by the AccessControl ``getUserGroups`` hook.
+ * - ``Role``: a Role claim of an accepted IssuedIdentityToken, returned by the
+ *   AccessControl ``getUserTokenRoles`` hook.
+ *
+ * ``UA_CertificateUtils_getRoleSubjectCriteria`` derives the X509Subject
+ * criteria of a Certificate in exactly this format.
+ *
  * Type Definitions
  * ~~~~~~~~~~~~~~~~
  */
@@ -2262,9 +2291,23 @@ typedef struct {
     /* CustomConfiguration (Part 18 §4.4.1): when TRUE the configuration and
      * assignment of the Role is vendor-specific. A Role with an empty Identities
      * array is not assigned automatically and can be assigned through the
-     * session "roles" attribute. */
+     * session "roles" attribute (see below). */
     UA_Boolean customConfiguration;
 } UA_Role;
+
+/**
+ * Assigning Roles from the application
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Writing the "roles" Session attribute with UA_Server_setSessionAttribute (a
+ * NodeId array of Roles from the registry) replaces the Roles of that Session
+ * and switches it to the vendor-specific assignment of Part 18 §4.4.1. The
+ * Session then keeps those Roles when the RoleSet changes; only Roles that are
+ * removed from the registry are dropped from it.
+ *
+ * UA_Server_deleteSessionAttribute for the same key returns the Session to the
+ * automatic assignment and re-evaluates its identity mapping rules right away.
+ * A successful ActivateSession does the same. A Session that carries no
+ * identity snapshot ends up without Roles. */
 
 /* UA_Role Type Management */
 void UA_EXPORT

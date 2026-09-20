@@ -19,6 +19,7 @@
 
 #include "test_helpers.h"
 #include "thread_wrapper.h"
+#include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
 
 #include <check.h>
@@ -884,6 +885,278 @@ START_TEST(Client_disabledUser_cannotActivate) {
 }
 END_TEST
 
+/* Report whether the Session of the connected Client holds the Role. */
+static UA_Boolean
+sessionHasRole(UA_Client *client, const UA_NodeId *roleId) {
+    UA_Boolean hasRole = false;
+    lockServer(server);
+    UA_Session *session = getSessionById(server, &client->sessionId);
+    if(session) {
+        for(size_t i = 0; i < session->rolesSize; i++)
+            hasRole |= UA_NodeId_equal(&session->roles[i], roleId);
+    }
+    unlockServer(server);
+    return hasRole;
+}
+
+/* Copy the user name of the identity snapshot the Session currently carries. */
+static UA_String
+sessionIdentityUserName(UA_Client *client) {
+    UA_String userName = UA_STRING_NULL;
+    lockServer(server);
+    UA_Session *session = getSessionById(server, &client->sessionId);
+    if(session && session->hasIdentityContext)
+        UA_String_copy(&session->identityContext.userName, &userName);
+    unlockServer(server);
+    return userName;
+}
+
+/* A rejected re-activation must not leave the Session with the identity of the
+ * refused user. Otherwise the next re-evaluation of the RoleSet assigns that
+ * user's Roles to a Session that was never activated for it. */
+START_TEST(Client_rejectedReactivation_keepsPreviousIdentity) {
+    UA_NodeId productName =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "operator", "password"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client, productName, &value),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_Role operatorRole;
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "OperatorRole"),
+                                        &operatorRole), UA_STATUSCODE_GOOD);
+    UA_NodeId operatorRoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_NodeId_copy(&operatorRole.roleId, &operatorRoleId),
+                      UA_STATUSCODE_GOOD);
+    UA_Role_clear(&operatorRole);
+    ck_assert(sessionHasRole(client, &operatorRoleId));
+
+    /* The Endpoint composes a unique PolicyId per SecurityMode and
+     * SecurityPolicy, so take the one the Client itself selected. */
+    UA_String userNamePolicyId = UA_STRING_NULL;
+    for(size_t i = 0; i < client->endpoint.userIdentityTokensSize; i++) {
+        if(client->endpoint.userIdentityTokens[i].tokenType ==
+           UA_USERTOKENTYPE_USERNAME) {
+            userNamePolicyId = client->endpoint.userIdentityTokens[i].policyId;
+            break;
+        }
+    }
+    ck_assert(userNamePolicyId.length > 0);
+
+    /* Re-activate the very same Session as the disabled user. The server does
+     * not support changing the user of an activated Session and refuses the
+     * request before the AccessControl plugin is asked. The request is built
+     * by hand: UA_Client_activateCurrentSession tears the Client-side Session
+     * down on any error, which would end the test early. */
+    UA_ActivateSessionRequest req;
+    UA_ActivateSessionRequest_init(&req);
+    UA_UserNameIdentityToken token;
+    UA_UserNameIdentityToken_init(&token);
+    token.policyId = userNamePolicyId;
+    token.userName = UA_STRING("disabled");
+    token.password = UA_STRING("password");
+    UA_ExtensionObject_setValueNoDelete(&req.userIdentityToken, &token,
+                                        &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    UA_ActivateSessionResponse resp;
+    UA_ActivateSessionResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
+    UA_ActivateSessionResponse_clear(&resp);
+
+    /* The Session kept the identity and the Roles of the previous activation */
+    UA_String userName = sessionIdentityUserName(client);
+    UA_String expected = UA_STRING("operator");
+    ck_assert_msg(UA_String_equal(&userName, &expected),
+                  "The rejected identity was stored on the Session");
+    UA_String_clear(&userName);
+    ck_assert(sessionHasRole(client, &operatorRoleId));
+
+    /* Adding a Role re-evaluates every active Session from its snapshot */
+    UA_Role unrelated;
+    UA_Role_init(&unrelated);
+    unrelated.roleName = UA_QUALIFIEDNAME(1, "ReactivationRole");
+    UA_NodeId unrelatedId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &unrelated, &unrelatedId),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_msg(sessionHasRole(client, &operatorRoleId),
+                  "Re-evaluation dropped the Roles of the activated user");
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client, productName, &value),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_NodeId_clear(&operatorRoleId);
+    UA_NodeId_clear(&unrelatedId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* An empty (null) UserIdentityToken is an anonymous login (Part 4 §5.7.3). The
+ * Session must get the Anonymous Role only, not AuthenticatedUser. */
+START_TEST(Client_nullToken_isAnonymousForRoles) {
+    UA_NodeId anonymousRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_NodeId authenticatedRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(sessionHasRole(client, &anonymousRole));
+    ck_assert(!sessionHasRole(client, &authenticatedRole));
+
+    /* Re-activate with a default-initialized (ENCODED_NOBODY) token */
+    UA_ActivateSessionRequest req;
+    UA_ActivateSessionRequest_init(&req);
+    UA_ActivateSessionResponse resp;
+    UA_ActivateSessionResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ActivateSessionResponse_clear(&resp);
+
+    ck_assert(sessionHasRole(client, &anonymousRole));
+    ck_assert_msg(!sessionHasRole(client, &authenticatedRole),
+                  "A null token was evaluated as an authenticated user");
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* Copy the Roles of the Session of the connected Client. */
+static size_t
+sessionRoles(UA_Client *client, UA_NodeId **outRoles) {
+    size_t rolesSize = 0;
+    *outRoles = NULL;
+    lockServer(server);
+    UA_Session *session = getSessionById(server, &client->sessionId);
+    if(session && session->rolesSize > 0 &&
+       UA_Array_copy(session->roles, session->rolesSize, (void**)outRoles,
+                     &UA_TYPES[UA_TYPES_NODEID]) == UA_STATUSCODE_GOOD)
+        rolesSize = session->rolesSize;
+    unlockServer(server);
+    return rolesSize;
+}
+
+static UA_Boolean
+containsRole(const UA_NodeId *roles, size_t rolesSize, const UA_NodeId *roleId) {
+    for(size_t i = 0; i < rolesSize; i++) {
+        if(UA_NodeId_equal(&roles[i], roleId))
+            return true;
+    }
+    return false;
+}
+
+/* Roles assigned by the application through the "roles" Session attribute are
+ * vendor-specific (Part 18 §4.4.1). A change of the RoleSet must not silently
+ * replace them with the result of the identity mapping rules. */
+START_TEST(Client_manualRoles_surviveRoleSetChanges) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                                "operator", "password"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Role operatorRole;
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "OperatorRole"),
+                                        &operatorRole), UA_STATUSCODE_GOOD);
+    UA_NodeId operatorRoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_NodeId_copy(&operatorRole.roleId, &operatorRoleId),
+                      UA_STATUSCODE_GOOD);
+    UA_Role_clear(&operatorRole);
+
+    /* A Role without identity mapping rules: only an explicit assignment can
+     * grant it. */
+    UA_Role manual;
+    UA_Role_init(&manual);
+    manual.roleName = UA_QUALIFIEDNAME(1, "TempManualRole");
+    manual.customConfiguration = true;
+    UA_NodeId manualId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &manual, &manualId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId observerId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    UA_NodeId assigned[2] = {observerId, manualId};
+    UA_Variant v;
+    UA_Variant_setArray(&v, assigned, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &client->sessionId,
+                                                    UA_QUALIFIEDNAME(0, "roles"), &v),
+                      UA_STATUSCODE_GOOD);
+
+    /* Adding an unrelated Role re-evaluates the other Sessions */
+    UA_Role unrelated;
+    UA_Role_init(&unrelated);
+    unrelated.roleName = UA_QUALIFIEDNAME(1, "ManualProbeRole");
+    UA_NodeId unrelatedId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &unrelated, &unrelatedId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId *roles = NULL;
+    size_t rolesSize = sessionRoles(client, &roles);
+    ck_assert_msg(rolesSize == 2, "Re-evaluation replaced the assigned Roles");
+    ck_assert(containsRole(roles, rolesSize, &observerId));
+    ck_assert(containsRole(roles, rolesSize, &manualId));
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* A Role that is removed from the registry is dropped even there */
+    ck_assert_uint_eq(UA_Server_removeRole(server, UA_QUALIFIEDNAME(1, "TempManualRole")),
+                      UA_STATUSCODE_GOOD);
+    rolesSize = sessionRoles(client, &roles);
+    ck_assert_uint_eq(rolesSize, 1);
+    ck_assert(containsRole(roles, rolesSize, &observerId));
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* An explicitly empty assignment is kept as well */
+    UA_Variant empty;
+    UA_Variant_init(&empty);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &client->sessionId,
+                                                    UA_QUALIFIEDNAME(0, "roles"), &empty),
+                      UA_STATUSCODE_GOOD);
+    UA_Role unrelated2;
+    UA_Role_init(&unrelated2);
+    unrelated2.roleName = UA_QUALIFIEDNAME(1, "ManualProbeRole2");
+    UA_NodeId unrelated2Id = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &unrelated2, &unrelated2Id),
+                      UA_STATUSCODE_GOOD);
+    rolesSize = sessionRoles(client, &roles);
+    ck_assert_uint_eq(rolesSize, 0);
+
+    /* Deleting the attribute returns to the automatic assignment */
+    ck_assert_uint_eq(UA_Server_deleteSessionAttribute(server, &client->sessionId,
+                                                       UA_QUALIFIEDNAME(0, "roles")),
+                      UA_STATUSCODE_GOOD);
+    rolesSize = sessionRoles(client, &roles);
+    ck_assert(containsRole(roles, rolesSize, &operatorRoleId));
+    ck_assert(!containsRole(roles, rolesSize, &observerId));
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME),
+        &value), UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&value);
+
+    UA_NodeId_clear(&operatorRoleId);
+    UA_NodeId_clear(&manualId);
+    UA_NodeId_clear(&unrelatedId);
+    UA_NodeId_clear(&unrelated2Id);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* The Access Token Role provider is reserved for IssuedIdentityTokens. The
  * hook is installed for the whole fixture, so reaching this point without it
  * having fired covers every user name login the suite performed before it, in
@@ -916,6 +1189,9 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_mustChangePassword_activatesWithAnonymousOnly);
     tcase_add_test(tc, Client_mustChangePassword_staysAnonymousAfterRoleChange);
     tcase_add_test(tc, Client_disabledUser_cannotActivate);
+    tcase_add_test(tc, Client_rejectedReactivation_keepsPreviousIdentity);
+    tcase_add_test(tc, Client_nullToken_isAnonymousForRoles);
+    tcase_add_test(tc, Client_manualRoles_surviveRoleSetChanges);
     tcase_add_test(tc, Client_tokenRoles_notQueriedForNonIssuedTokens);
 #ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc, Client_roleSetMethod_denied);

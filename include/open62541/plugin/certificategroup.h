@@ -86,8 +86,16 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName);
 
-/* Build the canonical X.509 subject and issuer strings used by the Part 18
- * X509Subject identity criterion. Both output strings are newly allocated. */
+/* Build the X.509 subject and issuer strings used by the Part 18 X509Subject
+ * identity criterion (§4.4.3): name-value pairs separated by '/', each value
+ * in quotes, in the order CN, O, OU, DC, L, S, C, dnQualifier, serialNumber.
+ * Attributes that occur more than once keep the order of the certificate. For
+ * example: CN="Jörg Müller"/O="Müller GmbH"/C="DE".
+ *
+ * The values are UTF-8. An attribute is left out when it is empty, contains a
+ * control character or the quote that delimits the value, or uses an ASN.1
+ * string type that cannot be converted. Both output strings are newly
+ * allocated. */
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
                                            UA_String *subjectCriteria,

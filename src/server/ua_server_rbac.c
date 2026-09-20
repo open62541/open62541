@@ -8,6 +8,8 @@
 #include "ua_server_internal.h"
 #include "ua_server_rbac.h"
 
+#include "utf8.h"
+
 #ifdef UA_ENABLE_RBAC
 
 /* RBAC implementation. Permission configurations are deduplicated internally;
@@ -65,8 +67,12 @@
  *   (UA_Server_addRole / UA_Server_removeRole) or the RoleSet AddRole /
  *   RemoveRole Methods - are mirrored as Role Objects under
  *   Server/ServerCapabilities/RoleSet, so they are visible to browsing
- *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
- *   during NS0 setup are left untouched.
+ *   clients (Part 18 §4.2.2, §4.2.3, §4.3). An existing Node with the
+ *   requested roleId is adopted as the Role Object only if it is an Object of
+ *   RoleType (or a subtype), such as the well-known Roles created during NS0
+ *   setup or a Role Object from a custom nodeset; its Properties and Methods
+ *   are then backed by the registry. For any other Node addRole fails with
+ *   Bad_NodeIdExists, since removeRole deletes the Role Object.
  *
  * - A RoleMappingRuleChangedAuditEventType is emitted from UA_Server_addRole,
  *   UA_Server_removeRole and UA_Server_updateRole (the choke points for
@@ -80,6 +86,9 @@
  *   FALSE cannot be granted to any Session. For CustomConfiguration == TRUE the
  *   spec leaves the assignment vendor-specific. Roles without standard identity
  *   rules are therefore assigned only through the session "roles" attribute.
+ *   Writing that attribute pins the Roles of the Session: it is not
+ *   re-evaluated when the RoleSet changes (removed Roles are still dropped)
+ *   until the attribute is deleted or the Session is activated again.
  *
  * - The role registry, the RolePermission presets and allPermissionsForAnonymous
  *   can be set from a JSON server configuration under the "rbac" key (see
@@ -777,9 +786,15 @@ isCanonicalX509Criteria(const UA_String *value) {
         pos += 2;
         size_t contentStart = pos;
         while(pos < value->length && value->data[pos] != '"') {
-            if(value->data[pos] < 0x20 || value->data[pos] > 0x7e)
+            /* The value is UTF-8 and may contain any character except the
+             * delimiting quote (Part 18 4.4.3). Control characters are still
+             * rejected: they cannot appear in a certificate subject. */
+            unsigned codepoint = 0;
+            unsigned len = utf8_to_codepoint(&value->data[pos],
+                                             value->length - pos, &codepoint);
+            if(len == 0 || codepoint < 0x20 || codepoint == 0x7f)
                 return false;
-            pos++;
+            pos += len;
         }
         if(pos == contentStart || pos >= value->length)
             return false;
@@ -792,35 +807,61 @@ isCanonicalX509Criteria(const UA_String *value) {
     return false;
 }
 
+static const char *
+identityCriteriaTypeName(UA_IdentityCriteriaType criteriaType) {
+    switch(criteriaType) {
+    case UA_IDENTITYCRITERIATYPE_USERNAME:           return "UserName";
+    case UA_IDENTITYCRITERIATYPE_THUMBPRINT:         return "Thumbprint";
+    case UA_IDENTITYCRITERIATYPE_ROLE:               return "Role";
+    case UA_IDENTITYCRITERIATYPE_GROUPID:            return "GroupId";
+    case UA_IDENTITYCRITERIATYPE_ANONYMOUS:          return "Anonymous";
+    case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:  return "AuthenticatedUser";
+    case UA_IDENTITYCRITERIATYPE_APPLICATION:        return "Application";
+    case UA_IDENTITYCRITERIATYPE_X509SUBJECT:        return "X509Subject";
+    case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION: return "TrustedApplication";
+    default:                                         return "unknown";
+    }
+}
+
 /* Validate the content of a Role. The roleName is not checked here: addRole
- * requires one, but updateRole accepts a Role identified by roleId alone. */
+ * requires one, but updateRole accepts a Role identified by roleId alone.
+ * An invalid identity mapping rule is logged: the criteria formats are
+ * unforgiving (Part 18 4.4.3) and the StatusCode alone does not say which rule
+ * of which Role the Server refused. */
 static UA_StatusCode
-validateRole(const UA_Role *role) {
+validateRole(UA_Server *server, const UA_Role *role) {
     for(size_t i = 0; i < role->identityMappingRulesSize; i++) {
         const UA_IdentityMappingRuleType *rule = &role->identityMappingRules[i];
+        UA_Boolean valid = true;
         switch(rule->criteriaType) {
         case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
         case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
         case UA_IDENTITYCRITERIATYPE_TRUSTEDAPPLICATION:
-            if(rule->criteria.length != 0)
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            valid = (rule->criteria.length == 0);
             break;
         case UA_IDENTITYCRITERIATYPE_USERNAME:
         case UA_IDENTITYCRITERIATYPE_ROLE:
         case UA_IDENTITYCRITERIATYPE_GROUPID:
         case UA_IDENTITYCRITERIATYPE_APPLICATION:
-            if(rule->criteria.length == 0)
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            valid = (rule->criteria.length > 0);
             break;
         case UA_IDENTITYCRITERIATYPE_THUMBPRINT:
-            if(!isUpperHexString(&rule->criteria))
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            valid = isUpperHexString(&rule->criteria);
             break;
         case UA_IDENTITYCRITERIATYPE_X509SUBJECT:
-            if(!isCanonicalX509Criteria(&rule->criteria))
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            valid = isCanonicalX509Criteria(&rule->criteria);
             break;
         default:
+            valid = false;
+            break;
+        }
+        if(!valid) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "RBAC: Role '%S': identity mapping rule %u of type %s "
+                           "has the invalid criteria \"%S\"",
+                           role->roleName.name, (unsigned)i,
+                           identityCriteriaTypeName(rule->criteriaType),
+                           rule->criteria);
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
     }
@@ -890,7 +931,7 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         UA_Boolean wellKnown) {
     if(!server || !role || role->roleName.name.length == 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_StatusCode validation = validateRole(role);
+    UA_StatusCode validation = validateRole(server, role);
     if(validation != UA_STATUSCODE_GOOD)
         return validation;
 
@@ -944,9 +985,19 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         return res;
     }
 
-    /* Auto-assign a numeric roleId if the caller passed a null NodeId */
-    if(UA_NodeId_isNull(&newRole->roleId))
-        newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
+    /* Auto-assign a numeric roleId if the caller passed a null NodeId. Skip
+     * identifiers that are already taken, in the registry or in the
+     * AddressSpace, so that the generated Role Object never collides. */
+    if(UA_NodeId_isNull(&newRole->roleId)) {
+        for(size_t attempt = 0; attempt < 32; attempt++) {
+            newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
+            if(findRoleById(server, &newRole->roleId))
+                continue;
+            if(checkRoleRepresentation(server, &newRole->roleId) ==
+               UA_STATUSCODE_BADNODEIDUNKNOWN)
+                break;
+        }
+    }
 
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
@@ -955,26 +1006,32 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
-     * browseable. Skipped when the Role Object already exists, which is the
-     * case for the well-known roles. The RoleSet itself is created by
-     * initNS0RBAC before any role is registered. On failure the appended
-     * registry entry is rolled back. */
+     * browseable. An existing Role Object is adopted instead - that is the case
+     * for the well-known roles of Namespace Zero and for a Role Object that a
+     * custom nodeset brought along. A Node that is not a Role Object is never
+     * adopted: removeRole would delete it with all its references. The RoleSet
+     * itself is created by initNS0RBAC before any role is registered. On
+     * failure the appended registry entry is rolled back. */
     UA_NodeId roleSetId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
     UA_QualifiedName probe;
     if(UA_Server_readBrowseName(server, roleSetId, &probe) == UA_STATUSCODE_GOOD) {
         UA_QualifiedName_clear(&probe);
-        if(UA_Server_readBrowseName(server, newRole->roleId, &probe) ==
-           UA_STATUSCODE_GOOD) {
-            UA_QualifiedName_clear(&probe); /* node already exists -> keep it */
-        } else {
+        UA_StatusCode existing = checkRoleRepresentation(server, &newRole->roleId);
+        if(existing == UA_STATUSCODE_BADNODEIDUNKNOWN) {
             res = addRoleRepresentation(server, newRole);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_Role_clear(newRole);
-                server->rolesSize--;
-                unlockServer(server);
-                return res;
-            }
+        } else if(existing == UA_STATUSCODE_GOOD) {
+            /* initNS0RBAC has already bound the well-known Role Objects */
+            res = (wellKnown) ? UA_STATUSCODE_GOOD :
+                bindRoleRepresentation(server, &newRole->roleId, true);
+        } else {
+            res = existing; /* BADNODEIDEXISTS */
+        }
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Role_clear(newRole);
+            server->rolesSize--;
+            unlockServer(server);
+            return res;
         }
     }
 
@@ -1435,7 +1492,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     if(!server || !role)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_StatusCode validation = validateRole(role);
+    UA_StatusCode validation = validateRole(server, role);
     if(validation != UA_STATUSCODE_GOOD)
         return validation;
 
@@ -1600,7 +1657,8 @@ checkRBACMethodAccess(UA_Server *server, const UA_NodeId *sessionId) {
 }
 
 /* Set roles on a session. Validates all role IDs against the server registry.
- * Must be called with the server lock held. */
+ * Must be called with the server lock held. The new set is prepared before the
+ * old one is released, so a failure leaves the Session with the Roles it had. */
 UA_StatusCode
 UA_Session_setRoles(UA_Server *server, UA_Session *session,
                     const UA_NodeId *roleIds, size_t rolesSize) {
@@ -1609,18 +1667,17 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
-    session->roles = NULL;
-    session->rolesSize = 0;
-
+    UA_NodeId *copy = NULL;
     if(rolesSize > 0) {
-        UA_StatusCode res = UA_Array_copy(roleIds, rolesSize,
-                                          (void**)&session->roles,
+        UA_StatusCode res = UA_Array_copy(roleIds, rolesSize, (void**)&copy,
                                           &UA_TYPES[UA_TYPES_NODEID]);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-        session->rolesSize = rolesSize;
     }
+
+    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    session->roles = copy;
+    session->rolesSize = rolesSize;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1920,12 +1977,49 @@ sessionRolesEqual(const UA_Session *session,
     return true;
 }
 
+/* Drop the Roles of a Session that are no longer in the registry. Used for
+ * Sessions whose Roles were assigned by the application: they are not
+ * re-evaluated, but a removed Role must not survive on them either.
+ * Returns whether the Role set of the Session changed. */
+static UA_Boolean
+pruneUnknownRoles(UA_Server *server, UA_Session *session) {
+    size_t kept = 0;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        if(!findRoleById(server, &session->roles[i])) {
+            UA_NodeId_clear(&session->roles[i]);
+            continue;
+        }
+        if(kept != i)
+            session->roles[kept] = session->roles[i];
+        kept++;
+    }
+    UA_Boolean changed = (kept != session->rolesSize);
+    session->rolesSize = kept;
+    if(kept == 0) {
+        UA_free(session->roles);
+        session->roles = NULL;
+    }
+    return changed;
+}
+
 void
 UA_Server_reevaluateSessionRoles(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     session_list_entry *entry;
     LIST_FOREACH(entry, &server->sessions, pointers) {
         UA_Session *session = &entry->session;
+        /* The application assigned these Roles. Keep them, but drop the ones
+         * that were just removed from the registry. */
+        if(session->rolesAssignedManually) {
+            UA_Boolean pruned = pruneUnknownRoles(server, session);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            if(pruned)
+                UA_Session_invalidateRoleNotifications(server, session);
+#else
+            (void)pruned;
+#endif
+            continue;
+        }
         if(!session->hasIdentityContext)
             continue;
         if(session->passwordChangeRequired)
@@ -1942,6 +2036,8 @@ UA_Server_reevaluateSessionRoles(UA_Server *server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
             if(changed)
                 UA_Session_invalidateRoleNotifications(server, session);
+#else
+            (void)changed;
 #endif
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "RBAC: Could not re-evaluate roles; cleared "
@@ -1963,6 +2059,8 @@ UA_Server_reevaluateSessionRoles(UA_Server *server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         if(changed)
             UA_Session_invalidateRoleNotifications(server, session);
+#else
+        (void)changed;
 #endif
         UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
     }
