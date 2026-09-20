@@ -40,6 +40,34 @@ typedef struct UA_PublishResponseEntry {
 } UA_PublishResponseEntry;
 #endif
 
+#ifdef UA_ENABLE_RBAC
+/* Snapshot of the identity and connection characteristics of a Session used for
+ * RBAC role resolution (OPC UA Part 18 §4.4). Captured at ActivateSession and
+ * retained on the Session so that the assigned Roles can be re-evaluated when
+ * the RoleSet changes. The derived certificate fields (thumbprint, subject,
+ * applicationUri) are precomputed so re-evaluation needs no certificate access.
+ * All owned fields are released by UA_SessionIdentityContext_clear. */
+typedef struct {
+    UA_Boolean isAnonymous;
+    UA_Boolean trustedApplication;
+    UA_String userName;              /* UserName identity criterion */
+    UA_String userThumbprint;        /* hex thumbprint of the X509 user certificate */
+    UA_String userSubject;           /* canonical Part 18 certificate subject */
+    UA_String userIssuer;            /* canonical Part 18 certificate issuer */
+    UA_String applicationUri;        /* connecting application's ApplicationUri */
+    UA_String endpointUrl;           /* Endpoint the Session connected through */
+    UA_MessageSecurityMode endpointSecurityMode;
+    UA_String securityPolicyUri;
+    UA_String transportProfileUri;
+    size_t groupsSize;               /* GroupIds from AccessControl.getUserGroups */
+    UA_String *groups;
+    size_t tokenRolesSize;           /* Validated IssuedIdentityToken Role claims */
+    UA_String *tokenRoles;
+} UA_SessionIdentityContext;
+
+void UA_SessionIdentityContext_clear(UA_SessionIdentityContext *ctx);
+#endif
+
 struct UA_Session {
     UA_Session *next; /* singly-linked list */
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
@@ -112,6 +140,19 @@ struct UA_Session {
      * Populated by the activateSession callback. */
     size_t rolesSize;
     UA_NodeId *roles;
+
+    /* Identity snapshot captured at ActivateSession, used to re-evaluate the
+     * assigned Roles when the RoleSet changes (Part 18 §4.4.1). */
+    UA_SessionIdentityContext identityContext;
+    UA_Boolean hasIdentityContext;
+    UA_Boolean passwordChangeRequired;
+
+    /* Set when the application assigned the Roles through the "roles" Session
+     * attribute (also for an empty array). Such a Session is not re-evaluated
+     * when the RoleSet changes; only Roles that were removed from the registry
+     * are pruned. Reset by a successful ActivateSession and by deleting the
+     * attribute. */
+    UA_Boolean rolesAssignedManually;
 #endif
 };
 

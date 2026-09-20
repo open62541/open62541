@@ -113,6 +113,64 @@ struct UA_AccessControl {
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeId, void *nodeContext);
 
+#ifdef UA_ENABLE_RBAC
+    /* Return the GroupIds the session's user belongs to, used for the GroupId
+     * identity mapping criterion (OPC UA Part 18 §4.4.2). Optional; may be NULL,
+     * in which case GroupId criteria never match. The groups are captured at
+     * ActivateSession. On success the callback allocates *groupIds (e.g. with
+     * UA_Array_new of UA_String) and ownership is transferred to the caller. */
+    UA_StatusCode (*getUserGroups)(UA_Server *server, UA_AccessControl *ac,
+                                   const UA_NodeId *sessionId, void *sessionContext,
+                                   UA_String **groupIds, size_t *groupIdsSize);
+
+    /* Return validated Role claims from an IssuedIdentityToken for the Role
+     * identity mapping criterion (OPC UA Part 18 section 4.4.2). Optional; the
+     * server calls this only after activateSession has accepted an issued
+     * token. For JWT, values use "<iss>/<role>" when an issuer exists and
+     * "<role>" otherwise. On success ownership of the allocated array and its
+     * strings is transferred to the caller. */
+    UA_StatusCode (*getUserTokenRoles)(UA_Server *server, UA_AccessControl *ac,
+                                       const UA_NodeId *sessionId,
+                                       void *sessionContext,
+                                       UA_String **roleClaims,
+                                       size_t *roleClaimsSize);
+
+    /* Optional Part 18 UserManagement provider. The core exposes the
+     * UserManagement Object only when all mutation callbacks are configured.
+     * Provider implementations own password hashing, persistence and rate
+     * limiting. Returned Users arrays transfer ownership to the core. */
+    UA_StatusCode (*getUsers)(UA_Server *server, UA_AccessControl *ac,
+                              UA_UserManagementDataType **users,
+                              size_t *usersSize);
+    UA_StatusCode (*getPasswordPolicy)(UA_Server *server, UA_AccessControl *ac,
+                                       UA_Range *passwordLength,
+                                       UA_PasswordOptionsMask *passwordOptions,
+                                       UA_LocalizedText *passwordRestrictions);
+    UA_StatusCode (*getUserConfiguration)(UA_Server *server,
+                                          UA_AccessControl *ac,
+                                          const UA_String *userName,
+                                          UA_UserConfigurationMask *configuration);
+    UA_StatusCode (*addUser)(UA_Server *server, UA_AccessControl *ac,
+                             const UA_String *userName,
+                             const UA_String *password,
+                             UA_UserConfigurationMask configuration,
+                             const UA_String *description);
+    UA_StatusCode (*modifyUser)(UA_Server *server, UA_AccessControl *ac,
+                                const UA_String *userName,
+                                UA_Boolean modifyPassword,
+                                const UA_String *password,
+                                UA_Boolean modifyConfiguration,
+                                UA_UserConfigurationMask configuration,
+                                UA_Boolean modifyDescription,
+                                const UA_String *description);
+    UA_StatusCode (*removeUser)(UA_Server *server, UA_AccessControl *ac,
+                                const UA_String *userName);
+    UA_StatusCode (*changePassword)(UA_Server *server, UA_AccessControl *ac,
+                                    const UA_String *userName,
+                                    const UA_String *oldPassword,
+                                    const UA_String *newPassword);
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Allow creating a subscription */
     UA_Boolean (*allowCreateSubscription)(UA_Server *server, UA_AccessControl *ac,

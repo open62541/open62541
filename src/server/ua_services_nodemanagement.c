@@ -1373,6 +1373,15 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     if(retval != UA_STATUSCODE_GOOD)
         goto create_error;
 
+#ifdef UA_ENABLE_RBAC
+    /* The new Node already has its final NamespaceIndex and therefore its
+     * effective namespace-default AccessRestrictions. Enforce them before the
+     * AddNodes operation makes the Node visible. */
+    retval = checkNodeAccessRestrictions(server, session, node, false);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto create_error;
+#endif
+
     /* Create a current source timestamp for values that don't have any */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
         UA_VariableNode *vn = &node->variableNode;
@@ -2404,6 +2413,14 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         return;
     }
 
+#ifdef UA_ENABLE_RBAC
+    *result = checkNodeAccessRestrictions(server, session, node, false);
+    if(*result != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(server, node);
+        return;
+    }
+#endif
+
     if(UA_Node_hasSubTypeOrInstances(&node->head)) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "DeleteNode (%N): Cannot delete a type node with "
@@ -2556,6 +2573,33 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
             return;
         }
     }
+
+
+#ifdef UA_ENABLE_RBAC
+    /* Adding a local reference modifies both endpoint Nodes. Preflight both
+     * before either direction is changed so an insufficient channel cannot
+     * leave a one-sided reference behind. */
+    const UA_Node *restrictedNode =
+        UA_NODESTORE_GET(server, &item->sourceNodeId);
+    if(restrictedNode) {
+        *retval = checkNodeAccessRestrictions(server, session,
+                                              restrictedNode, false);
+        UA_NODESTORE_RELEASE(server, restrictedNode);
+        if(*retval != UA_STATUSCODE_GOOD)
+            return;
+    }
+    if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        restrictedNode =
+            UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
+        if(restrictedNode) {
+            *retval = checkNodeAccessRestrictions(server, session,
+                                                  restrictedNode, false);
+            UA_NODESTORE_RELEASE(server, restrictedNode);
+            if(*retval != UA_STATUSCODE_GOOD)
+                return;
+        }
+    }
+#endif
 
     /* TODO: Currently no expandednodeids are allowed */
     if(item->targetServerUri.length > 0) {
@@ -2773,6 +2817,31 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
             return;
         }
     }
+
+
+#ifdef UA_ENABLE_RBAC
+    /* Preflight both local endpoints before removing either direction. */
+    const UA_Node *restrictedNode =
+        UA_NODESTORE_GET(server, &item->sourceNodeId);
+    if(restrictedNode) {
+        *retval = checkNodeAccessRestrictions(server, session,
+                                              restrictedNode, false);
+        UA_NODESTORE_RELEASE(server, restrictedNode);
+        if(*retval != UA_STATUSCODE_GOOD)
+            return;
+    }
+    if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        restrictedNode =
+            UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
+        if(restrictedNode) {
+            *retval = checkNodeAccessRestrictions(server, session,
+                                                  restrictedNode, false);
+            UA_NODESTORE_RELEASE(server, restrictedNode);
+            if(*retval != UA_STATUSCODE_GOOD)
+                return;
+        }
+    }
+#endif
 
     /* Check the ReferenceType and get the RefTypeIndex */
     const UA_Node *refType =

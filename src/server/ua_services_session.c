@@ -297,7 +297,9 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
      * ignore the value. */
     if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
         retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
-    retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = UA_ByteString_allocBuffer(&signatureData->signature,
+                                           signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -450,9 +452,11 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     ephKey.publicKey.data[0] = 'e';
     ephKey.publicKey.data[1] = 'p';
     ephKey.publicKey.data[2] = 'h';
-    res |= sp->generateNonce(sp, spContext, &ephKey.publicKey);
-    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey.publicKey,
-                                           &ephKey.signature);
+    res = sp->generateNonce(sp, spContext, &ephKey.publicKey);
+    if(res == UA_STATUSCODE_GOOD)
+        res = sp->asymSignatureAlgorithm.sign(sp, spContext,
+                                              &ephKey.publicKey,
+                                              &ephKey.signature);
 
     /* Add the EphemeralKey to the map (deep copy) */
     if(res == UA_STATUSCODE_GOOD)
@@ -964,6 +968,9 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                              const UA_UserTokenPolicy **utp,
                              UA_SecurityPolicy **tokenSp) {
     UA_ServerConfig *sc = &server->config;
+    const UA_EndpointDescription *match = NULL;
+    const UA_UserTokenPolicy *matchUtp = NULL;
+    UA_SecurityPolicy *matchTokenSp = NULL;
     for(size_t i = 0; i < sc->endpointsSize; ++i) {
         const UA_EndpointDescription *desc = &sc->endpoints[i];
 
@@ -982,14 +989,38 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             continue;
 
         /* Select the UserTokenPolicy from the Endpoint */
-        *utp = selectTokenPolicy(server, channel, session,
-                                 identityToken, desc, tokenSp);
-        if(*utp) {
-            /* Match found */
-            *ed = desc;
+        UA_SecurityPolicy *candidateTokenSp = NULL;
+        const UA_UserTokenPolicy *candidateUtp =
+            selectTokenPolicy(server, channel, session, identityToken,
+                              desc, &candidateTokenSp);
+        if(!candidateUtp)
+            continue;
+
+        if(!match) {
+            match = desc;
+            matchUtp = candidateUtp;
+            matchTokenSp = candidateTokenSp;
+            continue;
+        }
+
+        /* A SecureChannel is not tied to an advertised EndpointUrl. The HEL
+         * URL is client-controlled and therefore cannot select an Endpoint for
+         * authorization. Reject an ambiguous configuration instead of taking
+         * the first entry and possibly granting endpoint-filtered Roles for a
+         * different URL or transport. Exact duplicate descriptions are safe. */
+        if(!UA_String_equal(&match->endpointUrl, &desc->endpointUrl) ||
+           !UA_String_equal(&match->transportProfileUri,
+                            &desc->transportProfileUri)) {
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "ActivateSession: Ambiguous configured "
+                                 "Endpoints for the SecureChannel");
             return;
         }
     }
+
+    *ed = match;
+    *utp = matchUtp;
+    *tokenSp = matchTokenSp;
 }
 
 static UA_StatusCode
@@ -1151,6 +1182,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                               UA_Session **outSession) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &resp->responseHeader;
+#ifdef UA_ENABLE_RBAC
+    UA_Boolean passwordChangeRequired = false;
+#endif
 
     /* Get the session */
     UA_Session *session =
@@ -1297,34 +1331,170 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_RBAC
-    /* Evaluate identity mapping rules and assign matching roles to the session.
-     * The client application counts as trusted when its application instance
-     * certificate was validated during OpenSecureChannel, i.e. on a signed or
-     * encrypted SecureChannel (Part 18 §4.4.3 TrustedApplication). */
-    UA_Boolean trustedApp = (channel->securityPolicy != NULL &&
-        channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+    /* Capture the session's identity/connection characteristics for RBAC role
+     * resolution. The client application counts as trusted when its application
+     * instance certificate was validated during OpenSecureChannel, i.e. on a
+     * signed or encrypted SecureChannel (Part 18 §4.4.3 TrustedApplication).
+     * The snapshot is retained on the session so the roles can be re-evaluated
+     * when the RoleSet changes. */
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    const UA_DataType *rbacTokenType = req->userIdentityToken.content.decoded.type;
+    ctx.isAnonymous = (rbacTokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+    /* Per Part 18 §4.4.3 TrustedApplication: the session shall use at least a
+     * signed communication channel (Sign or SignAndEncrypt) and the client
+     * application instance certificate must have been validated. A Sign-only
+     * channel carries a validated remote certificate, so it qualifies. */
+    ctx.trustedApplication = (channel->securityPolicy != NULL &&
+        (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+         channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) &&
         channel->remoteCertificate.length > 0);
+    UA_StatusCode ctxRes = UA_STATUSCODE_GOOD;
+    if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *ut = (const UA_UserNameIdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        ctxRes = UA_String_copy(&ut->userName, &ctx.userName);
+    } else if(rbacTokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* Derive the thumbprint and subject of the user certificate for the
+         * Thumbprint and X509Subject identity criteria (Part 18 §4.4.2). */
+        UA_X509IdentityToken *x509 = (UA_X509IdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        /* The certificate utility writes the 20-byte SHA-1 thumbprint as 40
+         * hexadecimal characters into caller-provided storage. */
+        ctxRes = UA_ByteString_allocBuffer((UA_ByteString*)&ctx.userThumbprint, 40);
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_CertificateUtils_getThumbprint(&x509->certificateData,
+                                                       &ctx.userThumbprint);
+        if(ctxRes == UA_STATUSCODE_GOOD) {
+            UA_StatusCode dnRes = UA_CertificateUtils_getRoleSubjectCriteria(
+                &x509->certificateData, &ctx.userSubject, &ctx.userIssuer);
+            /* A certificate whose subject cannot be expressed as a criteria
+             * string is not a reason to refuse the Session. It just cannot
+             * match an X509Subject rule - the empty criteria never do. */
+            if(dnRes == UA_STATUSCODE_BADOUTOFMEMORY)
+                ctxRes = dnRes;
+            else if(dnRes != UA_STATUSCODE_GOOD)
+                UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                       "ActivateSession: Could not derive the "
+                                       "X509Subject criteria from the user "
+                                       "certificate (%s). X509Subject rules "
+                                       "will not match this Session",
+                                       UA_StatusCode_name(dnRes));
+        }
+    }
+    /* Only retain an ApplicationUri for authorization if CreateSession bound it
+     * to an accepted ApplicationInstance Certificate on a signed channel. */
+    if(ctxRes == UA_STATUSCODE_GOOD && ctx.trustedApplication)
+        ctxRes = UA_String_copy(&session->clientDescription.applicationUri,
+                                &ctx.applicationUri);
+    if(ctxRes == UA_STATUSCODE_GOOD && ed) {
+        ctxRes = UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
+        ctx.endpointSecurityMode = channel->securityMode;
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_String_copy(&channel->securityPolicy->policyUri,
+                                    &ctx.securityPolicyUri);
+        if(ctxRes == UA_STATUSCODE_GOOD)
+            ctxRes = UA_String_copy(&ed->transportProfileUri,
+                                    &ctx.transportProfileUri);
+    }
+    /* GroupIds for the GroupId identity criterion (optional hook) */
+    if(ctxRes == UA_STATUSCODE_GOOD &&
+       server->config.accessControl.getUserGroups) {
+        ctxRes = server->config.accessControl.getUserGroups(
+            server, &server->config.accessControl, &session->sessionId,
+            session->context, &ctx.groups, &ctx.groupsSize);
+    }
+    /* Role criteria represent claims from an accepted access token, not
+     * composition with another OPC UA Role. Never query this provider for
+     * anonymous, username or certificate identity tokens. */
+    if(ctxRes == UA_STATUSCODE_GOOD &&
+       rbacTokenType == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN] &&
+       server->config.accessControl.getUserTokenRoles) {
+        ctxRes = server->config.accessControl.getUserTokenRoles(
+            server, &server->config.accessControl, &session->sessionId,
+            session->context, &ctx.tokenRoles, &ctx.tokenRolesSize);
+    }
+
+    if(ctxRes != UA_STATUSCODE_GOOD) {
+        UA_SessionIdentityContext_clear(&ctx);
+        rh->serviceResult = ctxRes;
+        UA_SECURITY_REJECT;
+    }
+
+    /* The UserConfiguration and the Roles are derived from the local snapshot,
+     * not from the Session. The Session is updated only after every check has
+     * passed, so a rejected activation cannot leave it with an identity it was
+     * not granted - which the next re-evaluation of the RoleSet would then use
+     * to assign Roles. */
+    if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN] &&
+       server->config.accessControl.getUserConfiguration) {
+        UA_UserConfigurationMask userConfiguration = 0;
+        rh->serviceResult = server->config.accessControl.getUserConfiguration(
+            server, &server->config.accessControl,
+            &ctx.userName, &userConfiguration);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+            UA_SessionIdentityContext_clear(&ctx);
+            UA_SECURITY_REJECT;
+        }
+        if(userConfiguration & UA_USERCONFIGURATIONMASK_DISABLED) {
+            UA_SessionIdentityContext_clear(&ctx);
+            rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            UA_SECURITY_REJECT;
+        }
+        passwordChangeRequired =
+            (userConfiguration &
+             UA_USERCONFIGURATIONMASK_MUSTCHANGEPASSWORD) != 0;
+    }
+
     size_t rolesSize = 0;
     UA_NodeId *roleIds = NULL;
-    rh->serviceResult = UA_Server_evaluateSessionRoles(server,
-                                                       &req->userIdentityToken,
-                                                       trustedApp,
-                                                       &rolesSize, &roleIds);
-    if(rh->serviceResult == UA_STATUSCODE_GOOD && rolesSize > 0) {
-        UA_Session_setRoles(server, session, roleIds, rolesSize);
-        for(size_t i = 0; i < rolesSize; i++) {
-            for(size_t k = 0; k < server->rolesSize; k++) {
-                if(UA_NodeId_equal(&roleIds[i], &server->roles[k].roleId)) {
-                    UA_LOG_INFO_SESSION(server->config.logging, session,
-                                        "ActivateSession: Assigned role '%.*s'",
-                                        (int)server->roles[k].roleName.name.length,
-                                        server->roles[k].roleName.name.data);
-                    break;
-                }
+    if(passwordChangeRequired) {
+        rolesSize = 1;
+        roleIds = (UA_NodeId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_NODEID]);
+        if(!roleIds)
+            rh->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        else
+            roleIds[0] = UA_NODEID_NUMERIC(
+                0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    } else {
+        rh->serviceResult = UA_Server_evaluateSessionRoles(
+            server, &ctx, &rolesSize, &roleIds);
+    }
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        UA_SessionIdentityContext_clear(&ctx);
+        UA_SECURITY_REJECT;
+    }
+
+    /* Assign the Roles. Always set them, also for an empty set, so that no Role
+     * from an earlier activation survives. UA_Session_setRoles is atomic: if it
+     * fails, the Session keeps the Roles it had. */
+    rh->serviceResult = UA_Session_setRoles(server, session, roleIds, rolesSize);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_SessionIdentityContext_clear(&ctx);
+        UA_SECURITY_REJECT;
+    }
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t k = 0; k < server->rolesSize; k++) {
+            if(UA_NodeId_equal(&roleIds[i], &server->roles[k].roleId)) {
+                UA_LOG_INFO_SESSION(server->config.logging, session,
+                                    "ActivateSession: Assigned role '%.*s'",
+                                    (int)server->roles[k].roleName.name.length,
+                                    server->roles[k].roleName.name.data);
+                break;
             }
         }
-        UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
     }
+    UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Commit the snapshot (transfer ownership), replacing any previous one from
+     * an earlier activation of the same session. */
+    UA_SessionIdentityContext_clear(&session->identityContext);
+    session->identityContext = ctx;
+    session->hasIdentityContext = true;
+    session->passwordChangeRequired = passwordChangeRequired;
+    /* An activation returns the Session to the automatic Role assignment */
+    session->rolesAssignedManually = false;
 #endif
 
     /* Attach the session to the currently used channel if the session isn't
@@ -1339,8 +1509,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
 
     /* Generate a new session nonce for the next time ActivateSession is called */
     rh->serviceResult = UA_Session_generateNonce(session);
-    rh->serviceResult |= UA_ByteString_copy(&session->serverNonce,
-                                            &resp->serverNonce);
+    if(rh->serviceResult == UA_STATUSCODE_GOOD)
+        rh->serviceResult = UA_ByteString_copy(&session->serverNonce,
+                                               &resp->serverNonce);
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_ERROR_SESSION(server->config.logging, session,
@@ -1355,7 +1526,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
          * Session. If it is not specified the Server shall keep using the
          * current localeIds for the Session. */
         UA_String *tmpLocaleIds;
-        rh->serviceResult |=
+        rh->serviceResult =
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
@@ -1452,6 +1623,10 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                         session->clientUserIdOfSession);
 
     /* Return the activated session */
+#ifdef UA_ENABLE_RBAC
+    if(passwordChangeRequired)
+        rh->serviceResult = UA_STATUSCODE_GOODPASSWORDCHANGEREQUIRED;
+#endif
     *outSession = session;
 }
 

@@ -113,6 +113,8 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
         ed.eventType = UA_NS0ID(AUDITHISTORYUPDATEEVENTTYPE); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD:
         ed.eventType = UA_NS0ID(AUDITUPDATEMETHODEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED:
+        ed.eventType = UA_NS0ID(ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE); break;
     default:
         /* TODO:
          * UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
@@ -681,6 +683,39 @@ auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
     UA_KeyValueMap payload = {10, methodUpdatePayload};
     auditUpdateEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD,
+                     channel, session, sourceNode, "Call", status, payload);
+}
+
+void
+auditRoleMappingRuleChangedEvent(UA_Server *server, UA_SecureChannel *channel,
+                                 UA_Session *session, UA_Boolean status,
+                                 const UA_NodeId *sourceNode, const UA_NodeId *methodNode,
+                                 UA_StatusCode statusCodeId,
+                                 size_t inputsSize, UA_Variant *inputs) {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair rmrcPayload[10] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/MethodId")}, {0}},                    /* 6 */
+        {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 7 */
+        {{0, UA_STRING_STATIC("/InputArguments")}, {0}},              /* 8 */
+        {{0, UA_STRING_STATIC("/OutputArguments")}, {0}}              /* 9 */
+    };
+
+    UA_Variant_setScalar(&rmrcPayload[6].value, (void*)(uintptr_t)methodNode,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&rmrcPayload[7].value, &statusCodeId,
+                         &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_Variant_setArray(&rmrcPayload[8].value, inputs, inputsSize,
+                        &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_Variant_setArray(&rmrcPayload[9].value, NULL, 0, &UA_TYPES[UA_TYPES_VARIANT]);
+
+    UA_KeyValueMap payload = {10, rmrcPayload};
+    auditUpdateEvent(server,
+                     UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD_ROLEMAPPINGRULECHANGED,
                      channel, session, sourceNode, "Call", status, payload);
 }
 

@@ -33,15 +33,40 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
 UA_StatusCode
 checkRBACMethodAccess(UA_Server *server, const UA_NodeId *sessionId);
 
-/* Evaluate identity mapping rules for all roles against the given user token.
- * trustedApplication satisfies the TrustedApplication identity criteria
- * (validated application instance certificate). Returns the matching role IDs
- * in a newly allocated array. Must be called with the server lock held. */
+/* Evaluate the identity mapping rules of all roles against the given session
+ * identity context and return the matching role IDs in a newly allocated array.
+ * The Anonymous well-known Role is always included (Part 18 §4.3).
+ * Must be called with the server lock held. */
 UA_StatusCode
 UA_Server_evaluateSessionRoles(UA_Server *server,
-                               const UA_ExtensionObject *userIdentityToken,
-                               UA_Boolean trustedApplication,
+                               const UA_SessionIdentityContext *ctx,
                                size_t *outRolesSize, UA_NodeId **outRoleIds);
+
+/* Re-evaluate and reassign the Roles of all active Sessions from their stored
+ * identity context. Called after the RoleSet changes (Part 18 §4.4.1).
+ * Must be called with the server lock held. */
+void
+UA_Server_reevaluateSessionRoles(UA_Server *server);
+
+/* Update a Role from one of the six RoleType Methods and attach the concrete
+ * MethodId and request arguments to the audit event. */
+UA_StatusCode
+UA_Server_updateRoleFromMethod(UA_Server *server, const UA_Role *role,
+                               const UA_NodeId *sessionId,
+                               const UA_NodeId *methodId,
+                               size_t inputSize, const UA_Variant *input);
+
+/* Effective AccessRestrictions of a node (its own value or the namespace
+ * default). Must be called with the server lock held. */
+UA_AccessRestrictionType
+getNodeAccessRestrictions(UA_Server *server, const UA_Node *node);
+
+/* Enforce a node's AccessRestrictions against the session (Part 3 §5.2.11).
+ * forBrowse limits enforcement to the ApplyRestrictionsToBrowse bit.
+ * Must be called with the server lock held. */
+UA_StatusCode
+checkNodeAccessRestrictions(UA_Server *server, const UA_Session *session,
+                            const UA_Node *node, UA_Boolean forBrowse);
 
 /* Decrement the refCount of a role permission entry at the given index.
  * Used during node deletion to keep refcounts consistent. */
@@ -84,6 +109,17 @@ addRoleRepresentation(UA_Server *server, UA_Role *role);
 UA_StatusCode
 removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
 
+/* Classify the Node at roleId: GOOD for an Object of RoleType or a subtype,
+ * BADNODEIDUNKNOWN when no such Node exists, BADNODEIDEXISTS otherwise. */
+UA_StatusCode
+checkRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
+
+/* Back the Properties of an existing Role Object with the role registry and
+ * bind its Methods */
+UA_StatusCode
+bindRoleRepresentation(UA_Server *server, const UA_NodeId *roleId,
+                       UA_Boolean applyPermissions);
+
 /* Restrict the RoleSet Object and its security-sensitive Methods to the
  * SecurityAdmin Role (defined in ua_server_ns0_rbac.c) */
 UA_StatusCode
@@ -105,11 +141,22 @@ getEffectivePermissions(UA_Server *server,
                         UA_PermissionType *effectivePermissions);
 
 UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions);
+
+UA_StatusCode
 UA_Server_getUserRolePermissions(UA_Server *server,
                                  const UA_NodeId *sessionId,
                                  const UA_NodeId *nodeId,
                                  size_t *entriesSize,
                                  UA_RolePermissionType **entries);
+
+/* True when every UserManagement callback is configured. The NS0 setup keeps
+ * the UserManagement Object only in that case; initUserManagement binds it. */
+UA_Boolean
+UA_Server_hasUserManagementProvider(const UA_AccessControl *ac);
 
 #endif /* UA_ENABLE_RBAC */
 

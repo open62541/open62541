@@ -621,6 +621,41 @@ START_TEST(ReceiveEvents_grantedOnBothPropagates) {
 }
 END_TEST
 
+#ifdef UA_NS0ID_ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE
+START_TEST(RoleAuditEvents_visibleToSecurityAdmin) {
+    UA_Server_getConfig(server)->allPermissionsForAnonymous = false;
+
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(1, "AuditedRole");
+    UA_NodeId roleId;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, &roleId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_NodeId securityAdmin =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+    assignRoleToAdminSession(securityAdmin);
+
+    UA_NodeId eventType = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE);
+    UA_PermissionType sourcePerms = 0;
+    UA_PermissionType eventPerms = 0;
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(
+        server, &adminSessionId, &roleId, &sourcePerms), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_getEffectivePermissions(
+        server, &adminSessionId, &eventType, &eventPerms), UA_STATUSCODE_GOOD);
+    ck_assert_msg((sourcePerms & UA_PERMISSIONTYPE_RECEIVEEVENTS) != 0,
+        "SecurityAdmin cannot receive a role audit event from its Role source");
+    ck_assert_msg((eventPerms & UA_PERMISSIONTYPE_RECEIVEEVENTS) != 0,
+        "SecurityAdmin cannot receive RoleMappingRuleChangedAuditEventType");
+
+    clearAdminSessionRoles();
+    UA_Server_removeRole(server, role.roleName);
+    UA_NodeId_clear(&roleId);
+}
+END_TEST
+#endif
+
 #if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) && defined(UA_ENABLE_METHODCALLS) && \
     defined(UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN)
 /* Applies the SecurityAdmin GDS RolePermissions. In a running server this is
@@ -958,22 +993,28 @@ START_TEST(DeleteNode_checked_on_target) {
 }
 END_TEST
 
-START_TEST(AddNode_checked_on_parent) {
+START_TEST(AddNode_checked_on_target_namespace) {
     UA_NodeId roleId = addRole("AddNodeRole");
     assignRoleToAdminSession(roleId);
 
-    /* Parent is an Object child of ObjectsFolder, RBAC engaged with
-     * BROWSE only. */
+    /* The parent allows AddNode, but namespace 2 does not. AddNode is a
+     * namespace-default permission and must be checked for the namespace of
+     * the requested NodeId. */
     UA_NodeId parent = addObject("AddNodeParent");
     ck_assert_uint_eq(UA_Server_addRolePermissions(server, parent, roleId,
-        UA_PERMISSIONTYPE_BROWSE, false, false), UA_STATUSCODE_GOOD);
+        UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_ADDNODE,
+        false, false), UA_STATUSCODE_GOOD);
+    UA_UInt16 ns2 = UA_Server_addNamespace(server, "urn:rbac:addnode-denied");
+    UA_RolePermission namespacePermission = {roleId, UA_PERMISSIONTYPE_BROWSE};
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, ns2, 1, &namespacePermission), UA_STATUSCODE_GOOD);
 
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.parentNodeId.nodeId = parent;
     item.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
-    item.requestedNewNodeId.nodeId = UA_NODEID_NULL;
-    item.browseName = UA_QUALIFIEDNAME(1, "ChildVar");
+    item.requestedNewNodeId.nodeId = UA_NODEID_NUMERIC(ns2, 62001);
+    item.browseName = UA_QUALIFIEDNAME(ns2, "ChildVar");
     item.nodeClass = UA_NODECLASS_VARIABLE;
     item.typeDefinition.nodeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -982,16 +1023,20 @@ START_TEST(AddNode_checked_on_parent) {
     UA_Boolean allowed = ac->allowAddNode(server, ac,
         &adminSessionId, NULL, &item);
     ck_assert_msg(allowed == false,
-        "Spec §8.55 bit 16: AddNode must be denied without bit on the "
-        "parent (allowAddNode returned true)");
+        "Spec §8.55 bit 16: AddNode must be denied without the bit in "
+        "the target namespace default (allowAddNode returned true)");
 
-    ck_assert_uint_eq(UA_Server_addRolePermissions(server, parent, roleId,
-        UA_PERMISSIONTYPE_ADDNODE, false, false),
+    namespacePermission.permissions |= UA_PERMISSIONTYPE_ADDNODE;
+    ck_assert_uint_eq(UA_Server_setNamespaceDefaultRolePermissions(
+        server, ns2, 1, &namespacePermission),
         UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addRolePermissions(server, parent, roleId,
+        UA_PERMISSIONTYPE_BROWSE, true, false), UA_STATUSCODE_GOOD);
     allowed = ac->allowAddNode(server, ac,
         &adminSessionId, NULL, &item);
     ck_assert_msg(allowed == true,
-        "AddNode must be allowed once bit 16 is granted on parent");
+        "AddNode must be allowed once bit 16 is granted by the target "
+        "namespace, regardless of the parent permission");
 
     clearAdminSessionRoles();
     UA_Server_deleteNode(server, parent, true);
@@ -1041,7 +1086,7 @@ static Suite *testSuite(void) {
     tcase_add_test(tc_nm, AddReference_checked_on_source);
     tcase_add_test(tc_nm, RemoveReference_checked_on_source);
     tcase_add_test(tc_nm, DeleteNode_checked_on_target);
-    tcase_add_test(tc_nm, AddNode_checked_on_parent);
+    tcase_add_test(tc_nm, AddNode_checked_on_target_namespace);
     suite_add_tcase(s, tc_nm);
 
     TCase *tc_multi = tcase_create("Multi-role OR semantics");
@@ -1053,6 +1098,9 @@ static Suite *testSuite(void) {
     tcase_add_unchecked_fixture(tc_evt, setup, teardown);
     tcase_add_test(tc_evt, ReceiveEvents_storedSeparatelyOnEventTypeAndSource);
     tcase_add_test(tc_evt, ReceiveEvents_grantedOnBothPropagates);
+#ifdef UA_NS0ID_ROLEMAPPINGRULECHANGEDAUDITEVENTTYPE
+    tcase_add_test(tc_evt, RoleAuditEvents_visibleToSecurityAdmin);
+#endif
     suite_add_tcase(s, tc_evt);
 
 #if defined(UA_ENABLE_DRIVER_GDS_RECEIVER) && defined(UA_ENABLE_METHODCALLS) && \

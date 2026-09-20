@@ -1024,6 +1024,40 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
              resendDataMonitoredItemVisitor, server);
 }
 
+static void *
+invalidateRoleNotificationVisitor(void *context, UA_MonitoredItem *mon) {
+    UA_Server *server = (UA_Server*)context;
+
+    /* An async sample started with the former Roles must not complete into the
+     * fresh queue after it has been cleared. */
+    if(mon->outstandingAsyncReads > 0)
+        async_cancel(server, mon, UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST,
+                     true);
+
+    UA_Notification *n, *nTmp;
+    TAILQ_FOREACH_SAFE(n, &mon->queue, monEntry, nTmp)
+        UA_Notification_delete(n);
+
+    /* Remove the filter baseline as well. Otherwise the first value sampled
+     * with the new Roles could be suppressed as unchanged. */
+    UA_DataValue_clear(&mon->lastValue);
+
+    if(mon->monitoringMode != UA_MONITORINGMODE_DISABLED &&
+       mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+        UA_MonitoredItem_sample(server, mon);
+    return NULL;
+}
+
+void
+UA_Session_invalidateRoleNotifications(UA_Server *server, UA_Session *session) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_Subscription *sub;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                 invalidateRoleNotificationVisitor, server);
+    }
+}
+
 void
 UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
     if(server->config.maxPublishReqPerSession == 0)

@@ -16,6 +16,9 @@
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
@@ -189,6 +192,17 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
     }
     if(!executable)
         return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+#ifdef UA_ENABLE_RBAC
+    /* Enforce the AccessRestrictions of the object and method (Part 3 §5.2.11) */
+    UA_StatusCode arRes = checkNodeAccessRestrictions(server, session,
+                                                      callContext, false);
+    if(arRes == UA_STATUSCODE_GOOD)
+        arRes = checkNodeAccessRestrictions(server, session,
+                                            (const UA_Node*)resolvedMethod, false);
+    if(arRes != UA_STATUSCODE_GOOD)
+        return arRes;
+#endif
 
     /* The input arguments are const and not changed. We move the input
      * arguments to a secondary array that is mutable. This is used for small

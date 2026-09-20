@@ -313,6 +313,22 @@ endif()
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
 
+# Checked before the generic namespace-zero requirements below, so that
+# enabling RBAC reports the RBAC requirement rather than a consequence of it
+if(UA_ENABLE_RBAC)
+    # The RoleSet/RoleType Methods (AddRole, AddIdentity, ...) are bound
+    # unconditionally by the RBAC information model
+    if(NOT UA_ENABLE_METHODCALLS)
+        message(FATAL_ERROR "UA_ENABLE_RBAC requires UA_ENABLE_METHODCALLS "
+                            "for the RoleSet and RoleType Methods")
+    endif()
+    # The well-known Roles and the IdentityCriteriaType values (in particular
+    # TrustedApplication) only exist in the full namespace zero
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "UA_ENABLE_RBAC needs the full Namespace Zero")
+    endif()
+endif()
+
 if(UA_ENABLE_DRIVER_MDNS_AVAHI AND NOT UA_ENABLE_DISCOVERY)
     message(FATAL_ERROR "UA_ENABLE_DRIVER_MDNS_AVAHI requires UA_ENABLE_DISCOVERY")
 endif()
@@ -495,6 +511,18 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
     MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS needs Subscriptions enabled")
     set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF)
+endif()
+
+# drivers/alarms_conditions.c is always compiled, but its body is only built
+# with UA_ENABLE_SUBSCRIPTIONS_EVENTS and a generated full namespace zero. It
+# then binds the ConditionType Methods (Disable, Enable, AddComment,
+# ConditionRefresh, Acknowledge, Confirm) unconditionally. Checked here, after
+# UA_ENABLE_SUBSCRIPTIONS_EVENTS got its effective value above.
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_SUBSCRIPTIONS_EVENTS AND
+   NOT UA_ENABLE_METHODCALLS)
+    message(FATAL_ERROR "UA_NAMESPACE_ZERO=FULL with UA_ENABLE_SUBSCRIPTIONS_EVENTS "
+                        "requires UA_ENABLE_METHODCALLS for the ConditionType Methods "
+                        "of the Alarms & Conditions driver")
 endif()
 
 if(UA_ENABLE_HISTORIZING AND (NOT UA_ENABLE_SUBSCRIPTIONS))

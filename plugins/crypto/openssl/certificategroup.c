@@ -869,6 +869,118 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     return retval;
 }
 
+typedef struct {
+    int nid;
+    const char *name;
+    size_t nameLength;
+} RoleDnAttribute;
+
+/* The criteria value is UTF-8 and may contain any character except the quote
+ * that delimits it (Part 18 §4.4.3). An attribute that cannot be represented is
+ * left out of the criteria string instead of failing the whole derivation: the
+ * Session must still activate, it just cannot match on that attribute. An empty
+ * value is dropped as well, since NAME="" is not a valid criterion. */
+static UA_Boolean
+roleDnValueUsable(const unsigned char *utf8, int length) {
+    if(length <= 0)
+        return false;
+    for(int i = 0; i < length; i++) {
+        if(utf8[i] < 0x20 || utf8[i] == 0x7f || utf8[i] == '"')
+            return false;
+    }
+    return true;
+}
+
+static UA_StatusCode
+appendRoleDnAttribute(X509_NAME *dn, const RoleDnAttribute *attribute,
+                      UA_ByteString *result) {
+    int position = -1;
+    while((position = X509_NAME_get_index_by_NID(dn, attribute->nid,
+                                                  position)) >= 0) {
+        X509_NAME_ENTRY *entry = X509_NAME_get_entry(dn, position);
+        unsigned char *utf8 = NULL;
+        int valueLength = ASN1_STRING_to_UTF8(&utf8,
+            X509_NAME_ENTRY_get_data(entry));
+        if(valueLength < 0)
+            continue; /* Not convertible to UTF-8 */
+        if(!roleDnValueUsable(utf8, valueLength)) {
+            OPENSSL_free(utf8);
+            continue;
+        }
+        size_t separator = result->length > 0 ? 1 : 0;
+        size_t oldLength = result->length;
+        size_t added = separator + attribute->nameLength + 2 +
+                       (size_t)valueLength + 1;
+        UA_Byte *data = (UA_Byte*)UA_realloc(result->data, oldLength + added);
+        if(!data) {
+            OPENSSL_free(utf8);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        result->data = data;
+        size_t offset = oldLength;
+        if(separator)
+            data[offset++] = '/';
+        memcpy(&data[offset], attribute->name, attribute->nameLength);
+        offset += attribute->nameLength;
+        data[offset++] = '=';
+        data[offset++] = '"';
+        memcpy(&data[offset], utf8, (size_t)valueLength);
+        offset += (size_t)valueLength;
+        data[offset] = '"';
+        result->length = oldLength + added;
+        OPENSSL_free(utf8);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+roleDnCriteria(X509_NAME *dn, UA_String *output) {
+    static const RoleDnAttribute attributes[] = {
+        {NID_commonName, "CN", 2},
+        {NID_organizationName, "O", 1},
+        {NID_organizationalUnitName, "OU", 2},
+        {NID_domainComponent, "DC", 2},
+        {NID_localityName, "L", 1},
+        {NID_stateOrProvinceName, "S", 1},
+        {NID_countryName, "C", 1},
+        {NID_dnQualifier, "dnQualifier", 11},
+        {NID_serialNumber, "serialNumber", 12}
+    };
+    UA_ByteString result = UA_BYTESTRING_NULL;
+    for(size_t i = 0; i < sizeof(attributes) / sizeof(attributes[0]); i++) {
+        UA_StatusCode res = appendRoleDnAttribute(dn, &attributes[i], &result);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_ByteString_clear(&result);
+            return res;
+        }
+    }
+    *output = result;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria) {
+    if(!certificate || !subjectCriteria || !issuerCriteria)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *subjectCriteria = UA_STRING_NULL;
+    *issuerCriteria = UA_STRING_NULL;
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!x509)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    UA_StatusCode res = roleDnCriteria(X509_get_subject_name(x509),
+                                       subjectCriteria);
+    if(res == UA_STATUSCODE_GOOD)
+        res = roleDnCriteria(X509_get_issuer_name(x509), issuerCriteria);
+    X509_free(x509);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(subjectCriteria);
+        UA_String_clear(issuerCriteria);
+    }
+    return res;
+}
+
 UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint) {
