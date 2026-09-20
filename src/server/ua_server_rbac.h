@@ -109,6 +109,17 @@ addRoleRepresentation(UA_Server *server, UA_Role *role);
 UA_StatusCode
 removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
 
+/* Classify the Node at roleId: GOOD for an Object of RoleType or a subtype,
+ * BADNODEIDUNKNOWN when no such Node exists, BADNODEIDEXISTS otherwise. */
+UA_StatusCode
+checkRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
+
+/* Back the Properties of an existing Role Object with the role registry and
+ * bind its Methods */
+UA_StatusCode
+bindRoleRepresentation(UA_Server *server, const UA_NodeId *roleId,
+                       UA_Boolean applyPermissions);
+
 /* Restrict the RoleSet Object and its security-sensitive Methods to the
  * SecurityAdmin Role (defined in ua_server_ns0_rbac.c) */
 UA_StatusCode

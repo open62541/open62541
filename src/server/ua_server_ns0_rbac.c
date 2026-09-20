@@ -588,6 +588,17 @@ UA_StatusCode
 removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId) {
     if(!server || !roleId)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    /* Only a Role Object is ours to delete. A Node that took over the NodeId
+     * in the meantime is reported as "no representation" and kept. */
+    UA_StatusCode res = checkRoleRepresentation(server, roleId);
+    if(res == UA_STATUSCODE_BADNODEIDEXISTS) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: The Node %N of the removed Role is not a RoleType "
+                       "instance and is kept", *roleId);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     return UA_Server_deleteNode(server, *roleId, true);
 }
 
@@ -1572,6 +1583,86 @@ initRoleSetRolePermissions(UA_Server *server) {
             retval = (EXPRESSION);                 \
     } while(0)
 
+/* Back the Properties of an existing Role Object with the role registry and
+ * bind its Methods. Optional Properties that the Object does not have are
+ * skipped. Used for the well-known Role Objects of Namespace Zero and for a
+ * Role Object that a custom nodeset brought along. */
+static UA_StatusCode
+bindRoleProperty(UA_Server *server, const UA_NodeId *roleId,
+                 const char *browseName, UA_DataSource dataSource) {
+    UA_NodeId propertyId;
+    if(findPropertyChild(server, *roleId, browseName,
+                         &propertyId) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD; /* The optional Property is not present */
+    UA_StatusCode res =
+        UA_Server_setVariableNode_dataSource(server, propertyId, dataSource);
+    UA_NodeId_clear(&propertyId);
+    return res;
+}
+
+UA_StatusCode
+bindRoleRepresentation(UA_Server *server, const UA_NodeId *roleId,
+                       UA_Boolean applyPermissions) {
+    /* Reads of Identities return the currently configured mapping rules */
+    UA_DataSource ds;
+    ds.read = readRoleIdentities;
+    ds.write = NULL;
+    UA_StatusCode res = bindRoleProperty(server, roleId, "Identities", ds);
+
+    if(res == UA_STATUSCODE_GOOD) {
+        ds.read = readRoleApplicationsExclude;
+        ds.write = writeRoleApplicationsExclude;
+        res = bindRoleProperty(server, roleId, "ApplicationsExclude", ds);
+    }
+
+    if(res == UA_STATUSCODE_GOOD) {
+        ds.read = readRoleEndpointsExclude;
+        ds.write = writeRoleEndpointsExclude;
+        res = bindRoleProperty(server, roleId, "EndpointsExclude", ds);
+    }
+
+    /* Reads of CustomConfiguration return the configured value (§4.4.1) */
+    if(res == UA_STATUSCODE_GOOD) {
+        ds.read = readRoleCustomConfiguration;
+        ds.write = NULL;
+        res = bindRoleProperty(server, roleId, "CustomConfiguration", ds);
+    }
+
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return ensureRoleTypeMethods(server, roleId, applyPermissions);
+}
+
+/* Classify the Node at roleId so that a Role is never mirrored onto a Node
+ * that is not a Role Object. Returns BADNODEIDUNKNOWN when there is no such
+ * Node, GOOD for an Object of RoleType (or a subtype) and BADNODEIDEXISTS for
+ * anything else. The caller holds the server lock. */
+UA_StatusCode
+checkRoleRepresentation(UA_Server *server, const UA_NodeId *roleId) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    const UA_Node *node = UA_NODESTORE_GET(server, roleId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    UA_StatusCode res = UA_STATUSCODE_BADNODEIDEXISTS;
+    if(node->head.nodeClass == UA_NODECLASS_OBJECT) {
+        const UA_Node *type = getNodeType(server, &node->head,
+                                          UA_NODEATTRIBUTESMASK_NODECLASS,
+                                          UA_REFERENCETYPESET_ALL,
+                                          UA_BROWSEDIRECTION_BOTH);
+        if(type) {
+            UA_NodeId roleTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE);
+            if(isNodeInTree_singleRef(server, &type->head.nodeId, &roleTypeId,
+                                      UA_REFERENCETYPEINDEX_HASSUBTYPE))
+                res = UA_STATUSCODE_GOOD;
+            UA_NODESTORE_RELEASE(server, type);
+        }
+    }
+
+    UA_NODESTORE_RELEASE(server, node);
+    return res;
+}
+
 UA_StatusCode
 initNS0RBAC(UA_Server *server) {
     /* The RoleSetType and the well-known Role Nodes are part of the full
@@ -1647,55 +1738,7 @@ initNS0RBAC(UA_Server *server) {
             UA_QualifiedName_clear(&bn);
         }
 
-        /* Back the Identities property with the role registry so that reads
-         * return the currently configured identity mapping rules */
-        UA_NodeId identitiesId;
-        if(findPropertyChild(server, rId, "Identities",
-                             &identitiesId) == UA_STATUSCODE_GOOD) {
-            UA_DataSource identitiesDataSource;
-            identitiesDataSource.read = readRoleIdentities;
-            identitiesDataSource.write = NULL;
-            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
-                server, identitiesId, identitiesDataSource));
-            UA_NodeId_clear(&identitiesId);
-        }
-
-        UA_NodeId applicationsExcludeId;
-        if(findPropertyChild(server, rId, "ApplicationsExclude",
-                             &applicationsExcludeId) == UA_STATUSCODE_GOOD) {
-            UA_DataSource applicationsExcludeDataSource;
-            applicationsExcludeDataSource.read = readRoleApplicationsExclude;
-            applicationsExcludeDataSource.write = writeRoleApplicationsExclude;
-            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
-                server, applicationsExcludeId, applicationsExcludeDataSource));
-            UA_NodeId_clear(&applicationsExcludeId);
-        }
-
-        UA_NodeId endpointsExcludeId;
-        if(findPropertyChild(server, rId, "EndpointsExclude",
-                             &endpointsExcludeId) == UA_STATUSCODE_GOOD) {
-            UA_DataSource endpointsExcludeDataSource;
-            endpointsExcludeDataSource.read = readRoleEndpointsExclude;
-            endpointsExcludeDataSource.write = writeRoleEndpointsExclude;
-            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
-                server, endpointsExcludeId, endpointsExcludeDataSource));
-            UA_NodeId_clear(&endpointsExcludeId);
-        }
-
-        /* Back the CustomConfiguration property with the role registry so
-         * reads return the configured value (Part 18 §4.4.1). */
-        UA_NodeId customConfigId;
-        if(findPropertyChild(server, rId, "CustomConfiguration",
-                             &customConfigId) == UA_STATUSCODE_GOOD) {
-            UA_DataSource customConfigDataSource;
-            customConfigDataSource.read = readRoleCustomConfiguration;
-            customConfigDataSource.write = NULL;
-            RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
-                server, customConfigId, customConfigDataSource));
-            UA_NodeId_clear(&customConfigId);
-        }
-
-        RBAC_INIT_TRY(ensureRoleTypeMethods(server, &rId, false));
+        RBAC_INIT_TRY(bindRoleRepresentation(server, &rId, false));
     }
 
     /* The method callbacks must be attached to the RoleSet *instance* methods.
