@@ -395,6 +395,7 @@ START_TEST(dispatch_guards_and_pool_bound) {
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 static size_t initialSamples;
 static void
 initialSample(UA_Server *server, UA_UInt32 id, void *context,
@@ -429,6 +430,8 @@ START_TEST(monitored_item_before_startup) {
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
 } END_TEST
+
+#endif
 
 static UA_StatusCode (*savedAddTimer)(UA_EventLoop*, UA_Callback, void*, void*, UA_Double,
                                     UA_DateTime*, UA_TimerPolicy, UA_UInt64*);
@@ -1194,7 +1197,9 @@ int main(void) {
     tcase_add_test(tc, dispatch_guards_and_pool_bound);
     tcase_add_test(tc, service_dispatch_notification);
     tcase_add_test(tc, service_notification_reentrancy);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc, monitored_item_before_startup);
+#endif
     tcase_add_loop_test(tc, timeout_registration_failure, 0, 4);
     tcase_add_loop_test(tc, async_driver_lifecycle, 0, 5);
     tcase_add_test(tc, async_read_normalization);
