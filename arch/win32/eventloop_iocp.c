@@ -46,8 +46,8 @@ clearAtomicBit(UA_atomic(uintptr_t) *value, UA_UInt32 bit) {
 UA_DateTime
 UA_EventLoopWIN32_nextTimer(UA_EventLoop *public_el) {
     UA_EventLoopWIN32 *el = (UA_EventLoopWIN32*)public_el;
-    if(el->delayedHead1 > (UA_DelayedCallback*)0x01 ||
-       el->delayedHead2 > (UA_DelayedCallback*)0x01)
+    if(UA_atomic_load(&el->delayedHead1) > (UA_DelayedCallback*)0x01 ||
+       UA_atomic_load(&el->delayedHead2) > (UA_DelayedCallback*)0x01)
         return el->eventLoop.dateTime_nowMonotonic(public_el);
     return UA_Timer_next(&el->timer);
 }
@@ -104,12 +104,12 @@ static void
 resetDelayedQueue(UA_EventLoopWIN32 *el,
                   UA_atomic(UA_DelayedCallback*) *oldHead,
                   UA_atomic(UA_atomic(UA_DelayedCallback*)*) *oldTail) {
-    if(el->delayedHead1 <= (UA_DelayedCallback*)0x01 &&
-       el->delayedHead2 <= (UA_DelayedCallback*)0x01)
+    if(UA_atomic_load(&el->delayedHead1) <= (UA_DelayedCallback*)0x01 &&
+       UA_atomic_load(&el->delayedHead2) <= (UA_DelayedCallback*)0x01)
         return;
 
     UA_Boolean active1 =
-        (el->delayedHead1 != (UA_DelayedCallback*)0x01);
+        (UA_atomic_load(&el->delayedHead1) != (UA_DelayedCallback*)0x01);
     UA_atomic(UA_DelayedCallback*) *activeHead =
         active1 ? &el->delayedHead1 : &el->delayedHead2;
     UA_atomic(UA_DelayedCallback*) *inactiveHead =
@@ -133,7 +133,7 @@ UA_EventLoopWIN32_removeDelayedCallback(UA_EventLoop *public_el,
 
     UA_DelayedCallback *next;
     for(; current; current = next) {
-        next = current->next;
+        next = UA_atomic_load(&current->next);
         while(!next && current != last)
             next = UA_atomic_load(&current->next);
         if(current != dc)
@@ -154,7 +154,7 @@ UA_EventLoopWIN32_processDelayed(UA_EventLoopWIN32 *el) {
 
     UA_DelayedCallback *next;
     for(; current; current = next) {
-        next = current->next;
+        next = UA_atomic_load(&current->next);
         while(!next && current != last)
             next = UA_atomic_load(&current->next);
         if(current->callback)
@@ -296,8 +296,8 @@ dispatchCompletion(UA_EventLoopWIN32 *el, OVERLAPPED_ENTRY *entry) {
 
 static UA_Boolean
 hasDelayedCallbacks(UA_EventLoopWIN32 *el) {
-    return (el->delayedHead1 > (UA_DelayedCallback*)0x01 ||
-            el->delayedHead2 > (UA_DelayedCallback*)0x01);
+    return (UA_atomic_load(&el->delayedHead1) > (UA_DelayedCallback*)0x01 ||
+            UA_atomic_load(&el->delayedHead2) > (UA_DelayedCallback*)0x01);
 }
 
 static void
