@@ -1256,6 +1256,20 @@ START_TEST(sessionRoleManagement) {
     ck_assert(foundOperator);
     UA_Variant_clear(&out);
 
+    /* A change of the RoleSet does not re-evaluate an application-assigned
+     * Session (Part 18 §4.4.1 leaves that assignment vendor-specific) */
+    UA_NodeId reevalRoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(addTestRole("ReevalProbeRole", 1, 50310, &reevalRoleId),
+                      UA_STATUSCODE_GOOD);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_QUALIFIEDNAME(0, "roles"), &out);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_Variant_clear(&out);
+    ck_assert_uint_eq(UA_Server_removeRole(server,
+        UA_QUALIFIEDNAME(1, "ReevalProbeRole")), UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&reevalRoleId);
+
     /* Update to a different set */
     UA_NodeId newRoles[1];
     newRoles[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
