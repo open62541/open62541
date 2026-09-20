@@ -875,6 +875,22 @@ typedef struct {
     size_t nameLength;
 } RoleDnAttribute;
 
+/* The criteria value is UTF-8 and may contain any character except the quote
+ * that delimits it (Part 18 §4.4.3). An attribute that cannot be represented is
+ * left out of the criteria string instead of failing the whole derivation: the
+ * Session must still activate, it just cannot match on that attribute. An empty
+ * value is dropped as well, since NAME="" is not a valid criterion. */
+static UA_Boolean
+roleDnValueUsable(const unsigned char *utf8, int length) {
+    if(length <= 0)
+        return false;
+    for(int i = 0; i < length; i++) {
+        if(utf8[i] < 0x20 || utf8[i] == 0x7f || utf8[i] == '"')
+            return false;
+    }
+    return true;
+}
+
 static UA_StatusCode
 appendRoleDnAttribute(X509_NAME *dn, const RoleDnAttribute *attribute,
                       UA_ByteString *result) {
@@ -886,12 +902,10 @@ appendRoleDnAttribute(X509_NAME *dn, const RoleDnAttribute *attribute,
         int valueLength = ASN1_STRING_to_UTF8(&utf8,
             X509_NAME_ENTRY_get_data(entry));
         if(valueLength < 0)
-            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        for(int i = 0; i < valueLength; i++) {
-            if(utf8[i] < 0x20 || utf8[i] > 0x7e || utf8[i] == '"') {
-                OPENSSL_free(utf8);
-                return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-            }
+            continue; /* Not convertible to UTF-8 */
+        if(!roleDnValueUsable(utf8, valueLength)) {
+            OPENSSL_free(utf8);
+            continue;
         }
         size_t separator = result->length > 0 ? 1 : 0;
         size_t oldLength = result->length;

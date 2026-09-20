@@ -1365,9 +1365,22 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         if(ctxRes == UA_STATUSCODE_GOOD)
             ctxRes = UA_CertificateUtils_getThumbprint(&x509->certificateData,
                                                        &ctx.userThumbprint);
-        if(ctxRes == UA_STATUSCODE_GOOD)
-            ctxRes = UA_CertificateUtils_getRoleSubjectCriteria(
+        if(ctxRes == UA_STATUSCODE_GOOD) {
+            UA_StatusCode dnRes = UA_CertificateUtils_getRoleSubjectCriteria(
                 &x509->certificateData, &ctx.userSubject, &ctx.userIssuer);
+            /* A certificate whose subject cannot be expressed as a criteria
+             * string is not a reason to refuse the Session. It just cannot
+             * match an X509Subject rule - the empty criteria never do. */
+            if(dnRes == UA_STATUSCODE_BADOUTOFMEMORY)
+                ctxRes = dnRes;
+            else if(dnRes != UA_STATUSCODE_GOOD)
+                UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                       "ActivateSession: Could not derive the "
+                                       "X509Subject criteria from the user "
+                                       "certificate (%s). X509Subject rules "
+                                       "will not match this Session",
+                                       UA_StatusCode_name(dnRes));
+        }
     }
     /* Only retain an ApplicationUri for authorization if CreateSession bound it
      * to an accepted ApplicationInstance Certificate on a signed channel. */

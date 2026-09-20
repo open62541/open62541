@@ -601,6 +601,89 @@ START_TEST(certificate_generation_pem) {
 }
 END_TEST
 
+/* The X509Subject identity criteria (Part 18 4.4.3) are built from the subject
+ * and the issuer of the user certificate: name-value pairs in the order of
+ * Table 10, separated by '/', the value in quotes. The value is UTF-8 and may
+ * contain any character except the quote; an attribute that cannot be
+ * represented is left out instead of failing the derivation. */
+START_TEST(role_subject_criteria_utf8) {
+    UA_ByteString privKey = UA_BYTESTRING_NULL;
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    /* "O=Müller GmbH", "CN=Jörg \"J\" Test" in UTF-8 */
+    UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=M\xC3\xBCller GmbH"),
+                            UA_STRING_STATIC("CN=J\xC3\xB6rg \"J\" Test")};
+    UA_String subjectAltName[1] = {UA_STRING_STATIC("URI:urn:test.utf8")};
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode retval = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 3, subjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, kvm, &privKey, &cert);
+    UA_KeyValueMap_delete(kvm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String subjectCriteria = UA_STRING_NULL;
+    UA_String issuerCriteria = UA_STRING_NULL;
+    retval = UA_CertificateUtils_getRoleSubjectCriteria(&cert, &subjectCriteria,
+                                                        &issuerCriteria);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The CommonName carries a quote and is therefore omitted */
+    UA_String expected = UA_STRING("O=\"M\xC3\xBCller GmbH\"/C=\"DE\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+    /* Self-signed, so the issuer is the same name */
+    ck_assert(UA_String_equal(&issuerCriteria, &expected));
+
+    UA_String_clear(&subjectCriteria);
+    UA_String_clear(&issuerCriteria);
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&privKey);
+}
+END_TEST
+
+/* The attributes are emitted in the order of Part 18 Table 10, not in the
+ * order they appear in the certificate. */
+START_TEST(role_subject_criteria_attribute_order) {
+    UA_ByteString privKey = UA_BYTESTRING_NULL;
+    UA_ByteString cert = UA_BYTESTRING_NULL;
+    UA_String subject[4] = {UA_STRING_STATIC("CN=alice"),
+                            UA_STRING_STATIC("OU=Dev"),
+                            UA_STRING_STATIC("O=Acme"),
+                            UA_STRING_STATIC("C=DE")};
+    UA_String subjectAltName[1] = {UA_STRING_STATIC("URI:urn:test.order")};
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode retval = UA_CreateCertificate(
+        UA_Log_Stdout, subject, 4, subjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, kvm, &privKey, &cert);
+    UA_KeyValueMap_delete(kvm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String subjectCriteria = UA_STRING_NULL;
+    UA_String issuerCriteria = UA_STRING_NULL;
+    retval = UA_CertificateUtils_getRoleSubjectCriteria(&cert, &subjectCriteria,
+                                                        &issuerCriteria);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String expected =
+        UA_STRING("CN=\"alice\"/O=\"Acme\"/OU=\"Dev\"/C=\"DE\"");
+    ck_assert_msg(UA_String_equal(&subjectCriteria, &expected),
+                  "subject criteria \"%.*s\"", (int)subjectCriteria.length,
+                  subjectCriteria.data);
+
+    UA_String_clear(&subjectCriteria);
+    UA_String_clear(&issuerCriteria);
+    UA_ByteString_clear(&cert);
+    UA_ByteString_clear(&privKey);
+}
+END_TEST
+
 START_TEST(certificate_generation_ip_san) {
     UA_ByteString derPrivKey = UA_BYTESTRING_NULL;
     UA_ByteString derCert = UA_BYTESTRING_NULL;
@@ -1072,6 +1155,8 @@ static Suite *testSuite_crypto_coverage(void) {
     tcase_add_test(tc_certgen, certificate_generation_pem);
     tcase_add_test(tc_certgen, certificate_generation_ip_san);
     tcase_add_test(tc_certgen, certificate_generation_pem_ip_san);
+    tcase_add_test(tc_certgen, role_subject_criteria_utf8);
+    tcase_add_test(tc_certgen, role_subject_criteria_attribute_order);
 #endif
     suite_add_tcase(s, tc_certgen);
 

@@ -2839,6 +2839,49 @@ START_TEST(identityCriteria_extended) {
 }
 END_TEST
 
+/* A certificate subject is not restricted to ASCII. The criteria value is
+ * UTF-8 and may contain any character except the quote (Part 18 §4.4.3). */
+START_TEST(identityCriteria_x509SubjectUtf8) {
+    UA_NodeId umlaut = addRoleWithRule("UmlautSubjRole",
+                                       UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+                                       "CN=\"M\xC3\xBCller\"/O=\"M\xC3\xBCller GmbH\"");
+
+    UA_SessionIdentityContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userSubject = UA_STRING("CN=\"M\xC3\xBCller\"/O=\"M\xC3\xBCller GmbH\"");
+    ck_assert(roleGrantedForContext(&ctx, &umlaut));
+
+    /* The criteria are also matched against the issuer of the certificate */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userIssuer = UA_STRING("CN=\"M\xC3\xBCller\"/O=\"M\xC3\xBCller GmbH\"");
+    ck_assert(roleGrantedForContext(&ctx, &umlaut));
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userSubject = UA_STRING("CN=\"Mueller\"");
+    ck_assert(!roleGrantedForContext(&ctx, &umlaut));
+
+    /* Control characters, malformed UTF-8 and empty values stay rejected */
+    const char *invalid[] = {"CN=\"a\tb\"", "CN=\"\xC3\"", "CN=\"\"",
+                             "CN=\"a\"/", "alice"};
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        UA_IdentityMappingRuleType rule;
+        UA_IdentityMappingRuleType_init(&rule);
+        rule.criteriaType = UA_IDENTITYCRITERIATYPE_X509SUBJECT;
+        rule.criteria = UA_STRING((char*)(uintptr_t)invalid[i]);
+        UA_Role role;
+        UA_Role_init(&role);
+        role.roleName = UA_QUALIFIEDNAME(1, "InvalidSubjRole");
+        role.identityMappingRules = &rule;
+        role.identityMappingRulesSize = 1;
+        ck_assert_msg(UA_Server_addRole(server, &role, NULL) ==
+                      UA_STATUSCODE_BADINVALIDARGUMENT,
+                      "accepted the invalid criteria '%s'", invalid[i]);
+    }
+
+    UA_NodeId_clear(&umlaut);
+}
+END_TEST
+
 /* The Application and Endpoint role filters gate role assignment (Part 18
  * §4.4.1), including the Exclude variants. */
 START_TEST(roleFilters_evaluated) {
@@ -3422,6 +3465,7 @@ static Suite *testSuite_IdentityAppMgmt(void) {
     tcase_add_test(tc, identityManagement_usernameRule);
     tcase_add_test(tc, applicationManagement_basic);
     tcase_add_test(tc, identityCriteria_extended);
+    tcase_add_test(tc, identityCriteria_x509SubjectUtf8);
     tcase_add_test(tc, identityCriteria_groupId);
     tcase_add_test(tc, roleFilters_evaluated);
 #if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_METHODCALLS)

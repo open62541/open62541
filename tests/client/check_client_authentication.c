@@ -14,6 +14,8 @@
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
+#include <open62541/plugin/create_certificate.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 
 #include "client/ua_client_internal.h"
@@ -504,6 +506,90 @@ START_TEST(client_authenticate_with_certificate) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_RBAC
+/* A user certificate whose subject is not plain ASCII must still activate a
+ * Session, and its X509Subject criteria must match a Role configured for it
+ * (Part 18 §4.4.3: the criteria value may contain any character but a quote). */
+START_TEST(client_authenticate_certificate_utf8_subject) {
+    /* "O=Müller GmbH", "CN=Jörg Test" in UTF-8 */
+    UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=M\xC3\xBCller GmbH"),
+                            UA_STRING_STATIC("CN=J\xC3\xB6rg Test")};
+    UA_String subjectAltName[2] = {
+        UA_STRING_STATIC("DNS:localhost"),
+        UA_STRING_STATIC("URI:urn:open62541.client.utf8")
+    };
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_ByteString certificateAuth = UA_BYTESTRING_NULL;
+    UA_ByteString privateKeyAuth = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_CreateCertificate(UA_Log_Stdout, subject, 3,
+                                           subjectAltName, 2,
+                                           UA_CERTIFICATEFORMAT_DER, kvm,
+                                           &privateKeyAuth, &certificateAuth),
+                      UA_STATUSCODE_GOOD);
+    UA_KeyValueMap_delete(kvm);
+
+    /* A Role that is granted by the subject of that certificate */
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = UA_IDENTITYCRITERIATYPE_X509SUBJECT;
+    rule.criteria = UA_STRING("CN=\"J\xC3\xB6rg Test\"/O=\"M\xC3\xBCller GmbH\"/C=\"DE\"");
+    UA_Role utf8Role;
+    UA_Role_init(&utf8Role);
+    utf8Role.roleName = UA_QUALIFIEDNAME(1, "Utf8SubjectRole");
+    utf8Role.identityMappingRules = &rule;
+    utf8Role.identityMappingRulesSize = 1;
+    UA_NodeId utf8RoleId = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &utf8Role, &utf8RoleId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ByteString certificate;
+    certificate.length = CLIENT_CERT_DER_LENGTH;
+    certificate.data = CLIENT_CERT_DER_DATA;
+    UA_ByteString privateKey;
+    privateKey.length = CLIENT_KEY_DER_LENGTH;
+    privateKey.data = CLIENT_KEY_DER_DATA;
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->securityPolicyUri = UA_String_fromChars(
+        "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.server.application");
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
+
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    /* The Session was granted the Role of the X509Subject rule */
+    size_t namesSize = 0;
+    UA_QualifiedName *names = NULL;
+    ck_assert_uint_eq(UA_Server_getSessionRoleNames(server, client->sessionId,
+                                                    &namesSize, &names),
+                      UA_STATUSCODE_GOOD);
+    UA_Boolean found = false;
+    UA_QualifiedName expected = UA_QUALIFIEDNAME(1, "Utf8SubjectRole");
+    for(size_t i = 0; i < namesSize; i++)
+        found |= UA_QualifiedName_equal(&names[i], &expected);
+    ck_assert_msg(found, "The X509Subject Role was not assigned");
+    for(size_t i = 0; i < namesSize; i++)
+        UA_QualifiedName_clear(&names[i]);
+    UA_free(names);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_NodeId_clear(&utf8RoleId);
+}
+END_TEST
+#endif /* UA_ENABLE_RBAC */
+
 START_TEST(client_authenticate_none_with_certificate) {
     /* Load client certificate and private key for the SecureChannel */
     UA_ByteString certificate;
@@ -562,6 +648,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, client_connect_basic256Sha256_anonymous);
     tcase_add_test(tc_client, client_authenticate_with_certificate);
     tcase_add_test(tc_client, client_authenticate_none_with_certificate);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc_client, client_authenticate_certificate_utf8_subject);
+#endif
     suite_add_tcase(s,tc_client);
     return s;
 }
