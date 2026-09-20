@@ -2720,7 +2720,8 @@ START_TEST(addRole_quotaEnforced) {
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
-    ck_assert_uint_eq(res, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    /* Part 18 §4.2.2: the Server does not allow more Roles to be added */
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADNOTSUPPORTED);
 
     size_t rolesSize = 0;
     UA_QualifiedName *names = NULL;
