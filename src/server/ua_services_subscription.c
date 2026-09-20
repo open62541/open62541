@@ -558,6 +558,53 @@ setMonitoredItemSubscriptionVisitor(void *context, UA_MonitoredItem *mon) {
     return NULL;
 }
 
+#ifdef UA_ENABLE_RBAC
+static UA_Boolean
+sameRoleSet(const UA_Session *a, const UA_Session *b) {
+    if(a->rolesSize != b->rolesSize)
+        return false;
+    for(size_t i = 0; i < a->rolesSize; i++) {
+        UA_Boolean found = false;
+        for(size_t j = 0; j < b->rolesSize; j++) {
+            if(UA_NodeId_equal(&a->roles[i], &b->roles[j])) {
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+            return false;
+    }
+    return true;
+}
+
+static UA_Boolean
+sameRbacTransferContext(const UA_Session *a, const UA_Session *b) {
+    if(!a || !b || !sameRoleSet(a, b) ||
+       a->hasIdentityContext != b->hasIdentityContext)
+        return false;
+
+    /* Sessions created internally by an embedding application may not use the
+     * Part 18 identity snapshot. Their equal explicit Role sets are the full
+     * RBAC context available to compare. */
+    if(!a->hasIdentityContext)
+        return true;
+
+    /* AccessRestrictions depend on the current SecureChannel. */
+    if(!a->channel || !b->channel ||
+       a->channel->securityMode != b->channel->securityMode)
+        return false;
+
+    const UA_SessionIdentityContext *ca = &a->identityContext;
+    const UA_SessionIdentityContext *cb = &b->identityContext;
+    return ca->trustedApplication == cb->trustedApplication &&
+        ca->endpointSecurityMode == cb->endpointSecurityMode &&
+        UA_String_equal(&ca->applicationUri, &cb->applicationUri) &&
+        UA_String_equal(&ca->endpointUrl, &cb->endpointUrl) &&
+        UA_String_equal(&ca->securityPolicyUri, &cb->securityPolicyUri) &&
+        UA_String_equal(&ca->transportProfileUri, &cb->transportProfileUri);
+}
+#endif
+
 static void
 Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                const void *context /* UA_Boolean */,
@@ -605,6 +652,18 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
+
+#ifdef UA_ENABLE_RBAC
+    /* The AccessControl callback verifies the user identity. Part 18 can still
+     * assign different Roles to that user for a different application or
+     * Endpoint, and AccessRestrictions can depend on the channel. Moving the
+     * queued and retransmission data across such a boundary would disclose
+     * data authorized only in the old Session. */
+    if(!sameRbacTransferContext(oldSession, session)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+#endif
 
     /* Check limits for the number of subscriptions for this Session */
     if((server->config.maxSubscriptionsPerSession != 0) &&
