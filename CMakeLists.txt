@@ -329,14 +329,6 @@ if(UA_ENABLE_RBAC)
     endif()
 endif()
 
-# The Alarms & Conditions driver binds the ConditionType Methods (Disable,
-# Enable, AddComment, ConditionRefresh, Acknowledge, Confirm) unconditionally.
-# It is only built into the library for a generated namespace zero.
-if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT UA_ENABLE_METHODCALLS)
-    message(FATAL_ERROR "UA_NAMESPACE_ZERO=FULL requires UA_ENABLE_METHODCALLS "
-                        "for the ConditionType Methods of the Alarms & Conditions driver")
-endif()
-
 if(UA_ENABLE_DRIVER_MDNS_AVAHI AND NOT UA_ENABLE_DISCOVERY)
     message(FATAL_ERROR "UA_ENABLE_DRIVER_MDNS_AVAHI requires UA_ENABLE_DISCOVERY")
 endif()
@@ -519,6 +511,18 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
     MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS needs Subscriptions enabled")
     set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF)
+endif()
+
+# drivers/alarms_conditions.c is always compiled, but its body is only built
+# with UA_ENABLE_SUBSCRIPTIONS_EVENTS and a generated full namespace zero. It
+# then binds the ConditionType Methods (Disable, Enable, AddComment,
+# ConditionRefresh, Acknowledge, Confirm) unconditionally. Checked here, after
+# UA_ENABLE_SUBSCRIPTIONS_EVENTS got its effective value above.
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_SUBSCRIPTIONS_EVENTS AND
+   NOT UA_ENABLE_METHODCALLS)
+    message(FATAL_ERROR "UA_NAMESPACE_ZERO=FULL with UA_ENABLE_SUBSCRIPTIONS_EVENTS "
+                        "requires UA_ENABLE_METHODCALLS for the ConditionType Methods "
+                        "of the Alarms & Conditions driver")
 endif()
 
 if(UA_ENABLE_HISTORIZING AND (NOT UA_ENABLE_SUBSCRIPTIONS))
