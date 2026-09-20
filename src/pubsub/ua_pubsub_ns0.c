@@ -983,7 +983,7 @@ addPubSubConnectionAction(UA_Server *server,
     UA_StatusCode res = checkMethodArgumentCounts(inputSize, 1, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    if(!UA_Variant_hasScalarType(
+    if(!input || !UA_Variant_hasScalarType(
            &input[0], &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 

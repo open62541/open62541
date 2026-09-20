@@ -147,6 +147,55 @@ static UA_NodeId addPubSubConnection(void){
     return connectionId;
 }
 
+START_TEST(AddConnectionValidatesScalarInput) {
+    /* Keep all backing storage valid: these checks exercise the callback's
+     * input contract directly, without a network request or invalid memory. */
+    UA_Server *localServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(localServer, NULL);
+    UA_PubSubConnectionDataType connection;
+    UA_PubSubConnectionDataType_init(&connection);
+    connection.name = UA_STRING("Input validation");
+    connection.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_UInt32 publisherId = 100;
+    UA_Variant_setScalar(&connection.publisherId, &publisherId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_NetworkAddressUrlDataType address =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_ExtensionObject_setValueNoDelete(&connection.address, &address,
+                                       &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+
+    UA_Variant input, output;
+    UA_Variant_init(&input);
+    UA_Variant_init(&output);
+    UA_Variant_setScalar(&input, &connection, &UA_TYPES[UA_TYPES_PUBSUBCONNECTIONDATATYPE]);
+    size_t inputSize = 1;
+    if(_i == 0)
+        input.type = &UA_TYPES[UA_TYPES_STRING];
+    else if(_i == 1)
+        input.arrayLength = 1;
+    else
+        inputSize = 0;
+
+    UA_NodeId methodId = UA_NS0ID(PUBLISHSUBSCRIBE_ADDCONNECTION);
+    UA_NodeId objectId = UA_NS0ID(PUBLISHSUBSCRIBE);
+    lockServer(localServer);
+    const UA_Node *method = UA_NODESTORE_GET(localServer, &methodId);
+    ck_assert_ptr_ne(method, NULL);
+    ck_assert_int_eq(method->head.nodeClass, UA_NODECLASS_METHOD);
+    ck_assert(method->methodNode.method != NULL);
+    UA_StatusCode res = method->methodNode.method(localServer,
+        &localServer->adminSession.sessionId, NULL, &methodId, NULL,
+        &objectId, NULL, inputSize, &input, 1, &output);
+    UA_NODESTORE_RELEASE(localServer, method);
+    ck_assert_uint_eq(res, inputSize == 0 ? UA_STATUSCODE_BADARGUMENTSMISSING :
+                                          UA_STATUSCODE_BADTYPEMISMATCH);
+    ck_assert_uint_eq(getPSM(localServer)->connectionsSize, 0);
+    ck_assert(UA_Variant_isEmpty(&output));
+    unlockServer(localServer);
+    UA_Variant_clear(&output);
+    ck_assert_uint_eq(UA_Server_delete(localServer), UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(AddConnectionRollsBackOnChildFailure) {
     UA_Variant publisherId;
     UA_UInt32 publisherIdValue = 100;
@@ -2576,6 +2625,9 @@ int main(void) {
                    AddAndRemoveVariablesMethods);
 
     Suite *s = suite_create("PubSub CRUD configuration by the information model functions");
+    TCase *tc_input_contract = tcase_create("PubSub method input contracts");
+    tcase_add_loop_test(tc_input_contract, AddConnectionValidatesScalarInput, 0, 3);
+    suite_add_tcase(s, tc_input_contract);
     suite_add_tcase(s, tc_add_pubsub_informationmodel_methods_connection);
 
     SRunner *sr = srunner_create(s);
