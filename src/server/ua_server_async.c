@@ -153,7 +153,6 @@ releaseOperation(UA_AsyncManager *am, UA_AsyncOperation *op, void *destination) 
 static void
 releaseResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     UA_assert(ar->response.readResponse.resultsSize == 0 && ar->pendingResults == 0);
-    UA_assert(!ar->dc.callback);
     TAILQ_REMOVE(&am->responses, ar, pointers);
     if(am->freeResponsesSize >= 16) {
         UA_free(ar);
@@ -200,8 +199,8 @@ sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
                   channel ? channel->securityToken.channelId : 0, session->sessionId,
                   ar->uacpRequestId, UA_TYPES[operationTypes[ar->kind].serviceType].typeId);
 
-    /* Session removal finishes responses before detaching the Session, but
-     * does not send on the logically closed Session. */
+    /* Session cleanup follows response delivery, but the Session may already
+     * be logically closed. Do not send a response in that case. */
     if(session->state == UA_SESSIONSTATE_CLOSED)
         return;
 
@@ -324,31 +323,24 @@ processResponse(void *application, void *context) {
     lockServer(server);
     UA_AsyncManager *am = &server->asyncManager;
     am->activeDispatch++;
-    /* Claim delivery before application callbacks can reenter. */
-    ar->dc.callback = NULL;
     finishResponse(server, ar);
     releaseResponse(am, ar);
     finishDispatch(am);
     unlockServer(server);
 }
 
-/* Session closure may finish a queued response inline. If application code
- * runs the EventLoop recursively, consume the queued callback but leave storage
- * with the executing frame. Otherwise that callback will recycle it later. */
 static void
-consumeResponseCallback(void *application, void *context) {
-    UA_Server *server = (UA_Server*)application;
-    lockServer(server);
-    ((UA_AsyncResponse*)context)->dc.callback = NULL;
-    unlockServer(server);
+scheduleResponse(UA_Server *server, UA_AsyncResponse *ar) {
+    UA_assert(!ar->dc.callback);
+    scheduleCallback(server, &ar->dc, processResponse, ar);
 }
 
 static void
 completeResponseOperation(UA_Server *server, UA_AsyncResponse *ar) {
     UA_assert(ar && ar->pendingResults > 0);
     /* Completion during initiation is handled by the service return. */
-    if(--ar->pendingResults == 0 && ar->dc.callback == processResponse)
-        scheduleCallback(server, &ar->dc, processResponse, ar);
+    if(--ar->pendingResults == 0 && ar->session)
+        scheduleResponse(server, ar);
 }
 
 /* All three setters use the same ownership transition. Canceled operations
@@ -443,7 +435,7 @@ checkTimeouts(UA_Server *server, void *context) {
         if(op->resultIndex == SIZE_MAX)
             continue;
         UA_AsyncResponse *ar = isRequestOp(op) ? op->handling.response : NULL;
-        if(ar && ar->dc.callback != processResponse) /* Still dispatching */
+        if(ar && !ar->session) /* Still dispatching */
             continue;
         if(tNow <= (ar ? ar->timeout : op->handling.callback.timeout))
             continue;
@@ -667,30 +659,13 @@ callNoAsync(UA_Server *server, UA_Session *session,
 void
 UA_AsyncManager_cancelSession(UA_Server *server, UA_Session *session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_AsyncManager *am = &server->asyncManager;
-    am->activeDispatch++;
-
-    /* Include already-ready responses. Restart after callbacks, which may
-     * finish other responses or recursively close another Session. */
-    while(true) {
-        UA_AsyncResponse *match;
-        TAILQ_FOREACH(match, &am->responses, pointers) {
-            if(match->dc.callback == processResponse && match->session == session)
-                break;
-        }
-        if(!match)
-            break;
-        /* Claim inline delivery. A ready response already has a queued callback
-         * that must be consumed before its storage can enter the pool. */
-        match->dc.callback = (match->pendingResults == 0) ? consumeResponseCallback : NULL;
-        cancelResponseOperations(server, match, UA_STATUSCODE_BADSESSIONCLOSED);
-        finishResponse(server, match);
-        if(match->dc.callback)
-            match->dc.callback = processResponse; /* Queued cleanup only */
-        else
-            releaseResponse(am, match);
+    /* Cancellation queues delivery without calling application code. Ready or
+     * currently delivering responses already precede Session cleanup. */
+    UA_AsyncResponse *ar;
+    TAILQ_FOREACH(ar, &server->asyncManager.responses, pointers) {
+        if(ar->session == session && ar->pendingResults > 0)
+            cancelResponseOperations(server, ar, UA_STATUSCODE_BADSESSIONCLOSED);
     }
-    finishDispatch(am);
 }
 
 UA_UInt32
@@ -702,7 +677,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncResponse *match;
     TAILQ_FOREACH(match, &am->responses, pointers) {
-        if(match->dc.callback != processResponse || match->pendingResults == 0 ||
+        if(match->pendingResults == 0 ||
            match->response.callResponse.responseHeader.requestHandle != requestHandle ||
            match->session != session)
             continue;
@@ -845,7 +820,7 @@ serviceOperations(UA_Server *server, UA_Session *session, UA_AsyncOperationType 
             releaseResponse(am, ar);
         } else {
             /* Notify after the caller has sent the synchronous response. */
-            scheduleCallback(server, &ar->dc, processResponse, ar);
+            scheduleResponse(server, ar);
         }
     } else {
         /* Retain delivery and the transport correlation supplied at dispatch. */
@@ -857,7 +832,6 @@ serviceOperations(UA_Server *server, UA_Session *session, UA_AsyncOperationType 
         if(server->config.asyncOperationTimeout > 0.0)
             ar->timeout = el->dateTime_nowMonotonic(el) + (UA_DateTime)
                 (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
-        ar->dc.callback = processResponse;
     }
     finishDispatch(am);
     return done;
