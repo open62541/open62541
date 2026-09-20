@@ -101,7 +101,8 @@ closeFromAsyncServiceNotification(
     closeAtServiceAsync = false;
     const UA_NodeId *sessionId = (const UA_NodeId*)payload.map[1].value.data;
     closeAtServiceAsyncResult = UA_Server_closeSession(server, sessionId);
-    ck_assert_uint_eq(closeServiceEndCount, 1);
+    /* The canceled response is delivered after the current callback returns. */
+    ck_assert_uint_eq(closeServiceEndCount, 0);
 }
 
 static void
@@ -1900,7 +1901,7 @@ acknowledgeAllReads(UA_Server *serverArg, const void *out) {
     batchCancelNotifications++;
     UA_AsyncResponse *response = TAILQ_FIRST(&serverArg->asyncManager.responses);
     ck_assert_ptr_nonnull(response);
-    ck_assert(!response->dc.callback);
+    ck_assert(response->dc.callback != NULL);
     ck_assert_ptr_null(response->response.readResponse.results);
     ck_assert_uint_eq(response->response.readResponse.resultsSize, 0);
     for(size_t i = 0; i < 16; i++) {

@@ -1468,9 +1468,10 @@ UA_MonitoredItem_release(UA_Server *server, UA_MonitoredItem *mon) {
     if(--mon->outstandingAsyncReads > 0 || !UA_MonitoredItem_isDeleting(mon))
         return;
 
-    /* Teardown also removes items after the EventLoop has stopped. */
+    /* Final deletion must clear values before server-owned type metadata.
+     * Teardown also removes items after the EventLoop has stopped. */
     UA_EventLoop *el = server->config.eventLoop;
-    if(server->state == UA_LIFECYCLESTATE_STOPPED ||
+    if(server->state == UA_LIFECYCLESTATE_STOPPED || !server->asyncManager.driver.server ||
        el->state == UA_EVENTLOOPSTATE_STOPPED || el->state == UA_EVENTLOOPSTATE_FRESH) {
         mon->delayedFreePointers.callback(server, mon);
         return;

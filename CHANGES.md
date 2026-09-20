@@ -28,6 +28,11 @@ After response handling or local result delivery, the server calls the optional
 `asyncOperationCancelCallback` for each canceled operation still awaiting its
 setter call.
 
+Session closure rejects new requests immediately. While the server is running,
+final notifications and session-context cleanup are deferred to the event loop.
+Outstanding async responses emit `SERVICE_END` before `SESSION_CLOSED` and before
+the access-control `closeSession` callback releases the session context.
+
 Local async requests are rejected with `BadShutdown` unless the server is
 started. Calling `UA_Server_run_shutdown` while already `STOPPING` returns
 `Good` immediately. Starting shutdown during operation dispatch or async

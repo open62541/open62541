@@ -270,7 +270,9 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
 void UA_EXPORT
 UA_Server_setAdminSessionContext(UA_Server *server, void *context);
 
-/* Manually close a session */
+/* Manually close a session. New requests are rejected immediately. While the
+ * server is running, final notifications and session-context cleanup are
+ * deferred to the event loop, after outstanding async responses are processed. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
