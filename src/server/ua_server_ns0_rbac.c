@@ -101,6 +101,104 @@ findMethodChild(UA_Server *server, const UA_NodeId parentId,
 }
 
 static UA_StatusCode
+readNamespacePermissions(UA_Server *server, const UA_NodeId *sessionId,
+                         UA_Boolean userOnly, UA_DataValue *value) {
+    UA_RolePermissionType *out = NULL;
+    size_t outSize = 0;
+
+    lockServer(server);
+    const UA_NamespaceMetadata *nm = NULL;
+    if(server->namespaceMetadata && server->namespaceMetadataSize > 0 &&
+       server->namespaceMetadata[0].hasDefaultRolePermissions)
+        nm = &server->namespaceMetadata[0];
+
+    UA_Session *session = userOnly && sessionId ?
+        getSessionById(server, sessionId) : NULL;
+    if(nm) {
+        for(size_t i = 0; i < nm->entriesSize; i++) {
+            UA_Boolean include = !userOnly;
+            if(userOnly && session) {
+                for(size_t j = 0; j < session->rolesSize; j++) {
+                    if(UA_NodeId_equal(&nm->entries[i].roleId,
+                                       &session->roles[j])) {
+                        include = true;
+                        break;
+                    }
+                }
+            }
+            if(include)
+                outSize++;
+        }
+    }
+
+    if(outSize > 0)
+        out = (UA_RolePermissionType*)
+            UA_Array_new(outSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(outSize > 0 && !out) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    size_t outIndex = 0;
+    if(nm) {
+        for(size_t i = 0; i < nm->entriesSize; i++) {
+            UA_Boolean include = !userOnly;
+            if(userOnly && session) {
+                for(size_t j = 0; j < session->rolesSize; j++) {
+                    if(UA_NodeId_equal(&nm->entries[i].roleId,
+                                       &session->roles[j])) {
+                        include = true;
+                        break;
+                    }
+                }
+            }
+            if(!include)
+                continue;
+            res = UA_NodeId_copy(&nm->entries[i].roleId,
+                                 &out[outIndex].roleId);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            out[outIndex].permissions = nm->entries[i].permissions;
+            outIndex++;
+        }
+    }
+    unlockServer(server);
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(out, outSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return res;
+    }
+    UA_Variant_setArray(&value->value, out, outSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readNamespaceDefaultRolePermissions(UA_Server *server,
+                                    const UA_NodeId *sessionId,
+                                    void *sessionContext,
+                                    const UA_NodeId *nodeId, void *nodeContext,
+                                    UA_Boolean includeSourceTimeStamp,
+                                    const UA_NumericRange *range,
+                                    UA_DataValue *value) {
+    return readNamespacePermissions(server, sessionId, false, value);
+}
+
+static UA_StatusCode
+readNamespaceDefaultUserRolePermissions(UA_Server *server,
+                                        const UA_NodeId *sessionId,
+                                        void *sessionContext,
+                                        const UA_NodeId *nodeId,
+                                        void *nodeContext,
+                                        UA_Boolean includeSourceTimeStamp,
+                                        const UA_NumericRange *range,
+                                        UA_DataValue *value) {
+    return readNamespacePermissions(server, sessionId, true, value);
+}
+
+static UA_StatusCode
 ensureRoleTypeMethods(UA_Server *server, const UA_NodeId *roleId,
                       UA_Boolean applyPermissions);
 
@@ -1482,6 +1580,23 @@ initNS0RBAC(UA_Server *server) {
      * treats a missing Node as an error rather than degrading silently; the
      * Nodes the Server is allowed to create itself are created below. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Keep the standard NamespaceMetadata permission Properties backed by the
+     * same namespace-default policy used for enforcement and attributes. */
+    UA_DataSource defaultRolePermissions = {
+        readNamespaceDefaultRolePermissions, NULL};
+    RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+        server,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTROLEPERMISSIONS),
+        defaultRolePermissions));
+    UA_DataSource defaultUserRolePermissions = {
+        readNamespaceDefaultUserRolePermissions, NULL};
+    RBAC_INIT_TRY(UA_Server_setVariableNode_dataSource(
+        server,
+        UA_NODEID_NUMERIC(0,
+            UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTUSERROLEPERMISSIONS),
+        defaultUserRolePermissions));
 
     /* Ensure the RoleSet instance node exists */
     UA_NodeId roleSetId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
