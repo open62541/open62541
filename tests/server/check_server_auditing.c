@@ -24,7 +24,7 @@
 
 #if defined(UA_ENABLE_AUDITING) && UA_MULTITHREADING >= 100
 static UA_Server *server = NULL;
-static UA_atomic(UA_Boolean) running = false;
+static UA_atomic(uintptr_t) running = false;
 static THREAD_HANDLE server_thread;
 
 /* Counters per audit-event type. Updated from the server thread and from the
