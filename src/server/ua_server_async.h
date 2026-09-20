@@ -19,6 +19,7 @@
 #include <open62541/server.h>
 
 #include "open62541_queue.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -47,16 +48,20 @@ typedef union {
 
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
-    /* Clear the previous link when ownership returns. The next pointer doubles
-     * as the operation free-list link. */
-    TAILQ_ENTRY(UA_AsyncOperation) pointers;
+    /* Indexed by the completion identifier until ownership returns. The left
+     * pointer doubles as the operation free-list link after completion. */
+    ZIP_ENTRY(UA_AsyncOperation) index;
+    uintptr_t id; /* Zero when not indexed */
     /* Service result index; zero for local operations. SIZE_MAX means canceled,
      * without changing the application-owned output storage. */
     size_t resultIndex;
     UA_AsyncOperationType asyncOperationType;
     union {
-        /* Retained until completion or the cancellation notification */
-        UA_AsyncResponse *response;
+        /* Linked until completion or the cancellation notification. */
+        struct {
+            LIST_ENTRY(UA_AsyncOperation) pointers;
+            UA_AsyncResponse *response;
+        } service;
 
         /* The operation was called directly */
         struct {
@@ -88,6 +93,7 @@ typedef struct UA_AsyncOperation {
 
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
+    LIST_HEAD(, UA_AsyncOperation) operations;
 
     /* Queued once when ready; delivery recycles the response. Session cleanup
      * is queued after its responses, keeping their context alive. */
@@ -126,7 +132,7 @@ typedef struct {
     TAILQ_HEAD(, UA_AsyncResponse) responses;
 
     /* Index of operations whose ownership has not yet returned. */
-    TAILQ_HEAD(, UA_AsyncOperation) operations;
+    ZIP_HEAD(UA_AsyncOperationTree, UA_AsyncOperation) operations;
     size_t trackedOpsCount; /* Also counts local results awaiting delivery */
     size_t activeDispatch; /* Stack-owned operations and executing callbacks */
 

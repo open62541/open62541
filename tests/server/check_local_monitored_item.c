@@ -361,7 +361,7 @@ START_TEST(Server_LocalMonitoredItem_deleteFromDataSourceRead) {
     ASSERT_STATUSCODE(deleteFromDataSourceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(callbackCount, 0);
     if(deletedReadCompletesAsync) {
-        UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
+        UA_AsyncOperation *op = ZIP_ROOT(&server->asyncManager.operations);
         ck_assert_ptr_nonnull(op);
         ck_assert_uint_eq(op->resultIndex, 0);
         ck_assert_ptr_nonnull(op->handling.callback.context);
