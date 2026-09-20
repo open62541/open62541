@@ -2048,6 +2048,11 @@ START_TEST(MdnsShutdownSendsSelfGoodbyeAndDrainsQueue) {
      * does not return BadNotImplemented. */
     UA_ServerConfig *localConfig = UA_Server_getConfig(localServer);
     localConfig->serversOnNetworkEnabled = true;
+    /* The suite fixture already listens on 4840. lwIP cannot share that
+     * listener with this second server, even when SO_REUSEADDR is enabled. */
+    UA_String_clear(&localConfig->serverUrls[0]);
+    localConfig->serverUrls[0] = UA_STRING_ALLOC("opc.tcp://:4841");
+    ck_assert_ptr_ne(localConfig->serverUrls[0].data, NULL);
 
     UA_ConnectionManager *localTestCm = NULL;
     TestUdpIntercept *localIntercept = NULL;
