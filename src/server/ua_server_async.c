@@ -124,17 +124,28 @@ operationId(const UA_AsyncOperation *op) {
     }
 }
 
+/* Compare opaque identifiers numerically, without dereferencing application
+ * memory or requiring an allocation for a lookup key. */
+static enum ZIP_CMP
+compareOperationId(const uintptr_t *a, const uintptr_t *b) {
+    return (*a < *b) ? ZIP_CMP_LESS : ((*a > *b) ? ZIP_CMP_MORE : ZIP_CMP_EQ);
+}
+
+ZIP_FUNCTIONS(UA_AsyncOperationTree, UA_AsyncOperation, index, uintptr_t, id,
+              compareOperationId)
+
 /* Called once by delivery. Synchronous facades may notify inline, but must not
  * access op afterwards: the application may return ownership in the callback. */
 static void
 notifyCanceledOperation(UA_Server *server, UA_AsyncOperation *op) {
-    if(op->pointers.tqe_prev && op->resultIndex == SIZE_MAX &&
+    if(op->id && op->resultIndex == SIZE_MAX &&
        server->config.asyncOperationCancelCallback)
-        server->config.asyncOperationCancelCallback(server, operationId(op));
+        server->config.asyncOperationCancelCallback(server, (const void*)op->id);
 }
 
 static void
 releaseOperation(UA_AsyncManager *am, UA_AsyncOperation *op, void *destination) {
+    UA_assert(op->id == 0);
     if(destination)
         memcpy(destination, &op->output, resultType(op)->memSize);
     else
@@ -145,7 +156,7 @@ releaseOperation(UA_AsyncManager *am, UA_AsyncOperation *op, void *destination) 
         return;
     }
     memset(op, 0, sizeof(*op));
-    op->pointers.tqe_next = am->freeOps;
+    op->index.left = am->freeOps;
     am->freeOps = op;
     am->freeOpsSize++;
 }
@@ -153,6 +164,7 @@ releaseOperation(UA_AsyncManager *am, UA_AsyncOperation *op, void *destination) 
 static void
 releaseResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     UA_assert(ar->response.readResponse.resultsSize == 0 && ar->pendingResults == 0);
+    UA_assert(LIST_EMPTY(&ar->operations));
     TAILQ_REMOVE(&am->responses, ar, pointers);
     if(am->freeResponsesSize >= 16) {
         UA_free(ar);
@@ -175,16 +187,6 @@ acquireResponse(UA_AsyncManager *am) {
     if(ar)
         TAILQ_INSERT_TAIL(&am->responses, ar, pointers);
     return ar;
-}
-
-static UA_AsyncOperation *
-findResponseOperation(UA_AsyncManager *am, UA_AsyncResponse *ar) {
-    UA_AsyncOperation *op;
-    TAILQ_FOREACH(op, &am->operations, pointers) {
-        if(isRequestOp(op) && op->handling.response == ar)
-            return op;
-    }
-    return NULL;
 }
 
 static void
@@ -277,7 +279,7 @@ finishDirectOp(void *application, void *context) {
     directOpCallback(server, op);
     notifyCanceledOperation(server, op);
     op->handling.callback.dc.callback = NULL;
-    if(!op->pointers.tqe_prev) {
+    if(!op->id) {
         am->trackedOpsCount--;
         releaseOperation(am, op, NULL);
     }
@@ -304,13 +306,13 @@ finishResponse(UA_Server *server, UA_AsyncResponse *ar) {
         UA_clear(&ar->response, responseType(ar));
         ar->session = NULL;
     }
-    UA_AsyncManager *am = &server->asyncManager;
-    /* Detach before notifying, then restart: callbacks may complete and reuse
-     * any operation. Only this delivery pass owns the response. */
+    /* Pop before notifying: callbacks may complete and unlink any other
+     * operation. Re-fetching the response's head is safe and constant-time. */
     UA_AsyncOperation *op;
-    while((op = findResponseOperation(am, ar))) {
+    while((op = LIST_FIRST(&ar->operations))) {
         UA_assert(op->resultIndex == SIZE_MAX);
-        op->handling.response = NULL;
+        LIST_REMOVE(op, handling.service.pointers);
+        op->handling.service.response = NULL;
         notifyCanceledOperation(server, op);
     }
 }
@@ -350,20 +352,17 @@ setAsyncResult(UA_Server *server, const void *id,
                 UA_AsyncOperationType kind, UA_StatusCode status) {
     lockServer(server);
     UA_AsyncManager *am = &server->asyncManager;
-    UA_AsyncOperation *op = NULL;
-    TAILQ_FOREACH(op, &am->operations, pointers) {
-        if(operationKind(op->asyncOperationType) == kind && operationId(op) == id)
-            break;
-    }
-    if(!op) {
+    uintptr_t key = (uintptr_t)id;
+    UA_AsyncOperation *op = ZIP_FIND(UA_AsyncOperationTree, &am->operations, &key);
+    if(!op || operationKind(op->asyncOperationType) != kind) {
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
     am->activeDispatch++;
     /* Take ownership, then publish or discard the operation's result. */
-    TAILQ_REMOVE(&am->operations, op, pointers);
-    op->pointers.tqe_prev = NULL;
+    ZIP_REMOVE(UA_AsyncOperationTree, &am->operations, op);
+    op->id = 0;
     if(op->resultIndex != SIZE_MAX) {
         if(kind == UA_ASYNCOPERATIONTYPE_READ_REQUEST)
             Operation_Read_complete(server, &op->output.read, op->context.read.timestamps,
@@ -372,7 +371,9 @@ setAsyncResult(UA_Server *server, const void *id,
             setResultStatus(&op->output, resultType(op), status);
     }
     if(isRequestOp(op)) {
-        UA_AsyncResponse *ar = op->handling.response;
+        UA_AsyncResponse *ar = op->handling.service.response;
+        if(ar)
+            LIST_REMOVE(op, handling.service.pointers);
         if(op->resultIndex != SIZE_MAX)
             completeResponseOperation(server, ar);
         am->trackedOpsCount--;
@@ -396,7 +397,7 @@ cancelOperation(UA_Server *server, UA_AsyncOperation *op, UA_StatusCode status) 
     if(op->resultIndex == SIZE_MAX)
         return;
     if(isRequestOp(op)) {
-        UA_AsyncResponse *ar = op->handling.response;
+        UA_AsyncResponse *ar = op->handling.service.response;
         setResultStatus(responseResult(ar, op->resultIndex),
                         resultType(op), status);
         completeResponseOperation(server, ar);
@@ -412,39 +413,47 @@ cancelResponseOperations(UA_Server *server, UA_AsyncResponse *ar,
                          UA_StatusCode status) {
     /* Only indexed operations have returned from their initiating callback. */
     UA_AsyncOperation *op;
-    TAILQ_FOREACH(op, &server->asyncManager.operations, pointers) {
-        if(isRequestOp(op) && op->handling.response == ar)
-            cancelOperation(server, op, status);
-    }
+    LIST_FOREACH(op, &ar->operations, handling.service.pointers)
+        cancelOperation(server, op, status);
     UA_assert(ar->pendingResults == 0);
 }
 
-/* Check if any operations have timed out */
+typedef struct {
+    UA_Server *server;
+    UA_DateTime now;
+    UA_StatusCode status;
+} AsyncCancelContext;
+
+/* Cancellation does not invoke application code or mutate the index. */
+static void *
+cancelIndexedOperation(void *context, UA_AsyncOperation *op) {
+    AsyncCancelContext *cc = (AsyncCancelContext*)context;
+    if(op->resultIndex == SIZE_MAX)
+        return NULL;
+    /* Service operations share a deadline; local operations have their own. */
+    UA_AsyncResponse *ar = isRequestOp(op) ? op->handling.service.response : NULL;
+    if(cc->status == UA_STATUSCODE_BADTIMEOUT) {
+        if(ar && !ar->session) /* Still dispatching */
+            return NULL;
+        if(cc->now <= (ar ? ar->timeout : op->handling.callback.timeout))
+            return NULL;
+    }
+    cancelOperation(cc->server, op, cc->status);
+    if(cc->status == UA_STATUSCODE_BADTIMEOUT && (!ar || ar->pendingResults == 0))
+        UA_LOG_WARNING(cc->server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Async operation timed out");
+    return NULL;
+}
+
+/* Check if any operations have timed out. */
 static void
 checkTimeouts(UA_Server *server, void *context) {
     lockServer(server);
-
-    UA_EventLoop *el = server->config.eventLoop;
     UA_AsyncManager *am = (UA_AsyncManager*)context;
     am->activeDispatch++;
-    const UA_DateTime tNow = el->dateTime_nowMonotonic(el);
-
-    /* Service operations share a deadline; local operations have their own. */
-    UA_AsyncOperation *op;
-    TAILQ_FOREACH(op, &am->operations, pointers) {
-        if(op->resultIndex == SIZE_MAX)
-            continue;
-        UA_AsyncResponse *ar = isRequestOp(op) ? op->handling.response : NULL;
-        if(ar && !ar->session) /* Still dispatching */
-            continue;
-        if(tNow <= (ar ? ar->timeout : op->handling.callback.timeout))
-            continue;
-        cancelOperation(server, op, UA_STATUSCODE_BADTIMEOUT);
-        if(!ar || ar->pendingResults == 0) /* Once per response or local operation */
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Async operation timed out");
-    }
-
+    UA_EventLoop *el = server->config.eventLoop;
+    AsyncCancelContext cc = {server, el->dateTime_nowMonotonic(el), UA_STATUSCODE_BADTIMEOUT};
+    ZIP_ITER(UA_AsyncOperationTree, &am->operations, cancelIndexedOperation, &cc);
     finishDispatch(am);
     unlockServer(server);
 }
@@ -490,9 +499,8 @@ UA_AsyncManager_stop(UA_Driver *driver) {
     am->checkTimeoutCallbackId = 0;
 
     /* Cancellation only marks records; delivery and notifications run later. */
-    UA_AsyncOperation *op;
-    TAILQ_FOREACH(op, &am->operations, pointers)
-        cancelOperation(server, op, UA_STATUSCODE_BADSHUTDOWN);
+    AsyncCancelContext cc = {server, 0, UA_STATUSCODE_BADSHUTDOWN};
+    ZIP_ITER(UA_AsyncOperationTree, &am->operations, cancelIndexedOperation, &cc);
     finishDispatch(am);
 }
 
@@ -501,11 +509,11 @@ freeAsyncManager(UA_Driver *driver) {
     UA_AsyncManager *am = (UA_AsyncManager*)driver;
     if(driver->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINVALIDSTATE;
-    UA_assert(TAILQ_EMPTY(&am->operations) && TAILQ_EMPTY(&am->responses));
+    UA_assert(!ZIP_ROOT(&am->operations) && TAILQ_EMPTY(&am->responses));
     UA_assert(am->checkTimeoutCallbackId == 0);
     UA_AsyncOperation *op;
     while((op = am->freeOps)) {
-        am->freeOps = TAILQ_NEXT(op, pointers);
+        am->freeOps = op->index.left;
         UA_free(op);
     }
     am->freeOpsSize = 0;
@@ -530,7 +538,7 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     am->driver.stop = UA_AsyncManager_stop;
     am->driver.free = freeAsyncManager;
     TAILQ_INIT(&am->responses);
-    TAILQ_INIT(&am->operations);
+    ZIP_INIT(&am->operations);
 }
 
 /* Services, local APIs and synchronous facades use stable, reusable storage. Queue
@@ -545,7 +553,7 @@ acquireOperation(UA_Server *server, UA_AsyncOperationType type,
         return UA_STATUSCODE_BADSHUTDOWN;
     UA_AsyncOperation *op = am->freeOps;
     if(op) {
-        am->freeOps = TAILQ_NEXT(op, pointers);
+        am->freeOps = op->index.left;
         am->freeOpsSize--;
     } else
         op = (UA_AsyncOperation*)UA_calloc(1, sizeof(*op));
@@ -565,9 +573,13 @@ static UA_StatusCode
 persistAsyncOperation(UA_Server *server, UA_AsyncOperation *op, UA_StatusCode status) {
     UA_AsyncManager *am = &server->asyncManager;
     am->trackedOpsCount++;
-    TAILQ_INSERT_TAIL(&am->operations, op, pointers);
+    op->id = (uintptr_t)operationId(op);
+    UA_assert(op->id != 0);
+    ZIP_INSERT(UA_AsyncOperationTree, &am->operations, op);
     if(isRequestOp(op)) {
-        op->handling.response->pendingResults++;
+        UA_AsyncResponse *ar = op->handling.service.response;
+        LIST_INSERT_HEAD(&ar->operations, op, handling.service.pointers);
+        ar->pendingResults++;
         if(status != UA_STATUSCODE_GOOD)
             cancelOperation(server, op, status);
     } else if(status != UA_STATUSCODE_GOOD) {
@@ -778,7 +790,7 @@ serviceOperations(UA_Server *server, UA_Session *session, UA_AsyncOperationType 
             setResultStatus(destination, resultsType, res);
             continue;
         }
-        op->handling.response = ar;
+        op->handling.service.response = ar;
         op->resultIndex = i;
         const void *request = (const UA_Byte*)requests + i * requestType->memSize;
         UA_Boolean done;
@@ -816,7 +828,7 @@ serviceOperations(UA_Server *server, UA_Session *session, UA_AsyncOperationType 
     UA_Boolean done = (ar->pendingResults == 0);
     if(done) {
         moveResult(&ar->response, response, responseType(ar));
-        if(!findResponseOperation(am, ar)) {
+        if(LIST_EMPTY(&ar->operations)) {
             releaseResponse(am, ar);
         } else {
             /* Notify after the caller has sent the synchronous response. */

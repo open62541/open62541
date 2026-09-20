@@ -230,14 +230,14 @@ START_TEST(session_close_releases_response) {
     ck_assert_ptr_eq(TAILQ_FIRST(&server->asyncManager.responses), ar);
     ck_assert_uint_eq(ar->pendingResults, 0);
     ck_assert(ar->dc.callback != NULL);
-    UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
+    UA_AsyncOperation *op = ZIP_ROOT(&server->asyncManager.operations);
     ck_assert_ptr_ne(op, NULL);
-    ck_assert_ptr_eq(op->handling.response, ar);
+    ck_assert_ptr_eq(op->handling.service.response, ar);
     ck_assert(op->resultIndex == SIZE_MAX);
     unlockServer(server);
     UA_Server_run_iterate(server, false);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
-    ck_assert_ptr_eq(op->handling.response, NULL);
+    ck_assert_ptr_eq(op->handling.service.response, NULL);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
     UA_fakeSleep(2000);
     UA_Server_run_iterate(server, false);
@@ -392,7 +392,7 @@ START_TEST(dispatch_guards_and_pool_bound) {
     ck_assert_uint_eq(server->asyncManager.freeOpsSize, 16);
     size_t cached = 0;
     UA_AsyncOperation *op;
-    for(op = server->asyncManager.freeOps; op; op = TAILQ_NEXT(op, pointers))
+    for(op = server->asyncManager.freeOps; op; op = op->index.left)
         cached++;
     ck_assert_uint_eq(cached, 16);
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
@@ -1027,20 +1027,91 @@ START_TEST(service_and_local_operation_pool) {
     ck_assert_uint_eq(pooledCancels, 2);
     ck_assert_uint_eq(pooledResults, 4);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.operations));
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
 
     /* Completed service operations obey the same bounded warm-pool policy. */
     request.nodesToReadSize = 32;
     lockServer(server);
     ck_assert(!Service_Read(server, &server->adminSession, &request, &response));
     UA_AsyncOperation *op;
-    while((op = TAILQ_FIRST(&server->asyncManager.operations)))
+    while((op = ZIP_ROOT(&server->asyncManager.operations)))
         ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, &op->output.read), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->asyncManager.freeOpsSize, 16);
     unlockServer(server);
     UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
     UA_ReadResponse_clear(&response);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* Interleave responses and return ownership out of order through the index. */
+START_TEST(indexed_response_operations) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    server->config.maxAsyncOperationQueueSize = 128;
+    UA_NodeId id = UA_NODEID_NUMERIC(1, 60004);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, id, UA_NS0ID(OBJECTSFOLDER),
+        UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "indexed"), UA_NS0ID(BASEDATAVARIABLETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+    UA_CallbackValueSource source = {emptyAsyncRead, NULL};
+    ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(server, id, source),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_ReadValueId items[32];
+    for(size_t i = 0; i < 32; i++) {
+        UA_ReadValueId_init(&items[i]);
+        items[i].nodeId = id;
+        items[i].attributeId = UA_ATTRIBUTEID_VALUE;
+    }
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    request.nodesToRead = items;
+    request.nodesToReadSize = 32;
+    UA_DataValue *outputs[3][32];
+    lockServer(server);
+    for(size_t batch = 0; batch < 3; batch++) {
+        request.requestHeader.requestHandle = (UA_UInt32)(10 + batch % 2);
+        UA_ReadResponse response;
+        UA_ReadResponse_init(&response);
+        ck_assert(!Service_Read(server, &server->adminSession, &request, &response));
+        UA_AsyncResponse *ar = TAILQ_FIRST(&server->asyncManager.responses);
+        for(size_t i = 0; i < batch; i++)
+            ar = TAILQ_NEXT(ar, pointers);
+        UA_AsyncOperation *op;
+        size_t count = 0;
+        LIST_FOREACH(op, &ar->operations, handling.service.pointers) {
+            outputs[batch][op->resultIndex] = &op->output.read;
+            ck_assert_ptr_eq(op->handling.service.response, ar);
+            count++;
+        }
+        ck_assert_uint_eq(count, 32);
+    }
+    UA_DataValue unknown;
+    UA_DataValue_init(&unknown);
+    ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, &unknown), UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(UA_Server_setAsyncWriteResult(server, outputs[1][0], UA_STATUSCODE_GOOD),
+                      UA_STATUSCODE_BADNOTFOUND);
+    for(size_t i = 32; i > 0; i--)
+        ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[1][i - 1]),
+                          UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_AsyncManager_cancel(server, &server->adminSession, 10), 2);
+    unlockServer(server);
+    UA_Server_run_iterate(server, false);
+    ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 64);
+
+    /* Canceled output remains indexed after its response has been recycled. */
+    for(size_t i = 0; i < 32; i++) {
+        size_t index = (i * 17) % 32;
+        ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[2][index]),
+                          UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[0][index]),
+                          UA_STATUSCODE_GOOD);
+    }
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
 } END_TEST
@@ -1084,9 +1155,9 @@ static void
 earlyCancellation(UA_Server *server, const void *operation) {
     ck_assert_ptr_eq(operation, earlyRejectedOutput);
     ck_assert_uint_eq(++earlyCancelCount, 1);
-    UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
+    UA_AsyncOperation *op = container_of(earlyRejectedOutput, UA_AsyncOperation, output.read);
     ck_assert_ptr_ne(op, NULL);
-    ck_assert_ptr_eq(op->handling.response, NULL);
+    ck_assert_ptr_eq(op->handling.service.response, NULL);
     UA_AsyncResponse *ar = TAILQ_FIRST(&server->asyncManager.responses);
     ck_assert_ptr_ne(ar, NULL);
     ck_assert_uint_eq(ar->response.readResponse.resultsSize, 0);
@@ -1112,9 +1183,9 @@ completeEarlierRead(UA_Server *server, const UA_NodeId *sessionId, void *session
     }
 
     /* Earlier operations can complete into the response array during dispatch. */
-    UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
+    UA_AsyncOperation *op = container_of(earlyReadOutput, UA_AsyncOperation, output.read);
     ck_assert_ptr_ne(op, NULL);
-    UA_AsyncResponse *ar = op->handling.response;
+    UA_AsyncResponse *ar = op->handling.service.response;
     ck_assert(ar->dc.callback == NULL);
     ck_assert_uint_eq(ar->response.readResponse.resultsSize, earlyRejection ? 3 : 2);
     ck_assert_uint_eq(op->resultIndex, 0);
@@ -1183,7 +1254,7 @@ START_TEST(completion_before_response_registration) {
             ck_assert_uint_eq(ar->response.readResponse.results[1].status,
                               UA_STATUSCODE_BADTOOMANYOPERATIONS);
             UA_AsyncOperation *op;
-            TAILQ_FOREACH(op, &server->asyncManager.operations, pointers) {
+            LIST_FOREACH(op, &ar->operations, handling.service.pointers) {
                 if(&op->output.read == earlyReadOutput)
                     break;
             }
@@ -1278,6 +1349,7 @@ int main(void) {
     tcase_add_loop_test(tc, session_close_finishes_services, 0, 64);
     tcase_add_test(tc, response_callback_pool);
     tcase_add_test(tc, service_and_local_operation_pool);
+    tcase_add_test(tc, indexed_response_operations);
     tcase_add_test(tc, external_loop_session_cleanup);
     tcase_add_test(tc, dispatch_guards_and_pool_bound);
     tcase_add_test(tc, service_dispatch_notification);

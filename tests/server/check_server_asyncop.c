@@ -508,7 +508,7 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
 
     lockServer(server);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.operations));
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
     unlockServer(server);
 
     config->serviceNotificationCallback = NULL;
@@ -819,7 +819,7 @@ START_TEST(Async_request_handles_are_per_response) {
     for(size_t i = 0; i < 4; i++)
         UA_Server_run_iterate(server, false);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.operations));
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
 } END_TEST
 
 /* --- Extended coverage tests --- */
@@ -1499,7 +1499,7 @@ START_TEST(Async_monitored_item_deletion_with_service_operation) {
     }
 
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
-    UA_AsyncOperation *serviceOp = TAILQ_FIRST(&server->asyncManager.operations);
+    UA_AsyncOperation *serviceOp = ZIP_ROOT(&server->asyncManager.operations);
     ck_assert_ptr_nonnull(serviceOp);
     ck_assert_int_eq(serviceOp->asyncOperationType, UA_ASYNCOPERATIONTYPE_READ_REQUEST);
     UA_MonitoredItemCreateRequest request =
@@ -1514,7 +1514,7 @@ START_TEST(Async_monitored_item_deletion_with_service_operation) {
     for(size_t i = 0; i < 5; i++)
         UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 2);
-    ck_assert_ptr_eq(TAILQ_FIRST(&server->asyncManager.operations), serviceOp);
+    ck_assert_uint_eq(serviceOp->id, (uintptr_t)&serviceOp->output.read);
 
     UA_fakeSleep(1001);
     deadline = UA_DateTime_nowMonotonic() + 10 * UA_DATETIME_SEC;
@@ -1688,21 +1688,21 @@ START_TEST(Async_setAsyncMethodResult_null_returnsError) {
 } END_TEST
 #endif
 
-/* A timed-out worker can acknowledge from inside its result callback. */
+/* Each timed-out operation acknowledges from its own result callback. */
 typedef struct {
-    UA_DataValue *workers[2];
-    size_t callbacks;
-} ReentrantResults;
+    UA_DataValue *output;
+    size_t index;
+    size_t *callbacks;
+} ReentrantResult;
 
 static void
 acknowledgeFromResultCallback(UA_Server *serverArg, void *context,
                               const UA_DataValue *result) {
-    ReentrantResults *results = (ReentrantResults*)context;
-    size_t index = results->callbacks++;
-    ck_assert_uint_lt(index, 2);
+    ReentrantResult *resultContext = (ReentrantResult*)context;
+    ck_assert_uint_lt((*resultContext->callbacks)++, 2);
     ck_assert_uint_eq(result->status, UA_STATUSCODE_BADTIMEOUT);
-    activeReads[index] = NULL;
-    ck_assert_uint_eq(UA_Server_setAsyncReadResult(serverArg, results->workers[index]),
+    activeReads[resultContext->index] = NULL;
+    ck_assert_uint_eq(UA_Server_setAsyncReadResult(serverArg, resultContext->output),
                       UA_STATUSCODE_GOOD);
 }
 
@@ -1710,22 +1710,23 @@ START_TEST(Async_result_callback_acknowledges_timed_out_worker) {
     UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     acknowledgeCancellation = false;
-    ReentrantResults results = {{NULL, NULL}, 0};
+    size_t callbacks = 0;
+    ReentrantResult results[2] = {{NULL, 0, &callbacks}, {NULL, 1, &callbacks}};
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_STRING(1, "asyncVar");
     rvi.attributeId = UA_ATTRIBUTEID_VALUE;
     for(size_t i = 0; i < 2; i++) {
         ck_assert_uint_eq(UA_Server_read_async(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER,
-                                               acknowledgeFromResultCallback, &results, 100),
+                                               acknowledgeFromResultCallback, &results[i], 100),
                           UA_STATUSCODE_GOOD);
-        results.workers[i] = (UA_DataValue*)activeReads[i];
+        results[i].output = (UA_DataValue*)activeReads[i];
         UA_Server_removeCallback(server, lastTimedCallback);
     }
     UA_fakeSleep(1500);
-    for(size_t i = 0; i < 3 && results.callbacks < 2; i++)
+    for(size_t i = 0; i < 3 && callbacks < 2; i++)
         UA_Server_run_iterate(server, false);
-    ck_assert_uint_eq(results.callbacks, 2);
+    ck_assert_uint_eq(callbacks, 2);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
     ck_assert_ptr_null(canceledCallRequest); /* Both workers acknowledged during delivery. */
 } END_TEST
@@ -1755,7 +1756,7 @@ START_TEST(Async_local_delivery_lifetime) {
                       UA_STATUSCODE_GOOD);
     UA_Server_removeCallback(server, lastTimedCallback);
     UA_DataValue *output = (UA_DataValue*)activeReads[0];
-    UA_AsyncOperation *op = TAILQ_FIRST(&server->asyncManager.operations);
+    UA_AsyncOperation *op = ZIP_ROOT(&server->asyncManager.operations);
     ck_assert_ptr_nonnull(op);
     ck_assert(op->handling.callback.dc.callback == NULL);
 
@@ -1768,7 +1769,7 @@ START_TEST(Async_local_delivery_lifetime) {
     if(_i == 2) {
         UA_Server_run_iterate(server, false);
         ck_assert_uint_eq(localResultCount, 1);
-        ck_assert_ptr_eq(TAILQ_FIRST(&server->asyncManager.operations), op);
+        ck_assert_ptr_eq(ZIP_ROOT(&server->asyncManager.operations), op);
         ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
         ck_assert_ptr_eq(canceledCallRequest, output);
         ck_assert(op->resultIndex == SIZE_MAX);
@@ -1777,13 +1778,13 @@ START_TEST(Async_local_delivery_lifetime) {
 
     ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, output), UA_STATUSCODE_GOOD);
     activeReads[0] = NULL;
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.operations));
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
     ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, output), UA_STATUSCODE_BADNOTFOUND);
     if(_i != 2) {
         ck_assert_uint_eq(localResultCount, 0);
         ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
         ck_assert(op->handling.callback.dc.callback != NULL);
-        ck_assert_ptr_null(op->pointers.tqe_prev);
+        ck_assert_uint_eq(op->id, 0);
         if(_i == 1)
             ck_assert_int_eq(server->asyncManager.driver.state, UA_LIFECYCLESTATE_STOPPING);
     }
@@ -1892,7 +1893,7 @@ START_TEST(Async_result_callback_queues_another_result) {
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 16; i++)
         ck_assert_uint_eq(scanCallbacks[i], 1);
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.operations));
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
 } END_TEST
 
@@ -1979,7 +1980,7 @@ START_TEST(Async_cancel_callback_acknowledges_entire_request) {
     ck_assert_uint_eq(batchCancelNotifications, 1);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
     ck_assert(TAILQ_EMPTY(&server->asyncManager.responses));
-    ck_assert(TAILQ_EMPTY(&server->asyncManager.operations));
+    ck_assert_ptr_null(ZIP_ROOT(&server->asyncManager.operations));
     UA_ReadResponse_clear(&response);
 } END_TEST
 
