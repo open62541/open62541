@@ -369,6 +369,12 @@ UA_Subscription_localPublish(void *application /* UA_Server */,
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);
 
+/* Drop notifications sampled under a former RBAC role set and immediately
+ * re-sample data MonitoredItems in the Session's current authorization
+ * context. Published retransmission entries remain available for Republish. */
+void
+UA_Session_invalidateRoleNotifications(UA_Server *server, UA_Session *session);
+
 UA_StatusCode
 UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
                                             UA_UInt32 sequenceNumber);
