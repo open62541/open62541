@@ -2513,6 +2513,24 @@ checkHistoryAccessRestrictions(UA_Server *server, const UA_Session *session,
 #endif
 }
 
+/* Release the scratch memory of the AccessRestrictions compaction.
+ * backendResults is NULL when its allocation failed and aliases
+ * response->results when nothing had to be compacted; UA_Array_delete does not
+ * take NULL. */
+static void
+freeHistoryReadScratch(void **historyData, UA_HistoryReadValueId *allowedNodes,
+                       size_t *allowedIndices,
+                       UA_HistoryReadResult *backendResults,
+                       const UA_HistoryReadResponse *response,
+                       size_t allowedSize) {
+    UA_free(historyData);
+    UA_free(allowedNodes);
+    UA_free(allowedIndices);
+    if(backendResults && backendResults != response->results)
+        UA_Array_delete(backendResults, allowedSize,
+                        &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+}
+
 UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const void *request_, void *response_) {
@@ -2627,12 +2645,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     }
     if(!historyData || (allowedSize != request->nodesToReadSize &&
        (!allowedNodes || !allowedIndices || !backendResults))) {
-        UA_free(historyData);
-        UA_free(allowedNodes);
-        UA_free(allowedIndices);
-        if(backendResults != response->results)
-            UA_Array_delete(backendResults, allowedSize,
-                            &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+        freeHistoryReadScratch(historyData, allowedNodes, allowedIndices,
+                               backendResults, response, allowedSize);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
     }
@@ -2656,12 +2670,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         j++;
     }
     if(j != allowedSize) {
-        UA_free(historyData);
-        UA_free(allowedNodes);
-        UA_free(allowedIndices);
-        if(backendResults != response->results)
-            UA_Array_delete(backendResults, allowedSize,
-                            &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+        freeHistoryReadScratch(historyData, allowedNodes, allowedIndices,
+                               backendResults, response, allowedSize);
         return true;
     }
 
