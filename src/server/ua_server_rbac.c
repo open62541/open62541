@@ -75,6 +75,9 @@
  *   FALSE cannot be granted to any Session. For CustomConfiguration == TRUE the
  *   spec leaves the assignment vendor-specific. Roles without standard identity
  *   rules are therefore assigned only through the session "roles" attribute.
+ *   Writing that attribute pins the Roles of the Session: it is not
+ *   re-evaluated when the RoleSet changes (removed Roles are still dropped)
+ *   until the attribute is deleted or the Session is activated again.
  *
  * - The role registry, the RolePermission presets and allPermissionsForAnonymous
  *   can be set from a JSON server configuration under the "rbac" key (see
@@ -1909,12 +1912,49 @@ sessionRolesEqual(const UA_Session *session,
     return true;
 }
 
+/* Drop the Roles of a Session that are no longer in the registry. Used for
+ * Sessions whose Roles were assigned by the application: they are not
+ * re-evaluated, but a removed Role must not survive on them either.
+ * Returns whether the Role set of the Session changed. */
+static UA_Boolean
+pruneUnknownRoles(UA_Server *server, UA_Session *session) {
+    size_t kept = 0;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        if(!findRoleById(server, &session->roles[i])) {
+            UA_NodeId_clear(&session->roles[i]);
+            continue;
+        }
+        if(kept != i)
+            session->roles[kept] = session->roles[i];
+        kept++;
+    }
+    UA_Boolean changed = (kept != session->rolesSize);
+    session->rolesSize = kept;
+    if(kept == 0) {
+        UA_free(session->roles);
+        session->roles = NULL;
+    }
+    return changed;
+}
+
 void
 UA_Server_reevaluateSessionRoles(UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     session_list_entry *entry;
     LIST_FOREACH(entry, &server->sessions, pointers) {
         UA_Session *session = &entry->session;
+        /* The application assigned these Roles. Keep them, but drop the ones
+         * that were just removed from the registry. */
+        if(session->rolesAssignedManually) {
+            UA_Boolean pruned = pruneUnknownRoles(server, session);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            if(pruned)
+                UA_Session_invalidateRoleNotifications(server, session);
+#else
+            (void)pruned;
+#endif
+            continue;
+        }
         if(!session->hasIdentityContext)
             continue;
         if(session->passwordChangeRequired)

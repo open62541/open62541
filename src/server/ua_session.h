@@ -146,6 +146,13 @@ struct UA_Session {
     UA_SessionIdentityContext identityContext;
     UA_Boolean hasIdentityContext;
     UA_Boolean passwordChangeRequired;
+
+    /* Set when the application assigned the Roles through the "roles" Session
+     * attribute (also for an empty array). Such a Session is not re-evaluated
+     * when the RoleSet changes; only Roles that were removed from the registry
+     * are pruned. Reset by a successful ActivateSession and by deleting the
+     * attribute. */
+    UA_Boolean rolesAssignedManually;
 #endif
 };
 

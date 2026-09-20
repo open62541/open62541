@@ -1480,6 +1480,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     session->identityContext = ctx;
     session->hasIdentityContext = true;
     session->passwordChangeRequired = passwordChangeRequired;
+    /* An activation returns the Session to the automatic Role assignment */
+    session->rolesAssignedManually = false;
 #endif
 
     /* Attach the session to the currently used channel if the session isn't

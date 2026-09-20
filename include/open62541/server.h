@@ -2181,9 +2181,23 @@ typedef struct {
     /* CustomConfiguration (Part 18 §4.4.1): when TRUE the configuration and
      * assignment of the Role is vendor-specific. A Role with an empty Identities
      * array is not assigned automatically and can be assigned through the
-     * session "roles" attribute. */
+     * session "roles" attribute (see below). */
     UA_Boolean customConfiguration;
 } UA_Role;
+
+/**
+ * Assigning Roles from the application
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Writing the "roles" Session attribute with UA_Server_setSessionAttribute (a
+ * NodeId array of Roles from the registry) replaces the Roles of that Session
+ * and switches it to the vendor-specific assignment of Part 18 §4.4.1. The
+ * Session then keeps those Roles when the RoleSet changes; only Roles that are
+ * removed from the registry are dropped from it.
+ *
+ * UA_Server_deleteSessionAttribute for the same key returns the Session to the
+ * automatic assignment and re-evaluates its identity mapping rules right away.
+ * A successful ActivateSession does the same. A Session that carries no
+ * identity snapshot ends up without Roles. */
 
 /* UA_Role Type Management */
 void UA_EXPORT
