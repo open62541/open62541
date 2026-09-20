@@ -43,6 +43,7 @@
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
  * heterogeneous across the three. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_INLINE UA_UInt32Range
 UA_UINT32RANGE(UA_UInt32 min, UA_UInt32 max) {
     UA_UInt32Range range = {min, max};
@@ -54,6 +55,7 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     UA_DurationRange range = {min, max};
     return range;
 }
+#endif
 
 /* Request the private key password from stdin if no callback is defined */
 #ifdef UA_ENABLE_ENCRYPTION
