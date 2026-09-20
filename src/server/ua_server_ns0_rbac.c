@@ -628,7 +628,9 @@ addRoleMethodCallback(UA_Server *server,
 
     UA_Role role;
     UA_Role_init(&role);
-    UA_String_copy(roleName, &role.roleName.name);
+    res = UA_String_copy(roleName, &role.roleName.name);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Per specification, use NS1 if no namespaceUri is given */
     if(namespaceUri->length > 0) {
@@ -645,16 +647,23 @@ addRoleMethodCallback(UA_Server *server,
 
     UA_NodeId newRoleId = UA_NODEID_NULL;
     UA_StatusCode retval = UA_Server_addRole(server, &role, &newRoleId);
-    UA_Role_clear(&role);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Role_clear(&role);
         return retval;
+    }
 
     /* UA_Server_addRole already published the Role Object under the RoleSet
      * (Part 18 §4.2.2, §4.3). */
-    UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Variant_setScalarCopy(&output[0], &newRoleId,
+                                      &UA_TYPES[UA_TYPES_NODEID]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* The Method reports a failure, so it must not leave the Role behind */
+        UA_Server_removeRole(server, role.roleName);
+    }
 
+    UA_Role_clear(&role);
     UA_NodeId_clear(&newRoleId);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode
