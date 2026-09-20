@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ */
 
 #include <open62541/server.h>
 
@@ -261,6 +264,27 @@ START_TEST(Rbac_MalformedValuesRejected) {
                        "\"identityMappingRules\":[{\"criteriaType\":\"Nope\"}]}]}}",
                        &config) != UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(config.rolesSize, 0);
+    UA_ServerConfig_clear(&config);
+
+    /* An array element that is not an object. The element parsers walk the
+     * key-value pairs of an object; for a string the walk would continue into
+     * the tokens behind the array and silently drop the fields after it. */
+    ck_assert_int_eq(loadJson("{\"rbac\":{\"roles\":[\"nope\"]}}", &config),
+                     UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_eq(config.rolesSize, 0);
+    UA_ServerConfig_clear(&config);
+
+    ck_assert_int_eq(loadJson("{\"rbac\":{\"roles\":[{\"roleName\":\"R\","
+                              "\"endpoints\":[\"opc.tcp://h:4840\"],"
+                              "\"customConfiguration\":true}]}}", &config),
+                     UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_eq(config.rolesSize, 0);
+    UA_ServerConfig_clear(&config);
+
+    ck_assert_int_eq(loadJson("{\"rbac\":{\"rolePermissionPresets\":"
+                              "[{\"rolePermissions\":[5]}]}}", &config),
+                     UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_uint_eq(config.rolePermissionPresetsSize, 0);
     UA_ServerConfig_clear(&config);
 } END_TEST
 
