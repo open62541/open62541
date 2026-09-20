@@ -373,6 +373,36 @@ function unit_tests_libwebsockets_tsan {
           --output-on-failure
 }
 
+function unit_tests_tsan {
+    cmake -S . -B build-unit-tsan \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DEBUG_SANITIZER=OFF \
+          -DUA_MULTITHREADING=100 \
+          -DUA_ENABLE_METHODCALLS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_AUDITING=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_MQTT=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
+          -DUA_FORCE_WERROR=ON
+    cmake --build build-unit-tsan --parallel
+    (cd build-unit-tsan && set_capabilities)
+    # As in the HTTP TSan job, the outer EventLoop lock serializes recursive
+    # inner locks. Keep race detection, but disable the lock-order heuristic.
+    # These suites share listener ports, so run them sequentially.
+    TSAN_OPTIONS="halt_on_error=1:detect_deadlocks=0" \
+        ctest --test-dir build-unit-tsan --parallel 1 --timeout 300 \
+          --output-on-failure --no-tests=error
+}
+
 function unit_tests_lwip {
     rm -rf build; mkdir -p build; cd build
     cmake -DUA_ARCHITECTURE="posix-lwip" \
