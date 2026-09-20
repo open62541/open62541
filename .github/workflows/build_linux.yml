@@ -206,6 +206,12 @@ jobs:
               cmd_deps: sudo apt-get install -y -qq build-essential cmake curl gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev zlib1g-dev
               cmd_action: unit_tests_libwebsockets_tsan
 
+          - os: ubuntu-24.04
+            build:
+              name: "Full unit test suite (ThreadSanitizer)"
+              cmd_deps: sudo apt-get install -y -qq clang-18 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests_tsan
+
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04
             build:
