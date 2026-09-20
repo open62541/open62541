@@ -364,8 +364,13 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         /* The assignment is vendor-specific from here on. Keep it across
          * changes of the RoleSet until the attribute is deleted or the Session
          * is activated again. */
-        if(res == UA_STATUSCODE_GOOD)
+        if(res == UA_STATUSCODE_GOOD) {
             session->rolesAssignedManually = true;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            /* Notifications sampled under the previous Roles are stale */
+            UA_Session_invalidateRoleNotifications(server, session);
+#endif
+        }
         unlockServer(server);
         return res;
     }
@@ -411,6 +416,11 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         } else {
             res = UA_Session_setRoles(server, session, NULL, 0);
         }
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* The Roles just changed, so notifications sampled under the previous
+         * set must not be delivered. */
+        UA_Session_invalidateRoleNotifications(server, session);
+#endif
         unlockServer(server);
         return res;
     }
