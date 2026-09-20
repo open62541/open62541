@@ -43,6 +43,9 @@
  * - GroupId criteria require an AccessControl getUserGroups hook; without it
  *   they never match (no native group source).
  *
+ * - The role registry is capped at UA_RBAC_MAX_ROLES entries. AddRole reports
+ *   Bad_NotSupported beyond that (Part 18 §4.2.2).
+ *
  * - RolePermissions and the role Identities cannot be written through the
  *   attribute service (Part 3 §5.2.9). Use the C API (UA_Server_updateRole).
  *
@@ -945,10 +948,12 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         return UA_STATUSCODE_BADALREADYEXISTS;
     }
 
-    /* Enforce the registry quota to bound memory use (DoS mitigation) */
+    /* Enforce the registry quota to bound memory use (DoS mitigation).
+     * Part 18 §4.2.2 AddRole: "Bad_NotSupported - The Server does not allow
+     * more Roles to be added." */
     if(server->rolesSize >= UA_RBAC_MAX_ROLES) {
         unlockServer(server);
-        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* Grow the arrays */
@@ -1136,7 +1141,11 @@ UA_Server_removeRole(UA_Server *server,
      * information model has no node; a missing node is ignored, any other
      * deletion failure aborts the removal. */
     UA_NodeId removedRoleId = UA_NODEID_NULL;
-    UA_NodeId_copy(&role->roleId, &removedRoleId);
+    UA_StatusCode copyRes = UA_NodeId_copy(&role->roleId, &removedRoleId);
+    if(copyRes != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return copyRes;
+    }
     UA_StatusCode repRes = removeRoleRepresentation(server, &removedRoleId);
     if(repRes != UA_STATUSCODE_GOOD && repRes != UA_STATUSCODE_BADNODEIDUNKNOWN) {
         UA_NodeId_clear(&removedRoleId);
