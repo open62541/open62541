@@ -58,8 +58,10 @@
  * - The AccessRestrictions attribute is read-only through the attribute
  *   service; set it via the C API (UA_Server_setNodeAccessRestrictions).
  *
- * - Part 18 §5 User Management (UserManagementType, AddUser / ModifyUser /
- *   RemoveUser / ChangePassword) is not implemented.
+ * - Part 18 §5 User Management (UserManagementType: AddUser / ModifyUser /
+ *   RemoveUser / ChangePassword and the password-policy Properties) is wired up
+ *   by initUserManagement in ua_server_ns0_rbac.c when the AccessControl plugin
+ *   provides a UserManagement provider. Without one the Object is removed.
  *
  * - Roles added or removed at runtime - through the C API
  *   (UA_Server_addRole / UA_Server_removeRole) or the RoleSet AddRole /

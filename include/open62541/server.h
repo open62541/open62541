@@ -2197,12 +2197,17 @@ typedef struct {
     size_t identityMappingRulesSize;
     UA_IdentityMappingRuleType *identityMappingRules;
 
-    /* Application restrictions  (empty list = ignore) */
+    /* Application filter (Part 18 §4.4.1). With applicationsExclude == false the
+     * list is an include list: only a Session whose trusted client
+     * ApplicationUri is listed matches, and an empty list matches no Session.
+     * With applicationsExclude == true it is an exclude list, so an empty list
+     * places no restriction. */
     UA_Boolean applicationsExclude;
     size_t applicationsSize;
     UA_String *applications;
 
-    /* Endpoint restrictions (empty list = ignore) */
+    /* Endpoint filter, with the same include/exclude semantics as the
+     * Application filter above (Part 18 §4.4.1). */
     UA_Boolean endpointsExclude;
     size_t endpointsSize;
     UA_EndpointType *endpoints;
@@ -3080,13 +3085,14 @@ UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
 
 /**
  * AccessRestrictions
- * ~~~~~~~~~~~~~~~~~~~
+ * ~~~~~~~~~~~~~~~~~~
  * AccessRestrictions (OPC UA Part 3 §5.2.11) constrain access to a Node based
  * on the SecureChannel: SigningRequired, EncryptionRequired and SessionRequired
- * (with ApplyRestrictionsToBrowse controlling whether Browse is restricted as
- * well). They are enforced on Read, Write and Call; the local admin session is
- * exempt. A Node without explicit restrictions falls back to the namespace
- * default. */
+ * (with ApplyRestrictionsToBrowse controlling whether Browse and
+ * TranslateBrowsePathsToNodeIds are restricted as well). They are enforced on
+ * Read, Write, HistoryRead, HistoryUpdate, Call, Browse and
+ * TranslateBrowsePathsToNodeIds; the local admin session is exempt. A Node
+ * without explicit restrictions falls back to the namespace default. */
 
 /* Set the AccessRestrictions of a node. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
