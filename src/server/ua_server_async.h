@@ -91,6 +91,8 @@ typedef struct UA_AsyncOperation {
     } context;
 } UA_AsyncOperation;
 
+ZIP_HEAD(UA_AsyncOperationTree, UA_AsyncOperation);
+
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
     LIST_HEAD(, UA_AsyncOperation) operations;
@@ -132,7 +134,7 @@ typedef struct {
     TAILQ_HEAD(, UA_AsyncResponse) responses;
 
     /* Index of operations whose ownership has not yet returned. */
-    ZIP_HEAD(UA_AsyncOperationTree, UA_AsyncOperation) operations;
+    struct UA_AsyncOperationTree operations;
     size_t trackedOpsCount; /* Also counts local results awaiting delivery */
     size_t activeDispatch; /* Stack-owned operations and executing callbacks */
 
