@@ -2767,16 +2767,24 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    /* If node has no permission configuration, return empty array */
-    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID ||
-       node->head.permissionIndex >= server->rolePermissionsSize) {
-        UA_NODESTORE_RELEASE(server, node);
-        unlockServer(server);
-        return UA_STATUSCODE_GOOD;
+    const UA_RolePermission *permissionEntries = NULL;
+    size_t permissionEntriesSize = 0;
+    if(node->head.permissionIndex != UA_PERMISSION_INDEX_INVALID &&
+       node->head.permissionIndex < server->rolePermissionsSize) {
+        const UA_RolePermissionEntry *rp =
+            &server->rolePermissions[node->head.permissionIndex];
+        permissionEntries = rp->rolePermissions;
+        permissionEntriesSize = rp->rolePermissionsSize;
+    } else {
+        UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+        if(server->namespaceMetadata && ns < server->namespaceMetadataSize &&
+           server->namespaceMetadata[ns].hasDefaultRolePermissions) {
+            permissionEntries = server->namespaceMetadata[ns].entries;
+            permissionEntriesSize = server->namespaceMetadata[ns].entriesSize;
+        }
     }
 
-    const UA_RolePermissionEntry *rp = &server->rolePermissions[node->head.permissionIndex];
-    if(!rp->rolePermissions || rp->rolePermissionsSize == 0) {
+    if(!permissionEntries || permissionEntriesSize == 0) {
         UA_NODESTORE_RELEASE(server, node);
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
@@ -2797,8 +2805,8 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     /* Count how many roles the session has that also have permissions on this node */
     size_t matchCount = 0;
     for(size_t i = 0; i < rolesSize; i++) {
-        for(size_t j = 0; j < rp->rolePermissionsSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->rolePermissions[j].roleId)) {
+        for(size_t j = 0; j < permissionEntriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &permissionEntries[j].roleId)) {
                 matchCount++;
                 break;
             }
@@ -2824,8 +2832,8 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     size_t resultIdx = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rolesSize && resultIdx < matchCount; i++) {
-        for(size_t j = 0; j < rp->rolePermissionsSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->rolePermissions[j].roleId)) {
+        for(size_t j = 0; j < permissionEntriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &permissionEntries[j].roleId)) {
                 res = UA_NodeId_copy(&roles[i], &result[resultIdx].roleId);
                 if(res != UA_STATUSCODE_GOOD) {
                     UA_Array_delete(result, resultIdx, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
@@ -2833,7 +2841,7 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
                     unlockServer(server);
                     return res;
                 }
-                result[resultIdx].permissions = rp->rolePermissions[j].permissions;
+                result[resultIdx].permissions = permissionEntries[j].permissions;
                 resultIdx++;
                 break;
             }

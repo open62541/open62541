@@ -143,39 +143,48 @@ readRolePermissions(UA_Server *server, UA_Session *session,
     if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
         return UA_STATUSCODE_BADUSERACCESSDENIED;
 
-    /* Check if node has a valid permission index */
+    /* Resolve explicit permissions or the inherited namespace default. */
+    const UA_RolePermission *sourcePermissions = NULL;
+    size_t permissionsSize = 0;
     if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
-        UA_Variant_setArray(&v->value, NULL, 0,
-                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        return UA_STATUSCODE_GOOD;
+        UA_UInt16 ns = node->head.nodeId.namespaceIndex;
+        if(ns < server->namespaceMetadataSize && server->namespaceMetadata &&
+           server->namespaceMetadata[ns].hasDefaultRolePermissions) {
+            sourcePermissions = server->namespaceMetadata[ns].entries;
+            permissionsSize = server->namespaceMetadata[ns].entriesSize;
+        }
+    } else if(node->head.permissionIndex < server->rolePermissionsSize) {
+        const UA_RolePermissionEntry *rp =
+            &server->rolePermissions[node->head.permissionIndex];
+        sourcePermissions = rp->rolePermissions;
+        permissionsSize = rp->rolePermissionsSize;
     }
-
-    const UA_RolePermissionEntry *rp =
-        &server->rolePermissions[node->head.permissionIndex];
 
     /* If no entries -> return empty array */
-    if(rp->rolePermissionsSize == 0 || !rp->rolePermissions) {
+    if(permissionsSize == 0 || !sourcePermissions) {
         UA_Variant_setArray(&v->value, NULL, 0,
                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_RolePermissionType *permissions = (UA_RolePermissionType*)
-        UA_Array_new(rp->rolePermissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    if(!permissions)
+    UA_RolePermissionType *outPermissions = (UA_RolePermissionType*)
+        UA_Array_new(permissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!outPermissions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < rp->rolePermissionsSize; i++) {
-        retval = UA_NodeId_copy(&rp->rolePermissions[i].roleId, &permissions[i].roleId);
+    for(size_t i = 0; i < permissionsSize; i++) {
+        retval = UA_NodeId_copy(&sourcePermissions[i].roleId,
+                                &outPermissions[i].roleId);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(permissions, i, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+            UA_Array_delete(outPermissions, i,
+                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
             return retval;
         }
-        permissions[i].permissions = rp->rolePermissions[i].permissions;
+        outPermissions[i].permissions = sourcePermissions[i].permissions;
     }
 
-    UA_Variant_setArray(&v->value, permissions, rp->rolePermissionsSize,
+    UA_Variant_setArray(&v->value, outPermissions, permissionsSize,
                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     return UA_STATUSCODE_GOOD;
 }
