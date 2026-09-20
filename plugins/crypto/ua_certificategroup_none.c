@@ -59,6 +59,10 @@ UA_StatusCode
 UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
                                            UA_String *subjectCriteria,
                                            UA_String *issuerCriteria) {
+    if(subjectCriteria)
+        *subjectCriteria = UA_STRING_NULL;
+    if(issuerCriteria)
+        *issuerCriteria = UA_STRING_NULL;
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
 

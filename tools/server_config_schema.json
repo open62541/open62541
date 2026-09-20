@@ -637,7 +637,7 @@
                     },
                     "criteria": {
                       "type": "string",
-                      "description": "Criteria value (null/empty for Anonymous, AuthenticatedUser, TrustedApplication)"
+                      "description": "Criteria value. Empty for Anonymous, AuthenticatedUser and TrustedApplication. UserName: the user name. Thumbprint: 40 hexadecimal digits. X509Subject: the certificate subject as CN=\"...\"/O=\"...\" in the order CN, O, OU, DC, L, S, C, dnQualifier, serialNumber (Part 18 4.4.3), matched against the subject or the issuer. Application: the ApplicationUri. GroupId and Role: a group or token claim from the AccessControl hooks"
                     }
                   }
                 }

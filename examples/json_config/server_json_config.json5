@@ -252,7 +252,11 @@
   //       //               TrustedApplication
   //       identityMappingRules: [
   //         { criteriaType: "UserName", criteria: "alice" },
-  //         { criteriaType: "GroupId", criteria: "operators" }
+  //         { criteriaType: "GroupId", criteria: "operators" },
+  //         // The certificate subject in the order of Part 18 4.4.3 Table 10,
+  //         // matched against the subject or the issuer of the user cert.
+  //         { criteriaType: "X509Subject",
+  //           criteria: "CN=\"Jörg Müller\"/O=\"Müller GmbH\"/C=\"DE\"" }
   //       ],
   //       // An empty list combined with Exclude=true means "no restriction".
   //       applicationsExclude: false,
