@@ -16,6 +16,7 @@
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
+#include "server/ua_server_internal.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -38,6 +39,14 @@ static UA_NodeId parentNodeId;
 static UA_NodeId parentReferenceNodeId;
 static UA_NodeId outNodeId;
 static UA_HistoryDataBackend serverBackend;
+
+static UA_Byte
+denyHistoryAccess(UA_Server *server, UA_AccessControl *ac,
+                  const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *nodeId, void *nodeContext) {
+    return (UA_Byte)(0xff & ~(UA_ACCESSLEVELMASK_HISTORYREAD |
+                             UA_ACCESSLEVELMASK_HISTORYWRITE));
+}
 
 // to receive data after we inserted data, we need in datavalue more space
 struct ReceiveTupel {
@@ -236,6 +245,56 @@ START_TEST(Client_HistorizingReadRawAll) {
 
     ck_assert_uint_eq(testDataSize, receivedTestDataPos);
     ck_assert(checkTestData(false, testData, receivedTestData, testDataSize));
+}
+END_TEST
+
+START_TEST(Client_HistorizingDeniedByUserAccessLevel) {
+    lockServer(server);
+    UA_Server_getConfig(server)->accessControl.getUserAccessLevel = denyHistoryAccess;
+    unlockServer(server);
+
+    UA_StatusCode ret = UA_Client_HistoryRead_raw(client, &outNodeId,
+                                                  receiveCallback,
+                                                  TESTDATA_START_TIME,
+                                                  TESTDATA_STOP_TIME,
+                                                  UA_STRING_NULL, false, 100,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  NULL);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(receivedTestDataPos, 0);
+
+    UA_DataValue value;
+    fillInt64DataValue(TESTDATA_STOP_TIME + 1, 600, &value);
+
+    UA_UpdateDataDetails details;
+    UA_UpdateDataDetails_init(&details);
+    details.nodeId = outNodeId;
+    details.performInsertReplace = UA_PERFORMUPDATETYPE_INSERT;
+    details.updateValuesSize = 1;
+    details.updateValues = &value;
+
+    UA_ExtensionObject updateDetails;
+    UA_ExtensionObject_init(&updateDetails);
+    UA_ExtensionObject_setValueNoDelete(&updateDetails, &details,
+                                        &UA_TYPES[UA_TYPES_UPDATEDATADETAILS]);
+    UA_HistoryUpdateRequest request;
+    UA_HistoryUpdateRequest_init(&request);
+    request.historyUpdateDetailsSize = 1;
+    request.historyUpdateDetails = &updateDetails;
+
+    UA_HistoryUpdateResponse response =
+        UA_Client_Service_historyUpdate(client, request);
+    UA_DataValue_clear(&value);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_HistoryUpdateResponse_clear(&response);
+
+    ret = UA_Client_HistoryUpdate_deleteRaw(client, &outNodeId,
+                                            TESTDATA_START_TIME,
+                                            TESTDATA_STOP_TIME);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADUSERACCESSDENIED);
 }
 END_TEST
 
@@ -632,6 +691,11 @@ testSuite_Client(void) {
     tcase_add_test(tc_client, Client_HistorizingInsertRawFail);
     tcase_add_test(tc_client, Client_HistorizingReplaceRawFail);
     suite_add_tcase(s, tc_client);
+
+    TCase *tc_access = tcase_create("Client Historical Data access control");
+    tcase_add_checked_fixture(tc_access, setup, teardown);
+    tcase_add_test(tc_access, Client_HistorizingDeniedByUserAccessLevel);
+    suite_add_tcase(s, tc_access);
     return s;
 }
 

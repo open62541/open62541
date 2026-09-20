@@ -722,6 +722,47 @@ START_TEST(encryption_update_certificate) {
 }
 END_TEST
 
+START_TEST(encryption_rejects_malformed_signature_length) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_String policyUri =
+        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
+    UA_SecurityPolicy *sp = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(UA_String_equal(&config->securityPolicies[i].policyUri, &policyUri)) {
+            sp = &config->securityPolicies[i];
+            break;
+        }
+    }
+    ck_assert_ptr_ne(sp, NULL);
+
+    UA_ByteString certificate = {
+        CERT_P256_DER_LENGTH, CERT_P256_DER_DATA
+    };
+    void *channelContext = NULL;
+    UA_StatusCode retval =
+        sp->newChannelContext(sp, &certificate, &channelContext);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte messageData = 0;
+    UA_ByteString message = {1, &messageData};
+    UA_Byte signatureData[128] = {0};
+    size_t expectedSize = sp->asymSignatureAlgorithm.
+        getRemoteSignatureSize(sp, channelContext);
+    ck_assert_uint_eq(expectedSize, 64);
+    const size_t invalidSizes[] = {
+        0, 1, expectedSize - 1, expectedSize + 1, sizeof(signatureData)
+    };
+    for(size_t i = 0; i < sizeof(invalidSizes) / sizeof(invalidSizes[0]); i++) {
+        UA_ByteString signature = {invalidSizes[i], signatureData};
+        retval = sp->asymSignatureAlgorithm.verify(sp, channelContext,
+                                                   &message, &signature);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    }
+
+    sp->deleteChannelContext(sp, channelContext);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption ECC_nistP256");
@@ -735,6 +776,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption, encryption_renew);
     tcase_add_test(tc_encryption, encryption_csr_generation);
     tcase_add_test(tc_encryption, encryption_update_certificate);
+    tcase_add_test(tc_encryption, encryption_rejects_malformed_signature_length);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 

@@ -726,6 +726,9 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_StatusCode res = checkMethodOutputArguments(outputSize, 2);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    if(inputSize != 1 ||
+       !UA_Variant_hasScalarType(input, &UA_TYPES[UA_TYPES_UINT32]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Return two empty arrays by default */
     UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
@@ -741,11 +744,6 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(inputSize == 0 || !input[0].data) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    }
-
     /* Get the Subscription */
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Subscription *subscription = getSubscriptionById(server, subscriptionId);

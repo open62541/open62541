@@ -2369,6 +2369,173 @@ START_TEST(SubscribedDataSetUpdateRefreshesTargetVariables) {
     UA_NodeId_clear(&variable);
 } END_TEST
 
+START_TEST(AddConnectionRejectsRemotelyReplacedInputArguments) {
+    const UA_NodeId inputArgumentsId = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION_INPUTARGUMENTS);
+    UA_StatusCode res = UA_Server_deleteNode(server, inputArgumentsId, true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Argument argument;
+    UA_Argument_init(&argument);
+    argument.name = UA_STRING("Configuration");
+    argument.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    argument.valueRank = UA_VALUERANK_SCALAR;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "InputArguments");
+    attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 arrayDimension = 1;
+    attr.arrayDimensionsSize = 1;
+    attr.arrayDimensions = &arrayDimension;
+    UA_Variant_setArray(&attr.value, &argument, 1,
+                        &UA_TYPES[UA_TYPES_ARGUMENT]);
+    res = UA_Server_addVariableNode(
+        server, inputArgumentsId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_QUALIFIEDNAME(0, "InputArguments"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString bytes = UA_BYTESTRING("x");
+    UA_Variant input;
+    UA_Variant_init(&input);
+    UA_Variant_setScalar(&input, &bytes, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NS0ID(PUBLISHSUBSCRIBE);
+    request.methodId = UA_NS0ID(PUBLISHSUBSCRIBE_ADDCONNECTION);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = &input;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADTYPEMISMATCH);
+    UA_CallMethodResult_clear(&result);
+}
+END_TEST
+
+START_TEST(WriterGroupOwnsConfigurationAfterMethodCall) {
+    UA_NodeId connection = addPubSubConnection();
+    UA_NetworkAddressUrlDataType address =
+        {UA_STRING_NULL, UA_STRING("opc.udp://127.0.0.1:4841/")};
+    UA_DatagramWriterGroupTransport2DataType transport;
+    UA_DatagramWriterGroupTransport2DataType_init(&transport);
+    UA_ExtensionObject_setValueNoDelete(
+        &transport.address, &address,
+        &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_UadpWriterGroupMessageDataType message;
+    UA_UadpWriterGroupMessageDataType_init(&message);
+    UA_WriterGroupDataType group;
+    UA_WriterGroupDataType_init(&group);
+    group.name = UA_STRING("OwnedConfiguration");
+    group.writerGroupId = 7;
+    group.publishingInterval = 100;
+    group.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    group.securityGroupId = UA_STRING("SecurityGroup");
+    UA_KeyValuePair property = {0};
+    property.key = UA_QUALIFIEDNAME(1, "Property");
+    UA_String propertyValue = UA_STRING("PropertyValue");
+    UA_Variant_setScalar(&property.value, &propertyValue,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    group.groupProperties = &property;
+    group.groupPropertiesSize = 1;
+    UA_Double offset = 12.5;
+    message.publishingOffset = &offset;
+    message.publishingOffsetSize = 1;
+    UA_ExtensionObject_setValueNoDelete(
+        &group.transportSettings, &transport,
+        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]);
+    UA_ExtensionObject_setValueNoDelete(
+        &group.messageSettings, &message,
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+
+    UA_WriterGroupDataType ownedGroup;
+    ck_assert_uint_eq(UA_WriterGroupDataType_copy(&group, &ownedGroup),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &ownedGroup,
+                         &UA_TYPES[UA_TYPES_WRITERGROUPDATATYPE]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = connection;
+    request.methodId = UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDWRITERGROUP);
+    request.inputArguments = &input;
+    request.inputArgumentsSize = 1;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    UA_WriterGroupDataType_clear(&ownedGroup);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(result.outputArgumentsSize, 1);
+
+    UA_WriterGroupConfig snapshot;
+    memset(&snapshot, 0, sizeof(snapshot));
+    ck_assert_uint_eq(UA_Server_getWriterGroupConfig(
+        server, *(UA_NodeId*)result.outputArguments[0].data, &snapshot),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_ExtensionObject_hasDecodedType(
+        &snapshot.transportSettings,
+        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]));
+    UA_DatagramWriterGroupTransport2DataType *saved =
+        (UA_DatagramWriterGroupTransport2DataType*)
+            snapshot.transportSettings.content.decoded.data;
+    ck_assert(UA_ExtensionObject_hasDecodedType(
+        &saved->address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
+    UA_NetworkAddressUrlDataType *savedAddress =
+        (UA_NetworkAddressUrlDataType*)saved->address.content.decoded.data;
+    ck_assert(UA_String_equal(&savedAddress->url, &address.url));
+    ck_assert(UA_String_equal(&snapshot.securityGroupId, &group.securityGroupId));
+    ck_assert_uint_eq(snapshot.groupProperties.mapSize, 1);
+    UA_UadpWriterGroupMessageDataType *savedMessage =
+        (UA_UadpWriterGroupMessageDataType*)
+            snapshot.messageSettings.content.decoded.data;
+    ck_assert_uint_eq(savedMessage->publishingOffsetSize, 1);
+    ck_assert(savedMessage->publishingOffset[0] == offset);
+    UA_WriterGroupConfig_clear(&snapshot);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId_clear(&connection);
+}
+END_TEST
+
+START_TEST(HeartbeatWriterViaInformationModel) {
+    UA_NodeId connection = addPubSubConnection();
+    UA_WriterGroupConfig group = {0};
+    group.name = UA_STRING("HeartbeatGroup");
+    group.publishingInterval = 100;
+    group.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_NodeId groupId;
+    ck_assert_uint_eq(UA_Server_addWriterGroup(server, connection, &group, &groupId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterDataType writer = {0};
+    writer.name = UA_STRING("Heartbeat");
+    writer.dataSetWriterId = 42;
+    writer.keyFrameCount = 1;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &writer,
+                         &UA_TYPES[UA_TYPES_DATASETWRITERDATATYPE]);
+    UA_CallMethodRequest request = {0};
+    request.objectId = groupId;
+    request.methodId = UA_NS0ID(WRITERGROUPTYPE_ADDDATASETWRITER);
+    request.inputArguments = &input;
+    request.inputArgumentsSize = 1;
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_NodeId writerId = *(UA_NodeId*)result.outputArguments[0].data;
+    UA_NodeId propertyId = findSingleChildNode(
+        UA_QUALIFIEDNAME(0, "DataSetWriterId"), UA_NS0ID(HASPROPERTY), writerId);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(server, propertyId, &value),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_uint_eq(*(UA_UInt16*)value.data, writer.dataSetWriterId);
+    UA_Variant_clear(&value);
+    UA_NodeId_clear(&propertyId);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId_clear(&groupId);
+    UA_NodeId_clear(&connection);
+}
+END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
@@ -2388,6 +2555,12 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveNewPubSubConnectionWithWriterGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithWriterGroupAndDataSetWriter);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroupandDataSetReader);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection,
+                   AddConnectionRejectsRemotelyReplacedInputArguments);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection,
+                   WriterGroupOwnsConfigurationAfterMethodCall);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection,
+                   HeartbeatWriterViaInformationModel);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, ReserveIdsMultipleTimes);

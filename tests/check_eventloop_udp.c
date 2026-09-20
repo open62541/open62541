@@ -295,11 +295,13 @@ END_TEST
 
 #if defined(UA_ARCHITECTURE_LWIP)
 static UA_StatusCode
-validateMulticastInterface(const char *interfaceName) {
+validateMulticastInterfaceWithLength(const char *interfaceName,
+                                     size_t interfaceNameLength) {
     UA_UInt16 port = 4840;
     UA_Boolean validate = true;
     UA_String address = UA_STRING("224.0.0.22");
-    UA_String interface = {strlen(interfaceName), (UA_Byte*)(uintptr_t)interfaceName};
+    UA_String interface = {interfaceNameLength,
+                           (UA_Byte*)(uintptr_t)interfaceName};
 
     UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "port");
@@ -315,6 +317,12 @@ validateMulticastInterface(const char *interfaceName) {
 
     return cm->openConnection(cm, &paramsMap, NULL, &testContext,
                               connectionCallback);
+}
+
+static UA_StatusCode
+validateMulticastInterface(const char *interfaceName) {
+    return validateMulticastInterfaceWithLength(interfaceName,
+                                                strlen(interfaceName));
 }
 
 START_TEST(connectUDPMulticastInterfaceName) {
@@ -339,6 +347,12 @@ START_TEST(connectUDPMulticastInterfaceName) {
     ck_assert_uint_eq(validateMulticastInterface(incompleteName),
                       UA_STATUSCODE_BADINTERNALERROR);
     ck_assert_uint_eq(validateMulticastInterface(""),
+                      UA_STATUSCODE_BADINTERNALERROR);
+
+    char oversizedInterface[256];
+    memset(oversizedInterface, 'A', sizeof(oversizedInterface));
+    ck_assert_uint_eq(validateMulticastInterfaceWithLength(
+                          oversizedInterface, sizeof(oversizedInterface)),
                       UA_STATUSCODE_BADINTERNALERROR);
 
     el->stop(el);

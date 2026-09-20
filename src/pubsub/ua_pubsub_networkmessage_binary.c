@@ -1659,6 +1659,12 @@ decodeRawField(PubSubDecodeCtx *ctx,
     return rv;
 }
 
+static UA_Boolean
+fieldCountFitsBuffer(const PubSubDecodeCtx *ctx, UA_UInt16 fieldCount,
+                     size_t minFieldSize) {
+    return fieldCount <= (size_t)(ctx->ctx.end - ctx->ctx.pos) / minFieldSize;
+}
+
 static UA_StatusCode
 UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
                                         const UA_DataSetMessage_EncodingMetaData *emd,
@@ -1669,6 +1675,8 @@ UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
     if(dsm->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
         rv = _DECODE_BINARY(&dsm->fieldCount, UINT16);
         UA_CHECK_STATUS(rv, return rv);
+        if(!fieldCountFitsBuffer(ctx, dsm->fieldCount, 1))
+            return UA_STATUSCODE_BADDECODINGERROR;
     } else {
         if(!emd)
             return UA_STATUSCODE_BADDECODINGERROR;
@@ -1727,6 +1735,8 @@ UA_DataSetMessage_deltaFrame_decodeBinary(PubSubDecodeCtx *ctx,
 
     UA_StatusCode rv = _DECODE_BINARY(&dsm->fieldCount, UINT16);
     UA_CHECK_STATUS(rv, return rv);
+    if(!fieldCountFitsBuffer(ctx, dsm->fieldCount, 3))
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     dsm->data.deltaFrameFields = (UA_DataSetMessage_DeltaFrameField *)
         ctxCalloc(&ctx->ctx, dsm->fieldCount, sizeof(UA_DataSetMessage_DeltaFrameField));

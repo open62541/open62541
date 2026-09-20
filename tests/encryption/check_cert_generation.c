@@ -82,6 +82,26 @@ START_TEST(certificate_generation) {
 }
 END_TEST
 
+START_TEST(certificate_without_application_uri_is_rejected) {
+    UA_String subject = UA_STRING_STATIC("CN=localhost");
+    UA_String subjectAltName = UA_STRING_STATIC("DNS:localhost");
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, &subject, 1, &subjectAltName, 1,
+        UA_CERTIFICATEFORMAT_DER, NULL, &privateKey, &certificate);
+    ck_assert_uint_eq(status, UA_STATUSCODE_GOOD);
+
+    UA_String emptyUri = UA_STRING_NULL;
+    status = UA_CertificateUtils_verifyApplicationUri(&certificate, &emptyUri);
+    ck_assert_uint_eq(status, UA_STATUSCODE_BADCERTIFICATEURIINVALID);
+
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
+}
+END_TEST
+
 START_TEST(certificate_generation_rejects_malformed_names) {
     UA_String validSubject = UA_STRING_STATIC("CN=localhost");
     UA_String validSubjectAltName = UA_STRING_STATIC("DNS:localhost");
@@ -149,6 +169,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, certificate_generation);
+    tcase_add_test(tc_cert, certificate_without_application_uri_is_rejected);
     tcase_add_test(tc_cert, certificate_generation_rejects_malformed_names);
     tcase_add_test(tc_cert, certificate_utils_outputs_are_transactional);
 #endif /* UA_ENABLE_ENCRYPTION */

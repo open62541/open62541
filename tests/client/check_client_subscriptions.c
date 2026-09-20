@@ -2590,6 +2590,27 @@ START_TEST(Client_methodcall) {
                             1, &input, &outputSize, &output);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
     UA_Variant_clear(&input);
+
+    /* The method callback must not trust its mutable OutputArguments metadata.
+     * Removing the concrete property makes the Call service allocate a result
+     * array with the inherited metadata size. */
+    retval = UA_Client_deleteNode(
+        client,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS),
+        true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_init(&input);
+    subId = response.subscriptionId;
+    UA_Variant_setScalarCopy(&input, &subId, &UA_TYPES[UA_TYPES_UINT32]);
+    outputSize = 0;
+    output = NULL;
+    retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+                            1, &input, &outputSize, &output);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADARGUMENTSMISSING);
+    UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_Variant_clear(&input);
 #endif
 
     UA_Client_disconnect(client);

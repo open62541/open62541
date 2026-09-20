@@ -1123,6 +1123,34 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
     return res;
 }
 
+static UA_StatusCode
+getClientUserId(const UA_ExtensionObject *userIdentityToken,
+                UA_UserTokenType tokenType, UA_String *clientUserId) {
+    UA_String_init(clientUserId);
+    if(tokenType == UA_USERTOKENTYPE_ANONYMOUS)
+        return UA_STATUSCODE_GOOD;
+    if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+    if(tokenType == UA_USERTOKENTYPE_USERNAME) {
+        const UA_UserNameIdentityToken *userToken =
+            (const UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
+        return UA_String_copy(&userToken->userName, clientUserId);
+    }
+
+    if(tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        const UA_X509IdentityToken *userCertToken =
+            (const UA_X509IdentityToken*)userIdentityToken->content.decoded.data;
+        UA_ByteString certificateData = userCertToken->certificateData;
+        return UA_CertificateUtils_getSubjectName(&certificateData,
+                                                  clientUserId);
+    }
+
+    /* Issued tokens have no generic stable identifier. Their token type still
+     * distinguishes them from all other authentication mechanisms. */
+    return UA_STATUSCODE_GOOD;
+}
+
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
  * the Certificate used to create the original SecureChannel. In addition, the
@@ -1278,6 +1306,26 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     if(rh->serviceResult != UA_STATUSCODE_GOOD)
         UA_SECURITY_REJECT;
 
+    /* An active Session cannot switch identities. Perform the comparison
+     * before access control is called so a rejected reactivation cannot mutate
+     * the existing Session context. */
+    UA_String clientUserId = UA_STRING_NULL;
+    rh->serviceResult = getClientUserId(&req->userIdentityToken,
+                                        utp->tokenType, &clientUserId);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&clientUserId);
+        UA_SECURITY_REJECT;
+    }
+    UA_Boolean identityChanged =
+        session->state == UA_SESSIONSTATE_ACTIVATED &&
+        (utp->tokenType != session->userTokenType ||
+         !UA_String_equal(&clientUserId, &session->clientUserIdOfSession));
+    UA_String_clear(&clientUserId);
+    if(identityChanged) {
+        rh->serviceResult = UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED;
+        UA_SECURITY_REJECT;
+    }
+
     /* Callback into the access control plugin.
      * This will attach a custom context pointer to the session. */
     rh->serviceResult = server->config.accessControl.
@@ -1415,6 +1463,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     } else {
         /* TODO: Handle issued token */
     }
+    session->userTokenType = utp->tokenType;
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* Add the ClientUserId to the diagnostics history. Ignoring errors in _appendCopy. */

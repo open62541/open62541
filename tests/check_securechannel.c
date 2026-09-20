@@ -519,6 +519,116 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, int *chunks_processed,
     return res;
 }
 
+/* Validate token IDs through the complete MSG receive path. */
+START_TEST(SecureChannel_validateMessageToken) {
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    testChannel.securityPolicy->policyType = UA_SECURITYPOLICYTYPE_NONE;
+    testChannel.securityToken.channelId = 1;
+    testChannel.securityToken.tokenId = 42;
+    testChannel.securityToken.createdAt = UA_DateTime_nowMonotonic();
+    testChannel.securityToken.revisedLifetime = 60000;
+    testChannel.renewState = (_i < 2) ? UA_SECURECHANNELRENEWSTATE_NORMAL :
+        UA_SECURECHANNELRENEWSTATE_SENT;
+    UA_Byte raw[25] = {'M','S','G','F',25,0,0,0,1,0,0,0,99,0,0,0,
+                       1,0,0,0,1,0,0,0,0x55};
+    if((_i % 2) == 1) raw[12] = 42; /* Valid-token control. */
+    UA_ByteString wire = {sizeof(raw), raw};
+    ck_assert_uint_eq(UA_SecureChannel_loadBuffer(&testChannel, wire), UA_STATUSCODE_GOOD);
+    UA_MessageType mt; UA_UInt32 rid;
+    UA_ByteString payload = UA_BYTESTRING_NULL; UA_Boolean copied = false;
+    UA_StatusCode result = UA_SecureChannel_getCompleteMessage(&testChannel,
+        &mt, &rid, &payload, &copied, UA_DateTime_nowMonotonic());
+    if(copied) UA_ByteString_clear(&payload);
+    ck_assert_uint_eq(result, ((_i % 2) == 1) ? UA_STATUSCODE_GOOD :
+                      UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+} END_TEST
+
+/* Model both ends after the renewal response, before the first message with
+ * the new token. The client has already changed its sending keys; the server
+ * keeps using its old token until it receives the new one or the old expires. */
+static void
+setupRenewedTokens(UA_Boolean clientSide) {
+    testChannel.securityToken.channelId = 1;
+    testChannel.securityToken.tokenId = 42;
+    testChannel.securityToken.createdAt = 0;
+    testChannel.securityToken.revisedLifetime = 1000;
+    testChannel.altSecurityToken = testChannel.securityToken;
+    testChannel.altSecurityToken.tokenId = 43;
+    testChannel.altSecurityToken.createdAt = 750 * UA_DATETIME_MSEC;
+    if(clientSide) {
+        UA_ChannelSecurityToken old = testChannel.securityToken;
+        testChannel.securityToken = testChannel.altSecurityToken;
+        testChannel.altSecurityToken = old;
+    }
+    testChannel.renewState = clientSide ? UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT :
+        UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER;
+    memset(&fCalled, 0, sizeof(fCalled));
+}
+
+START_TEST(SecureChannel_renewalTokenTransition) {
+    setupRenewedTokens(_i != 0);
+    UA_SecureChannelRenewState before = testChannel.renewState;
+    UA_DateTime now = 800 * UA_DATETIME_MSEC;
+
+    /* Unknown tokens must not change tokens, state or keys. */
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 99, now),
+                      UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+    ck_assert_int_eq(testChannel.renewState, before);
+    ck_assert(!fCalled.generateKey);
+
+    /* The old token remains valid before rollover. */
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 42, now), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(testChannel.renewState, before);
+    ck_assert(!fCalled.generateKey);
+
+    /* First new-token message rotates receive keys (and server send keys). */
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 43, now), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(testChannel.renewState, UA_SECURECHANNELRENEWSTATE_NORMAL);
+    ck_assert_uint_eq(testChannel.securityToken.tokenId, 43);
+    ck_assert_uint_eq(testChannel.altSecurityToken.tokenId, 0);
+    ck_assert(fCalled.setRemoteSymSigningKey);
+    ck_assert(fCalled.setRemoteSymEncryptingKey);
+    ck_assert_int_eq(fCalled.setLocalSymSigningKey, _i == 0);
+
+    /* Further messages do not regenerate keys. The retired token is rejected. */
+    memset(&fCalled, 0, sizeof(fCalled));
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 43, now), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 42, now),
+                      UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 99, now),
+                      UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+    ck_assert(!fCalled.generateKey);
+} END_TEST
+
+START_TEST(SecureChannel_renewalExpiredOldToken) {
+    setupRenewedTokens(_i != 0);
+    /* The old token's own lifetime applies even while a fresh token exists. */
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 42, 1001 * UA_DATETIME_MSEC),
+                      UA_STATUSCODE_BADSECURECHANNELCLOSED);
+} END_TEST
+
+START_TEST(SecureChannel_renewalFreshTokenAfterOldExpiry) {
+    setupRenewedTokens(_i != 0);
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 43, 1001 * UA_DATETIME_MSEC),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(testChannel.securityToken.tokenId, 43);
+    ck_assert_int_eq(testChannel.renewState, UA_SECURECHANNELRENEWSTATE_NORMAL);
+} END_TEST
+
+START_TEST(SecureChannel_serverTimeoutRotatesToken) {
+    setupRenewedTokens(false);
+    ck_assert(!UA_SecureChannel_checkTimeout(&testChannel, 1001 * UA_DATETIME_MSEC));
+    ck_assert_int_eq(testChannel.renewState, UA_SECURECHANNELRENEWSTATE_NORMAL);
+    ck_assert_uint_eq(testChannel.securityToken.tokenId, 43);
+    ck_assert(fCalled.setLocalSymSigningKey);
+    ck_assert(fCalled.setRemoteSymSigningKey);
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 42, 1001 * UA_DATETIME_MSEC),
+                      UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
+    ck_assert_uint_eq(checkSymHeader(&testChannel, 43, 1001 * UA_DATETIME_MSEC),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_SecureChannel_checkTimeout(&testChannel, 1751 * UA_DATETIME_MSEC));
+} END_TEST
+
 START_TEST(SecureChannel_assemblePartialChunks) {
     int chunks_processed = 0;
     UA_ByteString buffer = UA_BYTESTRING_NULL;
@@ -745,6 +855,80 @@ START_TEST(SecureChannel_IKMChaining_prependChainsOnRenewal) {
 
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL && !LIBRESSL_VERSION_NUMBER */
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include <open62541/plugin/securitypolicy_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include "encryption/certificates.h"
+
+static UA_StatusCode
+sweepAttachedPolicy(void *application, UA_SecureChannel *channel,
+                    const UA_AsymmetricAlgorithmSecurityHeader *header) {
+    (void)application; (void)channel; (void)header;
+    /* Both peers already have their authenticated peer certificate attached. */
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(SecureChannel_signedRenewalSequence) {
+    UA_ByteString cert = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString key = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_SecurityPolicy policy;
+    ck_assert_uint_eq(UA_SecurityPolicy_Basic256Sha256(&policy, cert, key,
+                                                     UA_Log_Stdout), UA_STATUSCODE_GOOD);
+    UA_SecureChannel sender, receiver;
+    UA_SecureChannel_init(&sender);
+    UA_SecureChannel_init(&receiver);
+    sender.config = receiver.config = UA_ConnectionConfig_default;
+    ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(&sender, &policy, &cert),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_SecureChannel_setSecurityPolicy(&receiver, &policy, &cert),
+                      UA_STATUSCODE_GOOD);
+    sender.securityMode = receiver.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    sender.state = receiver.state = UA_SECURECHANNELSTATE_OPEN;
+    sender.securityToken.channelId = receiver.securityToken.channelId = 1;
+    sender.securityToken.tokenId = receiver.securityToken.tokenId = 42;
+    receiver.processOPNHeader = sweepAttachedPolicy;
+    receiver.receiveSequenceNumber = 100;
+    /* Successor, backwards, duplicate, gap, first client/server handshake,
+     * and the legacy sequence rollover boundary. */
+    const UA_UInt32 previous[] = {100, 100, 100, 100, 100, 100, 4294966271u};
+    const UA_UInt32 sending[] = {100, 0, 99, 101, 0, 0, 4294966271u};
+    const UA_Boolean accepted[] = {true, false, false, false, true, true, true};
+    receiver.receiveSequenceNumber = previous[_i];
+    sender.sendSequenceNumber = sending[_i];
+    if(_i == 4) receiver.state = UA_SECURECHANNELSTATE_ACK_SENT;
+    if(_i == 5) receiver.state = UA_SECURECHANNELSTATE_OPN_SENT;
+    UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
+    sender.connectionManager = cm;
+    UA_OpenSecureChannelRequest req;
+    UA_OpenSecureChannelRequest_init(&req);
+    req.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
+    req.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    req.clientNonce = UA_BYTESTRING("0123456789abcdef0123456789abcdef");
+    req.requestedLifetime = 60000;
+    ck_assert_uint_eq(UA_SecureChannel_sendOPN(&sender, 7, &req,
+                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]), UA_STATUSCODE_GOOD);
+    UA_ByteString wire = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_copy(TestConnectionManager_getLastSent(cm), &wire),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_SecureChannel_loadBuffer(&receiver, wire), UA_STATUSCODE_GOOD);
+    UA_MessageType mt; UA_UInt32 requestId;
+    UA_ByteString payload = UA_BYTESTRING_NULL; UA_Boolean copied = false;
+    UA_StatusCode res = UA_SecureChannel_getCompleteMessage(&receiver, &mt,
+        &requestId, &payload, &copied, UA_DateTime_nowMonotonic());
+    UA_UInt32 receivedSequence = receiver.receiveSequenceNumber;
+    if(copied) UA_ByteString_clear(&payload);
+    UA_SecureChannel_clear(&receiver);
+    UA_SecureChannel_clear(&sender);
+    UA_ByteString_clear(&wire);
+    cm->eventSource.free(&cm->eventSource);
+    policy.clear(&policy);
+    ck_assert_uint_eq(res, accepted[_i] ? UA_STATUSCODE_GOOD :
+                      UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(receivedSequence, accepted[_i] ?
+                      ((_i >= 4) ? 1 : 101) : previous[_i]);
+} END_TEST
+#endif
+
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
@@ -789,8 +973,13 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_processBuffer, setup_funcs_called, teardown_funcs_called);
     tcase_add_checked_fixture(tc_processBuffer, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
+    tcase_add_loop_test(tc_processBuffer, SecureChannel_validateMessageToken, 0, 4);
     tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
     tcase_add_test(tc_processBuffer, SecureChannel_countFinalChunkAgainstLimit);
+    tcase_add_loop_test(tc_processBuffer, SecureChannel_renewalTokenTransition, 0, 2);
+    tcase_add_loop_test(tc_processBuffer, SecureChannel_renewalExpiredOldToken, 0, 2);
+    tcase_add_loop_test(tc_processBuffer, SecureChannel_renewalFreshTokenAfterOldExpiry, 0, 2);
+    tcase_add_test(tc_processBuffer, SecureChannel_serverTimeoutRotatesToken);
     suite_add_tcase(s, tc_processBuffer);
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) && !defined(LIBRESSL_VERSION_NUMBER)
@@ -799,6 +988,11 @@ testSuite_SecureChannel(void) {
     suite_add_tcase(s, tc_ikmChaining);
 #endif
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    TCase *tc_sequence = tcase_create("Signed renewal sequence");
+    tcase_add_loop_test(tc_sequence, SecureChannel_signedRenewalSequence, 0, 7);
+    suite_add_tcase(s, tc_sequence);
+#endif
     return s;
 }
 

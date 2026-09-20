@@ -586,6 +586,7 @@ endif()
 ua_add_test(encryption/check_certificategroup_none.c)
 
 if(UA_ENABLE_ENCRYPTION)
+    ua_add_test(encryption/check_encryptedsecret.c)
     ua_add_test(client/check_client_encryption.c)
     ua_add_test(encryption/check_crl_validation.c)
     ua_add_test(encryption/check_cert_validation_client_response.c)
@@ -657,6 +658,18 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_username_connect_none.c)
     ua_add_test(encryption/check_certificategroup.c)
     ua_add_test(encryption/check_securitypolicy_crypto.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
+    ua_add_test(encryption/check_hmac_verify_constanttime.c)
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        target_include_directories(check_hmac_verify_constanttime PRIVATE
+                                   ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls)
+    else()
+        target_include_directories(check_hmac_verify_constanttime PRIVATE
+                                   ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR
