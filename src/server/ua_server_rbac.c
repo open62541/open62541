@@ -62,8 +62,12 @@
  *   (UA_Server_addRole / UA_Server_removeRole) or the RoleSet AddRole /
  *   RemoveRole Methods - are mirrored as Role Objects under
  *   Server/ServerCapabilities/RoleSet, so they are visible to browsing
- *   clients (Part 18 §4.2.2, §4.2.3, §4.3). The well-known roles created
- *   during NS0 setup are left untouched.
+ *   clients (Part 18 §4.2.2, §4.2.3, §4.3). An existing Node with the
+ *   requested roleId is adopted as the Role Object only if it is an Object of
+ *   RoleType (or a subtype), such as the well-known Roles created during NS0
+ *   setup or a Role Object from a custom nodeset; its Properties and Methods
+ *   are then backed by the registry. For any other Node addRole fails with
+ *   Bad_NodeIdExists, since removeRole deletes the Role Object.
  *
  * - A RoleMappingRuleChangedAuditEventType is emitted from UA_Server_addRole,
  *   UA_Server_removeRole and UA_Server_updateRole (the choke points for
@@ -974,9 +978,19 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         return res;
     }
 
-    /* Auto-assign a numeric roleId if the caller passed a null NodeId */
-    if(UA_NodeId_isNull(&newRole->roleId))
-        newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
+    /* Auto-assign a numeric roleId if the caller passed a null NodeId. Skip
+     * identifiers that are already taken, in the registry or in the
+     * AddressSpace, so that the generated Role Object never collides. */
+    if(UA_NodeId_isNull(&newRole->roleId)) {
+        for(size_t attempt = 0; attempt < 32; attempt++) {
+            newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
+            if(findRoleById(server, &newRole->roleId))
+                continue;
+            if(checkRoleRepresentation(server, &newRole->roleId) ==
+               UA_STATUSCODE_BADNODEIDUNKNOWN)
+                break;
+        }
+    }
 
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
@@ -985,26 +999,32 @@ addRole(UA_Server *server, const UA_Role *role, UA_NodeId *outRoleNodeId,
         warnUnsupportedRoleFeatures(server, role);
 
     /* Mirror the role under Server/ServerCapabilities/RoleSet so it is
-     * browseable. Skipped when the Role Object already exists, which is the
-     * case for the well-known roles. The RoleSet itself is created by
-     * initNS0RBAC before any role is registered. On failure the appended
-     * registry entry is rolled back. */
+     * browseable. An existing Role Object is adopted instead - that is the case
+     * for the well-known roles of Namespace Zero and for a Role Object that a
+     * custom nodeset brought along. A Node that is not a Role Object is never
+     * adopted: removeRole would delete it with all its references. The RoleSet
+     * itself is created by initNS0RBAC before any role is registered. On
+     * failure the appended registry entry is rolled back. */
     UA_NodeId roleSetId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
     UA_QualifiedName probe;
     if(UA_Server_readBrowseName(server, roleSetId, &probe) == UA_STATUSCODE_GOOD) {
         UA_QualifiedName_clear(&probe);
-        if(UA_Server_readBrowseName(server, newRole->roleId, &probe) ==
-           UA_STATUSCODE_GOOD) {
-            UA_QualifiedName_clear(&probe); /* node already exists -> keep it */
-        } else {
+        UA_StatusCode existing = checkRoleRepresentation(server, &newRole->roleId);
+        if(existing == UA_STATUSCODE_BADNODEIDUNKNOWN) {
             res = addRoleRepresentation(server, newRole);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_Role_clear(newRole);
-                server->rolesSize--;
-                unlockServer(server);
-                return res;
-            }
+        } else if(existing == UA_STATUSCODE_GOOD) {
+            /* initNS0RBAC has already bound the well-known Role Objects */
+            res = (wellKnown) ? UA_STATUSCODE_GOOD :
+                bindRoleRepresentation(server, &newRole->roleId, true);
+        } else {
+            res = existing; /* BADNODEIDEXISTS */
+        }
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Role_clear(newRole);
+            server->rolesSize--;
+            unlockServer(server);
+            return res;
         }
     }
 

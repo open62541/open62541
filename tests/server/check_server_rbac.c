@@ -371,12 +371,15 @@ static void setupWithConfigRoles(void) {
     sc.roles = (UA_Role*)UA_calloc(2, sizeof(UA_Role));
     ck_assert_ptr_nonnull(sc.roles);
 
+    /* Custom Roles get their own NodeIds. ns=0;i=15001 and i=15002 are the
+     * standard Properties Deprecated and MaxCharacters - a Role must not be
+     * mirrored onto them. */
     UA_Role_init(&sc.roles[0]);
-    sc.roles[0].roleId = UA_NODEID_NUMERIC(0, 15001);
+    sc.roles[0].roleId = UA_NODEID_NUMERIC(1, 15001);
     sc.roles[0].roleName = UA_QUALIFIEDNAME_ALLOC(0, "ConfigOperator");
 
     UA_Role_init(&sc.roles[1]);
-    sc.roles[1].roleId = UA_NODEID_NUMERIC(0, 15002);
+    sc.roles[1].roleId = UA_NODEID_NUMERIC(1, 15002);
     sc.roles[1].roleName = UA_QUALIFIEDNAME_ALLOC(0, "ConfigEngineer");
 
     serverWithConfigRoles = UA_Server_newWithConfig(&sc);
@@ -3401,6 +3404,113 @@ START_TEST(excludeProperties_readWriteRegistry) {
 END_TEST
 #endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+/* A NodeId that belongs to some other Node must not be taken over as the Role
+ * Object: removeRole would delete that Node with all its references. */
+START_TEST(addRole_rejectsForeignNodeId) {
+    UA_NodeId foreignId = UA_NODEID_NUMERIC(1, 60000);
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&vAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "NotARole");
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, foreignId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "NotARole"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId outId = UA_NODEID_NULL;
+    ck_assert_uint_eq(addTestRole("NotARole", 1, 60000, &outId),
+                      UA_STATUSCODE_BADNODEIDEXISTS);
+
+    /* Neither the registry nor the Node was touched */
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, foreignId, &fetched),
+                      UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(1, "NotARole"),
+                                        &fetched), UA_STATUSCODE_BADNOTFOUND);
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, foreignId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_clear(&readValue);
+
+    UA_Server_deleteNode(server, foreignId, true);
+}
+END_TEST
+
+/* A Role Object that is already in the AddressSpace, for instance from a
+ * custom nodeset, is adopted and backed by the role registry. */
+START_TEST(addRole_adoptsRoleTypeInstance) {
+    UA_NodeId roleObjectId = UA_NODEID_NUMERIC(1, 60001);
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "AdoptedRole");
+    ck_assert_uint_eq(UA_Server_addObjectNode(
+        server, roleObjectId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "AdoptedRole"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE), oAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    UA_NodeId outId = UA_NODEID_NULL;
+    ck_assert_uint_eq(addTestRole("AdoptedRole", 1, 60001, &outId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&outId, &roleObjectId));
+    ck_assert(roleSetHasComponent(roleObjectId));
+
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRoleById(server, roleObjectId, &fetched),
+                      UA_STATUSCODE_GOOD);
+    UA_Role_clear(&fetched);
+
+    /* The adopted Object is the Role Object, so it goes with the Role */
+    ck_assert_uint_eq(removeTestRole("AdoptedRole", 1), UA_STATUSCODE_GOOD);
+    UA_QualifiedName bn;
+    ck_assert_uint_eq(UA_Server_readBrowseName(server, roleObjectId, &bn),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+
+/* If some other Node took over the NodeId of a Role Object in the meantime,
+ * removing the Role must not delete it. */
+START_TEST(removeRole_keepsForeignNode) {
+    UA_NodeId roleId = UA_NODEID_NUMERIC(1, 60002);
+    ck_assert_uint_eq(addTestRole("ShadowedRole", 1, 60002, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_deleteNode(server, roleId, true),
+                      UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 value = 7;
+    UA_Variant_setScalar(&vAttr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vAttr.displayName = UA_LOCALIZEDTEXT("", "Squatter");
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, roleId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Squatter"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(removeTestRole("ShadowedRole", 1), UA_STATUSCODE_GOOD);
+
+    UA_Variant readValue;
+    ck_assert_uint_eq(UA_Server_readValue(server, roleId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(readValue.type == &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_clear(&readValue);
+    UA_Role fetched;
+    ck_assert_uint_eq(UA_Server_getRole(server, UA_QUALIFIEDNAME(1, "ShadowedRole"),
+                                        &fetched), UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Server_deleteNode(server, roleId, true);
+}
+END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -3426,6 +3536,10 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_add, addRole_unsupportedCriteriaStored);
     tcase_add_test(tc_add, addRole_applicationFiltersStored);
     tcase_add_test(tc_add, addRole_quotaEnforced);
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    tcase_add_test(tc_add, addRole_rejectsForeignNodeId);
+    tcase_add_test(tc_add, addRole_adoptsRoleTypeInstance);
+#endif
     suite_add_tcase(s, tc_add);
 
     TCase *tc_get = tcase_create("GetRoles");
@@ -3441,6 +3555,9 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_rm, removeRole_notFound);
     tcase_add_test(tc_rm, removeRole_andVerifyGetRoles);
     tcase_add_test(tc_rm, removeRole_purgesRolePermissions);
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    tcase_add_test(tc_rm, removeRole_keepsForeignNode);
+#endif
     suite_add_tcase(s, tc_rm);
 
     return s;
