@@ -971,6 +971,8 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_RULEHANDLING](&ctx, &config->verifyRequestTimestamp, NULL);
                 else if(strcmp(field, "allowEmptyVariables") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_RULEHANDLING](&ctx, &config->allowEmptyVariables, NULL);
+                else if(strcmp(field, "certificateEkuRule") == 0)
+                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_RULEHANDLING](&ctx, &config->certificateEkuRule, NULL);
                 else if(strcmp(field, "serverUrls") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](&ctx, &config->serverUrls, &config->serverUrlsSize);
                 else if(strcmp(field, "tcpEnabled") == 0)
