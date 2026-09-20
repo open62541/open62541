@@ -11,6 +11,7 @@
 ###    Copyright 2018 (c) Ralph Lange
 ###    Copyright 2019 (c) Andrea Minosu
 ###    Copyright 2021 (c) Wind River Systems, Inc.
+###    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
 
 from .datatypes import NodeId
 from .nodes import *
@@ -322,8 +323,35 @@ def generateCommonVariableCode(node, nodeset):
 memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
 opts.unwrapped = true;
 opts.namespaceMapping = nsMapping;
-opts.customTypes = UA_Server_getConfig(server)->customDataTypes;
-retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);""")
+opts.customTypes = UA_Server_getDataTypes(server);
+UA_StatusCode valueRet = UA_decodeXml(&xmlValue, &attr.value,
+                                      &UA_TYPES[UA_TYPES_VARIANT], &opts);
+retVal |= valueRet;
+if(valueRet == UA_STATUSCODE_GOOD) {
+    nodesetCompiler_adjustDecodedValueType(server, &attr.value, &attr.dataType);
+    if(nodesetCompiler_isArgumentDescriptorValue(server, &attr.value,
+                                                  &attr.dataType)) {
+        UA_LOG_WARNING(UA_Server_getConfig(server)->logging,
+                       UA_LOGCATEGORY_USERLAND,
+                       "Ignoring an incompatible Argument descriptor default value");
+        UA_Variant_clear(&attr.value);
+    }
+}""")
+        if node.valueRank is not None and node.valueRank > 1:
+            code.append("if(valueRet == UA_STATUSCODE_GOOD && attr.value.arrayLength > 0) {")
+            code.append("    UA_Array_delete(attr.value.arrayDimensions,")
+            code.append("                    attr.value.arrayDimensionsSize,")
+            code.append("                    &UA_TYPES[UA_TYPES_UINT32]);")
+            code.append("    attr.value.arrayDimensions = NULL;")
+            code.append("    attr.value.arrayDimensionsSize = 0;")
+            code.append("    valueRet = UA_Array_copy(attr.arrayDimensions,")
+            code.append("                             attr.arrayDimensionsSize,")
+            code.append("                             (void**)&attr.value.arrayDimensions,")
+            code.append("                             &UA_TYPES[UA_TYPES_UINT32]);")
+            code.append("    retVal |= valueRet;")
+            code.append("    if(valueRet == UA_STATUSCODE_GOOD)")
+            code.append("        attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
+            code.append("}")
         # Some companion specs (e.g. IOLink, PNENC, PNRIO) declare ValueRank=1
         # (one-dimensional array) but provide a scalar default value in the XML
         # (e.g. <String> instead of <ListOfString>). Wrap the scalar into a
@@ -351,6 +379,11 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
                 logger.warning(f"Node {str(node.id)}: ValueRank={node.valueRank} "
                                f"but the XML value is scalar. "
                                f"Auto-wrapping into a one-element array.")
+        if node.valueRank == 1 and len(node.arrayDimensions) == 1 and int(str(node.arrayDimensions[0])) > 0:
+            code.append("if(attr.value.arrayLength > arrayDimensions[0]) {")
+            code.append("    arrayDimensions[0] = (attr.value.arrayLength <= UA_UINT32_MAX) ?")
+            code.append("        (UA_UInt32)attr.value.arrayLength : 0;")
+            code.append("}")
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
@@ -545,6 +578,72 @@ _UA_END_DECLS
 #include "%s.h"
 """ % (outfilebase))
 
+    hasXmlValues = any(isinstance(node, VariableNode) and node.value
+                       for node in nodeset.nodes.values())
+    if hasXmlValues:
+        writec("""
+#ifdef UA_ENABLE_XML_ENCODING
+static const UA_DataType *
+nodesetCompiler_getDecodedValueType(const UA_Variant *value) {
+    if(value->type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT] || !value->data ||
+       value->data == UA_EMPTY_ARRAY_SENTINEL)
+        return value->type;
+
+    const UA_ExtensionObject *eo = (const UA_ExtensionObject*)value->data;
+    size_t valuesSize = UA_Variant_isScalar(value) ? 1 : value->arrayLength;
+    if(eo[0].encoding != UA_EXTENSIONOBJECT_DECODED &&
+       eo[0].encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return value->type;
+    const UA_DataType *type = eo[0].content.decoded.type;
+    for(size_t i = 1; i < valuesSize; i++) {
+        if((eo[i].encoding != UA_EXTENSIONOBJECT_DECODED &&
+            eo[i].encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+           eo[i].content.decoded.type != type)
+            return value->type;
+    }
+    return type;
+}
+
+static void
+nodesetCompiler_adjustDecodedValueType(UA_Server *server, UA_Variant *value,
+                                       const UA_NodeId *dataTypeId) {
+    const UA_DataType *targetType = UA_Server_findDataType(server, dataTypeId);
+    if(!targetType || targetType->typeKind != UA_DATATYPEKIND_UINT32 ||
+       value->type != &UA_TYPES[UA_TYPES_INT32])
+        return;
+
+    size_t valuesSize = UA_Variant_isScalar(value) ? 1 : value->arrayLength;
+    const UA_Int32 *values = (const UA_Int32*)value->data;
+    for(size_t i = 0; i < valuesSize; i++) {
+        if(values[i] < 0)
+            return;
+    }
+
+    /* The allocation has the same element size and can be converted in situ. */
+    for(size_t i = 0; i < valuesSize; i++) {
+        UA_UInt32 converted = (UA_UInt32)values[i];
+        memcpy((UA_Byte*)value->data + i * sizeof(UA_UInt32),
+               &converted, sizeof(converted));
+    }
+    value->type = targetType;
+}
+
+static UA_Boolean
+nodesetCompiler_isArgumentDescriptorValue(UA_Server *server,
+                                           const UA_Variant *value,
+                                           const UA_NodeId *dataTypeId) {
+    if(UA_NodeId_equal(dataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId))
+        return false;
+    const UA_DataType *targetType = UA_Server_findDataType(server, dataTypeId);
+    const UA_DataType *valueType = nodesetCompiler_getDecodedValueType(value);
+    return targetType && valueType == &UA_TYPES[UA_TYPES_ARGUMENT] &&
+           targetType->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+           targetType->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&
+           targetType->typeKind != UA_DATATYPEKIND_UNION;
+}
+#endif /* UA_ENABLE_XML_ENCODING */
+""")
+
     # Loop over the sorted nodes
     logger.info("Reordering nodes for minimal dependencies during printing")
     nodeset.sortNodes()
@@ -705,4 +804,3 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     outfilec.flush()
     os.fsync(outfilec)
     outfilec.close()
-

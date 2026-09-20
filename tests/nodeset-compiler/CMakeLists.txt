@@ -119,6 +119,24 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
+
+    # DEXPI intentionally has no BSD dictionary. Its generated datatypes come
+    # directly from the DataType Definitions in the NodeSet XML.
+    if(EXISTS "${UA_NODESET_DIR}/DEXPI/Opc.Ua.DEXPI.NodeSet2.xml")
+        ua_generate_nodeset_and_datatypes(
+            NAME "tests-definitions"
+            FILE_CSV "${UA_NODESET_DIR}/DEXPI/Opc.Ua.DEXPI.NodeIds.csv"
+            OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+            FILE_NS "${UA_NODESET_DIR}/DEXPI/Opc.Ua.DEXPI.NodeSet2.xml"
+            INTERNAL
+        )
+
+        ua_add_test(check_nodeset_compiler_definitions.c EXTRASOURCES
+                    ${UA_NODESET_TESTS_DEFINITIONS_SOURCES}
+                    ${UA_TYPES_TESTS_DEFINITIONS_SOURCES})
+        add_dependencies(check_nodeset_compiler_definitions
+                         open62541-generator-ns-tests-definitions)
+    endif()
 endif()
 # Test cross-namespace same-name type handling in generate_datatypes.py.
 # Does not require a full NS0 build - runs standalone against the tool.
@@ -129,3 +147,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME test_generate_datatypes_cross_ns
          COMMAND "${Python3_EXECUTABLE}"
                  "${CMAKE_CURRENT_SOURCE_DIR}/test_cross_ns_types.py")
+
+add_test(NAME test_generate_bsd_definitions
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_generate_bsd_definitions.py")
