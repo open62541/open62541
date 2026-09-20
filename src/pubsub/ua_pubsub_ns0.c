@@ -352,15 +352,18 @@ ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA: {
-            UA_PublishedVariableDataType *pvd =
-                (UA_PublishedVariableDataType*)UA_EMPTY_ARRAY_SENTINEL;
-            if(publishedDataSet->fieldSize > 0) {
-                pvd = (UA_PublishedVariableDataType*)
-                    UA_calloc(publishedDataSet->fieldSize,
-                              sizeof(UA_PublishedVariableDataType));
-                if(!pvd)
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
+            if(publishedDataSet->fieldSize == 0) {
+                value->hasValue = true;
+                UA_Variant_setArray(&value->value, UA_EMPTY_ARRAY_SENTINEL, 0,
+                                    &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+                return UA_STATUSCODE_GOOD;
             }
+
+            UA_PublishedVariableDataType *pvd = (UA_PublishedVariableDataType*)
+                UA_calloc(publishedDataSet->fieldSize,
+                          sizeof(UA_PublishedVariableDataType));
+            if(!pvd)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
             size_t counter = 0;
             UA_DataSetField *field;
             TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
