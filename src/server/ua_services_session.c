@@ -968,6 +968,9 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                              const UA_UserTokenPolicy **utp,
                              UA_SecurityPolicy **tokenSp) {
     UA_ServerConfig *sc = &server->config;
+    const UA_EndpointDescription *match = NULL;
+    const UA_UserTokenPolicy *matchUtp = NULL;
+    UA_SecurityPolicy *matchTokenSp = NULL;
     for(size_t i = 0; i < sc->endpointsSize; ++i) {
         const UA_EndpointDescription *desc = &sc->endpoints[i];
 
@@ -986,14 +989,38 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             continue;
 
         /* Select the UserTokenPolicy from the Endpoint */
-        *utp = selectTokenPolicy(server, channel, session,
-                                 identityToken, desc, tokenSp);
-        if(*utp) {
-            /* Match found */
-            *ed = desc;
+        UA_SecurityPolicy *candidateTokenSp = NULL;
+        const UA_UserTokenPolicy *candidateUtp =
+            selectTokenPolicy(server, channel, session, identityToken,
+                              desc, &candidateTokenSp);
+        if(!candidateUtp)
+            continue;
+
+        if(!match) {
+            match = desc;
+            matchUtp = candidateUtp;
+            matchTokenSp = candidateTokenSp;
+            continue;
+        }
+
+        /* A SecureChannel is not tied to an advertised EndpointUrl. The HEL
+         * URL is client-controlled and therefore cannot select an Endpoint for
+         * authorization. Reject an ambiguous configuration instead of taking
+         * the first entry and possibly granting endpoint-filtered Roles for a
+         * different URL or transport. Exact duplicate descriptions are safe. */
+        if(!UA_String_equal(&match->endpointUrl, &desc->endpointUrl) ||
+           !UA_String_equal(&match->transportProfileUri,
+                            &desc->transportProfileUri)) {
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "ActivateSession: Ambiguous configured "
+                                 "Endpoints for the SecureChannel");
             return;
         }
     }
+
+    *ed = match;
+    *utp = matchUtp;
+    *tokenSp = matchTokenSp;
 }
 
 static UA_StatusCode
@@ -1349,9 +1376,9 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                                 &ctx.applicationUri);
     if(ctxRes == UA_STATUSCODE_GOOD && ed) {
         ctxRes = UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
-        ctx.endpointSecurityMode = ed->securityMode;
+        ctx.endpointSecurityMode = channel->securityMode;
         if(ctxRes == UA_STATUSCODE_GOOD)
-            ctxRes = UA_String_copy(&ed->securityPolicyUri,
+            ctxRes = UA_String_copy(&channel->securityPolicy->policyUri,
                                     &ctx.securityPolicyUri);
         if(ctxRes == UA_STATUSCODE_GOOD)
             ctxRes = UA_String_copy(&ed->transportProfileUri,
