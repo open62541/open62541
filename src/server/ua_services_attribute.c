@@ -553,6 +553,22 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
         addMissingTimestamps(server, v, timestampsToReturn, id);
         return true;
     }
+
+    /* Browse permission also controls reading Node attributes other than
+     * Value and RolePermissions (Part 3, Browse Permission). The two excluded
+     * attributes have their own Read and ReadRolePermissions gates. */
+    if(id->attributeId != UA_ATTRIBUTEID_VALUE &&
+       id->attributeId != UA_ATTRIBUTEID_ROLEPERMISSIONS &&
+       session != &server->adminSession &&
+       !server->config.accessControl.allowBrowseNode(
+           server, &server->config.accessControl,
+           &session->sessionId, session->context,
+           &node->head.nodeId, node->head.context)) {
+        v->hasStatus = true;
+        v->status = UA_STATUSCODE_BADUSERACCESSDENIED;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
+        return true;
+    }
 #endif
 
     /* Read the attribute */
