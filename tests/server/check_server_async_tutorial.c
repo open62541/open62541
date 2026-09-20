@@ -458,7 +458,15 @@ START_TEST(timeout_registration_failure) {
     volatile UA_Boolean running = false;
     UA_StatusCode status = _i == 2 ? UA_Server_run(server, &running) :
         (_i == 3 ? UA_Server_runUntilInterrupt(server) : UA_Server_run_startup(server));
-    ck_assert_uint_eq(status, UA_STATUSCODE_BADOUTOFMEMORY);
+    UA_StatusCode expected = UA_STATUSCODE_BADOUTOFMEMORY;
+    if(_i == 3) {
+        UA_EventSource *es = el->eventSources;
+        while(es && es->eventSourceType != UA_EVENTSOURCETYPE_INTERRUPTMANAGER)
+            es = es->next;
+        if(!es) /* e.g. the lwIP event loop cannot run until an interrupt */
+            expected = UA_STATUSCODE_BADINTERNALERROR;
+    }
+    ck_assert_uint_eq(status, expected);
     ck_assert_int_eq(server->state, UA_LIFECYCLESTATE_STOPPED);
     ck_assert_uint_eq(server->asyncManager.checkTimeoutCallbackId, 0);
     checkLocalAdmissionClosed(server);
