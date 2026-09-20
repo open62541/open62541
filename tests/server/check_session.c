@@ -187,8 +187,6 @@ START_TEST(Session_shutdownCleansSessionBeforeStopped) {
     cfg->accessControl.closeSession = observeDeleteCloseSession;
     deleteCloseSessionCalls = 0;
 
-    UA_atomic_store(&running, false);
-    THREAD_JOIN(server_thread);
     ck_assert_uint_eq(deleteCloseSessionCalls, 0);
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteCloseSessionCalls, 1);
