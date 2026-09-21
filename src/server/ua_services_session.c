@@ -118,13 +118,11 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
 
-#if UA_MULTITHREADING >= 100
     /* Pending service responses cannot be delivered after the Session has
      * been removed. Cancel their operations and finish the response lifecycle
      * without sending them on the closed Session. */
     UA_AsyncManager_cancelSession(server, &session->sessionId,
                                   UA_STATUSCODE_BADSESSIONCLOSED);
-#endif
 
     /* Detach recoverable Subscriptions immediately when the Session times out.
      * Otherwise remove them now. The Session is already closed and absent from
