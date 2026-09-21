@@ -1679,47 +1679,52 @@ UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityP
             isLocalKey = true;
     }
 
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_ByteString thumbprint = UA_BYTESTRING_NULL;
     UA_StatusCode retval =
-        UA_OpenSSL_LoadLocalCertificate(&newCertificate,
-                                        &securityPolicy->localCertificate,
+        UA_OpenSSL_LoadLocalCertificate(&newCertificate, &certificate,
                                         pc->keyType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Set the new private key */
-    if(newPrivateKey.length > 0) {
-        EVP_PKEY_free(pc->localPrivateKey);
-        pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
-    } else {
-        if(!isLocalKey) {
-            EVP_PKEY_free(pc->localPrivateKey);
-            pc->localPrivateKey = pc->csrLocalPrivateKey;
-            pc->csrLocalPrivateKey = NULL;
-        }
-    }
+    EVP_PKEY *privateKey = pc->localPrivateKey;
+    if(newPrivateKey.length > 0)
+        privateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    else if(!isLocalKey)
+        privateKey = pc->csrLocalPrivateKey;
 
-    if(!pc->localPrivateKey) {
+    if(!privateKey) {
         retval = UA_STATUSCODE_BADNOTSUPPORTED;
         goto error;
     }
 
-    UA_ByteString_clear(&pc->localCertThumbprint);
-
-    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
-                                                      &pc->localCertThumbprint, true);
-    if(retval != UA_STATUSCODE_GOOD) {
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&certificate, &thumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD)
         goto error;
+
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+    securityPolicy->localCertificate = certificate;
+
+    UA_ByteString_clear(&pc->localCertThumbprint);
+    pc->localCertThumbprint = thumbprint;
+
+    if(newPrivateKey.length > 0) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = privateKey;
+    } else if(!isLocalKey) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = pc->csrLocalPrivateKey;
+        pc->csrLocalPrivateKey = NULL;
     }
 
-    return retval;
+    return UA_STATUSCODE_GOOD;
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
-    if(securityPolicy->policyContext != NULL)
-        UA_OpenSSL_Policy_clearContext_generic(securityPolicy);
+    UA_ByteString_clear(&certificate);
+    if(newPrivateKey.length > 0)
+        EVP_PKEY_free(privateKey);
     return retval;
 }
 
