@@ -74,6 +74,11 @@ static void setup(void) {
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
+    /* Set the ApplicationUri used in the server certificate */
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.server.application");
+
     /* Add username/password auth */
     UA_UsernamePasswordLogin login;
     login.password = UA_STRING("admin");

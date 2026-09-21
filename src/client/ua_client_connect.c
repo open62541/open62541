@@ -1820,6 +1820,31 @@ createSessionCallback(UA_Client *client, void *userdata,
             goto cleanup;
     }
 
+    /* OPC UA Part 4, 5.7.2: Bind the authenticated server certificate to the
+     * ApplicationUri claimed in the CreateSession response. Discovery data is
+     * not trusted and therefore cannot replace this check. */
+    if(csr->serverCertificate.length > 0 && csr->serverEndpointsSize == 0) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "CreateSession returned a server certificate without "
+                     "an EndpointDescription to verify its ApplicationUri");
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+    for(size_t i = 0; csr->serverCertificate.length > 0 &&
+                    i < csr->serverEndpointsSize; i++) {
+        const UA_String *applicationUri =
+            &csr->serverEndpoints[i].server.applicationUri;
+        res = UA_CertificateUtils_verifyApplicationUri(&csr->serverCertificate,
+                                                        applicationUri);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "The server certificate's ApplicationUri does not "
+                         "match the ApplicationUri %S returned by CreateSession",
+                         *applicationUri);
+            goto cleanup;
+        }
+    }
+
     /* Copy the SessionId */
     UA_NodeId_clear(&client->sessionId);
     res |= UA_NodeId_copy(&csr->sessionId, &client->sessionId);

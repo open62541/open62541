@@ -35,7 +35,7 @@ static void initialize_server_config(UA_ServerConfig *config) {
 
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 }
 
 static UA_Server *create_server(void) {
