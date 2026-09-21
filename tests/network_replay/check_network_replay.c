@@ -14,8 +14,6 @@
 #include "../encryption/certificates.h"
 
 #include <stdlib.h>
-#include <unistd.h>
-#include <limits.h>
 
 /* For replay with encryption the local nonce needs to be generated in a
  * reproducible fashion. This works as the non-cryptographic RNG is statically
@@ -51,28 +49,18 @@ createReplayClient(const char *pcap) {
         }
     }
 
-    /* Change the path to the location of the current executable (Linux only) */
-    char exe_path[PATH_MAX];
-    ssize_t pathlen = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-    if(pathlen < PATH_MAX)
-        exe_path[pathlen] = '\0'; /* Null-terminate the string */
-    else
-        exe_path[PATH_MAX-1] = '\0';
-    char *last_slash = strrchr(exe_path, '/'); /* Find the last slash to isolate the directory */
-    if(last_slash != NULL)
-        *last_slash = '\0'; /* Remove the executable name to get the directory */
-    chdir(exe_path); /* Change the current working directory */
-
     /* Add the replay ConnectionManager */
     UA_ConnectionManager *pcap_cm =
         ConnectionManage_replayPCAP(pcap, true);
-    el->registerEventSource(el, &pcap_cm->eventSource);
+    ck_assert_ptr_nonnull(pcap_cm);
+    ck_assert_uint_eq(el->registerEventSource(el, &pcap_cm->eventSource),
+                      UA_STATUSCODE_GOOD);
 
     return client;
 }
 
 START_TEST(unified_cpp_none) {
-    UA_Client *client = createReplayClient("../../../tests/network_replay/unified_cpp_none.pcap");
+    UA_Client *client = createReplayClient(UA_TEST_PCAP_DIR "unified_cpp_none.pcap");
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:48010");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -91,7 +79,7 @@ END_TEST
 #ifdef UA_ENABLE_ENCRYPTION
 START_TEST(unified_cpp_basic256sha256) {
     UA_Client *client =
-        createReplayClient("../../../tests/network_replay/unified_cpp_basic256sha256.pcap");
+        createReplayClient(UA_TEST_PCAP_DIR "unified_cpp_basic256sha256.pcap");
 
     UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
@@ -150,7 +138,7 @@ END_TEST
 
 START_TEST(prosys_basic256sha256) {
     UA_Client *client =
-        createReplayClient("../../../tests/network_replay/prosys_basic256sha256.pcap");
+        createReplayClient(UA_TEST_PCAP_DIR "prosys_basic256sha256.pcap");
 
     UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
