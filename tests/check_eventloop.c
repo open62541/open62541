@@ -65,10 +65,36 @@ START_TEST(benchmarkTimer) {
     el = NULL;
 } END_TEST
 
+#ifdef UA_ARCHITECTURE_POSIX
+START_TEST(localTimeOffset) {
+    const char *old = getenv("TZ");
+    UA_Boolean hadTimezone = (old != NULL);
+    char *saved = old ? strdup(old) : NULL;
+    ck_assert(!hadTimezone || saved);
+    const char *zones[] = {"UTC0", "EST5", "IST-5:30", "NPT-5:45", "PLUS-14", "MINUS12"};
+    const UA_Int64 offsets[] = {0, -18000, 19800, 20700, 50400, -43200};
+    for(size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+        ck_assert_int_eq(setenv("TZ", zones[i], 1), 0);
+        tzset();
+        ck_assert(UA_DateTime_localTimeUtcOffset() == offsets[i] * UA_DATETIME_SEC);
+    }
+    if(hadTimezone) {
+        ck_assert_int_eq(setenv("TZ", saved, 1), 0);
+    } else {
+        ck_assert_int_eq(unsetenv("TZ"), 0);
+    }
+    free(saved);
+    tzset();
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s  = suite_create("Test EventLoop");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
+#ifdef UA_ARCHITECTURE_POSIX
+    tcase_add_test(tc, localTimeOffset);
+#endif
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
