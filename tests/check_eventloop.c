@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/plugin/eventloop.h>
-#ifdef UA_ARCHITECTURE_POSIX
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 #include "../arch/posix/eventloop_posix.h"
 #endif
 #include "testing_clock.h"
@@ -68,7 +68,7 @@ START_TEST(benchmarkTimer) {
     el = NULL;
 } END_TEST
 
-#ifdef UA_ARCHITECTURE_POSIX
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)
 static short readyEvents;
 
 static void
@@ -113,7 +113,9 @@ START_TEST(simultaneousReadWrite) {
     loop->free(loop);
     ck_assert_int_eq(readyEvents, UA_FDEVENT_IN | UA_FDEVENT_OUT);
 } END_TEST
+#endif
 
+#ifdef UA_ARCHITECTURE_POSIX
 START_TEST(localTimeOffset) {
     const char *old = getenv("TZ");
     UA_Boolean hadTimezone = (old != NULL);
@@ -141,10 +143,12 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
 #ifdef UA_ARCHITECTURE_POSIX
+#ifndef UA_ARCHITECTURE_LWIP
 #ifdef UA_ENABLE_EVENTLOOP_GLIB
     tcase_add_loop_test(tc, simultaneousReadWrite, 0, 2);
 #else
     tcase_add_test(tc, simultaneousReadWrite);
+#endif
 #endif
     tcase_add_test(tc, localTimeOffset);
 #endif
