@@ -139,20 +139,16 @@ connectionCallback(UA_ConnectionManager *cm, LWS_FD *conn, short event) {
     eventfd.events = 0;
     eventfd.revents = 0;
 
-    if(event == UA_FDEVENT_ERR) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_EVENTLOOP,
-                     "Error in Connection Callback for FD %d", conn->rfd.fd);
-    }
-    if(event == UA_FDEVENT_OUT) {
-        eventfd.events = LWS_POLLOUT;
-        eventfd.revents =  LWS_POLLOUT;
-        lws_service_fd(context, &eventfd);
-    }
-    if(event == UA_FDEVENT_IN) {
-        eventfd.events = LWS_POLLIN;
-        eventfd.revents =  LWS_POLLIN;
-        lws_service_fd(context, &eventfd);
-    }
+    /* Service simultaneous readiness together. TLS may need to write before
+     * it can consume pending input. Forward socket errors for LWS cleanup. */
+    if(event & UA_FDEVENT_OUT)
+        eventfd.events |= LWS_POLLOUT;
+    if(event & UA_FDEVENT_IN)
+        eventfd.events |= LWS_POLLIN;
+    eventfd.revents = eventfd.events;
+    if(event & UA_FDEVENT_ERR)
+        eventfd.revents |= LWS_POLLHUP;
+    lws_service_fd(context, &eventfd);
 
     /* Perform at most one forced-service pass per socket callback. The LWS
      * event-library backends follow the same pattern and reschedule remaining

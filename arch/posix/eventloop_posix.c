@@ -878,12 +878,15 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         /* Event signaled for the fd? */
         short event = 0;
         if(FD_ISSET(rfd->fd, &readset)) {
-            event = UA_FDEVENT_IN;
-        } else if(FD_ISSET(rfd->fd, &writeset)) {
-            event = UA_FDEVENT_OUT;
-        } else if(FD_ISSET(rfd->fd, &errset)) {
+            event |= UA_FDEVENT_IN;
+        }
+        if(FD_ISSET(rfd->fd, &writeset)) {
+            event |= UA_FDEVENT_OUT;
+        }
+        if(!event && FD_ISSET(rfd->fd, &errset)) {
             event = UA_FDEVENT_ERR;
-        } else {
+        }
+        if(!event) {
             continue;
         }
 
@@ -1016,15 +1019,14 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         if(rfd->dc.callback)
             continue;
 
-        /* Get the event */
+        /* Forward both directions so pending input cannot starve writes. */
         short revent = 0;
-        if((epoll_events[i].events & EPOLLIN) == EPOLLIN) {
-            revent = UA_FDEVENT_IN;
-        } else if((epoll_events[i].events & EPOLLOUT) == EPOLLOUT) {
-            revent = UA_FDEVENT_OUT;
-        } else {
+        if(epoll_events[i].events & EPOLLIN)
+            revent |= UA_FDEVENT_IN;
+        if(epoll_events[i].events & EPOLLOUT)
+            revent |= UA_FDEVENT_OUT;
+        if(!revent)
             revent = UA_FDEVENT_ERR;
-        }
 
         /* Call the EventSource callback */
         rfd->eventSourceCB(rfd->es, rfd, revent);

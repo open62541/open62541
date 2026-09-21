@@ -11,6 +11,7 @@
 #include <check.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 typedef struct {
     uintptr_t id;
@@ -56,8 +57,12 @@ static void
 runUntil(UA_EventLoop *el, UA_Boolean (*predicate)(void *), void *context) {
     UA_DateTime deadline =
         UA_DateTime_nowMonotonic() + 10 * UA_DATETIME_SEC;
-    while(!predicate(context) && UA_DateTime_nowMonotonic() < deadline)
+    while(!predicate(context) && UA_DateTime_nowMonotonic() < deadline) {
+        /* Let the peer queue TLS records between iterations. A tight polling
+         * loop can hide failures to handle simultaneous socket readiness. */
+        usleep(10000);
         el->run(el, 50);
+    }
     ck_assert(predicate(context));
 }
 

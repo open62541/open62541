@@ -3,6 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/plugin/eventloop.h>
+#ifdef UA_ARCHITECTURE_POSIX
+#include "../arch/posix/eventloop_posix.h"
+#endif
 #include "testing_clock.h"
 #include <time.h>
 #include <stdio.h>
@@ -66,6 +69,51 @@ START_TEST(benchmarkTimer) {
 } END_TEST
 
 #ifdef UA_ARCHITECTURE_POSIX
+static short readyEvents;
+
+static void
+recordReadyEvents(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
+    (void)es;
+    (void)rfd;
+    readyEvents |= event;
+}
+
+/* Pending input must not starve writable callbacks on the same socket. */
+START_TEST(simultaneousReadWrite) {
+    int sockets[2];
+    ck_assert_int_eq(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    UA_EventLoop *loop =
+#ifdef UA_ENABLE_EVENTLOOP_GLIB
+        _i ? UA_EventLoop_new_GLib(NULL, NULL) :
+#endif
+        UA_EventLoop_new_POSIX(NULL);
+    ck_assert_ptr_nonnull(loop);
+    ck_assert_uint_eq(loop->start(loop), UA_STATUSCODE_GOOD);
+
+    UA_RegisteredFD rfd = {0};
+    rfd.fd = sockets[0];
+    rfd.listenEvents = UA_FDEVENT_IN | UA_FDEVENT_OUT;
+    rfd.eventSourceCB = recordReadyEvents;
+    UA_EventLoopPOSIX *posixLoop = (UA_EventLoopPOSIX*)loop;
+    UA_LOCK(&posixLoop->elMutex);
+    ck_assert_uint_eq(UA_EventLoopPOSIX_registerFD(posixLoop, &rfd),
+                      UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&posixLoop->elMutex);
+    ck_assert_int_eq(write(sockets[1], "x", 1), 1);
+    readyEvents = 0;
+    ck_assert_uint_eq(loop->run(loop, 0), UA_STATUSCODE_GOOD);
+
+    UA_LOCK(&posixLoop->elMutex);
+    UA_EventLoopPOSIX_deregisterFD(posixLoop, &rfd);
+    UA_UNLOCK(&posixLoop->elMutex);
+    close(sockets[0]);
+    close(sockets[1]);
+    loop->stop(loop);
+    loop->run(loop, 0);
+    loop->free(loop);
+    ck_assert_int_eq(readyEvents, UA_FDEVENT_IN | UA_FDEVENT_OUT);
+} END_TEST
+
 START_TEST(localTimeOffset) {
     const char *old = getenv("TZ");
     UA_Boolean hadTimezone = (old != NULL);
@@ -93,6 +141,11 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
 #ifdef UA_ARCHITECTURE_POSIX
+#ifdef UA_ENABLE_EVENTLOOP_GLIB
+    tcase_add_loop_test(tc, simultaneousReadWrite, 0, 2);
+#else
+    tcase_add_test(tc, simultaneousReadWrite);
+#endif
     tcase_add_test(tc, localTimeOffset);
 #endif
     suite_add_tcase(s, tc);
