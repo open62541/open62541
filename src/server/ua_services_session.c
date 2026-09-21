@@ -1034,10 +1034,16 @@ void Service_Cancel(UA_Server *server, UA_Session *session,
             SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
         session->responseQueueSize--;
 
-        /* Send response and clean up */
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        /* Send the cancelled PublishResponse and clean up. Use the queued
+         * response, not the CancelResponse: they are different types, and the
+         * shared UA_Response union is only initialized for the CancelResponse.
+         * Encoding it as a PublishResponse reads the uninitialized remainder
+         * of the union as array lengths and pointers. */
+        pre->response.responseHeader.serviceResult =
+            UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
         sendResponse(server, session, session->header.channel, pre->requestId,
-                     (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+                     (UA_Response *)&pre->response,
+                     &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(&pre->response);
         UA_free(pre);
 
