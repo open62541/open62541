@@ -711,6 +711,8 @@ endif()
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND
    PCAP_INCLUDE_DIR)
     ua_add_test(network_replay/check_network_replay.c)
+    target_compile_definitions(check_network_replay PRIVATE
+        UA_TEST_PCAP_DIR="${CMAKE_CURRENT_SOURCE_DIR}/network_replay/")
 endif()
 
 # Cross-SDK interoperability test binaries (standalone, no check framework)
