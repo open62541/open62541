@@ -534,6 +534,7 @@ function unit_tests_encryption {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_DRIVER_GDS_RECEIVER=ON \
+          -DUA_ENABLE_DRIVER_GDS_PULL=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
