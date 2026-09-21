@@ -72,7 +72,8 @@ assertWriterGroupEnabled(UA_PubSubConnection *connection, const char *name,
 
 START_TEST(AddPublisherUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
-    UA_ByteString publisherConfiguration = loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+    UA_ByteString publisherConfiguration =
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert(publisherConfiguration.length > 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, publisherConfiguration);
@@ -202,7 +203,8 @@ START_TEST(AddPublisherUsingBinaryFile) {
 
 START_TEST(AddSubscriberUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
-    UA_ByteString subscriberConfiguration = loadFile("../../tests/pubsub/check_subscriber_configuration.bin");
+    UA_ByteString subscriberConfiguration =
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_subscriber_configuration.bin");
     ck_assert(subscriberConfiguration.length > 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, subscriberConfiguration);
@@ -365,7 +367,7 @@ END_TEST
  * head, so a round trip swaps mixed enabled flags between two groups. */
 START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
     UA_ByteString input =
-        loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert_uint_gt(input.length, 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode res =
@@ -409,7 +411,7 @@ START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
  * was disabled and silently rewrote enabled=true to false. */
 START_TEST(DisabledParentPreservesChildEnabledIntent) {
     UA_ByteString input =
-        loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert_uint_gt(input.length, 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode res =
