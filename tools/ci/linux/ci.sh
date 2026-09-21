@@ -394,11 +394,13 @@ function unit_tests_tsan {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_FORCE_WERROR=ON
     cmake --build build-unit-tsan --parallel
-    (cd build-unit-tsan && set_capabilities)
+    # Give the runner network privileges without changing the sanitizer
+    # executables' credentials. TSan reads its options from /proc/self/environ.
+    # Set them explicitly after sudo, and preserve the Ethernet test interface.
     # As in the HTTP TSan job, the outer EventLoop lock serializes recursive
     # inner locks. Keep race detection, but disable the lock-order heuristic.
     # These suites share listener ports, so run them sequentially.
-    TSAN_OPTIONS="halt_on_error=1:detect_deadlocks=0" \
+    sudo -E env TSAN_OPTIONS="halt_on_error=1:detect_deadlocks=0" \
         ctest --test-dir build-unit-tsan --parallel 1 --timeout 300 \
           --output-on-failure --no-tests=error
 }
