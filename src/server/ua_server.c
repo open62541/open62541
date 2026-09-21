@@ -1261,6 +1261,14 @@ UA_Server_run_startup(UA_Server *server) {
     /* Take the server lock */
     lockServer(server);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    /* Set callbacks for condition method fields (needs to be set only once!). */
+    retVal = UA_setConditionMethodCallbacks(server);
+    UA_CHECK_STATUS_ERROR(retVal, unlockServer(server); return retVal,
+                          config->logging, UA_LOGCATEGORY_SERVER,
+                          "Could not set method callbacks for conditions");
+#endif
+
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
