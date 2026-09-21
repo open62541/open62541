@@ -353,9 +353,7 @@ UA_Server_delete(UA_Server *server) {
 
 #endif
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager_clear(&server->asyncManager, server);
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_assert(server->modelChangeDepth == 0);
@@ -509,9 +507,7 @@ UA_Server_init(UA_Server *server) {
     server->nextChannelId = STARTCHANNELID;
     server->lastTokenId = STARTTOKENID;
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
-#endif
 
     /* Initialize namespace 0 */
 #if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
@@ -1128,6 +1124,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
+    /* Async operation timeouts are only enforced with multithreading */
 #if UA_MULTITHREADING >= 100
     /* Add regulare callback for async operation processing */
     UA_AsyncManager_start(&server->asyncManager, server);
