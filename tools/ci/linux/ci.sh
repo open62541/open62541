@@ -524,6 +524,22 @@ function unit_tests_glib {
     make gcov
 }
 
+function unit_tests_nomt {
+    rm -rf build; mkdir -p build; cd build
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_MULTITHREADING=0 \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+    set_capabilities
+    make test ARGS="-V"
+    make gcov
+}
+
 function unit_tests_alarms {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
