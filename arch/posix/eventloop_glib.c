@@ -219,12 +219,12 @@ glibSourceDispatch(GSource *source, GSourceFunc callback, gpointer user_data) {
 
         short event = 0;
         if(gfd->revents & G_IO_IN)
-            event = UA_FDEVENT_IN;
-        else if(gfd->revents & G_IO_OUT)
-            event = UA_FDEVENT_OUT;
-        else if(gfd->revents & (G_IO_ERR | G_IO_HUP | G_IO_NVAL))
+            event |= UA_FDEVENT_IN;
+        if(gfd->revents & G_IO_OUT)
+            event |= UA_FDEVENT_OUT;
+        if(!event && (gfd->revents & (G_IO_ERR | G_IO_HUP | G_IO_NVAL)))
             event = UA_FDEVENT_ERR;
-        else
+        if(!event)
             continue;
 
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
