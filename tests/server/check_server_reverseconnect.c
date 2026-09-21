@@ -40,11 +40,11 @@ static UA_SecureChannelState clientCallbackStates[100];
 #define REVERSE_RECONNECT_INTERVAL_TEST 10
 #define REVERSECONNECT_MAX_ITERATIONS 1000
 
-bool runServer = false;
+static UA_atomic(uintptr_t) runServer = false;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while (runServer)
+    while(UA_atomic_load(&runServer))
         UA_Server_run_iterate(server, false);
     return 0;
 }
@@ -87,8 +87,8 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    if(runServer) {
-        runServer = false;
+    if(UA_atomic_load(&runServer)) {
+        UA_atomic_store(&runServer, false);
         THREAD_JOIN(server_thread);
     }
 
@@ -221,7 +221,7 @@ START_TEST(listenAndTeardown) {
 START_TEST(noListenWhileConnected) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    runServer = true;
+    UA_atomic_store(&runServer, true);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 

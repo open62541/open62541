@@ -16,20 +16,20 @@
 
 UA_Client *client;
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 #define CUSTOM_NS "http://open62541.org/ns/test"
 #define CUSTOM_NS_UPPER "http://open62541.org/ns/Test"
 
 THREAD_CALLBACK(serverloop) {
-    while (running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -46,7 +46,7 @@ static void setup(void) {
 static void teardown(void) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

@@ -28,19 +28,18 @@
 #include "thread_wrapper.h"
 
 static UA_Server *server_translate_browse;
-static UA_Boolean *running_translate_browse;
+static UA_atomic(uintptr_t) running_translate_browse;
 static THREAD_HANDLE server_thread_translate_browse;
 
 THREAD_CALLBACK(serverloop_register) {
-    while (*running_translate_browse)
+    while(UA_atomic_load(&running_translate_browse))
         UA_Server_run_iterate(server_translate_browse, true);
     return 0;
 }
 
 static void setup_server(void) {
     // start server
-    running_translate_browse = UA_Boolean_new();
-    *running_translate_browse = true;
+    UA_atomic_store(&running_translate_browse, true);
 
     server_translate_browse = UA_Server_newForUnitTest();
     UA_ServerConfig *server_translate_config = UA_Server_getConfig(server_translate_browse);
@@ -53,10 +52,9 @@ static void setup_server(void) {
 }
 
 static void teardown_server(void) {
-    *running_translate_browse = false;
+    UA_atomic_store(&running_translate_browse, false);
     THREAD_JOIN(server_thread_translate_browse);
     UA_Server_run_shutdown(server_translate_browse);
-    UA_Boolean_delete(running_translate_browse);
     UA_Server_delete(server_translate_browse);
 }
 

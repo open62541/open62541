@@ -45,7 +45,7 @@ static UA_UsernamePasswordLogin userNamePW[2] = {
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password2")}
 };
 
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 UA_UInt32 maxKeyCount;
 UA_String securityGroupId;
 THREAD_HANDLE server_thread;
@@ -54,7 +54,7 @@ UA_NodeId writerGroupId, readerGroupId;
 UA_NodeId publisherConnection, subscriberConnection;
 UA_ByteString allowedUsername;
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(sksServer, true);
     return 0;
 }
@@ -140,7 +140,7 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
 
 static void
 skssetup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
@@ -201,7 +201,7 @@ skssetup(void) {
 
 static void
 publishersetup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     publisherApp = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(publisherApp);
@@ -230,7 +230,7 @@ publishersetup(void) {
 
 static void
 subscribersetup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     subscriberApp = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(subscriberApp);
@@ -258,7 +258,7 @@ subscribersetup(void) {
 
 static void
 sksteardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(sksServer);
     UA_Server_delete(sksServer);
@@ -266,14 +266,14 @@ sksteardown(void) {
 
 static void
 publisherteardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     UA_Server_run_shutdown(publisherApp);
     UA_Server_delete(publisherApp);
 }
 
 static void
 subscriberteardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     UA_Server_run_shutdown(subscriberApp);
     UA_Server_delete(subscriberApp);
 }

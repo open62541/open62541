@@ -29,17 +29,17 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
     UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* Load server certificate and private key */
     UA_ByteString certificate;
@@ -87,7 +87,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -247,7 +247,7 @@ START_TEST(client_connect_none_username_eccpnist256) {
     privateKey.data = KEY_P256_DER_DATA;
 
     /* Stop the server */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
 
@@ -269,7 +269,7 @@ START_TEST(client_connect_none_username_eccpnist256) {
         UA_STRING_ALLOC("urn:unconfigured:application");
 
     /* Start the server */
-    running = true;
+    UA_atomic_store(&running, true);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
@@ -332,7 +332,7 @@ START_TEST(client_connect_ecc_username_eccpnist256) {
     privateKey.data = KEY_P256_DER_DATA;
 
     /* Stop the server */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
 
@@ -355,7 +355,7 @@ START_TEST(client_connect_ecc_username_eccpnist256) {
         UA_STRING_ALLOC("urn:unconfigured:application");
 
     /* Start the server */
-    running = true;
+    UA_atomic_store(&running, true);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
