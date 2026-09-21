@@ -979,6 +979,16 @@ UA_Server_updateCertificate(UA_Server *server,
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
         newPrivateKey = *privateKey;
+    } else {
+#ifdef UA_ENABLE_ENCRYPTION
+        /* No key to pair the certificate with, so check that it parses */
+        size_t keySize = 0;
+        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)&certificate,
+                                          &keySize) != UA_STATUSCODE_GOOD) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
+        }
+#endif
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
