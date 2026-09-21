@@ -21,7 +21,7 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 static void
@@ -55,7 +55,7 @@ addVariable(size_t size) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -68,7 +68,7 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -83,7 +83,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -387,7 +387,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     changeLocale(client);
 
     /* manually control the server thread */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     for(int i = 0; i < 15; ++i) {
@@ -398,7 +398,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     }
 
     /* run the server in an independent thread again */
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
  //   UA_Client_disconnect(client);

@@ -20,14 +20,14 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 static UA_Boolean serverThreadRunning;
 THREAD_HANDLE server_thread;
 static UA_Boolean noNewSubscription; /* Don't create a subscription when the
                                         session activates */
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -35,7 +35,7 @@ THREAD_CALLBACK(serverloop) {
 static void runServer(void) {
     if(serverThreadRunning)
         return;
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
     serverThreadRunning = true;
 }
@@ -43,14 +43,14 @@ static void runServer(void) {
 static void pauseServer(void) {
     if(!serverThreadRunning)
         return;
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     serverThreadRunning = false;
 }
 
 static void setup(void) {
     noNewSubscription = false;
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);

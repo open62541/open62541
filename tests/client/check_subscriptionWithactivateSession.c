@@ -20,7 +20,7 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 static UA_Boolean noNewSubscription; /* Don't create a subscription when the
                                         session activates */
@@ -58,14 +58,14 @@ addVariable(size_t size) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
     noNewSubscription = false;
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -79,7 +79,7 @@ static void teardown(void) {
     if(!server)
         return;
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     UA_Server_run_shutdown(server);
@@ -203,7 +203,7 @@ START_TEST(Client_subscription_createDataChanges) {
 
     changeLocale(client);
     /* manually control the server thread */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     retval = UA_Client_run_iterate(client, 1);
@@ -229,7 +229,7 @@ START_TEST(Client_subscription_createDataChanges) {
     ck_assert_uint_eq(countNotificationReceived, 3);
 
     /* run the server in an independent thread again */
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_DeleteMonitoredItemsRequest deleteRequest;

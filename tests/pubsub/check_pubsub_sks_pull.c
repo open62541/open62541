@@ -40,12 +40,12 @@ UA_String securityGroupId;
 UA_NodeId sgNodeId;
 UA_UInt32 maxKeyCount;
 UA_NodeId connection;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 UA_ByteString allowedUsername;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(sksServer, true);
     return 0;
 }
@@ -106,7 +106,7 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
 
 static void
 setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -183,7 +183,7 @@ setup(void) {
 static void
 teardown(void) {
     UA_String_clear(&securityGroupId);
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(sksServer);
     UA_Server_delete(sksServer);

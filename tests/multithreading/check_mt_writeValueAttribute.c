@@ -42,7 +42,7 @@ void addVariableNode(void) {
 }
 
 static void setup(void) {
-    tc.running = true;
+    UA_atomic_store(&tc.running, true);
     tc.server = UA_Server_newForUnitTest();
     ck_assert(tc.server != NULL);
     addVariableNode();

@@ -14,7 +14,7 @@
 #include <stdlib.h>
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 static const size_t usernamePasswordsSize = 1;
@@ -26,7 +26,7 @@ static UA_UsernamePasswordLogin usernamePasswords[1] = {
 #define TRANSPORT_PROFILE_URI "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary"
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -62,7 +62,7 @@ setUserTokenPolicies(UA_EndpointDescription *ep, UA_Boolean withSecurityPolicy) 
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -142,7 +142,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

@@ -34,17 +34,17 @@
 #include <sys/stat.h>
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 pthread_t server_thread;
 
 static void * serverloop(void *_) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return NULL;
 }
 
 static void start_server(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* less log output */
     UA_ServerConfig initialConfig;
@@ -61,7 +61,7 @@ static void start_server(void) {
 }
 
 static void teardown_server(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

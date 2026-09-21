@@ -20,7 +20,7 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 static const size_t usernamePasswordsSize = 2;
@@ -56,7 +56,7 @@ addVariable(size_t size) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -64,7 +64,7 @@ THREAD_CALLBACK(serverloop) {
 #define VARLENGTH 16366
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -81,7 +81,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -297,7 +297,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_CreateSubscriptionResponse_clear(&response);
 
     /* manually control the server thread */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     for(int i = 0; i < 15; ++i) {
@@ -308,7 +308,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     }
 
     /* run the server in an independent thread again */
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -497,6 +497,8 @@ START_TEST(Client_closes_on_server_error) {
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* Serialize the internal send buffer with the server's network callbacks. */
+    lockServer(server);
     ck_assert_uint_eq(server->sessionCount, 1);
     UA_SecureChannel *channel = server->sessions.lh_first->session.channel;
 
@@ -504,6 +506,7 @@ START_TEST(Client_closes_on_server_error) {
     UA_TcpErrorMessage errMsg = {.error = UA_STATUSCODE_BADSECURITYCHECKSFAILED,
                                  .reason = UA_STRING_NULL};
     UA_SecureChannel_sendERR(channel, &errMsg);
+    unlockServer(server);
 
     // client should disconnect and close TCP connections, although err was received
     // note: if it fails to do so the tests might hang here

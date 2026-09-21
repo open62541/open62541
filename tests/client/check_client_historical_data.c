@@ -31,7 +31,7 @@
 
 static UA_Server *server;
 static UA_HistoryDataGathering *gathering;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE server_thread;
 
 static UA_Client *client;
@@ -59,7 +59,7 @@ static struct ReceiveTupel receivedTestData[(sizeof(testData) / sizeof(testData[
 static size_t receivedTestDataPos;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -86,7 +86,7 @@ static void fillInt64DataValue(UA_DateTime timestamp, UA_Int64 value,
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -151,7 +151,7 @@ teardown(void) {
     UA_NodeId_clear(&parentNodeId);
     UA_NodeId_clear(&parentReferenceNodeId);
     UA_NodeId_clear(&outNodeId);
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

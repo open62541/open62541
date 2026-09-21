@@ -21,7 +21,7 @@
 
 UA_Server *server;
 UA_Boolean connected = false;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 #define VARLENGTH 16366
 
 THREAD_HANDLE server_thread;
@@ -57,13 +57,13 @@ addVariable(size_t size) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
@@ -72,7 +72,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -109,7 +109,7 @@ START_TEST(Client_activateSession_async) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // now join server thread to take control
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* try to change locale */
@@ -150,7 +150,7 @@ START_TEST(Client_activateSession_async) {
     UA_free(convert);
     ck_assert_uint_eq(server->sessionCount, 1);
 
-    running = true;
+    UA_atomic_store(&running, true);
     // start serverthread again
     THREAD_CREATE(server_thread, serverloop);
     // read displayname with changed locale

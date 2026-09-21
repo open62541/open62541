@@ -23,7 +23,7 @@
 #include "thread_wrapper.h"
 
 static UA_Server *server;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static size_t serverIterations;
 static THREAD_HANDLE server_thread;
 UA_NodeId EventType_A_Layer_1, EventType_B_Layer_1, EventType_C_Layer_2, EventType_D_Layer_3;
@@ -123,7 +123,7 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
 }
 
 THREAD_CALLBACK(serverloop) {
-    while (running) {
+    while(UA_atomic_load(&running)) {
         UA_Server_run_iterate(server, true);
         serverIterations++;
     }
@@ -131,12 +131,12 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void runServer(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void pauseServer(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 }
 
@@ -150,7 +150,7 @@ sleepUntilAnswer(UA_Double sleepMs) {
 
 static void setup(void){
     /* Setup Server */
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -178,7 +178,7 @@ static void setup(void){
 
 static void teardown(void) {
     /* Delete Server */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

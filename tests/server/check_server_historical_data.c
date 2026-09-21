@@ -30,7 +30,7 @@
 
 static UA_Server *server;
 static UA_HistoryDataGathering *gathering;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE server_thread;
 
 static UA_Client *client;
@@ -76,14 +76,14 @@ historyReadTestBackend(UA_Server *server, void *hdbContext,
 #endif
 
 THREAD_CALLBACK(serverloop) {
-    while(running) {
+    while(UA_atomic_load(&running)) {
         UA_Server_run_iterate(server, false);
     }
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -146,7 +146,7 @@ teardown(void) {
     /* cleanup */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_NodeId_clear(&parentNodeId);
     UA_NodeId_clear(&parentReferenceNodeId);
@@ -928,11 +928,11 @@ START_TEST(Server_HistorizingStrategyPoll) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     for(size_t k = 0; k < 10; ++k) {
-        running = false;
+        UA_atomic_store(&running, false);
         THREAD_JOIN(server_thread);
         UA_fakeSleep(setting.pollingInterval);
         UA_Server_run_iterate(server, false);
-        running = true;
+        UA_atomic_store(&running, true);
         THREAD_CREATE(server_thread, serverloop);
         if(k == 5) {
             gathering->stopPoll(server, gathering->context, &outNodeId);
