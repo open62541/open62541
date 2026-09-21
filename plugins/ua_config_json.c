@@ -1693,6 +1693,9 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->asyncServiceCallRule, NULL);
                 else if(strcmp(field, "certificateEkuRule") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
+                else if(strcmp(field, "endpointDescriptionRule") == 0)
+                    retval = RuleHandlingField_parseJson(
+                        &ctx, &config->endpointDescriptionRule, NULL);
                 else if(strcmp(field, "tcpReuseAddr") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
 #ifdef UA_ENABLE_LWS

@@ -706,6 +706,16 @@ struct UA_ClientConfig {
      * continues silently. */
     UA_RuleHandling certificateEkuRule;
 
+    /* Compare the selected EndpointDescription from discovery with the
+     * authenticated EndpointDescriptions returned by CreateSession. Only
+     * server.applicationUri, endpointUrl, securityMode, securityPolicyUri,
+     * userIdentityTokens, transportProfileUri and securityLevel are compared,
+     * as required by Part 4. ABORT and DEFAULT reject a mismatch, WARN logs and
+     * continues, and ACCEPT continues silently. Certificate verification is
+     * separate and unaffected by this rule. The comparison is skipped when
+     * an EndpointDescription was configured directly. */
+    UA_RuleHandling endpointDescriptionRule;
+
     /* SecurityPolicies for authentication with an x509 certificate. The
      * UserIdentityToken contains only the certificate. The certificate gets
      * matched against the SecurityPolicy instance from this array. Only the
