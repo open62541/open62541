@@ -27,20 +27,20 @@
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
-static int listenSocket;
+static UA_atomic(uintptr_t) listenThreadReady;
 static UA_Server *server;
 static pthread_t listenThread;
 static UA_Boolean listenThreadStarted;
-static UA_Boolean listenThreadStop;
+static UA_atomic(uintptr_t) listenThreadStop;
 static UA_UInt64 writerGroupTimer;
 static UA_DataSetReaderConfig readerConfig;
 static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent,
                  connectionIdentifier, readerGroupIdentifier, readerIdentifier;
 
 static void setup(void) {
-    listenSocket = 0;
+    UA_atomic_store(&listenThreadReady, false);
     listenThreadStarted = false;
-    listenThreadStop = false;
+    UA_atomic_store(&listenThreadStop, false);
     writerGroupTimer = 0;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -306,7 +306,7 @@ listenUDP(void *_) {
     }
 
     /* Open the socket */
-    listenSocket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    int listenSocket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(listenSocket <= 0) {
         printf("XXX Cannot create the socket\n");
         return NULL;
@@ -353,17 +353,17 @@ listenUDP(void *_) {
     freeaddrinfo(info);
 
     /* The connection is open, change the state to OPERATIONAL.
-     * The state machine checks whether listenSocket != 0. */
+     * Only this thread owns the socket; the state machine observes readiness. */
     printf("XXX Listening on UDP multicast (%s, port %u)\n",
            hostnamebuf, (unsigned)port);
+    UA_atomic_store(&listenThreadReady, true);
     UA_Server_enablePubSubConnection(server, connectionIdentifier);
 
-    /* Poll and process in a loop.
-     * The socket is closed in the state machine and */
+    /* Poll with a bounded wait so cancellation needs no cross-thread close. */
     struct pollfd pfd;
     pfd.fd = listenSocket;
     pfd.events = POLLIN;
-    while(!listenThreadStop) {
+    while(!UA_atomic_load(&listenThreadStop)) {
         result = poll(&pfd, 1, 100);
         if(result == 0)
             continue;
@@ -387,7 +387,7 @@ listenUDP(void *_) {
 
     /* Clean up and notify the state machine */
     close(listenSocket);
-    listenSocket = 0;
+    UA_atomic_store(&listenThreadReady, false);
     UA_Server_disablePubSubConnection(server, connectionIdentifier);
     return NULL;
 }
@@ -405,21 +405,19 @@ connectionStateMachine(UA_Server *server, const UA_NodeId componentId,
         case UA_PUBSUBSTATE_DISABLED:
         case UA_PUBSUBSTATE_PAUSED:
             printf("XXX Closing the UDP multicast connection\n");
-            listenThreadStop = true;
-            if(listenSocket != 0)
-                shutdown(listenSocket, SHUT_RDWR);
+            UA_atomic_store(&listenThreadStop, true);
             *state = targetState;
             break;
 
         /* Operational */
         case UA_PUBSUBSTATE_PREOPERATIONAL:
         case UA_PUBSUBSTATE_OPERATIONAL:
-            if(listenSocket != 0) {
+            if(UA_atomic_load(&listenThreadReady)) {
                 *state = UA_PUBSUBSTATE_OPERATIONAL;
                 break;
             }
             printf("XXX Opening the UDP multicast connection\n");
-            listenThreadStop = false;
+            UA_atomic_store(&listenThreadStop, false);
             *state = UA_PUBSUBSTATE_PREOPERATIONAL;
             int res = pthread_create(&listenThread, NULL, listenUDP, NULL);
             if(res != 0)
@@ -620,9 +618,7 @@ START_TEST(CustomSubscriber) {
     UA_Server_run_iterate(server, true);
 
     UA_Server_disablePubSubConnection(server, connectionIdentifier);
-    listenThreadStop = true;
-    if(listenSocket != 0)
-        shutdown(listenSocket, SHUT_RDWR);
+    UA_atomic_store(&listenThreadStop, true);
 
     if(listenThreadStarted) {
         pthread_join(listenThread, NULL);
