@@ -470,12 +470,16 @@ struct lws_context *
 UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)eventLoop;
 
+    /* Context creation calls back into the EventLoop. Always take its lock
+     * before the process-wide lifecycle lock, also for standalone CM users. */
+    UA_LOCK(&el->elMutex);
     lockLwsLifecycle();
     if(!el->lwsContext) {
         lws_log_cx_t *logContext =
             (lws_log_cx_t*)UA_calloc(1, sizeof(lws_log_cx_t));
         if(!logContext) {
             unlockLwsLifecycle();
+            UA_UNLOCK(&el->elMutex);
             return NULL;
         }
         logContext->lll_flags = LLLF_LOG_CONTEXT_AWARE | UA_LWS_LOG_LEVELS;
@@ -492,6 +496,7 @@ UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
         if(!initializeLwsClientSslContext()) {
             UA_free(logContext);
             unlockLwsLifecycle();
+            UA_UNLOCK(&el->elMutex);
             return NULL;
         }
         info.provided_client_ssl_ctx = lwsClientSslContext;
@@ -520,6 +525,7 @@ UA_LWS_acquireContext(UA_EventLoop *eventLoop) {
         ++el->lwsContextUsers;
     struct lws_context *context = (struct lws_context*)el->lwsContext;
     unlockLwsLifecycle();
+    UA_UNLOCK(&el->elMutex);
     return context;
 }
 
@@ -527,16 +533,17 @@ void
 UA_LWS_releaseContext(UA_EventLoop *eventLoop) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)eventLoop;
 
-    lockLwsLifecycle();
+    UA_LOCK(&el->elMutex);
     UA_assert(el->lwsContextUsers > 0);
     --el->lwsContextUsers;
-    unlockLwsLifecycle();
+    UA_UNLOCK(&el->elMutex);
 }
 
 void
 UA_LWS_destroyContext(UA_EventLoop *eventLoop) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)eventLoop;
 
+    UA_LOCK(&el->elMutex);
     lockLwsLifecycle();
     UA_assert(el->lwsContextUsers == 0);
     if(el->lwsContext) {
@@ -551,4 +558,5 @@ UA_LWS_destroyContext(UA_EventLoop *eventLoop) {
         --lwsContextCount;
     }
     unlockLwsLifecycle();
+    UA_UNLOCK(&el->elMutex);
 }
