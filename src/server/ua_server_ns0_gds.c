@@ -345,6 +345,13 @@ updateCertificate(UA_Server *server,
             return UA_STATUSCODE_BADNOTSUPPORTED;
         if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
+    } else {
+        /* Without a PrivateKey (after CreateSigningRequest), check at least
+         * that the certificate parses before staging it */
+        size_t keySize = 0;
+        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)certificate,
+                                          &keySize) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

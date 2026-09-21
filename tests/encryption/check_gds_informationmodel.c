@@ -378,6 +378,48 @@ callRemoveCertificate(UA_Client *client, UA_String *thumbprint, UA_Boolean isTru
     return res;
 }
 
+/* Test: UpdateCertificate without a PrivateKey rejects a certificate that does
+ * not parse, instead of staging it into the transaction */
+START_TEST(update_certificate_reject_unparseable) {
+    UA_Client *client = createSecureClient();
+
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_ByteString cert = UA_BYTESTRING("not a certificate");
+    UA_String keyFormat = UA_STRING_NULL;
+    UA_ByteString key = UA_BYTESTRING_NULL;
+
+    UA_Variant inputArguments[6];
+    UA_Variant_setScalar(&inputArguments[0], &groupId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&inputArguments[1], &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&inputArguments[2], &cert, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setArray(&inputArguments[3], NULL, 0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&inputArguments[4], &keyFormat, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[5], &key, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 6;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE);
+
+    UA_CallRequest callReq;
+    UA_CallRequest_init(&callReq);
+    callReq.methodsToCallSize = 1;
+    callReq.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callReq);
+    ck_assert_uint_eq(1, response.resultsSize);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_CallResponse_clear(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Test: AddCertificate succeeds for a non-CA end-entity certificate */
 START_TEST(add_certificate_success) {
     UA_Client *client = createSecureClient();
@@ -868,6 +910,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, gds_callback_argument_counts);
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
+    tcase_add_test(tc_cert, update_certificate_reject_unparseable);
     tcase_add_test(tc_cert, add_certificate_success);
     tcase_add_test(tc_cert, add_certificate_reject_ca);
     tcase_add_test(tc_cert, add_certificate_reject_issuer);
