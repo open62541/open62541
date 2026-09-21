@@ -470,7 +470,9 @@ getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
             UA_ExpandedNodeId_clear(e);
             continue;
         }
-        *n = e->nodeId;
+        /* memmove: source and destination can overlap on 32-bit targets,
+         * where sizeof(UA_ExpandedNodeId) < 2 * sizeof(UA_NodeId) */
+        memmove(n, &e->nodeId, sizeof(UA_NodeId));
         UA_String_clear(&e->namespaceUri);
         pos++;
     }
@@ -595,7 +597,8 @@ getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
             UA_ExpandedNodeId_clear(e);
             continue;
         }
-        *n = e->nodeId;
+        /* memmove, see getTypeAndInterfaceHierarchy */
+        memmove(n, &e->nodeId, sizeof(UA_NodeId));
         UA_String_clear(&e->namespaceUri);
         pos++;
     }

@@ -17,6 +17,7 @@
 #include <open62541/types.h>
 
 #include "test_helpers.h"
+#include "ua_server_internal.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -216,6 +217,68 @@ START_TEST(Utils_addDataTypeFromDescription_empty_rejected) {
     ck_assert_uint_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
 } END_TEST
 
+/* === Type hierarchy === */
+
+/* getTypeAndInterfaceHierarchy() narrows its RefTree's UA_ExpandedNodeId array
+ * into a UA_NodeId array in place, copying each nodeId from a higher offset in
+ * the same allocation down to a lower one. The two overlap wherever
+ * sizeof(UA_ExpandedNodeId) is less than twice sizeof(UA_NodeId), which is the
+ * case on every 32-bit target: 36 against 24, so from i == pos == 1 the
+ * destination spans [24,48) and the source [36,60).
+ *
+ * A corrupted entry reads back as a null NodeId, so every returned identifier
+ * has to be intact and the whole chain has to be present. */
+static void
+addObjectType(UA_Server *s, char *name, UA_NodeId parent, UA_NodeId *out) {
+    UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(s, UA_NODEID_STRING(1, name), parent,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(1, name), attr, NULL, out);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
+
+START_TEST(Utils_typeHierarchy_entriesAreIntact) {
+    /* BaseObjectType <- A <- B <- C, so the loop runs past the first element. */
+    UA_NodeId a, b, c;
+    addObjectType(server, "HierA", UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), &a);
+    addObjectType(server, "HierB", a, &b);
+    addObjectType(server, "HierC", b, &c);
+
+    UA_NodeId *hierarchy = NULL;
+    size_t hierarchySize = 0;
+    lockServer(server);
+    UA_StatusCode res = getTypeAndInterfaceHierarchy(server, &c, true,
+                                                     &hierarchy, &hierarchySize);
+    unlockServer(server);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* C, B, A and BaseObjectType. */
+    ck_assert_uint_eq(hierarchySize, 4);
+
+    UA_Boolean seenA = false, seenB = false, seenC = false, seenBase = false;
+    UA_NodeId base = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+    for(size_t i = 0; i < hierarchySize; i++) {
+        /* The corruption signature: an entry whose identifier was zeroed. */
+        ck_assert_msg(!UA_NodeId_isNull(&hierarchy[i]),
+                      "hierarchy[%u] is a null NodeId", (unsigned)i);
+        if(UA_NodeId_equal(&hierarchy[i], &a)) seenA = true;
+        if(UA_NodeId_equal(&hierarchy[i], &b)) seenB = true;
+        if(UA_NodeId_equal(&hierarchy[i], &c)) seenC = true;
+        if(UA_NodeId_equal(&hierarchy[i], &base)) seenBase = true;
+    }
+    ck_assert_uint_eq(seenA, true);
+    ck_assert_uint_eq(seenB, true);
+    ck_assert_uint_eq(seenC, true);
+    ck_assert_uint_eq(seenBase, true);
+
+    UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_NodeId_clear(&a);
+    UA_NodeId_clear(&b);
+    UA_NodeId_clear(&c);
+} END_TEST
+
 /* === Suite === */
 
 static Suite* testSuite_Utils(void) {
@@ -233,6 +296,12 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc, Utils_addDataType_fillsFirstList);
     tcase_add_test(tc, Utils_addDataTypeFromDescription_empty_rejected);
     suite_add_tcase(s, tc);
+
+    TCase *tcHier = tcase_create("Type hierarchy");
+    tcase_set_timeout(tcHier, 60);
+    tcase_add_checked_fixture(tcHier, setup, teardown);
+    tcase_add_test(tcHier, Utils_typeHierarchy_entriesAreIntact);
+    suite_add_tcase(s, tcHier);
     return s;
 }
 
