@@ -364,11 +364,7 @@ function unit_tests_libwebsockets_tsan {
     cmake --build build-tsan --parallel --target \
           check_eventloop_http check_http_compression check_server_http \
           check_client_http
-    # The EventLoop mutex is the common outer lock for the LWS lifecycle and
-    # server timer callbacks. TSan does not account for that outer
-    # serialization when checking the order of the recursive inner locks.
-    # Disable only its deadlock heuristic; data-race detection remains active.
-    TSAN_OPTIONS="detect_deadlocks=0" ctest --test-dir build-tsan \
+    TSAN_OPTIONS="halt_on_error=1" ctest --test-dir build-tsan \
           -R '^check_(eventloop_http|http_compression|server_http|client_http)$' \
           --output-on-failure
 }
@@ -397,10 +393,8 @@ function unit_tests_tsan {
     # Give the runner network privileges without changing the sanitizer
     # executables' credentials. TSan reads its options from /proc/self/environ.
     # Set them explicitly after sudo, and preserve the Ethernet test interface.
-    # As in the HTTP TSan job, the outer EventLoop lock serializes recursive
-    # inner locks. Keep race detection, but disable the lock-order heuristic.
     # These suites share listener ports, so run them sequentially.
-    sudo -E env TSAN_OPTIONS="halt_on_error=1:detect_deadlocks=0" \
+    sudo -E env TSAN_OPTIONS="halt_on_error=1" \
         ctest --test-dir build-unit-tsan --parallel 1 --timeout 300 \
           --output-on-failure --no-tests=error
 }
