@@ -231,9 +231,15 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
     struct TimerProcessContext *tpc = (struct TimerProcessContext*)context;
     UA_Timer *t = tpc->t;
 
-    /* Execute the callback */
+    /* Callbacks may acquire other locks or modify timers. The entry stays in
+     * the id tree, but outside the time tree, until this dispatch completes. */
     if(te->cb) {
-        te->cb(te->application, te->data);
+        UA_Callback cb = te->cb;
+        void *application = te->application;
+        void *data = te->data;
+        UA_UNLOCK(&t->timerMutex);
+        cb(application, data);
+        UA_LOCK(&t->timerMutex);
     }
 
     /* Remove the entry if marked for deletion or a "once" policy */

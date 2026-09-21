@@ -79,6 +79,58 @@ START_TEST(batchWithinWindow) {
 
 #if UA_MULTITHREADING >= 100
 typedef struct {
+    UA_Timer *timer;
+    UA_UInt64 currentId;
+    UA_UInt64 nextId;
+    UA_StatusCode status;
+} TimerMutationContext;
+
+THREAD_CALLBACK_PARAM(mutateTimers, argument) {
+    TimerMutationContext *context = (TimerMutationContext*)argument;
+    UA_Timer_remove(context->timer, context->currentId);
+    UA_Timer_remove(context->timer, context->nextId);
+    context->status = UA_Timer_add(context->timer, timerCallback, NULL, NULL,
+                                   30, 0, NULL, UA_TIMERPOLICY_ONCE, NULL);
+    return 0;
+}
+
+/* Another thread must be able to modify the timer during a callback. */
+static void
+mutateTimersFromCallback(void *application, void *data) {
+    (void)data;
+    TimerMutationContext *context = (TimerMutationContext*)application;
+    /* No other thread has started yet. Fail before joining if the callback
+     * still holds the timer mutex. */
+    ck_assert_uint_eq(context->timer->timerMutex.count, 0);
+    THREAD_HANDLE thread;
+    THREAD_CREATE_PARAM(thread, mutateTimers, *context);
+    THREAD_JOIN(thread);
+}
+
+START_TEST(callbackWithoutTimerLock) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    TimerMutationContext context = {&timer, 0, 0, UA_STATUSCODE_GOOD};
+    count = 0;
+    ck_assert_uint_eq(UA_Timer_add(&timer, mutateTimersFromCallback, &context,
+                                   NULL, 10, 0, NULL, UA_TIMERPOLICY_ONCE,
+                                   &context.currentId), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL,
+                                   20, 0, NULL, UA_TIMERPOLICY_ONCE,
+                                   &context.nextId), UA_STATUSCODE_GOOD);
+
+    /* Both original entries are in the current dispatch batch. Removing them
+     * must remain safe, and the newly added timer runs in the next pass. */
+    ck_assert(UA_Timer_process(&timer, 20 * UA_DATETIME_MSEC) ==
+              30 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(context.status, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(count, 0);
+    ck_assert(UA_Timer_process(&timer, 30 * UA_DATETIME_MSEC) == UA_INT64_MAX);
+    ck_assert_uint_eq(count, 1);
+    UA_Timer_clear(&timer);
+} END_TEST
+
+typedef struct {
     UA_DateTime now;
     UA_StatusCode status;
 } TimerThreadContext;
@@ -117,6 +169,7 @@ int main(void) {
     tcase_add_test(tc, benchmarkTimer);
     tcase_add_test(tc, batchWithinWindow);
 #if UA_MULTITHREADING >= 100
+    tcase_add_test(tc, callbackWithoutTimerLock);
     tcase_add_test(tc, independentTimerBatching);
 #endif
     suite_add_tcase(s, tc);

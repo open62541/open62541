@@ -15,13 +15,9 @@
 
 _UA_BEGIN_DECLS
 
-/* The timer is protected by its own mutex. The mutex is released before calling
- * into the callbacks. So the timer can be modified from the callbacks it is
- * executing. Also, the timer mutex can never lead to locking. Because the timer
- * mutex will be left without acquiring another mutex.
- *
- * Obviously, the timer must not be deleted from within one of its
- * callbacks. */
+/* The timer is protected by its own mutex. Callbacks run without that mutex,
+ * so they may modify timers or acquire other locks. Clear the timer only after
+ * all UA_Timer_process calls have returned, never from a callback. */
 
 typedef struct UA_TimerEntry {
     ZIP_ENTRY(UA_TimerEntry) treeEntry;
