@@ -1,14 +1,16 @@
 #include "gds_pull_internal.h"
 #include "../gds_common/gds_certificates.h"
-#include "open62541/common.h"
-#include "open62541/plugin/log.h"
 
+#include <open62541/common.h>
+#include <open62541/plugin/log.h>
+#include <open62541/util.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel_async.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/types.h>
+
 #include <string.h>
 
 #ifdef UA_ENABLE_DRIVER_GDS_PULL
@@ -42,11 +44,14 @@ struct UA_GDSPullConfiguration {
     /* The NodeId this application is registered under in the
      * CertificateManager. */
     UA_NodeId applicationId;
-    UA_GDSPullPendingRequestsCallback pendingRequestsCallback;
+    UA_GDSPullRequesterNotificationCallback notificationCallback;
+    void *notificationCallbackContext;
+
     /* Whether the CertificateManager should create a new private key on behalf
      * of the client. */
     bool createPrivateKey;
-    void *pendingRequestsContext;
+    /* Milliseconds between the start of two workflow cycles. */
+    UA_UInt32 cycleInterval;
 };
 
 struct UA_GDSPullGroup {
@@ -59,6 +64,15 @@ struct UA_GDSPullGroup {
     UA_NodeId trustListId;
     UA_DateTime lastUpdateTime;
 };
+
+/* A signing request that the CertificateManager has not completed yet.
+ * Restored from the params, as it cannot be queried from the
+ * CertificateManager. */
+typedef struct {
+    UA_NodeId requestId;
+    UA_NodeId certificateGroupId;
+    UA_NodeId certificateTypeId;
+} UA_GDSPullPendingRequest;
 
 typedef enum {
     UA_GDSPULLSTEP_IDLE,
@@ -164,12 +178,93 @@ UA_GDSPull_finishWorkflow(UA_Client *client, UA_GDSPullContext *ctx) {
 }
 
 static void
-UA_GDSPull_notifyPendingRequests(UA_GDSPullContext *ctx) {
-    if(!ctx->conf.pendingRequestsCallback)
+notify_cycle(UA_GDSPullContext *ctx, UA_GDSPullRequesterNotification type) {
+    if(!ctx->conf.notificationCallback)
         return;
-    ctx->conf.pendingRequestsCallback(
-        (UA_GDSPull *)ctx, ctx->conf.pendingRequestsContext,
-        ctx->pendingRequests, ctx->pendingRequestsSize);
+
+    UA_KeyValuePair payload[1];
+    payload[0].key = UA_QUALIFIEDNAME(0, "endpoint-url");
+    UA_Variant_setScalar(&payload[0].value, &ctx->conf.gdsEndpointUrl,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap payloadMap = { 1, payload };
+
+    ctx->conf.notificationCallback((UA_GDSPullRequester *)ctx,
+                                   ctx->conf.notificationCallbackContext, type,
+                                   payloadMap);
+}
+
+static void
+notify_pendingRequest(UA_GDSPullContext *ctx,
+                      UA_GDSPullRequesterNotification type,
+                      const UA_GDSPullPendingRequest *request) {
+    if(!ctx->conf.notificationCallback)
+        return;
+
+    UA_KeyValuePair payload[3];
+    payload[0].key = UA_QUALIFIEDNAME(0, "request-id");
+    UA_Variant_setScalar(&payload[0].value,
+                         (void *)(uintptr_t)&request->requestId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payload[1].key = UA_QUALIFIEDNAME(0, "certificate-group-id");
+    UA_Variant_setScalar(&payload[1].value,
+                         (void *)(uintptr_t)&request->certificateGroupId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payload[2].key = UA_QUALIFIEDNAME(0, "certificate-type-id");
+    UA_Variant_setScalar(&payload[2].value,
+                         (void *)(uintptr_t)&request->certificateTypeId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_KeyValueMap payloadMap = { 3, payload };
+
+    ctx->conf.notificationCallback((UA_GDSPullRequester *)ctx,
+                                   ctx->conf.notificationCallbackContext, type,
+                                   payloadMap);
+}
+
+static void
+notify_certificate(UA_GDSPullContext *ctx, UA_GDSPullRequesterNotification type,
+                   const UA_NodeId *certificateGroupId,
+                   const UA_NodeId *certificateTypeId, UA_StatusCode status) {
+    if(!ctx->conf.notificationCallback)
+        return;
+
+    UA_KeyValuePair payload[3];
+    payload[0].key = UA_QUALIFIEDNAME(0, "certificate-group-id");
+    UA_Variant_setScalar(&payload[0].value,
+                         (void *)(uintptr_t)certificateGroupId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payload[1].key = UA_QUALIFIEDNAME(0, "certificate-type-id");
+    UA_Variant_setScalar(&payload[1].value,
+                         (void *)(uintptr_t)certificateTypeId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payload[2].key = UA_QUALIFIEDNAME(0, "status-code");
+    UA_Variant_setScalar(&payload[2].value, &status,
+                         &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_KeyValueMap payloadMap = { 3, payload };
+
+    ctx->conf.notificationCallback((UA_GDSPullRequester *)ctx,
+                                   ctx->conf.notificationCallbackContext, type,
+                                   payloadMap);
+}
+
+static void
+notify_trustList(UA_GDSPullContext *ctx, UA_GDSPullRequesterNotification type,
+                 const UA_NodeId *certificateGroupId, UA_StatusCode status) {
+    if(!ctx->conf.notificationCallback)
+        return;
+
+    UA_KeyValuePair payload[2];
+    payload[0].key = UA_QUALIFIEDNAME(0, "certificate-group-id");
+    UA_Variant_setScalar(&payload[0].value,
+                         (void *)(uintptr_t)certificateGroupId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payload[1].key = UA_QUALIFIEDNAME(0, "status-code");
+    UA_Variant_setScalar(&payload[1].value, &status,
+                         &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_KeyValueMap payloadMap = { 2, payload };
+
+    ctx->conf.notificationCallback((UA_GDSPullRequester *)ctx,
+                                   ctx->conf.notificationCallbackContext, type,
+                                   payloadMap);
 }
 
 static void
@@ -210,21 +305,23 @@ UA_GDSPull_clearTrustListScratch(UA_GDSPullContext *ctx) {
 }
 
 static void
-UA_GDSPull_dropPendingRequest(UA_GDSPullContext *ctx, size_t index) {
-    UA_GDSPullPendingRequest *pending = &ctx->pendingRequests[index];
-    UA_NodeId_clear(&pending->requestId);
-    UA_NodeId_clear(&pending->certificateGroupId);
-    UA_NodeId_clear(&pending->certificateTypeId);
+UA_GDSPull_dropPendingRequest(UA_GDSPullContext *ctx, size_t index,
+                              UA_GDSPullRequesterNotification notification) {
+    UA_GDSPullPendingRequest dropped = ctx->pendingRequests[index];
 
     ctx->pendingRequestsSize--;
-    memmove(pending, pending + 1,
+    memmove(&ctx->pendingRequests[index], &ctx->pendingRequests[index + 1],
             (ctx->pendingRequestsSize - index) *
                 sizeof(UA_GDSPullPendingRequest));
 
     /* Report the reduced set right away. Waiting for the end of the cycle
      * would leave a RequestId persisted that the CertificateManager no longer
      * knows if the application goes down in between. */
-    UA_GDSPull_notifyPendingRequests(ctx);
+    notify_pendingRequest(ctx, notification, &dropped);
+
+    UA_NodeId_clear(&dropped.requestId);
+    UA_NodeId_clear(&dropped.certificateGroupId);
+    UA_NodeId_clear(&dropped.certificateTypeId);
 }
 
 static UA_StatusCode
@@ -254,7 +351,7 @@ UA_GDSPull_addPendingRequest(UA_GDSPullContext *ctx, const UA_NodeId *requestId,
     /* Report the grown set right away for the same reason the drop does. A
      * RequestId that only lives in memory is orphaned if the application goes
      * down before the end of the cycle. */
-    UA_GDSPull_notifyPendingRequests(ctx);
+    notify_pendingRequest(ctx, UA_GDSPULL_REQUEST_ADDED, pending);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -269,8 +366,8 @@ UA_GDSPull_sameCertificate(UA_ByteString *a, UA_ByteString *b) {
 
     UA_Byte bufA[UA_GDSPULL_THUMBPRINT_LENGTH];
     UA_Byte bufB[UA_GDSPULL_THUMBPRINT_LENGTH];
-    UA_String thumbA = {UA_GDSPULL_THUMBPRINT_LENGTH, bufA};
-    UA_String thumbB = {UA_GDSPULL_THUMBPRINT_LENGTH, bufB};
+    UA_String thumbA = { UA_GDSPULL_THUMBPRINT_LENGTH, bufA };
+    UA_String thumbB = { UA_GDSPULL_THUMBPRINT_LENGTH, bufB };
     if(UA_CertificateUtils_getThumbprint(a, &thumbA) != UA_STATUSCODE_GOOD ||
        UA_CertificateUtils_getThumbprint(b, &thumbB) != UA_STATUSCODE_GOOD)
         return false;
@@ -278,7 +375,8 @@ UA_GDSPull_sameCertificate(UA_ByteString *a, UA_ByteString *b) {
 }
 
 static UA_Boolean
-UA_GDSPull_identityIsCertificateType(UA_GDSPullContext *ctx, UA_ServerConfig *sc,
+UA_GDSPull_identityIsCertificateType(UA_GDSPullContext *ctx,
+                                     UA_ServerConfig *sc,
                                      const UA_NodeId *certificateTypeId) {
     for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &sc->securityPolicies[i];
@@ -354,12 +452,13 @@ UA_GDSPull_applyPendingCertificate(UA_GDSPullContext *ctx,
             res = certGroup->addToTrustList(certGroup, &issuers);
         }
         if(res != UA_STATUSCODE_GOOD)
-            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
-                           "The %u issuer certificate(s) of the new certificate "
-                           "could not be added to the TrustList of "
-                           "CertificateGroup %N (%s)",
-                           (unsigned)issuerCertificatesSize,
-                           pending->certificateGroupId, UA_StatusCode_name(res));
+            UA_LOG_WARNING(
+                sc->logging, UA_LOGCATEGORY_CLIENT,
+                "The %u issuer certificate(s) of the new certificate "
+                "could not be added to the TrustList of "
+                "CertificateGroup %N (%s)",
+                (unsigned)issuerCertificatesSize, pending->certificateGroupId,
+                UA_StatusCode_name(res));
     }
 
     UA_Boolean renewsIdentity = UA_GDSPull_identityIsCertificateType(
@@ -471,7 +570,8 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                            "FinishRequest failed (%s). The signing request is "
                            "discarded.",
                            UA_StatusCode_name(res));
-            UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex);
+            UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex,
+                                          UA_GDSPULL_REQUEST_DROPPED);
         } else {
             UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                            "FinishRequest did not complete (%s). The signing "
@@ -491,14 +591,18 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
             issuersSize = result->outputArguments[2].arrayLength;
         }
 
+        UA_GDSPullRequesterNotification notification =
+            UA_GDSPULL_REQUEST_FINISHED;
         if(certificate.length == 0) {
+            notification = UA_GDSPULL_REQUEST_DROPPED;
             UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                            "FinishRequest succeeded but returned no "
                            "certificate. The signing request is discarded.");
         } else {
+            UA_GDSPullPendingRequest *pending =
+                &ctx->pendingRequests[ctx->pendingRequestIndex];
             res = UA_GDSPull_applyPendingCertificate(
-                ctx, &ctx->pendingRequests[ctx->pendingRequestIndex],
-                certificate, privateKey, issuers, issuersSize);
+                ctx, pending, certificate, privateKey, issuers, issuersSize);
             if(res != UA_STATUSCODE_GOOD)
                 UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                                "The certificate signed by the "
@@ -508,8 +612,15 @@ UA_GDSPull_finishRequestCallback(UA_Client *client, void *userdata,
                 UA_LOG_INFO(logging, UA_LOGCATEGORY_CLIENT,
                             "Applied a certificate signed by the "
                             "CertificateManager");
+            notify_certificate(ctx,
+                               (res == UA_STATUSCODE_GOOD)
+                                   ? UA_GDSPULL_CERTIFICATE_INSTALLED
+                                   : UA_GDSPULL_CERTIFICATE_INSTALLATION_FAILED,
+                               &pending->certificateGroupId,
+                               &pending->certificateTypeId, res);
         }
-        UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex);
+        UA_GDSPull_dropPendingRequest(ctx, ctx->pendingRequestIndex,
+                                      notification);
     }
 
     /* The cursor is on the next request now, unless the same one is asked
@@ -914,12 +1025,15 @@ UA_GDSPull_startSigningCallback(UA_Client *client, void *data,
     if(res == UA_STATUSCODE_GOOD)
         res = UA_GDSPull_addPendingRequest(
             ctx, newRequestId, &sp->certificateGroupId, &sp->certificateTypeId);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
                        "%s for CertificateType %N failed (%s). The current "
                        "certificate is kept.",
                        method, sp->certificateTypeId, UA_StatusCode_name(res));
-    else
+        notify_certificate(ctx, UA_GDSPULL_REQUEST_FAILED,
+                           &sp->certificateGroupId, &sp->certificateTypeId,
+                           res);
+    } else
         UA_LOG_INFO(logging, UA_LOGCATEGORY_CLIENT,
                     "Started a certificate request (%s) for CertificateType %N",
                     method, sp->certificateTypeId);
@@ -1033,8 +1147,12 @@ UA_GDSPull_workflowStepStartSigning(UA_Client *client, UA_GDSPullContext *ctx) {
 
     /* The callback advances to the next pair once the request is out. When the
      * request never went out, advance here. */
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        notify_certificate(ctx, UA_GDSPULL_REQUEST_FAILED,
+                           &sp->certificateGroupId, &sp->certificateTypeId,
+                           res);
         UA_GDSPull_continueCertStatus(ctx);
+    }
     return res;
 }
 
@@ -1179,10 +1297,11 @@ UA_GDSPull_readLastUpdateCallback(UA_Client *client, void *userdata,
         res = UA_GDSPull_scheduleDispatch(ctx, 0);
     }
     if(res != UA_STATUSCODE_GOOD)
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_CLIENT,
-                       "GDS Pull workflow stalled after reading LastUpdateTime: "
-                       "%s",
-                       UA_StatusCode_name(res));
+        UA_LOG_WARNING(
+            logging, UA_LOGCATEGORY_CLIENT,
+            "GDS Pull workflow stalled after reading LastUpdateTime: "
+            "%s",
+            UA_StatusCode_name(res));
 }
 
 static void
@@ -1198,9 +1317,9 @@ UA_GDSPull_translateTrustListCallback(UA_Client *client, void *userdata,
         return;
     struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
 
-    UA_NodeId *targets[4] = {&ctx->trustList.lastUpdateTimeId,
-                             &ctx->trustList.openId, &ctx->trustList.readId,
-                             &ctx->trustList.closeId};
+    UA_NodeId *targets[4] = { &ctx->trustList.lastUpdateTimeId,
+                              &ctx->trustList.openId, &ctx->trustList.readId,
+                              &ctx->trustList.closeId };
     UA_StatusCode res = tr->responseHeader.serviceResult;
     if(res == UA_STATUSCODE_GOOD && tr->resultsSize != 4)
         res = UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -1210,10 +1329,9 @@ UA_GDSPull_translateTrustListCallback(UA_Client *client, void *userdata,
             continue;
         res = UA_NodeId_copy(&bpr->targets[0].targetId.nodeId, targets[i]);
     }
-    if(res == UA_STATUSCODE_GOOD &&
-       (UA_NodeId_isNull(&ctx->trustList.openId) ||
-        UA_NodeId_isNull(&ctx->trustList.readId) ||
-        UA_NodeId_isNull(&ctx->trustList.closeId)))
+    if(res == UA_STATUSCODE_GOOD && (UA_NodeId_isNull(&ctx->trustList.openId) ||
+                                     UA_NodeId_isNull(&ctx->trustList.readId) ||
+                                     UA_NodeId_isNull(&ctx->trustList.closeId)))
         res = UA_STATUSCODE_BADNOTFOUND;
 
     if(res != UA_STATUSCODE_GOOD) {
@@ -1247,9 +1365,10 @@ UA_GDSPull_workflowStepReadLastUpdate(UA_Client *client,
                                       UA_GDSPullContext *ctx) {
     struct UA_GDSPullGroup *group = &ctx->groups[ctx->groupIndex];
 
-    UA_QualifiedName names[4] = {
-        UA_QUALIFIEDNAME(0, "LastUpdateTime"), UA_QUALIFIEDNAME(0, "Open"),
-        UA_QUALIFIEDNAME(0, "Read"), UA_QUALIFIEDNAME(0, "Close")};
+    UA_QualifiedName names[4] = { UA_QUALIFIEDNAME(0, "LastUpdateTime"),
+                                  UA_QUALIFIEDNAME(0, "Open"),
+                                  UA_QUALIFIEDNAME(0, "Read"),
+                                  UA_QUALIFIEDNAME(0, "Close") };
     UA_RelativePathElement elements[4];
     UA_BrowsePath paths[4];
     for(size_t i = 0; i < 4; i++) {
@@ -1488,6 +1607,8 @@ UA_GDSPull_workflowStepCommit(UA_Client *client, UA_GDSPullContext *ctx) {
                        "The local CertificateGroup %N cannot store a "
                        "TrustList. The download is discarded.",
                        group->localGroupId);
+        notify_trustList(ctx, UA_GDSPULL_TRUSTLIST_FAILED,
+                         &group->localGroupId, UA_STATUSCODE_BADNOTSUPPORTED);
         return UA_GDSPull_continueTrustList(ctx);
     }
 
@@ -1516,6 +1637,10 @@ UA_GDSPull_workflowStepCommit(UA_Client *client, UA_GDSPullContext *ctx) {
                     (unsigned)trustList.issuerCertificatesSize,
                     (unsigned)trustList.issuerCrlsSize);
     }
+    notify_trustList(ctx,
+                     (res == UA_STATUSCODE_GOOD) ? UA_GDSPULL_TRUSTLIST_UPDATED
+                                                 : UA_GDSPULL_TRUSTLIST_FAILED,
+                     &group->localGroupId, res);
     UA_TrustListDataType_clear(&trustList);
     return UA_GDSPull_continueTrustList(ctx);
 }
@@ -1604,6 +1729,8 @@ UA_GDSPull_deleteClientCallback(void *application, void *context) {
     ctx->policyIndex = 0;
     ctx->groupIndex = 0;
     UA_GDSPull_clearTrustListScratch(ctx);
+
+    notify_cycle(ctx, UA_GDSPULL_CYCLE_FINISHED);
 
     /* A stop() that was waiting for the client can now complete */
     if(ctx->drv.state == UA_LIFECYCLESTATE_STOPPING)
@@ -1724,10 +1851,11 @@ static UA_StatusCode
 UA_GDSPull_includeServerDefaultApplicationGroupTrustList(UA_ClientConfig *cc,
                                                          UA_ServerConfig *sc) {
     if(!sc->secureChannelPKI.getTrustList) {
-        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
-                       "The CertificateGroup of the DefaultApplicationGroup does "
-                       "not expose its TrustList. The CertificateManager cannot "
-                       "be authenticated.");
+        UA_LOG_WARNING(
+            sc->logging, UA_LOGCATEGORY_CLIENT,
+            "The CertificateGroup of the DefaultApplicationGroup does "
+            "not expose its TrustList. The CertificateManager cannot "
+            "be authenticated.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -1794,6 +1922,7 @@ UA_GDSPull_runWorkflow(UA_Server *server, UA_GDSPullContext *ctx) {
     memset(&cc, 0, sizeof(cc));
 
     ctx->currentStep = UA_GDSPULLSTEP_CONNECT;
+    notify_cycle(ctx, UA_GDSPULL_CYCLE_STARTED);
     return UA_Client_connectAsync(ctx->client, NULL);
 }
 
@@ -1808,6 +1937,221 @@ UA_GDSPull_runWorkflowCallback(UA_Server *server, void *data) {
     }
 }
 
+#define UA_GDSPULL_DEFAULT_CYCLE_INTERVAL_MS 5000
+
+/* Read the configuration from the key-value map of the generic driver. The map
+ * is the wire format: it is either passed to UA_GDSPull_new() or written to
+ * drv.params before the driver is started. Reading it here, and not when the
+ * driver is created, is what makes the second way work. A driver that is
+ * stopped and started again picks the map up as it stands then.
+ *
+ * A parameter that is absent from the map leaves the current value alone, so
+ * that a partial map can change a single setting between two starts. */
+/* The group mappings and the pending requests are parallel NodeId arrays: the
+ * i-th entry of each array belongs to the same mapping or request. Returns
+ * NULL if the key is absent or does not hold a NodeId array. */
+static const UA_NodeId *
+UA_GDSPull_readNodeIdArray(const UA_KeyValueMap *params, char *key,
+                           size_t *length) {
+    const UA_Variant *v = UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, key));
+    if(!v || !UA_Variant_hasArrayType(v, &UA_TYPES[UA_TYPES_NODEID]))
+        return NULL;
+    *length = v->arrayLength;
+    return (const UA_NodeId *)v->data;
+}
+
+static UA_StatusCode
+UA_GDSPull_readGroups(UA_GDSPullContext *ctx, const UA_Logger *logging) {
+    size_t localSize = 0, remoteSize = 0;
+    const UA_NodeId *localIds = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "mappings-local-group-id", &localSize);
+    const UA_NodeId *remoteIds = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "mappings-remote-group-id", &remoteSize);
+    if(!localIds && !remoteIds)
+        return UA_STATUSCODE_GOOD;
+    if(!localIds || !remoteIds || localSize != remoteSize) {
+        UA_LOG_ERROR(logging, UA_LOGCATEGORY_SERVER,
+                     "The GDS Pull driver needs mappings-local-group-id and "
+                     "mappings-remote-group-id as NodeId arrays of the same "
+                     "length");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    for(size_t i = 0; i < localSize; i++) {
+        if(UA_NodeId_isNull(&localIds[i]) || UA_NodeId_isNull(&remoteIds[i])) {
+            UA_LOG_ERROR(logging, UA_LOGCATEGORY_SERVER,
+                         "The group mapping %u of the GDS Pull driver has a "
+                         "null NodeId", (unsigned)i);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+        /* A local group has a single TrustList, so it can only be fed from
+         * one remote group */
+        for(size_t j = 0; j < i; j++) {
+            if(UA_NodeId_equal(&localIds[i], &localIds[j])) {
+                UA_LOG_ERROR(logging, UA_LOGCATEGORY_SERVER,
+                             "The local CertificateGroup %N is mapped more "
+                             "than once in the GDS Pull driver", localIds[i]);
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+        }
+    }
+
+    /* Build the replacement first so that a failed copy leaves the current set
+     * untouched */
+    struct UA_GDSPullGroup *groups = NULL;
+    if(localSize > 0) {
+        groups = (struct UA_GDSPullGroup *)UA_calloc(
+            localSize, sizeof(struct UA_GDSPullGroup));
+        if(!groups)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < localSize; i++) {
+        res |= UA_NodeId_copy(&localIds[i], &groups[i].localGroupId);
+        res |= UA_NodeId_copy(&remoteIds[i], &groups[i].remoteGroupId);
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < localSize; i++) {
+            UA_NodeId_clear(&groups[i].localGroupId);
+            UA_NodeId_clear(&groups[i].remoteGroupId);
+        }
+        UA_free(groups);
+        return res;
+    }
+
+    UA_GDSPull_clearGroups(ctx);
+    ctx->groups = groups;
+    ctx->groupsSize = localSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_GDSPull_readPendingRequests(UA_GDSPullContext *ctx,
+                               const UA_Logger *logging) {
+    size_t requestSize = 0, groupSize = 0, typeSize = 0;
+    const UA_NodeId *requestIds = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "pending-request-id", &requestSize);
+    const UA_NodeId *groupIds = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "pending-certificate-group-id", &groupSize);
+    const UA_NodeId *typeIds = UA_GDSPull_readNodeIdArray(
+        &ctx->drv.params, "pending-certificate-type-id", &typeSize);
+    if(!requestIds && !groupIds && !typeIds)
+        return UA_STATUSCODE_GOOD;
+    if(!requestIds || !groupIds || !typeIds ||
+       requestSize != groupSize || requestSize != typeSize) {
+        UA_LOG_ERROR(logging, UA_LOGCATEGORY_SERVER,
+                     "The GDS Pull driver needs pending-request-id, "
+                     "pending-certificate-group-id and "
+                     "pending-certificate-type-id as NodeId arrays of the "
+                     "same length");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Build the replacement first so that a failed copy leaves the current set
+     * untouched */
+    UA_GDSPullPendingRequest *requests = NULL;
+    if(requestSize > 0) {
+        requests = (UA_GDSPullPendingRequest *)UA_calloc(
+            requestSize, sizeof(UA_GDSPullPendingRequest));
+        if(!requests)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < requestSize; i++) {
+        res |= UA_NodeId_copy(&requestIds[i], &requests[i].requestId);
+        res |= UA_NodeId_copy(&groupIds[i], &requests[i].certificateGroupId);
+        res |= UA_NodeId_copy(&typeIds[i], &requests[i].certificateTypeId);
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < requestSize; i++) {
+            UA_NodeId_clear(&requests[i].requestId);
+            UA_NodeId_clear(&requests[i].certificateGroupId);
+            UA_NodeId_clear(&requests[i].certificateTypeId);
+        }
+        UA_free(requests);
+        return res;
+    }
+
+    UA_GDSPull_clearPendingRequests(ctx);
+    ctx->pendingRequests = requests;
+    ctx->pendingRequestsSize = requestSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_GDSPull_readParams(UA_GDSPullContext *ctx) {
+    const UA_KeyValueMap *params = &ctx->drv.params;
+    const UA_Logger *logging = UA_Server_getConfig(ctx->drv.server)->logging;
+
+    /* mandatory parameters */
+    const UA_String *endpointUrl = (const UA_String *)UA_KeyValueMap_getScalar(
+        params, UA_QUALIFIEDNAME(0, "endpoint-url"),
+        &UA_TYPES[UA_TYPES_STRING]);
+    const UA_ByteString *certificate =
+        (const UA_ByteString *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "client-certificate"),
+            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_ByteString *privateKey =
+        (const UA_ByteString *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "client-key"),
+            &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(!endpointUrl || endpointUrl->length == 0 || !certificate ||
+       certificate->length == 0 || !privateKey || privateKey->length == 0) {
+        UA_LOG_ERROR(logging, UA_LOGCATEGORY_SERVER,
+                     "The GDS Pull driver needs the endpoint-url, "
+                     "client-certificate and client-key parameters");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* replace previous value */
+    UA_String_clear(&ctx->conf.gdsEndpointUrl);
+    UA_ByteString_clear(&ctx->certificate);
+    UA_ByteString_memZero(&ctx->privateKey);
+    UA_ByteString_clear(&ctx->privateKey);
+
+    UA_StatusCode res = UA_String_copy(endpointUrl, &ctx->conf.gdsEndpointUrl);
+    res |= UA_ByteString_copy(certificate, &ctx->certificate);
+    res |= UA_ByteString_copy(privateKey, &ctx->privateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* optional parameters */
+    const UA_NodeId *applicationId =
+        (const UA_NodeId *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "application-id"),
+            &UA_TYPES[UA_TYPES_NODEID]);
+    if(applicationId) {
+        UA_NodeId_clear(&ctx->conf.applicationId);
+        res = UA_NodeId_copy(applicationId, &ctx->conf.applicationId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    const UA_Boolean *createPrivateKey =
+        (const UA_Boolean *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "create-private-key"),
+            &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(createPrivateKey)
+        ctx->conf.createPrivateKey = *createPrivateKey;
+
+    const UA_UInt32 *cycleInterval =
+        (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "cycle-interval"),
+            &UA_TYPES[UA_TYPES_UINT32]);
+    if(cycleInterval && *cycleInterval > 0)
+        ctx->conf.cycleInterval = *cycleInterval;
+    if(ctx->conf.cycleInterval == 0)
+        ctx->conf.cycleInterval = UA_GDSPULL_DEFAULT_CYCLE_INTERVAL_MS;
+
+    res = UA_GDSPull_readGroups(ctx, logging);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    return UA_GDSPull_readPendingRequests(ctx, logging);
+}
+
 static UA_StatusCode
 UA_GDSPull_start(UA_Driver *drv) {
     UA_GDSPullContext *ctx = (UA_GDSPullContext *)drv;
@@ -1815,9 +2159,13 @@ UA_GDSPull_start(UA_Driver *drv) {
     if(ctx->runWorkflowCallbackId != 0)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
-    UA_StatusCode res = UA_Server_addRepeatedCallback(
-        drv->server, UA_GDSPull_runWorkflowCallback, ctx, 5000,
-        &ctx->runWorkflowCallbackId);
+    UA_StatusCode res = UA_GDSPull_readParams(ctx);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    res = UA_Server_addRepeatedCallback(
+        drv->server, UA_GDSPull_runWorkflowCallback, ctx,
+        ctx->conf.cycleInterval, &ctx->runWorkflowCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -1855,9 +2203,11 @@ UA_GDSPull_free(UA_Driver *drv) {
     if(drv->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
+    UA_KeyValueMap_clear(&ctx->drv.params);
     UA_String_clear(&ctx->conf.gdsEndpointUrl);
     UA_NodeId_clear(&ctx->conf.applicationId);
     UA_ByteString_clear(&ctx->certificate);
+    UA_ByteString_memZero(&ctx->privateKey);
     UA_ByteString_clear(&ctx->privateKey);
     UA_GDSPull_clearPendingRequests(ctx);
     UA_GDSPull_clearGroups(ctx);
@@ -1866,12 +2216,18 @@ UA_GDSPull_free(UA_Driver *drv) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_GDSPull *
-UA_GDSPull_new(void) {
+UA_GDSPullRequester *
+UA_GDSPull_new(const UA_KeyValueMap params) {
     UA_GDSPullContext *ctx =
         (UA_GDSPullContext *)UA_calloc(1, sizeof(UA_GDSPullContext));
     if(!ctx)
         return NULL;
+
+    UA_StatusCode res = UA_KeyValueMap_copy(&params, &ctx->drv.params);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(ctx);
+        return NULL;
+    }
 
     ctx->drv.driverType = UA_DRIVERTYPE_GENERIC;
     ctx->drv.name = UA_STRING("gds-pull");
@@ -1879,146 +2235,17 @@ UA_GDSPull_new(void) {
     ctx->drv.stop = UA_GDSPull_stop;
     ctx->drv.free = UA_GDSPull_free;
 
-    return (UA_GDSPull *)ctx;
+    return (UA_GDSPullRequester *)ctx;
 }
 
 void
-UA_GDSPull_setClientIdentity(UA_GDSPull *pull, const UA_ByteString certificate,
-                             const UA_ByteString privateKey) {
-    UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
-
-    UA_ByteString_clear(&ctx->certificate);
-    UA_ByteString_clear(&ctx->privateKey);
-    UA_ByteString_copy(&certificate, &ctx->certificate);
-    UA_ByteString_copy(&privateKey, &ctx->privateKey);
-}
-
-void
-UA_GDSPull_setGDSEndpointUrl(UA_GDSPull *pull, const UA_ByteString endpoint) {
-    UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
-
-    UA_String_clear(&ctx->conf.gdsEndpointUrl);
-    UA_ByteString_copy(&endpoint, &ctx->conf.gdsEndpointUrl);
-}
-
-void
-UA_GDSPull_setApplicationId(UA_GDSPull *pull, const UA_NodeId applicationId) {
-    UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
-
-    UA_NodeId_clear(&ctx->conf.applicationId);
-    UA_NodeId_copy(&applicationId, &ctx->conf.applicationId);
-}
-
-UA_StatusCode
-UA_GDSPull_setGroups(UA_GDSPull *pull, const UA_GDSPullGroupMapping *groups,
-                     size_t groupsSize) {
-    UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
-
-    if(groupsSize > 0 && !groups)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    for(size_t i = 0; i < groupsSize; i++) {
-        if(UA_NodeId_isNull(&groups[i].localGroupId) ||
-           UA_NodeId_isNull(&groups[i].remoteGroupId))
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        /* A local group has a single TrustList, so it can only be fed from
-         * one remote group */
-        for(size_t j = 0; j < i; j++) {
-            if(UA_NodeId_equal(&groups[i].localGroupId,
-                               &groups[j].localGroupId))
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
-    }
-
-    /* Build the replacement first so that a failed copy leaves the current set
-     * untouched */
-    struct UA_GDSPullGroup *copy = NULL;
-    if(groupsSize > 0) {
-        copy = (struct UA_GDSPullGroup *)UA_calloc(
-            groupsSize, sizeof(struct UA_GDSPullGroup));
-        if(!copy)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    size_t i = 0;
-    for(; i < groupsSize && res == UA_STATUSCODE_GOOD; i++) {
-        res |= UA_NodeId_copy(&groups[i].localGroupId, &copy[i].localGroupId);
-        res |= UA_NodeId_copy(&groups[i].remoteGroupId, &copy[i].remoteGroupId);
-    }
-    if(res != UA_STATUSCODE_GOOD) {
-        for(size_t j = 0; j < i; j++) {
-            UA_NodeId_clear(&copy[j].localGroupId);
-            UA_NodeId_clear(&copy[j].remoteGroupId);
-        }
-        UA_free(copy);
-        return res;
-    }
-
-    UA_GDSPull_clearGroups(ctx);
-    ctx->groups = copy;
-    ctx->groupsSize = groupsSize;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_GDSPull_setPendingRequests(UA_GDSPull *pull,
-                              const UA_GDSPullPendingRequest *requests,
-                              size_t requestsSize) {
-    UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
-
-    if(requestsSize > 0 && !requests)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* Build the replacement first so that a failed copy leaves the current set
-     * untouched */
-    UA_GDSPullPendingRequest *copy = NULL;
-    if(requestsSize > 0) {
-        copy = (UA_GDSPullPendingRequest *)UA_calloc(
-            requestsSize, sizeof(UA_GDSPullPendingRequest));
-        if(!copy)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    size_t i = 0;
-    for(; i < requestsSize && res == UA_STATUSCODE_GOOD; i++) {
-        res |= UA_NodeId_copy(&requests[i].requestId, &copy[i].requestId);
-        res |= UA_NodeId_copy(&requests[i].certificateGroupId,
-                              &copy[i].certificateGroupId);
-        res |= UA_NodeId_copy(&requests[i].certificateTypeId,
-                              &copy[i].certificateTypeId);
-    }
-    if(res != UA_STATUSCODE_GOOD) {
-        for(size_t j = 0; j < i; j++) {
-            UA_NodeId_clear(&copy[j].requestId);
-            UA_NodeId_clear(&copy[j].certificateGroupId);
-            UA_NodeId_clear(&copy[j].certificateTypeId);
-        }
-        UA_free(copy);
-        return res;
-    }
-
-    UA_GDSPull_clearPendingRequests(ctx);
-    ctx->pendingRequests = copy;
-    ctx->pendingRequestsSize = requestsSize;
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_GDSPull_setPendingRequestsCallback(
-    UA_GDSPull *pull, UA_GDSPullPendingRequestsCallback callback,
+UA_GDSPull_setNotificationCallback(
+    UA_GDSPullRequester *pull, UA_GDSPullRequesterNotificationCallback callback,
     void *context) {
     UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
 
-    ctx->conf.pendingRequestsCallback = callback;
-    ctx->conf.pendingRequestsContext = context;
-}
-
-void
-UA_GDSPull_setCreatePrivateKey(UA_GDSPull *pull, UA_Boolean createPrivateKey) {
-    UA_GDSPullContext *ctx = (UA_GDSPullContext *)&pull->drv;
-    ctx->conf.createPrivateKey = createPrivateKey;
+    ctx->conf.notificationCallback = callback;
+    ctx->conf.notificationCallbackContext = context;
 }
 
 #endif /* UA_ENABLE_DRIVER_GDS_PULL*/
