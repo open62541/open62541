@@ -36,7 +36,7 @@ forceCertVerifyStatus(UA_CertificateGroup *certGroup,
 }
 
 static void
-setup(void) {
+setupServer(const char *applicationUri) {
     UA_atomic_store(&running, true);
 
     UA_ByteString certificate;
@@ -66,10 +66,20 @@ setup(void) {
 
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC(applicationUri);
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
+}
+
+static void
+setup(void) {
+    setupServer("urn:open62541.unconfigured.application");
+}
+
+static void
+setupMismatchingApplicationUri(void) {
+    setupServer("urn:mismatching:application");
 }
 
 static void
@@ -132,13 +142,55 @@ START_TEST(testOpenSecureChannelCertificateFailuresHidden) {
 }
 END_TEST
 
+START_TEST(testCreateSessionAcceptsMatchingServerApplicationUri) {
+    forcedVerifyStatus = UA_STATUSCODE_GOOD;
+
+    UA_Client *client = newSecureClient();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD,
+                  "client connect returned %s",
+                  UA_StatusCode_name(retval));
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(testCreateSessionRejectsMismatchingServerApplicationUri) {
+    forcedVerifyStatus = UA_STATUSCODE_GOOD;
+
+    UA_Client *client = newSecureClient();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+
+    ck_assert_msg(retval == UA_STATUSCODE_BADCERTIFICATEURIINVALID,
+                  "client connect returned %s",
+                  UA_StatusCode_name(retval));
+
+    UA_SecureChannelState channelState;
+    UA_SessionState sessionState;
+    UA_Client_getState(client, &channelState, &sessionState, NULL);
+    ck_assert_int_eq(channelState, UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_int_eq(sessionState, UA_SESSIONSTATE_CLOSED);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite *
 testSuite_create(void) {
     Suite *s = suite_create("Certificate Validation Client Response");
     TCase *tc = tcase_create("OpenSecureChannel Certificate Failures Hidden");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, testOpenSecureChannelCertificateFailuresHidden);
+    tcase_add_test(tc, testCreateSessionAcceptsMatchingServerApplicationUri);
     suite_add_tcase(s, tc);
+
+    TCase *tcApplicationUri = tcase_create("Server ApplicationUri");
+    tcase_add_checked_fixture(tcApplicationUri,
+                              setupMismatchingApplicationUri, teardown);
+    tcase_add_test(tcApplicationUri,
+                   testCreateSessionRejectsMismatchingServerApplicationUri);
+    suite_add_tcase(s, tcApplicationUri);
     return s;
 }
 

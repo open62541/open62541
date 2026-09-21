@@ -89,7 +89,7 @@ static void setup(void) {
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-            UA_STRING_ALLOC("urn:unconfigured:application");
+            UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
 #ifdef UA_ENABLE_RBAC
     /* When RBAC is enabled the GDS TrustList methods are restricted to the

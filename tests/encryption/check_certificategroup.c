@@ -67,7 +67,7 @@ static void setup(void) {
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-            UA_STRING_ALLOC("urn:unconfigured:application");
+            UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -107,7 +107,7 @@ static void setup2(void) {
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-            UA_STRING_ALLOC("urn:unconfigured:application");
+            UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     /* Clear old certificates */
     UA_ByteString empty[2] = {0};

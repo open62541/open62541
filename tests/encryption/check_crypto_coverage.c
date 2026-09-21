@@ -896,7 +896,7 @@ static void setup_policy(void) {
 
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     UA_Server_run_startup(policyServer);
     THREAD_CREATE(policy_server_thread, policyServerloop);

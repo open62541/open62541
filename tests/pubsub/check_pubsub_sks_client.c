@@ -177,7 +177,7 @@ skssetup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     UA_String basic256sha256 = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     UA_AccessControl_default(config, true, &basic256sha256, 2, userNamePW);

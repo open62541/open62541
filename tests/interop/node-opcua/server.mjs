@@ -53,6 +53,9 @@ const server = new OPCUAServer({
     certificateFile: certFile,
     privateKeyFile: keyFile,
     serverCertificateManager,
+    serverInfo: {
+        applicationUri: "urn:localhost:node-opcua:interop",
+    },
     securityPolicies: [SecurityPolicy.None, SecurityPolicy.Basic256Sha256],
     securityModes: [
         MessageSecurityMode.None,
