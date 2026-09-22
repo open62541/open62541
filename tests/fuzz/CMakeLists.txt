@@ -141,6 +141,7 @@ endmacro()
 
 # Add new fuzzers here
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
+add_fuzzer(fuzz_opn_message fuzz_opn_message.cc)
 add_fuzzer(fuzz_tcp_message fuzz_tcp_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
@@ -165,6 +166,12 @@ file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corp
 SET(CORPUS_CMDS "")
 FOREACH(f ${CORPUS_FILES})
     LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message "${f}")
+ENDFOREACH(f)
+
+file(GLOB OPN_CORPUS_FILES
+     ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*_opn.bin)
+FOREACH(f ${OPN_CORPUS_FILES})
+    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_opn_message "${f}")
 ENDFOREACH(f)
 
 
