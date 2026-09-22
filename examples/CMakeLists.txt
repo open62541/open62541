@@ -201,14 +201,14 @@ if(UA_ENABLE_PUBSUB)
         target_link_libraries(server_pubsub_subscribe_rt_state_machine "rt")
     endif()
 
-    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    if(UA_ENABLE_ENCRYPTION)
         add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
         add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
         if(UA_ENABLE_TPM2_SECURITY)
             add_example(pubsub_publish_encrypted_tpm pubsub/pubsub_publish_encrypted_tpm.c)
             add_example(pubsub_subscribe_encrypted_tpm pubsub/pubsub_subscribe_encrypted_tpm.c)
         endif()
-        if(UA_ENABLE_TPM2_KEYSTORE)
+        if(UA_ENABLE_TPM2_KEYSTORE AND NOT UA_ENABLE_ENCRYPTION_LIBRESSL)
             add_example(pubsub_publish_encrypted_tpm_keystore
                         pubsub/pubsub_publish_encrypted_tpm_keystore.c)
             add_example(pubsub_subscribe_encrypted_tpm_keystore
