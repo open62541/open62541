@@ -42,6 +42,13 @@ logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
      "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
 
+static const char *
+logCategoryName(UA_LogCategory category) {
+    if((UA_UInt32)category >= UA_LOGCATEGORIES)
+        return "unknown";
+    return logCategoryNames[category];
+}
+
 /* Protect crosstalk during logging via global lock. Use a spinlock as we cannot
  * statically initialize a global lock across all platforms. */
 #if UA_MULTITHREADING >= 100
@@ -81,7 +88,7 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
            (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
-           logCategoryNames[category]);
+           logCategoryName(category));
     vprintf(msg, args);
     printf("\n");
     fflush(stdout);
