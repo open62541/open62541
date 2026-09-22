@@ -34,7 +34,14 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
             goto error;
         }
 
-        /* Set the SecurityMode */
+        /* Validate and set the SecurityMode. Enum signedness is
+         * implementation-defined, so use an unsigned cast to reject negative
+         * values before they are stored in the channel. */
+        if(request->securityMode == UA_MESSAGESECURITYMODE_INVALID ||
+           (UA_UInt32)request->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
+            goto error;
+        }
         if(request->securityMode != UA_MESSAGESECURITYMODE_NONE &&
            UA_ByteString_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;

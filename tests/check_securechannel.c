@@ -10,6 +10,7 @@
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
+#include "ua_services.h"
 
 #include "testing_networklayers.h"
 #include "testing_policy.h"
@@ -112,6 +113,61 @@ START_TEST(SecureChannel_initAndDelete) {
 
     dummyPolicy.clear(&dummyPolicy);
 }END_TEST
+
+START_TEST(SecureChannel_open_invalidSecurityMode) {
+    static const UA_Int32 modes[] = {0, -1, UA_INT32_MIN, 4, UA_INT32_MAX};
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+
+    /* Check both None and non-None policies so policy matching cannot mask
+     * a missing range check. */
+    if(_i % 2 == 0)
+        dummyPolicy.policyUri = UA_SECURITY_POLICY_NONE_URI;
+    testChannel.state = UA_SECURECHANNELSTATE_ACK_SENT;
+    testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+    UA_OpenSecureChannelRequest request;
+    UA_OpenSecureChannelRequest_init(&request);
+    request.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
+    request.securityMode = (UA_MessageSecurityMode)modes[_i / 2];
+    UA_OpenSecureChannelResponse response;
+    UA_OpenSecureChannelResponse_init(&response);
+
+    Service_OpenSecureChannel(server, &testChannel, &request, &response);
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADSECURITYMODEREJECTED);
+    ck_assert_int_eq(testChannel.state, UA_SECURECHANNELSTATE_ACK_SENT);
+    ck_assert_int_eq(testChannel.securityMode, UA_MESSAGESECURITYMODE_NONE);
+    ck_assert(!fCalled.generateNonce);
+
+    UA_OpenSecureChannelResponse_clear(&response);
+    UA_OpenSecureChannelRequest_clear(&request);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(SecureChannel_open_validSecurityMode) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_ne(server, NULL);
+    if(_i == UA_MESSAGESECURITYMODE_NONE)
+        dummyPolicy.policyUri = UA_SECURITY_POLICY_NONE_URI;
+    testChannel.state = UA_SECURECHANNELSTATE_ACK_SENT;
+
+    UA_OpenSecureChannelRequest request;
+    UA_OpenSecureChannelRequest_init(&request);
+    request.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
+    request.securityMode = (UA_MessageSecurityMode)_i;
+    UA_OpenSecureChannelResponse response;
+    UA_OpenSecureChannelResponse_init(&response);
+
+    Service_OpenSecureChannel(server, &testChannel, &request, &response);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(testChannel.state, UA_SECURECHANNELSTATE_OPEN);
+    ck_assert_int_eq(testChannel.securityMode, request.securityMode);
+
+    UA_OpenSecureChannelResponse_clear(&response);
+    UA_OpenSecureChannelRequest_clear(&request);
+    UA_Server_delete(server);
+} END_TEST
 
 static void
 createDummyResponse(UA_OpenSecureChannelResponse *response) {
@@ -656,6 +712,14 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_initAndDelete, setup_key_sizes, teardown_key_sizes);
     tcase_add_test(tc_initAndDelete, SecureChannel_initAndDelete);
     suite_add_tcase(s, tc_initAndDelete);
+
+    TCase *tc_open = tcase_create("OpenSecureChannel security modes");
+    tcase_add_checked_fixture(tc_open, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_open, setup_key_sizes, teardown_key_sizes);
+    tcase_add_checked_fixture(tc_open, setup_secureChannel, teardown_secureChannel);
+    tcase_add_loop_test(tc_open, SecureChannel_open_invalidSecurityMode, 0, 10);
+    tcase_add_loop_test(tc_open, SecureChannel_open_validSecurityMode, 1, 4);
+    suite_add_tcase(s, tc_open);
 
     TCase *tc_sendAsymmetricOPNMessage = tcase_create("Test sendAsymmetricOPNMessage function");
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_funcs_called, teardown_funcs_called);
