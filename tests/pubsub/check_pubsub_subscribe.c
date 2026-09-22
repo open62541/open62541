@@ -1075,13 +1075,26 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
         UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
 
-        /* Check that the status code was received */
-        checkReceived();
+        /* Disabled override handling propagates Bad quality with a Null value. */
+        rvi.nodeId = newnodeId;
+        UA_DataValue received =
+            UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        ck_assert(received.hasStatus);
+        ck_assert_uint_eq(received.status, UA_STATUSCODE_BADINTERNALERROR);
+        ck_assert(UA_Variant_isEmpty(&received.value));
+        UA_DataValue_clear(&received);
 
         /* Unset the status code */
         wv.value.hasStatus = false;
         UA_Server_write(server, &wv);
         UA_WriteValue_clear(&wv);
+
+        /* A usable sample restores the subscribed value and Good quality. */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server, true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server, true);
+        checkReceived();
 } END_TEST
 
 START_TEST(SinglePublishSubscribeInt64) {

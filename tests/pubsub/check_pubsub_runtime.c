@@ -681,6 +681,12 @@ START_TEST(UnsupportedJsonDataSetHeadersAreRejected) {
     ms.dataSetMessageContentMask = (UA_JsonDataSetMessageContentMask)required;
     ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wg->head.identifier,
         LIST_FIRST(&wg->writers)->connectedDataSet->head.identifier, &dc, NULL), UA_STATUSCODE_GOOD);
+    /* Bit 7 is ReversibleFieldEncoding in the bundled schema and FieldEncoding1
+     * in newer schemas. Both names must remain accepted. */
+    ms.dataSetMessageContentMask = (UA_JsonDataSetMessageContentMask)(required | 0x80);
+    dc.dataSetWriterId++;
+    ck_assert_uint_eq(UA_Server_addDataSetWriter(server, wg->head.identifier,
+        LIST_FIRST(&wg->writers)->connectedDataSet->head.identifier, &dc, NULL), UA_STATUSCODE_GOOD);
 } END_TEST
 #endif
 
