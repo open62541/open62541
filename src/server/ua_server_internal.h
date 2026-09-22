@@ -357,10 +357,11 @@ extern const UA_QualifiedName
 /* Computes the current value of one built-in attribute directly from the
  * live channel state -- nothing is cached in channel->attributes. Returns
  * false if key does not match one of UA_SecureChannel_builtinAttributeKeys.
- * *out may shallow-reference channel members or thread-local scratch
- * storage that is valid only until the next call to this function on the
- * same thread -- callers must consume it (copy out or memcpy) before
- * making another such call. */
+ * *out may shallow-reference a stable channel member, or (for values that
+ * need a conversion or a default, e.g. connection-id) channel-owned scratch
+ * storage in channel->builtinAttributeScratch -- valid for as long as the
+ * channel is, but overwritten by the next call for that same key on this
+ * channel. */
 UA_Boolean
 UA_SecureChannel_getBuiltinAttribute(UA_SecureChannel *channel,
                                      const UA_QualifiedName *key,
