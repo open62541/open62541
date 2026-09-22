@@ -1476,6 +1476,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AM
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256sha256.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_aes128sha256rsaoaep.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_aes256sha256rsapss.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_pubsub_aesctr.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256_aesgcm.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256_chachapoly.c
