@@ -3,14 +3,36 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/client.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/log_syslog.h>
 
 #include "ua_util_internal.h"
 #include <dtoa.h>
 
 #include <stdlib.h>
 #include <math.h>
+#include <stdarg.h>
 
 #include "check.h"
+
+static void
+logMessage(const UA_Logger *logger, UA_LogCategory category, const char *message, ...) {
+    va_list args;
+    va_start(args, message);
+    logger->log(logger->context, UA_LOGLEVEL_INFO, category, message, args);
+    va_end(args);
+}
+
+START_TEST(logInvalidCategory) {
+    static const UA_Int32 categories[] = {-1, UA_INT32_MAX};
+    logMessage(UA_Log_Stdout, (UA_LogCategory)categories[_i],
+               "Testing an out-of-range log category");
+#if defined(__linux__) || defined(__unix__)
+    UA_Logger syslogger = UA_Log_Syslog();
+    logMessage(&syslogger, (UA_LogCategory)categories[_i],
+               "Testing an out-of-range log category");
+#endif
+} END_TEST
 
 /* vs2008 does not have INFINITY and NAN defined */
 #ifndef INFINITY
@@ -701,6 +723,7 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc_utils, doubleToString);
     tcase_add_test(tc_utils, StatusCode_msg);
     tcase_add_test(tc_utils, stringCompare);
+    tcase_add_loop_test(tc_utils, logInvalidCategory, 0, 2);
     suite_add_tcase(s,tc_utils);
 
 

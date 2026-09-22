@@ -18,6 +18,13 @@ const char *syslogCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
      "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
 
+static const char *
+syslogCategoryName(UA_LogCategory category) {
+    if((UA_UInt32)category >= UA_LOGCATEGORIES)
+        return "unknown";
+    return syslogCategoryNames[category];
+}
+
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
 #endif
@@ -56,7 +63,7 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
     char logbuf[LOGBUFSIZE];
     int pos = snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
                        syslogLevelNames[logLevelSlot],
-                       syslogCategoryNames[category]);
+                       syslogCategoryName(category));
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
