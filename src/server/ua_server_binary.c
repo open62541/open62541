@@ -29,8 +29,8 @@
 #define STARTTOKENID 1
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-// store the authentication token and session ID so we can help fuzzing by setting
-// these values in the next request automatically
+/* Authentication token used by stateful binary-message fuzz targets. A
+ * CreateSession request updates it for a following request. */
 UA_NodeId unsafe_fuzz_authenticationToken = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 #endif
 
@@ -748,6 +748,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
          * these values in the next request automatically */
         if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
             UA_CreateSessionResponse *res = &response->createSessionResponse;
+            UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
@@ -936,10 +937,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    /* Set the authenticationToken from the create session request to help
-     * fuzzing cover more lines */
-    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken) &&
-       !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
+    /* Use the session prepared by the message fuzzer. This also replaces a
+     * null or malformed-but-decodable token so session-required services can
+     * reach their implementations. */
+    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken)) {
         UA_NodeId_clear(&requestHeader->authenticationToken);
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
     }
