@@ -1158,7 +1158,16 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
 
     if(config->securityPoliciesSize == 0) {
-        config->securityPolicies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
+        /* Reserve headroom for UA_ClientConfig_setDefaultEncryption to append
+         * its policies later (see there) without growing this allocation.
+         * Growing/reallocating it while a SecureChannel already holds a
+         * pointer into slot 0 ("None") would leave that pointer dangling. */
+        size_t reserve = 1;
+#ifdef UA_ENABLE_ENCRYPTION
+        reserve += SECURITY_POLICY_SIZE;
+#endif
+        config->securityPolicies = (UA_SecurityPolicy*)
+            UA_malloc(sizeof(UA_SecurityPolicy) * reserve);
         if(!config->securityPolicies)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies,
@@ -1289,12 +1298,24 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
             "Empty trustlist and revocationlist passed, leaving the previously configured certificate verification in place");
     }
 
-    /* Populate SecurityPolicies, append to pre existing and don't overwrite */
-    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * (config->securityPoliciesSize + SECURITY_POLICY_SIZE));
-    if(!sp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    config->securityPolicies = sp;
+    /* Populate SecurityPolicies, append to pre existing and don't overwrite.
+     * UA_ClientConfig_setDefault (just above) already reserves enough room
+     * for exactly this append, so the common case of calling this function
+     * once needs no reallocation here -- reallocating (and thereby possibly
+     * moving) the array while a SecureChannel already holds a pointer into
+     * an existing entry would leave that pointer dangling, see #6943. Only
+     * grow the allocation if that reserved headroom actually is not enough
+     * (e.g. because this function is called again). */
+    UA_SecurityPolicy *sp;
+    if(config->securityPoliciesSize <= 1) {
+        sp = config->securityPolicies;
+    } else {
+        sp = (UA_SecurityPolicy*)
+            UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * (config->securityPoliciesSize + SECURITY_POLICY_SIZE));
+        if(!sp)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        config->securityPolicies = sp;
+    }
 
     /* Load the private key and convert to the DER format. Use an empty password
      * on the first try -- maybe the key does not require a password. */
