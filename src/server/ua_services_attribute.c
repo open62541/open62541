@@ -60,7 +60,9 @@ static const UA_NodeAttributesMask attr2mask[28] = {
 
 static UA_UInt32
 attributeId2AttributeMask(UA_AttributeId id) {
-    if(UA_UNLIKELY(id > UA_ATTRIBUTEID_ACCESSLEVELEX))
+    /* The enum may be signed. The unsigned cast also rejects values that
+     * became negative when converting the wire-level UInt32. */
+    if(UA_UNLIKELY((UA_UInt32)id > UA_ATTRIBUTEID_ACCESSLEVELEX))
         return UA_NODEATTRIBUTESMASK_NONE;
     return attr2mask[id];
 }
