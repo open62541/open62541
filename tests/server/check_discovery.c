@@ -644,6 +644,39 @@ START_TEST(Server_getEndpoints_emptyPolicyId) {
 }
 END_TEST
 
+START_TEST(Server_addEndpoint_rejectsInvalidSecurityMode) {
+    static const UA_Int32 modes[] = {0, -1, 4, UA_INT32_MAX};
+    UA_Server *pServer = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(pServer);
+    size_t endpointsSize = config->endpointsSize;
+
+    UA_StatusCode res =
+        UA_ServerConfig_addEndpoint(config, UA_SECURITY_POLICY_NONE_URI,
+                                    (UA_MessageSecurityMode)modes[_i]);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYMODEREJECTED);
+    ck_assert_uint_eq(config->endpointsSize, endpointsSize);
+    UA_Server_delete(pServer);
+} END_TEST
+
+START_TEST(Server_getEndpoints_rejectsOutOfRangeSecurityMode) {
+    static const UA_Int32 modes[] = {-1, 4, UA_INT32_MAX};
+    UA_Server *pServer = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(pServer);
+    ck_assert_uint_gt(config->endpointsSize, 0);
+    config->endpoints[0].securityMode = (UA_MessageSecurityMode)modes[_i];
+
+    UA_EndpointDescription *endpoints = NULL;
+    size_t endpointsSize = 0;
+    UA_StatusCode res =
+        setCurrentEndPointsArray(pServer, UA_STRING("opc.tcp://localhost:4840"),
+                                 NULL, 0, &endpoints, &endpointsSize);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYMODEREJECTED);
+
+    UA_Array_delete(endpoints, endpointsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    UA_Server_delete(pServer);
+} END_TEST
+
 START_TEST(Server_registerUnregister) {
     registerServer();
     registerServer(); // register twice just for fun
@@ -713,6 +746,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_new_del, Server_new_delete);
     tcase_add_test(tc_new_del, Server_new_shutdown_delete);
     tcase_add_test(tc_new_del, Server_getEndpoints_emptyPolicyId);
+    tcase_add_loop_test(tc_new_del, Server_addEndpoint_rejectsInvalidSecurityMode, 0, 4);
+    tcase_add_loop_test(tc_new_del, Server_getEndpoints_rejectsOutOfRangeSecurityMode, 0, 3);
     suite_add_tcase(s,tc_new_del);
 
     TCase *tc_register = tcase_create("RegisterServer");
