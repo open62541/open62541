@@ -200,7 +200,9 @@ addTestWriterGroup(UA_String securitygroupId) {
 
     retval |=
         UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -222,6 +224,7 @@ addTestReaderGroup(UA_String securitygroupId) {
 
     retVal |=
         UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void
