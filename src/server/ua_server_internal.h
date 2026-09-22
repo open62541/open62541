@@ -558,6 +558,11 @@ securityPolicyUriPostfix(const UA_String uri);
 UA_ServerComponent *
 UA_BinaryProtocolManager_new(UA_Server *server);
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+/* AuthenticationToken of the session prepared by the message fuzzer. */
+extern UA_NodeId unsafe_fuzz_authenticationToken;
+#endif
+
 /***********/
 /* RefTree */
 /***********/

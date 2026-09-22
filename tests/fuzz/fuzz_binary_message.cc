@@ -27,6 +27,7 @@ _removeServerComponent(void *application, UA_ServerComponent *sc) {
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
     if(size <= 4)
         return 0;
 
@@ -68,13 +69,19 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_ServerComponent *bpm = UA_BinaryProtocolManager_new(server);
     addServerComponent(server, bpm, NULL);
 
+    /* The first callback registers a listening connection. The second one
+     * creates the server connection and processes the fuzzed bytes. */
     void *ctx = NULL;
-    serverNetworkCallback(&testConnectionManagerTCP, 0, bpm,
+    serverNetworkCallback(&testConnectionManagerTCP, 1, bpm,
+                          &ctx, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    serverNetworkCallback(&testConnectionManagerTCP, 1, bpm,
                           &ctx, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, msg);
 
     // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_clear(&msg);
     UA_Server_delete(server);
+    UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
     return 0;
 }
