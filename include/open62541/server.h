@@ -243,22 +243,30 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
  * from the secureChannelNotificationCallback once it has looked at the
  * channel's SecurityMode.
  *
- * Once a SecureChannel has fully opened, the map is pre-populated with the
- * same background information as the
- * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED notification (see
- * common.h): ``0:securechannel-id``, ``0:connection-manager-name``,
+ * Namespace 0 is reserved for the server itself and restricted to a
+ * predefined set of keys, for both read and write -- any other ``0:...``
+ * key is rejected with UA_STATUSCODE_BADNOTFOUND (get) or
+ * UA_STATUSCODE_BADNOTWRITABLE (set/delete). An application is free to use
+ * any key in a non-zero namespace as generic, arbitrary storage.
+ *
+ * Most of the predefined ns0 keys are read-only: their value is computed
+ * fresh from the live SecureChannel on every access (nothing is cached),
+ * mirroring the background information sent with the
+ * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED/_CLOSED notification
+ * (see common.h): ``0:securechannel-id``, ``0:connection-manager-name``,
  * ``0:connection-id``, ``0:remote-address``, ``0:protocol-version``,
  * ``0:recv-buffer-size``, ``0:recv-max-message-size``,
  * ``0:recv-max-chunk-count``, ``0:send-buffer-size``,
  * ``0:send-max-message-size``, ``0:send-max-chunk-count``,
  * ``0:endpoint-url``, ``0:security-mode``, ``0:security-policy-url``,
- * ``0:certificate-type-id`` and ``0:remote-certificate``. These are
- * read-only -- UA_Server_setSecureChannelAttribute and
- * UA_Server_deleteSecureChannelAttribute reject them with
+ * ``0:certificate-type-id`` and ``0:remote-certificate``.
+ * UA_Server_setSecureChannelAttribute and
+ * UA_Server_deleteSecureChannelAttribute reject writes to these with
  * UA_STATUSCODE_BADNOTWRITABLE.
  *
- * One further attribute key is interpreted by the server itself, and is the
- * one attribute the application may write:
+ * One further ns0 key is interpreted by the server itself, and is the one
+ * ns0 attribute the application may write (stored in the generic map like
+ * any application-defined attribute):
  *
  * - ``0:maxMessageSize`` (``UA_UInt32``): If set, tightens (but never
  *   loosens) UA_ServerConfig.tcpMaxMsgSize for this specific channel. Useful

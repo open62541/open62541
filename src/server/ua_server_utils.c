@@ -522,46 +522,22 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
-/* The one SecureChannel attribute key interpreted by the server itself. See
- * the doc comment on UA_Server_setSecureChannelAttribute in server.h. */
+/* The one SecureChannel attribute key interpreted -- and the only ns0 key
+ * writable -- by the server itself. See the doc comment on
+ * UA_Server_setSecureChannelAttribute in server.h. */
 static const UA_QualifiedName maxMessageSizeAttributeKey =
     {0, UA_STRING_STATIC("maxMessageSize")};
 
-/* Read-only SecureChannel attribute keys. Pre-populated into
- * channel->attributes once the channel has fully opened, with the same
- * background information as the
- * UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED notification (see
- * notifySecureChannel in ua_services_securechannel.c and common.h).
- * UA_Server_setSecureChannelAttribute/_deleteSecureChannelAttribute reject
- * writes to these keys. */
-static const UA_QualifiedName secureChannelReadOnlyAttributeKeys[] = {
-    {0, UA_STRING_STATIC("securechannel-id")},
-    {0, UA_STRING_STATIC("connection-manager-name")},
-    {0, UA_STRING_STATIC("connection-id")},
-    {0, UA_STRING_STATIC("remote-address")},
-    {0, UA_STRING_STATIC("protocol-version")},
-    {0, UA_STRING_STATIC("recv-buffer-size")},
-    {0, UA_STRING_STATIC("recv-max-message-size")},
-    {0, UA_STRING_STATIC("recv-max-chunk-count")},
-    {0, UA_STRING_STATIC("send-buffer-size")},
-    {0, UA_STRING_STATIC("send-max-message-size")},
-    {0, UA_STRING_STATIC("send-max-chunk-count")},
-    {0, UA_STRING_STATIC("endpoint-url")},
-    {0, UA_STRING_STATIC("security-mode")},
-    {0, UA_STRING_STATIC("security-policy-url")},
-    {0, UA_STRING_STATIC("certificate-type-id")},
-    {0, UA_STRING_STATIC("remote-certificate")}
-};
-
+/* Namespace 0 is reserved for the server-defined SecureChannel attributes:
+ * UA_SecureChannel_builtinAttributeKeys (read-only, computed on access from
+ * the live channel state -- see UA_SecureChannel_getBuiltinAttribute) and
+ * maxMessageSizeAttributeKey (the one writable key, stored in
+ * channel->attributes). Any other ns0 key is rejected on both read and
+ * write; applications get their own free-form key/value space by using a
+ * non-zero namespace. */
 static UA_Boolean
-isReadOnlySecureChannelAttribute(const UA_QualifiedName *key) {
-    size_t size = sizeof(secureChannelReadOnlyAttributeKeys) /
-        sizeof(secureChannelReadOnlyAttributeKeys[0]);
-    for(size_t i = 0; i < size; i++) {
-        if(UA_QualifiedName_equal(key, &secureChannelReadOnlyAttributeKeys[i]))
-            return true;
-    }
-    return false;
+isWritableSecureChannelAttribute(const UA_QualifiedName *key) {
+    return UA_QualifiedName_equal(key, &maxMessageSizeAttributeKey);
 }
 
 UA_StatusCode
@@ -573,6 +549,15 @@ UA_Server_getSecureChannelAttribute(UA_Server *server, UA_UInt32 channelId,
     lockServer(server);
     UA_SecureChannel *channel = findSecureChannel(server, channelId);
     if(!channel) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    if(UA_SecureChannel_getBuiltinAttribute(channel, &key, outValue)) {
+        outValue->storageType = UA_VARIANT_DATA_NODELETE;
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(key.namespaceIndex == 0 && !isWritableSecureChannelAttribute(&key)) {
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -599,6 +584,16 @@ UA_Server_getSecureChannelAttributeCopy(UA_Server *server, UA_UInt32 channelId,
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    UA_Variant builtin;
+    if(UA_SecureChannel_getBuiltinAttribute(channel, &key, &builtin)) {
+        UA_StatusCode res = UA_Variant_copy(&builtin, outValue);
+        unlockServer(server);
+        return res;
+    }
+    if(key.namespaceIndex == 0 && !isWritableSecureChannelAttribute(&key)) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
     const UA_Variant *attr = UA_KeyValueMap_get(&channel->attributes, key);
     UA_StatusCode res = attr ?
         UA_Variant_copy(attr, outValue) : UA_STATUSCODE_BADNOTFOUND;
@@ -615,6 +610,20 @@ UA_Server_getSecureChannelAttribute_scalar(UA_Server *server,
     lockServer(server);
     UA_SecureChannel *channel = findSecureChannel(server, channelId);
     if(!channel) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_Variant builtin;
+    if(UA_SecureChannel_getBuiltinAttribute(channel, &key, &builtin)) {
+        if(!UA_Variant_hasScalarType(&builtin, type)) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+        memcpy(outValue, builtin.data, type->memSize);
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(key.namespaceIndex == 0 && !isWritableSecureChannelAttribute(&key)) {
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -638,12 +647,11 @@ UA_Server_setSecureChannelAttribute(UA_Server *server, UA_UInt32 channelId,
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    if(isReadOnlySecureChannelAttribute(&key)) {
+    UA_Boolean isMaxMessageSize = isWritableSecureChannelAttribute(&key);
+    if(key.namespaceIndex == 0 && !isMaxMessageSize) {
         unlockServer(server);
         return UA_STATUSCODE_BADNOTWRITABLE;
     }
-    UA_Boolean isMaxMessageSize =
-        UA_QualifiedName_equal(&key, &maxMessageSizeAttributeKey);
     if(isMaxMessageSize &&
        (!value || !UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_UINT32]))) {
         unlockServer(server);
@@ -665,13 +673,13 @@ UA_Server_deleteSecureChannelAttribute(UA_Server *server, UA_UInt32 channelId,
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    if(isReadOnlySecureChannelAttribute(&key)) {
+    UA_Boolean isMaxMessageSize = isWritableSecureChannelAttribute(&key);
+    if(key.namespaceIndex == 0 && !isMaxMessageSize) {
         unlockServer(server);
         return UA_STATUSCODE_BADNOTWRITABLE;
     }
     UA_StatusCode res = UA_KeyValueMap_remove(&channel->attributes, key);
-    if(res == UA_STATUSCODE_GOOD &&
-       UA_QualifiedName_equal(&key, &maxMessageSizeAttributeKey))
+    if(res == UA_STATUSCODE_GOOD && isMaxMessageSize)
         channel->maxMessageSizeOverride = 0;
     unlockServer(server);
     return res;
