@@ -515,6 +515,17 @@ UA_Openssl_RSA_OAEP_SHA2_Encrypt(UA_ByteString *data,
     return ret;
 }
 
+/* The context holds the secret, the seed and the A(n) chain. Wipe it before
+ * it goes back to the heap. */
+static void
+P_SHA256_Ctx_Free(UA_Openssl_P_SHA256_Ctx *ctx) {
+    if(ctx == NULL)
+        return;
+    OPENSSL_cleanse(ctx, sizeof(UA_Openssl_P_SHA256_Ctx) +
+                    ctx->secretLen + ctx->seedLen);
+    UA_free(ctx);
+}
+
 static UA_Openssl_P_SHA256_Ctx *
 P_SHA256_Ctx_Create(const UA_ByteString *secret,
                     const UA_ByteString *seed) {
@@ -532,7 +543,7 @@ P_SHA256_Ctx_Create(const UA_ByteString *secret,
 
     if(HMAC(EVP_sha256(), secret->data, (int) secret->length, seed->data,
             seed->length, ctx->A, NULL) == NULL) {
-        UA_free (ctx);
+        P_SHA256_Ctx_Free(ctx);
         return NULL;
     }
 
@@ -579,15 +590,18 @@ UA_Openssl_Random_Key_PSHA256_Derive(const UA_ByteString *secret,
     for(i = 0; i < iter; i++) {
         st = P_SHA256_Hash_Generate(ctx, pBuffer + (i * 32));
         if(st != UA_STATUSCODE_GOOD) {
+            OPENSSL_cleanse(pBuffer, bufferLen);
             UA_free(pBuffer);
-            UA_free(ctx);
+            P_SHA256_Ctx_Free(ctx);
             return st;
         }
     }
 
+    /* The scratch buffer holds derived key material */
     memcpy(out->data, pBuffer, keyLen);
+    OPENSSL_cleanse(pBuffer, bufferLen);
     UA_free(pBuffer);
-    UA_free(ctx);
+    P_SHA256_Ctx_Free(ctx);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -899,6 +913,15 @@ UA_Openssl_RSA_PKCS1_V15_SHA1_Sign(const UA_ByteString * message,
                                        RSA_PKCS1_PADDING, outSignature);
 }
 
+static void
+P_SHA1_Ctx_Free(UA_Openssl_P_SHA1_Ctx *ctx) {
+    if(ctx == NULL)
+        return;
+    OPENSSL_cleanse(ctx, sizeof(UA_Openssl_P_SHA1_Ctx) +
+                    ctx->secretLen + ctx->seedLen);
+    UA_free(ctx);
+}
+
 static UA_Openssl_P_SHA1_Ctx *
 P_SHA1_Ctx_Create(const UA_ByteString *  secret,
                   const UA_ByteString *  seed) {
@@ -917,7 +940,7 @@ P_SHA1_Ctx_Create(const UA_ByteString *  secret,
 
     if(HMAC(EVP_sha1(), secret->data, (int) secret->length, seed->data,
             seed->length, ctx->A, NULL) == NULL) {
-        UA_free(ctx);
+        P_SHA1_Ctx_Free(ctx);
         return NULL;
     }
 
@@ -963,15 +986,17 @@ UA_Openssl_Random_Key_PSHA1_Derive(const UA_ByteString *     secret,
         UA_StatusCode st =
             P_SHA1_Hash_Generate(ctx, pBuffer + (i * SHA1_DIGEST_LENGTH));
         if(st != UA_STATUSCODE_GOOD) {
+            OPENSSL_cleanse(pBuffer, bufferLen);
             UA_free(pBuffer);
-            UA_free(ctx);
+            P_SHA1_Ctx_Free(ctx);
             return st;
         }
     }
 
     memcpy(out->data, pBuffer, keyLen);
+    OPENSSL_cleanse(pBuffer, bufferLen);
     UA_free(pBuffer);
-    UA_free(ctx);
+    P_SHA1_Ctx_Free(ctx);
     return UA_STATUSCODE_GOOD;
 }
 
