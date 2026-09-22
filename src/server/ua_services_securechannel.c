@@ -261,27 +261,25 @@ UA_Boolean
 UA_SecureChannel_getBuiltinAttribute(UA_SecureChannel *channel,
                                      const UA_QualifiedName *key,
                                      UA_Variant *out) {
-    /* Scratch storage for values that are not stable, addressable members
-     * of *channel and must be computed or defaulted on the fly. Valid only
-     * until the next call to this function on the same thread -- callers
-     * must consume *out (copy out or memcpy) before making another call. */
-    UA_STATIC_THREAD_LOCAL UA_UInt64 scratchConnectionId;
-    UA_STATIC_THREAD_LOCAL UA_String scratchConnectionManagerName;
-    UA_STATIC_THREAD_LOCAL UA_String scratchSecurityPolicyUri;
-    UA_STATIC_THREAD_LOCAL UA_NodeId scratchCertificateTypeId;
-
+    /* Backing storage for the handful of values that are not stable,
+     * addressable members of *channel and must be computed or defaulted on
+     * the fly -- see the doc comment on channel->builtinAttributeScratch.
+     * It lives on the channel itself, not a local of this function, so
+     * *out stays valid for as long as the channel does, no matter when (or
+     * whether) the caller consumes it. */
     const UA_QualifiedName *k = UA_SecureChannel_builtinAttributeKeys;
     if(UA_QualifiedName_equal(key, &k[0])) {
         UA_Variant_setScalar(out, &channel->securityToken.channelId,
                              &UA_TYPES[UA_TYPES_UINT32]);
     } else if(UA_QualifiedName_equal(key, &k[1])) {
-        scratchConnectionManagerName = channel->connectionManager ?
+        channel->builtinAttributeScratch.connectionManagerName = channel->connectionManager ?
             channel->connectionManager->eventSource.name : UA_STRING_NULL;
-        UA_Variant_setScalar(out, &scratchConnectionManagerName,
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.connectionManagerName,
                              &UA_TYPES[UA_TYPES_STRING]);
     } else if(UA_QualifiedName_equal(key, &k[2])) {
-        scratchConnectionId = channel->connectionId;
-        UA_Variant_setScalar(out, &scratchConnectionId, &UA_TYPES[UA_TYPES_UINT64]);
+        channel->builtinAttributeScratch.connectionId = channel->connectionId;
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.connectionId,
+                             &UA_TYPES[UA_TYPES_UINT64]);
     } else if(UA_QualifiedName_equal(key, &k[3])) {
         UA_Variant_setScalar(out, &channel->remoteAddress,
                              &UA_TYPES[UA_TYPES_STRING]);
@@ -313,13 +311,15 @@ UA_SecureChannel_getBuiltinAttribute(UA_SecureChannel *channel,
         UA_Variant_setScalar(out, &channel->securityMode,
                              &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
     } else if(UA_QualifiedName_equal(key, &k[13])) {
-        scratchSecurityPolicyUri = channel->securityPolicy ?
+        channel->builtinAttributeScratch.securityPolicyUri = channel->securityPolicy ?
             channel->securityPolicy->policyUri : UA_STRING_NULL;
-        UA_Variant_setScalar(out, &scratchSecurityPolicyUri, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.securityPolicyUri,
+                             &UA_TYPES[UA_TYPES_STRING]);
     } else if(UA_QualifiedName_equal(key, &k[14])) {
-        scratchCertificateTypeId = channel->securityPolicy ?
+        channel->builtinAttributeScratch.certificateTypeId = channel->securityPolicy ?
             channel->securityPolicy->certificateTypeId : UA_NODEID_NULL;
-        UA_Variant_setScalar(out, &scratchCertificateTypeId, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.certificateTypeId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
     } else if(UA_QualifiedName_equal(key, &k[15])) {
         UA_Variant_setScalar(out, &channel->remoteCertificate,
                              &UA_TYPES[UA_TYPES_BYTESTRING]);
