@@ -457,6 +457,38 @@ addSubscriber(UA_Server *server) {
     return retval;
 }
 
+/* Fetching keys does not imply that the first DataSetMessage has arrived.
+ * Iterate until the target has Good quality and the expected value. */
+static void
+checkPublishedValueReceived(UA_Server *publisher, UA_Server *subscriber) {
+    UA_Variant published;
+    UA_Variant_init(&published);
+    UA_StatusCode res = UA_Server_readValue(
+        publisher, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), &published);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Boolean received = false;
+    for(size_t i = 0; i < MAX_RETRIES; i++) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(publisher, false);
+        if(subscriber != publisher)
+            UA_Server_run_iterate(subscriber, false);
+
+        UA_Variant subscribed;
+        UA_Variant_init(&subscribed);
+        res = UA_Server_readValue(
+            subscriber, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), &subscribed);
+        received = res == UA_STATUSCODE_GOOD &&
+            UA_Variant_equal(&published, &subscribed);
+        UA_Variant_clear(&subscribed);
+        if(received)
+            break;
+    }
+    UA_Variant_clear(&published);
+    ck_assert_msg(received, "Published value was not received after %u iterations "
+                  "(last read status: %s)", MAX_RETRIES, UA_StatusCode_name(res));
+}
+
 static UA_ClientConfig *
 newEncryptedClientConfig(const char *username, const char *password) {
     UA_ByteString *trustList = NULL;
@@ -842,28 +874,7 @@ START_TEST(CheckPublishedValuesInUserLand) {
     UA_Server_run_iterate(publisherApp, true);
     UA_Server_run_iterate(subscriberApp, true);
 
-    UA_Variant *publishedNodeData = UA_Variant_new();
-    retval = UA_Server_readValue(publisherApp,
-                                 UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
-                                 publishedNodeData);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
-    while(true) {
-        UA_Variant *subscribedNodeData = UA_Variant_new();
-        retval = UA_Server_readValue(subscriberApp,
-                                     UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                     subscribedNodeData);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Boolean isEqual = (UA_order(publishedNodeData->data, subscribedNodeData->data,
-                                       publishedNodeData->type) == UA_ORDER_EQ);
-        UA_Variant_delete(subscribedNodeData);
-        if(isEqual)
-            break;
-        UA_Server_run_iterate(publisherApp, false);
-        UA_Server_run_iterate(subscriberApp, false);
-        UA_fakeSleep(50);
-    }
-    UA_Variant_delete(publishedNodeData);
+    checkPublishedValueReceived(publisherApp, subscriberApp);
     UA_free(pubSksClientConfig);
     UA_free(subSksClientConfig);
 }
@@ -901,29 +912,7 @@ START_TEST(PublisherSubscriberTogethor) {
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
                   UA_StatusCode_name(sksPullStatus), retryCnt);
     
-    UA_Variant *publishedNodeData = UA_Variant_new();
-    retval = UA_Server_readValue(publisherApp,
-                                 UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
-                                 publishedNodeData);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
-    while(true) {
-        UA_Variant *subscribedNodeData = UA_Variant_new();
-        retval = UA_Server_readValue(publisherApp,
-                                     UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                     subscribedNodeData);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Boolean isEqual = (UA_order(publishedNodeData->data, subscribedNodeData->data,
-                                       publishedNodeData->type) == UA_ORDER_EQ);
-        UA_Variant_delete(subscribedNodeData);
-        if(isEqual)
-            break;
-        UA_Server_run_iterate(publisherApp, false);
-        UA_Server_run_iterate(subscriberApp, false);
-        UA_fakeSleep(50);
-    }
-
-    UA_Variant_delete(publishedNodeData);
+    checkPublishedValueReceived(publisherApp, publisherApp);
     UA_free(pubSksClientConfig);
 }
 END_TEST
