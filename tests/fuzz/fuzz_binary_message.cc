@@ -79,6 +79,11 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                           &ctx, UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, msg);
 
+    if(ctx)
+        serverNetworkCallback(&testConnectionManagerTCP, 1, bpm,
+                              &ctx, UA_CONNECTIONSTATE_CLOSING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
     // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_clear(&msg);
     UA_Server_delete(server);
