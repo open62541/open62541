@@ -112,16 +112,24 @@ jobs:
 
           - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
             mbedtls: true
-            cmd_action: unit_tests_encryption_mbedtls_pubsub
+            cmd_action: unit_tests_encryption_pubsub MBEDTLS
 
           - name: "PubSub SKS Build & Unit Tests (gcc)"
             mbedtls: true
             cmd_deps: sudo apt-get install -y -qq valgrind
-            cmd_action: unit_tests_pubsub_sks
+            cmd_action: unit_tests_pubsub_sks MBEDTLS
 
           - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
+
+          - name: "PubSub Encryption (OpenSSL) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq openssl
+            cmd_action: unit_tests_encryption_pubsub OPENSSL
+
+          - name: "PubSub SKS (OpenSSL) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq openssl valgrind
+            cmd_action: unit_tests_pubsub_sks OPENSSL
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
