@@ -712,13 +712,31 @@ sessionCloseCancellation(UA_Server *server, const void *id) {
                           UA_STATUSCODE_GOOD);
 }
 
+typedef struct {
+    UA_Session *session;
+    UA_DataValue **outputs;
+    unsigned mode;
+} SessionCloseContext;
+
+/* Return early results before leaving the close callback. Event loops may
+ * process more than one delayed batch in a single iteration. */
 static void
 closeSessionFromDelayedCallback(void *application, void *context) {
     UA_Server *server = (UA_Server*)application;
-    UA_Session *session = (UA_Session*)context;
+    SessionCloseContext *close = (SessionCloseContext*)context;
+    UA_Session *session = close->session;
     lockServer(server);
     UA_Session_remove(server, session, session->validTill == 0 ?
                        UA_SHUTDOWNREASON_TIMEOUT : UA_SHUTDOWNREASON_CLOSE);
+    ck_assert_uint_eq(closingNotifications, 0);
+    ck_assert_uint_eq(closingCleanups, 0);
+    ck_assert_uint_eq(closingEnds, 0);
+    ck_assert_uint_eq(closingCancels, 0);
+    if(close->mode & 32) {
+        for(size_t i = (close->mode & 1) ? 1 : 0; i < 2; i++)
+            ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, close->outputs[i]),
+                              UA_STATUSCODE_GOOD);
+    }
     unlockServer(server);
 }
 
@@ -763,11 +781,12 @@ START_TEST(session_close_finishes_services) {
         UA_ReadResponse_clear(&response);
     }
     UA_Boolean ready = (_i & 1) != 0;
+    SessionCloseContext closeContext = {closingSession, outputs, (unsigned)_i};
     UA_DelayedCallback close = {0};
     if(_i & 16) {
         close.callback = closeSessionFromDelayedCallback;
         close.application = server;
-        close.context = closingSession;
+        close.context = &closeContext;
         server->config.eventLoop->addDelayedCallback(server->config.eventLoop, &close);
     }
     queuedResponseCallback = NULL;
@@ -787,18 +806,7 @@ START_TEST(session_close_finishes_services) {
     if(_i & 16)
         UA_Server_run_iterate(server, false);
     else
-        UA_Session_remove(server, closingSession, (_i & 2) ?
-                           UA_SHUTDOWNREASON_TIMEOUT : UA_SHUTDOWNREASON_CLOSE);
-    ck_assert_uint_eq(closingNotifications, 0);
-    ck_assert_uint_eq(closingCleanups, 0);
-    if(!(_i & 16)) {
-        ck_assert_uint_eq(closingEnds, 0);
-        ck_assert_uint_eq(closingCancels, 0);
-    }
-    if(_i & 32) {
-        for(size_t i = ready ? 1 : 0; i < 2; i++)
-            ck_assert_uint_eq(UA_Server_setAsyncReadResult(server, outputs[i]), UA_STATUSCODE_GOOD);
-    }
+        closeSessionFromDelayedCallback(server, &closeContext);
     UA_AsyncResponse *ar;
     TAILQ_FOREACH(ar, &server->asyncManager.responses, pointers) {
         ck_assert_ptr_eq(ar->session, closingSession);
