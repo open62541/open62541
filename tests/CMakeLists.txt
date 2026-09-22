@@ -89,6 +89,10 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
 
+if(UNIX)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_syslog.c)
+endif()
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
