@@ -35,6 +35,62 @@ silentLog(void *context, UA_LogLevel level, UA_LogCategory category,
 
 static UA_Logger silentLogger = {silentLog, NULL, NULL};
 
+struct FuzzServer {
+    UA_Server *server;
+    UA_ServerComponent *bpm;
+    void *listenerContext;
+    uintptr_t nextConnectionId;
+
+    FuzzServer()
+        : server(NULL), bpm(NULL), listenerContext(NULL), nextConnectionId(2) {
+        UA_ServerConfig config;
+        memset(&config, 0, sizeof(config));
+        config.logging = &silentLogger;
+        if(UA_ServerConfig_setDefault(&config) != UA_STATUSCODE_GOOD) {
+            UA_ServerConfig_clean(&config);
+            return;
+        }
+        config.allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+
+        server = UA_Server_newWithConfig(&config);
+        if(!server)
+            return;
+
+        /* Replace the configured transport with the deterministic test transport. */
+        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+                 removeServerComponent, server);
+        ZIP_INIT(&server->serverComponents);
+        bpm = UA_BinaryProtocolManager_new(server);
+        if(!bpm)
+            return;
+        addServerComponent(server, bpm, NULL);
+
+        /* Keep the server socket and protocol manager for the fuzz process. */
+        serverNetworkCallback(&testConnectionManagerTCP, 1, bpm, &listenerContext,
+                              UA_CONNECTIONSTATE_ESTABLISHED,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    }
+
+    ~FuzzServer() {
+        if(server)
+            UA_Server_delete(server);
+    }
+
+    uintptr_t
+    getConnectionId() {
+        uintptr_t connectionId = nextConnectionId++;
+        if(nextConnectionId <= 1)
+            nextConnectionId = 2;
+        return connectionId;
+    }
+};
+
+static FuzzServer &
+getFuzzServer(void) {
+    static FuzzServer fuzzServer;
+    return fuzzServer;
+}
+
 static void
 writeUInt32(UA_Byte *buf, size_t *offset, UA_UInt32 value) {
     buf[(*offset)++] = (UA_Byte)value;
@@ -94,9 +150,11 @@ makeOPN(const uint8_t *payload, size_t payloadSize) {
 }
 
 static void
-processMessage(UA_ServerComponent *bpm, void **connectionContext,
+processMessage(UA_ServerComponent *bpm, uintptr_t connectionId,
+               void **connectionContext,
                UA_ByteString message) {
-    serverNetworkCallback(&testConnectionManagerTCP, 1, bpm, connectionContext,
+    serverNetworkCallback(&testConnectionManagerTCP, connectionId, bpm,
+                          connectionContext,
                           UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, message);
     UA_ByteString_clear(&message);
@@ -117,43 +175,31 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         }
     }
 
-    UA_ServerConfig config;
-    memset(&config, 0, sizeof(config));
-    config.logging = &silentLogger;
-    if(UA_ServerConfig_setDefault(&config) != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(&config);
-        return 0;
-    }
-    config.allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
-
-    UA_Server *server = UA_Server_newWithConfig(&config);
-    if(!server)
+    FuzzServer &fuzzServer = getFuzzServer();
+    if(!fuzzServer.bpm || !fuzzServer.listenerContext)
         return 0;
 
-    /* Replace the configured transport with the deterministic test transport. */
-    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             removeServerComponent, server);
-    ZIP_INIT(&server->serverComponents);
-    UA_ServerComponent *bpm = UA_BinaryProtocolManager_new(server);
-    if(!bpm) {
-        UA_Server_delete(server);
-        return 0;
-    }
-    addServerComponent(server, bpm, NULL);
-
-    void *connectionContext = NULL;
-    serverNetworkCallback(&testConnectionManagerTCP, 1, bpm, &connectionContext,
+    /* Create only disposable connection state for this iteration. */
+    uintptr_t connectionId = fuzzServer.getConnectionId();
+    void *connectionContext = fuzzServer.listenerContext;
+    serverNetworkCallback(&testConnectionManagerTCP, connectionId, fuzzServer.bpm,
+                          &connectionContext,
                           UA_CONNECTIONSTATE_ESTABLISHED,
                           &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     UA_ByteString hello = makeHello();
     if(hello.data)
-        processMessage(bpm, &connectionContext, hello);
+        processMessage(fuzzServer.bpm, connectionId, &connectionContext, hello);
 
     UA_ByteString opn = makeOPN(data, size);
     if(opn.data)
-        processMessage(bpm, &connectionContext, opn);
+        processMessage(fuzzServer.bpm, connectionId, &connectionContext, opn);
 
-    UA_Server_delete(server);
+    /* Drop the channel so the next mutation starts from CONNECTED again. */
+    if(connectionContext)
+        serverNetworkCallback(&testConnectionManagerTCP, connectionId,
+                              fuzzServer.bpm, &connectionContext,
+                              UA_CONNECTIONSTATE_CLOSING,
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     return 0;
 }
