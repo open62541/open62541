@@ -496,7 +496,7 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_custom_state_machine.c)
     endif()
 
-    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    if(UA_ENABLE_ENCRYPTION)
         ua_add_test(pubsub/check_pubsub_encryption.c)
         ua_add_test(pubsub/check_pubsub_encryption_aes256.c)
         ua_add_test(pubsub/check_pubsub_decryption.c)
