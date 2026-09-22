@@ -332,6 +332,12 @@ securityPolicyUriPostfix(const UA_String uri) {
 
 static UA_StatusCode
 updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
+    /* Endpoint arrays are part of the public configuration and can be filled
+     * without UA_ServerConfig_addEndpoint. Validate before using the mode as
+     * an index below. */
+    if((UA_UInt32)ed->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+
     /* Don't change the UserIdentityTokens if there are manually configured
      * entries */
     if(ed->userIdentityTokensSize > 0)

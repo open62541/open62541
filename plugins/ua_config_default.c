@@ -224,6 +224,10 @@ static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,
             const UA_SecurityPolicy *securityPolicy,
             UA_MessageSecurityMode securityMode) {
+    if((UA_UInt32)securityMode < UA_MESSAGESECURITYMODE_NONE ||
+       (UA_UInt32)securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+
     /* Test if the endpoint already exists */
     for(size_t i = 0; i < conf->endpointsSize; i++) {
         UA_EndpointDescription *ep = &conf->endpoints[i];
