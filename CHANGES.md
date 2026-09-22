@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub message security with OpenSSL and LibreSSL
+
+The PubSub SecurityPolicies `PubSub-Aes128-CTR` and `PubSub-Aes256-CTR`
+(`UA_PubSubSecurityPolicy_Aes128Ctr`, `UA_PubSubSecurityPolicy_Aes256Ctr`) are
+now available with every `UA_ENABLE_ENCRYPTION` backend. They were limited to
+mbedTLS before. The PubSub security tests and the encrypted PubSub examples
+build with OpenSSL and LibreSSL as well.
+
 ### PubSub security-policy nonce lengths
 
 Custom `UA_PubSubSecurityPolicy` implementations must initialize the new
