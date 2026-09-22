@@ -911,6 +911,24 @@ START_TEST(evaluateFilterWhereClause) {
 }
 END_TEST
 
+START_TEST(evaluateFilterRejectsOutOfRangeOperator) {
+    static const UA_Int32 operators[] = {-1, 18, UA_INT32_MAX};
+    UA_ContentFilterElement element;
+    UA_ContentFilterElement_init(&element);
+    element.filterOperator = (UA_FilterOperator)operators[_i];
+    UA_ContentFilter filter = {1, &element};
+    UA_ContentFilterResult result;
+    UA_ContentFilterResult_init(&result);
+    UA_NodeId eventNodeId = UA_NODEID_NUMERIC(1, 1);
+
+    lockServer(server);
+    UA_StatusCode retval =
+        evaluateWhereClause(server, &server->adminSession, &eventNodeId,
+                            &filter, &result);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -930,6 +948,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
+    tcase_add_loop_test(tc_server, evaluateFilterRejectsOutOfRangeOperator, 0, 3);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 

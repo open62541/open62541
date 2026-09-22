@@ -932,6 +932,14 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
     if(contentFilter->elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
+    /* Filters stored in the information model can reach this evaluator
+     * without passing through MonitoredItem creation-time validation. */
+    for(size_t i = 0; i < contentFilter->elementsSize; i++) {
+        if((UA_UInt32)contentFilter->elements[i].filterOperator >
+           UA_FILTEROPERATOR_BITWISEOR)
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    }
+
     /* Prepare the context */
     UA_FilterEvalContext ctx;
     ctx.filterResult = contentFilterResult;
