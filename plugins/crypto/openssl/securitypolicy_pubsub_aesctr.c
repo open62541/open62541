@@ -93,11 +93,7 @@ clearSigningKey(UA_ByteString *key) {
 static UA_StatusCode
 keyMacCtx(PubSubAesCtrMacCtx *ctx, const UA_ByteString *key) {
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
-    char digest[] = "SHA256";
-    OSSL_PARAM params[2];
-    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, digest, 0);
-    params[1] = OSSL_PARAM_construct_end();
-    if(EVP_MAC_init(ctx, key->data, key->length, params) != 1)
+    if(EVP_MAC_init(ctx, key->data, key->length, NULL) != 1)
         return UA_STATUSCODE_BADINTERNALERROR;
 #else
     if(HMAC_Init_ex(ctx, key->data, (int)key->length, EVP_sha256(), NULL) != 1)
@@ -129,7 +125,20 @@ importSigningKey(const UA_ByteString *key, UA_ByteString *keyCopy,
         clearSigningKey(keyCopy);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+    char digest[] = "SHA256";
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, digest, 0);
+    params[1] = OSSL_PARAM_construct_end();
+    if(EVP_MAC_CTX_set_params(ctx, params) != 1) {
+        freeMacCtx(ctx);
+        clearSigningKey(keyCopy);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+#endif
     res = keyMacCtx(ctx, keyCopy);
+
     if(res != UA_STATUSCODE_GOOD) {
         freeMacCtx(ctx);
         clearSigningKey(keyCopy);
