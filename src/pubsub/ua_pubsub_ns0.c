@@ -69,6 +69,31 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     return resultNodeId;
 }
 
+static UA_Boolean
+isDirectlyReferencedBy(UA_Server *server, const UA_NodeId *parentId,
+                       const UA_NodeId *childId, UA_UInt32 referenceType) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *parentId;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceType);
+    bd.includeSubtypes = false;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_Boolean found = false;
+    if(br.statusCode == UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_ExpandedNodeId_isLocal(&br.references[i].nodeId) &&
+               UA_NodeId_equal(&br.references[i].nodeId.nodeId, childId)) {
+                found = true;
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return found;
+}
+
 static void
 onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeid, void *context,
@@ -1041,6 +1066,9 @@ removeDataSetReaderAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *)input[0].data);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, nodeToRemove);
+    if(!dsr || !UA_NodeId_equal(&dsr->linkedReaderGroup, objectId))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_removeDataSetReader(server, nodeToRemove);
 }
 
@@ -1104,6 +1132,9 @@ removeDataSetFolderAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    if(!isDirectlyReferencedBy(server, objectId, &nodeToRemove,
+                               UA_NS0ID_ORGANIZES))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_deleteNode(server, nodeToRemove, true);
 }
 
@@ -1291,6 +1322,9 @@ removePublishedDataSetAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    if(!isDirectlyReferencedBy(server, objectId, &nodeToRemove,
+                               UA_NS0ID_HASCOMPONENT))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_removePublishedDataSet(server, nodeToRemove);
 }
 
@@ -1622,12 +1656,16 @@ removeGroupAction(UA_Server *server,
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
     if(wg) {
+        if(!wg->linkedConnection ||
+           !UA_NodeId_equal(&wg->linkedConnection->identifier, objectId))
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(wg->configurationFrozen)
             UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
         return UA_Server_removeWriterGroup(server, nodeToRemove);
     }
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
-    if(!rg)
+    if(!rg || !rg->linkedConnection ||
+       !UA_NodeId_equal(&rg->linkedConnection->identifier, objectId))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     if(rg->configurationFrozen)
@@ -2033,6 +2071,9 @@ removeDataSetWriterAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, nodeToRemove);
+    if(!dsw || !UA_NodeId_equal(&dsw->linkedWriterGroup, objectId))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_removeDataSetWriter(server, nodeToRemove);
 }
 

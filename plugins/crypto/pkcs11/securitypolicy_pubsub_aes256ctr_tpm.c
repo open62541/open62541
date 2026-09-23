@@ -263,6 +263,13 @@ channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext,
                                                   const UA_ByteString *keyNonce,
                                                   void **wgContext) {
 
+    if(!signingKey || !encryptingKey || !keyNonce || !wgContext ||
+       keyNonce->length != UA_AES256CTR_KEYNONCE_LENGTH ||
+       ((signingKey->length != 0 || encryptingKey->length != 0) &&
+        (signingKey->length != sizeof(unsigned long) ||
+         encryptingKey->length != sizeof(unsigned long))))
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     /* Allocate the channel context */
     PUBSUB_AES256CTR_ChannelContext *cc = (PUBSUB_AES256CTR_ChannelContext *)
         UA_calloc(1, sizeof(PUBSUB_AES256CTR_ChannelContext));
@@ -302,11 +309,14 @@ channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext,
             return rv;
         }
     } else {
-        memcpy(&cc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
-        memcpy(&cc->signingKeyHandle, signingKey->data, sizeof(signingKey));
+        memcpy(&cc->encryptingKeyHandle, encryptingKey->data,
+               sizeof(cc->encryptingKeyHandle));
+        memcpy(&cc->signingKeyHandle, signingKey->data,
+               sizeof(cc->signingKeyHandle));
     }
 
-    memcpy(&cc->keyNonceHandle, keyNonce->data, keyNonce->length);
+    memcpy(&cc->keyNonceHandle, keyNonce->data,
+           UA_AES256CTR_KEYNONCE_LENGTH);
 
     *wgContext = cc;
 
@@ -559,9 +569,18 @@ channelContext_setKeys_sp_pubsub_aes256ctr_tpm(PUBSUB_AES256CTR_ChannelContext *
                                                const UA_ByteString *encryptingKey,
                                                const UA_ByteString *keyNonce) {
 
-    memcpy(&cc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
-    memcpy(&cc->signingKeyHandle, signingKey->data, sizeof(signingKey));
-    memcpy(&cc->keyNonceHandle, keyNonce->data, sizeof(keyNonce));
+    if(!cc || !signingKey || !encryptingKey || !keyNonce ||
+       signingKey->length != sizeof(cc->signingKeyHandle) ||
+       encryptingKey->length != sizeof(cc->encryptingKeyHandle) ||
+       keyNonce->length != UA_AES256CTR_KEYNONCE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    memcpy(&cc->encryptingKeyHandle, encryptingKey->data,
+           sizeof(cc->encryptingKeyHandle));
+    memcpy(&cc->signingKeyHandle, signingKey->data,
+           sizeof(cc->signingKeyHandle));
+    memcpy(&cc->keyNonceHandle, keyNonce->data,
+           UA_AES256CTR_KEYNONCE_LENGTH);
     return UA_STATUSCODE_GOOD;
 }
 
