@@ -2564,6 +2564,24 @@ START_TEST(PublicApiIgnoresInvalidReceiveRecords) {
 }
 END_TEST
 
+START_TEST(DisabledNetworkRemovalReleasesLock) {
+    UA_Server *local = UA_Server_newForUnitTest();
+    UA_Server_getConfig(local)->serversOnNetworkEnabled = false;
+    ck_assert_uint_eq(UA_Server_deregisterServerOnNetwork(local, UA_STRING("missing")),
+                      UA_STATUSCODE_BADNOTIMPLEMENTED);
+#if UA_MULTITHREADING >= 100
+    unsigned count = local->serviceMutex.count;
+    /* Release a leaked recursive lock so the regression itself can clean up. */
+    if(count)
+        unlockServer(local);
+    UA_Server_delete(local);
+    ck_assert_uint_eq(count, 0);
+#else
+    UA_Server_delete(local);
+#endif
+}
+END_TEST
+
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST_MDNSD */
 
 static Suite *
@@ -2573,6 +2591,9 @@ testSuite_DiscoveryMdnsd(void) {
     addDriverInterfaceTests(s);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    TCase *regressions = tcase_create("Discovery lock regression");
+    tcase_add_test(regressions, DisabledNetworkRemovalReleasesLock);
+    suite_add_tcase(s, regressions);
     TCase *tc = tcase_create("Send path scaffolding");
     tcase_add_unchecked_fixture(tc, setup_server, teardown_server);
     tcase_add_test(tc, MdnsStartupOpensReceiveAndSendConnections);

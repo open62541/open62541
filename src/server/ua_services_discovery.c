@@ -526,8 +526,10 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
                                     const UA_String serverName) {
     lockServer(server);
 
-    if(!server->config.serversOnNetworkEnabled)
+    if(!server->config.serversOnNetworkEnabled) {
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
 
     /* Find the entry */
     for(size_t i = 0; i < server->serversOnNetworkSize; i++) {
