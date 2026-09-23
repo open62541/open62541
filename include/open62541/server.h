@@ -128,7 +128,9 @@ UA_EXPORT UA_StatusCode
 UA_Server_runUntilInterrupt(UA_Server *server);
 
 /* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+ * UA_Server_run or UA_Server_runUntilInterrupt). If startup fails while the
+ * server is STOPPING, keep driving an external EventLoop until STOPPED before
+ * retrying startup. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
@@ -143,8 +145,14 @@ UA_Server_run_startup(UA_Server *server);
 UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
-/* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+/* Shut down the server (also called by UA_Server_run / runUntilInterrupt).
+ * Pending async operations are canceled; the application must still complete
+ * them with the matching UA_Server_setAsync*Result calls.
+ * With an external EventLoop, this initiates shutdown: continue driving the
+ * loop until the server reaches STOPPED. Otherwise, this drives the loop and
+ * waits for shutdown. Calls made while already STOPPING return Good immediately.
+ * Starting shutdown during Read/Write/Call dispatch or async callbacks returns
+ * BadInvalidState; defer it until the callback returns. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 
@@ -262,7 +270,9 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_UInt32 channelId,
 void UA_EXPORT
 UA_Server_setAdminSessionContext(UA_Server *server, void *context);
 
-/* Manually close a session */
+/* Manually close a session. New requests are rejected immediately. While the
+ * server is running, final notifications and session-context cleanup are
+ * deferred to the event loop, after outstanding async responses are processed. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
@@ -695,8 +705,11 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-/* Delete a local MonitoredItem. Used for both DataChange- and
- * Event-MonitoredItems. */
+/* Delete a local DataChange- or Event-MonitoredItem.
+ *
+ * If an application read callback has deferred completion, deletion does not
+ * cancel the read. The application must still call UA_Server_setAsyncReadResult;
+ * the completed sample is discarded. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
@@ -710,7 +723,11 @@ typedef void (*UA_Server_DataChangeNotificationCallback)
  * notify the userland about value changes. Note that the sampling interval can
  * also be zero to be notified about changes "right away". For this we hook the
  * MonitoredItem into the observed Node and check the filter after every call of
- * the Write-Service. */
+ * the Write-Service.
+ *
+ * Sampling occurs only while the server is STARTED. Items created before
+ * startup wait for their next sampling trigger, not startup itself. This is
+ * the next write for zero-interval items sampled on writes. */
 
 /* Create a local MonitoredItem to detect data changes.
  *
@@ -885,24 +902,17 @@ typedef struct {
 } UA_ValueSourceNotifications;
 
 typedef struct {
-    /* Copies the data from the source into the provided value.
+    /* Read from a data source into value. Set hasValue when supplying a value.
      *
-     * !! ZERO-COPY OPERATIONS POSSIBLE !!
-     * It is not required to return a copy of the actual content data. You can
-     * return a pointer to memory owned by the user. Memory can be reused
-     * between read callbacks of a DataSource, as the result is already encoded
-     * on the network buffer between each read operation.
+     * On synchronous completion with GOOD and hasValue, Variant data marked
+     * UA_VARIANT_DATA_NODELETE is copied after the callback returns. It must
+     * remain valid and unchanged until that copy completes; it must not point
+     * into the callback's stack. This is not a zero-copy network response.
      *
-     * To use zero-copy reads, set the value of the `value->value` Variant
-     * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
-     * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
-     * memory being cleaned up. Don't forget to also set `value->hasValue` to
-     * true to indicate the presence of a value.
-     *
-     * To make an async read, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
-     * The result can then be set at a later time using
-     * UA_Server_setAsyncReadResult. Note that the server might cancel the async
-     * read by calling serverConfig->asyncOperationCancelCallback.
+     * For asynchronous completion, return GOODCOMPLETESASYNCHRONOUSLY and later
+     * pass the same value pointer to UA_Server_setAsyncReadResult. Use owned
+     * result data (e.g. UA_Variant_setScalarCopy), not temporary worker memory.
+     * See Async Operations for ownership and cancellation rules.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -919,9 +929,9 @@ typedef struct {
      * @param value The (non-null) DataValue that is returned to the client. The
      *        data source sets the read data, the result status and optionally a
      *        sourcetimestamp.
-     * @return Returns a status code for logging. Error codes intended for the
-     *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     * @return GOOD on synchronous completion, GOODCOMPLETESASYNCHRONOUSLY to
+     *         defer completion, or an error reported to the caller. A status
+     *         set in value is also returned to the caller (set hasStatus). */
     UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
@@ -930,10 +940,11 @@ typedef struct {
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
      *
-     * To make an async write, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
-     * The result can then be set at a later time using
-     * UA_Server_setAsyncWriteResult. Note that the server might cancel the
-     * async read by calling serverConfig->asyncOperationCancelCallback.
+     * For asynchronous completion, return GOODCOMPLETESASYNCHRONOUSLY and later
+     * pass the same value pointer to UA_Server_setAsyncWriteResult. The pointer
+     * is only an identifier after this callback returns: copy any input data
+     * needed by the worker before returning. See Async Operations for ownership
+     * and cancellation rules.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -941,16 +952,12 @@ typedef struct {
      *        access control layer
      * @param nodeId The identifier of the node being written to
      * @param nodeContext Additional data attached to the node by the user
-     * @param range If not NULL, then the datasource shall return only a
-     *        selection of the (nonscalar) data. Set
-     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
-     *        apply
+     * @param range If not NULL, write only the selected range of the array.
+     *        Return BADINDEXRANGEINVALID if the range is invalid.
      * @param value The (non-NULL) DataValue that has been written by the client.
-     *        The data source contains the written data, the result status and
-     *        optionally a sourcetimestamp
-     * @return Returns a status code for logging. Error codes intended for the
-     *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     *        Its contents are borrowed for the duration of this callback.
+     * @return The write status, or GOODCOMPLETESASYNCHRONOUSLY to defer
+     *         completion and supply the write status via the result setter. */
     UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
@@ -1057,7 +1064,14 @@ UA_Server_addVariableTypeNode(UA_Server *server,
  * ~~~~~~~~~~
  * Please refer to the :ref:`Method Service Set <server-method-call>` to get
  * information about which MethodNodes may get executed and would thus require
- * callbacks to be registered. */
+ * callbacks to be registered.
+ *
+ * The method callback fills the server-provided output array and returns the
+ * operation status. To defer completion, return
+ * ``UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY`` and later pass the same output
+ * pointer to ``UA_Server_setAsyncCallMethodResult``. Copy any input arguments
+ * needed after the callback returns. See :ref:`async-operations` for ownership
+ * and cancellation rules. */
 
 typedef UA_StatusCode
 (*UA_MethodCallback)(UA_Server *server,
@@ -1465,67 +1479,93 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  *
  * Async Operations
  * ----------------
- * Some operations can take time, such as reading a sensor that needs to warm up
- * first. In order not to block the server, a long-running operation can be
- * handled asynchronously and the result returned at a later time. The core idea
- * is that a userland callback can return
- * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY as the statuscode to signal that it
- * wishes to complete the operation later.
+ * Read, Write and Call callbacks can return
+ * ``UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY`` to finish later without blocking
+ * the server. Read/Write require a ``UA_CallbackValueSource``; values stored
+ * directly in a VariableNode are handled synchronously.
+ * See :doc:`tutorial_server_method_async` for an event-loop example.
  *
- * Currently, async operations are supported for the services
+ * Completion and ownership
+ * ~~~~~~~~~~~~~~~~~~~~~~~~
+ * Schedule the work, then return from the initiating callback. Once finished,
+ * call the matching ``UA_Server_setAsync*Result`` exactly once with the original
+ * pointer: the Read DataValue, Write value identifier, or Call output array.
+ * Do not call the setter from inside the initiating callback; return a normal
+ * status code for synchronous completion.
  *
- * - Read
- * - Write
- * - Call
+ * The application owns Read/Call output until the setter takes it back. The
+ * server may then free or reuse it; do not access it after handoff. Use owned
+ * result data, which the server clears after use. Callback inputs do not gain
+ * an extended lifetime: copy any data needed later. In particular, the Write
+ * value pointer is only an identifier after the callback returns, not retained
+ * input data.
  *
- * with the caveat that read/write need a CallbackValueSource registered for the
- * variable. Values that are stored directly in a VariableNode are written and
- * read immediately.
+ * Setters acquire the server mutex. No external mutex is needed for exclusively
+ * worker-owned output. Shared access to output, work queues or cancellation
+ * flags requires synchronization. Worker threads require
+ * ``UA_MULTITHREADING >= 100``; event-loop work also works without it. Initiating,
+ * cancellation and local result callbacks run under the server mutex: do not
+ * wait in them for a worker that needs to call a server API.
  *
- * Note that an async operation can be cancelled (e.g. after a timeout period or
- * if the caller cannot wait for the result). This is signaled in the configured
- * ``asyncOperationCancelCallback``. The provided memory locations to store the
- * operation output are then no longer valid. */
+ * Cancellation and shutdown
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Cancellation ends the requester's wait. After response handling or local
+ * result delivery, the server calls the optional ``asyncOperationCancelCallback``
+ * for each canceled operation still awaiting its setter call.
+ * Cancellation neither stops application processing nor invalidates Read/Call
+ * output; synchronize concurrent access to it. Cancellation can occur before
+ * the initiating API returns.
+ *
+ * Every operation still needs exactly one setter call to return ownership,
+ * whether processing stops early or finishes normally. Canceled results are
+ * discarded; cancellation does not undo side effects.
+ *
+ * Shutdown cancels pending service and local operations with BADSHUTDOWN and
+ * waits for the application to return ownership via the setters. Continue
+ * completing operations and driving any external event loop until shutdown
+ * completes. See ``UA_Server_run_shutdown``.
+ *
+ * The synchronous local Read/Write/Call APIs cannot wait for async completion.
+ * They cancel deferred operations and return BadWaitingForResponse; the same
+ * ownership rules apply. */
 
-/* When the UA_MethodCallback returns UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY,
- * then an async operation is created in the server for later completion. The
- * output pointer from the method callback is used to identify the async
- * operation. Do not access the output pointer after the operation has been
- * cancelled or after setting the result. */
+/* Complete a Call using the original output array and the operation status.
+ * For all three setters, GOOD confirms the ownership handoff, not delivery to
+ * the requester; BADNOTFOUND means no pending operation matches the pointer
+ * and operation type. The ownership and cancellation rules above apply. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
                                    UA_StatusCode result);
 
-/* See the UA_CallbackValueSource documentation */
+/* Complete a Read using the original DataValue, including its result status. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result);
 
-/* See the UA_CallbackValueSource documentation. The value needs to be the
- * pointer used in the write callback. The statuscode is the result signal to be
- * returned asynchronously. */
+/* Complete a Write using the original value pointer as the identifier and
+ * result as the write status. Do not dereference value after the callback. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
- * The server supports asynchronous "local" read/write/call operations. The user
- * supplies a result-callback that gets called either synchronously (if the
- * operation terminates right away) or asynchronously at a later time. The
- * result-callback is called exactly one time for each operation, also if the
- * operation is cancelled. In this case a StatusCode like
- * ``UA_STATUSCODE_BADTIMEOUT`` or ``UA_STATUSCODE_BADSHUTDOWN`` is set.
+ * Local async requests
+ * ~~~~~~~~~~~~~~~~~~~~
+ * These APIs submit a local Read, Write or Call. Supply a non-NULL result
+ * callback. The server must be STARTED; otherwise they return BADSHUTDOWN.
+ * The return code reports whether the request was accepted, not the
+ * operation's result. On GOOD, the result callback is called exactly once,
+ * including on cancellation; on an error return, it is not called.
  *
- * If an operation returns asynchronously, then the result-callback is executed
- * only in the next iteration of the Eventloop. An exception to this is
- * UA_Server_cancelAsync, which can optionally call the result-callback right
- * away (e.g. as part of a cleanup where the context of the result-callback gets
- * removed).
+ * The result callback may run before the API returns if the operation finishes
+ * synchronously. Otherwise the event loop dispatches it after completion or
+ * cancellation.
+ * Result data is borrowed for the duration of the callback; copy it to keep it.
+ * Keep ``asyncOpContext`` valid until the callback finishes, and longer if the
+ * application still uses it. Result delivery does not replace the setter call.
  *
- * Async operations incur a small overhead since memory is allocated to persist
- * the operation over time.
- *
- * The operation timeout is defined in milliseconds. A timeout of zero means
- * infinite. */
+ * Drive the event loop while requests are pending. The per-request timeout is
+ * in milliseconds; zero disables it, independently of ``asyncOperationTimeout``.
+ * Timeouts are checked periodically, not at an exact deadline. */
 
 typedef void(*UA_ServerAsyncReadResultCallback)
     (UA_Server *server, void *asyncOpContext, const UA_DataValue *result);
@@ -1551,34 +1591,6 @@ UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
                      UA_ServerAsyncMethodResultCallback callback,
                      void *asyncOpContext, UA_UInt32 timeout);
 #endif
-
-/**
- * Local async operations can be manually cancelled (besides an internal cancel
- * due to a timeout or server shutdown). The local async operations to be
- * cancelled are selected by matching their asyncOpContext pointer. This can
- * cancel multiple operations that use the same context pointer.
- *
- * For operations where the async result was not yet set, the
- * asyncOperationCancelCallback from the server-config gets called and the
- * cancel-status is set in the operation result.
- *
- * For async operations where the result has already been set, but not yet
- * notified with the result-callback (to be done in the next EventLoop
- * iteration), the asyncOperationCancelCallback is not called and no cancel
- * status is set in the result.
- *
- * Each operation's result-callback gets called exactly once. When the operation
- * is cancelled, the result-callback can be called synchronously using the
- * synchronousResultCallback flag. Otherwise the result gets returned "normally"
- * in the next EventLoop iteration. The synchronous option ensures that all
- * (matching) async operations are fully cancelled right away. This can be
- * important in a cleanup situation where the asyncOpContext is no longer valid
- * in the future. */
-
-void UA_EXPORT UA_THREADSAFE
-UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
-                      UA_StatusCode status,
-                      UA_Boolean synchronousResultCallback);
 
 /**
  * .. _events:
@@ -2446,12 +2458,16 @@ struct UA_ServerConfig {
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
      * See the section for :ref:`async operations<async-operations>`. */
-    UA_Double asyncOperationTimeout;   /* in ms, 0 => unlimited */
-    size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
+    UA_Double asyncOperationTimeout; /* Service requests only, in ms; 0 disables.
+                                     * Local requests use their timeout argument. */
+    size_t maxAsyncOperationQueueSize; /* Admission limit; 0 => unlimited.
+                                       * Canceled operations count until their setter call.
+                                       * Not a hard limit on retained memory. */
 
-    /* Notifies the userland that an async operation has been canceled. The
-     * memory for setting the output value is then freed internally and should
-     * not be touched afterwards. */
+    /* Optional cancellation notification. out is the Read DataValue, Write
+     * value identifier, or Call output array. Read/Call output remains valid
+     * until its setter takes ownership; synchronize concurrent access.
+     * Notification does not replace the setter call. */
     void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -2541,7 +2557,7 @@ struct UA_ServerConfig {
     UA_Boolean auditingEnabled;
 #ifdef UA_ENABLE_AUDITING
     UA_Boolean auditWriteUpdateEnabled;  /* Mind the runtime overhead */
-    UA_Boolean auditMethodUpdateEnabled; /* Mind the runtime overhead */
+    UA_Boolean auditMethodUpdateEnabled; /* Synchronous calls only; mind the overhead */
 #endif
 
     /* Historical Access

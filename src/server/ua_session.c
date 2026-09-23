@@ -230,8 +230,9 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     /* Reduce the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
 
-    /* Send remaining publish responses if the last subscription was removed */
-    if(!releasePublishResponses || !TAILQ_EMPTY(&session->subscriptions))
+    /* Session cleanup drains its Publish queue when detaching the channel. */
+    if(!releasePublishResponses || session->state == UA_SESSIONSTATE_CLOSED ||
+       !TAILQ_EMPTY(&session->subscriptions))
         return;
     UA_PublishResponseEntry *pre;
     while((pre = UA_Session_dequeuePublishReq(session))) {

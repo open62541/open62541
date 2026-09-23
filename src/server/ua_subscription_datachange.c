@@ -285,13 +285,21 @@ static void
 processMonitoredItemAsyncRead(UA_Server *server,
                               void *asyncOpContext /* UA_MonitoredItem */,
                               const UA_DataValue *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
     UA_MonitoredItem *mon = (UA_MonitoredItem*)asyncOpContext;
-    mon->outstandingAsyncReads--;
+
+    /* Ignore controlled-shutdown results */
     UA_DataValue *mut_result = (UA_DataValue*)(uintptr_t)result;
-    if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST)
-        return; /* Controlled shut-down */
+    if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST ||
+       mut_result->status == UA_STATUSCODE_BADSHUTDOWN)
+        goto release; /* Controlled shut-down */
+
+    /* Process the sample and transfer ownership of its value */
     UA_MonitoredItem_processSampledValue(server, mon, mut_result);
     UA_DataValue_init(mut_result);
+release:
+    UA_MonitoredItem_release(server, mon);
 }
 
 void
@@ -299,7 +307,8 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
-    if(UA_MonitoredItem_isDeleting(mon))
+    /* Sampling starts and stops with the server. */
+    if(server->state != UA_LIFECYCLESTATE_STARTED || UA_MonitoredItem_isDeleting(mon))
         return;
 
     UA_Subscription *sub = mon->subscription;
@@ -311,22 +320,24 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
      * readWithSession returns the error-code BADUSERACCESSDENIED. */
     UA_Session *session = (sub) ? sub->session : &server->adminSession;
 
+    /* Retain the item and its read description before application code runs. */
+    mon->outstandingAsyncReads++;
+
     /* Read the value possibly asynchronous */
     UA_StatusCode res = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-    if(UA_LIKELY(mon->outstandingAsyncReads < UA_MONITOREDITEM_ASYNC_MAX)) {
+    if(UA_LIKELY(mon->outstandingAsyncReads <= UA_MONITOREDITEM_ASYNC_MAX)) {
         res = read_async(server, session, &mon->itemToMonitor, mon->timestampsToReturn,
                          processMonitoredItemAsyncRead, mon, 0);
+        if(res == UA_STATUSCODE_GOOD)
+            return;
     }
-    if(res == UA_STATUSCODE_GOOD) {
-        mon->outstandingAsyncReads++;
-    } else {
-        /* Reading failed, process with the StatusCode */
-        UA_DataValue dv;
-        UA_DataValue_init(&dv);
-        dv.hasStatus = true;
-        dv.status = res;
-        UA_MonitoredItem_processSampledValue(server, mon, &dv);
-    }
+    /* Rejected reads do not invoke the result callback. */
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    dv.hasStatus = true;
+    dv.status = res;
+    UA_MonitoredItem_processSampledValue(server, mon, &dv);
+    UA_MonitoredItem_release(server, mon);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

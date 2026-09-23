@@ -64,6 +64,12 @@ cleanupSessionEntry(UA_Server *server, session_list_entry *entry) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Session *session = &entry->session;
 
+    UA_Session_detachFromSecureChannel(server, session);
+#ifdef UA_ENABLE_AUDITING
+    auditCloseSessionEvent(server, session);
+#endif
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
+
     /* Callback into userland access control. The session context remains valid
      * until this delayed teardown runs. */
     if(server->config.accessControl.closeSession) {
@@ -76,10 +82,8 @@ cleanupSessionEntry(UA_Server *server, session_list_entry *entry) {
     UA_free(entry);
 }
 
-/* Delayed callback for destructive session teardown. Logical closure and
- * detachment happen synchronously in UA_Session_remove. Keeping the Session
- * resources alive until the current jobs have completed lets callbacks safely
- * close the Session they are currently using. */
+/* Queued after the Session's async responses. Their SERVICE_END notifications
+ * run before SESSION_CLOSED and before the Session context is released. */
 static void
 cleanupSessionEntryCallback(void *application /* UA_Server */,
                             void *context /* session_list_entry */) {
@@ -103,10 +107,9 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         (session->state == UA_SESSIONSTATE_ACTIVATED);
     session->state = UA_SESSIONSTATE_CLOSED;
 
-    /* Detach the Session from the SecureChannel immediately so transport
-     * teardown and new requests cannot retain the logically closed Session.
-     * Session-owned resources are kept until the delayed callback. */
-    UA_Session_detachFromSecureChannel(server, session);
+    /* Queue async responses before Session cleanup. Already-ready responses
+     * keep their queue position. Late results only return operation storage. */
+    UA_AsyncManager_cancelSession(server, session);
 
     /* Deactivate the session */
     if(wasActivated)
@@ -117,14 +120,6 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
     session_list_entry *sentry = container_of(session, session_list_entry, session);
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
-
-#if UA_MULTITHREADING >= 100
-    /* Pending service responses cannot be delivered after the Session has
-     * been removed. Cancel their operations and finish the response lifecycle
-     * without sending them on the closed Session. */
-    UA_AsyncManager_cancelSession(server, &session->sessionId,
-                                  UA_STATUSCODE_BADSESSIONCLOSED);
-#endif
 
     /* Detach recoverable Subscriptions immediately when the Session times out.
      * Otherwise remove them now. The Session is already closed and absent from
@@ -141,12 +136,6 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         } else {
             UA_Subscription_delete(server, sub, true);
         }
-    }
-
-    UA_PublishResponseEntry *pre;
-    while((pre = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse_clear(&pre->response);
-        UA_free(pre);
     }
 #endif
 
@@ -171,19 +160,10 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         break;
     }
 
-    /* Create an audit event
-     * TODO: Include the shutdown reason in the audit event */
-#ifdef UA_ENABLE_AUDITING
-    auditCloseSessionEvent(server, session);
-#endif
-
-    /* Notify the application */
-    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
-
-    /* There cannot be callbacks still using the Session once the Server is
-     * stopped. In particular, UA_Server_delete should not enqueue work into an
-     * EventLoop that it is about to delete. */
-    if(server->state == UA_LIFECYCLESTATE_STOPPED) {
+    /* Final deletion disables the drained async manager before callbacks run.
+     * Reclaim inline even though the reentrancy guard sets the server STOPPING;
+     * an external EventLoop can outlive the server. */
+    if(server->state == UA_LIFECYCLESTATE_STOPPED || !server->asyncManager.driver.server) {
         cleanupSessionEntry(server, sentry);
         return;
     }

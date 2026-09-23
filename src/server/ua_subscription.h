@@ -119,7 +119,7 @@ typedef enum {
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
     ZIP_ENTRY(UA_MonitoredItem) idTreeEntry; /* Index by Id */
-    UA_Subscription *subscription;           /* Always non-NULL */
+    UA_Subscription *subscription; /* NULL after logical deletion */
     UA_UInt32 monitoredItemId;
 
     /* Status and Settings */
@@ -161,7 +161,9 @@ struct UA_MonitoredItem {
     UA_DataValue lastValue;
     UA_Boolean semanticsChangedPending; /* Add the SemanticsChanged bit to the
                                          * next DataChange notification */
-    UA_UInt32 outstandingAsyncReads; /* at most UA_MONITOREDITEM_ASYNC_MAX */
+    /* Retains the item through read dispatch and result processing. Creation
+     * and deletion also hold a reference while notifying the application. */
+    UA_UInt32 outstandingAsyncReads;
 
     /* Triggering Links */
     size_t triggeringLinksSize;
@@ -187,6 +189,7 @@ markSemanticsChanged(UA_Server *server, const UA_NodeId *affected);
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon, UA_Boolean notify);
+void UA_MonitoredItem_release(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
 void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
 

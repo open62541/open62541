@@ -587,8 +587,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Register the Monitoreditem in the server and subscription */
     UA_MonitoredItem_register(server, newMon);
 
-    /* Snapshot the response before entering application code. Deletion clears
-     * the MonitoredItem settings while deallocation remains delayed. */
+    /* Snapshot the creation result before callbacks can change the item. */
     UA_Double revisedSamplingInterval = newMon->parameters.samplingInterval;
     UA_UInt32 revisedQueueSize = newMon->parameters.queueSize;
     UA_UInt32 monitoredItemId = newMon->monitoredItemId;
@@ -601,13 +600,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                              newMon->parameters.samplingInterval,
                              (unsigned long)newMon->parameters.queueSize);
 
-    /* Notify the application. Do this before setting the MonitoringMode.
-     * Because this can trigger a _sample internally. */
+    /* Retain across application callbacks, including deletion before startup.
+     * Notify before setting the MonitoringMode, which can trigger a sample. */
+    newMon->outstandingAsyncReads++;
     notifyMonitoredItem(server, newMon,
                         UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
 
-    /* Deletion from the CREATED callback has already queued delayed cleanup.
-     * Do not reactivate or sample the logically removed MonitoredItem. */
     if(UA_MonitoredItem_isDeleting(newMon))
         goto prepareResponse;
 
@@ -616,11 +614,13 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                             request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_MonitoredItem_delete(server, newMon, true);
+        UA_MonitoredItem_release(server, newMon);
         return;
     }
 
     /* Prepare the response */
 prepareResponse:
+    UA_MonitoredItem_release(server, newMon);
     result->revisedSamplingInterval = revisedSamplingInterval;
     result->revisedQueueSize = revisedQueueSize;
     result->monitoredItemId = monitoredItemId;

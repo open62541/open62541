@@ -356,7 +356,8 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
 
     /* If not defined return a source timestamp of "now".
      * Static nodes always have the current time as source-time. */
-    if(!v->hasSourceTimestamp) {
+    if(retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY &&
+       !v->hasSourceTimestamp) {
         v->sourceTimestamp = el->dateTime_now(el);
         v->hasSourceTimestamp = true;
     }
@@ -368,8 +369,8 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-readValueAttribute(UA_Server *server, UA_Session *session,
-                   const UA_VariableNode *vn, UA_DataValue *v) {
+readValueAttributeRaw(UA_Server *server, UA_Session *session,
+                      const UA_VariableNode *vn, UA_DataValue *v) {
     return readValueAttributeComplete(server, session, vn,
                                       UA_TIMESTAMPSTORETURN_NEITHER, NULL, v);
 }
@@ -387,7 +388,7 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
 static void
 addMissingTimestamps(UA_Server *server, UA_DataValue *v,
               UA_TimestampsToReturn timestampsToReturn,
-              const UA_ReadValueId *id) {
+              UA_UInt32 attributeId) {
     /* Always use the current time as the server-timestamp */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
        timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
@@ -410,13 +411,28 @@ addMissingTimestamps(UA_Server *server, UA_DataValue *v,
         /* Optional behavior and not required by the specification: Always
          * set a SourceTimestamp for the value attribute, even if the value
          * source didn't return one. */
-        if(!v->hasSourceTimestamp && id->attributeId == UA_ATTRIBUTEID_VALUE) {
+        if(!v->hasSourceTimestamp && attributeId == UA_ATTRIBUTEID_VALUE) {
             UA_EventLoop *el = server->config.eventLoop;
             v->sourceTimestamp = el->dateTime_now(el);
             v->hasSourceTimestamp = true;
             v->hasSourcePicoseconds = false;
         }
     }
+}
+
+void
+Operation_Read_complete(UA_Server *server, UA_DataValue *value,
+                        UA_TimestampsToReturn ttr, UA_UInt32 attributeId,
+                        UA_Boolean nonNullable) {
+    /* A Good empty Value is not valid for non-nullable data types. Apply the
+     * same normalization to synchronous and acknowledged async results. */
+    if(nonNullable && (!value->hasValue || UA_Variant_isEmpty(&value->value)) &&
+       (!value->hasStatus || !UA_StatusCode_isBad(value->status))) {
+        value->hasValue = false;
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
+    }
+    addMissingTimestamps(server, value, ttr, attributeId);
 }
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -516,7 +532,8 @@ UA_Boolean
 Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                        const UA_Node *node,
                        UA_TimestampsToReturn timestampsToReturn,
-                       const UA_ReadValueId *id, UA_DataValue *v) {
+                       const UA_ReadValueId *id, UA_DataValue *v,
+                       UA_Boolean *nonNullable) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(node != NULL);
     UA_LOG_TRACE_SESSION(server->config.logging, session,
@@ -532,7 +549,7 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
         else
            v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
         v->hasStatus = true;
-        addMissingTimestamps(server, v, timestampsToReturn, id);
+        addMissingTimestamps(server, v, timestampsToReturn, id->attributeId);
         return true;
     }
 
@@ -540,7 +557,7 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
     if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
-        addMissingTimestamps(server, v, timestampsToReturn, id);
+        addMissingTimestamps(server, v, timestampsToReturn, id->attributeId);
         return true;
     }
 
@@ -788,42 +805,41 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
+    /* Snapshot type metadata for deferred completion. Short-circuit before
+     * inspecting v when it belongs to a worker. Ordinary nonempty synchronous
+     * reads do not need an extra datatype lookup. */
+    UA_Boolean needsValue =
+        (retval == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY ||
+         (retval == UA_STATUSCODE_GOOD && UA_Variant_isEmpty(&v->value))) &&
+        id->attributeId == UA_ATTRIBUTEID_VALUE &&
+        (node->head.nodeClass == UA_NODECLASS_VARIABLE ||
+         node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) &&
+        !isNullableDataType(server, &node->variableNode.dataType);
+    if(nonNullable)
+        *nonNullable = needsValue;
+
+    /* The worker owns the output until it calls the result setter. */
+    if(retval == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY)
+        return false;
+
     /* Reading has failed? */
     if(retval == UA_STATUSCODE_GOOD) {
         v->hasValue = true;
-    } else if(retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
-        /* Signal that reading has failed. Otherwise keep the status returned
-         * from the value source. Ignore the async processing sentinel
-         * status. */
+    } else {
+        /* Signal that reading has failed. */
         v->hasStatus = true;
         v->status = retval;
     }
 
-    /* OPC UA Part 4:  StatusCode Good is only permitted for nullable
-     * DataTypes. Non-nullable must have a Bad StatusCode
-     * when no value is available. Only apply this check if no other
-     * error has occurred. */
-    if(retval == UA_STATUSCODE_GOOD &&
-       v->hasValue && UA_Variant_isEmpty(&v->value) &&
-       (!v->hasStatus || !UA_StatusCode_isBad(v->status)) &&
-       (node->head.nodeClass == UA_NODECLASS_VARIABLE ||
-        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) &&
-       !isNullableDataType(server, &node->variableNode.dataType)) {
-        v->hasValue = false;
-        v->hasStatus = true;
-        v->status = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
-    }
+    Operation_Read_complete(server, v, timestampsToReturn, id->attributeId, needsValue);
 
-    addMissingTimestamps(server, v, timestampsToReturn, id);
-
-    /* Are we done or is this an async read? */
-    return (retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+    return true;
 }
 
 UA_Boolean
 Operation_Read(UA_Server *server, UA_Session *session,
                UA_TimestampsToReturn ttr,
-               const UA_ReadValueId *rvi, UA_DataValue *dv) {
+               const UA_ReadValueId *rvi, UA_DataValue *dv, UA_Boolean *nonNullable) {
     /* Get the node (with only the selected attribute if the NodeStore supports that) */
     UA_UInt32 attrMask = attributeId2AttributeMask((UA_AttributeId)rvi->attributeId);
     const UA_Node *node =
@@ -836,7 +852,7 @@ Operation_Read(UA_Server *server, UA_Session *session,
     }
 
     /* Perform the read operation */
-    UA_Boolean done = Operation_ReadWithNode(server, session, node, ttr, rvi, dv);
+    UA_Boolean done = Operation_ReadWithNode(server, session, node, ttr, rvi, dv, nonNullable);
     UA_NODESTORE_RELEASE(server, node);
     return done;
 }
@@ -858,13 +874,7 @@ readWithSession(UA_Server *server, UA_Session *session,
         return dv;
     }
 
-    UA_Boolean done = Operation_Read(server, session, ttr, item, &dv);
-    if(!done) {
-        if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, &dv);
-        dv.hasStatus = true;
-        dv.status = UA_STATUSCODE_BADWAITINGFORRESPONSE;
-    }
+    readNoAsync(server, session, NULL, ttr, item, &dv);
     return dv;
 }
 
@@ -1868,12 +1878,40 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 static void
 triggerImmediateDataChange(UA_Server *server, UA_Session *session,
                            UA_Node *node, const UA_WriteValue *wvalue) {
-    UA_MonitoredItem *mon = node->head.monitoredItems;
-    for(; mon != NULL; mon = mon->nodeListNext) {
-        /* Zero-interval items form the list prefix. Only items with a
-         * positive sampling interval follow. */
-        if(mon->parameters.samplingInterval > 0.0)
+    if(server->state != UA_LIFECYCLESTATE_STARTED)
+        return;
+
+    /* Snapshot and retain the zero-interval prefix before application code.
+     * Callbacks can remove any listener or change the node's listener list. */
+    size_t count = 0;
+    UA_MonitoredItem *mon;
+    for(mon = node->head.monitoredItems;
+        mon && mon->parameters.samplingInterval == 0.0; mon = mon->nodeListNext)
+        count++;
+    if(count == 0)
+        return;
+    UA_MonitoredItem *localItems[16];
+    UA_MonitoredItem **items = localItems;
+    if(count > 16) {
+        items = (UA_MonitoredItem**)UA_malloc(count * sizeof(*items));
+        if(!items) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not snapshot immediate sampling listeners");
             return;
+        }
+    }
+    mon = node->head.monitoredItems;
+    for(size_t i = 0; i < count; i++, mon = mon->nodeListNext) {
+        items[i] = mon;
+        mon->outstandingAsyncReads++;
+    }
+
+    /* Keep one read per listener, with its own range and timestamps. */
+    for(size_t i = 0; i < count; i++) {
+        mon = items[i];
+        if(server->state != UA_LIFECYCLESTATE_STARTED ||
+           UA_MonitoredItem_isDeleting(mon) || mon->parameters.samplingInterval != 0.0)
+            continue;
         switch(mon->samplingType) {
         case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
             /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
@@ -1893,18 +1931,14 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         /* TODO: Allow async read for datachanges */
         UA_DataValue value;
         UA_DataValue_init(&value);
-        UA_Boolean done =
-            Operation_ReadWithNode(server, session, node,
-                                   mon->timestampsToReturn,
-                                   &mon->itemToMonitor, &value);
-        if(!done) {
-            if(server->config.asyncOperationCancelCallback)
-                server->config.asyncOperationCancelCallback(server, &value);
-            value.hasStatus = true;
-            value.status = UA_STATUSCODE_BADWAITINGFORRESPONSE;
-        }
+        readNoAsync(server, session, node, mon->timestampsToReturn,
+                    &mon->itemToMonitor, &value);
         UA_MonitoredItem_processSampledValue(server, mon, &value);
     }
+    for(size_t i = 0; i < count; i++)
+        UA_MonitoredItem_release(server, items[i]);
+    if(items != localItems)
+        UA_free(items);
 }
 #endif
 
@@ -2190,15 +2224,8 @@ Operation_WriteWithNode(UA_Server *server, UA_Session *session,
         rvi.attributeId = wv->attributeId;
         rvi.indexRange = wv->indexRange;
         UA_DataValue_init(&oldValue);
-        UA_Boolean readDone = Operation_ReadWithNode(
-            server, session, node, UA_TIMESTAMPSTORETURN_NEITHER,
-            &rvi, &oldValue);
-        if(!readDone) {
-            if(server->config.asyncOperationCancelCallback)
-                server->config.asyncOperationCancelCallback(server, &oldValue);
-            oldValue.hasStatus = true;
-            oldValue.status = UA_STATUSCODE_BADWAITINGFORRESPONSE;
-        }
+        readNoAsync(server, session, node, UA_TIMESTAMPSTORETURN_NEITHER,
+                    &rvi, &oldValue);
         server->preventAuditEventRecursion = false;
     } else {
         UA_DataValue_init(&oldValue);
@@ -2253,15 +2280,8 @@ Operation_Write(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     lockServer(server);
-    Operation_Write(server, &server->adminSession, value, &res);
-    /* If writing is async, signal that we can no longer receive the statuscode */
-    if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
-        if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, &value->value);
-        res = UA_STATUSCODE_BADWAITINGFORRESPONSE;
-    }
+    UA_StatusCode res = writeNoAsync(server, &server->adminSession, value);
     unlockServer(server);
     return res;
 }
@@ -2300,15 +2320,7 @@ writeAttribute(UA_Server *server, UA_Session *session,
                              (void*)(uintptr_t)attr, attr_type);
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    Operation_Write(server, session, &wvalue, &res);
-    /* If writing is async, signal that we can no longer receive the statuscode */
-    if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
-        if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, &wvalue.value);
-        res = UA_STATUSCODE_BADWAITINGFORRESPONSE;
-    }
-    return res;
+    return writeNoAsync(server, session, &wvalue);
 }
 
 UA_StatusCode
