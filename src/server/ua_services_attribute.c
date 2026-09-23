@@ -416,6 +416,20 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Browse permits reading every attribute except Value and
+     * RolePermissions, which have dedicated permission bits. */
+    if(session != &server->adminSession &&
+       id->attributeId != UA_ATTRIBUTEID_VALUE &&
+       id->attributeId != UA_ATTRIBUTEID_ROLEPERMISSIONS &&
+       (!session || !server->config.accessControl.allowBrowseNode(
+            server, &server->config.accessControl,
+            &session->sessionId, session->sessionHandle,
+            &node->head.nodeId, node->head.context))) {
+        v->hasStatus = true;
+        v->status = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     /* Read the attribute */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(id->attributeId) {
