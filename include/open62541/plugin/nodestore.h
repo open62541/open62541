@@ -532,7 +532,11 @@ struct UA_Nodestore {
      *
      * The attribute-mask and reference-description indicate if only a subset of
      * the attributes and referencs are to be modified. Other attributes and
-     * references shall not be changed. */
+     * references shall not be changed. This is a contract: through the
+     * returned pointer the server accesses only the selected attributes and
+     * references (and the non-standard entries such as the context pointer),
+     * so a nodestore that composes nodes on demand may return a node that
+     * carries only the selection rather than the complete node. */
     UA_Node * (*getEditNode)(UA_Nodestore *ns, const UA_NodeId *nodeId,
                              UA_UInt32 attributeMask,
                              UA_ReferenceTypeSet references,
