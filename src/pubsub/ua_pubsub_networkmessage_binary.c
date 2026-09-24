@@ -765,19 +765,20 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
 
     /* Get the payload sizes */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    UA_UInt16 dataSetMessageSizes[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
+    size_t dataSetMessageSizes[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
     if(nm->messageCount == 1) {
         /* Not contained in the message, but can be inferred from the
          * remaining message length */
-        UA_UInt16 size = (UA_UInt16)(ctx->ctx.end - ctx->ctx.pos);
-        dataSetMessageSizes[0] = size;
+        dataSetMessageSizes[0] = (size_t)(ctx->ctx.end - ctx->ctx.pos);
     } else {
         if(nm->payloadHeaderEnabled) {
             /* Decode from the message */
             for(size_t i = 0; i < nm->messageCount; i++) {
-                rv = _DECODE_BINARY(&dataSetMessageSizes[i], UINT16);
+                UA_UInt16 size;
+                rv = _DECODE_BINARY(&size, UINT16);
                 UA_CHECK_STATUS(rv, return rv);
-                if(dataSetMessageSizes[i] == 0)
+                dataSetMessageSizes[i] = size;
+                if(size == 0)
                     return UA_STATUSCODE_BADDECODINGERROR;
             }
         } else {
@@ -1757,8 +1758,14 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
                                UA_DataSetMessage *dsm,
                                size_t dsmSize) {
     UA_Byte *begin = ctx->ctx.pos;
+    const UA_Byte *end = ctx->ctx.end;
+    if(dsmSize > (size_t)(end - begin))
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(dsmSize != 0)
+        ctx->ctx.end = begin + dsmSize;
     UA_StatusCode rv = UA_DataSetMessageHeader_decodeBinary(ctx, &dsm->header);
-    UA_CHECK_STATUS(rv, return rv);
+    if(rv != UA_STATUSCODE_GOOD)
+        goto cleanup;
     switch(dsm->header.dataSetMessageType) {
     case UA_DATASETMESSAGE_DATAKEYFRAME:
         rv = UA_DataSetMessage_keyFrame_decodeBinary(ctx, em, dsm);
@@ -1767,22 +1774,29 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
         rv = UA_DataSetMessage_deltaFrame_decodeBinary(ctx, dsm);
         break;
     case UA_DATASETMESSAGE_KEEPALIVE:
-        return UA_STATUSCODE_GOOD; /* Keep-Alive Message contains no Payload Data */
+        break; /* Keep-Alive Message contains no Payload Data */
     default:
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        rv = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        goto cleanup;
     }
 
     /* An invalid message with a known size is skipped to the next DSM. */
     if(!dsm->header.dataSetMessageValid) {
-        if(dsmSize == 0) /* Only possible if the size is known */
-            return UA_STATUSCODE_BADDECODINGERROR;
+        if(dsmSize == 0) { /* Only possible if the size is known */
+            rv = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
         /* The declared span contains the consumed header and remaining data. */
         size_t remaining = (size_t)(ctx->ctx.end - begin);
         size_t consumed = (size_t)(ctx->ctx.pos - begin);
-        if(dsmSize > remaining || dsmSize < consumed)
-            return UA_STATUSCODE_BADDECODINGERROR;
+        if(dsmSize > remaining || dsmSize < consumed) {
+            rv = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
         ctx->ctx.pos = begin + dsmSize;
     }
+ cleanup:
+    ctx->ctx.end = end;
     return rv;
 }
 

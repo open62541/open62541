@@ -656,6 +656,11 @@ UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+/* AuthenticationToken of the session prepared by the message fuzzer. */
+extern UA_NodeId unsafe_fuzz_authenticationToken;
+#endif
+
 /***********/
 /* RefTree */
 /***********/

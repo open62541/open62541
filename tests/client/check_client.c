@@ -92,16 +92,75 @@ START_TEST(ClientConfig_Copy){
     UA_ClientConfig_setDefault(&srcConfig);
     srcConfig.eventLoop->dateTime_now = UA_DateTime_now_fake;
     srcConfig.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    srcConfig.namespaces = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    srcConfig.namespacesSize = 1;
+    srcConfig.namespaces[0] = UA_STRING_ALLOC("urn:test:configured-namespace");
 
     UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client *dstConfigClient = UA_Client_newWithConfig(&dstConfig);
+    ck_assert_ptr_ne(dstConfigClient, NULL);
+    UA_UInt16 nsIndex = 0;
+    retval = UA_Client_getNamespaceIndex(dstConfigClient, srcConfig.namespaces[0], &nsIndex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nsIndex, 2);
     retval = UA_Client_connect(dstConfigClient, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnect(dstConfigClient);
     UA_Client_delete(dstConfigClient);
     UA_ApplicationDescription_clear(&srcConfig.clientDescription);
+    UA_Array_delete(srcConfig.namespaces, srcConfig.namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+}
+END_TEST
+
+START_TEST(ClientConfig_CopyOwnedMembers){
+    UA_ClientConfig srcConfig;
+    UA_ClientConfig dstConfig;
+    memset(&srcConfig, 0, sizeof(srcConfig));
+    memset(&dstConfig, 0, sizeof(dstConfig));
+
+    srcConfig.endpointUrl = UA_STRING_ALLOC("opc.tcp://example:4840");
+    srcConfig.applicationUri = UA_STRING_ALLOC("urn:example:application");
+    srcConfig.authSecurityPolicyUri = UA_STRING_ALLOC("urn:example:auth-policy");
+    srcConfig.sessionName = UA_STRING_ALLOC("copied-session");
+    srcConfig.userTokenPolicy.policyId = UA_STRING_ALLOC("username-policy");
+    srcConfig.userTokenPolicy.securityPolicyUri =
+        UA_STRING_ALLOC("urn:example:user-policy");
+    srcConfig.noSession = true;
+    srcConfig.noReconnect = true;
+    srcConfig.noNewSession = true;
+    srcConfig.tcpReuseAddr = true;
+    srcConfig.allowNonePolicyPassword = true;
+    srcConfig.namespaces = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    srcConfig.namespacesSize = 1;
+    srcConfig.namespaces[0] = UA_STRING_ALLOC("urn:example:namespace");
+
+    UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&srcConfig.endpointUrl, &dstConfig.endpointUrl));
+    ck_assert(UA_String_equal(&srcConfig.applicationUri, &dstConfig.applicationUri));
+    ck_assert(UA_String_equal(&srcConfig.authSecurityPolicyUri,
+                              &dstConfig.authSecurityPolicyUri));
+    ck_assert(UA_String_equal(&srcConfig.sessionName, &dstConfig.sessionName));
+    ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.policyId,
+                              &dstConfig.userTokenPolicy.policyId));
+    ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.securityPolicyUri,
+                              &dstConfig.userTokenPolicy.securityPolicyUri));
+    ck_assert_ptr_ne(srcConfig.endpointUrl.data, dstConfig.endpointUrl.data);
+    ck_assert_ptr_ne(srcConfig.userTokenPolicy.policyId.data,
+                     dstConfig.userTokenPolicy.policyId.data);
+    ck_assert(dstConfig.noSession);
+    ck_assert(dstConfig.noReconnect);
+    ck_assert(dstConfig.noNewSession);
+    ck_assert(dstConfig.tcpReuseAddr);
+    ck_assert(dstConfig.allowNonePolicyPassword);
+    ck_assert_uint_eq(dstConfig.namespacesSize, 1);
+    ck_assert(UA_String_equal(&srcConfig.namespaces[0], &dstConfig.namespaces[0]));
+    ck_assert_ptr_ne(srcConfig.namespaces[0].data, dstConfig.namespaces[0].data);
+
+    UA_ClientConfig_clear(&srcConfig);
+    UA_ClientConfig_clear(&dstConfig);
 }
 END_TEST
 
@@ -970,6 +1029,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, ClientConfig_Copy);
+    tcase_add_test(tc_client, ClientConfig_CopyOwnedMembers);
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);

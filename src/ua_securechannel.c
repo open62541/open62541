@@ -79,7 +79,7 @@ UA_StatusCode
 UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
                                  UA_MessageSecurityMode securityMode) {
     if(securityMode == UA_MESSAGESECURITYMODE_INVALID ||
-       securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+       (UA_UInt32)securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
     UA_SecurityPolicy *sp = channel->securityPolicy;
     if(!sp)

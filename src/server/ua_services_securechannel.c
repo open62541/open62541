@@ -101,7 +101,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
         /* Ensure the SecurityMode does not cause a wrong array access during
          * logging */
-        if(request->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        if((UA_UInt32)request->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
             request->securityMode = UA_MESSAGESECURITYMODE_INVALID;
 
         /* Set the SecurityMode. This overwrites the "temporary SecurityMode"

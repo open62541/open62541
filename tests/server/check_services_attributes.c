@@ -729,6 +729,20 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionForSimpleType) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+START_TEST(ReadSingleAttributeOutOfRange) {
+    static const UA_UInt32 attributeIds[] = {28, 0x80000000u, 0xffffffffu};
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    rvi.attributeId = attributeIds[_i];
+
+    UA_DataValue resp = UA_Server_read(server, &rvi,
+                                       UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(resp.hasStatus);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 static UA_DataValue staticVal;
 static UA_DataValue *staticValPtr;
 
@@ -1794,6 +1808,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionForSimpleType);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
+    tcase_add_loop_test(tc_readSingleAttributes, ReadSingleAttributeOutOfRange, 0, 3);
 
     suite_add_tcase(s, tc_readSingleAttributes);
 

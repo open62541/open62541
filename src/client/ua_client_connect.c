@@ -2873,11 +2873,12 @@ cleanupSession(UA_Client *client) {
 
     /* Clean the latest server's ephemeral public key */
     UA_ByteString_clear(&client->serverEphemeralPubKey);
-    if(client->utpSp && client->utpSpContext) {
+    if(client->utpSp && client->utpSpContext)
         client->utpSp->deleteChannelContext(client->utpSp, client->utpSpContext);
-        client->utpSp = NULL;
-        client->utpSpContext = NULL;
-    }
+    /* The None policy has no context, but its policy reference must still be
+     * reset so a new Session can select a different authentication policy. */
+    client->utpSp = NULL;
+    client->utpSpContext = NULL;
 }
 
 static void

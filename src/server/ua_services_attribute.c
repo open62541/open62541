@@ -60,7 +60,9 @@ static const UA_NodeAttributesMask attr2mask[28] = {
 
 static UA_UInt32
 attributeId2AttributeMask(UA_AttributeId id) {
-    if(UA_UNLIKELY(id > UA_ATTRIBUTEID_ACCESSLEVELEX))
+    /* The enum may be signed. The unsigned cast also rejects values that
+     * became negative when converting the wire-level UInt32. */
+    if(UA_UNLIKELY((UA_UInt32)id > UA_ATTRIBUTEID_ACCESSLEVELEX))
         return UA_NODEATTRIBUTESMASK_NONE;
     return attr2mask[id];
 }
@@ -370,6 +372,21 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
+        return true;
+    }
+
+    /* Browse permits reading every attribute except Value and
+     * RolePermissions, which have dedicated permission bits. */
+    if(session != &server->adminSession &&
+       id->attributeId != UA_ATTRIBUTEID_VALUE &&
+       id->attributeId != UA_ATTRIBUTEID_ROLEPERMISSIONS &&
+       (!session || !server->config.accessControl.allowBrowseNode(
+            server, &server->config.accessControl,
+            &session->sessionId, session->context,
+            &node->head.nodeId, node->head.context))) {
+        v->hasStatus = true;
+        v->status = UA_STATUSCODE_BADUSERACCESSDENIED;
         addMissingTimestamps(server, v, timestampsToReturn, id);
         return true;
     }

@@ -356,6 +356,41 @@ START_TEST(connectUDPMulticastInterfaceName) {
 } END_TEST
 #endif
 
+START_TEST(connectUDPRejectsOversizedMulticastInterface) {
+    setupEL();
+    el->start(el);
+
+    UA_UInt16 port = 30000;
+    UA_Boolean validate = true;
+    UA_String address = UA_STRING("224.0.0.22");
+    char interfaceData[256];
+    memset(interfaceData, 'A', sizeof(interfaceData));
+    UA_String interface = {sizeof(interfaceData), (UA_Byte*)interfaceData};
+
+    UA_KeyValuePair params[4];
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[1].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    params[2].key = UA_QUALIFIEDNAME(0, "interface");
+    UA_Variant_setScalar(&params[2].value, &interface, &UA_TYPES[UA_TYPES_STRING]);
+    params[3].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&params[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap paramsMap = {4, params};
+    TestContext testContext = {0};
+
+    UA_StatusCode retval =
+        cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED)
+        el->run(el, 100);
+    el->free(el);
+    el = NULL;
+}
+END_TEST
+
 START_TEST(connectUDP) {
     setupEL();
     el->start(el);
@@ -661,6 +696,7 @@ int main(void) {
     tcase_add_test(tc, listenUDPAddressArrayUsesPerElementLength);
     tcase_add_test(tc, connectUDP);
     tcase_add_test(tc, connectUDPValidationFails);
+    tcase_add_test(tc, connectUDPRejectsOversizedMulticastInterface);
     tcase_add_test(tc, connectUDPValidationSucceeds);
 #if defined(UA_ARCHITECTURE_LWIP)
     tcase_add_test(tc, connectUDPMulticastInterfaceName);

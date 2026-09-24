@@ -2661,6 +2661,22 @@ START_TEST(nonNormalFormEventFieldsMap) {
     forkServer();
 } END_TEST
 
+START_TEST(evaluateFilterRejectsOutOfRangeOperator) {
+    static const UA_Int32 operators[] = {-1, 18, UA_INT32_MAX};
+    UA_ContentFilterElement element;
+    UA_ContentFilterElement_init(&element);
+    element.filterOperator = (UA_FilterOperator)operators[_i];
+    UA_FilterEvalContext ctx;
+    setupFilterCtx(&ctx, &element, 1);
+
+    lockServer(server);
+    UA_StatusCode retval =
+        evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -2734,6 +2750,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, filterCast_doubleToInt32);
     tcase_add_test(tc_server, filterCast_unsignedPaths);
     tcase_add_test(tc_server, filterEquals_strings);
+    tcase_add_loop_test(tc_server, evaluateFilterRejectsOutOfRangeOperator, 0, 3);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
