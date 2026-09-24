@@ -286,6 +286,9 @@ newContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
                                 const UA_ByteString *encryptingKey,
                                 const UA_ByteString *keyNonce,
                                 void **gContext) {
+    if(keyNonce->length != UA_AES128CTR_KEYNONCE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     /* Allocate the channel context */
     PUBSUB_AES128CTR_GroupContext *gc = (PUBSUB_AES128CTR_GroupContext *)
         UA_calloc(1, sizeof(PUBSUB_AES128CTR_GroupContext));
@@ -322,11 +325,18 @@ newContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
             goto errout;
         }
     } else {
-        memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
-        memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(signingKey));
+        if(encryptingKey->length < sizeof(gc->encryptingKeyHandle) ||
+           signingKey->length < sizeof(gc->signingKeyHandle)) {
+            rv = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            goto errout;
+        }
+        memcpy(&gc->encryptingKeyHandle, encryptingKey->data,
+               sizeof(gc->encryptingKeyHandle));
+        memcpy(&gc->signingKeyHandle, signingKey->data,
+               sizeof(gc->signingKeyHandle));
     }
 
-    memcpy(&gc->keyNonceHandle, keyNonce->data, keyNonce->length);
+    memcpy(&gc->keyNonceHandle, keyNonce->data, UA_AES128CTR_KEYNONCE_LENGTH);
 
     *gContext = gc;
 
@@ -636,9 +646,14 @@ setKeys_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy, void *gContext,
                              const UA_ByteString *keyNonce) {
     PUBSUB_AES128CTR_GroupContext *gc =
         (PUBSUB_AES128CTR_GroupContext *)gContext;
-    memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
-    memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(signingKey));
-    memcpy(&gc->keyNonceHandle, keyNonce->data, sizeof(keyNonce));
+    if(encryptingKey->length < sizeof(gc->encryptingKeyHandle) ||
+       signingKey->length < sizeof(gc->signingKeyHandle) ||
+       keyNonce->length != UA_AES128CTR_KEYNONCE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    memcpy(&gc->encryptingKeyHandle, encryptingKey->data,
+           sizeof(gc->encryptingKeyHandle));
+    memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(gc->signingKeyHandle));
+    memcpy(&gc->keyNonceHandle, keyNonce->data, UA_AES128CTR_KEYNONCE_LENGTH);
     return UA_STATUSCODE_GOOD;
 }
 
