@@ -23,6 +23,7 @@
 #include <poll.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
 #define PUBSUB_CONFIG_FIELD_COUNT 10
