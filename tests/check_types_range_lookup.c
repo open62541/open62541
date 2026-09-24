@@ -150,9 +150,8 @@ START_TEST(nsMapping_local2Remote) {
     ck_assert_uint_eq(UA_NamespaceMapping_local2Remote(&nm, 0), 0);
     ck_assert_uint_eq(UA_NamespaceMapping_local2Remote(&nm, 1), 2);
     ck_assert_uint_eq(UA_NamespaceMapping_local2Remote(&nm, 2), 1);
-    /* Out of range */
-    UA_UInt16 result = UA_NamespaceMapping_local2Remote(&nm, 10);
-    ck_assert(result >= 0xFFF0 || result == 10);  /* UINT16_MAX - index or passthrough */
+    /* Not covered by the mapping table -> returned unchanged */
+    ck_assert_uint_eq(UA_NamespaceMapping_local2Remote(&nm, 10), 10);
 } END_TEST
 
 START_TEST(nsMapping_remote2Local) {
@@ -165,6 +164,10 @@ START_TEST(nsMapping_remote2Local) {
     ck_assert_uint_eq(UA_NamespaceMapping_remote2Local(&nm, 0), 0);
     ck_assert_uint_eq(UA_NamespaceMapping_remote2Local(&nm, 1), 2);
     ck_assert_uint_eq(UA_NamespaceMapping_remote2Local(&nm, 2), 1);
+    /* Not covered by the mapping table -> returned unchanged. A NamespaceIndex
+     * that the server does not declare in its NamespaceArray must reach the
+     * application unaltered instead of being mapped into a reserved range. */
+    ck_assert_uint_eq(UA_NamespaceMapping_remote2Local(&nm, 10), 10);
 } END_TEST
 
 START_TEST(nsMapping_uri2Index) {

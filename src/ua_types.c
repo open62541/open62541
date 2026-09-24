@@ -2990,7 +2990,7 @@ UA_UInt16
 UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
                                  UA_UInt16 localIndex) {
     if(localIndex >= nm->local2remoteSize)
-        return UA_UINT16_MAX - localIndex;
+        return localIndex;
     return nm->local2remote[localIndex];
 }
 
@@ -2998,7 +2998,7 @@ UA_UInt16
 UA_NamespaceMapping_remote2Local(const UA_NamespaceMapping *nm,
                                  UA_UInt16 remoteIndex) {
     if(remoteIndex >= nm->remote2localSize)
-        return UA_UINT16_MAX - remoteIndex;
+        return remoteIndex;
     return nm->remote2local[remoteIndex];
 }
 
