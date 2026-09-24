@@ -474,6 +474,8 @@ typedef union {
 
 typedef void (*UA_NodestoreVisitor)(void *visitorCtx, const UA_Node *node);
 
+#define UA_NODESTORE_HAS_EDITREFERENCE 1
+
 struct UA_Nodestore {
     /* Nodestore context and lifecycle */
     void (*free)(UA_Nodestore *ns);
@@ -570,6 +572,26 @@ struct UA_Nodestore {
 
     /* Removes a node from the nodestore. */
     UA_StatusCode (*removeNode)(UA_Nodestore *ns, const UA_NodeId *nodeId);
+
+    /* Optional single-reference mutation. Return BADNOTSUPPORTED to use the
+     * editable-node fallback. Otherwise return the status codes of the
+     * fallback. The caller relies on them for the second direction of the
+     * reference:
+     *
+     * - BADNODEIDUNKNOWN if the node does not exist
+     * - BADDUPLICATEREFERENCENOTALLOWED if the added reference exists already
+     *   (see UA_Node_addReference)
+     * - UNCERTAINREFERENCENOTDELETED if the deleted reference does not exist
+     *   (see UA_Node_deleteReference)
+     *
+     * A failed operation must leave the node unchanged. The caller serializes
+     * access and performs validation/model-change events. If the second
+     * direction cannot be added, the caller removes the first one again with
+     * this callback. */
+    UA_StatusCode (*editReference)(UA_Nodestore *ns, const UA_NodeId *nodeId,
+                                  UA_Byte referenceTypeIndex, UA_Boolean isForward,
+                                  const UA_ExpandedNodeId *target,
+                                  UA_UInt32 targetNameHash, UA_Boolean add);
 
     /* Maps the ReferenceTypeIndex used for the references to the NodeId of the
      * ReferenceType. The returned pointer is stable until the Nodestore is

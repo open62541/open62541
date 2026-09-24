@@ -2620,6 +2620,32 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
 /* Add References */
 /******************/
 
+/* Add or delete one reference of a node. The optional nodestore callback
+ * spares a nodestore that composes nodes on demand from building the complete
+ * reference list. Otherwise use the editable node, restricted to the
+ * ReferenceType and direction. */
+static UA_StatusCode
+editSingleReference(UA_Server *server, const UA_NodeId *nodeId, UA_Byte ri,
+                    UA_Boolean forward, const UA_ExpandedNodeId *target,
+                    UA_UInt32 nameHash, UA_Boolean add) {
+    UA_Nodestore *ns = server->config.nodestore;
+    if(ns->editReference) {
+        UA_StatusCode res = ns->editReference(ns, nodeId, ri, forward, target,
+                                             nameHash, add);
+        if(res != UA_STATUSCODE_BADNOTSUPPORTED)
+            return res;
+    }
+    UA_Node *node = UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, 0,
+                         UA_REFTYPESET(ri), forward ? UA_BROWSEDIRECTION_FORWARD :
+                                                    UA_BROWSEDIRECTION_INVERSE);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_StatusCode res = add ? UA_Node_addReference(node, ri, forward, target, nameHash) :
+                             UA_Node_deleteReference(node, ri, forward, target);
+    UA_NODESTORE_RELEASE(server, node);
+    return res;
+}
+
 static void
 Operation_addReference_inner(UA_Server *server, UA_Session *session, void *context,
                              const UA_AddReferencesItem *item, UA_StatusCode *retval) {
@@ -2666,13 +2692,13 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
     UA_Byte refTypeIndex = refType->referenceTypeNode.referenceTypeIndex;
     UA_NODESTORE_RELEASE(server, refType);
 
-    /* Get the source and target node (editable). Include only the BrowseName
-     * and the relevant ReferenceType and direction. Don't modify the target
-     * node if it lives on a different server. */
-    UA_Node *targetNode = NULL;
+    /* Read source/target metadata for validation and target-name hashes.
+     * Reference mutation is dispatched separately. Remote targets have no
+     * local inverse reference. */
+    const UA_Node *targetNode = NULL;
     if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
         /* Local self-references are not supported. Check existence before
-         * rejecting them, without acquiring the same node twice for editing. */
+         * rejecting them. */
         if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
             const UA_Node *node =
                 UA_NODESTORE_GET_SELECTIVE(server, &item->sourceNodeId,
@@ -2694,11 +2720,10 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
             return;
         }
         targetNode =
-            UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->targetNodeId.nodeId,
-                                            UA_NODEATTRIBUTESMASK_BROWSENAME,
-                                            UA_REFTYPESET(refTypeIndex),
-                                            (!item->isForward) ?
-                                            UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
+            UA_NODESTORE_GET_SELECTIVE(server, &item->targetNodeId.nodeId,
+                                       UA_NODEATTRIBUTESMASK_BROWSENAME |
+                                       UA_NODEATTRIBUTESMASK_NODECLASS,
+                                       UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
         if(!targetNode) {
             UA_LOG_DEBUG_SESSION(server->config.logging, session,
                                  "Cannot add reference - target %N does not exist",
@@ -2719,12 +2744,10 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
         }
     }
 
-    UA_Node *sourceNode =
-        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->sourceNodeId,
-                                        UA_NODEATTRIBUTESMASK_BROWSENAME,
-                                        UA_REFTYPESET(refTypeIndex),
-                                        item->isForward ?
-                                        UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
+    const UA_Node *sourceNode =
+        UA_NODESTORE_GET_SELECTIVE(server, &item->sourceNodeId,
+                                   UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!sourceNode) {
         if(targetNode)
             UA_NODESTORE_RELEASE(server, targetNode);
@@ -2736,8 +2759,8 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
      * targetNode is NULL (their browse name is not available locally). */
     UA_UInt32 targetNameHash = targetNode ?
         UA_QualifiedName_hash(&targetNode->head.browseName) : 0;
-    *retval = UA_Node_addReference(sourceNode, refTypeIndex, item->isForward,
-                                   &item->targetNodeId, targetNameHash);
+    *retval = editSingleReference(server, &item->sourceNodeId, refTypeIndex, item->isForward,
+                                   &item->targetNodeId, targetNameHash, true);
     UA_Boolean firstExisted = false;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
@@ -2753,8 +2776,8 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
         UA_ExpandedNodeId_init(&expSourceId);
         expSourceId.nodeId = item->sourceNodeId;
         UA_UInt32 sourceNameHash = UA_QualifiedName_hash(&sourceNode->head.browseName);
-        *retval = UA_Node_addReference(targetNode, refTypeIndex, !item->isForward,
-                                       &expSourceId, sourceNameHash);
+        *retval = editSingleReference(server, &item->targetNodeId.nodeId, refTypeIndex, !item->isForward,
+                                       &expSourceId, sourceNameHash, true);
         if(*retval == UA_STATUSCODE_GOOD)
             secondChanged = true;
 
@@ -2770,7 +2793,8 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
         /* Remove the first direction if the second direction failed. Only if
          * it was added here: a reference that existed before stays. */
         if(*retval != UA_STATUSCODE_GOOD && firstChanged) {
-            UA_Node_deleteReference(sourceNode, refTypeIndex, item->isForward, &item->targetNodeId);
+            (void)editSingleReference(server, &item->sourceNodeId, refTypeIndex,
+                                      item->isForward, &item->targetNodeId, 0, false);
             firstChanged = false;
         }
     }
@@ -2894,17 +2918,8 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
     // TODO: Check consistency constraints, remove the references.
 
     /* Delete the reference in this direction */
-    UA_Node *firstNode =
-        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->sourceNodeId, 0,
-                                        UA_REFTYPESET(refTypeIndex),
-                                        item->isForward ?
-                                        UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
-    if(firstNode) {
-        *retval = UA_Node_deleteReference(firstNode, refTypeIndex, item->isForward, &item->targetNodeId);
-    } else {
-        *retval = UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
-    UA_NODESTORE_RELEASE(server, firstNode);
+    *retval = editSingleReference(server, &item->sourceNodeId, refTypeIndex,
+                                   item->isForward, &item->targetNodeId, 0, false);
     if(*retval != UA_STATUSCODE_GOOD)
         return;
     recordModelChangeEvent(server, &item->sourceNodeId,
@@ -2918,15 +2933,12 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
         UA_ExpandedNodeId target2;
         UA_ExpandedNodeId_init(&target2);
         target2.nodeId = item->sourceNodeId;
-        UA_Node *secondNode =
-            UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->targetNodeId.nodeId, 0,
-                                            UA_REFTYPESET(refTypeIndex),
-                                            (!item->isForward) ?
-                                            UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
-        if(secondNode) {
-            *retval = UA_Node_deleteReference(secondNode, refTypeIndex, !item->isForward, &target2);
-            UA_NODESTORE_RELEASE(server, secondNode);
-            if(*retval == UA_STATUSCODE_GOOD)
+        UA_StatusCode second = editSingleReference(server, &item->targetNodeId.nodeId,
+                                                   refTypeIndex, !item->isForward,
+                                                   &target2, 0, false);
+        if(second != UA_STATUSCODE_BADNODEIDUNKNOWN) {
+            *retval = second;
+            if(second == UA_STATUSCODE_GOOD)
                 recordModelChangeEvent(server, &item->targetNodeId.nodeId,
                                   UA_MODELCHANGESTRUCTUREVERBMASK_REFERENCEDELETED);
         }
