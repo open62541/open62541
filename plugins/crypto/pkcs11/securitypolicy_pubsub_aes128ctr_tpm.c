@@ -302,7 +302,7 @@ newContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Initialize session failed 0x%.8lX",
                      (long unsigned int)rv);
-        return rv;
+        goto errout;
     }
 
     /* Initialize the channel context
@@ -319,7 +319,7 @@ newContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "getSecurityKeys failed 0x%.8lX",
                          (long unsigned int)rv);
-            return rv;
+            goto errout;
         }
     } else {
         memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
@@ -335,6 +335,13 @@ newContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
 #endif
 
     return UA_STATUSCODE_GOOD;
+
+errout:
+#if UA_MULTITHREADING >= 100
+    pthread_mutex_unlock(&initLock128_g);
+#endif
+    UA_free(gc);
+    return rv;
 }
 
 static void
