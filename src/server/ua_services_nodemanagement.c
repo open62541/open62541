@@ -123,8 +123,8 @@ callEarlyConstructors(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADNODECLASSINVALID;
         }
         const UA_Node *type =
-            getNodeType(server, &node->head, ~(UA_UInt32)0,
-                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+            getNodeType(server, &node->head, 0,
+                        UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
         UA_NODESTORE_RELEASE(server, node);
 
         if(type) {
@@ -1175,7 +1175,9 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
      * and type-nodes. See the above checks. */
     if(!UA_NodeId_isNull(typeDefinitionId)) {
         /* Get the type node */
-        type = UA_NODESTORE_GET(server, typeDefinitionId);
+        type = UA_NODESTORE_GET_SELECTIVE(server, typeDefinitionId,
+                                         UA_NODEATTRIBUTESMASK_ISABSTRACT,
+                                         UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
         if(!type) {
             UA_LOG_INFO_SESSION(server->config.logging, session,
                                 "AddNode (%N): Node type %N not found ",
@@ -1558,13 +1560,13 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
             continue;
         }
 
-        /* TODO: Do we need all attributes and references here?  */
+        /* Only lifecycle state is used from the child type. */
         const UA_Node *targetType = NULL;
         if(target->head.nodeClass == UA_NODECLASS_VARIABLE ||
            target->head.nodeClass == UA_NODECLASS_OBJECT) {
-            targetType = getNodeType(server, &target->head, ~(UA_UInt32)0,
-                                     UA_REFERENCETYPESET_ALL,
-                                     UA_BROWSEDIRECTION_BOTH);
+            targetType = getNodeType(server, &target->head, 0,
+                                     UA_REFERENCETYPESET_NONE,
+                                     UA_BROWSEDIRECTION_INVALID);
             if(!targetType) {
                 UA_NODESTORE_RELEASE(server, target);
                 retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -1791,13 +1793,13 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             goto cleanup;
     }
 
-    /* Get the type node
-     * TODO: Do we need all attributes and references here?  */
+    /* Type checking and construction use attributes and lifecycle state.
+     * Child instantiation browses the type independently. */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE ||
        node->head.nodeClass == UA_NODECLASS_OBJECT) {
         type = getNodeType(server, &node->head, ~(UA_UInt32)0,
-                           UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+                           UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
         if(!type) {
             if(server->bootstrapNS0)
                 goto constructor;
@@ -2233,14 +2235,13 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         if(!member)
             continue;
 
-        /* Call the type-level destructor
-         * TODO: Do we need all attributes and references here?  */
+        /* The type-level destructor only needs lifecycle state. */
         void *context = member->head.context; /* No longer needed after this function */
         if(member->head.nodeClass == UA_NODECLASS_OBJECT ||
            member->head.nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_Node *type =
-                getNodeType(server, &member->head, ~(UA_UInt32)0,
-                            UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+                getNodeType(server, &member->head, 0,
+                            UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
             if(type) {
                /* Get the lifecycle */
                const UA_NodeTypeLifecycle *lifecycle;
@@ -2565,7 +2566,10 @@ Operation_addReference_inner(UA_Server *server, UA_Session *session, void *conte
     }
 
     /* Check the ReferenceType and get the index */
-    const UA_Node *refType = UA_NODESTORE_GET(server, &item->referenceTypeId);
+    const UA_Node *refType =
+        UA_NODESTORE_GET_SELECTIVE(server, &item->referenceTypeId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!refType) {
         UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Cannot add reference - ReferenceType %N unknown",
@@ -2778,7 +2782,8 @@ Operation_deleteReference_inner(UA_Server *server, UA_Session *session, void *co
     /* Check the ReferenceType and get the RefTypeIndex */
     const UA_Node *refType =
         UA_NODESTORE_GET_SELECTIVE(server, &item->referenceTypeId,
-                                   0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
     if(!refType) {
         *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         return;
