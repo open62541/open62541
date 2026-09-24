@@ -2236,8 +2236,11 @@ Operation_WriteWithNode(UA_Server *server, UA_Session *session,
 UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
+    /* Validating the written value reads DataType, ValueRank, ArrayDimensions,
+     * AccessLevel and WriteMask besides the attribute itself, so the editable
+     * node is requested with its complete attribute set (and no references). */
     UA_Node *node =
-        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &wv->nodeId, wv->attributeId,
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &wv->nodeId, UA_NODEATTRIBUTESMASK_ALL,
                                         UA_REFERENCETYPESET_NONE,
                                         UA_BROWSEDIRECTION_INVALID);
     if(!node) {
