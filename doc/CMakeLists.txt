@@ -96,6 +96,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h ${D
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/driver/mdns.h ${DOC_SRC_DIR}/driver_mdns.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/driver/alarms_conditions.h ${DOC_SRC_DIR}/driver_alarms_conditions.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/driver/gds_receiver.h ${DOC_SRC_DIR}/driver_gds_receiver.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/driver/file_transfer.h ${DOC_SRC_DIR}/driver_file_transfer.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
@@ -105,6 +106,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_variabletype.c ${DOC
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_datasource.c ${DOC_SRC_DIR}/tutorial_server_datasource.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_events.c ${DOC_SRC_DIR}/tutorial_server_events.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_alarms_conditions.c ${DOC_SRC_DIR}/tutorial_server_alarms_conditions.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_filetransfer.c ${DOC_SRC_DIR}/tutorial_server_filetransfer.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_monitoreditems.c ${DOC_SRC_DIR}/tutorial_server_monitoreditems.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_object.c ${DOC_SRC_DIR}/tutorial_server_object.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_method.c ${DOC_SRC_DIR}/tutorial_server_method.rst)
