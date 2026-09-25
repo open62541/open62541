@@ -594,6 +594,14 @@ typedef void (*UA_ClientNotificationCallback)(UA_Client *client,
  * client settings. The :ref:`tutorials` provide examples for many of the
  * client settings. */
 
+/* Previous policy arrays retained by the default configuration plugin. Open
+ * SecureChannels and Sessions may still reference them. Freed with the config. */
+typedef struct UA_ClientConfig_PolicyHistory {
+    struct UA_ClientConfig_PolicyHistory *next;
+    UA_SecurityPolicy *policies;
+    size_t policiesSize;
+} UA_ClientConfig_PolicyHistory;
+
 struct UA_ClientConfig {
     void *clientContext; /* User-defined pointer attached to the client */
     UA_Logger *logging;  /* Plugin for log output */
@@ -689,6 +697,7 @@ struct UA_ClientConfig {
      * UA_ClientConfig_setAuthenticationCert. */
     size_t authSecurityPoliciesSize;
     UA_SecurityPolicy *authSecurityPolicies;
+    UA_ClientConfig_PolicyHistory *securityPolicyHistory; /* Internal ownership */
 
     /* Allow clients without encryption support to connect with username and
      * password. This requires to transmit the password in plain text over the

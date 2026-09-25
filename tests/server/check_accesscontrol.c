@@ -3,13 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/client.h>
-#include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/types.h>
-#include <open62541/plugin/accesscontrol_default.h>
 
 #include "server/ua_server_internal.h"
 
@@ -107,6 +106,19 @@ allowBrowseNode(UA_Server *s, UA_AccessControl *ac,
                                   UA_QUALIFIEDNAME(0, "my_custom_attribute"),
                                   &attribute);
     return true;
+}
+
+static UA_Boolean
+denyTestNodeBrowse(UA_Server *s, UA_AccessControl *ac,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *nodeId, void *nodeContext) {
+    (void)s;
+    (void)ac;
+    (void)sessionId;
+    (void)sessionContext;
+    (void)nodeContext;
+    const UA_NodeId denied = UA_NODEID_NUMERIC(1, 5001);
+    return !UA_NodeId_equal(nodeId, &denied);
 }
 
 static void setCustomAccessControl(UA_ServerConfig* config) {
@@ -233,6 +245,51 @@ START_TEST(Server_setSessionParameter) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(Client_commonAttributes_requireBrowse) {
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+    config->accessControl.allowBrowseNode = denyTestNodeBrowse;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    const UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 5001);
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "BrowseDenied"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Byte userAccessLevel = 0;
+    ck_assert_uint_eq(UA_Client_readUserAccessLevelAttribute(
+        client, nodeId, &userAccessLevel), UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    UA_Variant readValue;
+    UA_Variant_init(&readValue);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client, nodeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&readValue);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_user = tcase_create("Client User/Password");
@@ -246,6 +303,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server-Side Access Control");
     tcase_add_test(tc_server, Server_sessionParameter);
     tcase_add_test(tc_server, Server_setSessionParameter);
+    tcase_add_test(tc_server, Client_commonAttributes_requireBrowse);
     suite_add_tcase(s,tc_server);
     return s;
 }

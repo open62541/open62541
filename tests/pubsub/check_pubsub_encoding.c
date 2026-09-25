@@ -107,6 +107,49 @@ START_TEST(UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_Decode_RawDataSizeMustFitBuffer) {
+    UA_FieldMetaData field;
+    UA_FieldMetaData_init(&field);
+    field.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    field.builtInType = UA_NS0ID_BYTE;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetMessage_EncodingMetaData em;
+    memset(&em, 0, sizeof(em));
+    em.fieldsSize = 1;
+    em.fields = &field;
+
+    UA_Byte data[] = {0x03, 0xaa};
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = data;
+    ctx.ctx.end = data + sizeof(data);
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    UA_StatusCode res = UA_DataSetMessage_decodeBinary(&ctx, &em, &dsm, 1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_eq(ctx.ctx.end, data + sizeof(data));
+    UA_DataSetMessage_clear(&dsm);
+
+    memset(&dsm, 0, sizeof(dsm));
+    ctx.ctx.pos = data;
+    res = UA_DataSetMessage_decodeBinary(&ctx, &em, &dsm, sizeof(data) + 1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_DataSetMessage_clear(&dsm);
+
+    /* A sized DSM and a single DSM with implicit size both use metadata. */
+    for(size_t size = 0; size <= sizeof(data); size += sizeof(data)) {
+        memset(&dsm, 0, sizeof(dsm));
+        ctx.ctx.pos = data;
+        res = UA_DataSetMessage_decodeBinary(&ctx, &em, &dsm, size);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(ctx.ctx.pos, data + sizeof(data));
+        ck_assert_uint_eq(dsm.fieldCount, 1);
+        ck_assert_uint_eq(*(UA_Byte*)dsm.data.keyFrameFields[0].value.data, 0xaa);
+        UA_DataSetMessage_clear(&dsm);
+    }
+}
+END_TEST
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -2003,6 +2046,7 @@ int main(void) {
     tcase_add_test(tc_decode, UA_PubSub_Decode_WithBufferTooSmallShallReturnError);
     tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_RawDataSizeMustFitBuffer);
 
     TCase *tc_ende1 = tcase_create("encode_decode1DS");
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame);

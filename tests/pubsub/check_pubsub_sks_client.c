@@ -529,6 +529,8 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     int retryCnt = 0;
     UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
+    UA_ClientConfig_PolicyHistory *policyHistory = config->securityPolicyHistory;
+    ck_assert_ptr_ne(policyHistory, NULL);
 
     retval = addPublisher(publisherApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
@@ -546,6 +548,7 @@ START_TEST(AddValidSksClientwithWriterGroup) {
 
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config,
                                     testingSKSEndpointUrl, sksPullRequestCallback_publisher, NULL);
+    ck_assert_ptr_eq(config->securityPolicyHistory, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -559,6 +562,8 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     UA_PubSubManager *psm = getPSM(publisherApp);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupId);
     ck_assert(wg != NULL);
+    ck_assert_ptr_eq(wg->keyStorage->sksConfig.clientConfig.securityPolicyHistory,
+                     policyHistory);
     
     ck_assert(wg->keyStorage->keyListSize > 0);
     lockServer(sksServer);

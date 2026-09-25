@@ -29,6 +29,7 @@ _removeServerComponent(void *application, UA_ServerComponent *sc) {
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
     if(size <= 4)
         return 0;
 
@@ -101,5 +102,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_clear(&msg);
     UA_Server_delete(server);
+    UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
     return 0;
 }

@@ -225,6 +225,10 @@ static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,
             const UA_SecurityPolicy *securityPolicy,
             UA_MessageSecurityMode securityMode) {
+    if((UA_UInt32)securityMode < UA_MESSAGESECURITYMODE_NONE ||
+       (UA_UInt32)securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+
     /* Test if the endpoint already exists */
     for(size_t i = 0; i < conf->endpointsSize; i++) {
         UA_EndpointDescription *ep = &conf->endpoints[i];
@@ -2188,59 +2192,62 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
 #ifdef UA_ENABLE_ENCRYPTION
 
+/* Build replacement policies separately. A live channel or session can retain
+ * an entry and its plugin context, so keep previous arrays until config clear. */
+static UA_StatusCode
+clientConfig_replaceSecurityPolicies(UA_ClientConfig *config,
+                                      UA_SecurityPolicy **policies, size_t *policiesSize,
+                                      UA_ByteString certificate, UA_ByteString privateKey) {
+    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
+        UA_calloc(SECURITY_POLICY_SIZE, sizeof(UA_SecurityPolicy));
+    if(!sp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_ClientConfig_PolicyHistory *previous = NULL;
+    if(*policies) {
+        previous = (UA_ClientConfig_PolicyHistory*)UA_malloc(sizeof(*previous));
+        if(!previous) {
+            UA_free(sp);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+
+    size_t size = 0;
+    addAllSecurityPolicies(sp, &size, certificate, privateKey, false,
+                           UA_APPLICATIONTYPE_CLIENT, config->logging);
+    if(size == 0) {
+        UA_free(previous);
+        UA_free(sp);
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    if(previous) {
+        previous->policies = *policies;
+        previous->policiesSize = *policiesSize;
+        previous->next = config->securityPolicyHistory;
+        config->securityPolicyHistory = previous;
+    }
+    *policies = sp;
+    *policiesSize = size;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 clientConfig_setAuthenticationSecurityPolicies(UA_ClientConfig *config,
                                                UA_ByteString certificateAuth,
                                                UA_ByteString privateKeyAuth) {
-    for(size_t i = 0; i < config->authSecurityPoliciesSize; i++) {
-        config->authSecurityPolicies[i].clear(&config->authSecurityPolicies[i]);
-    }
-
-    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        UA_realloc(config->authSecurityPolicies, sizeof(UA_SecurityPolicy) * SECURITY_POLICY_SIZE);
-    if(!sp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    config->authSecurityPolicies = sp;
-    config->authSecurityPoliciesSize = 0;
-
-    addAllSecurityPolicies(sp, &config->authSecurityPoliciesSize,
-                           certificateAuth, privateKeyAuth, false,
-                           UA_APPLICATIONTYPE_CLIENT, config->logging);
-
-    if(config->authSecurityPoliciesSize == 0) {
-        UA_free(config->authSecurityPolicies);
-        config->authSecurityPolicies = NULL;
-    }
-
-    return UA_STATUSCODE_GOOD;
+    return clientConfig_replaceSecurityPolicies(config, &config->authSecurityPolicies,
+                                                 &config->authSecurityPoliciesSize,
+                                                 certificateAuth, privateKeyAuth);
 }
 
 static UA_StatusCode
 clientConfig_setSecurityPolicies(UA_ClientConfig *config,
                                  UA_ByteString certificateAuth,
                                  UA_ByteString privateKeyAuth) {
-    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
-        config->securityPolicies[i].clear(&config->securityPolicies[i]);
-    }
-
-    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        UA_realloc(config->securityPolicies,
-                   sizeof(UA_SecurityPolicy) * SECURITY_POLICY_SIZE);
-    if(!sp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    config->securityPolicies = sp;
-    config->securityPoliciesSize = 0;
-
-    addAllSecurityPolicies(sp, &config->securityPoliciesSize,
-                           certificateAuth, privateKeyAuth, false,
-                           UA_APPLICATIONTYPE_CLIENT, config->logging);
-
-    if(config->securityPoliciesSize == 0) {
-        UA_free(config->securityPolicies);
-        config->securityPolicies = NULL;
-    }
-
-    return UA_STATUSCODE_GOOD;
+    return clientConfig_replaceSecurityPolicies(config, &config->securityPolicies,
+                                                 &config->securityPoliciesSize,
+                                                 certificateAuth, privateKeyAuth);
 }
 
 UA_StatusCode
@@ -2332,13 +2339,15 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(keySuccess != UA_STATUSCODE_GOOD)
         return keySuccess;
 
-    clientConfig_setSecurityPolicies(config, localCertificate, decryptedPrivateKey);
-    clientConfig_setAuthenticationSecurityPolicies(config, localCertificate, decryptedPrivateKey);
+    retval = clientConfig_setSecurityPolicies(config, localCertificate, decryptedPrivateKey);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = clientConfig_setAuthenticationSecurityPolicies(config, localCertificate,
+                                                                decryptedPrivateKey);
 
     UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 #endif
 

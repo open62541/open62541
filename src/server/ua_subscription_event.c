@@ -1152,6 +1152,13 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
     if(ctx->filter.whereClause.elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
+    /* Information-model filters may bypass creation-time validation. */
+    for(size_t i = 0; i < ctx->filter.whereClause.elementsSize; i++) {
+        if((UA_UInt32)ctx->filter.whereClause.elements[i].filterOperator >
+           UA_FILTEROPERATOR_BITWISEOR)
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    }
+
     /* Pacify some compilers by initializing the first result */
     UA_assert(ctx->top == 0);
     UA_Variant_init(&ctx->operatorResults[0]);

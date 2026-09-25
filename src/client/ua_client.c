@@ -40,6 +40,10 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+    retval = UA_String_copy(&src->endpointUrl, &dst->endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     retval = UA_ExtensionObject_copy(&src->userIdentityToken, &dst->userIdentityToken);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -56,12 +60,39 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+    retval = UA_String_copy(&src->applicationUri, &dst->applicationUri);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_String_copy(&src->authSecurityPolicyUri,
+                            &dst->authSecurityPolicyUri);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_String_copy(&src->sessionName, &dst->sessionName);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     retval = UA_Array_copy(src->sessionLocaleIds, src->sessionLocaleIdsSize,
                            (void **)&dst->sessionLocaleIds, &UA_TYPES[UA_TYPES_LOCALEID]);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     dst->sessionLocaleIdsSize = src->sessionLocaleIdsSize;
+    retval = UA_Array_copy(src->namespaces, src->namespacesSize,
+                           (void**)&dst->namespaces, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    dst->namespacesSize = src->namespacesSize;
+    dst->tcpReuseAddr = src->tcpReuseAddr;
+    dst->allowNonePolicyPassword = src->allowNonePolicyPassword;
+    dst->globalNotificationCallback = src->globalNotificationCallback;
+    dst->lifecycleNotificationCallback = src->lifecycleNotificationCallback;
+    dst->serviceNotificationCallback = src->serviceNotificationCallback;
+#ifdef UA_ENABLE_ENCRYPTION
+    dst->maxTrustListSize = src->maxTrustListSize;
+    dst->maxRejectedListSize = src->maxRejectedListSize;
+#endif
     dst->connectivityCheckInterval = src->connectivityCheckInterval;
     dst->certificateVerification = src->certificateVerification;
     dst->clientContext = src->clientContext;
@@ -71,6 +102,9 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->inactivityCallback = src->inactivityCallback;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logging = src->logging;
+    dst->noSession = src->noSession;
+    dst->noReconnect = src->noReconnect;
+    dst->noNewSession = src->noNewSession;
     if(src->certificateVerification.logging == NULL)
         dst->certificateVerification.logging = dst->logging;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -84,11 +118,14 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->subscriptionInactivityCallback = src->subscriptionInactivityCallback;
 #endif
     dst->timeout = src->timeout;
-    dst->userTokenPolicy = src->userTokenPolicy;
     dst->securityPolicies = src->securityPolicies;
     dst->securityPoliciesSize = src->securityPoliciesSize;
+    dst->securityPolicyHistory = src->securityPolicyHistory;
     dst->authSecurityPolicies = src->authSecurityPolicies;
     dst->authSecurityPoliciesSize = src->authSecurityPoliciesSize;
+#ifdef UA_ENABLE_ENCRYPTION
+    dst->privateKeyPasswordCallback = src->privateKeyPasswordCallback;
+#endif
 
 cleanup:
     if(retval != UA_STATUSCODE_GOOD) {
@@ -98,6 +135,7 @@ cleanup:
         dst->eventLoop = NULL;
         dst->logging = NULL;
         dst->securityPolicies = NULL;
+        dst->securityPolicyHistory = NULL;
         UA_ClientConfig_clear(dst);
     }
     return retval;
@@ -132,7 +170,7 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     client->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     client->namespaces[1] = UA_STRING_NULL; /* Gets set when we connect to the server */
     for(size_t i = 0; i < config->namespacesSize; i++) {
-        res |= UA_String_copy(&client->namespaces[i+2], &config->namespaces[i]);
+        res |= UA_String_copy(&config->namespaces[i], &client->namespaces[i+2]);
     }
     if(res != UA_STATUSCODE_GOOD)
         goto error;
@@ -177,6 +215,15 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->securityPolicies = 0;
     }
 
+    while(config->securityPolicyHistory) {
+        UA_ClientConfig_PolicyHistory *previous = config->securityPolicyHistory;
+        config->securityPolicyHistory = previous->next;
+        for(size_t i = 0; i < previous->policiesSize; i++)
+            previous->policies[i].clear(&previous->policies[i]);
+        UA_free(previous->policies);
+        UA_free(previous);
+    }
+
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
     if(el && !config->externalEventLoop) {
@@ -203,6 +250,12 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
     config->sessionLocaleIds = NULL;
     config->sessionLocaleIdsSize = 0;
+
+    UA_Array_delete(config->namespaces, config->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    config->namespaces = NULL;
+    config->namespacesSize = 0;
+    config->securityPoliciesSize = 0;
+    config->authSecurityPoliciesSize = 0;
 
     /* Custom Data Types */
     UA_cleanupDataTypeWithCustom(config->customDataTypes);

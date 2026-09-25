@@ -144,11 +144,75 @@ START_TEST(encryption_reconnect_session) {
 }
 END_TEST
 
+/* Replacing channel and authentication policies must preserve the policies
+ * and contexts used by the current connection, including on repeated calls. */
+START_TEST(encryption_setDefaultEncryption_whileConnected_doesNotCrash) {
+    /* Use the server's test clock and allow for slow Valgrind handshakes. */
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert(client != NULL);
+
+    /* Connect first with the default (unencrypted) configuration */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    /* Replace configured policies while retaining the active policy instances. */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                  NULL, 0, NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                  NULL, 0, NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The still-open (unencrypted) channel must remain fully usable */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    /* A fresh channel using the newly configured encryption must also work */
+    UA_String_clear(&cc->securityPolicyUri);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_Client_disconnect(client);
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    /* Reconfiguration also preserves an encrypted channel and its session. */
+    retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                  NULL, 0, NULL, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption basic256sha256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
     tcase_add_test(tc_encryption, encryption_reconnect_session);
+    tcase_add_test(tc_encryption, encryption_setDefaultEncryption_whileConnected_doesNotCrash);
     suite_add_tcase(s,tc_encryption);
     return s;
 }
