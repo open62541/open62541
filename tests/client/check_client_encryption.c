@@ -147,7 +147,8 @@ END_TEST
 /* Replacing channel and authentication policies must preserve the policies
  * and contexts used by the current connection, including on repeated calls. */
 START_TEST(encryption_setDefaultEncryption_whileConnected_doesNotCrash) {
-    UA_Client *client = UA_Client_new();
+    /* Use the server's test clock and allow for slow Valgrind handshakes. */
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
 
     /* Connect first with the default (unencrypted) configuration */
