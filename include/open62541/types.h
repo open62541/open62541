@@ -1193,7 +1193,11 @@ struct UA_NamespaceMapping {
     size_t remote2localSize;
 };
 
-/* If the index is unknown, returns (UINT16_MAX - index) */
+/* An index that is not covered by the mapping table is returned unchanged. This
+ * happens for a NamespaceIndex that the remote side does not declare in its
+ * NamespaceArray, e.g. a dangling index embedded in a value. Returning it
+ * unchanged keeps the original index visible to the application and stable
+ * across a decode/encode roundtrip. */
 UA_EXPORT UA_UInt16
 UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
                                  UA_UInt16 localIndex);
