@@ -148,6 +148,36 @@ testBeforeStateChangeCallback(UA_Server *s, const UA_NodeId id,
     beforeStateChangeCallbackLastIdValid = true;
 }
 
+/* An enabled connection can be configured before the server and its
+ * ConnectionManagers are started. It remains PAUSED until startup and then
+ * advances automatically to OPERATIONAL. */
+START_TEST(Connection_EnableBeforeStartup_PausesAndRecovers) {
+    UA_PubSubConnectionConfig cfg;
+    memset(&cfg, 0, sizeof(UA_PubSubConnectionConfig));
+    cfg.name = UA_STRING("Pre-start Connection");
+    cfg.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType addressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_Variant_setScalar(&cfg.address, &addressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    cfg.enabled = true;
+
+    UA_StatusCode res =
+        UA_Server_addPubSubConnection(server, &cfg, &connectionIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_find(psm, connectionIdent);
+    ck_assert_ptr_ne(connection, NULL);
+    ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_PAUSED);
+
+    res = UA_Server_run_startup(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(connection->head.state, UA_PUBSUBSTATE_OPERATIONAL);
+} END_TEST
+
 /* WriterGroup: enabling while the parent PubSubConnection is in
  * DISABLED state must land the WriterGroup in the PAUSED state. This
  * exercises the "if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL)"
@@ -463,6 +493,12 @@ static Suite *
 stateMachineSuite(void) {
     Suite *s = suite_create("PubSub state machine edge cases");
 
+    TCase *tc_connection_state =
+        tcase_create("PubSubConnection state-machine branches");
+    tcase_add_checked_fixture(tc_connection_state, setup, teardown);
+    tcase_add_test(tc_connection_state,
+                   Connection_EnableBeforeStartup_PausesAndRecovers);
+
     TCase *tc_wg_state = tcase_create("WriterGroup state-machine branches");
     tcase_add_checked_fixture(tc_wg_state, setup, teardown);
     tcase_add_test(tc_wg_state, WriterGroup_EnableWhileConnectionDisabled_GoesToPaused);
@@ -488,6 +524,7 @@ stateMachineSuite(void) {
     tcase_add_test(tc_api, RemoveWriterGroup_UnknownReturnsBadNotFound);
     tcase_add_test(tc_api, RemoveReaderGroup_UnknownReturnsBadNotFound);
 
+    suite_add_tcase(s, tc_connection_state);
     suite_add_tcase(s, tc_wg_state);
     suite_add_tcase(s, tc_rg_state);
     suite_add_tcase(s, tc_api);
