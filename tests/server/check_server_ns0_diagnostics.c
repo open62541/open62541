@@ -456,7 +456,11 @@ START_TEST(read_samplingIntervalDiagnosticsArray) {
     UA_StatusCode res = readNodeValue(
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), &out);
     if(res == UA_STATUSCODE_GOOD) {
-        ck_assert(out.type == &UA_TYPES[UA_TYPES_SAMPLINGINTERVALDIAGNOSTICSDATATYPE]);
+        /* Before startup, an unconfigured generated node can still contain an
+         * empty variant. */
+        ck_assert(UA_Variant_hasArrayType(
+                      &out, &UA_TYPES[UA_TYPES_SAMPLINGINTERVALDIAGNOSTICSDATATYPE]) ||
+                  UA_Variant_isEmpty(&out));
         ck_assert_uint_eq(out.arrayLength, 0);
     }
     UA_Variant_clear(&out);
@@ -603,8 +607,11 @@ START_TEST(diagnostics_samplingInterval) {
     UA_StatusCode res = readNodeValue(
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), &out);
     if(res == UA_STATUSCODE_GOOD) {
-        /* If present, should be an array of SamplingIntervalDiagnosticsDataType */
-        ck_assert(out.type == &UA_TYPES[UA_TYPES_SAMPLINGINTERVALDIAGNOSTICSDATATYPE]);
+        /* Before startup, an unconfigured generated node can still contain an
+         * empty variant. */
+        ck_assert(UA_Variant_hasArrayType(
+                      &out, &UA_TYPES[UA_TYPES_SAMPLINGINTERVALDIAGNOSTICSDATATYPE]) ||
+                  UA_Variant_isEmpty(&out));
         ck_assert_uint_eq(out.arrayLength, 0);
     }
     UA_Variant_clear(&out);

@@ -103,6 +103,12 @@ typedef struct session_list_entry {
     UA_Session session;
 } session_list_entry;
 
+typedef struct {
+    UA_UInt64 hash;
+    size_t nodesSize;
+    size_t referencesSize;
+} UA_NS0ReferenceSignature;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 /* Internal accumulator marker. Reserved ModelChange verb bits must never be
@@ -172,6 +178,9 @@ struct UA_Server {
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
+
+    size_t ns0CleanupSignaturesSize;
+    UA_NS0ReferenceSignature *ns0CleanupSignatures;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
@@ -1135,6 +1144,10 @@ UA_StatusCode initNS0(UA_Server *server);
 
 /* Connect data sources to existing NS0 nodes */
 UA_StatusCode initNS0_dataSources(UA_Server *server);
+
+void snapshotNS0CleanupReferences(UA_Server *server);
+
+void removeUnusedNS0Nodes(UA_Server *server);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);
