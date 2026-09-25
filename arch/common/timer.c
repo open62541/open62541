@@ -49,17 +49,31 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
-/* Global variables, only used behind the mutex */
-static UA_DateTime earliest, latest, adjustedNextTime;
+/* Search window for batching. Passed as the ZIP_ITER_KEY key, so that
+ * cmpBatchWindow gets both bounds without static state. */
+typedef struct {
+    UA_DateTime earliest;
+    UA_DateTime latest;
+} UA_TimerBatchWindow;
+
+/* Context of one batching pass. Lives on the stack of batchTimerEntry. */
+typedef struct {
+    UA_TimerBatchWindow window;
+    UA_TimerEntry *te;
+    UA_DateTime adjustedNextTime;
+} UA_TimerBatchCtx;
 
 static void *
 findTimer2Batch(void *context, UA_TimerEntry *compare) {
+    UA_TimerBatchCtx *ctx = (UA_TimerBatchCtx*)context;
+
     /* Invariance of ZIP_ITER_KEY  */
-    UA_assert(compare->nextTime >= earliest && compare->nextTime <= latest);
+    UA_assert(compare->nextTime >= ctx->window.earliest &&
+              compare->nextTime <= ctx->window.latest);
 
     /* One-shot timers have interval == 0.
      * They cannot participate in the modulo-based batching check. */
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
+    UA_TimerEntry *te = ctx->te;
     if(te->interval == 0 || compare->interval == 0)
         return NULL;
 
@@ -69,7 +83,7 @@ findTimer2Batch(void *context, UA_TimerEntry *compare) {
     if(te->interval > compare->interval && te->interval % compare->interval != 0)
         return NULL;
 
-    adjustedNextTime = compare->nextTime; /* Candidate found */
+    ctx->adjustedNextTime = compare->nextTime; /* Candidate found */
 
     /* Abort when a perfect match is found */
     return (te->interval == compare->interval) ? te : NULL;
@@ -77,10 +91,10 @@ findTimer2Batch(void *context, UA_TimerEntry *compare) {
 
 /* Window-based comparison for batching */
 static enum ZIP_CMP
-cmpBatchWindow(const UA_DateTime *start, const UA_DateTime *nextTime) {
-    if(*nextTime < *start)
+cmpBatchWindow(const UA_TimerBatchWindow *window, const UA_DateTime *nextTime) {
+    if(*nextTime < window->earliest)
         return ZIP_CMP_LESS;
-    if(*nextTime > latest)
+    if(*nextTime > window->latest)
         return ZIP_CMP_MORE;
     return ZIP_CMP_EQ;
 }
@@ -88,7 +102,7 @@ cmpBatchWindow(const UA_DateTime *start, const UA_DateTime *nextTime) {
 typedef ZIP_HEAD(UA_TimerTreeWindow, UA_TimerEntry) UA_TimerTreeWindow;
 
 ZIP_FUNCTIONS(UA_TimerTreeWindow, UA_TimerEntry, treeEntry,
-              UA_DateTime, nextTime, cmpBatchWindow)
+              UA_TimerBatchWindow, nextTime, cmpBatchWindow)
 
 /* Adjust the nextTime to batch cyclic callbacks. Look in an interval around the
  * original nextTime. Deviate from the original nextTime by at most 1/4 of the
@@ -100,12 +114,16 @@ batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
     UA_DateTime deviate = te->interval / 4;
     if(deviate > UA_DATETIME_SEC)
         deviate = UA_DATETIME_SEC;
-    earliest = te->nextTime - deviate;
-    latest = te->nextTime + deviate;
-    adjustedNextTime = te->nextTime;
+
+    UA_TimerBatchCtx ctx;
+    ctx.window.earliest = te->nextTime - deviate;
+    ctx.window.latest = te->nextTime + deviate;
+    ctx.te = te;
+    ctx.adjustedNextTime = te->nextTime;
+
     ZIP_ITER_KEY(UA_TimerTreeWindow, (UA_TimerTreeWindow*)&t->tree,
-                 &earliest, findTimer2Batch, te);
-    te->nextTime = adjustedNextTime;
+                 &ctx.window, findTimer2Batch, &ctx);
+    te->nextTime = ctx.adjustedNextTime;
 }
 
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the
