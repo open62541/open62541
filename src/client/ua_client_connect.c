@@ -879,8 +879,11 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
 
     for(size_t i = 2; i < nsSize; ++i) {
         UA_UInt16 nsIndex = 0;
-        UA_Client_getNamespaceIndex(client, ns[i], &nsIndex);
-        nsMapping->remote2local[i] = nsIndex;
+        UA_StatusCode res = UA_Client_getNamespaceIndex(client, ns[i], &nsIndex);
+        /* Keeping the zero-initialized entry on failure would point the
+         * namespace at ns0, which is a valid namespace of its own. */
+        nsMapping->remote2local[i] = (res == UA_STATUSCODE_GOOD) ?
+            nsIndex : (UA_UInt16)(UA_UINT16_MAX - i);
     }
 
     size_t l2rSize = client->namespacesSize > nsSize ? client->namespacesSize : nsSize;
@@ -892,11 +895,19 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
         return;
     }
     nsMapping->local2remoteSize = l2rSize;
+
+    /* A local namespace the server does not declare has no remote counterpart.
+     * Mark every entry unknown first: a zero-initialized entry would silently
+     * retarget such a namespace to ns0 (http://opcfoundation.org/UA/). */
+    for(size_t i = 0; i < l2rSize; ++i)
+        nsMapping->local2remote[i] = (UA_UInt16)(UA_UINT16_MAX - i);
     nsMapping->local2remote[0] = 0;
     nsMapping->local2remote[1] = 1;
 
     for(size_t i = 2; i < nsMapping->remote2localSize; ++i) {
         UA_UInt16 localIndex = nsMapping->remote2local[i];
+        if(localIndex >= l2rSize)
+            continue; /* unknown locally, see above */
         nsMapping->local2remote[localIndex] = (UA_UInt16)i;
     }
 
