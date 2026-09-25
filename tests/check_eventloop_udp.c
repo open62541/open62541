@@ -292,8 +292,8 @@ validateMulticastInterfaceWithLength(const char *interfaceName,
     UA_UInt16 port = 4840;
     UA_Boolean validate = true;
     UA_String address = UA_STRING("224.0.0.22");
-    UA_String interface = {interfaceNameLength,
-                           (UA_Byte*)(uintptr_t)interfaceName};
+    UA_String networkInterface = {interfaceNameLength,
+                                  (UA_Byte*)(uintptr_t)interfaceName};
 
     UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "port");
@@ -301,7 +301,7 @@ validateMulticastInterfaceWithLength(const char *interfaceName,
     params[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[1].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     params[2].key = UA_QUALIFIEDNAME(0, "interface");
-    UA_Variant_setScalar(&params[2].value, &interface, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&params[2].value, &networkInterface, &UA_TYPES[UA_TYPES_STRING]);
     params[3].key = UA_QUALIFIEDNAME(0, "validate");
     UA_Variant_setScalar(&params[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap paramsMap = {4, params};
@@ -365,7 +365,7 @@ START_TEST(connectUDPRejectsOversizedMulticastInterface) {
     UA_String address = UA_STRING("224.0.0.22");
     char interfaceData[256];
     memset(interfaceData, 'A', sizeof(interfaceData));
-    UA_String interface = {sizeof(interfaceData), (UA_Byte*)interfaceData};
+    UA_String networkInterface = {sizeof(interfaceData), (UA_Byte*)interfaceData};
 
     UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "port");
@@ -373,7 +373,7 @@ START_TEST(connectUDPRejectsOversizedMulticastInterface) {
     params[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[1].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     params[2].key = UA_QUALIFIEDNAME(0, "interface");
-    UA_Variant_setScalar(&params[2].value, &interface, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&params[2].value, &networkInterface, &UA_TYPES[UA_TYPES_STRING]);
     params[3].key = UA_QUALIFIEDNAME(0, "validate");
     UA_Variant_setScalar(&params[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap paramsMap = {4, params};

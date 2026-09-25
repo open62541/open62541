@@ -135,6 +135,7 @@ cleanup:
         dst->eventLoop = NULL;
         dst->logging = NULL;
         dst->securityPolicies = NULL;
+        dst->securityPolicyHistory = NULL;
         UA_ClientConfig_clear(dst);
     }
     return retval;
