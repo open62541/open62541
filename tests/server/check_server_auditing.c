@@ -42,6 +42,11 @@ static UA_atomic(size_t) sessionActivateCalls = 0;
 static UA_atomic(size_t) sessionCancelCalls = 0;
 static UA_atomic(size_t) channelOpenCalls = 0;
 
+/* Write audits whose payload carries /SourceNode == expectedSourceNode.
+ * expectedSourceNode is set by the test thread before the write. */
+static UA_NodeId expectedSourceNode;
+static UA_atomic(size_t) writeSourceNodeMatches = 0;
+
 /* Atomic increment built on UA_atomic_cmpxchg (config.h has no fetch-add) */
 static void
 counterInc(UA_atomic(size_t) *c) {
@@ -57,11 +62,18 @@ counterInc(UA_atomic(size_t) *c) {
 static void
 auditCb(UA_Server *s, UA_ApplicationNotificationType type,
         const UA_KeyValueMap payload) {
-    (void)s; (void)payload;
+    (void)s;
     counterInc(&totalAuditCalls);
     switch(type) {
-    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE:
-        counterInc(&writeAuditCalls); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE: {
+        counterInc(&writeAuditCalls);
+        const UA_NodeId *src = (const UA_NodeId*)
+            UA_KeyValueMap_getScalar(&payload, UA_QUALIFIEDNAME(0, "/SourceNode"),
+                                     &UA_TYPES[UA_TYPES_NODEID]);
+        if(src && UA_NodeId_equal(src, &expectedSourceNode))
+            counterInc(&writeSourceNodeMatches);
+        break;
+    }
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD:
         counterInc(&methodAuditCalls); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE:
@@ -99,6 +111,8 @@ static void resetCounters(void) {
     UA_atomic_store(&sessionActivateCalls, 0);
     UA_atomic_store(&sessionCancelCalls, 0);
     UA_atomic_store(&channelOpenCalls, 0);
+    UA_atomic_store(&writeSourceNodeMatches, 0);
+    expectedSourceNode = UA_NODEID_NULL;
 }
 
 static void setup(void) {
@@ -156,6 +170,35 @@ START_TEST(WriteEmitsAuditEvent) {
      * fires for a write update. */
     ck_assert(UA_atomic_load(&writeAuditCalls) > writesBefore ||
               UA_atomic_load(&totalGlobalCalls) > globalBefore);
+} END_TEST
+
+/* Test: the AUDIT_UPDATE_WRITE notification payload carries /SourceNode, the
+ * NodeId of the written node (the SourceNode of the AuditWriteUpdateEvent). */
+START_TEST(WriteAuditPayloadHasSourceNode) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 v = 0;
+    UA_Variant_setScalar(&attr.value, &v, &UA_TYPES[UA_TYPES_INT32]);
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId id = UA_NODEID_STRING(1, "audit.var.src");
+    UA_StatusCode r = UA_Server_addVariableNode(server, id,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "audit.var.src"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    expectedSourceNode = id;
+    size_t matchesBefore = UA_atomic_load(&writeSourceNodeMatches);
+
+    UA_Variant newVal;
+    UA_Int32 nv = 5;
+    UA_Variant_setScalar(&newVal, &nv, &UA_TYPES[UA_TYPES_INT32]);
+    r = UA_Server_writeValue(server, id, newVal);
+    ck_assert_int_eq(r, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_gt(UA_atomic_load(&writeSourceNodeMatches), matchesBefore);
 } END_TEST
 
 /* Test: with auditingEnabled=false, no audit event is emitted. */
@@ -273,6 +316,7 @@ static Suite* testSuite(void) {
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_set_timeout(tc, 60);
     tcase_add_test(tc, WriteEmitsAuditEvent);
+    tcase_add_test(tc, WriteAuditPayloadHasSourceNode);
     tcase_add_test(tc, NoAuditWhenDisabled);
     tcase_add_test(tc, ClientConnectEmitsSessionAuditEvents);
     tcase_add_test(tc, ToggleWriteUpdateFlag);
