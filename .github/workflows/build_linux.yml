@@ -141,6 +141,17 @@ jobs:
               sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
 
+          - name: "Encryption (OpenSSL 4) Build & Unit Tests (gcc)"
+            cmd_deps: |
+              curl -L https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz --output openssl.tar.gz
+              tar -xz -f openssl.tar.gz
+              cd openssl-4.0.2
+              ./Configure --prefix=/usr/local --libdir=lib no-docs no-tests
+              make -j$(nproc)
+              sudo make install_sw
+              sudo ldconfig
+            cmd_action: OPENSSL_ROOT_DIR=/usr/local unit_tests_encryption OPENSSL
+
           - name: "Release Build"
             mbedtls: true
             cmd_action: build_release

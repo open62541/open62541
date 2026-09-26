@@ -216,6 +216,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_StatusCode errRet = UA_STATUSCODE_GOOD;
 
     X509 *x509 = X509_new();
+    X509_NAME *name = NULL;
 
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
     EVP_PKEY *pkey = NULL;
@@ -317,11 +318,11 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    X509_NAME *name = X509_get_subject_name(x509);
+    name = X509_NAME_new();
     if(name == NULL) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Create Certificate: Getting name failed.");
-        errRet = UA_STATUSCODE_BADINTERNALERROR;
+                     "Create Certificate: Creating name failed.");
+        errRet = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
 
@@ -350,7 +351,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         }
     }
     /* Self signed, so issuer == subject */
-    if(X509_set_issuer_name(x509, name) != 1) {
+    if(X509_set_subject_name(x509, name) != 1 ||
+       X509_set_issuer_name(x509, name) != 1) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting name failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
@@ -519,6 +521,7 @@ cleanup:
     RSA_free(rsa);
     BN_free(exponent);    
 #endif
+    X509_NAME_free(name);
     X509_free(x509);
     EVP_PKEY_free(pkey);
     BIO_free(memCert);
