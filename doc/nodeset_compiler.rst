@@ -373,7 +373,7 @@ objects folder, which look like this :numref:`nodeset-compiler-pump`.
 
 As you can see the pump has inherited its parents attributes (ManufacturerName
 and ModelName). Methods, in contrast to objects and variables, are never cloned
-but instead only linked. The reason is that you will quite propably attach a
+but instead only linked. The reason is that you will quite probably attach a
 method callback to a central method, not each object. Objects are instantiated
 if they are *below* the object you are creating, so any object (like an object
 called associatedServer of ServerType) that is part of pump will be instantiated
