@@ -130,11 +130,11 @@ MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **
 
 static UA_StatusCode
 openSSLCheckCrlMatch(X509 *cert, X509_CRL *crl) {
-    X509_NAME *certSubject = X509_get_subject_name(cert);
+    const X509_NAME *certSubject = X509_get_subject_name(cert);
     if(!certSubject)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509_NAME *crlIssuer = X509_CRL_get_issuer(crl);
+    const X509_NAME *crlIssuer = X509_CRL_get_issuer(crl);
     if(!crlIssuer) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -428,7 +428,7 @@ static X509 *
 openSSLFindNextIssuer(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 *x509, X509 *prev) {
     /* First check issuers from the stack - provided in the same bytestring as
      * the certificate. This can also return x509 itself. */
-    X509_NAME *in = X509_get_issuer_name(x509);
+    const X509_NAME *in = X509_get_issuer_name(x509);
     do {
         int size = sk_X509_num(stack);
         for(int i = 0; i < size; i++) {
@@ -595,7 +595,10 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
         /* Verification Step: Validity Period */
         ASN1_TIME *notBefore = X509_get_notBefore(cert);
         ASN1_TIME *notAfter = X509_get_notAfter(cert);
-        if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
+        /* Valid if notBefore <= now < notAfter */
+        time_t now = time(NULL);
+        int nb = ASN1_TIME_cmp_time_t(notBefore, now);
+        if(nb == 1 || nb == -2 || ASN1_TIME_cmp_time_t(notAfter, now) != 1)
             return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
                 UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
     }
@@ -759,14 +762,15 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
     for(int i = 0; i < sk_GENERAL_NAME_num(pNames); i++) {
         GENERAL_NAME *value = sk_GENERAL_NAME_value(pNames, i);
         if(value->type == GEN_URI) {
-            subjectURI.length = (size_t) (value->d.ia5->length);
+            subjectURI.length = (size_t)ASN1_STRING_length(value->d.ia5);
             subjectURI.data = (UA_Byte*)UA_malloc(subjectURI.length);
             if(!subjectURI.data) {
                 X509_free(certificateX509);
                 sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
                 return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             }
-            (void)memcpy(subjectURI.data, value->d.ia5->data, subjectURI.length);
+            (void)memcpy(subjectURI.data, ASN1_STRING_get0_data(value->d.ia5),
+                         subjectURI.length);
             break;
         }
     }
@@ -818,7 +822,7 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     if(!certificate || (certificate->length > 0 && !certificate->data) ||
        !subjectName)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    X509_NAME *sn = NULL;
+    const X509_NAME *sn = NULL;
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     X509_CRL *x509_crl = NULL;
 
@@ -1194,7 +1198,6 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
 	UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     const unsigned char *p = NULL;
 	X509 *x509;
-	X509_NAME *subj;
 
 	if(!certificate || !certificate->data || !commonName)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -1204,16 +1207,14 @@ UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_Strin
 	if(!x509)
 		return UA_STATUSCODE_BADINTERNALERROR;
 
-    subj = X509_get_subject_name(x509);
-
     UA_String result = UA_STRING_NULL;
-    if(subj) {
-        char buf[1024] = {0};
-        int length = X509_NAME_get_text_by_NID(subj, NID_commonName, buf, sizeof(buf));
-        if(length >= 0) {
-            UA_String tmp = {(size_t)length, (UA_Byte*)buf};
-            retval = UA_String_copy(&tmp, &result);
-        }
+    int idx = X509_NAME_get_index_by_NID(X509_get_subject_name(x509), NID_commonName, -1);
+    if(idx >= 0) {
+        const ASN1_STRING *cn =
+            X509_NAME_ENTRY_get_data(X509_NAME_get_entry(X509_get_subject_name(x509), idx));
+        UA_String tmp = {(size_t)ASN1_STRING_length(cn),
+                         (UA_Byte*)(uintptr_t)ASN1_STRING_get0_data(cn)};
+        retval = UA_String_copy(&tmp, &result);
     }
 	X509_free(x509);
 
