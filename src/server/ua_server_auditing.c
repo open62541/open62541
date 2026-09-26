@@ -607,7 +607,7 @@ auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
                       UA_Boolean status, const UA_NodeId *sourceNode,
                       UA_UInt32 attributeId, const UA_String indexRange,
                       const UA_Variant *newValue, const UA_Variant *oldValue) {
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair writeUpdatePayload[10] = {
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair writeUpdatePayload[11] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
         {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
@@ -617,12 +617,23 @@ auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
         {{0, UA_STRING_STATIC("/AttributeId")}, {0}},                 /* 6 */
         {{0, UA_STRING_STATIC("/IndexRange")}, {0}},                  /* 7 */
         {{0, UA_STRING_STATIC("/NewValue")}, {0}},                    /* 8 */
-        {{0, UA_STRING_STATIC("/OldValue")}, {0}}                     /* 9 */
+        {{0, UA_STRING_STATIC("/OldValue")}, {0}},                    /* 9 */
+        {{0, UA_STRING_STATIC("/SourceNode")}, {0}}                   /* 10 */
     };
 
     /* /AttributeId */
     UA_Variant_setScalar(&writeUpdatePayload[6].value, &attributeId,
                          &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* /SourceNode (the written node). Also exposed in the notification payload
+     * so that applications can attribute the write without an EventFilter.
+     * The map is static, so reset the entry if there is no SourceNode. */
+    if(sourceNode)
+        UA_Variant_setScalar(&writeUpdatePayload[10].value,
+                             (void*)(uintptr_t)sourceNode,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+    else
+        UA_Variant_init(&writeUpdatePayload[10].value);
 
     /* /IndexRange */
     UA_Variant_setScalar(&writeUpdatePayload[7].value,
@@ -639,7 +650,7 @@ auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *
                          (UA_Variant*)(uintptr_t)oldValue,
                          &UA_TYPES[UA_TYPES_VARIANT]);
 
-    UA_KeyValueMap payload = {10, writeUpdatePayload};
+    UA_KeyValueMap payload = {11, writeUpdatePayload};
     auditUpdateEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE,
                      channel, session, sourceNode, "Write", status, payload);
 }
