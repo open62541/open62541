@@ -42,7 +42,7 @@
 #define CA_FILE_PATH                    "/path/to/server.cert"
 #endif
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION)
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
@@ -131,23 +131,25 @@ addReaderGroup(UA_Server *server) {
 
     readerGroupConfig.transportSettings = transportSettings;
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
-    /* Encryption settings */
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+#if defined(UA_ENABLE_ENCRYPTION)
+    /* Message security is only defined for the UADP encoding */
+    if(!useJson) {
+        UA_ServerConfig *config = UA_Server_getConfig(server);
+        readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+    }
 #endif
 
     UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                              &readerGroupIdent);
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION)
     /* Add the encryption key informaton */
-    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
-    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
-    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
-
-    // TODO security token not necessary for readergroup (extracted from security-header)
-    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdent, 1, sk, ek, kn);
+    if(!useJson) {
+        UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
+        UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
+        UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
+        UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdent, 1, sk, ek, kn);
+    }
 #endif
 }
 
@@ -342,7 +344,7 @@ int main(int argc, char **argv) {
     /* Return value initialized to Status Good */
     UA_Server *server = UA_Server_new();
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#if defined(UA_ENABLE_ENCRYPTION)
     /* Instantiate the PubSub SecurityPolicy */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)

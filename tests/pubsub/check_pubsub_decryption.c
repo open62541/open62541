@@ -343,8 +343,11 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
 
     const char *msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
     UA_Byte *expectedData = hexstr_to_char(msg_dec_exp);
+    size_t expectedLength = strlen(msg_dec_exp) / 2;
 
-    ck_assert(memcmp(buffer.data, expectedData, strlen((const char*)expectedData)) == 0);
+    /* The header is unchanged and the payload is decrypted in place */
+    ck_assert_uint_ge(buffer.length, expectedLength);
+    ck_assert(memcmp(buffer.data, expectedData, expectedLength) == 0);
 
     UA_NetworkMessage_clear(&msg);
 

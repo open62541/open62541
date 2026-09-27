@@ -47,12 +47,12 @@
 #endif
 
 UA_Server *server_lds;
-UA_Boolean *running_lds;
+UA_atomic(uintptr_t) running_lds;
 THREAD_HANDLE server_thread_lds;
 UA_Client *clientRegisterRepeated;
 
 THREAD_CALLBACK(serverloop_lds) {
-    while(*running_lds)
+    while(UA_atomic_load(&running_lds))
         UA_Server_run_iterate(server_lds, true);
     return 0;
 }
@@ -92,8 +92,7 @@ configure_lds_server(UA_Server *pServer) {
 static void
 setup_lds(void) {
     // start LDS server
-    running_lds = UA_Boolean_new();
-    *running_lds = true;
+    UA_atomic_store(&running_lds, true);
 
     UA_assert(server_lds == NULL);
     server_lds = UA_Server_newForUnitTest();
@@ -108,16 +107,15 @@ setup_lds(void) {
 
 static void
 teardown_lds(void) {
-    *running_lds = false;
+    UA_atomic_store(&running_lds, false);
     THREAD_JOIN(server_thread_lds);
     UA_Server_run_shutdown(server_lds);
-    UA_Boolean_delete(running_lds);
     UA_Server_delete(server_lds);
     server_lds = NULL;
 }
 
 UA_Server *server_register;
-UA_Boolean *running_register;
+UA_atomic(uintptr_t) running_register;
 THREAD_HANDLE server_thread_register;
 UA_UInt64 periodicRegisterCallbackId;
 
@@ -125,7 +123,7 @@ static const UA_String registeredDiscoveryUrl =
     UA_STRING_STATIC("opc.tcp://third-party.example:16664");
 
 THREAD_CALLBACK(serverloop_register) {
-    while(*running_register)
+    while(UA_atomic_load(&running_register))
         UA_Server_run_iterate(server_register, true);
     return 0;
 }
@@ -133,8 +131,7 @@ THREAD_CALLBACK(serverloop_register) {
 static void
 setup_register(void) {
     // start register server
-    running_register = UA_Boolean_new();
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
 
     server_register = UA_Server_newForUnitTest();
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
@@ -174,10 +171,9 @@ setup_register(void) {
 
 static void
 teardown_register(void) {
-    *running_register = false;
+    UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
     UA_Server_run_shutdown(server_register);
-    UA_Boolean_delete(running_register);
     UA_Server_delete(server_register);
 }
 
@@ -186,13 +182,13 @@ teardown_register(void) {
  * advancing the fake clock by the registration timeout. */
 static void
 waitForRegisterRequestCompletion(void) {
-    *running_register = false;
+    UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
 
     while(UA_DiscoveryManager_getPendingRegistration(server_register, NULL))
         UA_Server_run_iterate(server_register, true);
 
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
 }
 
@@ -210,7 +206,7 @@ beginRegisterServerStopped(void) {
     UA_ClientConfig cc;
     UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
 
-    *running_register = false;
+    UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
 
     return UA_Server_registerDiscovery(
@@ -222,7 +218,7 @@ static void
 registerServer(void) {
     UA_StatusCode res = beginRegisterServerStopped();
 
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -243,14 +239,14 @@ unregisterServer(void) {
     UA_ClientConfig cc;
     UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
 
-    *running_register = false;
+    UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
 
     UA_StatusCode res =
         UA_Server_deregisterDiscovery(server_register, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"));
 
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -285,7 +281,7 @@ Server_register_semaphore(void) {
     UA_ClientConfig cc;
     UA_ClientConfig_newForUnitTestWithEncryption(&cc, certificate, privateKey);
 
-    *running_register = false;
+    UA_atomic_store(&running_register, false);
     THREAD_JOIN(server_thread_register);
 
     UA_StatusCode res =
@@ -293,7 +289,7 @@ Server_register_semaphore(void) {
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING(SEMAPHORE_PATH));
 
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -650,7 +646,7 @@ START_TEST(Server_registerInFlightTimeoutCleanup) {
     /* Keep the already-queued RegisterServer2 response pending. The first
      * clock jump expires RegisterServer2 and starts the RegisterServer
      * fallback. With the LDS stopped, the second jump expires the fallback. */
-    *running_lds = false;
+    UA_atomic_store(&running_lds, false);
     THREAD_JOIN(server_thread_lds);
     UA_Boolean register2TimedOut = false;
     if(reachedPendingResponse) {
@@ -667,9 +663,9 @@ START_TEST(Server_registerInFlightTimeoutCleanup) {
     UA_Boolean drained =
         reachedPendingResponse && drainRegisterRequestsStopped();
 
-    *running_lds = true;
+    UA_atomic_store(&running_lds, true);
     THREAD_CREATE(server_thread_lds, serverloop_lds);
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(beginResult, UA_STATUSCODE_GOOD);
@@ -698,7 +694,7 @@ START_TEST(Server_registerInFlightCancelCleanup) {
     UA_Boolean drained =
         reachedPendingResponse && drainRegisterRequestsStopped();
 
-    *running_register = true;
+    UA_atomic_store(&running_register, true);
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(beginResult, UA_STATUSCODE_GOOD);

@@ -34,17 +34,17 @@
 #include <sys/stat.h>
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 pthread_t server_thread;
 
 static void * serverloop(void *_) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return NULL;
 }
 
 static void start_server(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* less log output */
     UA_ServerConfig initialConfig;
@@ -61,7 +61,7 @@ static void start_server(void) {
 }
 
 static void teardown_server(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -414,15 +414,20 @@ subscriptionRequests(UA_Client *client) {
     monId = monResponse.monitoredItemId;
 
     // publishRequest
+    // Both helpers are internal and require the client lock to be held.
     UA_PublishRequest publishRequest;
     UA_PublishRequest_init(&publishRequest);
-    ASSERT_GOOD(UA_Client_preparePublishRequest(client, &publishRequest));
-    __UA_Client_AsyncService(client, &publishRequest,
-                             &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
-                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
-    // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
-    // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
+    lockClient(client);
+    UA_StatusCode publishRetval = __Client_preparePublishRequest(client, &publishRequest);
+    if(publishRetval == UA_STATUSCODE_GOOD)
+        __Client_AsyncService(client, &publishRequest,
+                              &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
+                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
+    unlockClient(client);
+    // here we don't care about the async return value since it may be
+    // UA_STATUSCODE_BADMESSAGENOTAVAILABLE
     UA_PublishRequest_clear(&publishRequest);
+    ASSERT_GOOD(publishRetval);
 
     // republishRequest
     UA_RepublishRequest republishRequest;

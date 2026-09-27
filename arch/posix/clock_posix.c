@@ -31,15 +31,18 @@ UA_DateTime UA_DateTime_now(void) {
         UA_DATETIME_UNIX_EPOCH;
 }
 
-/* Credit to https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
+/* Compare broken-down representations of the same instant. Avoid mktime(),
+ * which interprets UTC fields as local time and refreshes global timezone state. */
 UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
     time_t rawtime = time(NULL);
-    struct tm gbuf;
-    struct tm *ptm = gmtime_r(&rawtime, &gbuf);
-    /* Request mktime() to look up dst in timezone database */
-    ptm->tm_isdst = -1;
-    time_t gmt = mktime(ptm);
-    return (UA_Int64) (difftime(rawtime, gmt) * UA_DATETIME_SEC);
+    struct tm local, utc;
+    if(!localtime_r(&rawtime, &local) || !gmtime_r(&rawtime, &utc))
+        return 0;
+    int days = local.tm_yday - utc.tm_yday;
+    if(local.tm_year != utc.tm_year)
+        days = (local.tm_year > utc.tm_year) ? 1 : -1;
+    return ((UA_Int64)days * 86400 + (local.tm_hour - utc.tm_hour) * 3600 +
+            (local.tm_min - utc.tm_min) * 60 + local.tm_sec - utc.tm_sec) * UA_DATETIME_SEC;
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {

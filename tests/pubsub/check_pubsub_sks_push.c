@@ -34,11 +34,11 @@ UA_ByteString currentKey;
 UA_ByteString *futureKey = NULL;
 UA_String securityGroupId;
 UA_NodeId connection, writerGroup, readerGroup, publishedDataSet, dataSetWriter;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -200,7 +200,9 @@ addTestWriterGroup(UA_String securitygroupId) {
 
     retval |=
         UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -222,11 +224,12 @@ addTestReaderGroup(UA_String securitygroupId) {
 
     retVal |=
         UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void
 setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -269,7 +272,7 @@ setup(void) {
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -300,7 +303,7 @@ setup(void) {
 
 static void
 teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

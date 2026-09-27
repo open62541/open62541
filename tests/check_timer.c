@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "../arch/common/timer.h"
+#include "thread_wrapper.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -53,10 +54,71 @@ START_TEST(benchmarkTimer) {
     UA_Timer_clear(&timer);
 } END_TEST
 
+START_TEST(batchWithinWindow) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    count = 0;
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 100, 0,
+                                   NULL, UA_TIMERPOLICY_CURRENTTIME, NULL),
+                      UA_STATUSCODE_GOOD);
+    /* Equal intervals within the quarter-interval window run together. */
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 100,
+                                   5 * UA_DATETIME_MSEC, NULL,
+                                   UA_TIMERPOLICY_CURRENTTIME, NULL),
+                      UA_STATUSCODE_GOOD);
+    /* An entry outside that window must retain its own deadline. */
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 100,
+                                   30 * UA_DATETIME_MSEC, NULL,
+                                   UA_TIMERPOLICY_CURRENTTIME, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Timer_process(&timer, 100 * UA_DATETIME_MSEC) ==
+              130 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 2);
+    UA_Timer_clear(&timer);
+} END_TEST
+
+#if UA_MULTITHREADING >= 100
+typedef struct {
+    UA_DateTime now;
+    UA_StatusCode status;
+} TimerThreadContext;
+
+/* Independent timers must not share mutable batching state. */
+THREAD_CALLBACK_PARAM(addTimers, argument) {
+    TimerThreadContext *context = (TimerThreadContext*)argument;
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    for(size_t i = 0; i < 1000; i++) {
+        context->status = UA_Timer_add(&timer, timerCallback, NULL, NULL,
+                                      (UA_Double)(i % 100 + 1), context->now,
+                                      NULL, UA_TIMERPOLICY_CURRENTTIME, NULL);
+        if(context->status != UA_STATUSCODE_GOOD)
+            break;
+    }
+    UA_Timer_clear(&timer);
+    return 0;
+}
+
+START_TEST(independentTimerBatching) {
+    TimerThreadContext contexts[4] = {{0, 0}, {1000000, 0}, {2000000, 0}, {3000000, 0}};
+    THREAD_HANDLE threads[4];
+    for(size_t i = 0; i < 4; i++)
+        THREAD_CREATE_PARAM(threads[i], addTimers, contexts[i]);
+    for(size_t i = 0; i < 4; i++) {
+        THREAD_JOIN(threads[i]);
+        ck_assert_uint_eq(contexts[i].status, UA_STATUSCODE_GOOD);
+    }
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s  = suite_create("Test Event Timer");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
+    tcase_add_test(tc, batchWithinWindow);
+#if UA_MULTITHREADING >= 100
+    tcase_add_test(tc, independentTimerBatching);
+#endif
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

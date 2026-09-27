@@ -112,16 +112,24 @@ jobs:
 
           - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
             mbedtls: true
-            cmd_action: unit_tests_encryption_mbedtls_pubsub
+            cmd_action: unit_tests_encryption_pubsub MBEDTLS
 
           - name: "PubSub SKS Build & Unit Tests (gcc)"
             mbedtls: true
             cmd_deps: sudo apt-get install -y -qq valgrind
-            cmd_action: unit_tests_pubsub_sks
+            cmd_action: unit_tests_pubsub_sks MBEDTLS
 
           - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
+
+          - name: "PubSub Encryption (OpenSSL) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq openssl
+            cmd_action: unit_tests_encryption_pubsub OPENSSL
+
+          - name: "PubSub SKS (OpenSSL) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq openssl valgrind
+            cmd_action: unit_tests_pubsub_sks OPENSSL
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
@@ -153,6 +161,9 @@ jobs:
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
+          - name: "Build Option Coverage"
+            cmd_action: build_option_coverage
+
         include:          
           # Clang builds for specific Ubuntu versions
           - os: ubuntu-22.04
@@ -172,6 +183,12 @@ jobs:
               name: "Debug Build & Unit Tests (clang-21)"
               cmd_deps: sudo apt-get install -y -qq clang-21 clang-tools-21 && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: CC=clang-21 CXX=clang++-21 unit_tests
+
+          # Build without multithreading on a single Ubuntu version
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests without multithreading (gcc)"
+              cmd_action: unit_tests_nomt
 
           # Libwebsockets Build for specific Ubuntu version
           - os: ubuntu-24.04
@@ -202,6 +219,12 @@ jobs:
               name: "HTTP server lifecycle with libwebsockets (ThreadSanitizer)"
               cmd_deps: sudo apt-get install -y -qq build-essential cmake curl gcc iproute2 libpcap-dev libssl-dev libwebsockets-dev zlib1g-dev
               cmd_action: unit_tests_libwebsockets_tsan
+
+          - os: ubuntu-24.04
+            build:
+              name: "Full unit test suite (ThreadSanitizer)"
+              cmd_deps: sudo apt-get install -y -qq clang-18 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests_tsan
 
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04

@@ -32,7 +32,7 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
     res |= UA_String_copy(&src->name, &dst->name);
     switch(src->publishedDataSetType) {
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
-            //no additional items
+            /* no additional items */
             break;
 
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
@@ -92,11 +92,11 @@ UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name) {
 
 void
 UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
-    //delete pds config
+    /* delete pds config */
     UA_String_clear(&pdsConfig->name);
     switch (pdsConfig->publishedDataSetType){
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
-            //no additional items
+            /* no additional items */
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
             if(pdsConfig->config.itemsTemplate.variablesToAddSize > 0){
@@ -251,7 +251,8 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    if(currDS->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS) {
+    if(currDS->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS &&
+       currDS->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE) {
         result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return result;
     }
@@ -477,28 +478,29 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
         return result;
     }
 
-    if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+    if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS &&
+       publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
     }
 
     if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
-        // DataSet has to have a valid name
+        /* DataSet has to have a valid name */
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
     if(UA_PublishedDataSet_findByName(psm, publishedDataSetConfig->name)) {
-        // DataSet name has to be unique in the publisher
+        /* DataSet name has to be unique in the publisher */
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         return result;
     }
 
-    /* Create new PDS and add to UA_PubSubManager */
+    /* Allocate the published dataset and attach its owned configuration. */
     UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
         UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPDS) {
@@ -523,9 +525,6 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
         return result;
     }
 
-    /* TODO: Parse template config and add fields (later PubSub batch) */
-    if(newConfig->publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE) {
-    }
 
     /* Fill the DataSetMetaData */
     UA_EventLoop *el = psm->drv.server->config.eventLoop;
@@ -548,8 +547,9 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
         res = UA_String_copy(&newConfig->name, &newPDS->dataSetMetaData.name);
         break;
     case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
-        res = UA_DataSetMetaDataType_copy(&newConfig->config.itemsTemplate.metaData,
-                                          &newPDS->dataSetMetaData);
+        if(newConfig->config.itemsTemplate.metaData.fieldsSize !=
+           newConfig->config.itemsTemplate.variablesToAddSize)
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
         break;
     default:
         res = UA_STATUSCODE_BADINTERNALERROR;
@@ -582,9 +582,62 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
 
     UA_LOG_INFO_PUBSUB(psm->logging, newPDS, "DataSet created");
 
+    /* A template supplies both the field contract and the published variables.
+     * Build and validate every field before exposing the completed dataset. */
+    if(newConfig->publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE) {
+        UA_PublishedDataItemsTemplateConfig *t = &newConfig->config.itemsTemplate;
+        for(size_t i = 0; i < t->variablesToAddSize; i++) {
+            UA_FieldMetaData *metadata = &t->metaData.fields[i];
+            UA_DataSetFieldConfig fc;
+            memset(&fc, 0, sizeof(fc));
+            fc.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+            fc.field.variable.fieldNameAlias = metadata->name;
+            fc.field.variable.description = metadata->description;
+            fc.field.variable.promotedField =
+                (metadata->fieldFlags & UA_DATASETFIELDFLAGS_PROMOTEDFIELD) != 0;
+            fc.field.variable.maxStringLength = metadata->maxStringLength;
+            fc.field.variable.publishParameters = t->variablesToAdd[i];
+            result.addResult = UA_DataSetField_create(psm, newPDS->head.identifier,
+                                                      &fc, NULL).result;
+            if(result.addResult != UA_STATUSCODE_GOOD)
+                break;
+            UA_DataSetField *field = TAILQ_FIRST(&newPDS->fields);
+            while(TAILQ_NEXT(field, listEntry))
+                field = TAILQ_NEXT(field, listEntry);
+            if(!UA_NodeId_equal(&metadata->dataType, &field->fieldMetaData.dataType) ||
+               metadata->builtInType != field->fieldMetaData.builtInType ||
+               (field->fieldMetaData.valueRank != UA_VALUERANK_ANY &&
+                !(field->fieldMetaData.valueRank == UA_VALUERANK_SCALAR_OR_ONE_DIMENSION &&
+                  (metadata->valueRank == UA_VALUERANK_SCALAR || metadata->valueRank == 1)) &&
+                metadata->valueRank != field->fieldMetaData.valueRank)) {
+                result.addResult = UA_STATUSCODE_BADTYPEMISMATCH;
+                break;
+            }
+            UA_FieldMetaData_clear(&field->fieldMetaData);
+            result.addResult = UA_FieldMetaData_copy(metadata, &field->fieldMetaData);
+            if(result.addResult != UA_STATUSCODE_GOOD)
+                break;
+            /* The contract's FieldId can be shared by multiple datasets.
+             * Keep the generated native component identifier globally unique. */
+        }
+        if(result.addResult == UA_STATUSCODE_GOOD) {
+            UA_DataSetMetaDataType_clear(&newPDS->dataSetMetaData);
+            result.addResult = UA_DataSetMetaDataType_copy(&t->metaData,
+                                                          &newPDS->dataSetMetaData);
+        }
+        if(result.addResult != UA_STATUSCODE_GOOD) {
+            UA_PublishedDataSet_remove(psm, newPDS);
+            return result;
+        }
+        result.configurationVersion = t->metaData.configurationVersion;
+    }
+
     /* Return the created identifier */
-    if(pdsIdentifier)
-        UA_NodeId_copy(&newPDS->head.identifier, pdsIdentifier);
+    if(pdsIdentifier) {
+        result.addResult = UA_NodeId_copy(&newPDS->head.identifier, pdsIdentifier);
+        if(result.addResult != UA_STATUSCODE_GOOD)
+            UA_PublishedDataSet_remove(psm, newPDS);
+    }
     return result;
 }
 
@@ -707,7 +760,8 @@ addSubscribedDataSet(UA_PubSubManager *psm,
         return res;
     }
 
-    /* Create new PDS and add to UA_PubSubManager */
+    /* Allocate the standalone subscribed dataset and attach its owned config.
+     */
     UA_SubscribedDataSet *newSubscribedDataSet = (UA_SubscribedDataSet *)
             UA_calloc(1, sizeof(UA_SubscribedDataSet));
     if(!newSubscribedDataSet) {
@@ -895,6 +949,153 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
         UA_SubscribedDataSet_remove(psm, sds);
         res = UA_STATUSCODE_GOOD;
     }
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                    UA_SubscribedDataSetConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_SubscribedDataSet *dataset = UA_SubscribedDataSet_find(getPSM(server), id);
+    UA_StatusCode res = dataset ? UA_SubscribedDataSetConfig_copy(&dataset->config, config)
+                               : UA_STATUSCODE_BADNOTFOUND;
+    unlockServer(server);
+    return res;
+}
+
+/* Stage and validate a replacement before touching the existing dataset. */
+UA_StatusCode
+UA_Server_updatePublishedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                      const UA_PublishedDataSetConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PublishedDataSet *current = UA_PublishedDataSet_find(psm, id);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(!current) { res = UA_STATUSCODE_BADNOTFOUND; goto done; }
+    if(current->configurationFreezeCounter) { res = UA_STATUSCODE_BADINVALIDSTATE; goto done; }
+    if(!UA_String_equal(&config->name, &current->config.name)) {
+        res = UA_STATUSCODE_BADINVALIDARGUMENT; goto done;
+    }
+    if(config->publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS &&
+       current->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS)
+        goto done;
+
+    /* Create a replacement under a temporary name so validation and
+     * allocation can fail without changing the live dataset. */
+    UA_PublishedDataSetConfig stagedConfig = *config;
+    char name[64];
+    UA_Guid guid = UA_Guid_random();
+    int nameLength = mp_snprintf(name, sizeof(name), "update-" UA_PRINTF_GUID_FORMAT,
+                                 UA_PRINTF_GUID_DATA(guid));
+    if(nameLength < 0 || (size_t)nameLength >= sizeof(name)) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto done;
+    }
+    stagedConfig.name = UA_STRING(name);
+    UA_NodeId stagedId = UA_NODEID_NULL;
+    res = UA_PublishedDataSet_create(psm, &stagedConfig, &stagedId).addResult;
+    if(res != UA_STATUSCODE_GOOD)
+        goto done;
+    UA_PublishedDataSet *staged = UA_PublishedDataSet_find(psm, stagedId);
+
+    /* Prepare the new parent ids for both sets of fields before moving them. */
+    size_t count = (size_t)current->fieldSize + staged->fieldSize;
+    UA_NodeId *parents = (UA_NodeId*)UA_Array_new(count, &UA_TYPES[UA_TYPES_NODEID]);
+    if(!parents) { res = UA_STATUSCODE_BADOUTOFMEMORY; goto cleanup; }
+    for(size_t i = 0; i < count; i++) {
+        res = UA_NodeId_copy(i < current->fieldSize ? &stagedId : &id, &parents[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(parents, count, &UA_TYPES[UA_TYPES_NODEID]);
+            goto cleanup;
+        }
+    }
+
+    /* Exchange the field lists and transfer each prepared parent id into its
+     * field. The temporary dataset takes ownership of the old fields. */
+    UA_PublishedDataSet temporary;
+    TAILQ_INIT(&temporary.fields);
+    UA_DataSetField *field;
+    size_t index = 0;
+    while((field = TAILQ_FIRST(&current->fields))) {
+        TAILQ_REMOVE(&current->fields, field, listEntry);
+        UA_NodeId_clear(&field->publishedDataSet);
+        field->publishedDataSet = parents[index++];
+        TAILQ_INSERT_TAIL(&temporary.fields, field, listEntry);
+    }
+    while((field = TAILQ_FIRST(&staged->fields))) {
+        TAILQ_REMOVE(&staged->fields, field, listEntry);
+        UA_NodeId_clear(&field->publishedDataSet);
+        field->publishedDataSet = parents[index++];
+        TAILQ_INSERT_TAIL(&current->fields, field, listEntry);
+    }
+    while((field = TAILQ_FIRST(&temporary.fields))) {
+        TAILQ_REMOVE(&temporary.fields, field, listEntry);
+        TAILQ_INSERT_TAIL(&staged->fields, field, listEntry);
+    }
+    /* NodeId ownership moved into the fields. Also handle the empty-array sentinel. */
+    UA_Array_delete(parents, 0, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Exchange configuration and metadata while preserving each dataset's
+     * name. */
+#define SWAP_DATASET_MEMBER(member, type) do { \
+    type tmp = current->member; current->member = staged->member; staged->member = tmp; \
+} while(0)
+    SWAP_DATASET_MEMBER(config, UA_PublishedDataSetConfig);
+    SWAP_DATASET_MEMBER(config.name, UA_String); /* Keep each dataset's identity. */
+    SWAP_DATASET_MEMBER(dataSetMetaData, UA_DataSetMetaDataType);
+    SWAP_DATASET_MEMBER(fieldSize, UA_UInt16);
+    SWAP_DATASET_MEMBER(promotedFieldsCount, UA_UInt16);
+#undef SWAP_DATASET_MEMBER
+ cleanup:
+    /* Remove the staged dataset, which owns the old content after a
+     * successful exchange or the uncommitted replacement after a failure. */
+    UA_PublishedDataSet_remove(psm, staged);
+    UA_NodeId_clear(&stagedId);
+ done:
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
+                                       const UA_SubscribedDataSetConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SubscribedDataSet *dataset = UA_SubscribedDataSet_find(psm, id);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(!dataset) { res = UA_STATUSCODE_BADNOTFOUND; goto done; }
+    if(!UA_String_equal(&config->name, &dataset->config.name) ||
+       config->subscribedDataSetType != UA_PUBSUB_SDS_TARGET ||
+       config->dataSetMetaData.fieldsSize != config->subscribedDataSet.target.targetVariablesSize) {
+        res = UA_STATUSCODE_BADINVALIDARGUMENT; goto done;
+    }
+    if(dataset->connectedReader && UA_PubSubState_isEnabled(dataset->connectedReader->head.state)) {
+        res = UA_STATUSCODE_BADINVALIDSTATE; goto done;
+    }
+    UA_SubscribedDataSetConfig copy = {0};
+    res = UA_SubscribedDataSetConfig_copy(config, &copy);
+    if(res != UA_STATUSCODE_GOOD)
+        goto done;
+    if(dataset->connectedReader) {
+        UA_DataSetReaderConfig reader = dataset->connectedReader->config;
+        reader.dataSetMetaData = copy.dataSetMetaData;
+        reader.subscribedDataSet.target = copy.subscribedDataSet.target;
+        res = UA_Server_updateDataSetReaderConfig(server, dataset->connectedReader->head.identifier, &reader);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_SubscribedDataSetConfig_clear(&copy);
+            goto done;
+        }
+    }
+    UA_SubscribedDataSetConfig_clear(&dataset->config);
+    dataset->config = copy;
+ done:
     unlockServer(server);
     return res;
 }

@@ -456,6 +456,8 @@ typedef struct  {
                              UA_Boolean validate);
 } ConnectionProfileMapping;
 
+/* Map each transport profile to its protocol and message encoding. A null
+ * connection callback leaves channel setup to the reader or writer groups. */
 static ConnectionProfileMapping connectionProfiles[UA_PUBSUB_PROFILES_SIZE] = {
     {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"),
      UA_STRING_STATIC("udp"), false, UA_PubSubConnection_connectUDP},
@@ -507,6 +509,8 @@ UA_PubSubConnection_attachRecvConnection(UA_PubSubManager *psm,
                                          UA_ConnectionManager *cm,
                                          UA_PubSubConnection *c,
                                          uintptr_t connectionId) {
+    /* Reuse an already attached receive channel; otherwise reserve a free
+     * slot without exceeding the connection's channel limit. */
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
         if(c->recvChannels[i] == connectionId)
             return UA_STATUSCODE_GOOD;
@@ -529,6 +533,9 @@ static void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {
     if(!c->cm)
         return;
+
+    /* Request closure of every channel. Closing callbacks detach the channels
+     * and complete any pending connection deletion. */
     if(c->sendChannel != 0)
         c->cm->closeConnection(c->cm, c->sendChannel);
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {

@@ -47,25 +47,38 @@ exercisePolicy(PolicyInit init) {
     UA_StatusCode rv = init(&policy, cert, key, UA_Log_Stdout);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    /* Failed mbedTLS updates must preserve the active certificate and key. */
+    /* Failed updates must preserve the active certificate, thumbprint and
+     * private key. */
     UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
     rv = UA_ByteString_copy(&policy.localCertificate, &originalCertificate);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+
+    /* Unparseable certificate */
     UA_ByteString invalidCertificate = UA_BYTESTRING("not a certificate");
     rv = policy.updateCertificate(&policy, invalidCertificate, key);
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
     ck_assert_ptr_ne(policy.policyContext, NULL);
     ck_assert(UA_ByteString_equal(&policy.localCertificate,
                                   &originalCertificate));
+
+    /* Unparseable private key */
     UA_ByteString invalidKey = UA_BYTESTRING("not a private key");
     rv = policy.updateCertificate(&policy, cert, invalidKey);
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
     ck_assert_ptr_ne(policy.policyContext, NULL);
     ck_assert(UA_ByteString_equal(&policy.localCertificate,
                                   &originalCertificate));
+
+    /* Valid certificate for a different key pair without a private key. */
+    UA_ByteString foreignCertificate;
+    foreignCertificate.length = APPLICATION_CERT_DER_LENGTH;
+    foreignCertificate.data = APPLICATION_CERT_DER_DATA;
+    rv = policy.updateCertificate(&policy, foreignCertificate, UA_BYTESTRING_NULL);
+    ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(policy.policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&policy.localCertificate,
+                                  &originalCertificate));
     UA_ByteString_clear(&originalCertificate);
-#endif
 
     /* New channel context: remote certificate == local certificate */
     void *cc = NULL;

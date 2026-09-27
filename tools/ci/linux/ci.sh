@@ -113,7 +113,6 @@ function build_release_amalgamation {
           -DUA_ENABLE_DATATYPES_ALL=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           ..
     make open62541-amalgamation ${MAKEOPTS}
@@ -373,6 +372,38 @@ function unit_tests_libwebsockets_tsan {
           --output-on-failure
 }
 
+function unit_tests_tsan {
+    cmake -S . -B build-unit-tsan \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DEBUG_SANITIZER=OFF \
+          -DUA_MULTITHREADING=100 \
+          -DUA_ENABLE_METHODCALLS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_AUDITING=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_MQTT=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
+          -DUA_FORCE_WERROR=ON
+    cmake --build build-unit-tsan --parallel
+    # Give the runner network privileges without changing the sanitizer
+    # executables' credentials. TSan reads its options from /proc/self/environ.
+    # Set them explicitly after sudo, and preserve the Ethernet test interface.
+    # As in the HTTP TSan job, the outer EventLoop lock serializes recursive
+    # inner locks. Keep race detection, but disable the lock-order heuristic.
+    # These suites share listener ports, so run them sequentially.
+    sudo -E env TSAN_OPTIONS="halt_on_error=1:detect_deadlocks=0" \
+        ctest --test-dir build-unit-tsan --parallel 1 --timeout 300 \
+          --output-on-failure --no-tests=error
+}
+
 function unit_tests_lwip {
     rm -rf build; mkdir -p build; cd build
     cmake -DUA_ARCHITECTURE="posix-lwip" \
@@ -493,6 +524,22 @@ function unit_tests_glib {
     make gcov
 }
 
+function unit_tests_nomt {
+    rm -rf build; mkdir -p build; cd build
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_MULTITHREADING=0 \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+    set_capabilities
+    make test ARGS="-V"
+    make gcov
+}
+
 function unit_tests_alarms {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
@@ -546,13 +593,13 @@ function unit_tests_encryption {
     make gcov
 }
 
-function unit_tests_encryption_mbedtls_pubsub {
+function unit_tests_encryption_pubsub {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
@@ -570,7 +617,7 @@ function unit_tests_pubsub_sks {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
@@ -826,4 +873,70 @@ UAFX-Data\;UAFX-AC\;UAFX-CM\;Robotics \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
+}
+
+#########################
+# Build option coverage #
+#########################
+
+# Compile the library once per build option that no other job configures:
+# options that are off by default, and default-on features in their off state.
+# Only the library is built, so a configuration costs about a minute.
+#
+# Failures are collected instead of aborting, so one run reports every broken
+# configuration. "set -e" does not apply here: the CI step runs
+# "source ci.sh && <action>", and errexit is suspended inside an && list.
+
+function build_option_coverage {
+    local failed=()
+
+    # Usage: build_option_cfg <name> <cmake options...>
+    build_option_cfg() {
+        local name=$1; shift
+        echo "::group::${name}"
+        rm -rf build; mkdir -p build; cd build
+        if cmake -DCMAKE_BUILD_TYPE=Debug \
+                 -DUA_BUILD_EXAMPLES=OFF \
+                 -DUA_FORCE_WERROR=ON \
+                 "$@" \
+                 .. && make ${MAKEOPTS}; then
+            echo "::endgroup::"
+        else
+            echo "::endgroup::"
+            echo "::error::build_option_coverage: ${name} failed"
+            failed+=("${name}")
+        fi
+        cd ..
+    }
+
+    # Debug instrumentation
+    build_option_cfg "UA_DEBUG"                -DUA_DEBUG=ON -DUA_DEBUG_FILE_LINE_INFO=ON
+    build_option_cfg "UA_DEBUG_DUMP_PKGS"      -DUA_DEBUG_DUMP_PKGS=ON
+    # Defines UA_DEBUG_DUMP_PKGS_FILE and builds the corpus generator
+    build_option_cfg "UA_BUILD_FUZZING_CORPUS"  -DUA_BUILD_FUZZING_CORPUS=ON
+
+    # Off by default
+    build_option_cfg "UA_ENABLE_QUERY"             -DUA_ENABLE_QUERY=ON
+    build_option_cfg "UA_ENABLE_DETERMINISTIC_RNG" -DUA_ENABLE_DETERMINISTIC_RNG=ON
+    build_option_cfg "UA_ENABLE_RBAC"              -DUA_ENABLE_RBAC=ON -DUA_NAMESPACE_ZERO=FULL
+
+    # On by default, so only ever compiled in the enabled state
+    # The PubSub information model twin exposes methods, so it has to go as well
+    build_option_cfg "no UA_ENABLE_METHODCALLS"    -DUA_ENABLE_METHODCALLS=OFF \
+                     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF
+    build_option_cfg "no UA_ENABLE_NODEMANAGEMENT" -DUA_ENABLE_NODEMANAGEMENT=OFF
+    build_option_cfg "no UA_ENABLE_AUDITING"       -DUA_ENABLE_AUDITING=OFF
+    build_option_cfg "no UA_ENABLE_STATUSCODE_DESCRIPTIONS" -DUA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF
+    build_option_cfg "no UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS" -DUA_ENABLE_NODESET_COMPILER_DESCRIPTIONS=OFF
+    # Type descriptions are required by the diagnostics, the JSON encoding and
+    # the event filter parser
+    build_option_cfg "no UA_ENABLE_TYPEDESCRIPTION" -DUA_ENABLE_TYPEDESCRIPTION=OFF \
+                     -DUA_ENABLE_DIAGNOSTICS=OFF -DUA_ENABLE_JSON_ENCODING=OFF \
+                     -DUA_ENABLE_XML_ENCODING=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF
+
+    if [ ${#failed[@]} -ne 0 ]; then
+        echo "Failed configurations: ${failed[*]}"
+        return 1
+    fi
+    echo "All build option configurations compiled"
 }

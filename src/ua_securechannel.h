@@ -229,6 +229,34 @@ struct UA_SecureChannel {
      * used in the server) */
     UA_Session *sessions;
 
+    /* Generic per-channel storage for the application, addressable via
+     * UA_Server_{get,set,delete}SecureChannelAttribute. Mirrors
+     * UA_Session.attributes. */
+    UA_KeyValueMap attributes;
+
+    /* Cached from the reserved "0:maxMessageSize" entry in attributes
+     * whenever it is written, so the per-chunk size checks in
+     * UA_SecureChannel_getCompleteMessage never need to touch the map. Zero
+     * means "not set" -> config.localMaxMessageSize applies unmodified. A
+     * non-zero value can only tighten, never loosen, that static ceiling. */
+    UA_UInt32 maxMessageSizeOverride;
+
+    /* Backing storage for the handful of built-in, read-only ns0 attributes
+     * (UA_SecureChannel_getBuiltinAttribute) that are not themselves a
+     * stable, directly-addressable channel member -- e.g. connection-id
+     * needs a uintptr_t -> UA_UInt64 conversion, and security-policy-url /
+     * certificate-type-id need a default while no SecurityPolicy is set
+     * yet. Recomputed (overwritten) on every access; never owns allocated
+     * memory (String/NodeId members are always shallow references into
+     * other stable storage, e.g. the connection manager or SecurityPolicy),
+     * so UA_SecureChannel_clear does not need to clear it. */
+    struct {
+        UA_UInt64 connectionId;
+        UA_String connectionManagerName;
+        UA_String securityPolicyUri;
+        UA_NodeId certificateTypeId;
+    } builtinAttributeScratch;
+
     /* (Decrypted) chunks waiting to be processed */
     UA_ChunkQueue chunks;
     size_t chunksCount;

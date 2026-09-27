@@ -72,7 +72,8 @@ assertWriterGroupEnabled(UA_PubSubConnection *connection, const char *name,
 
 START_TEST(AddPublisherUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
-    UA_ByteString publisherConfiguration = loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+    UA_ByteString publisherConfiguration =
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert(publisherConfiguration.length > 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, publisherConfiguration);
@@ -202,7 +203,8 @@ START_TEST(AddPublisherUsingBinaryFile) {
 
 START_TEST(AddSubscriberUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
-    UA_ByteString subscriberConfiguration = loadFile("../../tests/pubsub/check_subscriber_configuration.bin");
+    UA_ByteString subscriberConfiguration =
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_subscriber_configuration.bin");
     ck_assert(subscriberConfiguration.length > 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, subscriberConfiguration);
@@ -309,15 +311,63 @@ START_TEST(SaveEmptyConfiguration) {
                                                        &savedConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_uint_gt(savedConfiguration.length, 0);
+
+    retVal = UA_Server_loadPubSubConfigFromByteString(server,
+                                                       savedConfiguration);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&savedConfiguration);
 } END_TEST
+
+START_TEST(SaveConfigurationWithEmptyComponents) {
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressUrlDataType address = {
+        UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_Variant_setScalar(&connectionConfig.address, &address,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING(
+        "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+    UA_StatusCode res =
+        UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_NodeId connection;
+    res = UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_WriterGroupConfig writerGroup = {0};
+    writerGroup.name = UA_STRING("WriterGroup without writers");
+    writerGroup.publishingInterval = 100;
+    res = UA_Server_addWriterGroup(server, connection, &writerGroup, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig readerGroup = {0};
+    readerGroup.name = UA_STRING("ReaderGroup without readers");
+    UA_NodeId readerGroupId;
+    res = UA_Server_addReaderGroup(server, connection, &readerGroup,
+                                   &readerGroupId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_DataSetReaderConfig reader = {0};
+    reader.name = UA_STRING("DataSetReader without target variables");
+    res = UA_Server_addDataSetReader(server, readerGroupId, &reader, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString saved = UA_BYTESTRING_NULL;
+    res = UA_Server_writePubSubConfigurationToByteString(server, &saved);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(saved.length, 0);
+    UA_ByteString_clear(&saved);
+}
+END_TEST
 
 /* Before the identity-based restore fix, WriterGroups were paired with the
  * decoded array by linked-list position. Creating them inserts at the list
  * head, so a round trip swaps mixed enabled flags between two groups. */
 START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
     UA_ByteString input =
-        loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert_uint_gt(input.length, 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode res =
@@ -361,7 +411,7 @@ START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
  * was disabled and silently rewrote enabled=true to false. */
 START_TEST(DisabledParentPreservesChildEnabledIntent) {
     UA_ByteString input =
-        loadFile("../../tests/pubsub/check_publisher_configuration.bin");
+        loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert_uint_gt(input.length, 0);
     UA_Server_disableAllPubSubComponents(server);
     UA_StatusCode res =
@@ -436,6 +486,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_file_configuration, AddPublisherUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, AddSubscriberUsingBinaryFile);
     tcase_add_test(tc_pubsub_file_configuration, SaveEmptyConfiguration);
+    tcase_add_test(tc_pubsub_file_configuration,
+                   SaveConfigurationWithEmptyComponents);
     tcase_add_test(tc_pubsub_file_configuration, DataSetWriterTransportSettingsAreCopied);
     tcase_add_test(tc_pubsub_file_configuration,
                    EnabledFlagsAreRestoredByComponentIdentity);

@@ -113,11 +113,8 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     if(json) {
-        /* For JSON-encoded messages, match by DataSetWriterId. The JSON
-         * decoder populates nm->dataSetWriterIds[dsmIndex] from the
-         * "DataSetWriterId" key in each DataSetMessage. The previous code
-         * always returned BadNotFound, making the JSON subscriber path
-         * non-functional. */
+        /* Match the writer ids decoded from the JSON DataSetMessage headers.
+         * A zero reader id accepts messages from any writer. */
         if(dsr->config.dataSetWriterId == 0)
             return UA_STATUSCODE_GOOD;
         for(size_t i = 0; i < msg->messageCount; i++) {
@@ -127,6 +124,28 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. "
                             "Expected %u", dsr->config.dataSetWriterId);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Apply the optional UADP header filters. Nonzero settings require the
+     * corresponding header field to be present and equal to the configured
+     * value. */
+    const UA_ExtensionObject *settings = &dsr->config.messageSettings;
+    if(UA_ExtensionObject_hasDecodedType(settings,
+           &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetReaderMessageDataType *uadp =
+            (const UA_UadpDataSetReaderMessageDataType*)settings->content.decoded.data;
+        if(uadp->groupVersion != 0 &&
+           (!msg->groupHeaderEnabled || !msg->groupHeader.groupVersionEnabled ||
+            msg->groupHeader.groupVersion != uadp->groupVersion))
+            return UA_STATUSCODE_BADNOTFOUND;
+        if(uadp->networkMessageNumber != 0 &&
+           (!msg->groupHeaderEnabled || !msg->groupHeader.networkMessageNumberEnabled ||
+            msg->groupHeader.networkMessageNumber != uadp->networkMessageNumber))
+            return UA_STATUSCODE_BADNOTFOUND;
+        if(!UA_Guid_equal(&uadp->dataSetClassId, &UA_GUID_NULL) &&
+           (!msg->dataSetClassIdEnabled ||
+            !UA_Guid_equal(&uadp->dataSetClassId, &msg->dataSetClassId)))
+            return UA_STATUSCODE_BADNOTFOUND;
     }
 
     if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
@@ -176,6 +195,16 @@ UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id) {
 
 static UA_StatusCode
 validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    /* Reject fixed byte offsets: the default reader locates DataSetMessages
+     * through the decoded payload rather than configured positions. */
+    if(UA_ExtensionObject_hasDecodedType(&dsr->config.messageSettings,
+           &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetReaderMessageDataType *settings =
+            (const UA_UadpDataSetReaderMessageDataType*)dsr->config.messageSettings.content.decoded.data;
+        if(settings->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     /* Check if used dataSet metaData is valid in context of the rest of the config */
     if(dsr->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
@@ -231,6 +260,97 @@ disconnectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     disconnectDataSetReaderToDataSet(psm->drv.server, dsr->head.identifier);
 #endif
+}
+
+static void
+clearSequences(UA_DataSetReader *reader) {
+    while(reader->sequences) {
+        UA_ReaderSequence *entry = reader->sequences;
+        reader->sequences = entry->next;
+        UA_PublisherId_clear(&entry->publisherId);
+        UA_free(entry);
+    }
+}
+
+UA_Boolean
+UA_DataSetReader_checkSequence(UA_PubSubManager *psm, UA_DataSetReader *reader,
+                               const UA_NetworkMessage *nm, UA_UInt16 writerId,
+                               UA_Boolean dataSet, UA_UInt32 number, UA_Byte bits,
+                               UA_Boolean update, UA_Boolean *gap) {
+    /* Identify this stream by its received publisher, group and writer ids.
+     * NetworkMessage and DataSetMessage counters have separate histories. */
+    UA_EventLoop *el = psm->drv.server->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    UA_Boolean groupEnabled = nm->groupHeaderEnabled && nm->groupHeader.writerGroupIdEnabled;
+    UA_UInt16 groupId = groupEnabled ? nm->groupHeader.writerGroupId : 0;
+    UA_ReaderSequence **pos = &reader->sequences;
+    *gap = true;
+    while(*pos) {
+        UA_ReaderSequence *entry = *pos;
+        /* The history survives the first receive timeout. Part 14 7.2.3
+         * discards it only after twice that interval without messages. */
+        if(reader->config.messageReceiveTimeout > 0.0 &&
+           (UA_Double)(now - entry->lastReceived) / UA_DATETIME_MSEC >=
+               2.0 * reader->config.messageReceiveTimeout) {
+            *pos = entry->next;
+            UA_PublisherId_clear(&entry->publisherId);
+            UA_free(entry);
+            continue;
+        }
+
+        /* Find the history for this stream, including which header ids are
+         * present. */
+        UA_Variant a, b;
+        UA_PublisherId_toVariant(&entry->publisherId, &a);
+        UA_PublisherId_toVariant(&nm->publisherId, &b);
+        if(entry->publisherIdEnabled == nm->publisherIdEnabled &&
+           (!nm->publisherIdEnabled || UA_Variant_equal(&a, &b)) &&
+           entry->writerGroupIdEnabled == groupEnabled &&
+           entry->writerGroupId == groupId && entry->writerId == writerId &&
+           entry->dataSet == dataSet) {
+            /* Refresh the receive time even for rejected numbers, then
+             * compare sequence numbers modulo the wire format's counter
+             * width. */
+            entry->lastReceived = now;
+            UA_UInt32 mask = bits == 16 ? UA_UINT16_MAX : UA_UINT32_MAX;
+            UA_UInt32 distance = (number - entry->sequenceNumber - 1) & mask;
+            /* Only the lower quarter is a forward step. This rejects both
+             * duplicate/old values and the ambiguous middle range. */
+            if(distance >= ((UA_UInt32)1 << (bits - 2)))
+                return false;
+
+            /* Report missing messages immediately, but advance the accepted
+             * sequence number only after the caller has processed the
+             * message. */
+            *gap = distance != 0;
+            if(update)
+                entry->sequenceNumber = number;
+            return true;
+        }
+        pos = &entry->next;
+    }
+
+    /* Accept the first message of a new stream without creating history
+     * during the preliminary check. Store an owned publisher id when
+     * committing it. */
+    if(!update)
+        return true;
+    UA_ReaderSequence *entry = (UA_ReaderSequence*)UA_calloc(1, sizeof(*entry));
+    if(!entry)
+        return false;
+    if(UA_PublisherId_copy(&nm->publisherId, &entry->publisherId) != UA_STATUSCODE_GOOD) {
+        UA_free(entry);
+        return false;
+    }
+    entry->publisherIdEnabled = nm->publisherIdEnabled;
+    entry->writerGroupIdEnabled = groupEnabled;
+    entry->writerGroupId = groupId;
+    entry->writerId = writerId;
+    entry->dataSet = dataSet;
+    entry->sequenceNumber = number;
+    entry->lastReceived = now;
+    *pos = entry;
+    return true;
 }
 
 static void
@@ -474,6 +594,7 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader deleted");
 
     clearLastUsableValues(dsr);
+    clearSequences(dsr);
     UA_DataSetReaderConfig_clear(&dsr->config);
     UA_PubSubComponentHead_clear(&dsr->head);
     UA_free(dsr);
@@ -531,6 +652,102 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
         UA_TargetVariablesDataType_clear(&cfg->subscribedDataSet.target);
     }
     memset(cfg, 0, sizeof(UA_DataSetReaderConfig));
+}
+
+/* Build an owned fallback value. LastUsableValue starts with the metadata's
+ * default value, not the separately configured OverrideValue (Part 14 Table 80). */
+static UA_StatusCode
+getTargetFallback(UA_PubSubManager *psm, UA_DataSetReader *dsr, size_t index,
+                   UA_StatusCode badStatus, UA_DataValue *value) {
+    /* Start with Null and the supplied Bad status. Disabled override handling
+     * uses this value without retaining any received payload. */
+    UA_FieldTargetDataType *tv = &dsr->config.subscribedDataSet.target.targetVariables[index];
+    UA_DataValue_init(value);
+    value->hasStatus = true;
+    value->status = badStatus;
+    if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_DISABLED)
+        return UA_STATUSCODE_GOOD;
+
+    /* Use the configured override or the last usable sample, assigning the
+     * quality that identifies which fallback supplied the value. */
+    UA_StatusCode res;
+    if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_OVERRIDEVALUE) {
+        res = UA_Variant_copy(&tv->overrideValue, &value->value);
+        value->status = UA_STATUSCODE_GOODLOCALOVERRIDE;
+    } else if(index < dsr->lastUsableValuesSize &&
+              dsr->lastUsableValues[index].hasValue) {
+        res = UA_DataValue_copy(&dsr->lastUsableValues[index], value);
+        value->status = UA_STATUSCODE_UNCERTAINLASTUSABLEVALUE;
+    } else {
+        /* Before the first usable sample, construct the field's default value
+         * from its metadata. */
+        if(index >= dsr->config.dataSetMetaData.fieldsSize)
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        const UA_FieldMetaData *fmd = &dsr->config.dataSetMetaData.fields[index];
+        const UA_DataType *type = UA_findDataTypeWithCustom(
+            &fmd->dataType, psm->drv.server->config.customDataTypes);
+        if(!type)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        if(fmd->valueRank == UA_VALUERANK_SCALAR) {
+            void *data = UA_new(type);
+            if(!data)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            UA_Variant_setScalar(&value->value, data, type);
+        } else {
+            /* Allocate a default array with the declared dimensions, checking
+             * the element count before multiplication. */
+            size_t count = fmd->arrayDimensionsSize ? 1 : 0;
+            for(size_t i = 0; i < fmd->arrayDimensionsSize; i++) {
+                UA_UInt32 dim = fmd->arrayDimensions[i];
+                if(dim && count > SIZE_MAX / dim)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                count *= dim;
+            }
+            void *data = UA_Array_new(count, type);
+            if(!data)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            UA_Variant_setArray(&value->value, data, count, type);
+            res = UA_Array_copy(fmd->arrayDimensions, fmd->arrayDimensionsSize,
+                               (void**)&value->value.arrayDimensions,
+                               &UA_TYPES[UA_TYPES_UINT32]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+            value->value.arrayDimensionsSize = fmd->arrayDimensionsSize;
+        }
+        value->status = UA_STATUSCODE_UNCERTAINLASTUSABLEVALUE;
+        res = UA_STATUSCODE_GOOD;
+    }
+    value->hasStatus = true;
+    value->hasValue = value->value.type != NULL;
+    return res;
+}
+
+static UA_StatusCode
+updateTargetsForState(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    /* Translate the inactive reader state into target quality: communication
+     * failure for Error, and out of service for Disabled or Paused. */
+    UA_StatusCode badStatus = dsr->head.state == UA_PUBSUBSTATE_ERROR ?
+        UA_STATUSCODE_BADNOCOMMUNICATION : UA_STATUSCODE_BADOUTOFSERVICE;
+    UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
+    UA_StatusCode result = UA_STATUSCODE_GOOD;
+
+    /* Apply each target's fallback through the normal write service. Release
+     * temporary values and continue with other targets if a write fails. */
+    for(size_t i = 0; i < tvs->targetVariablesSize; i++) {
+        UA_WriteValue wv;
+        UA_WriteValue_init(&wv);
+        UA_StatusCode res = getTargetFallback(psm, dsr, i, badStatus, &wv.value);
+        if(res == UA_STATUSCODE_GOOD) {
+            wv.nodeId = tvs->targetVariables[i].targetNodeId;
+            wv.attributeId = tvs->targetVariables[i].attributeId;
+            wv.indexRange = tvs->targetVariables[i].writeIndexRange;
+            Operation_Write(psm->drv.server, &psm->drv.server->adminSession, &wv, &res);
+        }
+        UA_DataValue_clear(&wv.value);
+        if(res != UA_STATUSCODE_GOOD)
+            result = res;
+    }
+    return result;
 }
 
 UA_StatusCode
@@ -598,11 +815,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         dsr->msgRcvTimeoutTimerId = 0;
     }
 
-    /* Spec 6.2.9.6: "The time starts when the state of the DataSetReader
-     * changes to Operational." Start the receive timeout timer on the
-     * Operational transition — not only when the first message arrives
-     * (which was the previous behavior). If no message ever arrives, the
-     * reader correctly goes to Error after the timeout. */
+    /* Start receive-timeout monitoring when the reader becomes Operational,
+     * including readers that have not yet received their first message. */
     if(dsr->head.state == UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->config.messageReceiveTimeout > 0.0 &&
        dsr->msgRcvTimeoutTimerId == 0) {
@@ -618,9 +832,24 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     if(dsr->head.state == oldState)
         return res;
 
+    /* Update target values once when the built-in state machine enters an
+     * inactive state. Custom state machines manage their own target updates. */
+    if(!dsr->config.customStateMachine &&
+       (dsr->head.state == UA_PUBSUBSTATE_DISABLED ||
+        dsr->head.state == UA_PUBSUBSTATE_PAUSED ||
+        dsr->head.state == UA_PUBSUBSTATE_ERROR)) {
+        UA_StatusCode targetResult = updateTargetsForState(psm, dsr);
+        if(targetResult != UA_STATUSCODE_GOOD)
+            res = targetResult;
+    }
+
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
                        UA_PubSubState_name(oldState),
                        UA_PubSubState_name(dsr->head.state));
+
+    /* Forget stream history on disable; retain it across receive timeouts. */
+    if(dsr->head.state == UA_PUBSUBSTATE_DISABLED)
+        clearSequences(dsr);
 
     /* Inform application about state change */
     if(server->config.pubSubConfig.stateChangeCallback)
@@ -678,11 +907,11 @@ UA_DataSetReader_handleMessageReceiveTimeout(void *application /* UA_PubSubManag
     unlockServer(psm->drv.server);
 }
 
-void
+UA_Boolean
 UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                          UA_DataSetMessage *msg) {
     if(!dsr || !msg || !psm)
-        return;
+        return false;
 
     UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Received a network message");
 
@@ -690,13 +919,13 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
        dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Received a network message but not operational");
-        return;
+        return false;
     }
 
     if(!msg->header.dataSetMessageValid) {
         UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                            "DataSetMessage is discarded: message is not valid");
-        return;
+        return false;
     }
 
     /* A version carried by the message has to match the reader metadata.
@@ -711,7 +940,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "DataSetMessage discarded: ConfigurationVersion "
                               "MajorVersion does not match");
-        return;
+        return false;
     }
     if(expected->minorVersion != 0 &&
        msg->header.configVersionMinorVersionEnabled &&
@@ -719,7 +948,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "DataSetMessage discarded: ConfigurationVersion "
                               "MinorVersion does not match");
-        return;
+        return false;
     }
 
     /* A valid and compatible first message promotes the reader from
@@ -728,11 +957,8 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
                                         UA_STATUSCODE_GOOD);
 
-    /* Reset the message receive timeout before discarding non-keyframe
-     * messages. Spec 6.2.9.6: "The DataSetMessages that reset the period
-     * include keep-alive and heartbeat messages." The previous code placed
-     * this reset AFTER the keyframe check, so keep-alive/delta/event
-     * messages did not reset the timer. */
+    /* Reset receive-timeout monitoring for a compatible message before
+     * handling its payload, including keep-alive and heartbeat messages. */
     if(dsr->config.messageReceiveTimeout > 0.0) {
         UA_EventLoop *el = psm->drv.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
@@ -753,12 +979,12 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
        !deltaFrame) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "DataSetMessage is discarded: unsupported message type");
-        return;
+        return msg->header.dataSetMessageType == UA_DATASETMESSAGE_KEEPALIVE;
     }
 
     /* Received a heartbeat with no fields */
     if(msg->fieldCount == 0)
-        return;
+        return true;
 
     /* Check whether the field count matches the configuration */
     UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
@@ -766,7 +992,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Number of fields does not match the "
                               "TargetVariables configuration");
-        return;
+        return false;
     }
 
     if(deltaFrame) {
@@ -778,7 +1004,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                                   "DataSetMessage is discarded: delta frame "
                                   "does not match the configured key-frame period");
-            return;
+            return false;
         }
         dsr->deltaFrameCounter++;
     } else {
@@ -795,7 +1021,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             if(!dsr->lastUsableValues) {
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR,
                                                 UA_STATUSCODE_BADOUTOFMEMORY);
-                return;
+                return false;
             }
             dsr->lastUsableValuesSize = tvs->targetVariablesSize;
         }
@@ -813,55 +1039,32 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                 UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                                       "Delta-frame field index is outside the "
                                       "TargetVariables configuration");
-                return;
+                return false;
             }
         } else {
             field = &msg->data.keyFrameFields[i];
         }
         UA_FieldTargetDataType *tv = &tvs->targetVariables[targetIndex];
 
-        /* Apply OverrideValueHandling per spec Table 80. A missing value is
-         * handled like a Bad value instead of being skipped before the mode is
-         * evaluated. Uncertain values remain usable. */
+        /* Replace missing or Bad input with an owned fallback value. Keep
+         * usable received values, including Uncertain values, borrowed. */
         UA_DataValue writeValue = *field;
         UA_Boolean bad = !field->hasValue ||
             (field->hasStatus && UA_StatusCode_isBad(field->status));
         UA_Boolean fromReceivedValue = !bad;
+        UA_DataValue fallback;
+        UA_DataValue_init(&fallback);
         if(bad) {
-            if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_OVERRIDEVALUE) {
-                writeValue.value = tv->overrideValue;
-                writeValue.hasValue = (tv->overrideValue.type != NULL);
-                writeValue.status = writeValue.hasValue ?
-                    UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNODATAAVAILABLE;
-                writeValue.hasStatus = true;
-            } else if(tv->overrideValueHandling == UA_OVERRIDEVALUEHANDLING_LASTUSABLEVALUE) {
-                UA_DataValue *last = &dsr->lastUsableValues[targetIndex];
-                if(last->hasValue) {
-                    writeValue = *last;
-                } else {
-                    /* Before the first usable value, use the configured
-                     * override if present; otherwise publish Null+Bad. */
-                    writeValue.value = tv->overrideValue;
-                    writeValue.hasValue = (tv->overrideValue.type != NULL);
-                    writeValue.status = writeValue.hasValue ?
-                        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNODATAAVAILABLE;
-                    writeValue.hasStatus = true;
-                }
-            } else {
-                /* Disabled forwards the received Bad DataValue unchanged.
-                 * Only a valueless input becomes the required Null+Bad value;
-                 * discarding a present typed value would make the write fail
-                 * against statically typed target variables. */
-                if(!field->hasValue) {
-                    UA_Variant_init(&writeValue.value);
-                    writeValue.hasValue = false;
-                    writeValue.status =
-                        (field->hasStatus &&
-                         UA_StatusCode_isBad(field->status)) ?
-                        field->status : UA_STATUSCODE_BADNODATAAVAILABLE;
-                    writeValue.hasStatus = true;
-                }
+            UA_StatusCode badStatus = (field->hasStatus &&
+                UA_StatusCode_isBad(field->status)) ? field->status :
+                UA_STATUSCODE_BADNODATAAVAILABLE;
+            res = getTargetFallback(psm, dsr, targetIndex, badStatus, &fallback);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_DataValue_clear(&fallback);
+                UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
+                return false;
             }
+            writeValue = fallback;
         }
 
         /* ReceiverIndexRange selects from the received value before the
@@ -880,19 +1083,17 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                    "Invalid ReceiverIndexRange for field %u: %s",
                                    (unsigned)targetIndex, UA_StatusCode_name(res));
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
+                UA_DataValue_clear(&fallback);
                 UA_Variant_clear(&rangedValue);
-                return;
+                return false;
             }
             writeValue.value = rangedValue;
             writeValue.hasValue = true;
         }
 
-        /* Write via the Write-Service.
-         * Spec Table 69: ReceiverIndexRange extracts a sub-range from the
-         * received data; WriteIndexRange controls writing to the target node.
-         * The previous code used receiverIndexRange for the write, which is
-         * the wrong field — it writes to the wrong array elements or fails
-         * with Bad_IndexRangeInvalid. */
+        /* Write the selected value through the Write service. WriteIndexRange
+         * selects the target elements; ReceiverIndexRange was applied to the
+         * input. */
         UA_WriteValue writeVal;
         UA_WriteValue_init(&writeVal);
         writeVal.attributeId = tv->attributeId;
@@ -904,6 +1105,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)targetIndex, UA_StatusCode_name(res));
+            UA_DataValue_clear(&fallback);
             UA_Variant_clear(&rangedValue);
             /* A target-specific write rejection must not disable the complete
              * reader. Later messages (or other targets in this message) may
@@ -917,13 +1119,16 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             res = UA_DataValue_copy(&writeValue,
                                     &dsr->lastUsableValues[targetIndex]);
             if(res != UA_STATUSCODE_GOOD) {
+                UA_DataValue_clear(&fallback);
                 UA_Variant_clear(&rangedValue);
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_ERROR, res);
-                return;
+                return false;
             }
         }
+        UA_DataValue_clear(&fallback);
         UA_Variant_clear(&rangedValue);
     }
+    return true;
 }
 
 /**************/
@@ -1088,6 +1293,7 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
     /* Clean up and return */
     UA_DataSetReaderConfig_clear(&oldConfig);
     clearLastUsableValues(dsr);
+    clearSequences(dsr);
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 

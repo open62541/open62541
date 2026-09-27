@@ -37,7 +37,7 @@
 #define CHACHAPOLY_URI "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 static const size_t usernamePasswordsSize = 2;
@@ -46,13 +46,13 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     UA_ByteString certificate;
     certificate.length = CERT_P256_DER_LENGTH;
@@ -97,19 +97,19 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
 
 static void pauseServer(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 }
 
 static void runServer(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 

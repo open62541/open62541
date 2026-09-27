@@ -9,7 +9,7 @@
 #include "test_helpers.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 const size_t trustListSize = 0;
@@ -35,7 +35,7 @@ static void initialize_server_config(UA_ServerConfig *config) {
 
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 }
 
 static UA_Server *create_server(void) {
@@ -56,7 +56,7 @@ static UA_Server *create_server(void) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -65,13 +65,13 @@ static void setup(void) {
     server = create_server();
     ck_assert(server != NULL);
 
-    running = true;
+    UA_atomic_store(&running, true);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

@@ -26,21 +26,21 @@
 #endif
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 static const char testUserName[] = "user";
 static const char testPassword[] = "pass";
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
     UA_StatusCode retval;
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -167,7 +167,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -353,6 +353,8 @@ START_TEST(loadClientConfig) {
     ck_assert_uint_eq(clientConfig.maxAsyncServiceCalls, 17);
     ck_assert_uint_eq(clientConfig.asyncServiceCallRule, UA_RULEHANDLING_ACCEPT);
     ck_assert_uint_eq(clientConfig.certificateEkuRule, UA_RULEHANDLING_WARN);
+    ck_assert_uint_eq(clientConfig.endpointDescriptionRule,
+                      UA_RULEHANDLING_ABORT);
     ck_assert_uint_eq(clientConfig.outStandingPublishRequests, 0);
 
     UA_ByteString_clear(&jsonConfig);
@@ -526,6 +528,8 @@ START_TEST(loadClientAndClientConfigAndCompare) {
     ck_assert_uint_eq(cc2->maxAsyncServiceCalls, clientConfig.maxAsyncServiceCalls);
     ck_assert_uint_eq(cc2->asyncServiceCallRule, clientConfig.asyncServiceCallRule);
     ck_assert_uint_eq(cc2->certificateEkuRule, clientConfig.certificateEkuRule);
+    ck_assert_uint_eq(cc2->endpointDescriptionRule,
+                      clientConfig.endpointDescriptionRule);
     ck_assert_uint_eq(cc2->outStandingPublishRequests, clientConfig.outStandingPublishRequests);
 
     UA_Client_delete(client);

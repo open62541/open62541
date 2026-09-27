@@ -23,7 +23,7 @@
 #include "thread_wrapper.h"
 
 static UA_Server *server;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static size_t serverIterations;
 static THREAD_HANDLE server_thread;
 UA_NodeId EventType_A_Layer_1, EventType_B_Layer_1, EventType_C_Layer_2, EventType_D_Layer_3;
@@ -123,7 +123,7 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
 }
 
 THREAD_CALLBACK(serverloop) {
-    while (running) {
+    while(UA_atomic_load(&running)) {
         UA_Server_run_iterate(server, true);
         serverIterations++;
     }
@@ -131,12 +131,12 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void runServer(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void pauseServer(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 }
 
@@ -150,7 +150,7 @@ sleepUntilAnswer(UA_Double sleepMs) {
 
 static void setup(void){
     /* Setup Server */
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -178,7 +178,7 @@ static void setup(void){
 
 static void teardown(void) {
     /* Delete Server */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -623,6 +623,46 @@ START_TEST(inListOperatorValidation) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+START_TEST(inListOperatorEmptyArrays) {
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode WHERE 40 INLIST [10]";
+    UA_StatusCode retval = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Replace the parsed predicate with two empty-array literal operands. */
+    UA_ContentFilter_clear(&filter.whereClause);
+    filter.whereClause.elements = UA_ContentFilterElement_new();
+    ck_assert(filter.whereClause.elements != NULL);
+    filter.whereClause.elementsSize = 1;
+    UA_ContentFilterElement *element = filter.whereClause.elements;
+    element->filterOperator = UA_FILTEROPERATOR_INLIST;
+    element->filterOperands = (UA_ExtensionObject *)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert(element->filterOperands != NULL);
+    element->filterOperandsSize = 2;
+    for(size_t i = 0; i < 2; i++) {
+        UA_LiteralOperand *literal = UA_LiteralOperand_new();
+        ck_assert(literal != NULL);
+        UA_Variant_setArray(&literal->value, UA_EMPTY_ARRAY_SENTINEL, 0,
+                            &UA_TYPES[UA_TYPES_UINT32]);
+        UA_ExtensionObject_setValue(&element->filterOperands[i], literal,
+                                    &UA_TYPES[UA_TYPES_LITERALOPERAND]);
+    }
+
+    eventType = EventType_A_Layer_1;
+    UA_MonitoredItemCreateResult createResult =
+        addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
 START_TEST(modifySelectFilterValidation) {
     /* setup event filter */
     UA_EventFilter filter;
@@ -683,6 +723,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
     tcase_add_test(tc_server, betweenOperatorValidation);
     tcase_add_test(tc_server, inListOperatorValidation);
+    tcase_add_test(tc_server, inListOperatorEmptyArrays);
     tcase_add_test(tc_server, modifySelectFilterValidation);
     suite_add_tcase(s, tc_server);
     return s;

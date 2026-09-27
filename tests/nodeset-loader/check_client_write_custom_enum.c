@@ -18,20 +18,20 @@
 
 static UA_Server *server = NULL;
 static UA_Client *client = NULL;
-static UA_Boolean running = false;
+static UA_atomic(uintptr_t) running = false;
 static THREAD_HANDLE server_thread;
 
 #define DEVICE_HEALTH_NODE_ID 70001
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void
 setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -78,7 +78,7 @@ teardown(void) {
     UA_Client_delete(client);
     client = NULL;
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     UA_Server_run_shutdown(server);

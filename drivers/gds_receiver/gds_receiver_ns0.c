@@ -23,6 +23,14 @@ checkGDSMethodOutputArguments(size_t outputSize, size_t expectedOutputSize) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+checkGDSMethodArguments(size_t inputSize, size_t expectedInputSize,
+                        size_t outputSize, size_t expectedOutputSize) {
+    if(inputSize != expectedInputSize)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    return checkGDSMethodOutputArguments(outputSize, expectedOutputSize);
+}
+
 UA_CertificateGroup*
 getCertGroup(UA_Server *server, const UA_NodeId *objectId) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -209,7 +217,7 @@ updateCertificateAction(UA_Server *server,
                         const UA_NodeId *objectId, void *objectContext,
                         size_t inputSize, const UA_Variant *input,
                         size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 6, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -254,7 +262,7 @@ createSigningRequestAction(UA_Server *server,
                            const UA_NodeId *objectId, void *objectContext,
                            size_t inputSize, const UA_Variant *input,
                            size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 5, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -297,7 +305,7 @@ getRejectedListAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 0, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -312,6 +320,9 @@ applyChangesAction(UA_Server *server,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 0, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     UA_GDSReceiverContext *ctx = (UA_GDSReceiverContext*)methodContext;
     return UA_GDSReceiver_applyChangesForSession(ctx, sessionId);
 }
@@ -323,9 +334,11 @@ addCertificateAction(UA_Server *server,
                      const UA_NodeId *objectId, void *objectContext,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 2, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     /* Check input types */
-    if(inputSize != 2 ||
-       !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]) || /* Certificate */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]) || /* Certificate */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BOOLEAN]))      /* IsTrustedCertificate */
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
@@ -354,9 +367,11 @@ removeCertificateAction(UA_Server *server,
                         const UA_NodeId *objectId, void *objectContext,
                         size_t inputSize, const UA_Variant *input,
                         size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 2, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     /* Check input types */
-    if(inputSize != 2 ||
-       !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) || /* Thumbprint */
+    if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) || /* Thumbprint */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_BOOLEAN]))  /* IsTrustedCertificate */
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
@@ -382,7 +397,7 @@ openTrustListWithMaskAction(UA_Server *server,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 1, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -407,7 +422,7 @@ closeAndUpdateTrustListAction(UA_Server *server,
                               const UA_NodeId *objectId, void *objectContext,
                               size_t inputSize, const UA_Variant *input,
                               size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 1, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -432,7 +447,7 @@ openFileAction(UA_Server *server,
                const UA_NodeId *objectId, void *objectContext,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 1, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -475,7 +490,7 @@ readFileAction(UA_Server *server,
                const UA_NodeId *objectId, void *objectContext,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
-    UA_StatusCode outputRes = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode outputRes = checkGDSMethodArguments(inputSize, 2, outputSize, 1);
     if(outputRes != UA_STATUSCODE_GOOD)
         return outputRes;
 
@@ -524,6 +539,9 @@ writeFileAction(UA_Server *server,
                 const UA_NodeId *objectId, void *objectContext,
                 size_t inputSize, const UA_Variant *input,
                 size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 2, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     UA_ServerConfig *sc = UA_Server_getConfig(server);
 
     /* Check input */
@@ -567,6 +585,9 @@ closeFileAction(UA_Server *server,
                 const UA_NodeId *objectId, void *objectContext,
                 size_t inputSize, const UA_Variant *input,
                 size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 1, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32])) /* FileHandle */
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -605,7 +626,7 @@ getPositionFileAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
-    UA_StatusCode res = checkGDSMethodOutputArguments(outputSize, 1);
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 1, outputSize, 1);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -648,6 +669,9 @@ setPositionFileAction(UA_Server *server,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
+    UA_StatusCode res = checkGDSMethodArguments(inputSize, 2, outputSize, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     /* Check input */
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_UINT32]) || /* FileHandle */
        !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_UINT64]))   /* Position */

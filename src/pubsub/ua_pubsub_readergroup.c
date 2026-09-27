@@ -463,39 +463,73 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
            reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
 
+        /* Apply the reader's header filters before checking sequence history.
+         */
         UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, reader, nm);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
-        /* Update the ReaderGroup state if this is the first received message.
-         * Only set hasReceived after a reader claims the message — the previous
-         * code set it unconditionally at the top, before the matching loop, so
-         * the ReaderGroup transitioned to Operational even on messages no
-         * reader claimed. */
-        if(!rg->hasReceived) {
-            rg->hasReceived = true;
-            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
-        }
-
-        /* The message was processed by at least one reader */
-        processed = true;
-
-        UA_LOG_TRACE_PUBSUB(psm->logging, rg, "Processing a NetworkMessage");
-
-        /* No payload header. The message contains a single DataSetMessage that
-         * is processed by every Reader. However, if messageCount > 1, all DSMs
-         * must be processed, not just index 0. */
-        if(!nm->payloadHeaderEnabled) {
-            for(size_t i = 0; i < nm->messageCount; i++)
-                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
+        /* Reject repeated or out-of-order NetworkMessages without advancing
+         * the accepted counter until a contained DataSetMessage is processed.
+         */
+        UA_Boolean gap;
+        if(nm->groupHeaderEnabled && nm->groupHeader.sequenceNumberEnabled &&
+           !UA_DataSetReader_checkSequence(psm, reader, nm, 0, false,
+                                           nm->groupHeader.sequenceNumber, 16, false, &gap))
             continue;
+
+        /* Select the DataSetMessages for this reader. Headerless messages use
+         * the reader's configured writer id as their stream identity. */
+        UA_Boolean readerProcessed = false;
+        for(size_t i = 0; i < nm->messageCount; i++) {
+            UA_UInt16 writerId = nm->payloadHeaderEnabled ? nm->dataSetWriterIds[i] :
+                reader->config.dataSetWriterId;
+            if(nm->payloadHeaderEnabled && reader->config.dataSetWriterId != 0 &&
+               reader->config.dataSetWriterId != writerId)
+                continue;
+            UA_DataSetMessage *dsm = &nm->payload.dataSetMessages[i];
+            if(!dsm->header.dataSetMessageValid)
+                continue;
+
+            /* Check the writer's counter using the width of the message
+             * encoding. */
+            if(dsm->header.dataSetMessageSequenceNrEnabled) {
+                UA_Byte bits = rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON ? 32 : 16;
+                if(!UA_DataSetReader_checkSequence(psm, reader, nm, writerId, true,
+                        dsm->header.dataSetMessageSequenceNr, bits, false, &gap))
+                    continue;
+                /* A missing delta may have changed a field absent from this
+                 * delta. Recover only once a complete key frame arrives. */
+                if(gap && dsm->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME)
+                    reader->receivedKeyFrame = false;
+            }
+
+            /* Promote the group when a matching message arrives, then let the
+             * reader validate the payload and update its targets. */
+            if(!rg->hasReceived) {
+                rg->hasReceived = true;
+                UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+            }
+            if(UA_DataSetReader_process(psm, reader, dsm)) {
+                readerProcessed = true;
+
+                /* Commit the writer's sequence number only for an accepted
+                 * payload. */
+                if(dsm->header.dataSetMessageSequenceNrEnabled) {
+                    UA_Byte bits = rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON ? 32 : 16;
+                    UA_DataSetReader_checkSequence(psm, reader, nm, writerId, true,
+                        dsm->header.dataSetMessageSequenceNr, bits, true, &gap);
+                }
+            }
         }
 
-        /* Process only the payloads where the WriterId from the header is expected */
-        for(size_t i = 0; i < nm->messageCount; i++) {
-            if(reader->config.dataSetWriterId == 0 ||
-               reader->config.dataSetWriterId == nm->dataSetWriterIds[i])
-                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
+        /* Commit the group counter once, after at least one payload was
+         * accepted. */
+        if(readerProcessed) {
+            processed = true;
+            if(nm->groupHeaderEnabled && nm->groupHeader.sequenceNumberEnabled)
+                UA_DataSetReader_checkSequence(psm, reader, nm, 0, false,
+                    nm->groupHeader.sequenceNumber, 16, true, &gap);
         }
     }
 
@@ -716,13 +750,12 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                        "PubSub receive. securityPolicyContext must be initialized "
                        "when security mode is enabled to sign and/or encrypt");
 
-    /* Key rollover support (spec 7.2.4.4.3): if the incoming message uses a
-     * different SecurityTokenId than the one currently set on the reader
-     * group, look up the matching key from the key storage and activate it.
-     * This allows receiving messages secured with the previous or next key
-     * during the rollover window. */
-#ifdef UA_ENABLE_PUBSUB_SKS
+    /* Resolve a different SecurityTokenId to the key it identifies. Use a
+     * temporary context until the message signature has been verified, so an
+     * unauthenticated packet cannot change the active ReaderGroup key. */
+    void *rolloverContext = NULL;
     if(nm->securityEnabled && nm->securityHeader.securityTokenId != rg->securityTokenId) {
+#ifdef UA_ENABLE_PUBSUB_SKS
         if(rg->keyStorage) {
             UA_PubSubKeyListItem *keyItem =
                 UA_PubSubKeyStorage_getKeyByKeyId(rg->keyStorage,
@@ -733,30 +766,29 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                 UA_ByteString key = keyItem->key;
                 size_t signLen = sp->getSignatureKeyLength(sp, NULL);
                 size_t encLen = sp->getEncryptionKeyLength(sp, NULL);
-                if(key.length >= signLen + encLen) {
+                if(signLen <= key.length && encLen <= key.length - signLen) {
                     signingKey.data = key.data;
                     signingKey.length = signLen;
                     encryptingKey.data = key.data + signLen;
                     encryptingKey.length = encLen;
                     keyNonce.data = key.data + signLen + encLen;
                     keyNonce.length = key.length - signLen - encLen;
-                    UA_StatusCode kr = sp->setSecurityKeys(sp, cc,
-                        &signingKey, &encryptingKey, &keyNonce);
-                    if(kr == UA_STATUSCODE_GOOD)
-                        rg->securityTokenId = nm->securityHeader.securityTokenId;
-                    else
-                        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                                       "PubSub receive. Failed to activate key for "
-                                       "SecurityTokenId %u", (unsigned)nm->securityHeader.securityTokenId);
+                    rv = sp->newGroupContext(sp, &signingKey, &encryptingKey,
+                                             &keyNonce, &rolloverContext);
                 }
-            } else {
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                               "PubSub receive. No key found for SecurityTokenId %u",
-                               (unsigned)nm->securityHeader.securityTokenId);
             }
         }
-    }
 #endif
+        if(!rolloverContext || rv != UA_STATUSCODE_GOOD) {
+            if(rolloverContext)
+                sp->deleteGroupContext(sp, rolloverContext);
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "PubSub receive. No usable key for SecurityTokenId %u",
+                           (unsigned)nm->securityHeader.securityTokenId);
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
+        cc = rolloverContext;
+    }
 
     /* Validate the signature */
     if(doValidate) {
@@ -764,13 +796,14 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
         if(buffer.length < sigSize) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                            "PubSub receive. Message too short for signature");
-            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            rv = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            goto cleanup;
         }
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
         rv = sp->verify(sp, cc, &toBeVerified, &signature);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Signature invalid");
 
         /* Remove the signature from the ctx->end. We do not want to decode that. */
@@ -784,16 +817,28 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
             (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
         };
         rv = sp->setMessageNonce(sp, cc, &nonce);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 
         UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
         rv = sp->decrypt(sp, cc, &toBeDecrypted);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_CHECK_STATUS_WARN(rv, goto cleanup, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Decryption");
     }
 
-    return UA_STATUSCODE_GOOD;
+    /* Commit the rollover only after authentication and decryption succeeded. */
+    if(rolloverContext) {
+        void *oldContext = rg->securityPolicyContext;
+        rg->securityPolicyContext = rolloverContext;
+        rolloverContext = NULL;
+        rg->securityTokenId = nm->securityHeader.securityTokenId;
+        sp->deleteGroupContext(sp, oldContext);
+    }
+
+cleanup:
+    if(rolloverContext)
+        sp->deleteGroupContext(sp, rolloverContext);
+    return rv;
 }
 
 /***********************/

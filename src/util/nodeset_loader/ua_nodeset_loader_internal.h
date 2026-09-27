@@ -47,6 +47,8 @@ typedef struct NL_Reference {
     UA_QualifiedName browseName;                                                                   \
     UA_LocalizedText displayName;                                                                  \
     UA_LocalizedText description;                                                                  \
+    UA_UInt32 writeMask;                                                                           \
+    UA_UInt32 userWriteMask;                                                                       \
     NL_Reference *refs;                                                                            \
     NL_Reference *typeDefinitionRef;                                                               \
     NL_Reference *insertionParentRef;                                                              \
@@ -73,13 +75,16 @@ typedef struct {
     UA_Boolean isAbstract;
     UA_NodeId datatype;
     char *arrayDimensions;
+    UA_Boolean arrayDimensionsOwned;
     UA_Int32 valueRank;
     UA_Boolean valueRankDefined;
+    UA_String value;
 } NL_VariableTypeNode;
 typedef struct {
     NL_NODE_ATTRIBUTES
     UA_NodeId datatype;
     char *arrayDimensions;
+    UA_Boolean arrayDimensionsOwned;
     UA_Int32 valueRank;
     UA_Boolean valueRankDefined;
     UA_Byte accessLevel;
@@ -117,6 +122,7 @@ typedef struct {
 typedef struct {
     NL_NODE_ATTRIBUTES
     UA_LocalizedText inverseName;
+    UA_Boolean isAbstract;
     UA_Boolean symmetric;
 } NL_ReferenceTypeNode;
 typedef struct {
@@ -165,6 +171,8 @@ UA_StatusCode UA_NodeSet_import(NodeSet *nodeset, const UA_XmlElement *xml);
 UA_StatusCode UA_NodeSet_apply(NodeSet *nodeset);
 NL_Node *UA_NodeSet_newNode(NodeSet *nodeset, UA_NodeClass nodeClass,
                             const XmlAttributes *attributes);
+bool UA_NodeSet_setNodeAttribute(NodeSet *nodeset, NL_Node *node, const char *name, char *value);
+bool UA_NodeSet_appendArrayDimension(NL_Node *node, const char *value);
 bool UA_NodeSet_addReference(NodeSet *nodeset, NL_Node *node, const XmlAttributes *attributes,
                              char *idString);
 bool UA_NodeSet_addAlias(NodeSet *nodeset, const XmlAttributes *attributes, char *idString);

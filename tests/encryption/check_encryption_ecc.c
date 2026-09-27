@@ -131,18 +131,18 @@ addDeprecatedClientPolicy(UA_ClientConfig *cc, EccCurveTestData *c,
 /* --- Shared state --- */
 
 static UA_Server *server;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE server_thread;
 static size_t activeCurve;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup_common(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     EccCurveTestData *c = &eccCurves[activeCurve];
 
     UA_ByteString certificate;
@@ -205,19 +205,19 @@ static void (*curveSetups[])(void) = {
 };
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
 
 static void pauseServer(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 }
 
 static void runServer(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 

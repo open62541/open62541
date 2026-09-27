@@ -32,17 +32,17 @@
 #include <string.h>
 
 static UA_Server *server;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
@@ -50,7 +50,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -116,6 +116,7 @@ START_TEST(ClientConfig_setDefault_populatesBasics) {
     ck_assert_uint_eq(cfg.maxAsyncServiceCalls, 32);
     ck_assert_uint_eq(cfg.asyncServiceCallRule, UA_RULEHANDLING_DEFAULT);
     ck_assert_uint_eq(cfg.certificateEkuRule, UA_RULEHANDLING_DEFAULT);
+    ck_assert_uint_eq(cfg.endpointDescriptionRule, UA_RULEHANDLING_DEFAULT);
     /* Logging is allocated. */
     ck_assert_ptr_ne(cfg.logging, NULL);
     /* EventLoop is allocated. */
@@ -140,6 +141,7 @@ START_TEST(ClientConfig_setDefault_preservesCustomValues) {
     cfg.maxAsyncServiceCalls = 23;
     cfg.asyncServiceCallRule = UA_RULEHANDLING_ACCEPT;
     cfg.certificateEkuRule = UA_RULEHANDLING_WARN;
+    cfg.endpointDescriptionRule = UA_RULEHANDLING_ABORT;
     cfg.httpAllowUnencrypted = true;
     cfg.httpTimeout = 42;
     cfg.httpMaxMsgSize = 1234;
@@ -153,6 +155,7 @@ START_TEST(ClientConfig_setDefault_preservesCustomValues) {
     ck_assert_uint_eq(cfg.maxAsyncServiceCalls, 23);
     ck_assert_uint_eq(cfg.asyncServiceCallRule, UA_RULEHANDLING_ACCEPT);
     ck_assert_uint_eq(cfg.certificateEkuRule, UA_RULEHANDLING_WARN);
+    ck_assert_uint_eq(cfg.endpointDescriptionRule, UA_RULEHANDLING_ABORT);
     ck_assert(cfg.httpAllowUnencrypted);
     ck_assert_uint_eq(cfg.httpTimeout, 42);
     ck_assert_uint_eq(cfg.httpMaxMsgSize, 1234);

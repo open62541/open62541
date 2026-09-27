@@ -515,6 +515,17 @@ UA_Openssl_RSA_OAEP_SHA2_Encrypt(UA_ByteString *data,
     return ret;
 }
 
+/* The context holds the secret, the seed and the A(n) chain. Wipe it before
+ * it goes back to the heap. */
+static void
+P_SHA256_Ctx_Free(UA_Openssl_P_SHA256_Ctx *ctx) {
+    if(ctx == NULL)
+        return;
+    OPENSSL_cleanse(ctx, sizeof(UA_Openssl_P_SHA256_Ctx) +
+                    ctx->secretLen + ctx->seedLen);
+    UA_free(ctx);
+}
+
 static UA_Openssl_P_SHA256_Ctx *
 P_SHA256_Ctx_Create(const UA_ByteString *secret,
                     const UA_ByteString *seed) {
@@ -532,7 +543,7 @@ P_SHA256_Ctx_Create(const UA_ByteString *secret,
 
     if(HMAC(EVP_sha256(), secret->data, (int) secret->length, seed->data,
             seed->length, ctx->A, NULL) == NULL) {
-        UA_free (ctx);
+        P_SHA256_Ctx_Free(ctx);
         return NULL;
     }
 
@@ -579,15 +590,18 @@ UA_Openssl_Random_Key_PSHA256_Derive(const UA_ByteString *secret,
     for(i = 0; i < iter; i++) {
         st = P_SHA256_Hash_Generate(ctx, pBuffer + (i * 32));
         if(st != UA_STATUSCODE_GOOD) {
+            OPENSSL_cleanse(pBuffer, bufferLen);
             UA_free(pBuffer);
-            UA_free(ctx);
+            P_SHA256_Ctx_Free(ctx);
             return st;
         }
     }
 
+    /* The scratch buffer holds derived key material */
     memcpy(out->data, pBuffer, keyLen);
+    OPENSSL_cleanse(pBuffer, bufferLen);
     UA_free(pBuffer);
-    UA_free(ctx);
+    P_SHA256_Ctx_Free(ctx);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -699,7 +713,8 @@ UA_OpenSSL_HMAC_SHA256_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(!UA_ByteString_equal(signature, &mac))
+    if(signature->length != mac.length ||
+       !UA_constantTimeEqual(signature->data, mac.data, mac.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -898,6 +913,15 @@ UA_Openssl_RSA_PKCS1_V15_SHA1_Sign(const UA_ByteString * message,
                                        RSA_PKCS1_PADDING, outSignature);
 }
 
+static void
+P_SHA1_Ctx_Free(UA_Openssl_P_SHA1_Ctx *ctx) {
+    if(ctx == NULL)
+        return;
+    OPENSSL_cleanse(ctx, sizeof(UA_Openssl_P_SHA1_Ctx) +
+                    ctx->secretLen + ctx->seedLen);
+    UA_free(ctx);
+}
+
 static UA_Openssl_P_SHA1_Ctx *
 P_SHA1_Ctx_Create(const UA_ByteString *  secret,
                   const UA_ByteString *  seed) {
@@ -916,7 +940,7 @@ P_SHA1_Ctx_Create(const UA_ByteString *  secret,
 
     if(HMAC(EVP_sha1(), secret->data, (int) secret->length, seed->data,
             seed->length, ctx->A, NULL) == NULL) {
-        UA_free(ctx);
+        P_SHA1_Ctx_Free(ctx);
         return NULL;
     }
 
@@ -962,15 +986,17 @@ UA_Openssl_Random_Key_PSHA1_Derive(const UA_ByteString *     secret,
         UA_StatusCode st =
             P_SHA1_Hash_Generate(ctx, pBuffer + (i * SHA1_DIGEST_LENGTH));
         if(st != UA_STATUSCODE_GOOD) {
+            OPENSSL_cleanse(pBuffer, bufferLen);
             UA_free(pBuffer);
-            UA_free(ctx);
+            P_SHA1_Ctx_Free(ctx);
             return st;
         }
     }
 
     memcpy(out->data, pBuffer, keyLen);
+    OPENSSL_cleanse(pBuffer, bufferLen);
     UA_free(pBuffer);
-    UA_free(ctx);
+    P_SHA1_Ctx_Free(ctx);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -986,7 +1012,8 @@ UA_OpenSSL_HMAC_SHA1_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(!UA_ByteString_equal(signature, &mac))
+    if(signature->length != mac.length ||
+       !UA_constantTimeEqual(signature->data, mac.data, mac.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -1652,47 +1679,52 @@ UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityP
             isLocalKey = true;
     }
 
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_ByteString thumbprint = UA_BYTESTRING_NULL;
     UA_StatusCode retval =
-        UA_OpenSSL_LoadLocalCertificate(&newCertificate,
-                                        &securityPolicy->localCertificate,
+        UA_OpenSSL_LoadLocalCertificate(&newCertificate, &certificate,
                                         pc->keyType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Set the new private key */
-    if(newPrivateKey.length > 0) {
-        EVP_PKEY_free(pc->localPrivateKey);
-        pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
-    } else {
-        if(!isLocalKey) {
-            EVP_PKEY_free(pc->localPrivateKey);
-            pc->localPrivateKey = pc->csrLocalPrivateKey;
-            pc->csrLocalPrivateKey = NULL;
-        }
-    }
+    EVP_PKEY *privateKey = pc->localPrivateKey;
+    if(newPrivateKey.length > 0)
+        privateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    else if(!isLocalKey)
+        privateKey = pc->csrLocalPrivateKey;
 
-    if(!pc->localPrivateKey) {
+    if(!privateKey) {
         retval = UA_STATUSCODE_BADNOTSUPPORTED;
         goto error;
     }
 
-    UA_ByteString_clear(&pc->localCertThumbprint);
-
-    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
-                                                      &pc->localCertThumbprint, true);
-    if(retval != UA_STATUSCODE_GOOD) {
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&certificate, &thumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD)
         goto error;
+
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+    securityPolicy->localCertificate = certificate;
+
+    UA_ByteString_clear(&pc->localCertThumbprint);
+    pc->localCertThumbprint = thumbprint;
+
+    if(newPrivateKey.length > 0) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = privateKey;
+    } else if(!isLocalKey) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = pc->csrLocalPrivateKey;
+        pc->csrLocalPrivateKey = NULL;
     }
 
-    return retval;
+    return UA_STATUSCODE_GOOD;
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
-    if(securityPolicy->policyContext != NULL)
-        UA_OpenSSL_Policy_clearContext_generic(securityPolicy);
+    UA_ByteString_clear(&certificate);
+    if(newPrivateKey.length > 0)
+        EVP_PKEY_free(privateKey);
     return retval;
 }
 
@@ -2300,6 +2332,11 @@ UA_Openssl_ECDSA_Verify(const UA_ByteString * message,
         goto errout;
     }
 
+    if(!signature->data || signature->length != 2 * sizeEncCoordinate) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto errout;
+    }
+
     pr = BN_bin2bn(signature->data, sizeEncCoordinate, NULL);
     ps = BN_bin2bn(signature->data + sizeEncCoordinate, sizeEncCoordinate, NULL);
     if(pr == NULL || ps == NULL) {
@@ -2449,7 +2486,8 @@ UA_OpenSSL_HMAC_SHA384_Verify(const UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(!UA_ByteString_equal(signature, &mac))
+    if(signature->length != mac.length ||
+       !UA_constantTimeEqual(signature->data, mac.data, mac.length))
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }

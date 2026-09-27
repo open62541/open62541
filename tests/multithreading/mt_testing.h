@@ -17,7 +17,7 @@ typedef struct {
     ThreadContext *workerContext;
     size_t numberofClients;
     ThreadContext *clientContext;
-    UA_Boolean running;
+    UA_atomic(uintptr_t) running;
     UA_Server *server;
     UA_Client **clients;
     void (*checkServerNodes)(void);
@@ -27,7 +27,7 @@ TestContext tc;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(tc.running)
+    while(UA_atomic_load(&tc.running))
         UA_Server_run_iterate(tc.server, true);
     return 0;
 }
@@ -40,7 +40,7 @@ void teardown(void) {
     for(size_t i = 0; i < tc.numberofClients; i++)
         THREAD_JOIN(tc.clientContext[i].handle);
 
-    tc.running = false;
+    UA_atomic_store(&tc.running, false);
     THREAD_JOIN(server_thread);
     if(tc.checkServerNodes)
         tc.checkServerNodes();

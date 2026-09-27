@@ -482,6 +482,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_state_machine_extra.c)
     ua_add_test(pubsub/check_pubsub_connection_udp.c)
     ua_add_test(pubsub/check_pubsub_publish.c)
+    ua_add_test(pubsub/check_pubsub_runtime.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
     ua_add_test(pubsub/check_pubsub_udp_unicast.c)
     ua_add_test(pubsub/check_pubsub_publisherid.c)
@@ -495,7 +496,7 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_custom_state_machine.c)
     endif()
 
-    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    if(UA_ENABLE_ENCRYPTION)
         ua_add_test(pubsub/check_pubsub_encryption.c)
         ua_add_test(pubsub/check_pubsub_encryption_aes256.c)
         ua_add_test(pubsub/check_pubsub_decryption.c)
@@ -530,6 +531,8 @@ if(UA_ENABLE_PUBSUB)
     endif()
     if(UA_ENABLE_PUBSUB_FILE_CONFIG)
         ua_add_test(pubsub/check_pubsub_configuration.c)
+        target_compile_definitions(check_pubsub_configuration PRIVATE
+            UA_TEST_PUBSUB_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/pubsub/")
     endif()
 endif()
 
@@ -544,9 +547,8 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_server_alarmsconditions.c)
 endif()
 
-if(UA_ENABLE_ASYNCOPERATIONS)
-    ua_add_test(server/check_server_asyncop.c)
-endif()
+# Single-threaded counterpart of check_server_asyncop.c, built in every configuration
+ua_add_test(server/check_server_asyncop_singlethreaded.c)
 
 ua_add_test(server/check_server_reverseconnect.c)
 
@@ -586,6 +588,7 @@ endif()
 ua_add_test(encryption/check_certificategroup_none.c)
 
 if(UA_ENABLE_ENCRYPTION)
+    ua_add_test(encryption/check_encryptedsecret.c)
     ua_add_test(client/check_client_encryption.c)
     ua_add_test(encryption/check_crl_validation.c)
     ua_add_test(encryption/check_cert_validation_client_response.c)
@@ -659,6 +662,18 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_securitypolicy_crypto.c)
 endif()
 
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR
+   (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
+    ua_add_test(encryption/check_hmac_verify_constanttime.c)
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        target_include_directories(check_hmac_verify_constanttime PRIVATE
+                                   ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls)
+    else()
+        target_include_directories(check_hmac_verify_constanttime PRIVATE
+                                   ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl)
+    endif()
+endif()
+
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR
    (UA_ENABLE_ENCRYPTION_MBEDTLS AND MBEDTLS_VERSION_MAJOR GREATER_EQUAL 3))
     ua_add_test(encryption/check_encryption_eccnistp256.c)
@@ -698,6 +713,8 @@ endif()
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND
    PCAP_INCLUDE_DIR)
     ua_add_test(network_replay/check_network_replay.c)
+    target_compile_definitions(check_network_replay PRIVATE
+        UA_TEST_PCAP_DIR="${CMAKE_CURRENT_SOURCE_DIR}/network_replay/")
 endif()
 
 # Cross-SDK interoperability test binaries (standalone, no check framework)

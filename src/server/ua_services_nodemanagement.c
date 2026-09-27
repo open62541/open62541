@@ -249,8 +249,9 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
-    /* Check that the reference type is not abstract */
+    /* Read the attributes used below before releasing the node */
     UA_Boolean referenceTypeIsAbstract = referenceType->referenceTypeNode.isAbstract;
+    UA_Byte refTypeIndex = referenceType->referenceTypeNode.referenceTypeIndex;
     UA_NODESTORE_RELEASE(server, referenceType);
     if(referenceTypeIsAbstract == true) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
@@ -265,8 +266,7 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
        head->nodeClass == UA_NODECLASS_OBJECTTYPE ||
        head->nodeClass == UA_NODECLASS_REFERENCETYPE) {
         /* Type needs hassubtype reference to the supertype */
-        if(referenceType->referenceTypeNode.referenceTypeIndex !=
-           UA_REFERENCETYPEINDEX_HASSUBTYPE) {
+        if(refTypeIndex != UA_REFERENCETYPEINDEX_HASSUBTYPE) {
             logAddNode(server->config.logging, session, &head->nodeId,
                        "Type nodes need to have a HasSubType reference to the parent");
             return UA_STATUSCODE_BADREFERENCENOTALLOWED;
@@ -1592,6 +1592,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     void *context = node->head.context;
+    UA_NodeClass nodeClass = node->head.nodeClass;
     UA_NODESTORE_RELEASE(server, node);
 
     /* Call the global constructor */
@@ -1606,9 +1607,9 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
     /* Call the local (per-type) constructor */
     const UA_NodeTypeLifecycle *lifecycle = NULL;
-    if(type && node->head.nodeClass == UA_NODECLASS_OBJECT)
+    if(type && nodeClass == UA_NODECLASS_OBJECT)
         lifecycle = &type->objectTypeNode.lifecycle;
-    else if(type && node->head.nodeClass == UA_NODECLASS_VARIABLE)
+    else if(type && nodeClass == UA_NODECLASS_VARIABLE)
         lifecycle = &type->variableTypeNode.lifecycle;
     if(lifecycle && lifecycle->constructor) {
         retval = lifecycle->constructor(server, &session->sessionId,

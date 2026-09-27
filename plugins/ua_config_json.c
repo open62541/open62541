@@ -1164,12 +1164,10 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "reverseReconnectInterval") == 0)
                     retval = UInt32Field_parseJson(&ctx, &config->reverseReconnectInterval, NULL);
 
-#if UA_MULTITHREADING >= 100
                 else if(strcmp(field, "asyncOperationTimeout") == 0)
                     retval = DoubleField_parseJson(&ctx, &config->asyncOperationTimeout, NULL);
                 else if(strcmp(field, "maxAsyncOperationQueueSize") == 0)
                     retval = UInt64Field_parseJson(&ctx, &config->maxAsyncOperationQueueSize, NULL);
-#endif
 
 #ifdef UA_ENABLE_DISCOVERY
                 else if(strcmp(field, "registeredServersEnabled") == 0)
@@ -1693,6 +1691,9 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     retval = RuleHandlingField_parseJson(&ctx, &config->asyncServiceCallRule, NULL);
                 else if(strcmp(field, "certificateEkuRule") == 0)
                     retval = RuleHandlingField_parseJson(&ctx, &config->certificateEkuRule, NULL);
+                else if(strcmp(field, "endpointDescriptionRule") == 0)
+                    retval = RuleHandlingField_parseJson(
+                        &ctx, &config->endpointDescriptionRule, NULL);
                 else if(strcmp(field, "tcpReuseAddr") == 0)
                     retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
 #ifdef UA_ENABLE_LWS

@@ -20,7 +20,7 @@
 #include "test_helpers.h"
 
 static UA_Server *server;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE server_thread;
 
 static UA_StatusCode
@@ -72,7 +72,7 @@ onWrite(UA_Server *s, const UA_NodeId *sessionId,
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -131,13 +131,13 @@ static void setup(void) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
         vattr2, NULL, NULL);
 
-    running = true;
+    UA_atomic_store(&running, true);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

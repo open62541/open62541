@@ -21,7 +21,7 @@
 
 static void
 setup(void) {
-    tc.running = true;
+    UA_atomic_store(&tc.running, true);
     tc.server = UA_Server_newForUnitTest();
     UA_Server_run_startup(tc.server);
     THREAD_CREATE(server_thread, serverloop);

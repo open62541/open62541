@@ -17,7 +17,7 @@
  * client (not while the server initialization)*/
 int counter  = 0;
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 UA_NodeId temperatureNodeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 UA_Int32 temperature;
 UA_NodeId pressureNodeId = {1, UA_NODEIDTYPE_NUMERIC, {1002}};
@@ -172,13 +172,13 @@ addDataSourceVariable(void) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
@@ -189,7 +189,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     counter = 0;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);

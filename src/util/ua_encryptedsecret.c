@@ -370,16 +370,32 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         UA_calcSizeBinary(&esd.typeId, &UA_TYPES[UA_TYPES_NODEID], NULL) +
         UA_calcSizeBinary(&esd.encodingMask, &UA_TYPES[UA_TYPES_BYTE], NULL) +
         UA_calcSizeBinary(&esd.length, &UA_TYPES[UA_TYPES_UINT32], NULL);
-    size_t endOfSecret = (size_t)esd.length + headerPrefix;
-    if(endOfSecret > es->length || endOfSecret <= offset) {
+    if(headerPrefix > es->length ||
+       (size_t)esd.length > es->length - headerPrefix) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                             "Inconsistent Length field");
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        goto cleanecc;
+    }
+    size_t endOfSecret = headerPrefix + (size_t)esd.length;
+    if(endOfSecret <= offset) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Inconsistent Length field");
         res = UA_STATUSCODE_BADDECODINGERROR;
         goto cleanecc;
     }
 
-    /* Verify signature */
+    /* Ensure that the signature and at least one payload byte fit before
+     * subtracting the signature length from an attacker-controlled length. */
     size_t sigLen = sp->asymSignatureAlgorithm.getRemoteSignatureSize(sp, spContext);
+    if(sigLen >= endOfSecret - offset) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                             "Inconsistent payload / signature length");
+        res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        goto cleanecc;
+    }
+
+    /* Verify signature */
     size_t signedDataLen = endOfSecret - sigLen;
     UA_ByteString signedData = {signedDataLen, es->data};
     UA_ByteString signature = {sigLen, &es->data[signedDataLen]};
@@ -407,13 +423,6 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         goto cleanecc;
     }
 
-    /* Check the payload length */
-    if(endOfSecret <= offset + sigLen) {
-        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
-                             "Inconstent payload / signature length");
-        res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        goto cleanecc;
-    }
     UA_ByteString payload = {endOfSecret - offset - sigLen, es->data + offset};
 
     /* Deriving (remote) symmetric encryption key to decrypt the payload.

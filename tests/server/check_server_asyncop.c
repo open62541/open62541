@@ -32,7 +32,7 @@
 #endif
 #include <stdlib.h>
 
-UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 static UA_Server *server;
 static size_t clientCounter;
@@ -200,7 +200,7 @@ clientReceiveCallback(UA_Client *client, void *userdata,
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -211,7 +211,7 @@ static void setup(void) {
     closeAtServiceAsync = false;
     closeServiceAsyncCount = 0;
     closeServiceEndCount = 0;
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -284,8 +284,8 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    if(running) {
-        running = false;
+    if(UA_atomic_load(&running)) {
+        UA_atomic_store(&running, false);
         THREAD_JOIN(server_thread);
     }
     UA_Server_run_shutdown(server);
@@ -298,7 +298,7 @@ START_TEST(Async_call) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Stop the server thread. Iterate manually from now on */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* Call async method, then the sync method.
@@ -330,7 +330,7 @@ START_TEST(Async_call) {
     }
     ck_assert_uint_eq(clientCounter, 2);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -343,7 +343,7 @@ START_TEST(Async_read) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Stop the server thread. Iterate manually from now on */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* Call async method, then the sync method.
@@ -373,7 +373,7 @@ START_TEST(Async_read) {
     }
     ck_assert_uint_eq(clientCounter, 2);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -423,7 +423,7 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -463,7 +463,7 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
     unlockServer(server);
 
     config->serviceNotificationCallback = NULL;
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -475,7 +475,7 @@ START_TEST(Async_write) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Stop the server thread. Iterate manually from now on */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* Call async method, then the sync method.
@@ -500,17 +500,16 @@ START_TEST(Async_write) {
     }
     ck_assert_uint_eq(clientCounter, 1);
 
-    /* Iterate and pick up the async response to be sent out.
-     * Match Async_read: loop until the delayed async write completes.
-     * A single sleep+iterate is racy under slower stacks (e.g. lwip). */
-    while(clientCounter == 1) {
-        UA_fakeSleep(1000);
+    /* Iterate and pick up the async response to be sent out */
+    UA_fakeSleep(1000);
+    /* Delivery can require another socket poll, especially with lwIP. */
+    for(size_t attempt = 0; attempt < 100 && clientCounter == 1; attempt++) {
         UA_Server_run_iterate(server, true);
-        UA_Client_run_iterate(client, 0);
+        UA_Client_run_iterate(client, 10);
     }
     ck_assert_uint_eq(clientCounter, 2);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -523,7 +522,7 @@ START_TEST(Async_timeout) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Stop the server thread. Iterate manually from now on */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* Call async method, then the sync method.
@@ -561,7 +560,7 @@ START_TEST(Async_timeout) {
     }
     ck_assert_uint_eq(clientCounter, 1);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -574,7 +573,7 @@ START_TEST(Async_forget) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Stop the server thread. Iterate manually from now on */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* Call async method, then the sync method.
@@ -594,7 +593,7 @@ START_TEST(Async_forget) {
      * The server should clean it up properly during shutdown. */
     UA_Server_removeCallback(server, lastTimedCallback);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -692,7 +691,7 @@ serverAsyncWriteNoopCallback(UA_Server *s, void *asyncOpContext,
 
 START_TEST(Async_server_read) {
     /* Use the server-side async read API directly */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     serverReadResultReceived = false;
@@ -717,7 +716,7 @@ START_TEST(Async_server_read) {
     ck_assert(serverReadResult.hasValue);
     UA_DataValue_clear(&serverReadResult);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
@@ -733,7 +732,7 @@ serverAsyncWriteCallback(UA_Server *s, void *asyncOpContext,
 
 START_TEST(Async_server_write) {
     /* Use the server-side async write API directly */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     serverWriteResultReceived = false;
@@ -758,7 +757,7 @@ START_TEST(Async_server_write) {
     ck_assert(serverWriteResultReceived == true);
     ck_assert_uint_eq(serverWriteResultCode, UA_STATUSCODE_GOOD);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
@@ -769,7 +768,7 @@ START_TEST(Async_read_timeout_server) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Stop the server thread. Iterate manually from now on */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     clientCounter = 0;
@@ -795,7 +794,7 @@ START_TEST(Async_read_timeout_server) {
     }
     ck_assert_uint_eq(clientCounter, 1);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -827,7 +826,7 @@ START_TEST(Async_setResult_badnotfound) {
 } END_TEST
 
 START_TEST(Async_queue_limit_read_direct) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -856,7 +855,7 @@ START_TEST(Async_queue_limit_read_direct) {
     UA_Server_run_iterate(server, false);
     UA_Server_run_iterate(server, false);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
@@ -1083,7 +1082,7 @@ START_TEST(Async_direct_call_method_result) {
      * op->asyncOperationType.  For a CALL_DIRECT operation the statusCode field at union
      * offset 0 is 0 after init, so op->output.call aliases a NULL pointer and
      * op->output.call->outputArguments crashes immediately. */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     directCallCompleted = false;
@@ -1109,7 +1108,7 @@ START_TEST(Async_direct_call_method_result) {
     ck_assert(directCallCompleted == true);
     ck_assert_uint_eq(directCallResultCode, UA_STATUSCODE_GOOD);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
@@ -1117,7 +1116,7 @@ START_TEST(Async_direct_call_method_result) {
 
 START_TEST(Async_write_queue_overflow) {
     /* Test queue limit for async write operations */
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -1149,7 +1148,7 @@ START_TEST(Async_write_queue_overflow) {
     UA_Server_run_iterate(server, false);
     UA_Server_run_iterate(server, false);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
@@ -1229,7 +1228,7 @@ START_TEST(Async_cancelDirectOperation) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               attr, NULL, NULL);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     /* Save and modify the queue limit to allow operation to stay in waiting queue */
@@ -1257,7 +1256,7 @@ START_TEST(Async_cancelDirectOperation) {
 
     config->maxAsyncOperationQueueSize = oldLimit;
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 } END_TEST
 
@@ -1270,7 +1269,7 @@ START_TEST(Async_service_cancel_with_direct_operation) {
         UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     UA_ReadValueId rvid;
@@ -1282,7 +1281,7 @@ START_TEST(Async_service_cancel_with_direct_operation) {
                                   serverAsyncReadNoopCallback, NULL, 5000);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_UInt32 cancelCount = 0;
@@ -1303,7 +1302,7 @@ START_TEST(Async_direct_cancel_with_service_operation) {
         UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     retval = UA_Client_readValueAttribute_async(
@@ -1317,7 +1316,7 @@ START_TEST(Async_direct_cancel_with_service_operation) {
     UA_Server_cancelAsync(server, NULL,
                           UA_STATUSCODE_BADOPERATIONABANDONED, true);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -1330,7 +1329,7 @@ START_TEST(Async_call_error_result) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     clientCounter = 0;
@@ -1346,7 +1345,7 @@ START_TEST(Async_call_error_result) {
     UA_Server_run_iterate(server, true);
     UA_Client_run_iterate(client, 0);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
@@ -1359,7 +1358,7 @@ START_TEST(Async_multiple_parallel_operations) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 
     clientCounter = 0;
@@ -1387,7 +1386,7 @@ START_TEST(Async_multiple_parallel_operations) {
     }
     ck_assert_uint_eq(clientCounter, 3);
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);

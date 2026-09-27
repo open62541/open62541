@@ -723,6 +723,329 @@ START_TEST(uascZeroLimitIsUnlimited) {
 }
 END_TEST
 
+START_TEST(secureChannelAttribute_maxMessageSizeRoundtrips) {
+    /* The reserved "0:maxMessageSize" attribute key is the one piece of
+     * server-interpreted behavior in the otherwise-generic SecureChannel
+     * attribute map: writing it caches the value into
+     * channel->maxMessageSizeOverride for the per-chunk hot path. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, true, NULL);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    ck_assert_uint_eq(channel.maxMessageSizeOverride, 0);
+
+    UA_UInt32 limit = 65536;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &limit, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "maxMessageSize");
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, channelId, key, &value),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(channel.maxMessageSizeOverride, limit);
+
+    UA_Variant readBack;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute(server, channelId, key, &readBack),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&readBack, &UA_TYPES[UA_TYPES_UINT32]));
+    ck_assert_uint_eq(*(UA_UInt32*)readBack.data, limit);
+
+    UA_UInt32 scalarOut = 0;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute_scalar(
+            server, channelId, key, &UA_TYPES[UA_TYPES_UINT32], &scalarOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(scalarOut, limit);
+
+    ck_assert_uint_eq(
+        UA_Server_deleteSecureChannelAttribute(server, channelId, key),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(channel.maxMessageSizeOverride, 0);
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute(server, channelId, key, &readBack),
+        UA_STATUSCODE_BADNOTFOUND);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_arbitraryKeyIsGenericStorage) {
+    /* Any other key behaves as plain application-defined storage. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, true, NULL);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    UA_String tag = UA_STRING("example-tag");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &tag, &UA_TYPES[UA_TYPES_STRING]);
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "application-tag");
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, channelId, key, &value),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(channel.maxMessageSizeOverride, 0);
+
+    UA_Variant readBack;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttributeCopy(server, channelId, key, &readBack),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal((UA_String*)readBack.data, &tag));
+    UA_Variant_clear(&readBack);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_wrongTypeForMaxMessageSizeRejected) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, true, NULL);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    UA_String notANumber = UA_STRING("nope");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &notANumber, &UA_TYPES[UA_TYPES_STRING]);
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "maxMessageSize");
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, channelId, key, &value),
+        UA_STATUSCODE_BADTYPEMISMATCH);
+    ck_assert_uint_eq(channel.maxMessageSizeOverride, 0);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_unknownChannelIdRejected) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_UInt32 limit = 1024;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &limit, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "maxMessageSize");
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, 424242, key, &value),
+        UA_STATUSCODE_BADNOTFOUND);
+
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_builtinKeysComputedOnAccess) {
+    /* The built-in ns0 attributes are never stored in channel->attributes:
+     * UA_SecureChannel_getBuiltinAttribute computes them fresh from the live
+     * channel on every access. No notification needs to have fired first. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_ConnectionManager cm;
+    memset(&cm, 0, sizeof(cm));
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, false, &cm);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    UA_UInt32 idOut = 0;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute_scalar(
+            server, channelId, UA_QUALIFIEDNAME(0, "securechannel-id"),
+            &UA_TYPES[UA_TYPES_UINT32], &idOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(idOut, channelId);
+
+    UA_UInt64 connIdOut = 0;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute_scalar(
+            server, channelId, UA_QUALIFIEDNAME(0, "connection-id"),
+            &UA_TYPES[UA_TYPES_UINT64], &connIdOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(connIdOut, 1); /* set by prepareRegisteredChannel */
+
+    UA_MessageSecurityMode modeOut = UA_MESSAGESECURITYMODE_INVALID;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute_scalar(
+            server, channelId, UA_QUALIFIEDNAME(0, "security-mode"),
+            &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE], &modeOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modeOut, UA_MESSAGESECURITYMODE_NONE);
+
+    UA_Variant certOut;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttributeCopy(
+            server, channelId, UA_QUALIFIEDNAME(0, "remote-certificate"),
+            &certOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&certOut, &UA_TYPES[UA_TYPES_BYTESTRING]));
+    UA_ByteString *certBytes = (UA_ByteString*)certOut.data;
+    ck_assert_uint_eq(certBytes->length, 1);
+    ck_assert_uint_eq(certBytes->data[0], 0x42); /* set by prepareRegisteredChannel */
+    UA_Variant_clear(&certOut);
+
+    /* Mutating the live channel is reflected immediately -- nothing was
+     * cached from the read above. */
+    channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    modeOut = UA_MESSAGESECURITYMODE_INVALID;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute_scalar(
+            server, channelId, UA_QUALIFIEDNAME(0, "security-mode"),
+            &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE], &modeOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modeOut, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_readOnlyKeyRejectsWriteAndDelete) {
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_ConnectionManager cm;
+    memset(&cm, 0, sizeof(cm));
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, false, &cm);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "security-mode");
+    UA_MessageSecurityMode newMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &newMode, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, channelId, key, &value),
+        UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(
+        UA_Server_deleteSecureChannelAttribute(server, channelId, key),
+        UA_STATUSCODE_BADNOTWRITABLE);
+
+    /* The live channel is unaffected by the rejected write/delete */
+    UA_MessageSecurityMode modeOut = UA_MESSAGESECURITYMODE_INVALID;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute_scalar(
+            server, channelId, key, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
+            &modeOut),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modeOut, UA_MESSAGESECURITYMODE_NONE);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_unknownNs0KeyRejected) {
+    /* Namespace 0 is restricted to the predefined set (the built-in
+     * read-only keys plus maxMessageSize) -- on both read and write. Any
+     * other ns0 key is rejected outright, it is not generic storage. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, true, NULL);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "not-a-real-attribute");
+    UA_Variant readBack;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttribute(server, channelId, key, &readBack),
+        UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttributeCopy(server, channelId, key, &readBack),
+        UA_STATUSCODE_BADNOTFOUND);
+
+    UA_String someValue = UA_STRING("nope");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &someValue, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, channelId, key, &value),
+        UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(
+        UA_Server_deleteSecureChannelAttribute(server, channelId, key),
+        UA_STATUSCODE_BADNOTWRITABLE);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+START_TEST(secureChannelAttribute_nonZeroNamespaceIsUnrestricted) {
+    /* Namespace 0 is locked to the predefined set, but any other namespace
+     * is free-form application storage -- even if the local name matches a
+     * reserved ns0 key. */
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+
+    UA_SecureChannel channel;
+    lockServer(server);
+    prepareRegisteredChannel(server, &channel, true, NULL);
+    UA_UInt32 channelId = channel.securityToken.channelId;
+    unlockServer(server);
+
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "security-mode");
+    UA_String tag = UA_STRING("application-owned");
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &tag, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_uint_eq(
+        UA_Server_setSecureChannelAttribute(server, channelId, key, &value),
+        UA_STATUSCODE_GOOD);
+
+    UA_Variant readBack;
+    ck_assert_uint_eq(
+        UA_Server_getSecureChannelAttributeCopy(server, channelId, key, &readBack),
+        UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal((UA_String*)readBack.data, &tag));
+    UA_Variant_clear(&readBack);
+
+    ck_assert_uint_eq(
+        UA_Server_deleteSecureChannelAttribute(server, channelId, key),
+        UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    unregisterSecureChannel(server, &channel);
+    unlockServer(server);
+    UA_SecureChannel_clear(&channel);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 START_TEST(mixedTransportChannelIdsAreUnique) {
     UA_Server *server = UA_Server_new();
     ck_assert_ptr_nonnull(server);
@@ -868,6 +1191,14 @@ testSuite(void) {
     tcase_add_test(tc, trustUpdateClosesOpenUascChannel);
     tcase_add_test(tc, uascLimitDoesNotPurgeDirectChannel);
     tcase_add_test(tc, uascZeroLimitIsUnlimited);
+    tcase_add_test(tc, secureChannelAttribute_maxMessageSizeRoundtrips);
+    tcase_add_test(tc, secureChannelAttribute_arbitraryKeyIsGenericStorage);
+    tcase_add_test(tc, secureChannelAttribute_wrongTypeForMaxMessageSizeRejected);
+    tcase_add_test(tc, secureChannelAttribute_unknownChannelIdRejected);
+    tcase_add_test(tc, secureChannelAttribute_builtinKeysComputedOnAccess);
+    tcase_add_test(tc, secureChannelAttribute_readOnlyKeyRejectsWriteAndDelete);
+    tcase_add_test(tc, secureChannelAttribute_unknownNs0KeyRejected);
+    tcase_add_test(tc, secureChannelAttribute_nonZeroNamespaceIsUnrestricted);
     tcase_add_test(tc, mixedTransportChannelIdsAreUnique);
     tcase_add_test(tc, closingHttpChannelDrainsUntilCarrierCloses);
     tcase_add_test(tc, httpRequestTimeoutAndEncodingMetadata);

@@ -1375,13 +1375,21 @@ typedef struct {
     size_t valueIndex;
 } JsonFieldIndex;
 
+/* An in-situ encoded ExtensionObject can contain every member of a structured
+ * DataType plus its three metadata fields. Larger objects cannot describe a
+ * DataType representable by this library. */
+#define UA_JSON_MAX_EXTENSIONOBJECT_FIELDS (UA_DATATYPE_MEMBERS_MAX + 3)
+
 /* Scan the current object once, reject duplicate names and collect the value
  * positions for the requested fields. The context is advanced past the object. */
 static status
 scanObjectFields(ParseCtx *ctx, JsonFieldIndex *fields, size_t fieldsSize) {
     UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
     size_t keyCount = (size_t)ctx->tokens[ctx->index].size / 2;
-    UA_STACKARRAY(size_t, keys, keyCount);
+    if(keyCount > UA_JSON_MAX_EXTENSIONOBJECT_FIELDS)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    size_t keys[UA_JSON_MAX_EXTENSIONOBJECT_FIELDS];
     ctx->index++;
 
     for(size_t i = 0; i < keyCount; i++) {

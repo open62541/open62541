@@ -346,6 +346,27 @@ void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type);
 
+/* The built-in, read-only ns0 SecureChannel attribute keys -- the same
+ * background information sent with the notifySecureChannel payload. Used to
+ * restrict ns0 attribute keys to this predefined set (plus the one writable
+ * "maxMessageSize") in UA_Server_{get,set,delete}SecureChannelAttribute. */
+#define UA_SECURECHANNEL_BUILTIN_ATTRIBUTES_SIZE 16
+extern const UA_QualifiedName
+    UA_SecureChannel_builtinAttributeKeys[UA_SECURECHANNEL_BUILTIN_ATTRIBUTES_SIZE];
+
+/* Computes the current value of one built-in attribute directly from the
+ * live channel state -- nothing is cached in channel->attributes. Returns
+ * false if key does not match one of UA_SecureChannel_builtinAttributeKeys.
+ * *out may shallow-reference a stable channel member, or (for values that
+ * need a conversion or a default, e.g. connection-id) channel-owned scratch
+ * storage in channel->builtinAttributeScratch -- valid for as long as the
+ * channel is, but overwritten by the next call for that same key on this
+ * channel. */
+UA_Boolean
+UA_SecureChannel_getBuiltinAttribute(UA_SecureChannel *channel,
+                                     const UA_QualifiedName *key,
+                                     UA_Variant *out);
+
 /********************/
 /* Session Handling */
 /********************/

@@ -58,7 +58,7 @@ typedef struct {
     UA_UInt32 dataSetMessageSequenceNr;
 
     UA_Boolean statusEnabled;
-    /* UADP encodes the low 16 bits; JSON uses the full StatusCode. */
+    /* UADP encodes the high 16 bits; JSON uses the full StatusCode. */
     UA_StatusCode status;
 
     UA_Boolean configVersionMajorVersionEnabled;
@@ -173,6 +173,7 @@ typedef struct {
     /* For Json NetworkMessage */
     UA_Boolean messageIdEnabled;
     UA_String messageId;
+    UA_Boolean jsonSingleDataSetMessage; /* Messages contains an object instead of an array */
 
     /* The PayloadHeader contains the number of DataSetMessages and the
      * DataSetWriterId for each of them. If the PayloadHeader is disabled, then

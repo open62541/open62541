@@ -49,63 +49,44 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
-/* Global variables, only used behind the mutex */
-static UA_DateTime earliest, latest, adjustedNextTime;
+/* Search the batching window in order. Each timer instance has its own mutex,
+ * so all search state stays on the stack. The entry is not in the tree yet. */
+static UA_Boolean
+findTimer2Batch(UA_TimerEntry *compare, UA_TimerEntry *te,
+               UA_DateTime earliest, UA_DateTime latest) {
+    if(!compare)
+        return false;
+    if(compare->nextTime < earliest)
+        return findTimer2Batch(ZIP_RIGHT(compare, treeEntry), te, earliest, latest);
+    if(compare->nextTime > latest)
+        return findTimer2Batch(ZIP_LEFT(compare, treeEntry), te, earliest, latest);
 
-static void *
-findTimer2Batch(void *context, UA_TimerEntry *compare) {
-    /* Invariance of ZIP_ITER_KEY  */
-    UA_assert(compare->nextTime >= earliest && compare->nextTime <= latest);
+    if(findTimer2Batch(ZIP_LEFT(compare, treeEntry), te, earliest, latest))
+        return true;
 
-    /* One-shot timers have interval == 0.
-     * They cannot participate in the modulo-based batching check. */
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
-    if(te->interval == 0 || compare->interval == 0)
-        return NULL;
-
-    /* Check if one interval is a multiple of the other */
-    if(te->interval < compare->interval && compare->interval % te->interval != 0)
-        return NULL;
-    if(te->interval > compare->interval && te->interval % compare->interval != 0)
-        return NULL;
-
-    adjustedNextTime = compare->nextTime; /* Candidate found */
-
-    /* Abort when a perfect match is found */
-    return (te->interval == compare->interval) ? te : NULL;
+    /* Ignore one-shot timers and require one interval to divide the other. */
+    if(compare->interval > 0 &&
+       (te->interval % compare->interval == 0 ||
+        compare->interval % te->interval == 0)) {
+        te->nextTime = compare->nextTime;
+        if(te->interval == compare->interval)
+            return true;
+    }
+    return findTimer2Batch(ZIP_RIGHT(compare, treeEntry), te, earliest, latest);
 }
-
-/* Window-based comparison for batching */
-static enum ZIP_CMP
-cmpBatchWindow(const UA_DateTime *start, const UA_DateTime *nextTime) {
-    if(*nextTime < *start)
-        return ZIP_CMP_LESS;
-    if(*nextTime > latest)
-        return ZIP_CMP_MORE;
-    return ZIP_CMP_EQ;
-}
-
-typedef ZIP_HEAD(UA_TimerTreeWindow, UA_TimerEntry) UA_TimerTreeWindow;
-
-ZIP_FUNCTIONS(UA_TimerTreeWindow, UA_TimerEntry, treeEntry,
-              UA_DateTime, nextTime, cmpBatchWindow)
 
 /* Adjust the nextTime to batch cyclic callbacks. Look in an interval around the
  * original nextTime. Deviate from the original nextTime by at most 1/4 of the
  * interval and at most by 1s. */
 static void
 batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
-    if(te->timerPolicy != UA_TIMERPOLICY_CURRENTTIME)
+    if(te->timerPolicy != UA_TIMERPOLICY_CURRENTTIME || te->interval == 0)
         return;
     UA_DateTime deviate = te->interval / 4;
     if(deviate > UA_DATETIME_SEC)
         deviate = UA_DATETIME_SEC;
-    earliest = te->nextTime - deviate;
-    latest = te->nextTime + deviate;
-    adjustedNextTime = te->nextTime;
-    ZIP_ITER_KEY(UA_TimerTreeWindow, (UA_TimerTreeWindow*)&t->tree,
-                 &earliest, findTimer2Batch, te);
-    te->nextTime = adjustedNextTime;
+    findTimer2Batch(ZIP_ROOT(&t->tree), te,
+                   te->nextTime - deviate, te->nextTime + deviate);
 }
 
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the

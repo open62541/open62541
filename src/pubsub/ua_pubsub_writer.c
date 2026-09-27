@@ -192,6 +192,39 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Validate UADP placement before storing the writer configuration. The
+     * default sender supports padding but not fixed message or byte
+     * positions. */
+    if(UA_ExtensionObject_hasDecodedType(&dswConfig->messageSettings,
+           &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
+        const UA_UadpDataSetWriterMessageDataType *settings =
+            (const UA_UadpDataSetWriterMessageDataType*)dswConfig->messageSettings.content.decoded.data;
+        if(settings->networkMessageNumber != 0 || settings->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* Accept only JSON header masks the encoder can honor. WriterId and
+     * MessageType are required; unsupported optional fields are rejected. */
+    if(UA_ExtensionObject_hasDecodedType(&dswConfig->messageSettings,
+           &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE])) {
+        const UA_JsonDataSetWriterMessageDataType *settings =
+            (const UA_JsonDataSetWriterMessageDataType*)dswConfig->messageSettings.content.decoded.data;
+        UA_UInt32 mask = (UA_UInt32)settings->dataSetMessageContentMask;
+        UA_UInt32 required = UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
+            UA_JSONDATASETMESSAGECONTENTMASK_MESSAGETYPE;
+        UA_UInt32 supported = required | UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION |
+            UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER | UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP |
+            UA_JSONDATASETMESSAGECONTENTMASK_STATUS;
+        /* Newer schemas call the ReversibleFieldEncoding bit FieldEncoding1. */
+#ifdef UA_JSONDATASETMESSAGECONTENTMASK_FIELDENCODING1
+        supported |= UA_JSONDATASETMESSAGECONTENTMASK_FIELDENCODING1;
+#else
+        supported |= UA_JSONDATASETMESSAGECONTENTMASK_REVERSIBLEFIELDENCODING;
+#endif
+        if((mask & required) != required || (mask & ~supported) != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     UA_PublishedDataSet *pds = NULL;
 
     if(!UA_NodeId_isNull(&dataSet)) {
@@ -443,6 +476,52 @@ applyFieldContentMask(const UA_DataSetWriter *dsw, UA_DataValue *value) {
         value->hasServerPicoseconds = false;
 }
 
+/* RawData has no per-field status. Bad fields must still carry a value with
+ * the shape and type described by the metadata (Part 14, Table 34). */
+static UA_StatusCode
+setRawDefaultValue(UA_PubSubManager *psm, const UA_DataSetField *field,
+                   UA_DataValue *value) {
+    /* Resolve the field type, including application-defined types, before
+     * replacing the unusable value. */
+    const UA_FieldMetaData *fmd = &field->fieldMetaData;
+    const UA_DataType *type = UA_findDataTypeWithCustom(
+        &fmd->dataType, psm->drv.server->config.customDataTypes);
+    if(!type)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Create a zero-initialized scalar or array with the metadata's shape. */
+    UA_Variant_clear(&value->value);
+    value->hasValue = false;
+    if(fmd->valueRank == UA_VALUERANK_SCALAR) {
+        void *data = UA_new(type);
+        if(!data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_Variant_setScalar(&value->value, data, type);
+    } else {
+        size_t length = (fmd->arrayDimensionsSize > 0) ? 1 : 0;
+        for(size_t i = 0; i < fmd->arrayDimensionsSize; i++) {
+            UA_UInt32 dim = fmd->arrayDimensions[i];
+            if(dim > 0 && length > SIZE_MAX / dim)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            length *= dim;
+        }
+
+        /* Attach owned element storage and a copy of the array dimensions. */
+        void *data = UA_Array_new(length, type);
+        if(!data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_Variant_setArray(&value->value, data, length, type);
+        UA_StatusCode res = UA_Array_copy(
+            fmd->arrayDimensions, fmd->arrayDimensionsSize,
+            (void**)&value->value.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        value->value.arrayDimensionsSize = fmd->arrayDimensionsSize;
+    }
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
                                                UA_DataSetMessage *dataSetMessage,
@@ -468,11 +547,32 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
 
     /* Loop over the fields */
     size_t counter = 0;
+    size_t badFields = 0;
+    UA_Boolean raw = dataSetMessage->header.fieldEncoding == UA_FIELDENCODING_RAWDATA;
+    UA_Boolean jsonVariant =
+        dsw->linkedWriterGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
+        dataSetMessage->header.fieldEncoding == UA_FIELDENCODING_VARIANT;
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
         /* Sample the value */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameFields[counter];
         UA_PubSubDataSetField_sampleValue(psm, dsf, dfv);
+
+        /* Aggregate before the content mask removes the field status. Variant
+         * and DataValue in UADP retain Good in the header; JSON Variant raises
+         * Uncertain because it cannot carry an uncertain field status. */
+        if(dfv->hasStatus) {
+            if(raw && UA_StatusCode_isBad(dfv->status)) {
+                badFields++;
+                UA_StatusCode res = setRawDefaultValue(psm, dsf, dfv);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_DataSetMessage_clear(dataSetMessage);
+                    return res;
+                }
+            } else if((raw || jsonVariant) && UA_StatusCode_isUncertain(dfv->status)) {
+                dataSetMessage->header.status = UA_STATUSCODE_UNCERTAIN;
+            }
+        }
 
         applyFieldContentMask(dsw, dfv);
 
@@ -483,6 +583,12 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
         }
         counter++;
     }
+
+    /* Summarize substituted RawData fields: all Bad yields Bad; a mixture of
+     * usable and substituted fields yields UncertainSubNormal. */
+    if(badFields > 0)
+        dataSetMessage->header.status = (badFields == pds->fieldSize) ?
+            UA_STATUSCODE_BAD : UA_STATUSCODE_UNCERTAINSUBNORMAL;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -678,10 +784,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         dsm = &defaultUadpConfiguration; /* type is UADP */
     }
 
-    /* The field encoding depends on the flags inside the writer config.
-     * Spec Table 32: "If one of the bits 0 to 4 is set, the fields are
-     * represented as DataValue." Bit 2 (SERVERTIMESTAMP) was previously
-     * missing from this mask check. */
+    /* Use RawData when requested. Otherwise select DataValue for status or
+     * timestamps, and Variant for values without these extra fields. */
     if(dsw->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
@@ -697,15 +801,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
     }
 
     if(dsm) {
-        /* Sanity-test the configuration */
-        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0 ||
-           dsm->configuredSize != 0) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                                  "Static DSM configuration not supported, using defaults");
-            dsm->networkMessageNumber = 0;
-            dsm->dataSetOffset = 0;
-            // dsm->configuredSize = 0;
-        }
+        /* Recheck placement settings before generation, including
+         * configurations changed through application callbacks. */
+        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
 
         /* Std: 'The DataSetMessageContentMask defines the flags for the content
          * of the DataSetMessage header.' */
@@ -751,7 +850,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
             dataSetMessage->header.picoSecondsIncluded = false;
         }
 
-        /* TODO: Statuscode not supported yet */
+        /* Include the overall status computed while sampling the fields. */
         if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS) {
             dataSetMessage->header.statusEnabled = true;
@@ -786,7 +885,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
             dataSetMessage->header.timestamp = el->dateTime_now(el);
         }
 
-        /* TODO: Statuscode not supported yet */
+        /* Include the overall status computed while sampling the fields. */
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_STATUS) {
             dataSetMessage->header.statusEnabled = true;
@@ -806,7 +905,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
 
     /* JSON does not differ between deltaframes and keyframes, only keyframes
      * are currently used. */
-    if(dsm && psm->drv.server->config.pubSubConfig.enableDeltaFrames) {
+    if(dsm && psm->drv.server->config.pubSubConfig.enableDeltaFrames &&
+       dataSetMessage->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
         if(dsw->lastSamplesCount != pds->fieldSize ||
@@ -820,18 +920,14 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
 
             dsw->connectedDataSetVersion =
                 pds->dataSetMetaData.configurationVersion;
-            UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
+            res = UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
             dsw->deltaFrameCounter = 0;
-            return UA_STATUSCODE_GOOD;
+            return res;
         }
 
-        /* The standard defines: if a PDS contains only one fields no delta messages
-         * should be generated because they need more memory than a keyframe with 1
-         * field.
-         * Spec 6.2.4.3: "If the KeyFrameCount is set to 1, every message contains
-         * a key frame." The previous `<=` comparison generated a delta frame
-         * when deltaFrameCounter == keyFrameCount (e.g., keyFrameCount=1
-         * produced delta frames). Changed to `<`. */
+        /* Emit deltas only between scheduled key frames and only for datasets
+         * with multiple fields. KeyFrameCount equal to one produces only key
+         * frames. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
            dsw->deltaFrameCounter < dsw->config.keyFrameCount) {
             UA_StatusCode res =

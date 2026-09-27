@@ -17,7 +17,7 @@
 
 static UA_Server *server;
 static UA_Client *client;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE serverThread;
 static UA_UInt32 subscriptionId;
 static UA_UInt16 testNs;
@@ -28,7 +28,7 @@ static size_t eventChangesSize;
 static UA_ModelChangeStructureDataType eventChanges[4];
 
 THREAD_CALLBACK(serverLoop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, false);
     return 0;
 }
@@ -98,7 +98,7 @@ setup(void) {
     addNodeVersion(UA_NODEID_NUMERIC(testNs, 1400),
                    UA_NODEID_NUMERIC(testNs, 1403));
 
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(serverThread, serverLoop);
 
     client = UA_Client_newForUnitTest();
@@ -148,7 +148,7 @@ static void
 teardown(void) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(serverThread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -197,7 +197,7 @@ START_TEST(modelChangeRequestCoalescingAndPartialFailure) {
     ck_assert_uint_ne(response.results[2], UA_STATUSCODE_GOOD);
     UA_AddReferencesResponse_clear(&response);
 
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(serverThread);
 
     /* Pump both event loops explicitly. Do not use a timed wait here: this
@@ -217,7 +217,7 @@ START_TEST(modelChangeRequestCoalescingAndPartialFailure) {
     ck_assert_uint_eq(server->modelChangeDepth, 0);
     ck_assert_int_eq(server->nodeVersionCounter, versionBefore + 1);
     assertNodeVersion(UA_NODEID_NUMERIC(testNs, 1403), versionBefore + 1);
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(serverThread, serverLoop);
 } END_TEST
 

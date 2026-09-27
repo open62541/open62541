@@ -29,17 +29,17 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
     UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -83,7 +83,7 @@ static void setup(void) {
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);
@@ -94,7 +94,7 @@ static void setup(void) {
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 static void setup2(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -121,7 +121,7 @@ static void setup2(void) {
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -129,7 +129,7 @@ static void setup2(void) {
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -302,6 +302,55 @@ START_TEST(encryption_connect_pem) {
 }
 END_TEST
 
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+START_TEST(securitypolicy_rejects_malformed_signature_length) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_String policyUri = UA_STRING(
+        "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
+    UA_SecurityPolicy *sp = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(UA_String_equal(&config->securityPolicies[i].policyUri, &policyUri)) {
+            sp = &config->securityPolicies[i];
+            break;
+        }
+    }
+    ck_assert_ptr_ne(sp, NULL);
+
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    void *channelContext = NULL;
+    UA_StatusCode retval =
+        sp->newChannelContext(sp, &certificate, &channelContext);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString message = UA_BYTESTRING("signature length regression");
+    size_t expectedSize = sp->asymSignatureAlgorithm.
+        getRemoteSignatureSize(sp, channelContext);
+    UA_ByteString signature = UA_BYTESTRING_NULL;
+    retval = UA_ByteString_allocBuffer(&signature, expectedSize + 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    signature.length = expectedSize;
+    retval = sp->asymSignatureAlgorithm.sign(sp, channelContext,
+                                             &message, &signature);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = sp->asymSignatureAlgorithm.verify(sp, channelContext,
+                                               &message, &signature);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    const size_t invalidSizes[] = {0, 1, expectedSize - 1, expectedSize + 1};
+    for(size_t i = 0; i < sizeof(invalidSizes) / sizeof(invalidSizes[0]); i++) {
+        signature.length = invalidSizes[i];
+        retval = sp->asymSignatureAlgorithm.verify(sp, channelContext,
+                                                   &message, &signature);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    }
+
+    signature.length = expectedSize + 1;
+    UA_ByteString_clear(&signature);
+    sp->deleteChannelContext(sp, channelContext);
+}
+END_TEST
+#endif /* defined(UA_ENABLE_ENCRYPTION_MBEDTLS) */
+
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 START_TEST(securitypolicy_aes256sha256rsapss_null_cert_no_underflow) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
@@ -338,6 +387,9 @@ static Suite* testSuite_encryption(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);
     tcase_add_test(tc_encryption, encryption_connect_pem);
+# if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    tcase_add_test(tc_encryption, securitypolicy_rejects_malformed_signature_length);
+# endif
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 

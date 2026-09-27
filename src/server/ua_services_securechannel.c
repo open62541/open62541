@@ -234,70 +234,115 @@ Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     }
 }
 
+/* The built-in, read-only ns0 SecureChannel attribute keys. Also the
+ * payload keys of the SECURECHANNEL notification below. See the doc
+ * comment on UA_Server_setSecureChannelAttribute in server.h and
+ * UA_SecureChannel_getBuiltinAttribute below. */
+const UA_QualifiedName UA_SecureChannel_builtinAttributeKeys[UA_SECURECHANNEL_BUILTIN_ATTRIBUTES_SIZE] = {
+    {0, UA_STRING_STATIC("securechannel-id")},
+    {0, UA_STRING_STATIC("connection-manager-name")},
+    {0, UA_STRING_STATIC("connection-id")},
+    {0, UA_STRING_STATIC("remote-address")},
+    {0, UA_STRING_STATIC("protocol-version")},
+    {0, UA_STRING_STATIC("recv-buffer-size")},
+    {0, UA_STRING_STATIC("recv-max-message-size")},
+    {0, UA_STRING_STATIC("recv-max-chunk-count")},
+    {0, UA_STRING_STATIC("send-buffer-size")},
+    {0, UA_STRING_STATIC("send-max-message-size")},
+    {0, UA_STRING_STATIC("send-max-chunk-count")},
+    {0, UA_STRING_STATIC("endpoint-url")},
+    {0, UA_STRING_STATIC("security-mode")},
+    {0, UA_STRING_STATIC("security-policy-url")},
+    {0, UA_STRING_STATIC("certificate-type-id")},
+    {0, UA_STRING_STATIC("remote-certificate")}
+};
+
+UA_Boolean
+UA_SecureChannel_getBuiltinAttribute(UA_SecureChannel *channel,
+                                     const UA_QualifiedName *key,
+                                     UA_Variant *out) {
+    /* Backing storage for the handful of values that are not stable,
+     * addressable members of *channel and must be computed or defaulted on
+     * the fly -- see the doc comment on channel->builtinAttributeScratch.
+     * It lives on the channel itself, not a local of this function, so
+     * *out stays valid for as long as the channel does, no matter when (or
+     * whether) the caller consumes it. */
+    const UA_QualifiedName *k = UA_SecureChannel_builtinAttributeKeys;
+    if(UA_QualifiedName_equal(key, &k[0])) {
+        UA_Variant_setScalar(out, &channel->securityToken.channelId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[1])) {
+        channel->builtinAttributeScratch.connectionManagerName = channel->connectionManager ?
+            channel->connectionManager->eventSource.name : UA_STRING_NULL;
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.connectionManagerName,
+                             &UA_TYPES[UA_TYPES_STRING]);
+    } else if(UA_QualifiedName_equal(key, &k[2])) {
+        channel->builtinAttributeScratch.connectionId = channel->connectionId;
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.connectionId,
+                             &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(UA_QualifiedName_equal(key, &k[3])) {
+        UA_Variant_setScalar(out, &channel->remoteAddress,
+                             &UA_TYPES[UA_TYPES_STRING]);
+    } else if(UA_QualifiedName_equal(key, &k[4])) {
+        UA_Variant_setScalar(out, &channel->config.protocolVersion,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[5])) {
+        UA_Variant_setScalar(out, &channel->config.recvBufferSize,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[6])) {
+        UA_Variant_setScalar(out, &channel->config.localMaxMessageSize,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[7])) {
+        UA_Variant_setScalar(out, &channel->config.localMaxChunkCount,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[8])) {
+        UA_Variant_setScalar(out, &channel->config.sendBufferSize,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[9])) {
+        UA_Variant_setScalar(out, &channel->config.remoteMaxMessageSize,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[10])) {
+        UA_Variant_setScalar(out, &channel->config.remoteMaxChunkCount,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_QualifiedName_equal(key, &k[11])) {
+        UA_Variant_setScalar(out, &channel->endpointUrl,
+                             &UA_TYPES[UA_TYPES_STRING]);
+    } else if(UA_QualifiedName_equal(key, &k[12])) {
+        UA_Variant_setScalar(out, &channel->securityMode,
+                             &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    } else if(UA_QualifiedName_equal(key, &k[13])) {
+        channel->builtinAttributeScratch.securityPolicyUri = channel->securityPolicy ?
+            channel->securityPolicy->policyUri : UA_STRING_NULL;
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.securityPolicyUri,
+                             &UA_TYPES[UA_TYPES_STRING]);
+    } else if(UA_QualifiedName_equal(key, &k[14])) {
+        channel->builtinAttributeScratch.certificateTypeId = channel->securityPolicy ?
+            channel->securityPolicy->certificateTypeId : UA_NODEID_NULL;
+        UA_Variant_setScalar(out, &channel->builtinAttributeScratch.certificateTypeId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+    } else if(UA_QualifiedName_equal(key, &k[15])) {
+        UA_Variant_setScalar(out, &channel->remoteCertificate,
+                             &UA_TYPES[UA_TYPES_BYTESTRING]);
+    } else {
+        return false;
+    }
+    return true;
+}
+
 void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type) {
-    /* Prepare the payload */
-    UA_STATIC_THREAD_LOCAL UA_KeyValuePair notifySCData[16] = {
-        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
-        {{0, UA_STRING_STATIC("connection-manager-name")}, {0}},
-        {{0, UA_STRING_STATIC("connection-id")}, {0}},
-        {{0, UA_STRING_STATIC("remote-address")}, {0}},
-        {{0, UA_STRING_STATIC("protocol-version")}, {0}},
-        {{0, UA_STRING_STATIC("recv-buffer-size")}, {0}},
-        {{0, UA_STRING_STATIC("recv-max-message-size")}, {0}},
-        {{0, UA_STRING_STATIC("recv-max-chunk-count")}, {0}},
-        {{0, UA_STRING_STATIC("send-buffer-size")}, {0}},
-        {{0, UA_STRING_STATIC("send-max-message-size")}, {0}},
-        {{0, UA_STRING_STATIC("send-max-chunk-count")}, {0}},
-        {{0, UA_STRING_STATIC("endpoint-url")}, {0}},
-        {{0, UA_STRING_STATIC("security-mode")}, {0}},
-        {{0, UA_STRING_STATIC("security-policy-url")}, {0}},
-        {{0, UA_STRING_STATIC("certificate-type-id")}, {0}},
-        {{0, UA_STRING_STATIC("remote-certificate")}, {0}}
-    };
-    UA_KeyValueMap notifySCMap = {16, notifySCData};
-
-    UA_Variant_setScalar(&notifySCData[0].value, &channel->securityToken.channelId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[1].value,
-                         &channel->connectionManager->eventSource.name,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_UInt64 connectionId = channel->connectionId;
-    UA_Variant_setScalar(&notifySCData[2].value, &connectionId,
-                         &UA_TYPES[UA_TYPES_UINT64]);
-    UA_Variant_setScalar(&notifySCData[3].value, &channel->remoteAddress,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&notifySCData[4].value, &channel->config.protocolVersion,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[5].value, &channel->config.recvBufferSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[6].value, &channel->config.localMaxMessageSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[7].value, &channel->config.localMaxChunkCount,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[8].value, &channel->config.sendBufferSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[9].value, &channel->config.remoteMaxMessageSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[10].value, &channel->config.remoteMaxChunkCount,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[11].value, &channel->endpointUrl,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&notifySCData[12].value, &channel->securityMode,
-                         &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
-    UA_String securityPolicyUri = UA_STRING_NULL;
-    if(channel->securityPolicy)
-        securityPolicyUri = channel->securityPolicy->policyUri;
-    UA_Variant_setScalar(&notifySCData[13].value, &securityPolicyUri,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_NodeId certificateTypeId = UA_NODEID_NULL;
-    if(channel->securityPolicy)
-        certificateTypeId = channel->securityPolicy->certificateTypeId;
-    UA_Variant_setScalar(&notifySCData[14].value, &certificateTypeId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&notifySCData[15].value, &channel->remoteCertificate,
-                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    /* Prepare the payload -- the same built-in attributes exposed via
+     * UA_Server_getSecureChannelAttribute and friends. */
+    UA_STATIC_THREAD_LOCAL UA_KeyValuePair
+        notifySCData[UA_SECURECHANNEL_BUILTIN_ATTRIBUTES_SIZE];
+    for(size_t i = 0; i < UA_SECURECHANNEL_BUILTIN_ATTRIBUTES_SIZE; i++) {
+        notifySCData[i].key = UA_SecureChannel_builtinAttributeKeys[i];
+        UA_SecureChannel_getBuiltinAttribute(
+            channel, &UA_SecureChannel_builtinAttributeKeys[i], &notifySCData[i].value);
+    }
+    UA_KeyValueMap notifySCMap =
+        {UA_SECURECHANNEL_BUILTIN_ATTRIBUTES_SIZE, notifySCData};
 
     /* Notify the application */
     notifyApplication(server, type, notifySCMap);

@@ -20,7 +20,7 @@
 #include "test_helpers.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 static const size_t usernamePasswordsSize = 2;
@@ -29,13 +29,13 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
 
 THREAD_CALLBACK(serverloop) {
-    while(running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
@@ -55,14 +55,14 @@ static void setup(void) {
 
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+        UA_STRING_ALLOC("urn:open62541.unconfigured.application");
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);

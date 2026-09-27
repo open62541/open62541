@@ -22,17 +22,17 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
+UA_atomic(uintptr_t) running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while (running)
+    while(UA_atomic_load(&running))
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -41,7 +41,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -373,7 +373,7 @@ START_TEST(Client_connectivity_check) {
         ck_assert_uint_eq(inactivityCallbackTriggered, false);
 
         /* Simulate network cable unplugged (no response from server) */
-        running = false;
+        UA_atomic_store(&running, false);
         THREAD_JOIN(server_thread);
 
         UA_fakeSleep(1000 + 1 + clientConfig->connectivityCheckInterval);
@@ -386,7 +386,7 @@ START_TEST(Client_connectivity_check) {
         ck_assert_uint_eq(inactivityCallbackTriggered, true);
 
         /* Get the server back up */
-        running = true;
+        UA_atomic_store(&running, true);
         THREAD_CREATE(server_thread, serverloop);
 
         UA_Client_disconnect(client);

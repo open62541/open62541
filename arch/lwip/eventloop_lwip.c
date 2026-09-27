@@ -43,8 +43,8 @@ static UA_KeyValueRestriction LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAME
 static UA_DateTime
 UA_EventLoopLWIP_nextTimer(UA_EventLoop *public_el) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
-    if(el->delayedHead1 > (UA_DelayedCallback *)0x01 ||
-       el->delayedHead2 > (UA_DelayedCallback *)0x01)
+    if(UA_atomic_load(&el->delayedHead1) > (UA_DelayedCallback *)0x01 ||
+       UA_atomic_load(&el->delayedHead2) > (UA_DelayedCallback *)0x01)
         return el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
     return UA_Timer_next(&el->timer);
 }
@@ -105,11 +105,11 @@ static void
 resetDelayedQueue(UA_EventLoopLWIP *el,
                   UA_atomic(UA_DelayedCallback*)* oldHead,
                   UA_atomic(UA_atomic(UA_DelayedCallback*)*)* oldTail) {
-    if(el->delayedHead1 <= (UA_DelayedCallback *)0x01 &&
-       el->delayedHead2 <= (UA_DelayedCallback *)0x01)
+    if(UA_atomic_load(&el->delayedHead1) <= (UA_DelayedCallback *)0x01 &&
+       UA_atomic_load(&el->delayedHead2) <= (UA_DelayedCallback *)0x01)
         return; /* The queue is empty */
 
-    UA_Boolean active1 = (el->delayedHead1 != (UA_DelayedCallback*)0x01);
+    UA_Boolean active1 = (UA_atomic_load(&el->delayedHead1) != (UA_DelayedCallback*)0x01);
     UA_atomic(UA_DelayedCallback*)* activeHead = (active1) ? &el->delayedHead1 : &el->delayedHead2;
     UA_atomic(UA_DelayedCallback*)* inactiveHead = (active1) ? &el->delayedHead2 : &el->delayedHead1;
 
@@ -148,7 +148,7 @@ UA_EventLoopLWIP_removeDelayedCallback(UA_EventLoop *public_el,
     for(; cur; cur = next) {
         /* Spin-loop until the next-pointer of cur is updated.
          * The element pointed to by tail must appear eventually. */
-        next = cur->next;
+        next = UA_atomic_load(&cur->next);
         while(!next && cur != last)
             next = UA_atomic_load(&cur->next);
         if(cur == dc)
@@ -179,7 +179,7 @@ processDelayed(UA_EventLoopLWIP *el) {
     /* Loop until we reach the tail (or head and tail are both NULL) */
     UA_DelayedCallback *next;
     for(; dc; dc = next) {
-        next = dc->next;
+        next = UA_atomic_load(&dc->next);
         while(!next && dc != last)
             next = UA_atomic_load(&dc->next);
         if(!dc->callback)
@@ -295,7 +295,8 @@ checkClosed(UA_EventLoopLWIP *el) {
     }
 
     /* Not closed until all delayed callbacks are processed */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+    if(UA_atomic_load(&el->delayedHead1) != NULL &&
+       UA_atomic_load(&el->delayedHead2) != NULL)
         return;
 
     /* Close the self-pipe when everything else is done */
@@ -386,7 +387,8 @@ UA_EventLoopLWIP_run(UA_EventLoopLWIP *el, UA_UInt32 timeout) {
      * itself). In that case we don't want to wait (indefinitely) for an event
      * to happen. Process queued events but don't sleep. Then process the
      * delayed callbacks in the next iteration. */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+    if(UA_atomic_load(&el->delayedHead1) != NULL &&
+       UA_atomic_load(&el->delayedHead2) != NULL)
         timeout = 0;
 
     /* Compute the remaining time */

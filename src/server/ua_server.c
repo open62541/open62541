@@ -284,6 +284,42 @@ testStoppedCondition(UA_Server *server) {
     return true;
 }
 
+/* Drain a shutdown already initiated by stopDrivers. The caller holds the
+ * server lock. */
+static UA_StatusCode
+finishShutdown(UA_Server *server) {
+    /* Only stop the EventLoop if it is coupled to the server lifecycle. */
+    if(server->config.externalEventLoop) {
+        if(testStoppedCondition(server))
+            setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Iterate the EventLoop until all drivers have stopped. */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_EventLoop *el = server->config.eventLoop;
+    while(!testStoppedCondition(server) && res == UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        res = el->run(el, 100);
+        lockServer(server);
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Stop the EventLoop. Iterate until stopped. */
+    if(el->state == UA_EVENTLOOPSTATE_STARTED)
+        el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          el->state != UA_EVENTLOOPSTATE_FRESH && res == UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        res = el->run(el, 100);
+        lockServer(server);
+    }
+    if(res == UA_STATUSCODE_GOOD)
+        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+    return res;
+}
+
 /********************/
 /* Server Lifecycle */
 /********************/
@@ -317,9 +353,7 @@ UA_Server_delete(UA_Server *server) {
 
 #endif
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager_clear(&server->asyncManager, server);
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_assert(server->modelChangeDepth == 0);
@@ -381,8 +415,8 @@ UA_Server_delete(UA_Server *server) {
         for(size_t i = 0; i < server->customTypes_internalSize; i++) {
             UA_DataTypeArray *curr = &server->customTypes_internal[i];
             for(size_t j = 0; j < curr->typesSize; j++)
-                UA_DataType_clear(&curr->types[j]);
-            UA_free(curr->types);
+                UA_DataType_clear((UA_DataType*)(uintptr_t)&curr->types[j]);
+            UA_free((void*)(uintptr_t)curr->types);
         }
         UA_free(server->customTypes_internal);
     }
@@ -473,9 +507,7 @@ UA_Server_init(UA_Server *server) {
     server->nextChannelId = STARTCHANNELID;
     server->lastTokenId = STARTTOKENID;
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
-#endif
 
     /* Initialize namespace 0 */
 #if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
@@ -1092,6 +1124,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
+    /* Async operation timeouts are only enforced with multithreading */
 #if UA_MULTITHREADING >= 100
     /* Add regulare callback for async operation processing */
     UA_AsyncManager_start(&server->asyncManager, server);
@@ -1226,48 +1259,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Stop all drivers */
     stopDrivers(server);
 
-    /* Are we already stopped? */
-    if(testStoppedCondition(server)) {
-        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-    }
-
-    /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-    if(server->config.externalEventLoop) {
-        unlockServer(server);
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Unlock and do one "normal" iteration. This allows threads waiting for the
-     * server lock to proceed before the server lock is destroyed. */
-    unlockServer(server);
-    UA_Server_run_iterate(server, true);
-    lockServer(server);
-
-    /* Iterate the EventLoop until the server is stopped */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventLoop *el = server->config.eventLoop;
-    while(!testStoppedCondition(server) &&
-          res == UA_STATUSCODE_GOOD) {
-        /* Event-loop callbacks on other threads may need the server lock. */
-        unlockServer(server);
-        res = el->run(el, 100);
-        lockServer(server);
-    }
-
-    /* Stop the EventLoop. Iterate until stopped. */
-    el->stop(el);
-    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
-          el->state != UA_EVENTLOOPSTATE_FRESH &&
-          res == UA_STATUSCODE_GOOD) {
-        /* Event-loop callbacks on other threads may need the server lock. */
-        unlockServer(server);
-        res = el->run(el, 100);
-        lockServer(server);
-    }
-
-    /* Set server lifecycle state to stopped if not already the case */
-    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-
+    UA_StatusCode res = finishShutdown(server);
     unlockServer(server);
     return res;
 }

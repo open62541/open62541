@@ -615,8 +615,12 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     if(res != UA_STATUSCODE_GOOD)
         goto finish_decode;
 
-    /* Is the response of the expected type? */
-    if(!UA_NodeId_equal(&responseId, &expectedId)) {
+    /* Is the response of the expected type? responseId is only needed for
+     * this check -- clear it right away regardless of the outcome so a
+     * heap-backed type (String/GUID/ByteString NodeId) can never leak. */
+    UA_Boolean typeMatches = UA_NodeId_equal(&responseId, &expectedId);
+    UA_NodeId_clear(&responseId);
+    if(!typeMatches) {
         res = UA_STATUSCODE_BADDECODINGERROR;
         goto finish_decode;
     }
@@ -633,11 +637,15 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
+    /* From here on, response has been decoded and must be cleared on every
+     * rejection as well as on success. */
+
     /* Check whether the nonce was reused */
     if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE &&
        UA_ByteString_equal(&client->channel.remoteNonce, &response.serverNonce)) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server reused the last nonce");
+        UA_OpenSecureChannelResponse_clear(&response);
         setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
@@ -646,6 +654,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     if(response.serverNonce.length < client->channel.securityPolicy->nonceLength) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server nonce is too short");
+        UA_OpenSecureChannelResponse_clear(&response);
         setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
@@ -691,6 +700,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
      * with the new SecurityToken is received. */
     res = UA_SecureChannel_generateLocalKeys(&client->channel);
     if(res != UA_STATUSCODE_GOOD) {
+        UA_OpenSecureChannelResponse_clear(&response);
         setConnectStatus(client, res);
         return;
     }
@@ -710,6 +720,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     }
 
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
+    UA_OpenSecureChannelResponse_clear(&response);
 }
 
 /* OPN messges to renew the channel are sent asynchronous */
@@ -1251,6 +1262,60 @@ endpointMatchesTransport(UA_Client *client,
                                          profileUri);
 }
 
+/* Part 4, CreateSession: only these seven EndpointDescription fields are
+ * compared. Servers may omit the other fields in the response. */
+static UA_Boolean
+endpointDescriptionsMatch(const UA_EndpointDescription *a,
+                          const UA_EndpointDescription *b) {
+    if(!UA_String_equal(&a->server.applicationUri, &b->server.applicationUri) ||
+       !UA_String_equal(&a->endpointUrl, &b->endpointUrl) ||
+       a->securityMode != b->securityMode ||
+       !UA_String_equal(&a->securityPolicyUri, &b->securityPolicyUri) ||
+       !UA_String_equal(&a->transportProfileUri, &b->transportProfileUri) ||
+       a->securityLevel != b->securityLevel ||
+       a->userIdentityTokensSize != b->userIdentityTokensSize)
+        return false;
+
+    for(size_t i = 0; i < a->userIdentityTokensSize; i++) {
+        if(!UA_equal(&a->userIdentityTokens[i], &b->userIdentityTokens[i],
+                     &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
+            return false;
+    }
+    return true;
+}
+
+/* Verify the selected discovery endpoint against its authenticated counterpart
+ * in the CreateSession response. The server certificate is checked strictly
+ * against the SecureChannel above. */
+static UA_StatusCode
+verifyCreateSessionEndpoint(UA_Client *client,
+                            const UA_CreateSessionResponse *response) {
+    /* A directly configured EndpointDescription is treated as trusted input.
+     * Part 4 permits skipping the comparison in this case. */
+    if(!endpointUnconfigured(&client->config.endpoint))
+        return UA_STATUSCODE_GOOD;
+
+    for(size_t i = 0; i < response->serverEndpointsSize; i++) {
+        if(endpointDescriptionsMatch(&client->endpoint,
+                                     &response->serverEndpoints[i]))
+            return UA_STATUSCODE_GOOD;
+    }
+
+    UA_RuleHandling rule = client->config.endpointDescriptionRule;
+    if(rule != UA_RULEHANDLING_ACCEPT) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "CreateSession did not return the selected "
+                       "EndpointDescription with matching verification fields "
+                       "(EndpointUrl %S, "
+                       "SecurityMode %s, SecurityPolicy %S)",
+                       client->endpoint.endpointUrl,
+                       securityModeNames[client->endpoint.securityMode],
+                       client->endpoint.securityPolicyUri);
+    }
+    return (rule <= UA_RULEHANDLING_ABORT) ?
+        UA_STATUSCODE_BADSECURITYCHECKSFAILED : UA_STATUSCODE_GOOD;
+}
+
 static UA_Boolean
 matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigned i) {
     /* Matching ApplicationUri if defined */
@@ -1564,7 +1629,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         return;
     }
 
-    /* Store the endpoint description in the client. It contains the
+    /* Store the selected endpoint description in the client. It contains the
      * ApplicationDescription and the UserTokenPolicies. We continue to look up
      * the matching UserTokenPolicy from there. */
     UA_EndpointDescription_clear(&client->endpoint);
@@ -1799,6 +1864,9 @@ createSessionCallback(UA_Client *client, void *userdata,
          * the SecureChannel */
         if(!UA_ByteString_equal(&csr->serverCertificate,
                                 &client->channel.remoteCertificate)) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "The server certificate changed between the selected "
+                         "EndpointDescription and CreateSession");
             res = UA_STATUSCODE_BADCERTIFICATEINVALID;
             goto cleanup;
         }
@@ -1808,6 +1876,38 @@ createSessionCallback(UA_Client *client, void *userdata,
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
+
+    /* OPC UA Part 4, 5.7.2: Bind the authenticated server certificate to the
+     * ApplicationUri claimed in the CreateSession response. Discovery data is
+     * not trusted and therefore cannot replace this check. */
+    if(csr->serverCertificate.length > 0 && csr->serverEndpointsSize == 0) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "CreateSession returned a server certificate without "
+                     "an EndpointDescription to verify its ApplicationUri");
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+    for(size_t i = 0; csr->serverCertificate.length > 0 &&
+                    i < csr->serverEndpointsSize; i++) {
+        const UA_String *applicationUri =
+            &csr->serverEndpoints[i].server.applicationUri;
+        res = UA_CertificateUtils_verifyApplicationUri(&csr->serverCertificate,
+                                                        applicationUri);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "The server certificate's ApplicationUri does not "
+                         "match the ApplicationUri %S returned by CreateSession",
+                         *applicationUri);
+            goto cleanup;
+        }
+    }
+
+    /* The discovery response is unauthenticated. Bind the selected
+     * EndpointDescription to the authenticated CreateSession response
+     * (OPC UA Part 4, 5.5.1 and 5.7.2). */
+    res = verifyCreateSessionEndpoint(client, csr);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Copy the SessionId */
     UA_NodeId_clear(&client->sessionId);

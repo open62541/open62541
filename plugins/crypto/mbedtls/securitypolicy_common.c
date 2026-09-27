@@ -365,6 +365,17 @@ UA_mbedTLS_PsaAsymmetricVerify(const mbedtls_pk_context *key,
                                const UA_ByteString *signature) {
     if(!key || !mbedtlsValidByteString(message) || !mbedtlsValidByteString(signature))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* PSA consumes raw, fixed-width signatures. Reject malformed lengths
+     * before importing the key or passing the buffer to the backend. This
+     * covers every RSA and ECDSA policy using the shared PSA implementation. */
+    size_t keyBytes = (mbedtls_pk_get_bitlen(key) + 7) / 8;
+    size_t expectedSignatureLength = PSA_ALG_IS_ECDSA(signatureAlgorithm) ?
+        2 * keyBytes : keyBytes;
+    if(!signature->data || expectedSignatureLength == 0 ||
+       signature->length != expectedSignatureLength)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     UA_Byte hashBuffer[PSA_HASH_MAX_SIZE];
     UA_ByteString hash = {PSA_HASH_LENGTH(hashAlgorithm), hashBuffer};
     UA_StatusCode res = UA_mbedTLS_PsaHashCompute(hashAlgorithm, message, &hash);

@@ -219,12 +219,12 @@ glibSourceDispatch(GSource *source, GSourceFunc callback, gpointer user_data) {
 
         short event = 0;
         if(gfd->revents & G_IO_IN)
-            event = UA_FDEVENT_IN;
-        else if(gfd->revents & G_IO_OUT)
-            event = UA_FDEVENT_OUT;
-        else if(gfd->revents & (G_IO_ERR | G_IO_HUP | G_IO_NVAL))
+            event |= UA_FDEVENT_IN;
+        if(gfd->revents & G_IO_OUT)
+            event |= UA_FDEVENT_OUT;
+        if(!event && (gfd->revents & (G_IO_ERR | G_IO_HUP | G_IO_NVAL)))
             event = UA_FDEVENT_ERR;
-        else
+        if(!event)
             continue;
 
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -267,7 +267,8 @@ checkClosedGLib(UA_EventLoopPOSIX *el) {
     }
 
     /* Not closed until all delayed callbacks are processed */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+    if(UA_atomic_load(&el->delayedHead1) != NULL &&
+       UA_atomic_load(&el->delayedHead2) != NULL)
         return;
 
     /* Detach and destroy the GSource. It is recreated the next time the

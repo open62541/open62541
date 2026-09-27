@@ -36,7 +36,7 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 static UA_Server *server;
-static UA_Boolean running;
+static UA_atomic(uintptr_t) running;
 static THREAD_HANDLE server_thread;
 
 UA_Client *client;
@@ -194,25 +194,25 @@ removeSubscription(void) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(running) {
+    while(UA_atomic_load(&running)) {
         UA_Server_run_iterate(server, true);
     }
     return 0;
 }
 
 static void joinServer(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
 }
 
 static void forkServer(void) {
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void
 setup(void) {
-    running = true;
+    UA_atomic_store(&running, true);
 
     server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -236,7 +236,7 @@ setup(void) {
 
 static void
 teardown(void) {
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     removeSubscription();
     UA_Server_run_shutdown(server);

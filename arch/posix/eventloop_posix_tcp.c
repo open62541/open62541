@@ -235,7 +235,7 @@ TCP_connectionSocketCallback(UA_EventSource *es, UA_RegisteredFD *rfd,
      * out-event. For example if the remote side could not be reached to
      * initiate the connection. So we check manually for error conditions on
      * the socket. */
-    if(event == UA_FDEVENT_OUT) {
+    if(event & UA_FDEVENT_OUT) {
         int error = getSockError(conn);
         if(error != 0) {
             UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
