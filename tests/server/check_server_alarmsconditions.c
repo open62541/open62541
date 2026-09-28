@@ -2049,6 +2049,73 @@ START_TEST(conditionRefresh_keepsEventId) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+/* ConditionRefresh follows a Subscription to the Session it is transferred to.
+ * The refresh targets are removed with the MonitoredItems. */
+START_TEST(conditionRefresh_transferredSubscription) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "TransferRefreshCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+
+    /* The default AccessControl allows the transfer for the same user */
+    UA_Session *oldSession = createTestSession("operator");
+    UA_Session *newSession = createTestSession("operator");
+    UA_UInt32 subscriptionId = createEventSubscription(oldSession);
+
+    UA_TransferSubscriptionsRequest request;
+    UA_TransferSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse response;
+    UA_TransferSubscriptionsResponse_init(&response);
+    lockServer(server_ac);
+    Service_TransferSubscriptions(server_ac, newSession, &request, &response);
+    unlockServer(server_ac);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_TransferSubscriptionsResponse_clear(&response);
+
+    /* The new Session refreshes, the old one no longer can */
+    ck_assert_uint_eq(callConditionRefresh(newSession, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+    UA_ByteString refreshedId = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(getQueuedEventId(newSession, subscriptionId, alarmType,
+                                       &refreshedId), 1);
+    ck_assert(UA_ByteString_equal(&refreshedId, &eventId));
+    UA_ByteString_clear(&refreshedId);
+    ck_assert_uint_eq(callConditionRefresh(oldSession, subscriptionId),
+                      UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    /* Deleting the old Subscription with its Session keeps the targets */
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &oldSession->sessionId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callConditionRefresh(newSession, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+
+    /* Deleting the transferred Subscription removes them */
+    UA_DeleteSubscriptionsRequest delRequest;
+    UA_DeleteSubscriptionsRequest_init(&delRequest);
+    delRequest.subscriptionIdsSize = 1;
+    delRequest.subscriptionIds = &subscriptionId;
+    UA_DeleteSubscriptionsResponse delResponse;
+    UA_DeleteSubscriptionsResponse_init(&delResponse);
+    lockServer(server_ac);
+    Service_DeleteSubscriptions(server_ac, newSession, &delRequest, &delResponse);
+    unlockServer(server_ac);
+    ck_assert_uint_eq(delResponse.resultsSize, 1);
+    ck_assert_uint_eq(delResponse.results[0], UA_STATUSCODE_GOOD);
+    UA_DeleteSubscriptionsResponse_clear(&delResponse);
+    ck_assert_uint_eq(callConditionRefresh(newSession, subscriptionId),
+                      UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &newSession->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -2064,6 +2131,7 @@ int main(void) {
     tcase_add_test(tc_call, addConditionBegin_nullOutNodeId);
     tcase_add_test(tc_call, conditionRefresh_replacedInputArguments);
     tcase_add_test(tc_call, conditionRefresh_keepsEventId);
+    tcase_add_test(tc_call, conditionRefresh_transferredSubscription);
 #endif
     tcase_add_checked_fixture(tc_call, setup, teardown);
     suite_add_tcase(s, tc_call);

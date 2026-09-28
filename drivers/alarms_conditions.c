@@ -327,19 +327,52 @@ removeMonitoredItemTarget(UA_ACMonitoredItemTarget *target) {
     UA_free(target);
 }
 
+/* A transferred Subscription keeps its SubscriptionId (unique in the server)
+ * and its MonitoredItems, but belongs to another Session. Move its targets to
+ * that Session. The old Subscription is deleted later without notifications
+ * for the moved MonitoredItems, so its deletion must not remove them. */
+static void
+transferMonitoredItemTargets(AlarmsConditionsDriver *acd, const UA_NodeId *sessionId,
+                             UA_UInt32 subscriptionId) {
+    UA_ACMonitoredItemTarget *target;
+    LIST_FOREACH(target, &acd->monitoredItemTargets, listEntry) {
+        if(target->subscriptionId != subscriptionId ||
+           UA_NodeId_equal(&target->sessionId, sessionId))
+            continue;
+        UA_NodeId newSessionId;
+        UA_StatusCode res = UA_NodeId_copy(sessionId, &newSessionId);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(acd->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not transfer a refresh target of "
+                           "Subscription %u. StatusCode %s",
+                           (unsigned)subscriptionId, UA_StatusCode_name(res));
+            continue;
+        }
+        UA_NodeId_clear(&target->sessionId);
+        target->sessionId = newSessionId;
+    }
+}
+
 static void
 AlarmsConditionsDriver_notification(UA_Driver *drv, UA_ApplicationNotificationType type,
                                     const UA_KeyValueMap payload) {
     AlarmsConditionsDriver *acd = (AlarmsConditionsDriver*)drv;
-    if((type & UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM) == 0)
-        return;
-
     const UA_NodeId *sessionId =
         (const UA_NodeId*)UA_KeyValueMap_getScalar(&payload,
             UA_QUALIFIEDNAME(0, "session-id"), &UA_TYPES[UA_TYPES_NODEID]);
     const UA_UInt32 *subscriptionId =
         (const UA_UInt32*)UA_KeyValueMap_getScalar(&payload,
             UA_QUALIFIEDNAME(0, "subscription-id"), &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* Of the Subscription notifications, only the transfer changes targets */
+    if(type == UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_TRANSFERRED) {
+        if(sessionId && subscriptionId)
+            transferMonitoredItemTargets(acd, sessionId, *subscriptionId);
+        return;
+    }
+    if((type & UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM) == 0)
+        return;
+
     const UA_UInt32 *monitoredItemId =
         (const UA_UInt32*)UA_KeyValueMap_getScalar(&payload,
             UA_QUALIFIEDNAME(0, "monitoreditem-id"), &UA_TYPES[UA_TYPES_UINT32]);
@@ -2977,7 +3010,8 @@ UA_AlarmsConditionsDriver(const UA_KeyValueMap params) {
 
     base->name = UA_STRING(UA_DRIVER_ALARMS_CONDITIONS_NAME);
     base->notificationCallback = AlarmsConditionsDriver_notification;
-    base->notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM;
+    base->notificationFilter = UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM |
+                               UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION;
     base->start = AlarmsConditionsDriver_start;
     base->stop = AlarmsConditionsDriver_stop;
     base->free = AlarmsConditionsDriver_free;
