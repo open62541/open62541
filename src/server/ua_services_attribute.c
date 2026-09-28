@@ -509,6 +509,35 @@ buildEnumDefinitionFromProperties(UA_Server *server, const UA_NodeId *dataTypeId
     return res;
 }
 
+/* Replace the NodeId with the direct supertype of the DataType, the target of
+ * its inverse HasSubtype reference. Keep the NodeId if there is no
+ * supertype. */
+static UA_StatusCode
+readDataTypeSupertype(UA_Server *server, const UA_NodeId *dataTypeId,
+                      UA_NodeId *supertypeId) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, dataTypeId, UA_NODEATTRIBUTESMASK_NONE,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE),
+                                   UA_BROWSEDIRECTION_INVERSE);
+    if(!node)
+        return UA_STATUSCODE_GOOD;
+    const UA_Node *supertype =
+        getNodeType(server, &node->head, UA_NODEATTRIBUTESMASK_NODEID,
+                    UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    UA_NODESTORE_RELEASE(server, node);
+    if(!supertype)
+        return UA_STATUSCODE_GOOD;
+    UA_NodeId id;
+    UA_StatusCode res = UA_NodeId_copy(&supertype->head.nodeId, &id);
+    UA_NODESTORE_RELEASE(server, supertype);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_NodeId_clear(supertypeId);
+    *supertypeId = id;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Build the EnumDefinition of a UInteger-based OptionSet DataType from its
  * OptionSetValues property (OPC UA Part 3 v1.05, 5.8.3). The array index is
  * the bit number, which is the value of the EnumField (8.52). Undefined bits
@@ -782,6 +811,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
             memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
             UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             UA_ExtensionObject_init(&typeDescr); /* Ownership moved to the Variant */
+
+            /* The type description only knows Structure or Union. But the
+             * BaseDataType is the direct supertype (OPC UA Part 3 v1.05,
+             * Section 8.48). */
+            UA_StructureDefinition *def = (UA_StructureDefinition*)v->value.data;
+            retval = readDataTypeSupertype(server, &node->head.nodeId,
+                                           &def->baseDataType);
+            if(retval != UA_STATUSCODE_GOOD)
+                UA_Variant_clear(&v->value);
         } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
             if(type->membersSize > 0) {
                 /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
