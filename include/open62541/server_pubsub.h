@@ -973,6 +973,35 @@ UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
+/**
+ * File-Based Configuration
+ * ------------------------
+ * With ``UA_ENABLE_PUBSUB_FILE_CONFIG`` the PubSub configuration is exchanged
+ * as the PubSubConfiguration file of OPC UA Part 14 v1.05 (9.1.3.7): a UA
+ * Binary encoded ExtensionObject with a ``UABinaryFileDataType`` whose body
+ * is a ``PubSubConfiguration2DataType``. Namespaces of the file that are
+ * unknown to the server are added and the NodeIds remapped.
+ *
+ * - `UA_Server_readPubSubConfiguration` returns the file content.
+ * - `UA_Server_updatePubSubConfiguration` applies a file with the semantics
+ *   of the CloseAndUpdate method (9.1.3.7.6).
+ * - `UA_PubSubConfiguration_createReferences` creates the references for all
+ *   elements of a file.
+ *
+ * Interaction with the state machine:
+ *
+ * - Components that are not referenced are never touched.
+ * - An added component is enabled if its ``enabled`` flag is set. Under a
+ *   disabled parent it stays Paused until the parent is enabled.
+ * - Modify and writer/reader operations disable the component or the parent
+ *   group temporarily and restore the prior state afterwards.
+ * - The ``componentLifecycleCallback`` can veto every add/remove. The
+ *   state-change callbacks fire for all transitions.
+ *
+ * Not supported yet: SecurityGroup and PushTarget references, modify of
+ * Published/SubscribedDataSets (use remove + add in one call),
+ * SubscribedDataSetMirror and PublishedEvents elements. */
+
 /* Encode the current PubSub configuration as the content of the
  * PubSubConfiguration file (Part 14 v1.05 9.1.3.7.1). The caller frees the
  * file with UA_ByteString_clear. */
