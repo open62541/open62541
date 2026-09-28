@@ -828,7 +828,21 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
         const NL_DataTypeDefinitionField *src = &node->definition->fields[i];
         UA_StructureField *dst = &fields[inheritedFieldsSize + i];
         dst->name = UA_STRING(src->name);
-        dst->valueRank = src->valueRank >= 0 ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
+
+        /* A field is a scalar or an array of a fixed rank (OPC UA Part 3
+         * v1.05, 8.51). A UA_DataType member is at most one-dimensional.
+         * Refuse the other ranks instead of flattening them. The inherited
+         * fields above come from UA_DataType members and are always valid. */
+        if(src->valueRank != UA_VALUERANK_SCALAR &&
+           src->valueRank != UA_VALUERANK_ONE_DIMENSION) {
+            UA_LOG_WARNING(nodeset->logger, UA_LOGCATEGORY_SERVER,
+                           "NodeSetLoader: The field %s of %N has the "
+                           "unsupported ValueRank %" PRIi32,
+                           src->name, node->id, src->valueRank);
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
+        }
+        dst->valueRank = src->valueRank;
         dst->isOptional = src->isOptional;
         hasOptionalFields |= src->isOptional;
 
