@@ -1843,7 +1843,7 @@ START_TEST(UA_Variant_Number_json_encode) {
 END_TEST
 
 START_TEST(UA_Variant_Double_json_encode) {
-    /* Encode decode cyle of 100 Doubles */
+    /* Encode decode cycle of 100 Doubles */
     UA_Double d = 0.0;
     for(size_t i = 0; i < 100; i++){
         d = nextafter(d,1);

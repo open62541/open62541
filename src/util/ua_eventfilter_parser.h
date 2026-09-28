@@ -1,4 +1,4 @@
-/* This Source Code Form is subjec&t to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
@@ -16,7 +16,7 @@
 _UA_BEGIN_DECLS
 
 /* The following token identifiers are generated from ua_eventfilter_grammar.y.
- * They need to be udpated here whenever the grammar is changed. */
+ * They need to be updated here whenever the grammar is changed. */
 #define EF_TOK_OR                               1
 #define EF_TOK_AND                              2
 #define EF_TOK_NOT                              3

@@ -17,7 +17,7 @@
 #include "common.h"
 
 /* This is a test server to the ci script. It can be used for some of the examples that need a server to connect.
-* It allows to connect with the username "peter" and "paula" and the password "peter123" and "paula123" or "user1" and "password". Anonymus login is also allowed.
+* It allows to connect with the username "peter" and "paula" and the password "peter123" and "paula123" or "user1" and "password". Anonymous login is also allowed.
 * The server has a method "hello world" and a variable "the answer" that can be written to.
 * The server certificate and private key are loaded from the command line arguments.
 */
@@ -476,7 +476,7 @@ int main(int argc, char* argv[]) {
         port = (UA_UInt16) atoi(argv[1]);
         certificate = loadFile(argv[2]);
         privateKey = loadFile(argv[3]);
-        // print the certificat and private key
+        // print the certificate and private key
         printf("certificate: %.*s\n", (int)certificate.length, certificate.data);
     } else {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,

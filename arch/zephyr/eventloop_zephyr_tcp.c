@@ -274,12 +274,12 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Configure the new socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     /* res |= UA_EventLoopZephyr_setNonBlocking(newsockfd); Inherited from the listen-socket */
-    res |= UA_EventLoopZephyr_setNoSigPipe(newsockfd); /* Supress interrupts from the socket */
+    res |= UA_EventLoopZephyr_setNoSigPipe(newsockfd); /* Suppress interrupts from the socket */
     res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                           "TCP %u\t| Error seeting the TCP options (%s)",
+                           "TCP %u\t| Error setting the TCP options (%s)",
                            (unsigned)newsockfd, errno_str));
         /* Close the new socket */
         UA_close(newsockfd);
@@ -410,7 +410,7 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Supress interrupts from the socket */
+    /* Suppress interrupts from the socket */
     if(UA_EventLoopZephyr_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not disable SIGPIPE",

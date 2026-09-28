@@ -723,7 +723,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     UA_OpenSecureChannelResponse_clear(&response);
 }
 
-/* OPN messges to renew the channel are sent asynchronous */
+/* OPN messages to renew the channel are sent asynchronous */
 static UA_StatusCode
 sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     if(!UA_SecureChannel_isConnected(&client->channel))
@@ -1453,7 +1453,7 @@ matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
         return false;
     }
 
-    /* Anoymous authentication */
+    /* Anonymous authentication */
     if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS)
         return true;
 
@@ -1519,7 +1519,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
     for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
         UA_UserTokenPolicy *tokenPolicy = &endpoint->userIdentityTokens[j];
 
-        /* Need the extact configured policy */
+        /* Need the exact configured policy */
         if(requiredTokenPolicy &&
            !UA_equal(requiredTokenPolicy, tokenPolicy,
                      &UA_TYPES[UA_TYPES_USERTOKENPOLICY])) {
@@ -2187,7 +2187,7 @@ connectActivity(UA_Client *client) {
     UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
-    /* Could not connect with an error that canot be recovered from */
+    /* Could not connect with an error that cannot be recovered from */
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
@@ -2210,7 +2210,7 @@ connectActivity(UA_Client *client) {
         setConnectStatus(client, sendHELMessage(client));
         return;
 
-        /* ACK receieved. Send OPN. */
+        /* ACK received. Send OPN. */
     case UA_SECURECHANNELSTATE_ACK_RECEIVED:
         setConnectStatus(client, sendOPNAsync(client, false)); /* Send OPN */
         return;

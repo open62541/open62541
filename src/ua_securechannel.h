@@ -485,7 +485,7 @@ UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
 UA_StatusCode
 UA_MessageContext_finish(UA_MessageContext *mc);
 
-/* To be used when a failure occures when a MessageContext is open. Note that
+/* To be used when a failure occurs when a MessageContext is open. Note that
  * the _encode and _finish methods will clean up internally. _abort can be run
  * on a MessageContext that has already been cleaned up before. */
 void
@@ -500,7 +500,7 @@ UA_MessageContext_abort(UA_MessageContext *mc);
  * 1. loadBuffer: The chunks in the SecureChannel are cut into chunks.
  *    The chunks can still point to the buffer.
  * 2. getCompleteMessage: Assemble chunks into a complete message. This is
- *    repeated until an error occours or an empty message is returned.
+ *    repeated until an error occurs or an empty message is returned.
  * 3. persistBuffer: Make a copy of the remaining unpprocessed bytestring. So
  *    that the NetworkManager can reuse or free the packet memory.
  *

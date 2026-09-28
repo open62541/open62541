@@ -279,12 +279,12 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Configure the new socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     /* res |= UA_EventLoopLWIP_setNonBlocking(newsockfd); Inherited from the listen-socket */
-    res |= UA_EventLoopLWIP_setNoSigPipe(newsockfd); /* Supress interrupts from the socket */
+    res |= UA_EventLoopLWIP_setNoSigPipe(newsockfd); /* Suppress interrupts from the socket */
     res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                           "TCP %u\t| Error seeting the TCP options (%s)",
+                           "TCP %u\t| Error setting the TCP options (%s)",
                            (unsigned)newsockfd, errno_str));
         /* Close the new socket */
         UA_close(newsockfd);
@@ -415,7 +415,7 @@ TCP_registerListenSocket(UA_LWIPConnectionManager *pcm, struct addrinfo *ai,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Supress interrupts from the socket */
+    /* Suppress interrupts from the socket */
     if(UA_EventLoopLWIP_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not disable SIGPIPE",
@@ -664,7 +664,7 @@ static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
     /* We may not have a lock. But we need not take it. As the connectionId is
-     * the fd, no need to do a lookup and access internal data strucures. */
+     * the fd, no need to do a lookup and access internal data structures. */
 
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
@@ -958,7 +958,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
                 "TCP %u\t| Opening a connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
-    /* Signal the new connection to the application as asynchonously opening */
+    /* Signal the new connection to the application as asynchronously opening */
     UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newSock,
                        application, &newConn->context,

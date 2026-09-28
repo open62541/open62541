@@ -42,7 +42,7 @@ typedef struct {
                             void *channelContext, const UA_ByteString *message,
                             const UA_ByteString *signature);
 
-    /* Signs the given message using this policys signing algorithm and the
+    /* Signs the given message using this policy's signing algorithm and the
      * provided keys in the context.
      *
      * @param policy The SecurityPolicy to which the callback belongs.
@@ -71,7 +71,7 @@ typedef struct {
      * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The size of the remote signature. Returns 0 if no
-     *         remote certificate was set previousely. */
+     *         remote certificate was set previously. */
     size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *policy,
                                      const void *channelContext);
 
@@ -303,7 +303,7 @@ struct UA_SecurityPolicy {
      *        certificate to compare to.
      * @param certificate The certificate to compare to the one stored in the context.
      * @return If the certificates match UA_STATUSCODE_GOOD is returned. If they
-     *         don't match or an errror occurred an error code is returned. */
+     *         don't match or an error occurred an error code is returned. */
     UA_StatusCode (*compareCertificate)(const UA_SecurityPolicy *policy,
                                         const void *channelContext,
                                         const UA_ByteString *certificate);

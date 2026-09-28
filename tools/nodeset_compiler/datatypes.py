@@ -72,7 +72,7 @@ class NodeId():
             self.i = 0
             return
 
-        # The ID will encoding itself appropriatly as string. If multiple ID's
+        # The ID will encoding itself appropriately as string. If multiple ID's
         # (numeric, string, guid) are defined, the order of preference for the ID
         # string is always numeric, guid, bytestring, string. Binary encoding only
         # applies to numeric values (UInt16).

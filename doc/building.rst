@@ -167,7 +167,7 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version
 
    export CC=egcc CXX=eg++
 
-- Now procede as described for Ubuntu/Debian:
+- Now proceed as described for Ubuntu/Debian:
 
 .. code-block:: bash
 

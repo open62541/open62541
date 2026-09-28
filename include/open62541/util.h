@@ -26,7 +26,7 @@ typedef struct UA_Server UA_Server;
  * ===================
  *
  * Utility functions are used by both client and server. Different from the
- * :ref:`common`, the utlity functions can use the :ref:`types`. */
+ * :ref:`common`, the utility functions can use the :ref:`types`. */
 
 /**
  * Range Definition
@@ -313,7 +313,7 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * ``My.String`` becomes ``My&.String``.
  *
  * In addition to the standard we define "extended-and-escaping" where
- * additionaly commas, semicolons, brackets and whitespace characters are
+ * additionally commas, semicolons, brackets and whitespace characters are
  * escaped. This improves the parsing in a larger context, as a lexer can find
  * the end of the escaped string. The additionally reserved characters for the
  * extended escaping are ``,()[] \t\n\v\f\r``.

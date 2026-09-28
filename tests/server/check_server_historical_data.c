@@ -414,13 +414,13 @@ testHistoricalDataBackend(size_t maxResponseSize) {
                 for (size_t l = 0; l < resultSize; ++l) {
                     /* See OPC UA Part 11, Version 1.03, Page 5-6, Table 1, Mark a for details.*/
                     if (current->result[l + reseivedValues] == TIMESTAMP_LAST && current->end == TIMESTAMP_UNSPECIFIED) {
-                        // This test will work on not continous read, only
+                        // This test will work on not continuous read, only
                         if (reseivedValues == 0 && !(l > 0 && result[l].sourceTimestamp == result[l-1].sourceTimestamp + UA_DATETIME_SEC))
                             readOk = false;
                     }
                     /* See OPC UA Part 11, Version 1.03, Page 5-6, Table 1, Mark b for details.*/
                     if (current->result[l + reseivedValues] == TIMESTAMP_FIRST && current->start == TIMESTAMP_UNSPECIFIED) {
-                        // This test will work on not continous read, only
+                        // This test will work on not continuous read, only
                         if (reseivedValues == 0 && !(l > 0 && result[l].sourceTimestamp == result[l-1].sourceTimestamp - UA_DATETIME_SEC))
                             readOk = false;
                     }

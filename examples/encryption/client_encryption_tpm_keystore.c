@@ -123,7 +123,7 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
             }
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "The initializtion vector is not valid");
+                     "The initialization vector is not valid");
         goto cleanup;
     }
 
@@ -285,7 +285,7 @@ decrypt(unsigned long slotNum, unsigned char *pin, char *label,
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     /* For decrypt
        Calculate the HMAC of the output without the 32 byte (256 bit) md_value
-       Check the calcualted md with the md from the input
+       Check the calculated md with the md from the input
        if they match continue to decrypt the input */
     unsigned char *md_value = NULL;
     unsigned int md_len;

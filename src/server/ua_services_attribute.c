@@ -338,7 +338,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
         rangeptr = &range;
     }
 
-    /* Read from the value souce */
+    /* Read from the value source */
     switch(vn->valueSourceType) {
     case UA_VALUESOURCETYPE_INTERNAL:
         retval = readInternalValueAttribute(server, session, vn, v, rangeptr);
@@ -1763,7 +1763,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
        node->head.nodeClass == UA_NODECLASS_VARIABLE &&
        server->config.historyDatabase.setValue) {
 
-        /* Some famous clients require the source timestap to properly receive
+        /* Some famous clients require the source timestamp to properly receive
          * historical data. If missing we insert the source timestamp here. */
         if(!adjustedValue.hasSourceTimestamp) {
             adjustedValue.hasSourceTimestamp = true;

@@ -1074,7 +1074,7 @@ typedef void
  * @param callback the user defined callback to notify the user about the status
  *        of SKS Pull request.
  * @param context passed to the callback function
- * @return UA_StatusCode the retuned status */
+ * @return UA_StatusCode the returned status */
 UA_StatusCode UA_EXPORT
 UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
                        UA_ClientConfig *clientConfig, const char *endpointUrl,

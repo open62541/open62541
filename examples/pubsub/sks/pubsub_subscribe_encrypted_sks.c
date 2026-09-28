@@ -225,7 +225,7 @@ fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
 }
 
 /*
- * TODO: add something similary as addDataSetMetadata for security configuration
+ * TODO: add something similar to addDataSetMetadata for security configuration
  */
 
 static void

@@ -314,7 +314,7 @@ START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = callSetSecurityKey(client, securityGroupId, 1, 2);
-    ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT, "Expected BAD_SECURITYMODEINSUFFICIENT but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT, "Expected BAD_SECURITYMODEINSUFFICIENT but error code : %s \n", UA_StatusCode_name(retval));
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
     UA_Client_delete(client);
 } END_TEST
@@ -324,7 +324,7 @@ START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
     UA_StatusCode retval = encyrptedclientconnect(client);
     UA_String wrongSecurityGroupId = UA_STRING("WrongSecurityGroupId");
     retval = callSetSecurityKey(client, wrongSecurityGroupId, 1, 2);
-    ck_assert_msg(retval == UA_STATUSCODE_BADNOTFOUND, "Expected BAD_BADNOTFOUND but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_BADNOTFOUND, "Expected BAD_BADNOTFOUND but error code : %s \n", UA_StatusCode_name(retval));
     UA_Client_delete(client);
 } END_TEST
 
@@ -354,7 +354,7 @@ START_TEST(TestSetSecurityKeys_GOOD) {
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n",
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n",
                   UA_StatusCode_name(retval));
     ck_assert_uint_eq(ks->currentItem->keyID, currentTokenId);
 
@@ -412,12 +412,12 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n", UA_StatusCode_name(retval));
 
     futureKeySize = 0;
     currentTokenId = 3;
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n", UA_StatusCode_name(retval));
     ck_assert_uint_eq(ks->currentItem->keyID, currentTokenId);
     UA_Client_delete(client);
 } END_TEST
@@ -436,15 +436,15 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n", UA_StatusCode_name(retval));
 
     keyListSize = ks->keyListSize;
     futureKeySize = 3;
     currentTokenId = 2;
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n", UA_StatusCode_name(retval));
     ck_assert_uint_eq(ks->currentItem->keyID, currentTokenId);
-    /*After updating: KeyListSize = Pervious KeyListSize + FutureKeySize - Duplicated Keys with matching KeyID */
+    /*After updating: KeyListSize = Previous KeyListSize + FutureKeySize - Duplicated Keys with matching KeyID */
     ck_assert_uint_eq(keyListSize + futureKeySize - 1, ks->keyListSize);
     UA_PubSubKeyListItem *iterator = TAILQ_FIRST(&ks->keyList);
     for (size_t i = 0; i < ks->keyListSize; i++) {
@@ -470,13 +470,13 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n", UA_StatusCode_name(retval));
 
     futureKeySize = 3;
     currentTokenId = 4;
     startingTokenId = currentTokenId;
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but error code : %s \n", UA_StatusCode_name(retval));
     UA_PubSubKeyListItem *iterator = TAILQ_FIRST(&ks->keyList);
     for (size_t i = 0; i < futureKeySize + 1; i++) {
         ck_assert_ptr_ne(iterator, NULL);

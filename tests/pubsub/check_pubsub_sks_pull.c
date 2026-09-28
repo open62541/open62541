@@ -358,7 +358,7 @@ START_TEST(getSecuritykeysGoodAndValidOutput) {
     ck_assert(output[4].type == &UA_TYPES[UA_TYPES_DURATION] ||
               output[4].type == &UA_TYPES[UA_TYPES_DOUBLE]);
 
-    /* epected values */
+    /* expected values */
     UA_String *securityPolicyUri = (UA_String *)output[0].data;
     UA_String expectedUri = UA_STRING(policUri);
     ck_assert(UA_String_equal(securityPolicyUri, &expectedUri) == UA_TRUE);

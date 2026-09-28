@@ -566,7 +566,7 @@ endfunction()
 #                   Multiple files can be passed which will all be imported.
 #   [DEPENDS]       Optional list of nodeset names on which this nodeset depends.
 #                   These names must match any name from a previous call to this
-#                   funtion. E.g. 'di' if you are generating the 'plcopen'
+#                   function. E.g. 'di' if you are generating the 'plcopen'
 #                   nodeset
 #   [NAMESPACE_MAP] Optional list of "<idx>:<namespace uri>" entries that bake
 #                   fixed namespace indices into the generated type array. The

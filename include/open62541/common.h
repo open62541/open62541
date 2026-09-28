@@ -225,7 +225,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  *    Identifier of the SecureChannel to which the Session is connected.
  * 0:connection-manager-name [String]
  *    Name of the ConnectionManager (configured in the EventLoop) from which
- *    the connction was opened.
+ *    the connection was opened.
  * 0:connection-id [UInt64]
  *    Identifier of the connection in the context of the EventLoop. This is
  *    often the socket identifier, but that is not necessarily the case.
@@ -266,7 +266,7 @@ typedef uint64_t UA_ApplicationNotificationType;
 
 /**
  * (Server only) Give background information for Sessions. The _DEACTIVATE
- * notification occurs when a Sesssion is unbound from its original
+ * notification occurs when a Session is unbound from its original
  * SecureChannel. Either because the SecureChannel is closed or because the
  * session is activated on another SecureChannel.
  *
@@ -335,7 +335,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  * 0:subscription-id [UInt32]
  *    Identifier of the Subscription (unique for the Session).
  * 0:publishing-interval [Double]
- *    Frequence at which accumulated notifications are sent out.
+ *    Frequency at which accumulated notifications are sent out.
  * 0:lifetime-count [UInt32]
  *    Number of consecutive publishing interval with a missing
  *    PublishRequest before the Subscription is starved (deleted).
@@ -544,7 +544,7 @@ typedef uint64_t UA_ApplicationNotificationType;
  *    The entry was removed.
  * 0:securechannel-id [UInt32]
  *    Identifier of the SecureChannel from which the information was
- *    recieved (0 for locally triggered operations).
+ *    received (0 for locally triggered operations).
  * 0:session-id [NodeId]
  *    Identifier of the Session that called the RegisterServer service.
  *    The Null-NodeId if a SecureChannel without Session made the call. */

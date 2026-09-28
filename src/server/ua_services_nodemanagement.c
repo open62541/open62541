@@ -2417,7 +2417,7 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
     /* TODO: Check if the information model consistency is violated */
     /* TODO: Check if the node is a mandatory child of a parent */
 
-    /* Relase the node. Don't access the pointer after this! */
+    /* Release the node. Don't access the pointer after this! */
     UA_NODESTORE_RELEASE(server, node);
 
     /* A node can be referenced with hierarchical references from several

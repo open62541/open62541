@@ -82,7 +82,7 @@ UA_Notification * UA_Notification_new(void);
  *
  * There are two ways Notifications can be put into the global queue of the
  * Subscription: They are added because the MonitoringMode of the MonitoredItem
- * is "reporting". Or the MonitoringMode is "sampling" and a link is trigered
+ * is "reporting". Or the MonitoringMode is "sampling" and a link is triggered
  * that puts the last Notification into the global queue. */
 void UA_Notification_enqueueAndTrigger(UA_Server *server,
                                        UA_Notification *n);
@@ -257,7 +257,7 @@ typedef enum {
 } UA_SubscriptionState;
 
 /* Subscriptions are managed in a server-wide linked list. If they are attached
- * to a Session, then they are additionaly in the per-Session linked-list. A
+ * to a Session, then they are additionally in the per-Session linked-list. A
  * subscription is always generated for a Session. But the CloseSession Service
  * may keep Subscriptions intact beyond the Session lifetime. They can then be
  * re-bound to a new Session with the TransferSubscription Service. */

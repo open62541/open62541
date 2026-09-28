@@ -550,7 +550,7 @@ START_TEST(discardNewestOverflow) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    // create a large amount of events, ensure the server doesnt crash because of it
+    // create a large amount of events, ensure the server doesn't crash because of it
     UA_StatusCode retval;
     for(size_t j = 0; j < 100; j++) {
         retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
@@ -582,7 +582,7 @@ START_TEST(eventStressing) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    // create a large amount of events, ensure the server doesnt crash because of it
+    // create a large amount of events, ensure the server doesn't crash because of it
     UA_StatusCode retval;
     for(size_t i = 0; i < 20; i++) {
         for(size_t j = 0; j < 30; j++) {
@@ -2533,7 +2533,7 @@ START_TEST(createAuditEvent) {
     ed.message = UA_LOCALIZEDTEXT("something", "happened");
     ed.sessionId = &adminSessionId;
 
-    // TOOD: Add all mandatory fields of the AuditEventType
+    // TODO: Add all mandatory fields of the AuditEventType
 
     UA_StatusCode res = UA_Server_createEventEx(server, &ed, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);

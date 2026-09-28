@@ -337,7 +337,7 @@ addDataSetReader(UA_Server *server) {
         UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId,
                        &pMetaData->fields[i].dataType);
         pMetaData->fields[i].builtInType = UA_NS0ID_UINT32;
-        pMetaData->fields[i].name =  UA_STRING_ALLOC("UInt32 varibale");
+        pMetaData->fields[i].name =  UA_STRING_ALLOC("UInt32 variable");
         pMetaData->fields[i].valueRank = -1; /* scalar */
     }
 

@@ -63,7 +63,7 @@ _UA_BEGIN_DECLS
  *
  * The default configuration can be used as the starting point to adjust the
  * client configuration to individual needs. UA_Client_new is implemented in the
- * /plugins folder under the CC0 license. Furthermore the client confiugration
+ * /plugins folder under the CC0 license. Furthermore the client configuration
  * only uses the public server API.
  *
  * @return Returns the configured client or NULL if an error occurs. */
@@ -215,7 +215,7 @@ UA_Client_getSessionAuthenticationToken(UA_Client *client,
                                         UA_NodeId *authenticationToken,
                                         UA_ByteString *serverNonce);
 
-/* Re-activate the current session. A change of prefered locales can be done by
+/* Re-activate the current session. A change of preferred locales can be done by
  * updating the client configuration. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_activateCurrentSession(UA_Client *client);
@@ -634,7 +634,7 @@ struct UA_ClientConfig {
     UA_Boolean noReconnect;  /* Don't reconnect SecureChannel when the connection
                               * is lost without explicitly closing. */
     UA_Boolean noNewSession; /* Don't automatically create a new Session when
-                              * the intial one is lost. Instead abort the
+                              * the initial one is lost. Instead abort the
                               * connection when the Session is lost. */
 
     /* Advanced Connection Settings */
@@ -683,7 +683,7 @@ struct UA_ClientConfig {
                                           * endpoint. */
     UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
                                   * empty string indicates the client to select
-                                  * any avaialble SecurityPolicy. */
+                                  * any available SecurityPolicy. */
     UA_String authSecurityPolicyUri; /* For authentication (UserIdentityToken).
                                       * The empty string lets the client select
                                       * any matching policy. */

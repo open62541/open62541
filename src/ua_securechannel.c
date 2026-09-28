@@ -533,7 +533,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     res = encodeHeadersSym(mc, total_length);
     UA_CHECK_STATUS(res, goto error);
 
-    /* Sign and encrypt the messge */
+    /* Sign and encrypt the message */
     res = signAndEncryptSym(mc, pre_sig_length, total_length);
     UA_CHECK_STATUS(res, goto error);
 

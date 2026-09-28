@@ -1669,7 +1669,7 @@ START_TEST(ReserveIdsMultipleTimes){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Call ReserveIds again - check if the new reservation takes into account
-         * the IDs alrady being used by PubSub configuration. */
+         * the IDs already being used by PubSub configuration. */
         retVal = CallReserveIds(client, &transportProfileUri, numRegWriterGroupIds, numRegDataSetWriterIds,
             &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
         ck_assert(UA_StatusCode_isGood(retVal));

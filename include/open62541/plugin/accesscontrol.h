@@ -51,7 +51,7 @@ struct UA_AccessControl {
      * - Select matching Endpoint/UserTokenPolicy (compare token type,
      *   SecureChannel and PolicyId from the UserIdentityToken)
      * - Cryptographic checks:
-     *   - Check the encryption algortihm from the UserIdentityToken
+     *   - Check the encryption algorithm from the UserIdentityToken
      *   - UsernamePassword/IssuedToken: Decrypt the secret
      *   - Check the x509 auth certificate signature and validate the
      *     certificate against the server's sessionPKI */
