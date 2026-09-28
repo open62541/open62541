@@ -98,12 +98,15 @@ START_TEST(resolveOpaqueSubtypeAncestors) {
 END_TEST
 
 START_TEST(importPolymorphicAndRecursiveFields) {
+    /* AllowSubTypes: a Variant for BaseDataType, an ExtensionObject for the
+     * UserIdentityToken structure (Part 6 v1.05, F.13) */
     const UA_DataType *polymorphic = findType(7001);
     ck_assert_ptr_nonnull(polymorphic);
-    ck_assert_uint_eq(polymorphic->membersSize, 2);
-    ck_assert_ptr_eq(polymorphic->members[0].memberType,
-                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(polymorphic->membersSize, 3);
+    ck_assert_ptr_eq(polymorphic->members[0].memberType, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_ptr_eq(polymorphic->members[1].memberType, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_ptr_eq(polymorphic->members[2].memberType,
+                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
 
     const UA_DataType *recursive = findType(9001);
     ck_assert_ptr_nonnull(recursive);
