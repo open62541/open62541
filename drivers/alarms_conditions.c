@@ -45,8 +45,9 @@ typedef struct UA_Condition {
     UA_UInt16 lastSeverity;
     UA_DateTime lastSeveritySourceTimeStamp;
 
-    /* These callbacks are defined by the user and must not be called with a
-     * locked server mutex */
+    /* These callbacks are defined by the user. The driver has no lock of its
+     * own. The callbacks are called from method calls and value writes with
+     * the (recursive) server lock held, so they can use the server API. */
     struct {
         UA_TwoStateVariableChangeCallback enableStateCallback;
         UA_TwoStateVariableChangeCallback ackStateCallback;
