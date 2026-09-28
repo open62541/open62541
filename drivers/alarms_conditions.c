@@ -1914,13 +1914,22 @@ refreshLogic(UA_Server *server, AlarmsConditionsDriver *acd,
                 if(!isRetained(server, &triggeredNode))
                     continue;
 
-                UA_ByteString_clear(&branch->lastEventId);
+                /* The refreshed event keeps the EventId of the original event
+                 * (Part 9, 5.5.7). Other clients still use it to Acknowledge,
+                 * Confirm or AddComment. */
+                UA_KeyValuePair eventIdField =
+                    {{0, UA_STRING_STATIC("/EventId")}, {0}};
+                UA_Variant_setScalar(&eventIdField.value, &branch->lastEventId,
+                                     &UA_TYPES[UA_TYPES_BYTESTRING]);
+                UA_KeyValueMap eventFields = {1, &eventIdField};
 
                 /* Add the event */
                 ed.eventInstance = &triggeredNode;
                 ed.sourceNode = conditionSource;
                 ed.eventType = UA_NODEID_NULL; /* overwritten by the EventInstance */
-                res = UA_Server_createEventEx(server, &ed, &branch->lastEventId);
+                ed.eventFields = &eventFields;
+                res = UA_Server_createEventEx(server, &ed, NULL);
+                ed.eventFields = NULL;
                 CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Events: Could not add the event to a listening node",);
             }
         }
