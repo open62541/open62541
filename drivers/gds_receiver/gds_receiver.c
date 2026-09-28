@@ -360,10 +360,12 @@ UA_StatusCode
 UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
                                      const UA_NodeId *sessionId) {
     UA_GDSTransaction *transaction = &ctx->transaction;
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    /* A fresh transaction has no owning session. Check the state first, so
+     * that the session comparison does not hide Bad_NothingToDo. */
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADNOTHINGTODO;
+    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     return UA_GDSReceiver_applyChanges(ctx);
 }
 
