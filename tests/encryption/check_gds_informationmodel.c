@@ -312,12 +312,12 @@ applyChanges(UA_Client *client) {
 
     UA_CallResponse response = UA_Client_Service_call(client, callApplyChanges);
     ck_assert_uint_eq(1, response.resultsSize);
-    ck_assert_int_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(0, response.results[0].outputArgumentsSize);
+    UA_StatusCode res = response.results[0].statusCode;
 
     UA_CallResponse_clear(&response);
 
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Helper: create a secure client connected to the test server */
@@ -683,6 +683,19 @@ START_TEST(rw_trustlist) {
 }
 END_TEST
 
+/* Part 12 §7.10.9: ApplyChanges without an active transaction returns
+ * Bad_NothingToDo */
+START_TEST(apply_changes_without_transaction) {
+    UA_Client *client = createSecureClient();
+
+    UA_StatusCode retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTHINGTODO);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(read_trustlist_reject_negative_length) {
     UA_Client *client = createSecureClient();
 
@@ -899,6 +912,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
+    tcase_add_test(tc_cert, apply_changes_without_transaction);
     tcase_add_test(tc_cert, gds_callback_argument_counts);
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
