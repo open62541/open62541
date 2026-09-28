@@ -35,7 +35,22 @@
  * update, trigger, and delete Conditions. Create the driver with
  * UA_AlarmsConditionsDriver() and attach it to a server with
  * UA_Server_addDriver(). Only one Alarms & Conditions driver instance can be
- * attached to a server. */
+ * attached to a server.
+ *
+ * Locking: The driver has no lock of its own. Its method and write callbacks,
+ * and the application callbacks they call, run with the server lock held. The
+ * lock is recursive, so the callbacks can use the server API. The driver
+ * functions below are not thread-safe. With multithreading, call them from the
+ * server's thread (for example from a timer or a callback), not concurrently
+ * from another thread.
+ *
+ * Enable and Retain: Disabling a condition sets Retain to false (Part 9,
+ * 5.5.2). Enabling it does not set Retain again, because only the application
+ * can evaluate whether the condition still needs attention. Until Retain is
+ * true again, Acknowledge, Confirm and AddComment return Bad_ConditionDisabled
+ * and ConditionRefresh skips the condition. Set Retain in the
+ * UA_ENTERING_ENABLEDSTATE callback, which runs before the event of the
+ * transition is triggered. */
 
 #if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
 
