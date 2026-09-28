@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2024 open62541 contributors.
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  *
  * Unit tests that exercise code paths in the PubSub state machines that are
  * not covered by the existing test suite. The targeted branches are the ones
@@ -21,6 +22,7 @@
  *     addReaderGroup/addWriterGroup.
  *   - Some null-argument and unknown-connection paths in the public
  *     addReaderGroup / addWriterGroup wrappers.
+ *   - A deferred connection delete asks the componentLifecycleCallback once.
  */
 
 #include <open62541/server.h>
@@ -31,6 +33,7 @@
 #include "ua_server_internal.h"
 
 #include "test_helpers.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -459,6 +462,47 @@ START_TEST(RemoveReaderGroup_UnknownReturnsBadNotFound) {
     ck_assert_int_eq(res, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+/* Removal notifications per component type */
+static size_t removeNotifications[8];
+
+static UA_StatusCode
+removeCountingCallback(UA_Server *s, const UA_NodeId id,
+                       const UA_PubSubComponentType componentType,
+                       UA_Boolean remove) {
+    if(remove && (size_t)componentType < 8)
+        removeNotifications[componentType]++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* A deferred delete (sockets still open) completes in later EventLoop
+ * iterations. The application is asked only once per component. */
+START_TEST(DeferredDeleteNotifiesOnce) {
+    UA_Server_run_startup(server);
+    addMinimalPubSubConnection();
+    addMinimalWriterGroup();
+    UA_StatusCode res = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 5; i++) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
+    }
+
+    UA_PubSubManager *psm = getPSM(server);
+    memset(removeNotifications, 0, sizeof(removeNotifications));
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->pubSubConfig.componentLifecycleCallback = removeCountingCallback;
+    res = UA_Server_removePubSubConnection(server, connectionIdent);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 100 && psm->connectionsSize > 0; i++) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
+    }
+    sc->pubSubConfig.componentLifecycleCallback = NULL;
+    ck_assert_uint_eq(psm->connectionsSize, 0);
+    ck_assert_uint_eq(removeNotifications[UA_PUBSUBCOMPONENT_CONNECTION], 1);
+    ck_assert_uint_eq(removeNotifications[UA_PUBSUBCOMPONENT_WRITERGROUP], 1);
+} END_TEST
+
 static Suite *
 stateMachineSuite(void) {
     Suite *s = suite_create("PubSub state machine edge cases");
@@ -487,6 +531,7 @@ stateMachineSuite(void) {
     tcase_add_test(tc_api, RemovePubSubConnection_UnknownReturnsBadNotFound);
     tcase_add_test(tc_api, RemoveWriterGroup_UnknownReturnsBadNotFound);
     tcase_add_test(tc_api, RemoveReaderGroup_UnknownReturnsBadNotFound);
+    tcase_add_test(tc_api, DeferredDeleteNotifiesOnce);
 
     suite_add_tcase(s, tc_wg_state);
     suite_add_tcase(s, tc_rg_state);

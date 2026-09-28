@@ -9,7 +9,7 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
- * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
@@ -263,6 +263,18 @@ UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
+    UA_PubSubConnection *connection = wg->linkedConnection;
+    UA_assert(connection);
+
+    /* A channel-close callback re-enters removal to complete the deferred
+     * free. Do not notify the lifecycle callback or tear down the children a
+     * second time on that completion pass. */
+    if(wg->deleteFlag) {
+        if(wg->sendChannel != 0)
+            return UA_STATUSCODE_GOOD;
+        goto finalize;
+    }
+
     /* Check with the application if we can remove */
     UA_Server *server = psm->drv.server;
     if(server->config.pubSubConfig.componentLifecycleCallback) {
@@ -272,9 +284,6 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
-
-    UA_PubSubConnection *connection = wg->linkedConnection;
-    UA_assert(connection);
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -300,6 +309,7 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     }
 #endif
 
+ finalize:
     if(wg->sendChannel == 0) {
         /* Unlink from the connection */
         LIST_REMOVE(wg, listEntry);

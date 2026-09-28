@@ -8,7 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
- * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
@@ -331,7 +331,13 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
     /* Add to the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res |= addDataSetWriterRepresentation(psm->drv.server, dsw);
+    res = addDataSetWriterRepresentation(psm->drv.server, dsw);
+    if(res != UA_STATUSCODE_GOOD) {
+        /* Do not leave a linked writer behind for a failed creation */
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsw, UA_PUBSUBCOMPONENT_DATASETWRITER);
+        return res;
+    }
 #else
     UA_PubSubManager_generateUniqueNodeId(psm, &dsw->head.identifier);
 #endif
