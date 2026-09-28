@@ -9,7 +9,7 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
- * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
@@ -263,9 +263,13 @@ UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    /* Check with the application if we can remove */
+    UA_PubSubConnection *connection = wg->linkedConnection;
+    UA_assert(connection);
+
+    /* Ask only once for the group. Remaining writers still need to be removed
+     * when a channel-close callback or an explicit retry resumes deletion. */
     UA_Server *server = psm->drv.server;
-    if(server->config.pubSubConfig.componentLifecycleCallback) {
+    if(!wg->deleteFlag && server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, wg->head.identifier,
                                        UA_PUBSUBCOMPONENT_WRITERGROUP, true);
@@ -273,18 +277,21 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
             return res;
     }
 
-    UA_PubSubConnection *connection = wg->linkedConnection;
-    UA_assert(connection);
-
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
      * closed. */
     wg->deleteFlag = true;
-    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
+    UA_StatusCode res = UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
+    /* A veto must leave the group linked so the writer remains reachable and
+     * can release its PublishedDataSet's configuration freeze on a later retry. */
     UA_DataSetWriter *dsw, *dsw_tmp;
     LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, dsw_tmp) {
-        UA_DataSetWriter_remove(psm, dsw);
+        res = UA_DataSetWriter_remove(psm, dsw);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     if(wg->config.securityPolicy && wg->securityPolicyContext) {
@@ -1373,6 +1380,9 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             /* PSC marked for deletion and the last EventLoop connection has closed */
             if(wg->deleteFlag) {
                 UA_WriterGroup_remove(psm, wg);
+                /* The last socket is closed even if a child veto kept the
+                 * group alive. Allow server shutdown to complete. */
+                UA_PubSubManager_setState(psm, psm->drv.state);
                 unlockServer(server);
                 return;
             }
@@ -1639,7 +1649,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     if(wg)
-        UA_WriterGroup_remove(psm, wg);
+        res = UA_WriterGroup_remove(psm, wg);
     else
         res = UA_STATUSCODE_BADNOTFOUND;
     unlockServer(server);
