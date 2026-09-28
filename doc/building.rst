@@ -275,7 +275,9 @@ Detailed SDK Features
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
 **UA_ENABLE_METHODCALLS**
-   Enable the Method service set
+   Enable the Method service set and file transfer driver. The reduced and full
+   Namespace Zero include the file transfer types. With ``MINIMAL`` or ``NONE``,
+   load the required types before constructing a file transfer driver.
 
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
