@@ -459,6 +459,12 @@ typedef struct {
         UA_PublishedEventTemplateConfig eventTemplate;
     } config;
 
+    /* Kept for the Part 14 configuration (UA_PublishedDataSetDataType). The
+     * extension fields are not published yet. */
+    size_t dataSetFolderSize;
+    UA_String *dataSetFolder;
+    UA_KeyValueMap extensionFields;
+
     void *context; /* Context Configuration (PublishedDataSet has no state
                     * machine) */
 } UA_PublishedDataSetConfig;
@@ -759,6 +765,10 @@ typedef struct {
     } subscribedDataSet;
     UA_DataSetMetaDataType dataSetMetaData;
 
+    /* Kept for the Part 14 configuration */
+    size_t dataSetFolderSize;
+    UA_String *dataSetFolder;
+
     void *context; /* Context Configuration (SubscribedDataSet has no state
                     * machine) */
 } UA_SubscribedDataSetConfig;
@@ -811,6 +821,14 @@ typedef struct {
         /* TODO: UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
         UA_TargetVariablesDataType target;
     } subscribedDataSet;
+
+    /* Kept for the Part 14 configuration, not evaluated yet. The message
+     * processing uses the security settings of the ReaderGroup. */
+    UA_MessageSecurityMode securityMode;
+    UA_String securityGroupId;
+    size_t securityKeyServicesSize;
+    UA_EndpointDescription *securityKeyServices;
+
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
 } UA_DataSetReaderConfig;
@@ -955,11 +973,12 @@ UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
-/* Decodes the information from the ByteString. If the decoded content is a
- * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
- * current PubSub configuration from the server. The added components are
- * enabled automatically if their enabled-flag is set in the config.
- * Child-components are enabled first.
+/* Decodes the information from the ByteString. The ByteString contains a
+ * UABinaryFileDataType-object with a PubSubConfiguration2DataType (or the
+ * legacy PubSubConfigurationDataType) as body (see Part 14, PubSubConfigurationType).
+ * It will overwrite the current PubSub configuration of the server. The added
+ * components are enabled automatically if their enabled-flag is set in the
+ * config. Child-components are enabled first.
  *
  * Note that you need to disable all components with
  * UA_Server_disableAllPubSubComponents before loading the config. */
@@ -967,10 +986,19 @@ UA_EXPORT UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
                                          const UA_ByteString buffer);
 
-/* Saves the current PubSub configuration of a server in a byteString. */
+/* Saves the current PubSub configuration of a server in a ByteString. The
+ * content is a UABinaryFileDataType-object with a PubSubConfiguration2DataType
+ * body (see Part 14, PubSubConfigurationType). */
 UA_EXPORT UA_StatusCode
 UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
                                                UA_ByteString *buffer);
+
+/* Get a deep copy of the current PubSub configuration of the server as
+ * PubSubConfiguration2DataType. Clean up with
+ * UA_PubSubConfiguration2DataType_clear. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubConfig2(UA_Server *server,
+                           UA_PubSubConfiguration2DataType *config);
 #endif
 
 /* Legacy API */
