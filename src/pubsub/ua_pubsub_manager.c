@@ -9,6 +9,7 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_internal.h"
@@ -884,7 +885,11 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     /* Remove the DataSets */
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
     TAILQ_FOREACH_SAFE(tmpPDS1, &psm->publishedDataSets, listEntry, tmpPDS2) {
-        UA_PublishedDataSet_remove(psm, tmpPDS1);
+        UA_StatusCode res = UA_PublishedDataSet_remove(psm, tmpPDS1);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING_PUBSUB(psm->logging, tmpPDS1,
+                                  "The PublishedDataSet could not be removed (%s)",
+                                  UA_StatusCode_name(res));
     }
 
     /* Remove the ReserveIds*/
