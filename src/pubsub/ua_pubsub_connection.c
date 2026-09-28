@@ -8,6 +8,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_pubsub_internal.h"
@@ -168,9 +169,10 @@ UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
-    /* Check with the application if we can remove */
+    /* Check with the application if we can remove. A deferred deletion calls
+     * this again when the channels are closed. Ask only on the first pass. */
     UA_Server *server = psm->drv.server;
-    if(server->config.pubSubConfig.componentLifecycleCallback) {
+    if(!c->deleteFlag && server->config.pubSubConfig.componentLifecycleCallback) {
         UA_StatusCode res = server->config.pubSubConfig.
             componentLifecycleCallback(server, c->head.identifier,
                                        UA_PUBSUBCOMPONENT_CONNECTION, true);

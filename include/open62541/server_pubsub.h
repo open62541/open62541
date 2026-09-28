@@ -631,6 +631,9 @@ UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
                                              const UA_NodeId wgId,
                                              UA_DateTime *timestamp);
 
+/* Remove the group and its DataSetWriters. A failed child removal is returned
+ * and leaves the group pending deletion; retry after resolving the failure.
+ * New writers cannot be added once group deletion has started. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId wgId);
 

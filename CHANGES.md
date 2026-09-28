@@ -6,9 +6,10 @@ refactorings and bug fixes are not reported here.
 ### Removing a PublishedDataSet removes the connected DataSetWriters
 
 `UA_Server_removePublishedDataSet` removes the connected DataSetWriters together
-with the PublishedDataSet. While the WriterGroup of a connected writer is
-enabled, it returns `Bad_InvalidState` and changes nothing. Before, the
-PublishedDataSet was freed even when removing a connected writer failed.
+with the PublishedDataSet. If a connected writer has frozen the configuration,
+it returns `Bad_ConfigurationError`. Otherwise, while the WriterGroup of a
+connected writer is enabled, it returns `Bad_InvalidState` and changes nothing.
+Before, the PublishedDataSet was freed even when removing a connected writer failed.
 
 ### PubSub message security with OpenSSL and LibreSSL
 
