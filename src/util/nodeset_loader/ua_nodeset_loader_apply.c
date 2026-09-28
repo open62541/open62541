@@ -718,6 +718,14 @@ resolveDataType(NodeSet *nodeset, const UA_NodeId *id) {
     return type;
 }
 
+static bool
+isStructureKind(const UA_DataType *type) {
+    return type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+           type->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
+           type->typeKind == UA_DATATYPEKIND_UNION ||
+           type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT;
+}
+
 static UA_StatusCode
 addTypeFromDescription(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId parent,
                        UA_ExtensionObject *description) {
@@ -825,7 +833,19 @@ addStructureDataType(NodeSet *nodeset, const NL_DataTypeNode *node, UA_NodeId pa
         hasOptionalFields |= src->isOptional;
 
         if(src->allowSubTypes) {
-            dst->dataType = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId;
+            /* With AllowSubTypes, subtypes of Structure are encoded as an
+             * ExtensionObject and all other DataTypes as a Variant (OPC UA
+             * Part 6 v1.05, F.13). A recursive field is a Structure. The
+             * dependency check skips AllowSubTypes fields so that mutually
+             * dependent Structures can be registered. Their field type may
+             * not be known yet: keep the ExtensionObject encoding then. */
+            bool isStructure = UA_NodeId_equal(&src->dataType, &node->id);
+            if(!isStructure) {
+                const UA_DataType *memberType = resolveDataType(nodeset, &src->dataType);
+                isStructure = !memberType || isStructureKind(memberType);
+            }
+            dst->dataType = isStructure ? UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId
+                                        : UA_TYPES[UA_TYPES_VARIANT].typeId;
             continue;
         }
         if(UA_NodeId_equal(&src->dataType, &node->id)) {
