@@ -2045,6 +2045,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     UA_Boolean subscriptionFound = false;
+    UA_Boolean eventItemFound = false;
     UA_ACMonitoredItemTarget *target;
     LIST_FOREACH(target, &acd->monitoredItemTargets, listEntry) {
         if(target->subscriptionId != subscriptionId ||
@@ -2055,6 +2056,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         if(target->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
             continue;
 
+        eventItemFound = true;
         UA_StatusCode res =
             refreshLogic(server, acd, sessionId, &target->subscriptionId,
                          &target->monitoredItemId, &target->itemToMonitorId);
@@ -2063,6 +2065,9 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     if(!subscriptionFound)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    /* The Subscription has no event MonitoredItems (Part 9, 5.5.7) */
+    if(!eventItemFound)
+        return UA_STATUSCODE_BADNOTHINGTODO;
     return UA_STATUSCODE_GOOD;
 }
 
