@@ -2225,6 +2225,148 @@ START_TEST(ackConfirmCallback_refuses) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+/* A comment is ignored only if both its locale and text are empty. An empty
+ * text with a locale resets it (Part 9, 5.5.6 and 5.7.3). */
+START_TEST(comment_emptyLocale) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "EmptyLocaleCommentCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+
+    /* Each call triggers an event with a new EventId */
+    UA_ByteString lastId = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT, &eventId,
+                          UA_LOCALIZEDTEXT("", "Shift note"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING("Shift note")));
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 1);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT, &lastId,
+                               UA_LOCALIZEDTEXT("", ""));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING("Shift note")));
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 2);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT, &lastId,
+                               UA_LOCALIZEDTEXT("en", ""));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING(""))); /* empty, not NULL text */
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 3);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, UA_LOCALIZEDTEXT("", "Acknowledged by operator"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING("Acknowledged by operator")));
+
+    UA_ByteString_clear(&lastId);
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* ExpirationLimit defaults to two weeks (Part 9, 5.8.24.7) */
+START_TEST(certificateExpirationAlarm_expirationLimit) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE),
+        "CertificateExpirationCondition", source);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = readConditionField(server_ac, cond, "ExpirationLimit", &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DURATION]) ||
+              UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DOUBLE]));
+    ck_assert(*(UA_Double*)value.data == 14.0 * 24 * 60 * 60 * 1000);
+    UA_Variant_clear(&value);
+
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* Acknowledge, Confirm and AddComment on a condition and source with string
+ * NodeIds. Every return path must free the NodeId copies (leak checker). */
+START_TEST(ackConfirm_stringNodeIds) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en", "StringSource");
+    UA_NodeId source = UA_NODEID_STRING(1, "ac.string.source");
+    UA_StatusCode retval =
+        UA_Server_addObjectNode(server_ac, source,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                UA_QUALIFIEDNAME(1, "StringSource"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = UA_NODEID_NULL;
+    retval = acDriver_ac->createCondition(acDriver_ac,
+        UA_NODEID_STRING(1, "ac.string.condition"), alarmType,
+        UA_QUALIFIEDNAME(0, "StringNodeIdCondition"), source, UA_NODEID_NULL, &cond);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "Operator note");
+
+    /* Confirm, then the already confirmed path */
+    UA_ByteString lastId = UA_BYTESTRING_NULL;
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "ConfirmedState"));
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 1);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONBRANCHALREADYCONFIRMED);
+
+    /* Acknowledge, then the already acknowledged path */
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 2);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONBRANCHALREADYACKED);
+
+    /* The not retained paths */
+    UA_Variant val;
+    UA_Boolean retain = false;
+    UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Retain"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONDISABLED);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONDISABLED);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONDISABLED);
+
+    /* Severity change without an event */
+    UA_UInt16 severity = 500;
+    UA_Variant_setScalar(&val, &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Severity"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString_clear(&lastId);
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&cond);
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -2315,6 +2457,9 @@ int main(void) {
     tcase_add_test(tc_misc, triggerAlarmCondition_fullPath);
     tcase_add_test(tc_misc, triggerCondition_multipleTimes);
     tcase_add_test(tc_misc, addDriver_rejectsDuplicateAlarmsConditions);
+    tcase_add_test(tc_misc, comment_emptyLocale);
+    tcase_add_test(tc_misc, certificateExpirationAlarm_expirationLimit);
+    tcase_add_test(tc_misc, ackConfirm_stringNodeIds);
 #endif
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     suite_add_tcase(s, tc_misc);

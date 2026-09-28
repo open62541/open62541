@@ -92,7 +92,7 @@ typedef struct AlarmsConditionsDriver {
 #define UA_DRIVER_ALARMS_CONDITIONS_NAME "alarms-conditions"
 
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
-#define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
+#define EXPIRATION_LIMIT_DEFAULT_VALUE                         1209600000.0 /* 2 weeks in ms */
 
 #define LOCALE                                                 "en"
 #define ENABLED_TEXT                                           "Enabled"
@@ -709,6 +709,7 @@ getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
 
     /* Read the Value of SourceNode Property Node (the Value is a NodeId) */
     UA_Variant tOutVariant;
+    UA_Variant_init(&tOutVariant);
     res = UA_Server_readValue(server, nodeIdValue, &tOutVariant);
     if(res != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
@@ -792,10 +793,12 @@ isRetained(UA_Server *server, const UA_NodeId *condition) {
 
     /* Read Retain value */
     UA_Variant tOutVariant;
+    UA_Variant_init(&tOutVariant);
     res = UA_Server_readValue(server, retainNodeId, &tOutVariant);
     if(res != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_BOOLEAN])) {
           UA_NodeId_clear(&retainNodeId);
+          UA_Variant_clear(&tOutVariant);
           return false;
     }
 
@@ -826,10 +829,12 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
 
     /* Read Id value */
     UA_Variant tOutVariant;
+    UA_Variant_init(&tOutVariant);
     res = UA_Server_readValue(server, twoStateVariableIdNodeId, &tOutVariant);
     if(res != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_BOOLEAN])) {
         UA_NodeId_clear(&twoStateVariableIdNodeId);
+        UA_Variant_clear(&tOutVariant);
         return false;
     }
 
@@ -842,6 +847,13 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
 
     UA_Variant_clear(&tOutVariant);
     return false;
+}
+
+/* A comment is ignored only if both its locale and text are empty. An empty
+ * text with a locale resets the comment (Part 9, 5.5.6 and 5.7.3). */
+static UA_Boolean
+isNullComment(const UA_LocalizedText *comment) {
+    return comment->locale.length == 0 && comment->text.length == 0;
 }
 
 static AlarmsConditionsDriver *
@@ -1146,11 +1158,9 @@ enteringAckedState(AlarmsConditionsDriver *acd, const UA_NodeId *conditionNode,
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Calling condition callback failed",
                                        UA_NodeId_clear(&conditionSource););
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
+    /* Set Comment. A null comment leaves the last value as is */
     UA_Variant value;
-    UA_String nullString = UA_STRING_NULL;
-    if(comment && !UA_String_equal(&comment->locale, &nullString) &&
-       !UA_String_equal(&comment->text, &nullString)) {
+    if(comment && !isNullComment(comment)) {
         UA_Variant_setScalar(&value, (void*)(uintptr_t)comment,
                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         res = setConditionField(&acd->driver, *conditionNode, &value, fieldCommentQN);
@@ -1212,11 +1222,9 @@ enteringConfirmedState(AlarmsConditionsDriver *acd, const UA_NodeId *conditionNo
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Calling condition callback failed",
                                        UA_NodeId_clear(&conditionSource););
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
+    /* Set Comment. A null comment leaves the last value as is */
     UA_Variant value;
-    UA_String nullString = UA_STRING_NULL;
-    if(comment && !UA_String_equal(&comment->locale, &nullString) &&
-       !UA_String_equal(&comment->text, &nullString)) {
+    if(comment && !isNullComment(comment)) {
         UA_Variant_setScalar(&value, (void*)(uintptr_t)comment,
                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         res = setConditionField(&acd->driver, *conditionNode, &value, fieldCommentQN);
@@ -1598,13 +1606,15 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     UA_Variant_setScalar(&value, &severityTime, &UA_TYPES[UA_TYPES_DATETIME]);
     res = setConditionField(&acd->driver, condition, &value, fieldTimeQN);
     CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Time failed",
-                                 UA_NodeId_clear(&condition););
+                                 UA_NodeId_clear(&condition);
+                                 UA_NodeId_clear(&conditionSource););
 
     /* Set Message */
     UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     res = setConditionField(&acd->driver, condition, &value, fieldMessageQN);
     CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Message failed",
-                                 UA_NodeId_clear(&condition););
+                                 UA_NodeId_clear(&condition);
+                                 UA_NodeId_clear(&conditionSource););
 
     /* Check if retained */
     if(isRetained(server, &condition)) {
@@ -1744,8 +1754,10 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
     /* Check if enabled */
-    if(!isRetained(server, &triggerEvent))
+    if(!isRetained(server, &triggerEvent)) {
+        UA_NodeId_clear(&triggerEvent);
         return UA_STATUSCODE_BADCONDITIONDISABLED;
+    }
 
     /* Set SourceTimestamp */
     UA_Variant_setScalar(&value, &fieldSourceTimeStampValue, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -1769,11 +1781,9 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Message failed",
                                    UA_NodeId_clear(&triggerEvent););
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
+    /* Set Comment. A null comment leaves the last value as is */
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
-    UA_String nullString = UA_STRING_NULL;
-    if(!UA_String_equal(&inputComment->locale, &nullString) &&
-       !UA_String_equal(&inputComment->text, &nullString)) {
+    if(!isNullComment(inputComment)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         res = setConditionField(&acd->driver, triggerEvent, &value, fieldCommentQN);
         CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
@@ -1826,12 +1836,16 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Check if enabled and retained */
     if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) ||
-       !isRetained(server, &conditionNode))
+       !isRetained(server, &conditionNode)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONDISABLED;
+    }
 
     /* Check if already acknowledged */
-    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldAckedStateQN))
+    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldAckedStateQN)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONBRANCHALREADYACKED;
+    }
 
     /* Get EventType */
     UA_NodeId eventType;
@@ -1892,12 +1906,16 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Check if enabled and retained */
     if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) ||
-       !isRetained(server, &conditionNode))
+       !isRetained(server, &conditionNode)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONDISABLED;
+    }
 
     /* Check if already confirmed */
-    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldConfirmedStateQN))
+    if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldConfirmedStateQN)) {
+        UA_NodeId_clear(&conditionNode);
         return UA_STATUSCODE_BADCONDITIONBRANCHALREADYCONFIRMED;
+    }
 
     /* Get EventType */
     UA_NodeId eventType;
@@ -2406,9 +2424,9 @@ setStandardConditionFields(AlarmsConditionsDriver *acd, const UA_NodeId* conditi
 
         /* Set the default value for the Expiration limit property */
         UA_Duration defaultValue = EXPIRATION_LIMIT_DEFAULT_VALUE;
-        res |= UA_Server_writeObjectProperty_scalar(server, *condition, fieldExpirationLimitQN,
-                                                    &defaultValue, &UA_TYPES[UA_TYPES_DURATION]);
-
+        res = UA_Server_writeObjectProperty_scalar(server, *condition, fieldExpirationLimitQN,
+                                                   &defaultValue, &UA_TYPES[UA_TYPES_DURATION]);
+        CONDITION_ASSERT_RETURN_RETVAL_SERVER(server, res, "Set Expiration Limit failed",);
     }
 
     /* 2. Check if ConditionType is subType of AlarmConditionType */
