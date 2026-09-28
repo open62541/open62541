@@ -973,32 +973,11 @@ UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
-/* Decodes the information from the ByteString. The ByteString contains a
- * UABinaryFileDataType-object with a PubSubConfiguration2DataType (or the
- * legacy PubSubConfigurationDataType) as body (see Part 14, PubSubConfigurationType).
- * It will overwrite the current PubSub configuration of the server. The added
- * components are enabled automatically if their enabled-flag is set in the
- * config. Child-components are enabled first.
- *
- * Note that you need to disable all components with
- * UA_Server_disableAllPubSubComponents before loading the config. */
+/* Encode the current PubSub configuration as the content of the
+ * PubSubConfiguration file (Part 14 v1.05 9.1.3.7.1). The caller frees the
+ * file with UA_ByteString_clear. */
 UA_EXPORT UA_StatusCode
-UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
-                                         const UA_ByteString buffer);
-
-/* Saves the current PubSub configuration of a server in a ByteString. The
- * content is a UABinaryFileDataType-object with a PubSubConfiguration2DataType
- * body (see Part 14, PubSubConfigurationType). */
-UA_EXPORT UA_StatusCode
-UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
-                                               UA_ByteString *buffer);
-
-/* Get a deep copy of the current PubSub configuration of the server as
- * PubSubConfiguration2DataType. Clean up with
- * UA_PubSubConfiguration2DataType_clear. */
-UA_EXPORT UA_StatusCode
-UA_Server_getPubSubConfig2(UA_Server *server,
-                           UA_PubSubConfiguration2DataType *config);
+UA_Server_readPubSubConfiguration(UA_Server *server, UA_ByteString *file);
 
 /* The output arguments of the CloseAndUpdate method (Part 14 v1.05
  * 9.1.3.7.6). Clean up with UA_PubSubConfigurationUpdateResult_clear. */
@@ -1056,6 +1035,21 @@ UA_Server_updatePubSubConfiguration(UA_Server *server, const UA_ByteString *file
                                     const UA_PubSubConfigurationRefDataType *references,
                                     UA_Boolean requireCompleteUpdate,
                                     UA_PubSubConfigurationUpdateResult *result);
+
+/* Create the references for all elements of a file, in file order, with the
+ * operation mask Add, Match, Add|Match, Modify or Remove. Match only applies
+ * to connections and groups; other elements get the remaining bits or are
+ * skipped. Free the references with UA_Array_delete and
+ * UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]. Returns Bad_TypeMismatch
+ * for an invalid file and Bad_InvalidArgument for another mask.
+ *
+ * Use Add to load a file, or Remove and Add in one complete update to replace
+ * its elements. */
+UA_EXPORT UA_StatusCode
+UA_PubSubConfiguration_createReferences(const UA_ByteString *file,
+                                        UA_PubSubConfigurationRefMask mask,
+                                        size_t *referencesSize,
+                                        UA_PubSubConfigurationRefDataType **references);
 #endif
 
 /* Legacy API */

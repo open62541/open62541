@@ -8,6 +8,8 @@
 
 #include "common.h"
 
+#include <string.h>
+
 /* Function to give user information about correct usage */
 static void usage_info(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -94,10 +96,28 @@ int main(int argc, char** argv) {
     UA_Server_addVariableNode(server, myDateNodeId, pubSubVariableObjectId,
                               parentReferenceNodeId, myDateName,
                               UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
-    /* 4. load configuration from file */
+    /* 4. Add all elements of the configuration file in one complete update */
     if(loadPubSubFromFile) {
-        UA_ByteString configuration = loadFile(argv[2]);
-        UA_Server_loadPubSubConfigFromByteString(server, configuration);
+        UA_ByteString configuration = loadFile(argv[1]);
+        size_t refsSize = 0;
+        UA_PubSubConfigurationRefDataType *refs = NULL;
+        UA_PubSubConfigurationUpdateResult result;
+        memset(&result, 0, sizeof(result));
+        UA_StatusCode res = UA_PubSubConfiguration_createReferences(
+            &configuration, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD,
+            &refsSize, &refs);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_Server_updatePubSubConfiguration(server, &configuration,
+                                                      refsSize, refs, true,
+                                                      &result);
+        if(res != UA_STATUSCODE_GOOD || !result.changesApplied)
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                         "Loading the PubSub configuration failed (%s)",
+                         UA_StatusCode_name(res));
+        UA_PubSubConfigurationUpdateResult_clear(&result);
+        UA_Array_delete(refs, refsSize,
+                        &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+        UA_ByteString_clear(&configuration);
     }
 
     /* 5. start server */
@@ -109,15 +129,16 @@ int main(int argc, char** argv) {
     if(statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Server stopped. Status code: 0x%x\n", statusCode);
-        return(-1);
+        UA_Server_delete(server);
+        return -1;
     }
 
     if(loadPubSubFromFile) {
         /* 6. save current configuration to file */
         UA_ByteString buffer = UA_BYTESTRING_NULL;
-        statusCode = UA_Server_writePubSubConfigurationToByteString(server, &buffer);
+        statusCode = UA_Server_readPubSubConfiguration(server, &buffer);
         if(statusCode == UA_STATUSCODE_GOOD)
-            statusCode = writeFile(argv[2], buffer);
+            statusCode = writeFile(argv[1], buffer);
 
         if(statusCode != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,

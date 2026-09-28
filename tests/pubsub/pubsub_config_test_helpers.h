@@ -56,11 +56,19 @@ UA_PubSubTest_decodeConfigFile(const UA_ByteString *file,
     return res;
 }
 
-/* Deep copy of the running configuration */
+/* Deep copy of the running configuration (the file content decoded) */
 static UA_INLINE UA_StatusCode
 UA_PubSubTest_readConfig(UA_Server *server,
                          UA_PubSubConfiguration2DataType *config) {
-    return UA_Server_getPubSubConfig2(server, config);
+    UA_ByteString file;
+    UA_StatusCode res = UA_Server_readPubSubConfiguration(server, &file);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubConfiguration2DataType_init(config);
+        return res;
+    }
+    res = UA_PubSubTest_decodeConfigFile(&file, config);
+    UA_ByteString_clear(&file);
+    return res;
 }
 
 /* Encode the configuration and apply it with the given references */
@@ -81,6 +89,50 @@ UA_PubSubTest_updateConfig(UA_Server *server,
                                               references, requireCompleteUpdate,
                                               result);
     UA_ByteString_clear(&file);
+    return res;
+}
+
+/* Add all elements of the file in one complete update. With replace, the
+ * elements are removed and added again. Returns the first bad code. */
+static UA_INLINE UA_StatusCode
+UA_PubSubTest_applyConfigFile(UA_Server *server, const UA_ByteString *file,
+                              UA_Boolean replace) {
+    size_t removeSize = 0, addSize = 0;
+    UA_PubSubConfigurationRefDataType *removeRefs = NULL, *addRefs = NULL;
+    UA_StatusCode res = UA_PubSubConfiguration_createReferences(
+        file, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD, &addSize, &addRefs);
+    if(res == UA_STATUSCODE_GOOD && replace)
+        res = UA_PubSubConfiguration_createReferences(
+            file, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTREMOVE, &removeSize, &removeRefs);
+    size_t refsSize = removeSize + addSize;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    if(res == UA_STATUSCODE_GOOD && refsSize > 0) {
+        refs = (UA_PubSubConfigurationRefDataType*)
+            UA_Array_new(refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+        if(!refs) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        } else {
+            if(removeSize > 0)
+                memcpy(refs, removeRefs,
+                       removeSize * sizeof(UA_PubSubConfigurationRefDataType));
+            memcpy(&refs[removeSize], addRefs,
+                   addSize * sizeof(UA_PubSubConfigurationRefDataType));
+        }
+    }
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_PubSubConfigurationUpdateResult result;
+        res = UA_Server_updatePubSubConfiguration(server, file, refsSize, refs,
+                                                  true, &result);
+        for(size_t i = 0; res == UA_STATUSCODE_GOOD &&
+                i < result.referencesResultsSize; i++)
+            res = result.referencesResults[i];
+        UA_PubSubConfigurationUpdateResult_clear(&result);
+    }
+    UA_Array_delete(refs, refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+    UA_Array_delete(removeRefs, removeSize,
+                    &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+    UA_Array_delete(addRefs, addSize,
+                    &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
     return res;
 }
 

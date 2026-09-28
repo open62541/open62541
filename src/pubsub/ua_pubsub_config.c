@@ -157,21 +157,17 @@ remapNamespaces(UA_PubSubManager *psm, UA_PubSubConfiguration2DataType *config,
 /******************/
 
 
-/* Gets the PubSub configuration from an ExtensionObject containing a
- * UABinaryFileDataType. The body is either the legacy
- * PubSubConfigurationDataType or its subtype PubSubConfiguration2DataType.
- * Returns a shallow view of the configuration that borrows from src. */
+/* Get the PubSubConfiguration2DataType body of the UABinaryFileDataType in
+ * src (Part 14 v1.05 9.1.3.7.1). dst is a shallow view that borrows from src.
+ * Sets the reason on failure. */
 static UA_StatusCode
-extractPubSubConfig2FromExtensionObject(UA_PubSubManager *psm,
-                                        const UA_ExtensionObject *src,
-                                        UA_PubSubConfiguration2DataType *dst,
-                                        UA_String **namespaces,
-                                        size_t *namespacesSize) {
+configFromFileContent(const UA_ExtensionObject *src,
+                      UA_PubSubConfiguration2DataType *dst,
+                      UA_String **namespaces, size_t *namespacesSize,
+                      const char **reason) {
     if(!UA_ExtensionObject_hasDecodedType(src,
            &UA_TYPES[UA_TYPES_UABINARYFILEDATATYPE])) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration file: The file content is not a "
-                     "UABinaryFileDataType");
+        *reason = "The file content is not a UABinaryFileDataType";
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -180,459 +176,177 @@ extractPubSubConfig2FromExtensionObject(UA_PubSubManager *psm,
 
     if(binFile->body.arrayLength != 0 || binFile->body.arrayDimensionsSize != 0 ||
        !binFile->body.data) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration file: The body must contain a "
-                     "single configuration");
+        *reason = "The body must contain a single configuration";
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
-    UA_PubSubConfiguration2DataType_init(dst);
-    if(binFile->body.type == &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATION2DATATYPE]) {
-        *dst = *(UA_PubSubConfiguration2DataType*)binFile->body.data;
-    } else if(binFile->body.type == &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONDATATYPE]) {
-        /* Upgrade the legacy PubSubConfigurationDataType to a
-         * PubSubConfiguration2DataType view */
-        UA_PubSubConfigurationDataType *legacy =
-            (UA_PubSubConfigurationDataType*)binFile->body.data;
-        dst->publishedDataSetsSize = legacy->publishedDataSetsSize;
-        dst->publishedDataSets = legacy->publishedDataSets;
-        dst->connectionsSize = legacy->connectionsSize;
-        dst->connections = legacy->connections;
-        dst->enabled = legacy->enabled;
-    } else {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration file: The body is not a "
-                     "PubSubConfiguration2DataType or PubSubConfigurationDataType");
+    if(binFile->body.type != &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATION2DATATYPE]) {
+        *reason = "The body is not a PubSubConfiguration2DataType";
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
+    *dst = *(UA_PubSubConfiguration2DataType*)binFile->body.data;
 
     *namespaces = binFile->namespaces;
     *namespacesSize = binFile->namespacesSize;
     return UA_STATUSCODE_GOOD;
 }
 
-/*********************/
-/* Element Creation  */
-/*********************/
-
 static UA_StatusCode
-createPublishedDataSet(UA_PubSubManager *psm,
-                       const UA_PublishedDataSetDataType *pdsParams,
-                       UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    UA_PublishedDataSetConfig config;
-    UA_StatusCode res = UA_PublishedDataSetConfig_fromDataType(pdsParams, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Invalid PublishedDataSet %S",
-                     pdsParams->name);
-        return res;
-    }
-
-    res = UA_PublishedDataSet_create(psm, &config, pdsIdent).addResult;
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Adding PublishedDataSet %S failed",
-                     pdsParams->name);
-        return res;
-    }
-
-    res = UA_PublishedDataSet_addFieldsFromDataType(psm, *pdsIdent, pdsParams);
+extractPubSubConfig2FromExtensionObject(UA_PubSubManager *psm,
+                                        const UA_ExtensionObject *src,
+                                        UA_PubSubConfiguration2DataType *dst,
+                                        UA_String **namespaces,
+                                        size_t *namespacesSize) {
+    const char *reason = "";
+    UA_StatusCode res =
+        configFromFileContent(src, dst, namespaces, namespacesSize, &reason);
     if(res != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Adding the DataSetFields to %S failed",
-                     pdsParams->name);
+                     "PubSub configuration file: %s", reason);
     return res;
 }
 
-static UA_StatusCode
-createSubscribedDataSet(UA_PubSubManager *psm,
-                        const UA_StandaloneSubscribedDataSetDataType *sdsParams) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+/**************/
+/* References */
+/**************/
 
-    UA_SubscribedDataSetConfig config;
-    UA_StatusCode res = UA_SubscribedDataSetConfig_fromDataType(sdsParams, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Invalid SubscribedDataSet %S",
-                     sdsParams->name);
-        return res;
+/* Only count if refs is NULL. Match only applies to connections and groups. */
+static void
+addReference(UA_PubSubConfigurationRefDataType *refs, size_t *refsSize,
+             UA_UInt32 mask, UA_UInt32 refbit, size_t elementIndex,
+             size_t connectionIndex, size_t groupIndex) {
+    if(refbit != UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION &&
+       refbit != UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITERGROUP &&
+       refbit != UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADERGROUP)
+        mask &= ~(UA_UInt32)UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTMATCH;
+    if(mask == 0)
+        return;
+    if(refs) {
+        UA_PubSubConfigurationRefDataType *ref = &refs[*refsSize];
+        UA_PubSubConfigurationRefDataType_init(ref);
+        ref->configurationMask = mask | refbit;
+        ref->elementIndex = (UA_UInt16)elementIndex;
+        ref->connectionIndex = (UA_UInt16)connectionIndex;
+        ref->groupIndex = (UA_UInt16)groupIndex;
     }
-
-    res = UA_SubscribedDataSet_create(psm, &config, NULL);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Adding SubscribedDataSet %S failed",
-                     sdsParams->name);
-    }
-    return res;
+    (*refsSize)++;
 }
 
-static UA_StatusCode
-createDataSetWriter(UA_PubSubManager *psm,
-                    const UA_DataSetWriterDataType *dswParams,
-                    UA_NodeId writerGroupIdent) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    UA_DataSetWriterConfig config;
-    UA_StatusCode res = UA_DataSetWriterConfig_fromDataType(dswParams, &config);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Find the PublishedDataSet by name. An empty DataSetName indicates a
-     * heartbeat DataSetWriter without a connected PublishedDataSet. */
-    UA_NodeId pdsIdent = UA_NODEID_NULL;
-    if(!UA_String_isEmpty(&dswParams->dataSetName)) {
-        UA_PublishedDataSet *pds =
-            UA_PublishedDataSet_findByName(psm, dswParams->dataSetName);
-        if(!pds) {
-            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                         "PubSub configuration: No matching PublishedDataSet %S "
-                         "for DataSetWriter %S",
-                         dswParams->dataSetName, dswParams->name);
-            return UA_STATUSCODE_BADNOTFOUND;
+/* References for all elements, in file order */
+static void
+addReferences(const UA_PubSubConfiguration2DataType *cfg, UA_UInt32 mask,
+              UA_PubSubConfigurationRefDataType *refs, size_t *refsSize) {
+    *refsSize = 0;
+    for(size_t i = 0; i < cfg->publishedDataSetsSize; i++)
+        addReference(refs, refsSize, mask,
+                     UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEPUBDATASET, i, 0, 0);
+    for(size_t i = 0; i < cfg->subscribedDataSetsSize; i++)
+        addReference(refs, refsSize, mask,
+                     UA_PUBSUBCONFIGURATIONREFMASK_REFERENCESUBDATASET, i, 0, 0);
+    for(size_t c = 0; c < cfg->connectionsSize; c++) {
+        const UA_PubSubConnectionDataType *conn = &cfg->connections[c];
+        addReference(refs, refsSize, mask,
+                     UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION, 0, c, 0);
+        for(size_t g = 0; g < conn->writerGroupsSize; g++) {
+            addReference(refs, refsSize, mask,
+                         UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITERGROUP, 0, c, g);
+            for(size_t k = 0; k < conn->writerGroups[g].dataSetWritersSize; k++)
+                addReference(refs, refsSize, mask,
+                             UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITER, k, c, g);
         }
-        pdsIdent = pds->head.identifier;
+        for(size_t g = 0; g < conn->readerGroupsSize; g++) {
+            addReference(refs, refsSize, mask,
+                         UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADERGROUP, 0, c, g);
+            for(size_t k = 0; k < conn->readerGroups[g].dataSetReadersSize; k++)
+                addReference(refs, refsSize, mask,
+                             UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADER, k, c, g);
+        }
     }
-
-    /* Create disabled, the enabled flag is applied after loading completes */
-    UA_Boolean enabled = config.enabled;
-    config.enabled = false;
-
-    UA_NodeId dswIdent;
-    res = UA_DataSetWriter_create(psm, writerGroupIdent, pdsIdent, &config, &dswIdent);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Creating DataSetWriter %S failed",
-                     dswParams->name);
-        return res;
-    }
-
-    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswIdent);
-    if(dsw)
-        dsw->config.enabled = enabled;
-    return UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < cfg->securityGroupsSize; i++)
+        addReference(refs, refsSize, mask,
+                     UA_PUBSUBCONFIGURATIONREFMASK_REFERENCESECURITYGROUP, i, 0, 0);
+    for(size_t i = 0; i < cfg->pubSubKeyPushTargetsSize; i++)
+        addReference(refs, refsSize, mask,
+                     UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEPUSHTARGET, i, 0, 0);
 }
 
-static UA_StatusCode
-createWriterGroup(UA_PubSubManager *psm,
-                  const UA_WriterGroupDataType *wgParams,
-                  UA_NodeId connectionIdent) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    UA_WriterGroupConfig config;
-    UA_StatusCode res = UA_WriterGroupConfig_fromDataType(wgParams, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Invalid WriterGroup %S",
-                     wgParams->name);
-        return res;
+/* The indices of the references are 16 bit */
+static UA_Boolean
+indicesFit(const UA_PubSubConfiguration2DataType *cfg) {
+    if(cfg->publishedDataSetsSize > UA_UINT16_MAX ||
+       cfg->subscribedDataSetsSize > UA_UINT16_MAX ||
+       cfg->connectionsSize > UA_UINT16_MAX ||
+       cfg->securityGroupsSize > UA_UINT16_MAX ||
+       cfg->pubSubKeyPushTargetsSize > UA_UINT16_MAX)
+        return false;
+    for(size_t c = 0; c < cfg->connectionsSize; c++) {
+        const UA_PubSubConnectionDataType *conn = &cfg->connections[c];
+        if(conn->writerGroupsSize > UA_UINT16_MAX ||
+           conn->readerGroupsSize > UA_UINT16_MAX)
+            return false;
+        for(size_t g = 0; g < conn->writerGroupsSize; g++) {
+            if(conn->writerGroups[g].dataSetWritersSize > UA_UINT16_MAX)
+                return false;
+        }
+        for(size_t g = 0; g < conn->readerGroupsSize; g++) {
+            if(conn->readerGroups[g].dataSetReadersSize > UA_UINT16_MAX)
+                return false;
+        }
     }
-
-    /* Create disabled, the enabled flag is applied after loading completes */
-    UA_Boolean enabled = config.enabled;
-    config.enabled = false;
-
-    UA_NodeId wgIdent;
-    res = UA_WriterGroup_create(psm, connectionIdent, &config, &wgIdent);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Adding WriterGroup %S failed",
-                     wgParams->name);
-        return res;
-    }
-
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgIdent);
-    if(wg)
-        wg->config.enabled = enabled;
-
-    for(size_t i = 0; i < wgParams->dataSetWritersSize; i++) {
-        res = createDataSetWriter(psm, &wgParams->dataSetWriters[i], wgIdent);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-createDataSetReader(UA_PubSubManager *psm,
-                    const UA_DataSetReaderDataType *dsrParams,
-                    UA_NodeId readerGroupIdent) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    UA_DataSetReaderConfig config;
-    UA_StatusCode res = UA_DataSetReaderConfig_fromDataType(dsrParams, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Invalid DataSetReader %S",
-                     dsrParams->name);
-        return res;
-    }
-
-    /* Create disabled, the enabled flag is applied after loading completes */
-    UA_Boolean enabled = config.enabled;
-    config.enabled = false;
-
-    UA_NodeId dsrIdent;
-    res = UA_DataSetReader_create(psm, readerGroupIdent, &config, &dsrIdent);
-    UA_DataSetReaderConfig_clearView(&config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Creating DataSetReader %S failed",
-                     dsrParams->name);
-        return res;
-    }
-
-    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrIdent);
-    if(dsr)
-        dsr->config.enabled = enabled;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-createReaderGroup(UA_PubSubManager *psm,
-                  const UA_ReaderGroupDataType *rgParams,
-                  UA_NodeId connectionIdent) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    UA_ReaderGroupConfig config;
-    UA_StatusCode res = UA_ReaderGroupConfig_fromDataType(rgParams, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Invalid ReaderGroup %S",
-                     rgParams->name);
-        return res;
-    }
-
-    /* Create disabled, the enabled flag is applied after loading completes */
-    UA_Boolean enabled = config.enabled;
-    config.enabled = false;
-
-    UA_NodeId rgIdent;
-    res = UA_ReaderGroup_create(psm, connectionIdent, &config, &rgIdent);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Adding ReaderGroup %S failed",
-                     rgParams->name);
-        return res;
-    }
-
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, rgIdent);
-    if(rg)
-        rg->config.enabled = enabled;
-
-    for(size_t i = 0; i < rgParams->dataSetReadersSize; i++) {
-        res = createDataSetReader(psm, &rgParams->dataSetReaders[i], rgIdent);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-createPubSubConnection(UA_PubSubManager *psm,
-                       const UA_PubSubConnectionDataType *connParams) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    UA_PubSubConnectionConfig config;
-    UA_StatusCode res = UA_PubSubConnectionConfig_fromDataType(connParams, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Invalid PubSubConnection %S",
-                     connParams->name);
-        return res;
-    }
-
-    /* Create disabled, the enabled flag is applied after loading completes */
-    UA_Boolean enabled = config.enabled;
-    config.enabled = false;
-
-    UA_NodeId connectionIdent;
-    res = UA_PubSubConnection_create(psm, &config, &connectionIdent);
-    UA_PubSubConnectionConfig_clearView(&config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration: Creating PubSubConnection %S failed",
-                     connParams->name);
-        return res;
-    }
-
-    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionIdent);
-    if(c)
-        c->config.enabled = enabled;
-
-    for(size_t i = 0; i < connParams->writerGroupsSize; i++) {
-        res = createWriterGroup(psm, &connParams->writerGroups[i], connectionIdent);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
-
-    for(size_t i = 0; i < connParams->readerGroupsSize; i++) {
-        res = createReaderGroup(psm, &connParams->readerGroups[i], connectionIdent);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Replaces the PubSub configuration with the given
- * PubSubConfiguration2DataType */
-static UA_StatusCode
-updatePubSubConfig(UA_PubSubManager *psm,
-                   const UA_PubSubConfiguration2DataType *config) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
-
-    /* Check if the PubSubManager is in an active state and has connections
-     * attached */
-    if(psm->drv.state != UA_LIFECYCLESTATE_STOPPED && psm->connectionsSize > 0) {
-        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "PubSub configuration: PubSub configured and active. "
-                       "Disable the PublishSubscribe state before loading a "
-                       "PubSub configuration");
-        return UA_STATUSCODE_BADINVALIDSTATE;
-    }
-
-    /* Ensure the PubSubManager is stopped before clearing */
-    if(psm->drv.state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                    "PubSub configuration: Stopping the PubSubManager before "
-                    "loading the configuration");
-        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
-    }
-
-    /* Clear the PubSubManager to load a new config.
-     * The PubSubManager is now guaranteed to be stopped. */
-    UA_StatusCode res = UA_PubSubManager_clear(psm);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Log unsupported parts of the configuration. The DataSetClasses and the
-     * ConfigurationVersion are read-only information and always ignored. */
-    if(config->securityGroupsSize > 0)
-        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "PubSub configuration: SecurityGroups in the "
-                       "configuration are not supported and ignored");
-    if(config->pubSubKeyPushTargetsSize > 0)
-        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "PubSub configuration: PubSubKeyPushTargets in the "
-                       "configuration are not supported and ignored");
-
-    /* Store the top-level configuration metadata. The ConfigurationVersion is
-     * set to the current time (the version from the file is ignored). */
-    UA_KeyValueMap propertiesMap = {config->configurationPropertiesSize,
-                                    config->configurationProperties};
-    res = UA_KeyValueMap_copy(&propertiesMap, &psm->configurationProperties);
-    res |= UA_Array_copy(config->defaultSecurityKeyServices,
-                         config->defaultSecurityKeyServicesSize,
-                         (void**)&psm->defaultSecurityKeyServices,
-                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    if(res != UA_STATUSCODE_GOOD)
-        goto errout;
-    psm->defaultSecurityKeyServicesSize = config->defaultSecurityKeyServicesSize;
-    psm->configurationVersion =
-        UA_PubSubConfigurationVersionTimeDifference(UA_DateTime_now());
-
-    /* Create the PublishedDataSets */
-    for(size_t i = 0; i < config->publishedDataSetsSize; i++) {
-        UA_NodeId pdsIdent;
-        res = createPublishedDataSet(psm, &config->publishedDataSets[i], &pdsIdent);
-        if(res != UA_STATUSCODE_GOOD)
-            goto errout;
-    }
-
-    /* Create the standalone SubscribedDataSets. They must exist before the
-     * DataSetReaders that reference them by name. */
-    for(size_t i = 0; i < config->subscribedDataSetsSize; i++) {
-        res = createSubscribedDataSet(psm, &config->subscribedDataSets[i]);
-        if(res != UA_STATUSCODE_GOOD)
-            goto errout;
-    }
-
-    /* Create the PubSubConnections with the contained groups. All components
-     * are created disabled. The enabled flag from the configuration is written
-     * into the component configs for the activation below. */
-    for(size_t i = 0; i < config->connectionsSize; i++) {
-        res = createPubSubConnection(psm, &config->connections[i]);
-        if(res != UA_STATUSCODE_GOOD)
-            goto errout;
-    }
-
-    /* Enable the PubSub subsystem. The initial setup mode lets the state
-     * machine cascade enable all components with the enabled flag set. */
-    if(config->enabled) {
-        UA_assert(psm->drv.state == UA_LIFECYCLESTATE_STOPPED);
-        psm->pubSubInitialSetupMode = true;
-        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
-        psm->pubSubInitialSetupMode = false;
-    }
-
-    return UA_STATUSCODE_GOOD;
-
- errout:
-    /* Do not leave a partially loaded configuration behind */
-    UA_PubSubManager_clear(psm);
-    return res;
+    return true;
 }
 
 UA_StatusCode
-UA_PubSubManager_decodeConfig2Blob(UA_PubSubManager *psm, const UA_ByteString *buf,
-                                   UA_ExtensionObject *eo,
-                                   UA_PubSubConfiguration2DataType *cfg) {
-    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+UA_PubSubConfiguration_createReferences(const UA_ByteString *file,
+                                        UA_PubSubConfigurationRefMask mask,
+                                        size_t *referencesSize,
+                                        UA_PubSubConfigurationRefDataType **references) {
+    if(!file || !referencesSize || !references)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *referencesSize = 0;
+    *references = NULL;
 
-    size_t offset = 0;
-    UA_StatusCode res = UA_ExtensionObject_decodeBinary(buf, &offset, eo);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration file: Decoding failed");
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    UA_String *namespaces = NULL;
-    size_t namespacesSize = 0;
-    res = extractPubSubConfig2FromExtensionObject(psm, eo, cfg,
-                                                  &namespaces, &namespacesSize);
-    if(res == UA_STATUSCODE_GOOD)
-        res = remapNamespaces(psm, cfg, namespaces, namespacesSize);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_ExtensionObject_clear(eo);
-        UA_ExtensionObject_init(eo);
-    }
-    return res;
-}
-
-UA_StatusCode
-UA_Server_loadPubSubConfigFromByteString(UA_Server *server, const UA_ByteString buffer) {
-    if(server == NULL)
+    /* The operations allowed by CloseAndUpdate, without reference bits */
+    if(mask != UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD &&
+       mask != UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTMATCH &&
+       mask != (UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD |
+                UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTMATCH) &&
+       mask != UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTMODIFY &&
+       mask != UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTREMOVE)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    lockServer(server);
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_ExtensionObject decodedFile;
-    UA_ExtensionObject_init(&decodedFile);
-    UA_PubSubConfiguration2DataType config;
+    UA_ExtensionObject eo;
     UA_StatusCode res =
-        UA_PubSubManager_decodeConfig2Blob(psm, &buffer, &decodedFile, &config);
-    if(res == UA_STATUSCODE_GOOD) {
-        res = updatePubSubConfig(psm, &config);
-        if(res != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                         "PubSub configuration file: Loading failed");
+        UA_decodeBinary(file, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_PubSubConfiguration2DataType cfg;
+    UA_String *namespaces = NULL;
+    size_t namespacesSize = 0;
+    const char *reason = "";
+    res = configFromFileContent(&eo, &cfg, &namespaces, &namespacesSize, &reason);
+    if(res == UA_STATUSCODE_GOOD && !indicesFit(&cfg))
+        res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_clear(&eo);
+        return res;
     }
 
-    unlockServer(server);
-    UA_ExtensionObject_clear(&decodedFile);
-    return res;
+    /* Count, then fill the references */
+    size_t size = 0;
+    addReferences(&cfg, mask, NULL, &size);
+    if(size > 0) {
+        *references = (UA_PubSubConfigurationRefDataType*)
+            UA_Array_new(size, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+        if(!*references) {
+            UA_ExtensionObject_clear(&eo);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        addReferences(&cfg, mask, *references, referencesSize);
+    }
+    UA_ExtensionObject_clear(&eo);
+    return UA_STATUSCODE_GOOD;
 }
 
 /******************/
@@ -906,39 +620,59 @@ encodePubSubConfiguration2(UA_PubSubManager *psm,
 }
 
 UA_StatusCode
-UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
-                                               UA_ByteString *buffer) {
-    if(server == NULL || buffer == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+UA_PubSubManager_encodeConfig2Blob(UA_PubSubManager *psm, UA_ByteString *buf) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     UA_PubSubConfiguration2DataType config;
     UA_StatusCode res = generatePubSubConfiguration2DataType(psm, &config);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Retrieving the PubSub configuration failed");
-        unlockServer(server);
         return res;
     }
 
-    res = encodePubSubConfiguration2(psm, &config, buffer);
+    res = encodePubSubConfiguration2(psm, &config, buf);
     UA_PubSubConfiguration2DataType_clear(&config);
-    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
-UA_Server_getPubSubConfig2(UA_Server *server,
-                           UA_PubSubConfiguration2DataType *config) {
-    if(server == NULL || config == NULL)
+UA_PubSubManager_decodeConfig2Blob(UA_PubSubManager *psm, const UA_ByteString *buf,
+                                   UA_ExtensionObject *eo,
+                                   UA_PubSubConfiguration2DataType *cfg) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+
+    size_t offset = 0;
+    UA_StatusCode res = UA_ExtensionObject_decodeBinary(buf, &offset, eo);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "PubSub configuration file: Decoding failed");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    UA_String *namespaces = NULL;
+    size_t namespacesSize = 0;
+    res = extractPubSubConfig2FromExtensionObject(psm, eo, cfg,
+                                                  &namespaces, &namespacesSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_clear(eo);
+        UA_ExtensionObject_init(eo);
+        return res;
+    }
+
+    res = remapNamespaces(psm, cfg, namespaces, namespacesSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_clear(eo);
+        UA_ExtensionObject_init(eo);
+    }
+    return res;
+}
+
+UA_StatusCode
+UA_Server_readPubSubConfiguration(UA_Server *server, UA_ByteString *file) {
+    if(server == NULL || file == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_ByteString_init(file);
 
     lockServer(server);
 
@@ -948,7 +682,7 @@ UA_Server_getPubSubConfig2(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = generatePubSubConfiguration2DataType(psm, config);
+    UA_StatusCode res = UA_PubSubManager_encodeConfig2Blob(psm, file);
     unlockServer(server);
     return res;
 }

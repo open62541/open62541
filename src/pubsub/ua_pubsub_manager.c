@@ -866,13 +866,8 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
      * OPERATIONAL */
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
-        TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            if(psm->pubSubInitialSetupMode && c->config.enabled) {
-                UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
-            } else {
-                UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
-            }
-        }
+        TAILQ_FOREACH(c, &psm->connections, listEntry)
+            UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
     }
 }
 
