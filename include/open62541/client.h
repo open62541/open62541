@@ -174,9 +174,10 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl);
  * removed. The client state callback is also used for reverse connect. An
  * implementation could for example issue a new call to
  * UA_Client_startListeningForReverseConnect after the server has closed the
- * connection. If the client is connected to any server while
- * UA_Client_startListeningForReverseConnect is called, the connection will be
- * closed.
+ * connection. If the client is connected to any server or already listening
+ * while UA_Client_startListeningForReverseConnect is called, the connection is
+ * kept and UA_STATUSCODE_BADINVALIDSTATE is returned. If the listening socket
+ * cannot be set up, the client remains closed and can be used again.
  *
  * The reverse connect is closed by calling the standard disconnect functions
  * like for a "normal" connection that was initiated by the client. Calling one
