@@ -71,6 +71,8 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr" "freertos-lwip" "posix-lwip")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
+set(UA_ARCH_FOLDER "" CACHE PATH
+    "Folder with the architecture-specific sources (defaults to arch/posix)")
 
 if("${UA_ARCHITECTURE}" STREQUAL "")
     if(WIN32)
@@ -1286,9 +1288,6 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Add clock implementation based on the base architecture
-if(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
-endif()
 if(UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/win32/clock_win32.c)
 endif()
@@ -1299,6 +1298,10 @@ endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
+endif()
+
+if(UA_ARCHITECTURE_POSIX AND UA_ARCHITECTURE_LWIP)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
 endif()
 
 # Add eventloop and common files (mutually exclusive based on eventloop type)
@@ -1341,13 +1344,15 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c)
+    # Architecture-specific files (clock, TCP, UDP, eth, interrupt)
+    if(NOT UA_ARCH_FOLDER)
+        set(UA_ARCH_FOLDER "${PROJECT_SOURCE_DIR}/arch/posix")
+    endif()
+    if(NOT EXISTS "${UA_ARCH_FOLDER}/CMakeLists.txt")
+        message(FATAL_ERROR "UA_ARCH_FOLDER (${UA_ARCH_FOLDER}) contains no CMakeLists.txt")
+    endif()
+    include("${UA_ARCH_FOLDER}/CMakeLists.txt")
     if(UA_ENABLE_AMALGAMATION)
         list(APPEND plugin_sources
              ${PROJECT_SOURCE_DIR}/arch/win32/eventloop_iocp.h
