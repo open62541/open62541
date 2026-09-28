@@ -31,7 +31,7 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
  *
  * ReferenceType Bitfield Representation
  * -------------------------------------
- * ReferenceTypes have an alternative represention as an index into a bitfield
+ * ReferenceTypes have an alternative representation as an index into a bitfield
  * for fast comparison. The index is generated when the corresponding
  * ReferenceTypeNode is added. By bounding the number of ReferenceTypes that can
  * exist in the server, the bitfield can represent a set of an combination of
@@ -489,7 +489,7 @@ struct UA_Nodestore {
     /* _getNode returns a pointer to an immutable node. Call _releaseNode to
      * indicate when the pointer is no longer accessed.
      *
-     * It can be indicated if only a subset of the attributes and referencs need
+     * It can be indicated if only a subset of the attributes and references need
      * to be accessed. That is relevant when the nodestore accesses a slow
      * storage backend for the attributes. The attribute mask is a bitfield with
      * ORed entries from UA_NodeAttributesMask. If the attributes mask is empty,
@@ -529,7 +529,7 @@ struct UA_Nodestore {
      * calling _releaseNode.
      *
      * The attribute-mask and reference-description indicate if only a subset of
-     * the attributes and referencs are to be modified. Other attributes and
+     * the attributes and references are to be modified. Other attributes and
      * references shall not be changed. */
     UA_Node * (*getEditNode)(UA_Nodestore *ns, const UA_NodeId *nodeId,
                              UA_UInt32 attributeMask,

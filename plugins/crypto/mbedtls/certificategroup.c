@@ -530,7 +530,7 @@ mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_
 static UA_StatusCode
 mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *stack,
                    mbedtls_x509_crt **old_issuers, mbedtls_x509_crt *cert, int depth) {
-    /* Maxiumum chain length */
+    /* Maximum chain length */
     if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
 

@@ -15,7 +15,7 @@ int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    /* We need a gathering for the plugin to constuct.
+    /* We need a gathering for the plugin to construct.
      * The UA_HistoryDataGathering is responsible to collect data and store it to the database.
      * We will use this gathering for one node, only. initialNodeIdStoreSize = 1
      * The store will grow if you register more than one node, but this is expensive. */
@@ -60,12 +60,12 @@ int main(void) {
 
     /* There is a memory based database plugin. We will use that. We just
      * reserve space for 3 nodes with 100 values each. This will also
-     * automaticaly grow if needed, but that is expensive, because all data must
+     * automatically grow if needed, but that is expensive, because all data must
      * be copied. */
     setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
 
     /* We want the server to serve a maximum of 100 values per request. This
-     * value depend on the plattform you are running the server. A big server
+     * value depend on the platform you are running the server. A big server
      * can serve more values, smaller ones less. */
     setting.maxHistoryDataResponseSize = 100;
 

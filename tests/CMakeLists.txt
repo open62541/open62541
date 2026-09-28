@@ -130,7 +130,7 @@ target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EX
 
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
-# This also requires to disable the phtread cache with no-nptl-pthread-stackcache
+# This also requires to disable the pthread cache with no-nptl-pthread-stackcache
 set(VALGRIND_FLAGS --trace-children=yes --leak-check=full --run-libc-freeres=yes --track-fds=yes)
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     execute_process(COMMAND valgrind --version OUTPUT_VARIABLE VALGRIND_VERSION_STRING OUTPUT_STRIP_TRAILING_WHITESPACE)

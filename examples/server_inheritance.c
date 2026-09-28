@@ -79,7 +79,7 @@ createMammals(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "Name"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
-    /* Instatiate a dog named bello:
+    /* Instantiate a dog named bello:
      * (O) Objects
      *   + O Bello <DogType>
      *     + Age

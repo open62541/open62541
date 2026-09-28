@@ -569,7 +569,7 @@ createServerSecureChannel(UA_Server *server,
     channel->connectionManager = cm;
     channel->connectionId = connectionId;
 
-    /* The remote addresss is given in the very first callback from the
+    /* The remote address is given in the very first callback from the
      * ConnectionManager. */
     if(params) {
         const UA_String *address = (const UA_String *)

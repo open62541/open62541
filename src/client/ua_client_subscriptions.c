@@ -1059,7 +1059,7 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE]);
 
-    /* A problem occured remote? */
+    /* A problem occurred remote? */
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return response;
 

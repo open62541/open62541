@@ -127,7 +127,7 @@ static CK_RV encrypt(int slotNum, unsigned char *pin, unsigned char *label,
             goto cleanup;
         }
     } else {
-        printf("The initializtion vector is not valid\n");
+        printf("The initialization vector is not valid\n");
         goto cleanup;
     }
 

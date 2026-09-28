@@ -99,7 +99,7 @@ START_TEST(Nodes_createCustomBrowseNameObjectType)
 
 START_TEST(Nodes_checkDefaultInstanceBrowseName) {
     /* create an object/instance of the CustomDemoType.
-     * This should fail if we do not specifiy a browse name.
+     * This should fail if we do not specify a browse name.
      * CustomDemoType does not have a DefaultInstanceBrowseName
      * */
     UA_ObjectAttributes oAttr2 = UA_ObjectAttributes_default;

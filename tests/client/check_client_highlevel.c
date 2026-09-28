@@ -195,7 +195,7 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
-    // create View 'AllTopCoordinates' whithin Views Folder
+    // create View 'AllTopCoordinates' within Views Folder
     {
         UA_ViewAttributes attr = UA_ViewAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en-US", "List of all top coordinates");
@@ -491,7 +491,7 @@ START_TEST(Node_AddReadWriteNodes) {
     }
 
 
-    // create View 'AllTopCoordinates' whithin Views Folder
+    // create View 'AllTopCoordinates' within Views Folder
     {
         UA_ViewAttributes attr = UA_ViewAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en-US", "List of all top coordinates");

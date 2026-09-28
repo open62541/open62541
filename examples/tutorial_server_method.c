@@ -105,7 +105,7 @@ IncInt32ArrayMethodCallback(UA_Server *server,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Increate the elements */
+    /* Increase the elements */
     UA_Int32 *outputArray = (UA_Int32*)output->data;
     for(size_t i = 0; i < input->arrayLength; i++)
         outputArray[i] = inputArray[i] + delta;

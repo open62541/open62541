@@ -823,7 +823,7 @@ __Client_Service(UA_Client *client, const void *request,
                  const UA_DataType *responseType) {
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
 
-    /* Initialize. Response is valied in case of aborting. */
+    /* Initialize. Response is valid in case of aborting. */
     UA_init(response, responseType);
 
     /* Verify that the EventLoop is running */

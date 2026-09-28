@@ -796,7 +796,7 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* When a certificate is removed, a transaction is created which is then
-     * executed directly. No apply cahnges is required */
+     * executed directly. No apply changes is required */
     UA_StatusCode retval = UA_GDSTransaction_init(transaction, server, *sessionId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

@@ -176,7 +176,7 @@ static UA_FieldMetaData*
 newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    /* Common encryption key informaton */
+    /* Common encryption key information */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
@@ -196,7 +196,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
 
     UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
 
-    /* Add the encryption key informaton for readergroup */
+    /* Add the encryption key information for readergroup */
     // TODO security token not necessary for readergroup (extracted from security-header)
     UA_Server_setReaderGroupEncryptionKeys(server, readerGroupId, 1, sk, ek, kn);
 

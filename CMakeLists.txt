@@ -2054,7 +2054,7 @@ set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
 set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
 
 foreach ( file ${FILES_TO_INSTALL} )
-    # Construct a relative path by replacing any occurence of the absolute path
+    # Construct a relative path by replacing any occurrence of the absolute path
     set(full_path ${file})
     string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
     string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})

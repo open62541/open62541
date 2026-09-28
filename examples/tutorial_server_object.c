@@ -13,7 +13,7 @@
  * Assume a situation where we want to model a set of pumps and their runtime
  * state in an OPC UA information model. Of course, all pump representations
  * should follow the same basic structure, For example, we might have graphical
- * representation of pumps in a SCADA visualisation that shall be resuable for
+ * representation of pumps in a SCADA visualisation that shall be reusable for
  * all pumps.
  *
  * Following the object-oriented programming paradigm, every pump is represented
@@ -156,7 +156,7 @@ manuallyDefinePump(UA_Server *server) {
  *
  * Children that are marked mandatory are automatically instantiated together
  * with the parent object. This is indicated by a `hasModellingRule` reference
- * to an object that representes the `mandatory` modelling rule. */
+ * to an object that represents the `mandatory` modelling rule. */
 
 /* predefined identifier for later use */
 static UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};

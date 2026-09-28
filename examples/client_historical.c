@@ -87,7 +87,7 @@ readRawModified(const UA_HistoryModifiedData *data) {
     for(size_t i = 0; i < data->dataValuesSize; ++i) {
         printDataValue(&data->dataValues[i]);
     }
-    printf("Modificaton Value count: %llu\n",
+    printf("Modification Value count: %llu\n",
            (long long unsigned)data->modificationInfosSize);
     for(size_t j = 0; j < data->modificationInfosSize; ++j) {
         if(data->modificationInfos[j].userName.data)

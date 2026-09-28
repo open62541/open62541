@@ -67,7 +67,7 @@ _UA_BEGIN_DECLS
  * Server Lifecycle
  * ----------------
  * This section describes the API for creating, running and deleting a server.
- * At runtime, the server continuously listens on the network, acceppts incoming
+ * At runtime, the server continuously listens on the network, accepts incoming
  * connections and processes received messages. Furthermore, timed (cyclic)
  * callbacks are executed. */
 
@@ -77,7 +77,7 @@ _UA_BEGIN_DECLS
  *
  * The default configuration can be used as the starting point to adjust the
  * server configuration to individual needs. UA_Server_new is implemented in the
- * /plugins folder under the CC0 license. Furthermore the server confiugration
+ * /plugins folder under the CC0 license. Furthermore the server configuration
  * only uses the public server API.
  *
  * Returns the configured server or NULL if an error occurs. */
@@ -93,7 +93,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config);
 UA_EXPORT UA_StatusCode
 UA_Server_delete(UA_Server *server);
 
-/* Get the configuration. Always succeeds as this simplfy resolves a pointer.
+/* Get the configuration. Always succeeds as this simply resolves a pointer.
  * Attention! Do not adjust the configuration while the server is running! */
 UA_EXPORT UA_ServerConfig *
 UA_Server_getConfig(UA_Server *server);
@@ -834,7 +834,7 @@ typedef void (*UA_Server_EventNotificationCallback)
     (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
      const UA_KeyValueMap eventFields);
 
-/* Create a local MonitoredItem for Events. The API is simplifed compared to a
+/* Create a local MonitoredItem for Events. The API is simplified compared to a
  * UA_MonitoredItemCreateRequest. The unavailable options are not relevant for
  * local MonitoredItems (e.g. the queue size) or not relevant for Event
  * MonitoredItems (e.g. the sampling interval).
@@ -910,7 +910,7 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
  *
  * VariableNode
  * ~~~~~~~~~~~~
- * Variables store values as well as contraints for possible values. There are
+ * Variables store values as well as constraints for possible values. There are
  * three options for storing the value: Internal in the VariableNode data
  * structure itself, external with a double-pointer (to switch to an updated
  * value with an atomic pointer-replacing operation) or with a callback
@@ -1486,7 +1486,7 @@ UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
  *  - may remove the node if it encounters an error.
  *
  * The special UA_Server_addMethodNode_finish method needs to be used for method
- * nodes, since there you need to explicitly specifiy the input and output
+ * nodes, since there you need to explicitly specify the input and output
  * arguments which are added in the finish step (if not yet already there) */
 
 /* The ``attr`` argument must have a type according to the NodeClass.
@@ -2251,7 +2251,7 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
  * The usual usage is as follows:
  *
  * 1. Create a server configuration with default settings as a starting point
- * 2. Modifiy the configuration, e.g. by adding a server certificate
+ * 2. Modify the configuration, e.g. by adding a server certificate
  * 3. Instantiate a server with it
  * 4. After shutdown of the server, clean up the configuration (free memory)
  *

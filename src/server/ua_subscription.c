@@ -814,7 +814,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         return;
     }
 
-    /* Dsiabled subscriptions do not send notifications */
+    /* Disabled subscriptions do not send notifications */
     UA_UInt32 notifications = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED) ?
         sub->notificationQueueSize : 0;
 
@@ -1277,7 +1277,7 @@ UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon) {
     /* Assertion that at most one notification is in the queue */
     UA_assert(n == TAILQ_LAST(&mon->queue, NotificationQueue));
 
-    /* Remve the Infobits */
+    /* Remove the Infobits */
     n->data.dataChange.value.status &= ~(UA_StatusCode)
         (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 }

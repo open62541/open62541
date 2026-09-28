@@ -34,7 +34,7 @@ typedef struct UA_AsyncResponse UA_AsyncResponse;
  *
  * Also multiple operations come in at the same time from the same request. We
  * do all of this with as little overhead as possible for the case that all
- * operations are synchonous:
+ * operations are synchronous:
  *
  * The results-array for the response message is allocated "too long". After
  * every regular entry follows enough space for another array of

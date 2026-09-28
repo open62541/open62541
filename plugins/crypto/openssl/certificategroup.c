@@ -513,7 +513,7 @@ openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, X509 *cert) {
 static UA_StatusCode
 openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509) *stack,
                     X509 **old_issuers, X509 *cert, int depth) {
-    /* Maxiumum chain length */
+    /* Maximum chain length */
     if(depth == UA_OPENSSL_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
 

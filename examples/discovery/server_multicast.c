@@ -324,7 +324,7 @@ int main(int argc, char **argv) {
 
     /* Check if the server supports sign and encrypt. OPC Foundation LDS
      * requires an encrypted session for RegisterServer call, our server
-     * currently uses encrpytion optionally */
+     * currently uses encryption optionally */
     UA_EndpointDescription *endpointRegister = getRegisterEndpointFromServer(discovery_url);
     UA_free(discovery_url);
     if(endpointRegister == NULL || endpointRegister->securityMode == UA_MESSAGESECURITYMODE_INVALID) {

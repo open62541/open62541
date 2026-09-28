@@ -311,7 +311,7 @@ class TypeParser():
             if detectLoop == len(snippets):
                 name, typeXml = snippets.popitem()
                 raise RuntimeError("Infinite loop detected or type not found while processing types " +
-                                   name + ": unknonwn subtype " + str(unknownTypes(typeXml, self.types, xmlNamespaces)) +
+                                   name + ": unknown subtype " + str(unknownTypes(typeXml, self.types, xmlNamespaces)) +
                                    ". If the unknown subtype is 'Bit', then maybe a struct with " +
                                    "optional fields is defined wrong in the .bsd-file. If not, maybe " +
                                    "you need to import additional types with the --import flag. " +

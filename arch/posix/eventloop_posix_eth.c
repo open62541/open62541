@@ -838,7 +838,7 @@ ETH_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 static ssize_t
 send_txtime(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap *params,
             UA_DateTime txtime, const char *bytes, size_t bytesSize) {
-    /* Get additiona parameters */
+    /* Get additional parameters */
     const UA_UInt16 *txtime_pico = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params,
                                  ethConnectionParams[ETH_PARAMINDEX_TXTIME_PICO].name,

@@ -125,7 +125,7 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
 
 /**
  * We need to add a SecurityGroup for the management of security keys on SKS server.
- * The publishers/subcribers can requests the keys on SKS with their associated
+ * The publishers/subscribers can request the keys on SKS with their associated
  * security groups. The SKS will check if the user credentials used to establish
  * the session have the access to the requested security group managed by SKS.
  */

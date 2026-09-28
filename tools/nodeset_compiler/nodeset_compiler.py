@@ -79,7 +79,7 @@ parser.add_argument('-t', '--types-array',
                     type=str,
                     dest="typesArray",
                     default=[],
-                    help='Types array for the given namespace. Can be used mutliple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
+                    help='Types array for the given namespace. Can be used multiple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,

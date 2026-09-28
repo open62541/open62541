@@ -66,7 +66,7 @@ addReaderGroup(UA_Server *server) {
     UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                              &readerGroupIdentifier);
 
-    /* Add the encryption key informaton */
+    /* Add the encryption key information */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
