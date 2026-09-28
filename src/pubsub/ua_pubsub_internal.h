@@ -269,6 +269,10 @@ typedef struct UA_PubSubConnection {
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+/* Components pending deletion are skipped. An empty name never matches. */
+UA_PubSubConnection *
+UA_PubSubConnection_findByName(UA_PubSubManager *psm, const UA_String name);
+
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm,
                            const UA_PubSubConnectionConfig *connectionConfig,
@@ -276,6 +280,11 @@ UA_PubSubConnection_create(UA_PubSubManager *psm,
 
 UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
+
+/* The connection must be disabled */
+UA_StatusCode
+UA_PubSubConnection_updateConfig(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                                 const UA_PubSubConnectionConfig *config);
 
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
@@ -317,6 +326,9 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
 UA_DataSetWriter *
 UA_DataSetWriter_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+UA_DataSetWriter *
+UA_DataSetWriter_findByName(UA_WriterGroup *wg, const UA_String name);
+
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState);
@@ -350,6 +362,11 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
 UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw);
+
+/* The writer must be disabled */
+UA_StatusCode
+UA_DataSetWriter_updateConfig(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
+                              const UA_DataSetWriterConfig *config);
 
 /**********************************************/
 /*               WriterGroup                  */
@@ -390,6 +407,11 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
+/* The group must be disabled */
+UA_StatusCode
+UA_WriterGroup_updateConfig(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                            const UA_WriterGroupConfig *config);
+
 /* Exposed so we can change the publish interval without having to stop */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
@@ -410,6 +432,10 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
 
 UA_WriterGroup *
 UA_WriterGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
+
+/* Components pending deletion are skipped. An empty name never matches. */
+UA_WriterGroup *
+UA_WriterGroup_findByName(UA_PubSubConnection *c, const UA_String name);
 
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
@@ -494,6 +520,9 @@ struct UA_DataSetReader {
 UA_DataSetReader *
 UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
 
+UA_DataSetReader *
+UA_DataSetReader_findByName(UA_ReaderGroup *rg, const UA_String name);
+
 /* Check ordering and report whether messages are missing. A preliminary check
  * refreshes receive time; update also commits the accepted counter. */
 UA_Boolean
@@ -526,6 +555,11 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr);
+
+/* The reader must be disabled */
+UA_StatusCode
+UA_DataSetReader_updateConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr,
+                              const UA_DataSetReaderConfig *config);
 
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
@@ -574,6 +608,11 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
 UA_StatusCode
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg);
 
+/* The group must be disabled */
+UA_StatusCode
+UA_ReaderGroup_updateConfig(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                            const UA_ReaderGroupConfig *config);
+
 UA_StatusCode
 UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_Boolean validate);
@@ -597,6 +636,10 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
 
 UA_ReaderGroup *
 UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
+
+/* Components pending deletion are skipped. An empty name never matches. */
+UA_ReaderGroup *
+UA_ReaderGroup_findByName(UA_PubSubConnection *c, const UA_String name);
 
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
@@ -837,12 +880,27 @@ UA_PubSubComponent_setPubSubState(UA_PubSubManager *psm, void *component,
                                   UA_PubSubState targetState,
                                   UA_StatusCode errorReason);
 
+UA_PubSubComponentHead *
+UA_PubSubComponent_find(UA_PubSubManager *psm, UA_PubSubComponentType type,
+                        const UA_NodeId id);
+
+/* Remove a component with its children. A connection with open channels is
+ * freed later and unusable until then (deleteFlag), that returns Good. */
+UA_StatusCode
+UA_PubSubComponent_remove(UA_PubSubManager *psm, UA_PubSubComponentHead *head);
+
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId,
                             UA_UInt16 numRegWriterGroupIds,
                             UA_UInt16 numRegDataSetWriterIds,
                             UA_String transportProfileUri, UA_UInt16 **writerGroupIds,
                             UA_UInt16 **dataSetWriterIds);
+
+/* A WriterGroupId or DataSetWriterId (from 0x8000) that is neither used nor
+ * reserved. Returns 0 when all are taken. */
+UA_UInt16
+UA_ReserveId_findFreeId(UA_PubSubManager *psm, UA_String transportProfileUri,
+                        UA_ReserveIdType reserveIdType);
 
 void
 UA_PubSubManager_freeIds(UA_PubSubManager *psm);

@@ -193,6 +193,18 @@ UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id) {
     return NULL;
 }
 
+UA_DataSetReader *
+UA_DataSetReader_findByName(UA_ReaderGroup *rg, const UA_String name) {
+    if(UA_String_isEmpty(&name))
+        return NULL;
+    UA_DataSetReader *dsr;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        if(UA_String_equal(&name, &dsr->config.name))
+            return dsr;
+    }
+    return NULL;
+}
+
 static UA_StatusCode
 validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     /* Reject fixed byte offsets: the default reader locates DataSetMessages
@@ -1255,23 +1267,13 @@ UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsr
 }
 
 UA_StatusCode
-UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
-                                    const UA_DataSetReaderConfig *config) {
-    if(!server || !config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    if(!dsr) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
+UA_DataSetReader_updateConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr,
+                              const UA_DataSetReaderConfig *config) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(UA_PubSubState_isEnabled(dsr->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
                             "The DataSetReader must be disabled to update the config");
-        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1307,7 +1309,6 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
     UA_DataSetReaderConfig_clear(&oldConfig);
     clearLastUsableValues(dsr);
     clearSequences(dsr);
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 
     /* Fall back to the old config */
@@ -1323,6 +1324,24 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
             retVal = reconnect;
         }
     }
+    return retVal;
+}
+
+UA_StatusCode
+UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
+                                    const UA_DataSetReaderConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    if(!dsr) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode retVal = UA_DataSetReader_updateConfig(psm, dsr, config);
     unlockServer(server);
     return retVal;
 }
