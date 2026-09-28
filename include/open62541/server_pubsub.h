@@ -973,6 +973,45 @@ UA_Server_updateSubscribedDataSetConfig(UA_Server *server, const UA_NodeId id,
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
+/**
+ * File-Based Configuration
+ * ------------------------
+ * With ``UA_ENABLE_PUBSUB_FILE_CONFIG`` the PubSub configuration is exchanged
+ * as the PubSubConfiguration file of OPC UA Part 14 v1.05 (9.1.3.7). The file
+ * content is a UA Binary encoded ExtensionObject with a
+ * ``UABinaryFileDataType`` whose body is a ``PubSubConfiguration2DataType``.
+ * The namespaces array of the file maps the namespace indices used in the
+ * body -- unknown namespaces are added to the server and the NodeIds are
+ * remapped.
+ *
+ * - `UA_Server_readPubSubConfiguration` returns the file content.
+ * - `UA_Server_updatePubSubConfiguration` applies a file with the semantics
+ *   of the CloseAndUpdate method: the references select the elements to
+ *   add/match/modify/remove. The top-level fields are handled as defined in
+ *   9.1.3.7.6 (the Enabled field is ignored).
+ * - `UA_PubSubConfiguration_createReferences` creates the references for all
+ *   elements of a file. A complete file is loaded with the references for
+ *   Add in one complete update. The elements of a file are replaced with the
+ *   references for Remove and Add of the same file in one complete update.
+ *
+ * Interaction with the state machine:
+ *
+ * - Element operations never touch components that are not referenced.
+ * - An added component is auto-enabled when the ``enabled`` flag of its file
+ *   element is set. Under a disabled parent it waits in Paused and cascades
+ *   with the parent.
+ * - A modify preserves the operational state: a running component is
+ *   disabled, updated and restored.
+ * - Writer/reader operations temporarily disable the parent group (the
+ *   component model requires that) and restore it afterwards.
+ * - The ``componentLifecycleCallback`` is invoked for every add/remove and
+ *   can veto the element operation; the state-change callbacks fire for all
+ *   transitions triggered by an update.
+ *
+ * Not (yet) supported: SecurityGroup and PushTarget element references,
+ * modify of Published/SubscribedDataSets (use remove + add in one call),
+ * SubscribedDataSetMirror and PublishedEvents elements. */
+
 /* Read the current PubSub configuration as the content of the
  * PubSubConfiguration file (Part 14 v1.05, 9.1.3.7.1): a UA Binary encoded
  * ExtensionObject with a UABinaryFileDataType whose body is a
