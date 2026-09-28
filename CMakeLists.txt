@@ -1104,7 +1104,8 @@ if(UA_ENABLE_PUBSUB)
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c
-                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config_map.c)
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config_map.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config_update.c)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)

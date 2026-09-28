@@ -999,6 +999,63 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
 UA_EXPORT UA_StatusCode
 UA_Server_getPubSubConfig2(UA_Server *server,
                            UA_PubSubConfiguration2DataType *config);
+
+/* The output arguments of the CloseAndUpdate method (Part 14 v1.05
+ * 9.1.3.7.6). Clean up with UA_PubSubConfigurationUpdateResult_clear. */
+typedef struct {
+    UA_Boolean changesApplied;
+
+    /* One status code per input reference */
+    size_t referencesResultsSize;
+    UA_StatusCode *referencesResults;
+
+    /* Names and identifiers assigned by Add/Match if the element had none */
+    size_t configurationValuesSize;
+    UA_PubSubConfigurationValueDataType *configurationValues;
+
+    /* The component per input reference (null NodeId if there is none) */
+    size_t configurationObjectsSize;
+    UA_NodeId *configurationObjects;
+} UA_PubSubConfigurationUpdateResult;
+
+UA_EXPORT void
+UA_PubSubConfigurationUpdateResult_clear(UA_PubSubConfigurationUpdateResult *result);
+
+/* Apply a PubSubConfiguration file with the semantics of the CloseAndUpdate
+ * method (Part 14 v1.05 9.1.3.7.6). The references select the elements and
+ * the operation (add/match/modify/remove).
+ *
+ * Removes run first (children before parents), then datasets, connections,
+ * groups and writers/readers, so the references can come in any order.
+ * Children apply to the component that their parent element was added,
+ * matched or modified to in this call. Otherwise the parent is found by its
+ * non-empty name. Children of a removed or failed element get Bad_NotFound.
+ * A pure Match requires a null name and Id in the element (else
+ * Bad_InvalidArgument); Add|Match uses them for the add.
+ *
+ * Top-level fields: Enabled, DataSetClasses and the ConfigurationVersion are
+ * ignored. A non-empty DefaultSecurityKeyServices replaces the entries.
+ * ConfigurationProperties are merged (a null value deletes the key). Applied
+ * changes set the ConfigurationVersion to the current time.
+ *
+ * With requireCompleteUpdate nothing changes if an element cannot be
+ * converted. If a reference fails later (e.g. missing parent, duplicate name,
+ * lifecycle veto, bad transport or message settings), the applied references
+ * are undone in reverse order without calling the componentLifecycleCallback.
+ * Removed components come back with new NodeIds and restarted sequence
+ * numbers. The failing references report their codes, the others stay Good
+ * and changesApplied is false (true if a change cannot be undone). The
+ * top-level fields are not applied.
+ *
+ * Returns Good if the update was processed (the per-reference results are in
+ * result->referencesResults), Bad_TypeMismatch for an invalid file and
+ * Bad_NothingToDo without references. */
+UA_EXPORT UA_StatusCode
+UA_Server_updatePubSubConfiguration(UA_Server *server, const UA_ByteString *file,
+                                    size_t referencesSize,
+                                    const UA_PubSubConfigurationRefDataType *references,
+                                    UA_Boolean requireCompleteUpdate,
+                                    UA_PubSubConfigurationUpdateResult *result);
 #endif
 
 /* Legacy API */

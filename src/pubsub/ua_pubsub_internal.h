@@ -914,6 +914,25 @@ UA_StatusCode
 UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
                                  UA_MessageSecurityMode securityMode);
 
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+
+/* Decode a configuration file and remap its namespace indices. cfg borrows
+ * from eo, which the caller clears after use. */
+UA_StatusCode
+UA_PubSubManager_decodeConfig2Blob(UA_PubSubManager *psm, const UA_ByteString *buf,
+                                   UA_ExtensionObject *eo,
+                                   UA_PubSubConfiguration2DataType *cfg);
+
+/* UA_Server_updatePubSubConfiguration with the lock held */
+UA_StatusCode
+UA_PubSubManager_updateConfigFile(UA_PubSubManager *psm, const UA_ByteString *file,
+                                  size_t refsSize,
+                                  const UA_PubSubConfigurationRefDataType *refs,
+                                  UA_Boolean requireCompleteUpdate,
+                                  UA_PubSubConfigurationUpdateResult *result);
+
+#endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
+
 /************************************/
 /* Information Model Representation */
 /************************************/
