@@ -522,6 +522,82 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
     ck_assert_uint_eq(warnings, 0);
 } END_TEST
 
+/* Part 3, 5.6.2: The ArrayDimensions Attribute is optional, also for a
+ * ValueRank >= 1. If it is given, the number of elements must match. */
+START_TEST(AddVariableNode_ValueRankOneWithoutArrayDimensions) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array without dims");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_Double zero[3] = {0.0, 0.0, 0.0};
+    UA_Variant_setArray(&attr.value, zero, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "array.nodims"),
+                                  UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "array.nodims"),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Two ArrayDimensions for a ValueRank of one */
+    UA_UInt32 twoDims[2] = {0, 0};
+    attr.arrayDimensions = twoDims;
+    attr.arrayDimensionsSize = 2;
+    res = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "array.twodims"),
+                                    UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "array.twodims"),
+                                    UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADTYPEMISMATCH);
+} END_TEST
+
+START_TEST(WriteEmptyArrayDimensions) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array with dims");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_UInt32 dims[1] = {3};
+    attr.arrayDimensions = dims;
+    attr.arrayDimensionsSize = 1;
+    UA_Double zero[3] = {0.0, 0.0, 0.0};
+    UA_Variant_setArray(&attr.value, zero, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+
+    UA_NodeId arrayId = UA_NODEID_STRING(1, "array.dims");
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, arrayId,
+                                  UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "array.dims"),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Remove the ArrayDimensions */
+    UA_Variant v;
+    UA_Variant_setArray(&v, UA_EMPTY_ARRAY_SENTINEL, 0, &UA_TYPES[UA_TYPES_UINT32]);
+    res = UA_Server_writeArrayDimensions(server, arrayId, v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant out;
+    res = UA_Server_readArrayDimensions(server, arrayId, &out);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.arrayLength, 0);
+    UA_Variant_clear(&out);
+
+    /* A scalar value still rules out a ValueRank of one */
+    UA_VariableAttributes sattr = UA_VariableAttributes_default;
+    sattr.displayName = UA_LOCALIZEDTEXT("en-US", "Scalar");
+    UA_Double scalar = 1.0;
+    UA_Variant_setScalar(&sattr.value, &scalar, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_NodeId scalarId = UA_NODEID_STRING(1, "scalar");
+    res = UA_Server_addVariableNode(server, scalarId,
+                                    UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "scalar"),
+                                    UA_NS0ID(BASEDATAVARIABLETYPE), sattr, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_writeValueRank(server, scalarId, UA_VALUERANK_ONE_DIMENSION);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADTYPEMISMATCH);
+} END_TEST
+
 START_TEST(VariableTypeRestrictionGetsMatchingDefaultValue) {
     UA_Double parentDefault = 42.0;
     UA_VariableTypeAttributes parentAttr = UA_VariableTypeAttributes_default;
@@ -2118,6 +2194,8 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeWrongDims);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
+    tcase_add_test(tc_addnodes, AddVariableNode_ValueRankOneWithoutArrayDimensions);
+    tcase_add_test(tc_addnodes, WriteEmptyArrayDimensions);
     tcase_add_test(tc_addnodes, VariableTypeRestrictionGetsMatchingDefaultValue);
     tcase_add_test(tc_addnodes, AddVariableNodeAdjustsEnumWireType);
     tcase_add_test(tc_addnodes, AbstractVariableTypeBelowHierarchicalParent);

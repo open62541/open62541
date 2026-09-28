@@ -1144,7 +1144,10 @@ compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
  *
  * 5.6.2 Variable NodeClass: If the maximum is unknown the value shall be 0. The
  * number of elements shall be equal to the value of the ValueRank Attribute.
- * This Attribute shall be null if ValueRank <= 0. */
+ * This Attribute shall be null if ValueRank <= 0.
+ *
+ * The ArrayDimensions Attribute is optional. So it can also be null for a
+ * ValueRank >= 1. */
 UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize) {
@@ -1173,7 +1176,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
 
     /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the
        specified number of dimensions */
-    if(arrayDimensionsSize != (size_t)valueRank) {
+    if(arrayDimensionsSize > 0 && arrayDimensionsSize != (size_t)valueRank) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "The number of ArrayDimensions is not equal to "
                             "the (positive) ValueRank");
@@ -1475,8 +1478,9 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the array dimensions match with the wildcards in the
-     * variabletype (dimension length 0) */
-    if(type->arrayDimensions &&
+     * variabletype (dimension length 0). Without ArrayDimensions the maximum
+     * lengths are unknown, the same as all-wildcard dimensions. */
+    if(type->arrayDimensions && arrayDimensionsSize > 0 &&
        !compatibleArrayDimensions(type->arrayDimensionsSize, type->arrayDimensions,
                                   arrayDimensionsSize, arrayDimensions)) {
        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -1539,8 +1543,8 @@ writeValueRank(UA_Server *server, UA_Session *session,
      * the read service to handle data sources. */
     size_t arrayDims = node->arrayDimensionsSize;
     if(arrayDims == 0) {
-        /* the value could be an array with no arrayDimensions defined.
-           dimensions zero indicate a scalar for compatibleValueRankArrayDimensions. */
+        /* The value could be an array with no arrayDimensions defined. Then
+         * it has one implicit dimension. */
         UA_DataValue value;
         UA_DataValue_init(&value);
         UA_StatusCode retval = readValueAttribute(server, session, node, &value);
@@ -1551,9 +1555,14 @@ writeValueRank(UA_Server *server, UA_Session *session,
             node->valueRank = valueRank;
             return UA_STATUSCODE_GOOD;
         }
-        if(!UA_Variant_isScalar(&value.value))
-            arrayDims = 1;
+        UA_Boolean scalar = UA_Variant_isScalar(&value.value);
         UA_DataValue_clear(&value);
+        /* A scalar value does not fit a ValueRank with fixed dimensions. Zero
+         * ArrayDimensions don't rule this out, as they are optional. */
+        if(scalar && valueRank >= UA_VALUERANK_ONE_DIMENSION)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        if(!scalar)
+            arrayDims = 1;
     }
     if(!compatibleValueRankArrayDimensions(server, session, valueRank, arrayDims))
         return UA_STATUSCODE_BADTYPEMISMATCH;
