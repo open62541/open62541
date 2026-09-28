@@ -383,7 +383,11 @@ removeSubtree(UA_Server *server, FileTransferDriver *ftd, FTNode *subtreeRoot) {
         UA_Server_deleteNode(server, node->nodeId, true);
         removeFTNode(ftd, node);
     }
-    UA_Server_deleteNode(server, subtreeRoot->nodeId, true);
+    /* An attached Object belongs to the application and is kept */
+    if(subtreeRoot->mount->attached)
+        setObjectMethodCallbacks(server, ftd, subtreeRoot, false);
+    else
+        UA_Server_deleteNode(server, subtreeRoot->nodeId, true);
     removeFTNode(ftd, subtreeRoot);
 }
 

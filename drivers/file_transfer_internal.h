@@ -58,14 +58,15 @@ struct FTNode {
     UA_NodeId openCountId; /* The OpenCount Property of a file node */
 };
 
-/* A file mount (addFile) only uses the file operations of the backend, the
- * directory operations are NULL */
+/* A file mount (addFile, attachFile) only uses the file operations of the
+ * backend, the directory operations are NULL */
 struct FTMount {
     LIST_ENTRY(FTMount) listEntry;
     UA_NodeId rootNodeId;
     UA_FileTransferBackend backend;
     UA_FileTransferMountOptions options;
     UA_Boolean standaloneFile; /* Created via addFile (no directory tree) */
+    UA_Boolean attached;       /* An existing Object (attachFile) */
 };
 
 typedef struct FileTransferDriver {
@@ -89,6 +90,13 @@ UA_Boolean backendComplete(const UA_FileTransferBackend *b,
                            UA_Boolean standaloneFile, UA_Boolean readOnly);
 UA_StatusCode registerFileTransferMethodCallbacks(UA_Server *server);
 void unregisterFileTransferMethodCallbacks(UA_Server *server);
+/* Set or release the callbacks of the Methods that an Object has of its own:
+ * the copies made with copyMethodsOnInstances or the instance declarations of
+ * a FileType subtype. The Namespace Zero Methods are set when the driver
+ * starts. A Method that another attached Object uses is not released; ftd is
+ * only needed for that. */
+UA_StatusCode setObjectMethodCallbacks(UA_Server *server, FileTransferDriver *ftd,
+                                       const FTNode *node, UA_Boolean install);
 /* With copyMethodsOnInstances an Object gets its own copies of the Methods. A
  * copy takes the callback of the type Method, which is not set while the driver
  * is stopped. So the copies of the Objects the driver creates are bound. */

@@ -49,10 +49,13 @@
  * instead of copying them, so the Part 20 Methods of *every*
  * FileType/FileDirectoryType Object in the server are answered by the driver,
  * which rejects Objects it does not manage. An application that implements
- * FileType Objects itself must not run this driver at the same time. Stopping
- * the driver releases the Method nodes again. With ``copyMethodsOnInstances``,
- * the Objects created by the driver get their own Method copies, which the
- * driver serves as well. */
+ * FileType Objects with these shared Method nodes itself must not run this
+ * driver at the same time. Stopping the driver releases the Method nodes
+ * again. With ``copyMethodsOnInstances``, the Objects created by the driver
+ * get their own Method copies, which the driver serves as well. Other Objects
+ * with their own Method nodes (e.g. the instance declarations of a FileType
+ * subtype) are only served when they are attached with
+ * UA_FileTransferDriver_attachFile(). */
 
 #ifdef UA_ENABLE_DRIVER_FILE_TRANSFER
 
@@ -68,8 +71,9 @@ _UA_BEGIN_DECLS
  * (its first member) with the directory operations.
  *
  * One backend instance is bound to one mount (a FileSystem Object created with
- * UA_FileTransferDriver_addFileSystem() or a file Object created with
- * UA_FileTransferDriver_addFile()). The backend struct is copied and the
+ * UA_FileTransferDriver_addFileSystem(), a file Object created with
+ * UA_FileTransferDriver_addFile() or an existing Object served with
+ * UA_FileTransferDriver_attachFile()). The backend struct is copied and the
  * driver takes ownership of it in all cases: the clear callback is invoked
  * automatically exactly once, either when the mount is removed, when the
  * driver is freed, or immediately when adding the mount fails.
@@ -345,7 +349,8 @@ UA_FileTransferDriver_addFileSystem(UA_FileTransferDriver *driver,
 
 /* Create a new FileType Object for a single backend file. Useful to expose an
  * individual file (configuration, firmware, log) without exposing a
- * directory.
+ * directory. To serve an Object that exists already, e.g. from a nodeset, use
+ * UA_FileTransferDriver_attachFile() instead.
  *
  * @param driver The file transfer driver
  * @param requestedNodeId The requested NodeId for the file Object. Passing
@@ -375,7 +380,8 @@ UA_FileTransferDriver_addFile(UA_FileTransferDriver *driver,
  *
  * @param driver The file transfer driver
  * @param nodeId The FileSystem Object or the file Object of the mount
- * @return The StatusCode of the operation. Bad_NotFound for other nodes. */
+ * @return The StatusCode of the operation. Bad_NotFound for other nodes,
+ *         including Objects attached with UA_FileTransferDriver_attachFile(). */
 UA_EXPORT UA_StatusCode
 UA_FileTransferDriver_remove(UA_FileTransferDriver *driver,
                              const UA_NodeId nodeId);
@@ -391,6 +397,72 @@ UA_FileTransferDriver_remove(UA_FileTransferDriver *driver,
 UA_EXPORT UA_StatusCode
 UA_FileTransferDriver_refresh(UA_FileTransferDriver *driver,
                               const UA_NodeId directoryNodeId);
+
+/* Serve an existing FileType Object instead of creating one (as
+ * UA_FileTransferDriver_addFile() does). Used for Objects that are defined by
+ * the information model, e.g. an Object of a FileType subtype of a companion
+ * specification loaded from a nodeset, or the PubSubConfiguration Object of
+ * Part 14. The driver provides the Properties and answers the FileType
+ * Methods of the Object. Methods of the Object that are not instances of the
+ * FileType Methods (e.g. CloseAndUpdate of Part 14) stay with the
+ * application, see UA_FileTransferDriver_getHandleInfo(). The Object is not
+ * deleted by the driver. Detaching the Object (and a failed attach) resets the
+ * value sources of its Size, Writable, UserWritable and LastModifiedTime
+ * Properties and the callbacks of its FileType Methods.
+ *
+ * @param driver The file transfer driver
+ * @param fileNodeId The existing FileType Object
+ * @param backend The storage backend for this file. Copied and owned by the
+ *        driver as for UA_FileTransferDriver_addFileSystem().
+ * @param path The backend path of the file. Must exist.
+ * @param options Mount options. NULL selects the defaults.
+ * @return The StatusCode of the operation */
+UA_EXPORT UA_StatusCode
+UA_FileTransferDriver_attachFile(UA_FileTransferDriver *driver,
+                                 const UA_NodeId fileNodeId,
+                                 const UA_FileTransferFileBackend *backend,
+                                 const UA_String path,
+                                 const UA_FileTransferMountOptions *options);
+
+/* Stop serving an Object attached with UA_FileTransferDriver_attachFile().
+ * Open handles are closed. The Object is kept.
+ *
+ * @param driver The file transfer driver
+ * @param fileNodeId The attached FileType Object
+ * @return The StatusCode of the operation */
+UA_EXPORT UA_StatusCode
+UA_FileTransferDriver_detachFile(UA_FileTransferDriver *driver,
+                                 const UA_NodeId fileNodeId);
+
+/* The open mode and the backend handle of a FileHandle returned by the Open
+ * Method of the file Object. Used by the Methods of a FileType subtype that
+ * work on an open file (e.g. CloseAndUpdate of Part 14): the application
+ * implements the backend and resolves the backend handle itself.
+ *
+ * @param driver The file transfer driver
+ * @param fileNodeId The file Object
+ * @param sessionId The Session that opened the file (not NULL)
+ * @param fileHandle The FileHandle of the client
+ * @param mode The open mode (can be NULL)
+ * @param backendHandle The handle of the backend (can be NULL)
+ * @return Bad_InvalidArgument for an unknown handle */
+UA_EXPORT UA_StatusCode
+UA_FileTransferDriver_getHandleInfo(UA_FileTransferDriver *driver,
+                                    const UA_NodeId fileNodeId,
+                                    const UA_NodeId *sessionId,
+                                    UA_UInt32 fileHandle, UA_Byte *mode,
+                                    UA_UInt32 *backendHandle);
+
+/* Close a FileHandle as the Close Method does
+ *
+ * @param driver The file transfer driver
+ * @param sessionId The Session that opened the file (not NULL)
+ * @param fileHandle The FileHandle of the client
+ * @return The StatusCode of the backend close */
+UA_EXPORT UA_StatusCode
+UA_FileTransferDriver_closeHandle(UA_FileTransferDriver *driver,
+                                  const UA_NodeId *sessionId,
+                                  UA_UInt32 fileHandle);
 
 _UA_END_DECLS
 

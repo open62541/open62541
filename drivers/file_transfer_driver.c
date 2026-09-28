@@ -212,10 +212,30 @@ unregisterFileTransferMethodCallbacks(UA_Server *server) {
     setFileTransferMethodCallbacks(server, false);
 }
 
+/* Is the Method also a Method of another attached Object? The instance
+ * declarations of a FileType subtype are shared by all its instances. */
+static UA_Boolean
+methodInUse(UA_Server *server, FileTransferDriver *ftd, const FTNode *node,
+            const char *name, const UA_NodeId *methodId) {
+    FTNode *other;
+    LIST_FOREACH(other, &ftd->nodes, listEntry) {
+        if(other == node || !other->mount->attached)
+            continue;
+        UA_NodeId otherMethodId;
+        if(getChildId(server, other->nodeId, name,
+                      &otherMethodId) != UA_STATUSCODE_GOOD)
+            continue;
+        UA_Boolean inUse = UA_NodeId_equal(&otherMethodId, methodId);
+        UA_NodeId_clear(&otherMethodId);
+        if(inUse)
+            return true;
+    }
+    return false;
+}
+
 UA_StatusCode
-bindObjectMethods(UA_Server *server, const FTNode *node) {
-    if(!UA_Server_getConfig(server)->copyMethodsOnInstances)
-        return UA_STATUSCODE_GOOD;
+setObjectMethodCallbacks(UA_Server *server, FileTransferDriver *ftd,
+                         const FTNode *node, UA_Boolean install) {
     const FTMethod *methods = fileTypeMethods;
     size_t methodsSize = UA_FTMETHODS_SIZE(fileTypeMethods);
     if(node->isDirectory) {
@@ -230,14 +250,22 @@ bindObjectMethods(UA_Server *server, const FTNode *node) {
             continue;
         UA_NodeId typeMethodId = UA_NODEID_NUMERIC(0, methods[i].methodId);
         UA_StatusCode methodRes = UA_STATUSCODE_GOOD;
-        if(!UA_NodeId_equal(&methodId, &typeMethodId))
-            methodRes = UA_Server_setMethodNodeCallback(server, methodId,
-                                                        methods[i].callback);
+        if(!UA_NodeId_equal(&methodId, &typeMethodId) &&
+           (install || !methodInUse(server, ftd, node, methods[i].name, &methodId)))
+            methodRes = UA_Server_setMethodNodeCallback(
+                server, methodId, install ? methods[i].callback : NULL);
         UA_NodeId_clear(&methodId);
         if(res == UA_STATUSCODE_GOOD)
             res = methodRes; /* The first failure */
     }
     return res;
+}
+
+UA_StatusCode
+bindObjectMethods(UA_Server *server, const FTNode *node) {
+    if(!UA_Server_getConfig(server)->copyMethodsOnInstances)
+        return UA_STATUSCODE_GOOD;
+    return setObjectMethodCallbacks(server, NULL, node, true);
 }
 
 /**************************************
@@ -460,7 +488,8 @@ addFileSystemLocked(UA_FileTransferDriver *driver,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Remove a mount (a FileSystem root or a file Object) */
+/* Remove a mount created by the driver (a FileSystem root or a file Object).
+ * An attached Object is released with detachFile. */
 static UA_StatusCode
 removeLocked(UA_FileTransferDriver *driver, const UA_NodeId nodeId) {
     FileTransferDriver *ftd = (FileTransferDriver*)driver;
@@ -471,7 +500,7 @@ removeLocked(UA_FileTransferDriver *driver, const UA_NodeId nodeId) {
 
     FTMount *mount = NULL;
     LIST_FOREACH(mount, &ftd->mounts, listEntry) {
-        if(UA_NodeId_equal(&mount->rootNodeId, &nodeId))
+        if(!mount->attached && UA_NodeId_equal(&mount->rootNodeId, &nodeId))
             break;
     }
     if(!mount)
@@ -547,6 +576,101 @@ addFileLocked(UA_FileTransferDriver *driver, const UA_NodeId requestedNodeId,
     else
         UA_NodeId_clear(&fileNodeId);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+attachFileLocked(UA_FileTransferDriver *driver, const UA_NodeId fileNodeId,
+                 UA_FileTransferBackend backend, const UA_String path,
+                 const UA_FileTransferMountOptions *options) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_Driver *drv = &driver->drv;
+    if(!backendComplete(&backend, true, options && options->readOnly))
+        return releaseBackend(&backend, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_StatusCode res = checkDriverAdded(ftd);
+    if(res == UA_STATUSCODE_GOOD && findFTNode(ftd, &fileNodeId))
+        res = UA_STATUSCODE_BADNODEIDEXISTS;
+
+    /* The Object exists (its FileType Properties are checked when they are
+     * set up) and the backend file exists */
+    UA_FileTransferFileInfo info;
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_Server_readNodeClass(drv->server, fileNodeId, &nodeClass);
+    if(res == UA_STATUSCODE_GOOD && nodeClass != UA_NODECLASS_OBJECT)
+        res = UA_STATUSCODE_BADNODECLASSINVALID;
+    if(res == UA_STATUSCODE_GOOD)
+        res = backendGetInfo(&backend.file, path, &info);
+    if(res == UA_STATUSCODE_GOOD && info.isDirectory)
+        res = UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(res != UA_STATUSCODE_GOOD)
+        return releaseBackend(&backend, res);
+
+    FTMount *mount = newMount(ftd, backend, options, true);
+    if(!mount)
+        return releaseBackend(&backend, UA_STATUSCODE_BADOUTOFMEMORY);
+    mount->attached = true;
+
+    FTNode *node = newFTNode(ftd, mount, fileNodeId, path, false);
+    res = (node) ? UA_NodeId_copy(&fileNodeId, &mount->rootNodeId) :
+        UA_STATUSCODE_BADOUTOFMEMORY;
+    if(res == UA_STATUSCODE_GOOD)
+        res = setupFileNode(drv->server, ftd, node, &info);
+    if(res == UA_STATUSCODE_GOOD)
+        res = setObjectMethodCallbacks(drv->server, ftd, node, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(node)
+            removeSubtree(drv->server, ftd, node);
+        removeMount(ftd, mount);
+    }
+    return res;
+}
+
+static UA_StatusCode
+detachFileLocked(UA_FileTransferDriver *driver, const UA_NodeId fileNodeId) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    UA_Driver *drv = &driver->drv;
+    UA_StatusCode res = checkDriverAdded(ftd);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    FTNode *node = findFTNode(ftd, &fileNodeId);
+    if(!node || !node->mount->attached)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    FTMount *mount = node->mount;
+    closeMountHandles(drv->server, ftd, mount);
+    removeSubtree(drv->server, ftd, node);
+    removeMount(ftd, mount);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+getHandleInfoLocked(UA_FileTransferDriver *driver, const UA_NodeId fileNodeId,
+                    const UA_NodeId *sessionId, UA_UInt32 fileHandle,
+                    UA_Byte *mode, UA_UInt32 *backendHandle) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    FTHandle *h = findFTHandle(ftd, sessionId, fileHandle);
+    if(!h || !UA_NodeId_equal(&h->file->nodeId, &fileNodeId))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(mode)
+        *mode = h->mode;
+    if(backendHandle)
+        *backendHandle = h->backendHandle;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+closeHandleLocked(UA_FileTransferDriver *driver, const UA_NodeId *sessionId,
+                  UA_UInt32 fileHandle) {
+    FileTransferDriver *ftd = (FileTransferDriver*)driver;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    FTHandle *h = findFTHandle(ftd, sessionId, fileHandle);
+    if(!h || !driver->drv.server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    return closeFTHandle(driver->drv.server, ftd, h);
 }
 
 static UA_StatusCode
@@ -669,6 +793,59 @@ UA_FileTransferDriver_refresh(UA_FileTransferDriver *driver,
     return res;
 }
 
+UA_StatusCode
+UA_FileTransferDriver_attachFile(UA_FileTransferDriver *driver,
+                                 const UA_NodeId fileNodeId,
+                                 const UA_FileTransferFileBackend *backend,
+                                 const UA_String path,
+                                 const UA_FileTransferMountOptions *options) {
+    if(!driver || !backend)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = lockDriver(driver);
+    UA_StatusCode res = attachFileLocked(driver, fileNodeId,
+                                         fileMountBackend(backend), path, options);
+    unlockDriver(el);
+    return res;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_detachFile(UA_FileTransferDriver *driver,
+                                 const UA_NodeId fileNodeId) {
+    if(!driver)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = lockDriver(driver);
+    UA_StatusCode res = detachFileLocked(driver, fileNodeId);
+    unlockDriver(el);
+    return res;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_getHandleInfo(UA_FileTransferDriver *driver,
+                                    const UA_NodeId fileNodeId,
+                                    const UA_NodeId *sessionId,
+                                    UA_UInt32 fileHandle, UA_Byte *mode,
+                                    UA_UInt32 *backendHandle) {
+    if(!driver)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = lockDriver(driver);
+    UA_StatusCode res = getHandleInfoLocked(driver, fileNodeId, sessionId,
+                                            fileHandle, mode, backendHandle);
+    unlockDriver(el);
+    return res;
+}
+
+UA_StatusCode
+UA_FileTransferDriver_closeHandle(UA_FileTransferDriver *driver,
+                                  const UA_NodeId *sessionId,
+                                  UA_UInt32 fileHandle) {
+    if(!driver)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_EventLoop *el = lockDriver(driver);
+    UA_StatusCode res = closeHandleLocked(driver, sessionId, fileHandle);
+    unlockDriver(el);
+    return res;
+}
+
 /**************************************
  * Lifecycle and Constructor
  **************************************/
@@ -751,7 +928,7 @@ FileTransferDriver_free(UA_Driver *drv) {
      * sources of their Properties carry the FTNode as node context; leaving
      * the nodes live after free would leave the callbacks pointing at freed
      * memory (use-after-free on a later Read when the driver is removed from a
-     * running server). */
+     * running server). An attached Object is released and kept. */
     FTMount *mount, *mountTmp;
     LIST_FOREACH_SAFE(mount, &ftd->mounts, listEntry, mountTmp) {
         FTNode *rootNode = findFTNode(ftd, &mount->rootNodeId);

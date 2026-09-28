@@ -3326,6 +3326,182 @@ START_TEST(replacingEntryIsNotZombie) {
     UA_NodeId_clear(&fsId);
 } END_TEST
 
+/* An existing Object with its own instances of the FileType Methods is served
+ * by the driver. The Methods work on the handles of the driver and the Object
+ * is kept when it is detached. */
+START_TEST(attachExistingFile) {
+    UA_ServerConfig *config = UA_Server_getConfig(server_ft);
+    config->copyMethodsOnInstances = true;
+    UA_NodeId fileId = addFileTypeInstance(server_ft, "AttachedFile");
+    config->copyMethodsOnInstances = false;
+    UA_NodeId openId = resolveChild(server_ft, fileId, "Open");
+    UA_NodeId typeOpenId = UA_NS0ID(FILETYPE_OPEN);
+    ck_assert(!UA_NodeId_equal(&openId, &typeOpenId));
+    UA_NodeId_clear(&openId);
+
+    ck_assert_uint_eq(
+        UA_FileTransferDriver_attachFile(
+            ftDriver, fileId,
+            &backendArg(memBackendWithFile("f.bin", "attached"))->file,
+            UA_STRING("f.bin"), NULL),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_attachFile(
+                          ftDriver, fileId,
+                          &backendArg(memBackendWithFile("f.bin", NULL))->file,
+                          UA_STRING("f.bin"), NULL),
+                      UA_STATUSCODE_BADNODEIDEXISTS);
+    ck_assert_uint_eq(UA_FileTransferDriver_remove(ftDriver, fileId),
+                      UA_STATUSCODE_BADNOTFOUND);
+
+    /* Open and read with the Methods of the Object */
+    UA_Byte mode = UA_OPENFILEMODE_READ | UA_OPENFILEMODE_WRITE;
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &mode, &UA_TYPES[UA_TYPES_BYTE]);
+    UA_CallMethodResult result = callObjectMethod(fileId, "Open", 1, input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 handle = *(UA_UInt32*)result.outputArguments[0].data;
+    UA_CallMethodResult_clear(&result);
+    ck_assert_uint_eq(readOpenCount(fileId), 1);
+
+    UA_Int32 length = 100;
+    UA_Variant_setScalar(&input[0], &handle, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &length, &UA_TYPES[UA_TYPES_INT32]);
+    result = callObjectMethod(fileId, "Read", 2, input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_ByteString expected = UA_BYTESTRING("attached");
+    ck_assert(UA_ByteString_equal((UA_ByteString*)result.outputArguments[0].data,
+                                  &expected));
+    UA_CallMethodResult_clear(&result);
+
+    /* The handle is available to the application and can be closed */
+    const UA_NodeId *sessionId = &server_ft->adminSession.sessionId;
+    UA_Byte handleMode = 0;
+    UA_UInt32 backendHandle = 0;
+    ck_assert_uint_eq(
+        UA_FileTransferDriver_getHandleInfo(ftDriver, fileId, sessionId, handle,
+                                            &handleMode, &backendHandle),
+        UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(handleMode, mode);
+    ck_assert_uint_ne(backendHandle, 0);
+    ck_assert_uint_eq(
+        UA_FileTransferDriver_getHandleInfo(ftDriver, UA_NS0ID(OBJECTSFOLDER),
+                                            sessionId, handle, NULL, NULL),
+        UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_FileTransferDriver_closeHandle(ftDriver, sessionId, handle),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readOpenCount(fileId), 0);
+    ck_assert_uint_eq(UA_FileTransferDriver_getHandleInfo(
+                          ftDriver, fileId, sessionId, handle, NULL, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Detaching closes the handles and keeps the Object */
+    UA_Variant_setScalar(&input[0], &mode, &UA_TYPES[UA_TYPES_BYTE]);
+    result = callObjectMethod(fileId, "Open", 1, input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+    ck_assert_uint_eq(UA_FileTransferDriver_detachFile(ftDriver, fileId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_detachFile(ftDriver, fileId),
+                      UA_STATUSCODE_BADNOTFOUND);
+    UA_NodeClass nodeClass;
+    ck_assert_uint_eq(UA_Server_readNodeClass(server_ft, fileId, &nodeClass),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant value;
+    readProperty(fileId, "Size", &value);
+    UA_Variant_clear(&value);
+    result = callObjectMethod(fileId, "Open", 1, input);
+    ck_assert_uint_ne(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    /* Attach again, the driver releases the Object when it is freed */
+    ck_assert_uint_eq(UA_FileTransferDriver_attachFile(
+                          ftDriver, fileId,
+                          &backendArg(memBackendWithFile("f.bin", "again"))->file,
+                          UA_STRING("f.bin"), NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_FileTransferDriver_attachFile(
+                          ftDriver, UA_NODEID_NUMERIC(1, 999999),
+                          &backendArg(memBackendWithFile("f.bin", NULL))->file,
+                          UA_STRING("f.bin"), NULL),
+                      UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_NodeId_clear(&fileId);
+} END_TEST
+
+/* The instance declarations of a FileType subtype are shared by its
+ * instances. Detaching one instance keeps them for the others. */
+START_TEST(detachKeepsSharedSubtypeMethods) {
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 50000);
+    UA_ObjectTypeAttributes typeAttr = UA_ObjectTypeAttributes_default;
+    typeAttr.displayName = UA_LOCALIZEDTEXT("", "SubtypeFile");
+    ck_assert_uint_eq(UA_Server_addObjectTypeNode(server_ft, typeId,
+                                                  UA_NS0ID(FILETYPE),
+                                                  UA_NS0ID(HASSUBTYPE),
+                                                  UA_QUALIFIEDNAME(1, "SubtypeFile"),
+                                                  typeAttr, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    UA_NodeId openId = UA_NODEID_NUMERIC(1, 50001);
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.displayName = UA_LOCALIZEDTEXT("", "Open");
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+    UA_Argument inArg, outArg;
+    UA_Argument_init(&inArg);
+    UA_Argument_init(&outArg);
+    inArg.name = UA_STRING("Mode");
+    inArg.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    inArg.valueRank = UA_VALUERANK_SCALAR;
+    outArg.name = UA_STRING("FileHandle");
+    outArg.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outArg.valueRank = UA_VALUERANK_SCALAR;
+    ck_assert_uint_eq(UA_Server_addMethodNode(server_ft, openId, typeId,
+                                              UA_NS0ID(HASCOMPONENT),
+                                              UA_QUALIFIEDNAME(0, "Open"),
+                                              methodAttr, NULL, 1, &inArg, 1,
+                                              &outArg, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_addReference(server_ft, openId,
+                                             UA_NS0ID(HASMODELLINGRULE),
+                                             UA_NS0EXID(MODELLINGRULE_MANDATORY),
+                                             true), UA_STATUSCODE_GOOD);
+
+    UA_NodeId files[2];
+    const char *names[2] = {"SubtypeA", "SubtypeB"};
+    for(size_t i = 0; i < 2; i++) {
+        ck_assert_uint_eq(UA_Server_addObjectNode(server_ft, UA_NODEID_NULL,
+                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                              UA_QUALIFIEDNAME(1, (char*)(uintptr_t)names[i]),
+                              typeId, UA_ObjectAttributes_default, NULL,
+                              &files[i]), UA_STATUSCODE_GOOD);
+        UA_NodeId instanceOpenId = resolveChild(server_ft, files[i], "Open");
+        ck_assert(UA_NodeId_equal(&instanceOpenId, &openId));
+        UA_NodeId_clear(&instanceOpenId);
+        ck_assert_uint_eq(
+            UA_FileTransferDriver_attachFile(
+                ftDriver, files[i],
+                &backendArg(memBackendWithFile("f.bin", "data"))->file,
+                UA_STRING("f.bin"), NULL),
+            UA_STATUSCODE_GOOD);
+    }
+
+    UA_Byte mode = UA_OPENFILEMODE_READ;
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &mode, &UA_TYPES[UA_TYPES_BYTE]);
+    ck_assert_uint_eq(UA_FileTransferDriver_detachFile(ftDriver, files[0]),
+                      UA_STATUSCODE_GOOD);
+    UA_CallMethodResult result = callObjectMethod(files[1], "Open", 1, &input);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    /* The last user releases the Method */
+    ck_assert_uint_eq(UA_FileTransferDriver_detachFile(ftDriver, files[1]),
+                      UA_STATUSCODE_GOOD);
+    result = callObjectMethod(files[1], "Open", 1, &input);
+    ck_assert_uint_ne(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+    UA_NodeId_clear(&files[0]);
+    UA_NodeId_clear(&files[1]);
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_FILETRANSFER */
 
 int main(void) {
@@ -3359,6 +3535,8 @@ int main(void) {
     tcase_add_test(tc_file, fileWriteRespectsMaxByteStringLength);
     tcase_add_test(tc_file, readOnlyBackendNeedsNoWriteCallbacks);
     tcase_add_test(tc_file, userWritableFollowsStorage);
+    tcase_add_test(tc_file, attachExistingFile);
+    tcase_add_test(tc_file, detachKeepsSharedSubtypeMethods);
     tcase_add_test(tc_file, fileMimeType);
 #endif
     tcase_add_checked_fixture(tc_file, setup, teardown);
