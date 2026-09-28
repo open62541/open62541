@@ -583,6 +583,33 @@ updatePubSubConfig(UA_PubSubManager *psm,
 }
 
 UA_StatusCode
+UA_PubSubManager_decodeConfig2Blob(UA_PubSubManager *psm, const UA_ByteString *buf,
+                                   UA_ExtensionObject *eo,
+                                   UA_PubSubConfiguration2DataType *cfg) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
+
+    size_t offset = 0;
+    UA_StatusCode res = UA_ExtensionObject_decodeBinary(buf, &offset, eo);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "PubSub configuration file: Decoding failed");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    UA_String *namespaces = NULL;
+    size_t namespacesSize = 0;
+    res = extractPubSubConfig2FromExtensionObject(psm, eo, cfg,
+                                                  &namespaces, &namespacesSize);
+    if(res == UA_STATUSCODE_GOOD)
+        res = remapNamespaces(psm, cfg, namespaces, namespacesSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_clear(eo);
+        UA_ExtensionObject_init(eo);
+    }
+    return res;
+}
+
+UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server, const UA_ByteString buffer) {
     if(server == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -595,37 +622,18 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server, const UA_ByteString 
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    size_t offset = 0;
     UA_ExtensionObject decodedFile;
-    UA_StatusCode res =
-        UA_ExtensionObject_decodeBinary(&buffer, &offset, &decodedFile);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration file: Decoding failed");
-        goto cleanup;
-    }
-
+    UA_ExtensionObject_init(&decodedFile);
     UA_PubSubConfiguration2DataType config;
-    UA_String *namespaces = NULL;
-    size_t namespacesSize = 0;
-    res = extractPubSubConfig2FromExtensionObject(psm, &decodedFile, &config,
-                                                  &namespaces, &namespacesSize);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Remap the namespace indices to the server NamespaceArray */
-    res = remapNamespaces(psm, &config, namespaces, namespacesSize);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    res = updatePubSubConfig(psm, &config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "PubSub configuration file: Loading failed");
-        goto cleanup;
+    UA_StatusCode res =
+        UA_PubSubManager_decodeConfig2Blob(psm, &buffer, &decodedFile, &config);
+    if(res == UA_STATUSCODE_GOOD) {
+        res = updatePubSubConfig(psm, &config);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                         "PubSub configuration file: Loading failed");
     }
 
- cleanup:
     unlockServer(server);
     UA_ExtensionObject_clear(&decodedFile);
     return res;

@@ -920,6 +920,27 @@ UA_StatusCode
 UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
                                  UA_MessageSecurityMode securityMode);
 
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+
+/* Decode a configuration file. The returned cfg is a borrowing view into eo --
+ * the caller clears eo after use. Namespace indices in the body are remapped
+ * to the server NamespaceArray. */
+UA_StatusCode
+UA_PubSubManager_decodeConfig2Blob(UA_PubSubManager *psm, const UA_ByteString *buf,
+                                   UA_ExtensionObject *eo,
+                                   UA_PubSubConfiguration2DataType *cfg);
+
+/* Decode the file content and apply the element operations of CloseAndUpdate
+ * (lock held). Same semantics as UA_Server_updatePubSubConfiguration. */
+UA_StatusCode
+UA_PubSubManager_updateConfigFile(UA_PubSubManager *psm, const UA_ByteString *file,
+                                  size_t refsSize,
+                                  const UA_PubSubConfigurationRefDataType *refs,
+                                  UA_Boolean requireCompleteUpdate,
+                                  UA_PubSubConfigurationUpdateResult *result);
+
+#endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
+
 /************************************/
 /* Information Model Representation */
 /************************************/

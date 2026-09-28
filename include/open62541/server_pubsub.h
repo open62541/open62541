@@ -999,6 +999,75 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
 UA_EXPORT UA_StatusCode
 UA_Server_getPubSubConfig2(UA_Server *server,
                            UA_PubSubConfiguration2DataType *config);
+
+/* Result of a configuration update. Matches the output arguments of the Part
+ * 14 v1.05 CloseAndUpdate method (9.1.3.7.6). Clean up with
+ * UA_PubSubConfigurationUpdateResult_clear. */
+typedef struct {
+    UA_Boolean changesApplied;
+
+    /* Per-reference status codes, 1:1 with the input references */
+    size_t referencesResultsSize;
+    UA_StatusCode *referencesResults;
+
+    /* Assigned names and identifiers for Add/Match operations where the
+     * element provided an empty name or null identifier */
+    size_t configurationValuesSize;
+    UA_PubSubConfigurationValueDataType *configurationValues;
+
+    /* NodeIds of the affected components, 1:1 with the input references
+     * (null NodeId when the operation did not produce/find a component) */
+    size_t configurationObjectsSize;
+    UA_NodeId *configurationObjects;
+} UA_PubSubConfigurationUpdateResult;
+
+UA_EXPORT void
+UA_PubSubConfigurationUpdateResult_clear(UA_PubSubConfigurationUpdateResult *result);
+
+/* Apply an update to the running PubSub configuration with the semantics of
+ * the Part 14 v1.05 CloseAndUpdate method (9.1.3.7.6). The file is the content
+ * of the PubSubConfiguration file (see above), the references select the
+ * elements to add/match/modify/remove. Returns Bad_TypeMismatch for an
+ * invalid file and Bad_NothingToDo without references.
+ *
+ * Remove operations are processed first, children before their parents. The
+ * other operations run in the order PublishedDataSets/SubscribedDataSets,
+ * Connections, groups, writers/readers, so the references can be given in any
+ * order. A connection or group element referenced in the call is bound to the
+ * component it was added, matched or modified to, and its children are
+ * applied to that component. An element that is not referenced identifies
+ * the component by its (non-empty) name. Children of an element that was
+ * removed or failed in the call report Bad_NotFound. A pure Match requires a
+ * null name and Id in the element (Bad_InvalidArgument otherwise). For
+ * Add|Match they are used when the element is added.
+ *
+ * Top-level fields: Enabled and DataSetClasses are ignored,
+ * DefaultSecurityKeyServices replaces the existing entries if non-empty,
+ * ConfigurationProperties are merged (null value deletes the key), the
+ * ConfigurationVersion input is ignored and set to the current time when
+ * changes were applied.
+ *
+ * With requireCompleteUpdate the update is only applied if all references
+ * can be applied. The referenced elements are converted first and nothing is
+ * changed if an element cannot be converted. A failure when applying a
+ * reference (e.g. a missing parent, a duplicate name, an application veto in
+ * the componentLifecycleCallback, transport or message settings) rolls back
+ * the applied references in reverse order: added components are removed,
+ * modified components get their prior config and removed components are
+ * recreated with new NodeIds (the sequence numbers restart). The
+ * componentLifecycleCallback is not called for the rollback. The failing
+ * references report their codes, the other references stay Good and
+ * changesApplied is false. The top-level fields are not applied. If a change
+ * cannot be undone, changesApplied is true.
+ *
+ * The method returns GOOD when the update was processed -- per-element
+ * failures are reported in result->referencesResults. */
+UA_EXPORT UA_StatusCode
+UA_Server_updatePubSubConfiguration(UA_Server *server, const UA_ByteString *file,
+                                    size_t referencesSize,
+                                    const UA_PubSubConfigurationRefDataType *references,
+                                    UA_Boolean requireCompleteUpdate,
+                                    UA_PubSubConfigurationUpdateResult *result);
 #endif
 
 /* Legacy API */
