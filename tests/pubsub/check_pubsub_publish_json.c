@@ -15,8 +15,41 @@
 #include <check.h>
 #include <stdlib.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+# include <pthread.h>
+#endif
+
 UA_Server *server = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
+
+#if defined(__unix__) || defined(__APPLE__)
+typedef struct {
+    UA_Server *server;
+    UA_WriterGroup *writerGroup;
+} PublishContext;
+
+typedef struct {
+    UA_Server *server;
+    UA_ReaderGroup *readerGroup;
+    UA_Boolean result;
+} ReceiveContext;
+
+static void *
+publishOnSmallStack(void *data) {
+    PublishContext *ctx = (PublishContext*)data;
+    UA_WriterGroup_publishCallback(ctx->server, ctx->writerGroup);
+    return NULL;
+}
+
+static void *
+receiveOnSmallStack(void *data) {
+    ReceiveContext *ctx = (ReceiveContext*)data;
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ctx->result = UA_ReaderGroup_decodeAndProcessRT(
+        ctx->server, ctx->readerGroup, &empty);
+    return NULL;
+}
+#endif
 
 static void setup(void) {
     server = UA_Server_new();
@@ -112,13 +145,77 @@ START_TEST(SinglePublishDataSetField){
     ck_assert_int_eq(state, UA_PUBSUBSTATE_OPERATIONAL);
 } END_TEST
 
+START_TEST(PublishManyDataSetWritersOnSmallStack) {
+#if defined(__unix__) || defined(__APPLE__)
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name = UA_STRING("WriterGroup with many writers");
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_StatusCode res = UA_Server_addWriterGroup(
+        server, connection1, &writerGroupConfig, &writerGroup1);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    ck_assert_ptr_nonnull(wg);
+    const size_t writersCount = 4096;
+    UA_DataSetWriter *writers = (UA_DataSetWriter*)
+        UA_calloc(writersCount, sizeof(UA_DataSetWriter));
+    ck_assert_ptr_nonnull(writers);
+    for(size_t i = 0; i < writersCount; i++)
+        LIST_INSERT_HEAD(&wg->writers, &writers[i], listEntry);
+    wg->writersCount = (UA_UInt32)writersCount;
+
+    PublishContext ctx = {server, wg};
+    pthread_attr_t attr;
+    ck_assert_int_eq(pthread_attr_init(&attr), 0);
+    ck_assert_int_eq(pthread_attr_setstacksize(&attr, 128 * 1024), 0);
+    pthread_t worker;
+    ck_assert_int_eq(pthread_create(&worker, &attr,
+                                    publishOnSmallStack, &ctx), 0);
+    ck_assert_int_eq(pthread_attr_destroy(&attr), 0);
+    ck_assert_int_eq(pthread_join(worker, NULL), 0);
+
+    LIST_INIT(&wg->writers);
+    wg->writersCount = 0;
+    UA_free(writers);
+#endif
+}
+END_TEST
+
+START_TEST(MatchManyDataSetReadersOnSmallStack) {
+#if defined(__unix__) || defined(__APPLE__)
+    UA_ReaderGroup readerGroup;
+    memset(&readerGroup, 0, sizeof(readerGroup));
+    LIST_INIT(&readerGroup.readers);
+    readerGroup.readersCount = 256 * 1024;
+
+    ReceiveContext ctx = {server, &readerGroup, true};
+    pthread_attr_t attr;
+    ck_assert_int_eq(pthread_attr_init(&attr), 0);
+    ck_assert_int_eq(pthread_attr_setstacksize(&attr, 128 * 1024), 0);
+    pthread_t worker;
+    ck_assert_int_eq(pthread_create(&worker, &attr,
+                                    receiveOnSmallStack, &ctx), 0);
+    ck_assert_int_eq(pthread_attr_destroy(&attr), 0);
+    ck_assert_int_eq(pthread_join(worker, NULL), 0);
+    ck_assert(!ctx.result);
+#endif
+}
+END_TEST
+
 int main(void) {
     TCase *tc_pubsub_publish = tcase_create("PubSub publish");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
 
+    TCase *tc_stack_hardening = tcase_create("PubSub stack hardening");
+    tcase_add_checked_fixture(tc_stack_hardening, setup, teardown);
+    tcase_add_test(tc_stack_hardening, PublishManyDataSetWritersOnSmallStack);
+    tcase_add_test(tc_stack_hardening, MatchManyDataSetReadersOnSmallStack);
+
     Suite *s = suite_create("PubSub publishing json via udp");
     suite_add_tcase(s, tc_pubsub_publish);
+    suite_add_tcase(s, tc_stack_hardening);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
