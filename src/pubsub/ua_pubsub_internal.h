@@ -186,6 +186,12 @@ UA_PublishedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id);
 UA_PublishedDataSet *
 UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name);
 
+/* Deep copy of the publish parameters of the DataSetFields */
+UA_StatusCode
+UA_PublishedDataSet_getPublishedData(const UA_PublishedDataSet *pds,
+                                     UA_PublishedVariableDataType **data,
+                                     size_t *dataSize);
+
 UA_AddPublishedDataSetResult
 UA_PublishedDataSet_create(UA_PubSubManager *psm,
                            const UA_PublishedDataSetConfig *publishedDataSetConfig,

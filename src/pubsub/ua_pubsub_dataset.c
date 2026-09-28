@@ -100,6 +100,33 @@ UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name) {
     return tmpPDS;
 }
 
+UA_StatusCode
+UA_PublishedDataSet_getPublishedData(const UA_PublishedDataSet *pds,
+                                     UA_PublishedVariableDataType **data,
+                                     size_t *dataSize) {
+    *dataSize = 0;
+    *data = (UA_PublishedVariableDataType*)
+        UA_Array_new(pds->fieldSize, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+    if(!*data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    size_t i = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_DataSetField *dsf;
+    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+        res |= UA_PublishedVariableDataType_copy(
+            &dsf->config.field.variable.publishParameters, &(*data)[i]);
+        i++;
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(*data, pds->fieldSize,
+                        &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+        *data = NULL;
+        return res;
+    }
+    *dataSize = pds->fieldSize;
+    return UA_STATUSCODE_GOOD;
+}
+
 void
 UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
     /* delete pds config */
