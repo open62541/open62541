@@ -497,24 +497,10 @@ UA_PublishedDataSet_toDataType(const UA_PublishedDataSet *pds,
         UA_PublishedDataSetDataType_clear(dst);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    pdi->publishedData = (UA_PublishedVariableDataType*)
-        UA_Array_new(pds->fieldSize, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-    if(pds->fieldSize > 0 && !pdi->publishedData) {
-        UA_free(pdi);
-        UA_PublishedDataSetDataType_clear(dst);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    pdi->publishedDataSize = pds->fieldSize;
-
-    size_t i = 0;
-    UA_DataSetField *dsf;
-    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-        res |= UA_PublishedVariableDataType_copy(
-            &dsf->config.field.variable.publishParameters, &pdi->publishedData[i]);
-        i++;
-    }
     UA_ExtensionObject_setValue(&dst->dataSetSource, pdi,
                                 &UA_TYPES[UA_TYPES_PUBLISHEDDATAITEMSDATATYPE]);
+    res |= UA_PublishedDataSet_getPublishedData(pds, &pdi->publishedData,
+                                                &pdi->publishedDataSize);
 
     if(res != UA_STATUSCODE_GOOD)
         UA_PublishedDataSetDataType_clear(dst);
