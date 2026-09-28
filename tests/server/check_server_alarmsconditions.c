@@ -1888,10 +1888,11 @@ createTestSession(const char *userId) {
     return session;
 }
 
-/* Helper: create a Subscription with an event MonitoredItem on the Server
- * object. The select clauses are EventId and EventType. */
+/* Helper: create a Subscription with a MonitoredItem on the Server object. An
+ * event item selects EventId and EventType, otherwise the BrowseName is
+ * monitored. */
 static UA_UInt32
-createEventSubscription(UA_Session *session) {
+createTestSubscription(UA_Session *session, UA_Boolean eventItem) {
     UA_CreateSubscriptionRequest subRequest;
     UA_CreateSubscriptionRequest_init(&subRequest);
     subRequest.publishingEnabled = true;
@@ -1922,11 +1923,13 @@ createEventSubscription(UA_Session *session) {
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
     item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    item.itemToMonitor.attributeId = eventItem ?
+        UA_ATTRIBUTEID_EVENTNOTIFIER : UA_ATTRIBUTEID_BROWSENAME;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
     item.requestedParameters.queueSize = 10;
-    UA_ExtensionObject_setValue(&item.requestedParameters.filter, &filter,
-                                &UA_TYPES[UA_TYPES_EVENTFILTER]);
+    if(eventItem)
+        UA_ExtensionObject_setValue(&item.requestedParameters.filter, &filter,
+                                    &UA_TYPES[UA_TYPES_EVENTFILTER]);
 
     UA_CreateMonitoredItemsRequest request;
     UA_CreateMonitoredItemsRequest_init(&request);
@@ -2026,7 +2029,7 @@ START_TEST(conditionRefresh_keepsEventId) {
 
     /* Subscribe after the event, so that only the refresh is queued */
     UA_Session *session = createTestSession(NULL);
-    UA_UInt32 subscriptionId = createEventSubscription(session);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
     ck_assert_uint_eq(callConditionRefresh(session, subscriptionId),
                       UA_STATUSCODE_GOOD);
 
@@ -2061,7 +2064,7 @@ START_TEST(conditionRefresh_transferredSubscription) {
     /* The default AccessControl allows the transfer for the same user */
     UA_Session *oldSession = createTestSession("operator");
     UA_Session *newSession = createTestSession("operator");
-    UA_UInt32 subscriptionId = createEventSubscription(oldSession);
+    UA_UInt32 subscriptionId = createTestSubscription(oldSession, true);
 
     UA_TransferSubscriptionsRequest request;
     UA_TransferSubscriptionsRequest_init(&request);
@@ -2116,6 +2119,26 @@ START_TEST(conditionRefresh_transferredSubscription) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+/* ConditionRefresh on a Subscription without event MonitoredItems has nothing
+ * to do (Part 9, 5.5.7) */
+START_TEST(conditionRefresh_noEventItems) {
+    /* The first condition registers the method callbacks */
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        "NoEventItemsCondition", source);
+
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, false);
+    ck_assert_uint_eq(callConditionRefresh(session, subscriptionId),
+                      UA_STATUSCODE_BADNOTHINGTODO);
+    ck_assert_uint_eq(callConditionRefresh(session, subscriptionId + 1),
+                      UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -2132,6 +2155,7 @@ int main(void) {
     tcase_add_test(tc_call, conditionRefresh_replacedInputArguments);
     tcase_add_test(tc_call, conditionRefresh_keepsEventId);
     tcase_add_test(tc_call, conditionRefresh_transferredSubscription);
+    tcase_add_test(tc_call, conditionRefresh_noEventItems);
 #endif
     tcase_add_checked_fixture(tc_call, setup, teardown);
     suite_add_tcase(s, tc_call);
