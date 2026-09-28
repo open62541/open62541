@@ -11,6 +11,7 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "test_helpers.h"
 #include "testing_clock.h"
@@ -171,6 +172,30 @@ START_TEST(Client_connect) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The client sends the URL it connects to as the EndpointUrl of its HEL.
+ * Part 6 requires less than 4096 bytes and BadTcpEndpointUrlInvalid beyond. */
+START_TEST(Client_connect_endpointUrlLimit) {
+    const char *prefix = "opc.tcp://localhost:4840/";
+    size_t prefixLen = strlen(prefix);
+    char url[4097];
+    memcpy(url, prefix, prefixLen);
+    memset(url + prefixLen, 'a', sizeof(url) - 1 - prefixLen);
+
+    url[4095] = 0;
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, url), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    url[4095] = 'a';
+    url[4096] = 0;
+    client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, url),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
     UA_Client_delete(client);
 }
 END_TEST
@@ -1031,6 +1056,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, ClientConfig_Copy);
     tcase_add_test(tc_client, ClientConfig_CopyOwnedMembers);
     tcase_add_test(tc_client, Client_connect);
+    tcase_add_test(tc_client, Client_connect_endpointUrlLimit);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);
     tcase_add_test(tc_client, Client_endpoints);
