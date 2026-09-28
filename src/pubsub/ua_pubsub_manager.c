@@ -804,7 +804,7 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            if (psm->pubSubInitialSetupMode) {
+            if(psm->pubSubInitialSetupMode && c->config.enabled) {
                 UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
             } else {
                 UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
@@ -901,6 +901,15 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     TAILQ_FOREACH_SAFE(tmpSDS1, &psm->subscribedDataSets, listEntry, tmpSDS2) {
         UA_SubscribedDataSet_remove(psm, tmpSDS1);
     }
+
+    /* Remove the top-level configuration metadata */
+    psm->configurationVersion = 0;
+    UA_KeyValueMap_clear(&psm->configurationProperties);
+    UA_Array_delete(psm->defaultSecurityKeyServices,
+                    psm->defaultSecurityKeyServicesSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    psm->defaultSecurityKeyServices = NULL;
+    psm->defaultSecurityKeyServicesSize = 0;
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     /* Remove the SecurityGroups */

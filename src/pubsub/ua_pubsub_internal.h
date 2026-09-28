@@ -11,6 +11,7 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_INTERNAL_H_
@@ -213,6 +214,11 @@ UA_SubscribedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_SubscribedDataSet *
 UA_SubscribedDataSet_findByName(UA_PubSubManager *psm, const UA_String name);
+
+UA_StatusCode
+UA_SubscribedDataSet_create(UA_PubSubManager *psm,
+                            const UA_SubscribedDataSetConfig *sdsConfig,
+                            UA_NodeId *sdsIdentifier);
 
 void
 UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds);
@@ -649,6 +655,97 @@ UA_SecurityGroup_remove(UA_PubSubManager *psm, UA_SecurityGroup *sg);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
+/**********************************************/
+/*      Configuration DataType Mapping        */
+/**********************************************/
+
+/* Mapping between the Part 14 configuration DataTypes and the internal
+ * UA_*Config structures (implemented in ua_pubsub_config_map.c).
+ *
+ * The _fromDataType converters create a borrowing view of the source
+ * DataType. The view must not outlive the source and must not be cleared with
+ * the regular _clear functions. Configs with a converted PublisherId
+ * (Connection, DataSetReader) own that member and must be cleaned up with the
+ * matching _clearView function. */
+
+UA_StatusCode
+UA_PubSubConnectionConfig_fromDataType(const UA_PubSubConnectionDataType *src,
+                                       UA_PubSubConnectionConfig *dst);
+
+void
+UA_PubSubConnectionConfig_clearView(UA_PubSubConnectionConfig *config);
+
+UA_StatusCode
+UA_WriterGroupConfig_fromDataType(const UA_WriterGroupDataType *src,
+                                  UA_WriterGroupConfig *dst);
+
+UA_StatusCode
+UA_DataSetWriterConfig_fromDataType(const UA_DataSetWriterDataType *src,
+                                    UA_DataSetWriterConfig *dst);
+
+UA_StatusCode
+UA_ReaderGroupConfig_fromDataType(const UA_ReaderGroupDataType *src,
+                                  UA_ReaderGroupConfig *dst);
+
+UA_StatusCode
+UA_DataSetReaderConfig_fromDataType(const UA_DataSetReaderDataType *src,
+                                    UA_DataSetReaderConfig *dst);
+
+void
+UA_DataSetReaderConfig_clearView(UA_DataSetReaderConfig *config);
+
+UA_StatusCode
+UA_PublishedDataSetConfig_fromDataType(const UA_PublishedDataSetDataType *src,
+                                       UA_PublishedDataSetConfig *dst);
+
+UA_StatusCode
+UA_DataSetFieldConfig_fromDataType(const UA_PublishedDataSetDataType *src,
+                                   size_t fieldIndex, UA_DataSetFieldConfig *dst);
+
+/* Creates the DataSetFields of the PublishedDataSetDataType in an existing
+ * PublishedDataSet. The FieldMetaData and the DataSetMetaData (description,
+ * DataSetClassId, ...) are kept verbatim from the source, as the field configs
+ * do not carry every member. */
+UA_StatusCode
+UA_PublishedDataSet_addFieldsFromDataType(UA_PubSubManager *psm,
+                                          const UA_NodeId pdsId,
+                                          const UA_PublishedDataSetDataType *src);
+
+UA_StatusCode
+UA_SubscribedDataSetConfig_fromDataType(const UA_StandaloneSubscribedDataSetDataType *src,
+                                        UA_SubscribedDataSetConfig *dst);
+
+/* The _toDataType converters create a deep copy. The enabled flag of the
+ * DataType is set by the caller (from the current component state). */
+
+UA_StatusCode
+UA_PubSubConnectionConfig_toDataType(const UA_PubSubConnectionConfig *src,
+                                     UA_PubSubConnectionDataType *dst);
+
+UA_StatusCode
+UA_WriterGroupConfig_toDataType(const UA_WriterGroupConfig *src,
+                                UA_WriterGroupDataType *dst);
+
+UA_StatusCode
+UA_DataSetWriterConfig_toDataType(const UA_DataSetWriterConfig *src,
+                                  UA_DataSetWriterDataType *dst);
+
+UA_StatusCode
+UA_ReaderGroupConfig_toDataType(const UA_ReaderGroupConfig *src,
+                                UA_ReaderGroupDataType *dst);
+
+UA_StatusCode
+UA_DataSetReaderConfig_toDataType(const UA_DataSetReaderConfig *src,
+                                  UA_DataSetReaderDataType *dst);
+
+UA_StatusCode
+UA_PublishedDataSet_toDataType(const UA_PublishedDataSet *pds,
+                               UA_PublishedDataSetDataType *dst);
+
+UA_StatusCode
+UA_SubscribedDataSetConfig_toDataType(const UA_SubscribedDataSetConfig *src,
+                                      UA_StandaloneSubscribedDataSetDataType *dst);
+
 /******************/
 /* PubSub Manager */
 /******************/
@@ -687,6 +784,14 @@ struct UA_PubSubManager {
 
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;
+
+    /* Top-level configuration metadata from Part 14
+     * PubSubConfiguration2DataType. The ConfigurationVersion (VersionTime) is
+     * updated on every successful configuration change. */
+    UA_UInt32 configurationVersion;
+    UA_KeyValueMap configurationProperties;
+    size_t defaultSecurityKeyServicesSize;
+    UA_EndpointDescription *defaultSecurityKeyServices;
 
     /* During the initial activation of the PubSub subsystem (e.g. when loading a configuration file), special behaviour
      * is required within the PubSub state machine transitions. This global flag can be set to indicate that the

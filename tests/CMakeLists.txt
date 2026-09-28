@@ -533,6 +533,7 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_configuration.c)
         target_compile_definitions(check_pubsub_configuration PRIVATE
             UA_TEST_PUBSUB_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/pubsub/")
+        ua_add_test(pubsub/check_pubsub_config2.c)
     endif()
 endif()
 

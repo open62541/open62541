@@ -8,7 +8,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
- * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
@@ -626,6 +626,14 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     ret |= UA_String_copy(&src->headerLayoutUri, &dst->headerLayoutUri);
     ret |= UA_KeyValueMap_copy(&src->dataSetReaderProperties,
                                &dst->dataSetReaderProperties);
+    ret |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
+    dst->securityKeyServices = NULL;
+    dst->securityKeyServicesSize = 0;
+    ret |= UA_Array_copy(src->securityKeyServices, src->securityKeyServicesSize,
+                         (void**)&dst->securityKeyServices,
+                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    if(ret == UA_STATUSCODE_GOOD)
+        dst->securityKeyServicesSize = src->securityKeyServicesSize;
 
     if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         ret |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
@@ -648,6 +656,11 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     UA_ExtensionObject_clear(&cfg->transportSettings);
     UA_String_clear(&cfg->headerLayoutUri);
     UA_KeyValueMap_clear(&cfg->dataSetReaderProperties);
+    UA_String_clear(&cfg->securityGroupId);
+    UA_Array_delete(cfg->securityKeyServices, cfg->securityKeyServicesSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    cfg->securityKeyServices = NULL;
+    cfg->securityKeyServicesSize = 0;
     if(cfg->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         UA_TargetVariablesDataType_clear(&cfg->subscribedDataSet.target);
     }
