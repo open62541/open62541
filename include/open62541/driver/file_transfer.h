@@ -22,7 +22,8 @@
  * BrowseName "FileSystem".
  *
  * This driver provides the Part 20 semantics on top of a pluggable storage
- * backend (``UA_FileTransferBackend``). Backends can store the file content in
+ * backend (``UA_FileTransferBackend``). A built-in backend serves a directory
+ * of the local filesystem. Custom backends can store the file content in
  * memory, in flash, in a database, or generate it on the fly.
  *
  * File handles returned by the Open Method are bound to the Session that
@@ -214,6 +215,26 @@ struct UA_FileTransferBackend {
     UA_StatusCode (*copy)(UA_FileTransferBackend *b, const UA_String fromPath,
                           const UA_String toPath);
 };
+
+/* Built-in backend that serves rootPath of the local filesystem. The backend
+ * rejects relative path segments like ".." so a path cannot name a target
+ * outside rootPath through path traversal. Symbolic links to files inside
+ * rootPath are followed and may resolve outside rootPath; if that is not
+ * acceptable, do not place symlinks inside the served directory or expose the
+ * mount read-only. Symbolic links to directories and special files (FIFOs,
+ * sockets, devices) are not served, and a directory that contains them cannot
+ * be deleted (Bad_InvalidState). On Windows, names that the filesystem cannot
+ * represent (reserved device names like "CON", the characters <>:"|?* and a
+ * trailing dot or space) are rejected. On 32-bit POSIX systems, the file
+ * positions are limited to 2 GiB. A single file of the directory is served by
+ * passing the ``file`` member to UA_FileTransferDriver_addFile().
+ *
+ * @param rootPath The served directory (UTF-8). Must exist.
+ * @param out The backend to initialize
+ * @return The StatusCode of the operation */
+UA_EXPORT UA_StatusCode
+UA_FileTransferBackend_localFilesystem(const UA_String rootPath,
+                                       UA_FileTransferBackend *out);
 
 /**
  * Mount Options
