@@ -116,6 +116,16 @@ START_TEST(importPolymorphicAndRecursiveFields) {
 }
 END_TEST
 
+START_TEST(rejectMatrixFields) {
+    /* The DataType node exists, but no UA_DataType is registered for it */
+    UA_NodeClass nodeClass;
+    UA_StatusCode res =
+        UA_Server_readNodeClass(server, UA_NODEID_NUMERIC(namespaceIndex, 7101), &nodeClass);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(findType(7101));
+}
+END_TEST
+
 static void
 assertUnionValue(UA_UInt32 nodeId, UA_UInt32 expectedSelection,
                  const void *expectedValue, const UA_DataType *expectedType) {
@@ -158,6 +168,7 @@ testSuite(void) {
     tcase_add_test(testCase, importEmptyStructures);
     tcase_add_test(testCase, resolveOpaqueSubtypeAncestors);
     tcase_add_test(testCase, importPolymorphicAndRecursiveFields);
+    tcase_add_test(testCase, rejectMatrixFields);
     tcase_add_test(testCase, readImportedUnionValues);
     suite_add_tcase(suite, testCase);
     return suite;
