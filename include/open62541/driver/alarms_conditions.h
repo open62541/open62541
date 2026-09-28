@@ -186,6 +186,13 @@ struct UA_AlarmConditionsDriver {
      * The callback is called before triggering events when EnabledState/Id,
      * AckedState/Id, ConfirmedState/Id, or ActiveState/Id transitions to true.
      *
+     * The Acknowledge and Confirm methods call the callback before they
+     * change the condition. A Bad status refuses the method call: it is
+     * returned to the client, and AckedState or ConfirmedState stays
+     * unchanged. When the application writes AckedState/Id or
+     * ConfirmedState/Id itself, a Bad status cannot undo that write and
+     * only skips the rest of the transition, including the event.
+     *
      * @param driver The Alarms & Conditions driver
      * @param condition The Condition instance node
      * @param conditionSource The Condition Source node
