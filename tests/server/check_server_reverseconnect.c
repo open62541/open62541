@@ -270,6 +270,29 @@ START_TEST(listenFailureReleasesLock) {
     UA_Client_disconnect(client);
 } END_TEST
 
+START_TEST(listenUsesConfiguredEndpoint) {
+    /* The SecurityPolicy of the configured endpoint is unknown */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->endpoint.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->endpoint.securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Unknown");
+
+    const UA_String listenHost = UA_STRING("127.0.0.1");
+    UA_StatusCode ret =
+        UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                  reverseListenPort);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* A known SecurityPolicy is used for the reverse connect */
+    cc->endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    UA_String_clear(&cc->endpoint.securityPolicyUri);
+    UA_String_copy(&UA_SECURITY_POLICY_NONE_URI, &cc->endpoint.securityPolicyUri);
+    listenForReverseConnect();
+    ck_assert(UA_String_equal(&client->endpoint.securityPolicyUri,
+                              &UA_SECURITY_POLICY_NONE_URI));
+    UA_Client_disconnect(client);
+} END_TEST
+
 START_TEST(addBeforeStart) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
@@ -471,6 +494,7 @@ int main(void) {
     tcase_add_test(tc_call, listenAndTeardown);
     tcase_add_test(tc_call, noListenWhileConnected);
     tcase_add_test(tc_call, listenFailureReleasesLock);
+    tcase_add_test(tc_call, listenUsesConfiguredEndpoint);
     tcase_add_test(tc_call, addBeforeStart);
     tcase_add_test(tc_call, addAfterStart);
     tcase_add_test(tc_call, checkReconnect);
