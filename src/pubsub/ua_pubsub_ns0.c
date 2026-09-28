@@ -2446,7 +2446,8 @@ subscribedDataSetTypeDestructor(UA_Server *server,
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
 /* Callback function that will be executed when the method "PubSub configurator
- * (replace config)" is called. */
+ * (replace config)" is called. The configuration is replaced by the elements
+ * of the file, added in one complete update. */
 static UA_StatusCode
 UA_loadPubSubConfigMethodCallback(UA_Server *server,
                                   const UA_NodeId *sessionId, void *sessionContext,
@@ -2460,8 +2461,40 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
         return res;
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_BYTESTRING]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
-    UA_ByteString *inputStr = (UA_ByteString*)input->data;
-    return UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
+    const UA_ByteString *file = (const UA_ByteString*)input->data;
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* PubSub is stopped for the replacement. Running connections must be
+     * disabled before. */
+    UA_Boolean started = (psm->drv.state != UA_LIFECYCLESTATE_STOPPED);
+    if(started && psm->connectionsSize > 0)
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    size_t refsSize = 0;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    res = UA_PubSubConfiguration_createReferences(
+        file, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD, &refsSize, &refs);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(started)
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
+    res = UA_PubSubManager_clear(psm);
+    if(res == UA_STATUSCODE_GOOD && refsSize > 0) {
+        UA_PubSubConfigurationUpdateResult result;
+        res = UA_PubSubManager_updateConfigFile(psm, file, refsSize, refs,
+                                                true, &result);
+        for(size_t i = 0; res == UA_STATUSCODE_GOOD &&
+                i < result.referencesResultsSize; i++)
+            res = result.referencesResults[i];
+        UA_PubSubConfigurationUpdateResult_clear(&result);
+    }
+    if(started)
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+    UA_Array_delete(refs, refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+    return res;
 }
 
 static void

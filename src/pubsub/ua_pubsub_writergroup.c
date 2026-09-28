@@ -578,13 +578,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     /* Children evaluate their state machine after the state change of the parent.
      * Keep the current child state as the target state for the child. */
     UA_DataSetWriter *writer;
-    LIST_FOREACH(writer, &wg->writers, listEntry) {
-        if(psm->pubSubInitialSetupMode && writer->config.enabled) {
-            UA_DataSetWriter_setPubSubState(psm, writer, UA_PUBSUBSTATE_OPERATIONAL);
-        } else {
-            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
-        }
-    }
+    LIST_FOREACH(writer, &wg->writers, listEntry)
+        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
      * the last socket has closed. */

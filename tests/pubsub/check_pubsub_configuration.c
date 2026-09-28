@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2020 Siemens AG (Author: Thomas Fischer)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server_config_default.h>
@@ -11,6 +12,8 @@
 #include "../common.h"
 
 #include "test_helpers.h"
+#include "pubsub_test_helpers.h"
+#include "pubsub_config_test_helpers.h"
 #include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
@@ -18,6 +21,22 @@
 #include <stdlib.h>
 
 UA_Server *server = NULL;
+
+#define PDS_NAME        "Config2 PDS"
+#define SSDS_NAME       "Config2 SSDS"
+#define CONNECTION_NAME "Config2 Connection"
+#define WG_NAME         "Config2 WriterGroup"
+#define DSW_NAME        "Config2 DataSetWriter"
+#define RG_NAME         "Config2 ReaderGroup"
+#define DSR_NAME        "Config2 DataSetReader"
+#define DSR2_NAME       "Config2 DataSetReader SSDS"
+
+#define PUBLISHER_ID    2234
+#define WG_ID           100
+#define DSW_ID          62541
+#define DSW2_ID         62542
+
+static UA_NodeId pubVarId32, pubVarId64, subVarId32, subVarId64, ssdsVarId;
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
@@ -76,7 +95,8 @@ START_TEST(AddPublisherUsingBinaryFile) {
         loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert(publisherConfiguration.length > 0);
     UA_Server_disableAllPubSubComponents(server);
-    UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, publisherConfiguration);
+    UA_StatusCode retVal =
+        UA_PubSubTest_applyConfigFile(server, &publisherConfiguration, false);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_WriterGroup *writerGroup;
@@ -161,13 +181,12 @@ START_TEST(AddPublisherUsingBinaryFile) {
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_ByteString roundtripConfiguration = UA_BYTESTRING_NULL;
-    retVal = UA_Server_writePubSubConfigurationToByteString(
+    retVal = UA_Server_readPubSubConfiguration(
         server, &roundtripConfiguration);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_uint_gt(roundtripConfiguration.length, 0);
     UA_Server_disableAllPubSubComponents(server);
-    retVal = UA_Server_loadPubSubConfigFromByteString(server,
-                                                      roundtripConfiguration);
+    retVal = UA_PubSubTest_applyConfigFile(server, &roundtripConfiguration, true);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
 
     connection = TAILQ_FIRST(&psm->connections);
@@ -207,7 +226,8 @@ START_TEST(AddSubscriberUsingBinaryFile) {
         loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_subscriber_configuration.bin");
     ck_assert(subscriberConfiguration.length > 0);
     UA_Server_disableAllPubSubComponents(server);
-    UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, subscriberConfiguration);
+    UA_StatusCode retVal =
+        UA_PubSubTest_applyConfigFile(server, &subscriberConfiguration, false);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_ReaderGroup *readerGroup;
@@ -267,14 +287,13 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     /* A subscriber-only configuration has no PublishedDataSets and must still
      * be serializable. */
     UA_ByteString savedConfiguration = UA_BYTESTRING_NULL;
-    retVal = UA_Server_writePubSubConfigurationToByteString(server,
+    retVal = UA_Server_readPubSubConfiguration(server,
                                                             &savedConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_uint_gt(savedConfiguration.length, 0);
 
     UA_Server_disableAllPubSubComponents(server);
-    retVal = UA_Server_loadPubSubConfigFromByteString(server,
-                                                      savedConfiguration);
+    retVal = UA_PubSubTest_applyConfigFile(server, &savedConfiguration, true);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     connection = TAILQ_FIRST(&psm->connections);
     ck_assert_ptr_nonnull(connection);
@@ -307,14 +326,21 @@ START_TEST(AddSubscriberUsingBinaryFile) {
 START_TEST(SaveEmptyConfiguration) {
     UA_ByteString savedConfiguration = UA_BYTESTRING_NULL;
     UA_StatusCode retVal =
-        UA_Server_writePubSubConfigurationToByteString(server,
+        UA_Server_readPubSubConfiguration(server,
                                                        &savedConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_uint_gt(savedConfiguration.length, 0);
 
-    retVal = UA_Server_loadPubSubConfigFromByteString(server,
-                                                       savedConfiguration);
+    /* The empty file has no elements to reference */
+    size_t refsSize = 1;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    retVal = UA_PubSubConfiguration_createReferences(
+        &savedConfiguration, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD,
+        &refsSize, &refs);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(refsSize, 0);
+    retVal = UA_PubSubTest_applyConfigFile(server, &savedConfiguration, false);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNOTHINGTODO);
     UA_ByteString_clear(&savedConfiguration);
 } END_TEST
 
@@ -355,7 +381,7 @@ START_TEST(SaveConfigurationWithEmptyComponents) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_ByteString saved = UA_BYTESTRING_NULL;
-    res = UA_Server_writePubSubConfigurationToByteString(server, &saved);
+    res = UA_Server_readPubSubConfiguration(server, &saved);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_gt(saved.length, 0);
     UA_ByteString_clear(&saved);
@@ -370,8 +396,7 @@ START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
         loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert_uint_gt(input.length, 0);
     UA_Server_disableAllPubSubComponents(server);
-    UA_StatusCode res =
-        UA_Server_loadPubSubConfigFromByteString(server, input);
+    UA_StatusCode res = UA_PubSubTest_applyConfigFile(server, &input, false);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_PubSubManager *psm = getPSM(server);
@@ -391,9 +416,9 @@ START_TEST(EnabledFlagsAreRestoredByComponentIdentity) {
     second->config.enabled = false;
 
     UA_ByteString encoded = UA_BYTESTRING_NULL;
-    res = UA_Server_writePubSubConfigurationToByteString(server, &encoded);
+    res = UA_Server_readPubSubConfiguration(server, &encoded);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    res = UA_Server_loadPubSubConfigFromByteString(server, encoded);
+    res = UA_PubSubTest_applyConfigFile(server, &encoded, true);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     connection = TAILQ_FIRST(&psm->connections);
@@ -414,8 +439,7 @@ START_TEST(DisabledParentPreservesChildEnabledIntent) {
         loadFile(UA_TEST_PUBSUB_CONFIG_DIR "check_publisher_configuration.bin");
     ck_assert_uint_gt(input.length, 0);
     UA_Server_disableAllPubSubComponents(server);
-    UA_StatusCode res =
-        UA_Server_loadPubSubConfigFromByteString(server, input);
+    UA_StatusCode res = UA_PubSubTest_applyConfigFile(server, &input, false);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_PubSubManager *psm = getPSM(server);
@@ -427,9 +451,9 @@ START_TEST(DisabledParentPreservesChildEnabledIntent) {
     group->config.enabled = true;
 
     UA_ByteString encoded = UA_BYTESTRING_NULL;
-    res = UA_Server_writePubSubConfigurationToByteString(server, &encoded);
+    res = UA_Server_readPubSubConfiguration(server, &encoded);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    res = UA_Server_loadPubSubConfigFromByteString(server, encoded);
+    res = UA_PubSubTest_applyConfigFile(server, &encoded, true);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     connection = TAILQ_FIRST(&psm->connections);
@@ -443,21 +467,28 @@ START_TEST(DisabledParentPreservesChildEnabledIntent) {
 
 START_TEST(FileConfigurationRejectsNullArguments) {
     UA_ByteString empty = UA_BYTESTRING_NULL;
-    ck_assert_uint_eq(UA_Server_loadPubSubConfigFromByteString(NULL, empty),
+    UA_PubSubConfigurationUpdateResult result;
+    ck_assert_uint_eq(UA_Server_updatePubSubConfiguration(NULL, &empty, 0, NULL,
+                                                          false, &result),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_Server_writePubSubConfigurationToByteString(NULL,
+    ck_assert_uint_eq(UA_Server_updatePubSubConfiguration(server, NULL, 0, NULL,
+                                                          false, &result),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_Server_readPubSubConfiguration(NULL,
                                                                      &empty),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_Server_writePubSubConfigurationToByteString(server,
+    ck_assert_uint_eq(UA_Server_readPubSubConfiguration(server,
                                                                      NULL),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
-} END_TEST
-
-START_TEST(FileConfigurationRejectsMalformedEncoding) {
-    UA_Byte malformedData[] = {0xff, 0xff, 0xff, 0xff};
-    UA_ByteString malformed = {sizeof(malformedData), malformedData};
-    ck_assert_uint_ne(UA_Server_loadPubSubConfigFromByteString(server, malformed),
-                      UA_STATUSCODE_GOOD);
+    size_t refsSize = 0;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    const UA_UInt32 add = UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD;
+    ck_assert_uint_eq(UA_PubSubConfiguration_createReferences(NULL, add,
+                                                              &refsSize, &refs),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_PubSubConfiguration_createReferences(&empty, add,
+                                                              NULL, &refs),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
 } END_TEST
 
 START_TEST(DataSetWriterTransportSettingsAreCopied) {
@@ -480,6 +511,834 @@ START_TEST(DataSetWriterTransportSettingsAreCopied) {
     UA_DataSetWriterConfig_clear(&copy);
 } END_TEST
 
+/* Add the variables used as publisher sources and subscriber targets */
+static void
+addVariables(UA_Server *srv) {
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_UInt32 initVal32 = 42;
+    UA_Variant_setScalar(&vAttr.value, &initVal32, &UA_TYPES[UA_TYPES_UINT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    UA_StatusCode res =
+        UA_Server_addVariableNode(srv, UA_NODEID_NUMERIC(1, 50001),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "Pub UInt32"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &pubVarId32);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_UInt64 initVal64 = 43;
+    UA_Variant_setScalar(&vAttr.value, &initVal64, &UA_TYPES[UA_TYPES_UINT64]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT64].typeId;
+    res = UA_Server_addVariableNode(srv, UA_NODEID_NUMERIC(1, 50002),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "Pub UInt64"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &pubVarId64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant_setScalar(&vAttr.value, &initVal32, &UA_TYPES[UA_TYPES_UINT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    res = UA_Server_addVariableNode(srv, UA_NODEID_NUMERIC(1, 50003),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "Sub UInt32"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &subVarId32);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant_setScalar(&vAttr.value, &initVal64, &UA_TYPES[UA_TYPES_UINT64]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT64].typeId;
+    res = UA_Server_addVariableNode(srv, UA_NODEID_NUMERIC(1, 50004),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "Sub UInt64"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &subVarId64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Variant_setScalar(&vAttr.value, &initVal32, &UA_TYPES[UA_TYPES_UINT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    res = UA_Server_addVariableNode(srv, UA_NODEID_NUMERIC(1, 50005),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "SSDS UInt32"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &ssdsVarId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* Create the same variables on a second server without overwriting the
+ * global NodeIds that refer to the primary server */
+static void
+addVariablesKeepIds(UA_Server *srv) {
+    UA_NodeId keep32 = pubVarId32, keep64 = pubVarId64,
+        keepS32 = subVarId32, keepS64 = subVarId64, keepSsds = ssdsVarId;
+    addVariables(srv);
+    pubVarId32 = keep32; pubVarId64 = keep64;
+    subVarId32 = keepS32; subVarId64 = keepS64; ssdsVarId = keepSsds;
+}
+
+static void
+fillMetaData2Fields(UA_DataSetMetaDataType *md) {
+    UA_DataSetMetaDataType_init(md);
+    md->name = UA_STRING(PDS_NAME);
+    md->fieldsSize = 2;
+    md->fields = (UA_FieldMetaData*)
+        UA_Array_new(md->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    UA_FieldMetaData_init(&md->fields[0]);
+    md->fields[0].name = UA_STRING("UInt32 Field");
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId, &md->fields[0].dataType);
+    md->fields[0].builtInType = UA_NS0ID_UINT32;
+    md->fields[0].valueRank = -1;
+    UA_FieldMetaData_init(&md->fields[1]);
+    md->fields[1].name = UA_STRING("UInt64 Field");
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT64].typeId, &md->fields[1].dataType);
+    md->fields[1].builtInType = UA_NS0ID_UINT64;
+    md->fields[1].valueRank = -1;
+}
+
+/* Build a full PubSub configuration via the C API: 1 connection, 1 WG,
+ * 1 DSW, 1 PDS (2 fields), 1 RG, 1 DSR (inline TargetVariables),
+ * 1 SSDS + 1 DSR linked to the SSDS by name. */
+/* The export writes the configured enabled flag (UA_*Config.enabled, set at
+ * creation or load), not the runtime state. Mark a connection subtree that
+ * was enabled at runtime as configured enabled. */
+static void
+markConfiguredEnabled(UA_PubSubConnection *c) {
+    ck_assert_ptr_nonnull(c);
+    c->config.enabled = true;
+    UA_WriterGroup *wg;
+    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+        wg->config.enabled = true;
+        UA_DataSetWriter *dsw;
+        LIST_FOREACH(dsw, &wg->writers, listEntry)
+            dsw->config.enabled = true;
+    }
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        rg->config.enabled = true;
+        UA_DataSetReader *dsr;
+        LIST_FOREACH(dsr, &rg->readers, listEntry)
+            dsr->config.enabled = true;
+    }
+}
+
+static void
+buildFullConfig(UA_Server *srv, UA_NodeId *connId) {
+    addVariables(srv);
+
+    /* PublishedDataSet with two fields, a folder path and an extension
+     * field */
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name = UA_STRING(PDS_NAME);
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    UA_String pdsFolder[2] = {UA_STRING_STATIC("Fixtures"),
+                              UA_STRING_STATIC("Config2")};
+    pdsConfig.dataSetFolder = pdsFolder;
+    pdsConfig.dataSetFolderSize = 2;
+    UA_KeyValuePair pdsExtension;
+    pdsExtension.key = UA_QUALIFIEDNAME(0, "ExtensionField1");
+    UA_UInt32 extensionValue = 7;
+    UA_Variant_setScalar(&pdsExtension.value, &extensionValue,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    pdsConfig.extensionFields.map = &pdsExtension;
+    pdsConfig.extensionFields.mapSize = 1;
+    UA_NodeId pdsId;
+    UA_AddPublishedDataSetResult pdsRes =
+        UA_Server_addPublishedDataSet(srv, &pdsConfig, &pdsId);
+    ck_assert_int_eq(pdsRes.addResult, UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig fieldConfig;
+    memset(&fieldConfig, 0, sizeof(fieldConfig));
+    fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt32 Field");
+    fieldConfig.field.variable.promotedField = false;
+    fieldConfig.field.variable.publishParameters.publishedVariable = pubVarId32;
+    fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataSetFieldResult fieldRes =
+        UA_Server_addDataSetField(srv, pdsId, &fieldConfig, NULL);
+    ck_assert_int_eq(fieldRes.result, UA_STATUSCODE_GOOD);
+
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt64 Field");
+    fieldConfig.field.variable.publishParameters.publishedVariable = pubVarId64;
+    fieldRes = UA_Server_addDataSetField(srv, pdsId, &fieldConfig, NULL);
+    ck_assert_int_eq(fieldRes.result, UA_STATUSCODE_GOOD);
+
+    /* Connection */
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING(CONNECTION_NAME);
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4801);
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
+    UA_StatusCode res =
+        UA_Server_addPubSubConnection(srv, &connectionConfig, connId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* WriterGroup */
+    UA_WriterGroupConfig wgConfig;
+    memset(&wgConfig, 0, sizeof(wgConfig));
+    wgConfig.name = UA_STRING(WG_NAME);
+    wgConfig.writerGroupId = WG_ID;
+    wgConfig.publishingInterval = 100.0;
+    wgConfig.keepAliveTime = 5000.0;
+    wgConfig.priority = 10;
+    wgConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    wgConfig.maxNetworkMessageSize = 1400;
+    wgConfig.headerLayoutUri = UA_STRING("http://opcfoundation.org/UA/PubSub-Layouts/UADP-Cyclic-Fixed");
+    UA_String wgLocales[1] = {UA_STRING_STATIC("en-US")};
+    wgConfig.localeIds = wgLocales;
+    wgConfig.localeIdsSize = 1;
+    UA_UadpWriterGroupMessageDataType wgMessage;
+    UA_UadpWriterGroupMessageDataType_init(&wgMessage);
+    wgMessage.networkMessageContentMask =
+        (UA_UadpNetworkMessageContentMask)
+        (UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+         UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+         UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+         UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    UA_ExtensionObject_setValueNoDelete(&wgConfig.messageSettings, &wgMessage,
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
+    UA_NodeId wgId;
+    res = UA_Server_addWriterGroup(srv, *connId, &wgConfig, &wgId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* DataSetWriter. The dataSetName is intentionally NOT set in the config:
+     * the export must fall back to the name of the connected PDS. */
+    UA_DataSetWriterConfig dswConfig;
+    memset(&dswConfig, 0, sizeof(dswConfig));
+    dswConfig.name = UA_STRING(DSW_NAME);
+    dswConfig.dataSetWriterId = DSW_ID;
+    dswConfig.keyFrameCount = 10;
+    dswConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_NONE;
+    UA_NodeId dswId;
+    res = UA_Server_addDataSetWriter(srv, wgId, pdsId, &dswConfig, &dswId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* ReaderGroup */
+    UA_ReaderGroupConfig rgConfig;
+    memset(&rgConfig, 0, sizeof(rgConfig));
+    rgConfig.name = UA_STRING(RG_NAME);
+    rgConfig.maxNetworkMessageSize = 1400;
+    UA_NodeId rgId;
+    res = UA_Server_addReaderGroup(srv, *connId, &rgConfig, &rgId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* DataSetReader with inline TargetVariables */
+    UA_DataSetReaderConfig dsrConfig;
+    memset(&dsrConfig, 0, sizeof(dsrConfig));
+    dsrConfig.name = UA_STRING(DSR_NAME);
+    dsrConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    dsrConfig.publisherId.id.uint16 = PUBLISHER_ID;
+    dsrConfig.writerGroupId = WG_ID;
+    dsrConfig.dataSetWriterId = DSW_ID;
+    dsrConfig.messageReceiveTimeout = 400.0;
+    dsrConfig.keyFrameCount = 10;
+    dsrConfig.headerLayoutUri = UA_STRING("http://opcfoundation.org/UA/PubSub-Layouts/UADP-Cyclic-Fixed");
+    UA_KeyValuePair dsrProperty;
+    dsrProperty.key = UA_QUALIFIEDNAME(0, "ReaderProp1");
+    UA_UInt32 dsrPropertyValue = 11;
+    UA_Variant_setScalar(&dsrProperty.value, &dsrPropertyValue,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    dsrConfig.dataSetReaderProperties.map = &dsrProperty;
+    dsrConfig.dataSetReaderProperties.mapSize = 1;
+    fillMetaData2Fields(&dsrConfig.dataSetMetaData);
+    UA_FieldTargetDataType targets[2];
+    UA_FieldTargetDataType_init(&targets[0]);
+    targets[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    targets[0].targetNodeId = subVarId32;
+    UA_FieldTargetDataType_init(&targets[1]);
+    targets[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    targets[1].targetNodeId = subVarId64;
+    dsrConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    dsrConfig.subscribedDataSet.target.targetVariablesSize = 2;
+    dsrConfig.subscribedDataSet.target.targetVariables = targets;
+    UA_NodeId dsrId;
+    res = UA_Server_addDataSetReader(srv, rgId, &dsrConfig, &dsrId);
+    /* Shallow free: the FieldMetaData members are static literals and
+     * numeric NodeIds */
+    UA_free(dsrConfig.dataSetMetaData.fields);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Standalone SubscribedDataSet */
+    UA_SubscribedDataSetConfig ssdsConfig;
+    memset(&ssdsConfig, 0, sizeof(ssdsConfig));
+    ssdsConfig.name = UA_STRING(SSDS_NAME);
+    ssdsConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    UA_String ssdsFolder[1] = {UA_STRING_STATIC("Config2")};
+    ssdsConfig.dataSetFolder = ssdsFolder;
+    ssdsConfig.dataSetFolderSize = 1;
+    UA_DataSetMetaDataType *md = &ssdsConfig.dataSetMetaData;
+    UA_DataSetMetaDataType_init(md);
+    md->name = UA_STRING(SSDS_NAME);
+    md->fieldsSize = 1;
+    md->fields = (UA_FieldMetaData*)
+        UA_Array_new(md->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    UA_FieldMetaData_init(&md->fields[0]);
+    md->fields[0].name = UA_STRING("SSDS UInt32 Field");
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId, &md->fields[0].dataType);
+    md->fields[0].builtInType = UA_NS0ID_UINT32;
+    md->fields[0].valueRank = -1;
+    UA_FieldTargetDataType ssdsTarget;
+    UA_FieldTargetDataType_init(&ssdsTarget);
+    ssdsTarget.attributeId = UA_ATTRIBUTEID_VALUE;
+    ssdsTarget.targetNodeId = ssdsVarId;
+    ssdsConfig.subscribedDataSet.target.targetVariablesSize = 1;
+    ssdsConfig.subscribedDataSet.target.targetVariables = &ssdsTarget;
+    UA_NodeId ssdsId;
+    res = UA_Server_addSubscribedDataSet(srv, &ssdsConfig, &ssdsId);
+    UA_free(md->fields);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Second DataSetReader linked to the SSDS by name */
+    UA_DataSetReaderConfig dsr2Config;
+    memset(&dsr2Config, 0, sizeof(dsr2Config));
+    dsr2Config.name = UA_STRING(DSR2_NAME);
+    dsr2Config.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    dsr2Config.publisherId.id.uint16 = PUBLISHER_ID;
+    dsr2Config.writerGroupId = WG_ID;
+    dsr2Config.dataSetWriterId = DSW2_ID;
+    fillMetaData2Fields(&dsr2Config.dataSetMetaData);
+    dsr2Config.dataSetMetaData.fieldsSize = 1; /* match the SSDS */
+    dsr2Config.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    dsr2Config.linkedStandaloneSubscribedDataSetName = UA_STRING(SSDS_NAME);
+    UA_NodeId dsr2Id;
+    res = UA_Server_addDataSetReader(srv, rgId, &dsr2Config, &dsr2Id);
+    UA_free(dsr2Config.dataSetMetaData.fields);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* Compare two configurations. The ConfigurationVersion differs by design
+ * between the export and the re-import. */
+static void
+compareConfig2(const UA_PubSubConfiguration2DataType *a,
+               const UA_PubSubConfiguration2DataType *b) {
+    UA_PubSubConfiguration2DataType ca = *a, cb = *b;
+    ca.configurationVersion = 0;
+    cb.configurationVersion = 0;
+    ck_assert(UA_order(&ca, &cb, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATION2DATATYPE]) ==
+              UA_ORDER_EQ);
+}
+
+/* Extract the Config2 body from an encoded configuration file */
+static void
+decodeConfig2File(const UA_ByteString *buffer,
+                  UA_PubSubConfiguration2DataType *config) {
+    UA_StatusCode res = UA_PubSubTest_decodeConfigFile(buffer, config);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+}
+
+/* Snapshot of the running config via UA_Server_readPubSubConfiguration */
+START_TEST(ReadPubSubConfiguration) {
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+
+    UA_PubSubConfiguration2DataType cfg;
+    UA_StatusCode res = UA_PubSubTest_readConfig(server, &cfg);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(cfg.connectionsSize, 1);
+    ck_assert_uint_eq(cfg.publishedDataSetsSize, 1);
+    ck_assert_uint_eq(cfg.subscribedDataSetsSize, 1);
+
+    UA_String tmp = UA_STRING(CONNECTION_NAME);
+    ck_assert(UA_String_equal(&cfg.connections[0].name, &tmp));
+    ck_assert_uint_eq(cfg.connections[0].writerGroupsSize, 1);
+    ck_assert_uint_eq(cfg.connections[0].readerGroupsSize, 1);
+    ck_assert_uint_eq(cfg.connections[0].writerGroups[0].dataSetWritersSize, 1);
+    ck_assert_uint_eq(cfg.connections[0].readerGroups[0].dataSetReadersSize, 2);
+
+    /* All components created disabled. The top-level enabled flag mirrors
+     * the PubSubManager lifecycle, which is started with the server. */
+    ck_assert(cfg.enabled);
+    ck_assert(!cfg.connections[0].enabled);
+    ck_assert(!cfg.connections[0].writerGroups[0].enabled);
+
+    /* The exported DSW dataSetName is taken from the connected PDS */
+    tmp = UA_STRING(PDS_NAME);
+    UA_DataSetWriterDataType *dsw =
+        &cfg.connections[0].writerGroups[0].dataSetWriters[0];
+    ck_assert(UA_String_equal(&dsw->dataSetName, &tmp));
+
+    /* The PDS exports its two published variables */
+    UA_PublishedDataSetDataType *pds = &cfg.publishedDataSets[0];
+    ck_assert_int_eq((int)pds->dataSetSource.encoding,
+                     (int)UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(pds->dataSetSource.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_PUBLISHEDDATAITEMSDATATYPE]);
+    UA_PublishedDataItemsDataType *pdi = (UA_PublishedDataItemsDataType*)
+        pds->dataSetSource.content.decoded.data;
+    ck_assert_uint_eq(pdi->publishedDataSize, 2);
+    ck_assert(UA_NodeId_equal(&pdi->publishedData[0].publishedVariable,
+                              &pubVarId32));
+    ck_assert(UA_NodeId_equal(&pdi->publishedData[1].publishedVariable,
+                              &pubVarId64));
+
+    /* The second DSR references the SSDS by name */
+    UA_DataSetReaderDataType *dsr2 =
+        &cfg.connections[0].readerGroups[0].dataSetReaders[1];
+    ck_assert(dsr2->subscribedDataSet.encoding == UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(dsr2->subscribedDataSet.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_STANDALONESUBSCRIBEDDATASETREFDATATYPE]);
+    UA_StandaloneSubscribedDataSetRefDataType *ref =
+        (UA_StandaloneSubscribedDataSetRefDataType*)
+        dsr2->subscribedDataSet.content.decoded.data;
+    tmp = UA_STRING(SSDS_NAME);
+    ck_assert(UA_String_equal(&ref->dataSetName, &tmp));
+
+    UA_PubSubConfiguration2DataType_clear(&cfg);
+} END_TEST
+
+/* Build via API on server A, export, load on server B, compare the
+ * configurations and the resulting component states */
+START_TEST(ExportImportRoundTrip) {
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+
+    UA_StatusCode res = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_PubSubConnection *conn;
+    TAILQ_FOREACH(conn, &getPSM(server)->connections, listEntry)
+        markConfiguredEnabled(conn);
+
+    UA_ByteString exportA = UA_BYTESTRING_NULL;
+    res = UA_Server_readPubSubConfiguration(server, &exportA);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(exportA.length > 0);
+
+    /* Load into a fresh server B */
+    UA_Server *serverB = UA_Server_newForUnitTest();
+    ck_assert(serverB != NULL);
+    UA_Server_run_startup(serverB);
+    /* The target/published variables must exist on B as well */
+    addVariablesKeepIds(serverB);
+
+    res = UA_PubSubTest_applyConfigFile(serverB, &exportA, false);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_PubSubManager *psmB = getPSM(serverB);
+    ck_assert_uint_eq(psmB->connectionsSize, 1);
+    ck_assert_uint_eq(psmB->publishedDataSetsSize, 1);
+    ck_assert_uint_eq(psmB->subscribedDataSetsSize, 1);
+
+    /* Compare the snapshots of A and B */
+    UA_PubSubConfiguration2DataType cfgA, cfgB;
+    res = UA_PubSubTest_readConfig(server, &cfgA);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_PubSubTest_readConfig(serverB, &cfgB);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    compareConfig2(&cfgA, &cfgB);
+
+    /* All components on B are enabled: the connection and writer side become
+     * operational, the readers wait for the first message */
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psmB->connections, listEntry) {
+        ck_assert(UA_PubSubState_isEnabled(c->head.state));
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            ck_assert(UA_PubSubState_isEnabled(wg->head.state));
+        }
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            ck_assert(UA_PubSubState_isEnabled(rg->head.state));
+        }
+    }
+
+    /* Export B and compare the decoded files (lossless round trip) */
+    UA_ByteString exportB = UA_BYTESTRING_NULL;
+    res = UA_Server_readPubSubConfiguration(serverB, &exportB);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubConfiguration2DataType fileA, fileB;
+    decodeConfig2File(&exportA, &fileA);
+    decodeConfig2File(&exportB, &fileB);
+    compareConfig2(&fileA, &fileB);
+
+    UA_PubSubConfiguration2DataType_clear(&fileA);
+    UA_PubSubConfiguration2DataType_clear(&fileB);
+    UA_PubSubConfiguration2DataType_clear(&cfgA);
+    UA_PubSubConfiguration2DataType_clear(&cfgB);
+    UA_ByteString_clear(&exportA);
+    UA_ByteString_clear(&exportB);
+    UA_Server_run_shutdown(serverB);
+    UA_Server_delete(serverB);
+} END_TEST
+
+/* A disabled connection in the file must stay disabled after the load while
+ * enabled siblings become operational */
+START_TEST(MixedEnabledFlags) {
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+
+    /* Second, disabled connection */
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING("Disabled Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        UA_PUBSUB_TEST_NETWORKADDRESSURL(UA_PUBSUB_TEST_UDP_MULTICAST_URL_4840);
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID + 1;
+    UA_NodeId conn2Id;
+    UA_StatusCode res =
+        UA_Server_addPubSubConnection(server, &connectionConfig, &conn2Id);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Enable only the first connection subtree */
+    res = UA_Server_enablePubSubConnection(server, connId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    markConfiguredEnabled(UA_PubSubConnection_find(getPSM(server), connId));
+
+    UA_ByteString exportA = UA_BYTESTRING_NULL;
+    res = UA_Server_readPubSubConfiguration(server, &exportA);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Server *serverB = UA_Server_newForUnitTest();
+    ck_assert(serverB != NULL);
+    UA_Server_run_startup(serverB);
+    addVariablesKeepIds(serverB);
+
+    res = UA_PubSubTest_applyConfigFile(serverB, &exportA, false);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psmB = getPSM(serverB);
+    UA_String nameEnabled = UA_STRING(CONNECTION_NAME);
+    UA_String nameDisabled = UA_STRING("Disabled Connection");
+    size_t found = 0;
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psmB->connections, listEntry) {
+        if(UA_String_equal(&c->config.name, &nameEnabled)) {
+            ck_assert(UA_PubSubState_isEnabled(c->head.state));
+            found++;
+        } else if(UA_String_equal(&c->config.name, &nameDisabled)) {
+            ck_assert_int_eq((int)c->head.state, (int)UA_PUBSUBSTATE_DISABLED);
+            found++;
+        }
+    }
+    ck_assert_uint_eq(found, 2);
+
+    UA_ByteString_clear(&exportA);
+    UA_Server_run_shutdown(serverB);
+    UA_Server_delete(serverB);
+} END_TEST
+
+/* Namespace indices in the file body must be remapped to the server
+ * NamespaceArray on load; unknown namespaces are added */
+START_TEST(NamespaceRemapOnLoad) {
+    /* A namespace only known to server A, used in the published variable */
+    UA_UInt16 nsA = UA_Server_addNamespace(server, "http://config2.test/nsA");
+
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+
+    /* Add a variable in the new namespace and publish it */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_UInt32 initVal32 = 42;
+    UA_Variant_setScalar(&vAttr.value, &initVal32, &UA_TYPES[UA_TYPES_UINT32]);
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    UA_NodeId nsVarId;
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(nsA, 60001),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(nsA, "NS Var"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &nsVarId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name = UA_STRING("NS PDS");
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    UA_NodeId pdsId;
+    UA_AddPublishedDataSetResult pdsRes =
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsId);
+    ck_assert_int_eq(pdsRes.addResult, UA_STATUSCODE_GOOD);
+
+    UA_DataSetFieldConfig fieldConfig;
+    memset(&fieldConfig, 0, sizeof(fieldConfig));
+    fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    fieldConfig.field.variable.fieldNameAlias = UA_STRING("NS Field");
+    fieldConfig.field.variable.publishParameters.publishedVariable = nsVarId;
+    fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataSetFieldResult fieldRes =
+        UA_Server_addDataSetField(server, pdsId, &fieldConfig, NULL);
+    ck_assert_int_eq(fieldRes.result, UA_STATUSCODE_GOOD);
+
+    UA_ByteString exportA = UA_BYTESTRING_NULL;
+    res = UA_Server_readPubSubConfiguration(server, &exportA);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Server B gets a different namespace first, so the loaded namespace
+     * ends up at a different index */
+    UA_Server *serverB = UA_Server_newForUnitTest();
+    ck_assert(serverB != NULL);
+    UA_Server_run_startup(serverB);
+    UA_Server_addNamespace(serverB, "http://config2.test/other");
+    addVariablesKeepIds(serverB);
+
+    /* The published variable must exist on B in the (differently indexed)
+     * namespace. Adding the namespace here also checks that the loader maps
+     * onto an existing entry instead of duplicating it. */
+    UA_UInt16 nsB = UA_Server_addNamespace(serverB, "http://config2.test/nsA");
+    ck_assert_uint_ne(nsB, nsA);
+    UA_NodeId nsVarIdB;
+    res = UA_Server_addVariableNode(serverB, UA_NODEID_NUMERIC(nsB, 60001),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(nsB, "NS Var"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &nsVarIdB);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    res = UA_PubSubTest_applyConfigFile(serverB, &exportA, false);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* The namespace was added to server B */
+    size_t nsBIndex = 0;
+    res = getNamespaceByName(serverB, UA_STRING("http://config2.test/nsA"),
+                             &nsBIndex);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(nsBIndex, nsA); /* different index than on server A */
+
+    /* The published variable NodeId was remapped to the new index */
+    UA_PubSubConfiguration2DataType cfgB;
+    res = UA_PubSubTest_readConfig(serverB, &cfgB);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_String pdsName = UA_STRING("NS PDS");
+    UA_Boolean foundPds = false;
+    for(size_t i = 0; i < cfgB.publishedDataSetsSize; i++) {
+        UA_PublishedDataSetDataType *pds = &cfgB.publishedDataSets[i];
+        if(!UA_String_equal(&pds->name, &pdsName))
+            continue;
+        foundPds = true;
+        UA_PublishedDataItemsDataType *pdi = (UA_PublishedDataItemsDataType*)
+            pds->dataSetSource.content.decoded.data;
+        ck_assert_uint_eq(pdi->publishedDataSize, 1);
+        ck_assert_uint_eq(pdi->publishedData[0].publishedVariable.namespaceIndex,
+                          (UA_UInt16)nsBIndex);
+    }
+    ck_assert(foundPds);
+
+    UA_PubSubConfiguration2DataType_clear(&cfgB);
+    UA_ByteString_clear(&exportA);
+    UA_Server_run_shutdown(serverB);
+    UA_Server_delete(serverB);
+} END_TEST
+
+/* Malformed input is rejected by the update and by the references without
+ * touching the configuration */
+static void
+assertInvalidFile(const UA_ByteString *file) {
+    UA_PubSubConfigurationRefDataType ref;
+    UA_PubSubConfigurationRefDataType_init(&ref);
+    ref.configurationMask = UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD |
+        UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION;
+    UA_PubSubConfigurationUpdateResult result;
+    UA_StatusCode res =
+        UA_Server_updatePubSubConfiguration(server, file, 1, &ref, false, &result);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADTYPEMISMATCH);
+    size_t refsSize = 1;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    res = UA_PubSubConfiguration_createReferences(
+        file, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD, &refsSize, &refs);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADTYPEMISMATCH);
+    ck_assert_uint_eq(refsSize, 0);
+}
+
+START_TEST(InvalidFileBody) {
+    UA_Byte malformedData[] = {0xff, 0xff, 0xff, 0xff};
+    UA_ByteString malformed = {sizeof(malformedData), malformedData};
+    assertInvalidFile(&malformed);
+    UA_ByteString garbage = UA_BYTESTRING("this is not a pubsub config");
+    assertInvalidFile(&garbage);
+
+    /* UABinaryFileDataType with a wrong body type. The legacy
+     * PubSubConfigurationDataType is no longer accepted. */
+    UA_UABinaryFileDataType binFile;
+    UA_UABinaryFileDataType_init(&binFile);
+    UA_Int32 wrongBody = 42;
+    UA_Variant_setScalar(&binFile.body, &wrongBody, &UA_TYPES[UA_TYPES_INT32]);
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_setValueNoDelete(&eo, &binFile,
+                                        &UA_TYPES[UA_TYPES_UABINARYFILEDATATYPE]);
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    UA_StatusCode res =
+        UA_encodeBinary(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &buf, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    assertInvalidFile(&buf);
+    UA_ByteString_clear(&buf);
+
+    UA_PubSubConfigurationDataType legacy;
+    UA_PubSubConfigurationDataType_init(&legacy);
+    UA_Variant_setScalar(&binFile.body, &legacy,
+                         &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONDATATYPE]);
+    res = UA_encodeBinary(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &buf, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    assertInvalidFile(&buf);
+    UA_ByteString_clear(&buf);
+
+    /* Nothing was created */
+    ck_assert_uint_eq(getPSM(server)->connectionsSize, 0);
+} END_TEST
+
+/* References for all elements of a file (in the order of the file) */
+static void
+exportConfig(UA_Server *srv, UA_ByteString *file) {
+    UA_ByteString_init(file);
+    UA_StatusCode res = UA_Server_readPubSubConfiguration(srv, file);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+}
+
+static void
+checkRef(const UA_PubSubConfigurationRefDataType *ref, UA_UInt32 mask,
+         UA_UInt16 elementIndex, UA_UInt16 connectionIndex, UA_UInt16 groupIndex) {
+    ck_assert_uint_eq(ref->configurationMask, mask);
+    ck_assert_uint_eq(ref->elementIndex, elementIndex);
+    ck_assert_uint_eq(ref->connectionIndex, connectionIndex);
+    ck_assert_uint_eq(ref->groupIndex, groupIndex);
+}
+
+START_TEST(CreateReferencesAllElements) {
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+    UA_ByteString file;
+    exportConfig(server, &file);
+
+    size_t refsSize = 0;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    UA_StatusCode res = UA_PubSubConfiguration_createReferences(
+        &file, UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD, &refsSize, &refs);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(refsSize, 8);
+    const UA_UInt32 add = UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD;
+    checkRef(&refs[0], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEPUBDATASET, 0, 0, 0);
+    checkRef(&refs[1], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCESUBDATASET, 0, 0, 0);
+    checkRef(&refs[2], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION, 0, 0, 0);
+    checkRef(&refs[3], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITERGROUP, 0, 0, 0);
+    checkRef(&refs[4], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITER, 0, 0, 0);
+    checkRef(&refs[5], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADERGROUP, 0, 0, 0);
+    checkRef(&refs[6], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADER, 0, 0, 0);
+    checkRef(&refs[7], add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADER, 1, 0, 0);
+    UA_Array_delete(refs, refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+    UA_ByteString_clear(&file);
+} END_TEST
+
+/* Match applies to connections and groups only. Masks outside the operations
+ * of CloseAndUpdate are rejected. */
+START_TEST(CreateReferencesMaskRules) {
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+    UA_ByteString file;
+    exportConfig(server, &file);
+
+    const UA_UInt32 match = UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTMATCH;
+    size_t refsSize = 0;
+    UA_PubSubConfigurationRefDataType *refs = NULL;
+    UA_StatusCode res =
+        UA_PubSubConfiguration_createReferences(&file, match, &refsSize, &refs);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(refsSize, 3);
+    checkRef(&refs[0], match | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION, 0, 0, 0);
+    checkRef(&refs[1], match | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITERGROUP, 0, 0, 0);
+    checkRef(&refs[2], match | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADERGROUP, 0, 0, 0);
+    UA_Array_delete(refs, refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+
+    const UA_UInt32 addMatch = match | UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD;
+    res = UA_PubSubConfiguration_createReferences(&file, addMatch, &refsSize, &refs);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(refsSize, 8);
+    ck_assert_uint_eq(refs[0].configurationMask,
+                      UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD |
+                      UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEPUBDATASET);
+    ck_assert_uint_eq(refs[2].configurationMask,
+                      addMatch | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION);
+    ck_assert_uint_eq(refs[4].configurationMask,
+                      UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD |
+                      UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITER);
+    UA_Array_delete(refs, refsSize, &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONREFDATATYPE]);
+
+    UA_UInt32 invalid[3] = {
+        0,
+        UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD |
+        UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTREMOVE,
+        UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD |
+        UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION};
+    for(size_t i = 0; i < 3; i++) {
+        res = UA_PubSubConfiguration_createReferences(&file, invalid[i],
+                                                      &refsSize, &refs);
+        ck_assert_int_eq(res, UA_STATUSCODE_BADINVALIDARGUMENT);
+        ck_assert_uint_eq(refsSize, 0);
+        ck_assert_ptr_null(refs);
+    }
+    UA_ByteString_clear(&file);
+} END_TEST
+
+/* The Remove and Add references of a file in one complete update replace the
+ * elements. When the update fails, the prior configuration is restored. */
+START_TEST(ReplaceWithRemoveAndAdd) {
+    UA_NodeId connId;
+    buildFullConfig(server, &connId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ByteString file;
+    exportConfig(server, &file);
+    UA_PubSubConfiguration2DataType before;
+    decodeConfig2File(&file, &before);
+
+    UA_StatusCode res = UA_PubSubTest_applyConfigFile(server, &file, true);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(psm->connectionsSize, 1);
+
+    UA_ByteString after;
+    exportConfig(server, &after);
+    UA_PubSubConfiguration2DataType afterCfg;
+    decodeConfig2File(&after, &afterCfg);
+    compareConfig2(&before, &afterCfg);
+    UA_PubSubConfiguration2DataType_clear(&afterCfg);
+    UA_ByteString_clear(&after);
+
+    /* The added writer fails when it is created (fixed NetworkMessageNumber).
+     * The removed elements are restored. */
+    UA_PubSubConfiguration2DataType bad;
+    decodeConfig2File(&file, &bad);
+    UA_DataSetWriterDataType *dsw =
+        &bad.connections[0].writerGroups[0].dataSetWriters[0];
+    UA_ExtensionObject_clear(&dsw->messageSettings);
+    UA_UadpDataSetWriterMessageDataType *uadp =
+        UA_UadpDataSetWriterMessageDataType_new();
+    uadp->networkMessageNumber = 1;
+    UA_ExtensionObject_setValue(&dsw->messageSettings, uadp,
+                                &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]);
+    UA_ByteString badFile;
+    res = UA_PubSubTest_encodeConfigFile(&bad, &badFile);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_UInt32 version = psm->configurationVersion;
+    res = UA_PubSubTest_applyConfigFile(server, &badFile, true);
+    ck_assert_int_eq(res, UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(psm->configurationVersion, version);
+
+    exportConfig(server, &after);
+    decodeConfig2File(&after, &afterCfg);
+    compareConfig2(&before, &afterCfg);
+
+    UA_PubSubConfiguration2DataType_clear(&afterCfg);
+    UA_PubSubConfiguration2DataType_clear(&before);
+    UA_PubSubConfiguration2DataType_clear(&bad);
+    UA_ByteString_clear(&after);
+    UA_ByteString_clear(&badFile);
+    UA_ByteString_clear(&file);
+} END_TEST
+
 int main(void) {
     TCase *tc_pubsub_file_configuration = tcase_create("File Configuration");
     tcase_add_checked_fixture(tc_pubsub_file_configuration, setup, teardown);
@@ -495,11 +1354,21 @@ int main(void) {
                    DisabledParentPreservesChildEnabledIntent);
     tcase_add_test(tc_pubsub_file_configuration,
                    FileConfigurationRejectsNullArguments);
-    tcase_add_test(tc_pubsub_file_configuration,
-                   FileConfigurationRejectsMalformedEncoding);
+
+    TCase *tc_config2 = tcase_create("PubSubConfiguration2");
+    tcase_add_checked_fixture(tc_config2, setup, teardown);
+    tcase_add_test(tc_config2, ReadPubSubConfiguration);
+    tcase_add_test(tc_config2, ExportImportRoundTrip);
+    tcase_add_test(tc_config2, MixedEnabledFlags);
+    tcase_add_test(tc_config2, NamespaceRemapOnLoad);
+    tcase_add_test(tc_config2, InvalidFileBody);
+    tcase_add_test(tc_config2, CreateReferencesAllElements);
+    tcase_add_test(tc_config2, CreateReferencesMaskRules);
+    tcase_add_test(tc_config2, ReplaceWithRemoveAndAdd);
 
     Suite *s = suite_create("PubSub file configuration");
     suite_add_tcase(s, tc_pubsub_file_configuration);
+    suite_add_tcase(s, tc_config2);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

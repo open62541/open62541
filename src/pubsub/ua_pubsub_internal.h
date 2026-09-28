@@ -842,11 +842,6 @@ struct UA_PubSubManager {
     size_t defaultSecurityKeyServicesSize;
     UA_EndpointDescription *defaultSecurityKeyServices;
 
-    /* During the initial activation of the PubSub subsystem (e.g. when loading a configuration file), special behaviour
-     * is required within the PubSub state machine transitions. This global flag can be set to indicate that the
-     * configuration phase is active, and it is evaluated during the state changes of the PubSub components. */
-    UA_Boolean pubSubInitialSetupMode;
-
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
 
@@ -921,6 +916,11 @@ UA_PubSubSecurityPolicy_validate(const UA_PubSubSecurityPolicy *policy,
                                  UA_MessageSecurityMode securityMode);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+
+/* Encode the current configuration as the content of the configuration file
+ * (lock held) */
+UA_StatusCode
+UA_PubSubManager_encodeConfig2Blob(UA_PubSubManager *psm, UA_ByteString *buf);
 
 /* Decode a configuration file. The returned cfg is a borrowing view into eo --
  * the caller clears eo after use. Namespace indices in the body are remapped

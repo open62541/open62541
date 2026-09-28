@@ -442,22 +442,14 @@ START_TEST(FileLoadedReaderReceives) {
     cfg.connections = &conn;
     cfg.connectionsSize = 1;
 
-    /* Add all elements and run until the subscriber received the published
-     * value */
-    const UA_UInt32 add = UA_PUBSUBCONFIGURATIONREFMASK_ELEMENTADD;
-    UA_PubSubConfigurationRefDataType refs[6] = {
-        UA_PubSubTest_ref(add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEPUBDATASET, 0, 0, 0),
-        UA_PubSubTest_ref(add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCECONNECTION, 0, 0, 0),
-        UA_PubSubTest_ref(add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITERGROUP, 0, 0, 0),
-        UA_PubSubTest_ref(add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEWRITER, 0, 0, 0),
-        UA_PubSubTest_ref(add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADERGROUP, 0, 0, 0),
-        UA_PubSubTest_ref(add | UA_PUBSUBCONFIGURATIONREFMASK_REFERENCEREADER, 0, 0, 0)};
-    UA_PubSubConfigurationUpdateResult result;
-    UA_StatusCode res = UA_PubSubTest_updateConfig(server, &cfg, 6, refs, true, &result);
+    /* Load the file with the references for Add and run until the subscriber
+     * received the published value */
+    UA_ByteString blob;
+    UA_StatusCode res = UA_PubSubTest_encodeConfigFile(&cfg, &blob);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < result.referencesResultsSize; i++)
-        ck_assert_int_eq(result.referencesResults[i], UA_STATUSCODE_GOOD);
-    UA_PubSubConfigurationUpdateResult_clear(&result);
+    res = UA_PubSubTest_applyConfigFile(server, &blob, false);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&blob);
 
     UA_Boolean received = false;
     for(size_t i = 0; i < 100 && !received; i++) {
