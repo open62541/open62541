@@ -69,6 +69,7 @@
     <Definition Name="PolymorphicStructure">
       <Field Name="Value" DataType="i=24" AllowSubTypes="true"/>
       <Field Name="Label" DataType="i=12"/>
+      <Field Name="Token" DataType="i=316" AllowSubTypes="true"/>
     </Definition>
   </UADataType>
 
