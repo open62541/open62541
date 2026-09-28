@@ -35,6 +35,7 @@
 #define DT_NONE 60004u
 #define DT_EMPTYVALUES 60005u
 #define DT_WRONGVALUES 60006u
+#define DT_OPTIONSET 60007u
 
 static UA_Server *server;
 
@@ -51,17 +52,28 @@ static UA_Server *server;
         .members     = NULL,                         \
     }
 
-static UA_DataType dynEnumTypes[6] = {
+static UA_DataType dynEnumTypes[7] = {
     DYN_ENUM_TYPE(DT_ENUMVALUES, "TestEnumEV"),
     DYN_ENUM_TYPE(DT_ENUMSTRINGS, "TestEnumES"),
     DYN_ENUM_TYPE(DT_BOTH, "TestEnumBoth"),
     DYN_ENUM_TYPE(DT_NONE, "TestEnumNone"),
     DYN_ENUM_TYPE(DT_EMPTYVALUES, "TestEnumEmptyEV"),
     DYN_ENUM_TYPE(DT_WRONGVALUES, "TestEnumWrongEV"),
+    /* A UInt16-based OptionSet, as the nodeset loader registers it */
+    {
+        UA_TYPENAME("TestOptionSet")
+        .typeId      = {1, UA_NODEIDTYPE_NUMERIC, {DT_OPTIONSET}},
+        .memSize     = sizeof(UA_UInt16),
+        .typeKind    = UA_DATATYPEKIND_UINT16,
+        .pointerFree = true,
+        .overlayable = true,
+        .membersSize = 0,
+        .members     = NULL,
+    },
 };
 
 static UA_DataTypeArray dynEnumTypesArray = {
-    NULL, 6, dynEnumTypes, false
+    NULL, 7, dynEnumTypes, false
 };
 
 static void setup(void) {
@@ -132,10 +144,10 @@ addEnumValuesProperty(const UA_NodeId *dtId,
     ck_assert_int_eq(rc, UA_STATUSCODE_GOOD);
 }
 
-/* Helper: attach an EnumStrings property to a DataType node. */
+/* Helper: attach a LocalizedText array property to a DataType node. */
 static void
-addEnumStringsProperty(const UA_NodeId *dtId,
-                       UA_LocalizedText *strings, size_t stringsSize) {
+addLocalizedTextsProperty(const UA_NodeId *dtId, const char *name,
+                          UA_LocalizedText *strings, size_t stringsSize) {
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
     UA_Variant_setArray(&vAttr.value, strings, stringsSize,
@@ -149,10 +161,17 @@ addEnumStringsProperty(const UA_NodeId *dtId,
         server, UA_NODEID_NULL,
         *dtId,
         UA_NODEID_NUMERIC(0, NS0_HASPROPERTY),
-        UA_QUALIFIEDNAME(0, "EnumStrings"),
+        UA_QUALIFIEDNAME(0, (char *)(uintptr_t)name),
         UA_NODEID_NUMERIC(0, NS0_PROPERTYTYPE),
         vAttr, NULL, NULL);
     ck_assert_int_eq(rc, UA_STATUSCODE_GOOD);
+}
+
+/* Helper: attach an EnumStrings property to a DataType node. */
+static void
+addEnumStringsProperty(const UA_NodeId *dtId,
+                       UA_LocalizedText *strings, size_t stringsSize) {
+    addLocalizedTextsProperty(dtId, "EnumStrings", strings, stringsSize);
 }
 #endif /* UA_ENABLE_TYPEDESCRIPTION */
 
@@ -405,6 +424,95 @@ START_TEST(dtdef_fallback_mistyped_enumvalues) {
 } END_TEST
 #endif
 
+/* ===== Test 8: UInteger-based OptionSet → EnumDefinition of its bits ===== */
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+START_TEST(dtdef_optionset_optionsetvalues) {
+    /* An OptionSet built on UInt16 whose bit 1 is undefined (null text,
+     * Part 3 v1.05 §5.8.3). The EnumField value is the bit number (§8.52). */
+    UA_DataTypeAttributes dtAttr = UA_DataTypeAttributes_default;
+    dtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestOptionSet");
+    UA_NodeId dtId = UA_NODEID_NUMERIC(1, DT_OPTIONSET);
+    UA_StatusCode rc = UA_Server_addDataTypeNode(
+        server, dtId, UA_NODEID_NUMERIC(0, UA_NS0ID_UINT16),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "TestOptionSet"), dtAttr, NULL, NULL);
+    ck_assert_int_eq(rc, UA_STATUSCODE_GOOD);
+
+    /* Without OptionSetValues the UInt16 subtype is no OptionSet */
+    UA_DataValue dv = readDataTypeDefinition(&dtId);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    UA_DataValue_clear(&dv);
+
+    UA_LocalizedText bits[3];
+    bits[0] = UA_LOCALIZEDTEXT("", "Enabled");
+    UA_LocalizedText_init(&bits[1]);
+    bits[2] = UA_LOCALIZEDTEXT("", "Locked");
+    addLocalizedTextsProperty(&dtId, "OptionSetValues", bits, 3);
+
+    dv = readDataTypeDefinition(&dtId);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    ck_assert(dv.hasValue);
+    ck_assert(dv.value.type == &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+
+    UA_EnumDefinition *def = (UA_EnumDefinition *)dv.value.data;
+    ck_assert_uint_eq(def->fieldsSize, 2);
+    ck_assert_int_eq(def->fields[0].value, 0);
+    ck_assert(str_eq(&def->fields[0].name, "Enabled"));
+    ck_assert(str_eq(&def->fields[0].displayName.text, "Enabled"));
+    ck_assert_int_eq(def->fields[1].value, 2);
+    ck_assert(str_eq(&def->fields[1].name, "Locked"));
+
+    UA_DataValue_clear(&dv);
+} END_TEST
+#endif
+
+/* ===== Test 9: OptionSet of namespace zero (AccessLevelExType) ===== */
+
+#if defined(UA_ENABLE_TYPEDESCRIPTION) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
+START_TEST(dtdef_optionset_ns0_accesslevelex) {
+    /* AccessLevelExType (i=15406) is a UInt32 subtype with the
+     * OptionSetValues property. Every defined bit is one EnumField. */
+    UA_NodeId dtId = UA_TYPES[UA_TYPES_ACCESSLEVELEXTYPE].typeId;
+
+    UA_Variant osv;
+    UA_Variant_init(&osv);
+    UA_StatusCode rc =
+        UA_Server_readObjectProperty(server, dtId,
+                                     UA_QUALIFIEDNAME(0, "OptionSetValues"), &osv);
+    ck_assert_uint_eq(rc, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&osv, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    const UA_LocalizedText *bits = (const UA_LocalizedText *)osv.data;
+
+    UA_DataValue dv = readDataTypeDefinition(&dtId);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_GOOD);
+    ck_assert(dv.hasValue);
+    ck_assert(dv.value.type == &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+
+    UA_EnumDefinition *def = (UA_EnumDefinition *)dv.value.data;
+    size_t pos = 0;
+    for(size_t i = 0; i < osv.arrayLength; i++) {
+        if(bits[i].text.length == 0)
+            continue;
+        ck_assert_uint_lt(pos, def->fieldsSize);
+        ck_assert_int_eq(def->fields[pos].value, (UA_Int64)i);
+        ck_assert(UA_String_equal(&def->fields[pos].name, &bits[i].text));
+        pos++;
+    }
+    ck_assert_uint_eq(pos, def->fieldsSize);
+    ck_assert(str_eq(&def->fields[0].name, "CurrentRead"));
+
+    UA_DataValue_clear(&dv);
+    UA_Variant_clear(&osv);
+
+    /* The plain UInt32 DataType has no DataTypeDefinition */
+    UA_NodeId uint32Id = UA_TYPES[UA_TYPES_UINT32].typeId;
+    dv = readDataTypeDefinition(&uint32Id);
+    ck_assert_uint_eq(dv.status, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    UA_DataValue_clear(&dv);
+} END_TEST
+#endif
+
 /* ===== Test suite wiring ===== */
 
 static Suite *
@@ -421,6 +529,10 @@ testSuite_enum_datatypedefinition(void) {
     tcase_add_test(tc, dtdef_compiled_enum_regression);
     tcase_add_test(tc, dtdef_fallback_empty_enumvalues);
     tcase_add_test(tc, dtdef_fallback_mistyped_enumvalues);
+    tcase_add_test(tc, dtdef_optionset_optionsetvalues);
+#endif
+#if defined(UA_ENABLE_TYPEDESCRIPTION) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
+    tcase_add_test(tc, dtdef_optionset_ns0_accesslevelex);
 #endif
     suite_add_tcase(s, tc);
 

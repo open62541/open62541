@@ -508,6 +508,70 @@ buildEnumDefinitionFromProperties(UA_Server *server, const UA_NodeId *dataTypeId
         UA_EnumDefinition_clear(def);
     return res;
 }
+
+/* Build the EnumDefinition of a UInteger-based OptionSet DataType from its
+ * OptionSetValues property (OPC UA Part 3 v1.05, 5.8.3). The array index is
+ * the bit number, which is the value of the EnumField (8.52). Undefined bits
+ * have a null LocalizedText and are skipped. BadNotFound if no bit is
+ * defined. */
+static UA_StatusCode
+buildEnumDefinitionFromOptionSetValues(UA_Server *server, const UA_NodeId *dataTypeId,
+                                       UA_EnumDefinition *def) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EnumDefinition_init(def);
+
+    size_t defined = 0;
+    const UA_LocalizedText *lt;
+    UA_EnumField *f;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    UA_StatusCode res =
+        readObjectProperty(server, *dataTypeId,
+                           UA_QUALIFIEDNAME(0, "OptionSetValues"), &v);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(enumPropertyMissing(res))
+            res = UA_STATUSCODE_BADNOTFOUND;
+        goto out;
+    }
+
+    /* Count the defined bits */
+    lt = (const UA_LocalizedText*)v.data;
+    if(UA_Variant_hasArrayType(&v, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+        for(size_t i = 0; i < v.arrayLength; i++) {
+            if(lt[i].text.length > 0)
+                defined++;
+        }
+    }
+    if(defined == 0) {
+        res = UA_STATUSCODE_BADNOTFOUND;
+        goto out;
+    }
+
+    def->fields = (UA_EnumField*)
+        UA_Array_new(defined, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+    if(!def->fields) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto out;
+    }
+    def->fieldsSize = defined;
+
+    f = def->fields;
+    for(size_t i = 0; i < v.arrayLength && res == UA_STATUSCODE_GOOD; i++) {
+        if(lt[i].text.length == 0)
+            continue;
+        f->value = (UA_Int64)i;
+        res = UA_String_copy(&lt[i].text, &f->name);
+        if(res == UA_STATUSCODE_GOOD)
+            res = UA_LocalizedText_copy(&lt[i], &f->displayName);
+        f++;
+    }
+
+ out:
+    UA_Variant_clear(&v);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_EnumDefinition_clear(def);
+    return res;
+}
 #endif
 
 /* Returns whether the operation is done or an async operation has been
@@ -752,6 +816,31 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                 UA_Variant_setScalar(&v->value, enumDef,
                                      &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
             }
+        } else if(type->typeKind == UA_DATATYPEKIND_BYTE ||
+                  type->typeKind == UA_DATATYPEKIND_UINT16 ||
+                  type->typeKind == UA_DATATYPEKIND_UINT32 ||
+                  type->typeKind == UA_DATATYPEKIND_UINT64) {
+            /* A UInteger subtype with the OptionSetValues property represents
+             * an OptionSet. Its DataTypeDefinition is an EnumDefinition (OPC
+             * UA Part 3 v1.05, Section 5.8.3). */
+            UA_ExtensionObject_clear(&typeDescr);
+            UA_EnumDefinition *enumDef = UA_EnumDefinition_new();
+            if(!enumDef) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
+            UA_StatusCode res =
+                buildEnumDefinitionFromOptionSetValues(server, &node->head.nodeId,
+                                                       enumDef);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_EnumDefinition_delete(enumDef);
+                /* Not an OptionSet: BadAttributeIdInvalid; else propagate */
+                retval = (res == UA_STATUSCODE_BADNOTFOUND) ?
+                    UA_STATUSCODE_BADATTRIBUTEIDINVALID : res;
+                break;
+            }
+            UA_Variant_setScalar(&v->value, enumDef,
+                                 &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
         } else {
             /* E.g. SimpleTypeDescription: no DataTypeDefinition encoding */
             UA_ExtensionObject_clear(&typeDescr);
