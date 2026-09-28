@@ -82,6 +82,11 @@ typedef struct AlarmsConditionsDriver {
     UA_Logger *logging;
     LIST_HEAD(, UA_ConditionSource) conditionSources;
     LIST_HEAD(, UA_ACMonitoredItemTarget) monitoredItemTargets;
+
+    /* Set while the Acknowledge or Confirm method writes AckedState/Id or
+     * ConfirmedState/Id. The method runs the state transition itself, so the
+     * after-write callback of the Id has nothing to do. */
+    UA_Boolean methodWritesStateId;
 } AlarmsConditionsDriver;
 
 #define UA_DRIVER_ALARMS_CONDITIONS_NAME "alarms-conditions"
@@ -1118,13 +1123,157 @@ afterWriteCallbackEnabledStateChange(UA_Server *server,
     UA_NodeId_clear(&conditionSource);
 }
 
+/* Enter the AckedState of a condition. The application callback is called
+ * first. Its Bad status refuses the transition before anything is changed and
+ * is returned. Then the comment, Message and AckedState are set and the event
+ * is triggered. The Acknowledge method calls this before AckedState/Id is set
+ * (writeId), the after-write callback of AckedState/Id after it was set. */
+static UA_StatusCode
+enteringAckedState(AlarmsConditionsDriver *acd, const UA_NodeId *conditionNode,
+                   const UA_LocalizedText *comment, UA_Boolean writeId) {
+    UA_Server *server = acd->driver.drv.server;
+
+    /* Get conditionSource */
+    UA_NodeId conditionSource;
+    UA_StatusCode res = getNodeIdValueOfConditionField(server, conditionNode,
+                                                       fieldSourceQN, &conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionSource not found",);
+
+    /* User callback */
+    UA_Boolean removeBranch = false;
+    res = callConditionTwoStateVariableCallback(acd, conditionNode, &conditionSource,
+                                                &removeBranch, UA_ENTERING_ACKEDSTATE);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Calling condition callback failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
+    UA_Variant value;
+    UA_String nullString = UA_STRING_NULL;
+    if(comment && !UA_String_equal(&comment->locale, &nullString) &&
+       !UA_String_equal(&comment->text, &nullString)) {
+        UA_Variant_setScalar(&value, (void*)(uintptr_t)comment,
+                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        res = setConditionField(&acd->driver, *conditionNode, &value, fieldCommentQN);
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Set Message */
+    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldMessageQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Message failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set AckedState text */
+    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldAckedStateQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition AckedState failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set AckedState/Id */
+    if(writeId) {
+        UA_Boolean idValue = true;
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        acd->methodWritesStateId = true;
+        res = setConditionVariableFieldProperty(&acd->driver, *conditionNode, &value,
+                                                fieldAckedStateQN, twoStateVariableIdQN);
+        acd->methodWritesStateId = false;
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set AckedState/Id failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Trigger event */
+    //Condition Nodes should not be deleted after triggering the event
+    res = triggerConditionEvent(&acd->driver, *conditionNode, conditionSource, NULL);
+    UA_NodeId_clear(&conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Triggering condition event failed",);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Enter the ConfirmedState of a condition. Works like enteringAckedState. */
+static UA_StatusCode
+enteringConfirmedState(AlarmsConditionsDriver *acd, const UA_NodeId *conditionNode,
+                       const UA_LocalizedText *comment, UA_DateTime confirmingTime,
+                       UA_Boolean writeId) {
+    UA_Server *server = acd->driver.drv.server;
+
+    /* Get conditionSource */
+    UA_NodeId conditionSource;
+    UA_StatusCode res = getNodeIdValueOfConditionField(server, conditionNode,
+                                                       fieldSourceQN, &conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionSource not found",);
+
+    /* User callback */
+    UA_Boolean removeBranch = false;
+    res = callConditionTwoStateVariableCallback(acd, conditionNode, &conditionSource,
+                                                &removeBranch, UA_ENTERING_CONFIRMEDSTATE);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Calling condition callback failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
+    UA_Variant value;
+    UA_String nullString = UA_STRING_NULL;
+    if(comment && !UA_String_equal(&comment->locale, &nullString) &&
+       !UA_String_equal(&comment->text, &nullString)) {
+        UA_Variant_setScalar(&value, (void*)(uintptr_t)comment,
+                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        res = setConditionField(&acd->driver, *conditionNode, &value, fieldCommentQN);
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Set confirming time */
+    if(confirmingTime == 0)
+        confirmingTime = UA_DateTime_now();
+    res = UA_Server_writeObjectProperty_scalar(server, *conditionNode, fieldTimeQN,
+                                               &confirmingTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Confirming Time failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set Message */
+    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldMessageQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Message failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set ConfirmedState text */
+    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    res = setConditionField(&acd->driver, *conditionNode, &value, fieldConfirmedStateQN);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition ConfirmedState failed",
+                                       UA_NodeId_clear(&conditionSource););
+
+    /* Set ConfirmedState/Id */
+    if(writeId) {
+        UA_Boolean idValue = true;
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        acd->methodWritesStateId = true;
+        res = setConditionVariableFieldProperty(&acd->driver, *conditionNode, &value,
+                                                fieldConfirmedStateQN, twoStateVariableIdQN);
+        acd->methodWritesStateId = false;
+        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set ConfirmedState/Id failed",
+                                           UA_NodeId_clear(&conditionSource););
+    }
+
+    /* Trigger event */
+    //Condition Nodes should not be deleted after triggering the event
+    res = triggerConditionEvent(&acd->driver, *conditionNode, conditionSource, NULL);
+    UA_NodeId_clear(&conditionSource);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Triggering condition event failed",);
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 afterWriteCallbackAckedStateChange(UA_Server *server,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    const UA_NodeId *nodeId, void *nodeContext,
                                    const UA_NumericRange *range, const UA_DataValue *data) {
+    /* The Acknowledge method runs the state transition itself */
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
-    if(!acd)
+    if(!acd || acd->methodWritesStateId)
         return;
 
     /* Get the AckedState NodeId then The Condition NodeId */
@@ -1174,45 +1323,9 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
         return;
     }
 
-    /* Set Message */
-    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
-    UA_Variant value;
-    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldMessageQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Message failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Set AckedState text */
-    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
-    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldAckedStateQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition AckedState failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Get conditionSource */
-    UA_NodeId conditionSource;
-    res = getNodeIdValueOfConditionField(server, &conditionNode, fieldSourceQN,
-                                         &conditionSource);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "ConditionSource not found",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* User callback*/
-    UA_Boolean removeBranch = false;
-    res = callConditionTwoStateVariableCallback(acd, &conditionNode, &conditionSource,
-                                                &removeBranch, UA_ENTERING_ACKEDSTATE);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Calling condition callback failed",
-                                     UA_NodeId_clear(&conditionNode);
-                                     UA_NodeId_clear(&conditionSource););
-
-    /* Trigger event */
-    //Condition Nodes should not be deleted after triggering the event
-    res = triggerConditionEvent(&acd->driver, conditionNode, conditionSource, NULL);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Triggering condition event failed",
-                                     UA_NodeId_clear(&conditionNode);
-                                     UA_NodeId_clear(&conditionSource););
-
+    res = enteringAckedState(acd, &conditionNode, NULL, false);
     UA_NodeId_clear(&conditionNode);
-    UA_NodeId_clear(&conditionSource);
+    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Entering acked state failed",);
 }
 
 static void
@@ -1220,8 +1333,9 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_NodeId *nodeId, void *nodeContext,
                                        const UA_NumericRange *range, const UA_DataValue *data) {
+    /* The Confirm method runs the state transition itself */
     AlarmsConditionsDriver *acd = findAlarmsConditionsDriver(server);
-    if(!acd)
+    if(!acd || acd->methodWritesStateId)
         return;
 
     UA_Variant value;
@@ -1269,50 +1383,9 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
         return;
     }
 
-    /* Set confirming time */
-    UA_DateTime confirmingTime = data->sourceTimestamp;
-    if (confirmingTime == 0)
-        confirmingTime = UA_DateTime_now();
-    res = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                               &confirmingTime, &UA_TYPES[UA_TYPES_DATETIME]);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Confirming Time failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Set Message */
-    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
-    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldMessageQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition Message failed",
-                                 UA_NodeId_clear(&conditionNode););
-
-    /* Set ConfirmedState text */
-    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
-    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    res = setConditionField(&acd->driver, conditionNode, &value, fieldConfirmedStateQN);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Set Condition ConfirmedState failed",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* Get conditionSource */
-    UA_NodeId conditionSource;
-    res = getNodeIdValueOfConditionField(server, &conditionNode,
-                                         fieldSourceQN, &conditionSource);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "ConditionSource not found",
-                                     UA_NodeId_clear(&conditionNode););
-
-    /* User callback*/
-    UA_Boolean removeBranch = false;
-    res = callConditionTwoStateVariableCallback(acd, &conditionNode, &conditionSource,
-                                                &removeBranch, UA_ENTERING_CONFIRMEDSTATE);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Calling condition callback failed",
-                                 UA_NodeId_clear(&conditionNode);
-                                 UA_NodeId_clear(&conditionSource););
-
-    /* Trigger event */
-    //Condition Nodes should not be deleted after triggering the event
-    res = triggerConditionEvent(&acd->driver, conditionNode, conditionSource, NULL);
-    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Triggering condition event failed",
-                                 UA_NodeId_clear(&conditionNode);
-                                 UA_NodeId_clear(&conditionSource););
+    res = enteringConfirmedState(acd, &conditionNode, NULL, data->sourceTimestamp, false);
+    UA_NodeId_clear(&conditionNode);
+    CONDITION_ASSERT_RETURN_VOID_ACD(acd, res, "Entering confirmed state failed",);
 }
 
 static void
@@ -1738,8 +1811,6 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    UA_Variant value;
-
     UA_NodeId conditionTypeNodeId = UA_NS0ID(CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(acd->logging, UA_LOGCATEGORY_SERVER,
@@ -1753,8 +1824,9 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
-    /* Check if retained */
-    if(!isRetained(server, &conditionNode))
+    /* Check if enabled and retained */
+    if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) ||
+       !isRetained(server, &conditionNode))
         return UA_STATUSCODE_BADCONDITIONDISABLED;
 
     /* Check if already acknowledged */
@@ -1782,22 +1854,9 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId_clear(&eventType);
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
-    UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
-    UA_String nullString = UA_STRING_NULL;
-    if(!UA_String_equal(&inputComment->locale, &nullString) &&
-       !UA_String_equal(&inputComment->text, &nullString)) {
-        UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        res = setConditionField(&acd->driver, conditionNode, &value, fieldCommentQN);
-        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
-                                       UA_NodeId_clear(&conditionNode););
-    }
-
-    /* Set AcknowledgeableStateId */
-    UA_Boolean idValue = true;
-    UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    res = setConditionVariableFieldProperty(&acd->driver, conditionNode, &value,
-                                               fieldAckedStateQN, twoStateVariableIdQN);
+    /* Acknowledge. The application callback can refuse it. */
+    res = enteringAckedState(acd, &conditionNode,
+                             (const UA_LocalizedText *)input[1].data, true);
     UA_NodeId_clear(&conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Acknowledge Condition failed",);
     return res;
@@ -1818,8 +1877,6 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!acd)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    UA_Variant value;
-
     UA_NodeId conditionTypeNodeId = UA_NS0ID(CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(acd->logging, UA_LOGCATEGORY_SERVER,
@@ -1833,8 +1890,9 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     res = getConditionBranchNodeId(acd, (UA_ByteString *)input[0].data, &conditionNode);
     CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "ConditionId based on EventId not found",);
 
-    /* Check if retained */
-    if(!isRetained(server, &conditionNode))
+    /* Check if enabled and retained */
+    if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledStateQN) ||
+       !isRetained(server, &conditionNode))
         return UA_STATUSCODE_BADCONDITIONDISABLED;
 
     /* Check if already confirmed */
@@ -1860,24 +1918,11 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId_clear(&eventType);
 
-    /* Set Comment. Check whether comment is empty -> leave the last value as is*/
-    UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
-    UA_String nullString = UA_STRING_NULL;
-    if(!UA_String_equal(&inputComment->locale, &nullString) &&
-       !UA_String_equal(&inputComment->text, &nullString)) {
-        UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        res = setConditionField(&acd->driver, conditionNode, &value, fieldCommentQN);
-        CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Set Condition Comment failed",
-                                           UA_NodeId_clear(&conditionNode););
-    }
-
-    /* Set ConfirmedStateId */
-    UA_Boolean idValue = true;
-    UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    res = setConditionVariableFieldProperty(&acd->driver, conditionNode, &value,
-                                            fieldConfirmedStateQN, twoStateVariableIdQN);
+    /* Confirm. The application callback can refuse it. */
+    res = enteringConfirmedState(acd, &conditionNode,
+                                 (const UA_LocalizedText *)input[1].data, 0, true);
     UA_NodeId_clear(&conditionNode);
-    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Acknowledge Condition failed",);
+    CONDITION_ASSERT_RETURN_RETVAL_ACD(acd, res, "Confirm Condition failed",);
     return res;
 }
 

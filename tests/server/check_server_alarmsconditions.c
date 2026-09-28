@@ -2139,6 +2139,92 @@ START_TEST(conditionRefresh_noEventItems) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+/* Helper: whether the Comment field of a condition has the given text */
+static UA_Boolean
+hasComment(const UA_NodeId cond, const UA_String text) {
+    UA_Variant fieldVal;
+    UA_Variant_init(&fieldVal);
+    UA_StatusCode retval = readConditionField(server_ac, cond, "Comment", &fieldVal);
+    UA_Boolean found = (retval == UA_STATUSCODE_GOOD &&
+        UA_Variant_hasScalarType(&fieldVal, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) &&
+        UA_String_equal(&((UA_LocalizedText*)fieldVal.data)->text, &text));
+    UA_Variant_clear(&fieldVal);
+    return found;
+}
+
+/* Application callback that counts its calls and returns a configured status */
+static size_t stateCallbackCount = 0;
+static UA_StatusCode stateCallbackStatus = UA_STATUSCODE_GOOD;
+static UA_StatusCode
+statusStateCallbackFn(UA_Server *s, const UA_NodeId *conditionId) {
+    (void)s; (void)conditionId;
+    stateCallbackCount++;
+    return stateCallbackStatus;
+}
+
+/* A Bad status of the application callback refuses Acknowledge and Confirm.
+ * The Call returns it, and neither the state nor the comment changes. */
+START_TEST(ackConfirmCallback_refuses) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "RefusingCallbackCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(
+        acDriver_ac, cond, source, false, statusStateCallbackFn, UA_ENTERING_ACKEDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(
+        acDriver_ac, cond, source, false, statusStateCallbackFn,
+        UA_ENTERING_CONFIRMEDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Refused */
+    stateCallbackCount = 0;
+    stateCallbackStatus = UA_STATUSCODE_BADUSERACCESSDENIED;
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "Operator note");
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(!readTwoStateVariableId(cond, "AckedState"));
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(!readTwoStateVariableId(cond, "ConfirmedState"));
+    ck_assert_uint_eq(stateCallbackCount, 2);
+
+    ck_assert(!hasComment(cond, comment.text));
+
+    UA_ByteString lastId = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 0);
+
+    /* Accepted. Each Call runs the callback and triggers the event once. */
+    stateCallbackCount = 0;
+    stateCallbackStatus = UA_STATUSCODE_GOOD;
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "AckedState"));
+    ck_assert(hasComment(cond, comment.text));
+    ck_assert_uint_eq(stateCallbackCount, 1);
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 1);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "ConfirmedState"));
+    ck_assert_uint_eq(stateCallbackCount, 2);
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 2);
+
+    UA_ByteString_clear(&lastId);
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -2195,6 +2281,7 @@ int main(void) {
     tcase_add_test(tc_state, activeState_triggerCycle);
     tcase_add_test(tc_state, ackCallback_withRemoveBranch);
     tcase_add_test(tc_state, confirmCallback_withRemoveBranch);
+    tcase_add_test(tc_state, ackConfirmCallback_refuses);
     tcase_add_test(tc_state, setCallback_outOfRange);
 #endif
     tcase_add_checked_fixture(tc_state, setup, teardown);
