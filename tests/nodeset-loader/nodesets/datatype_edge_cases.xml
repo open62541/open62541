@@ -73,6 +73,17 @@
     </Definition>
   </UADataType>
 
+  <!-- A matrix field cannot be represented by a UA_DataType member. -->
+  <UADataType NodeId="ns=1;i=7101" BrowseName="1:MatrixStructure">
+    <DisplayName>MatrixStructure</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="MatrixStructure">
+      <Field Name="Matrix" DataType="i=11" ValueRank="2" ArrayDimensions="2,2"/>
+    </Definition>
+  </UADataType>
+
   <UADataType NodeId="ns=1;i=8001" BrowseName="1:ForwardEncodingStructure">
     <DisplayName>ForwardEncodingStructure</DisplayName>
     <References>
