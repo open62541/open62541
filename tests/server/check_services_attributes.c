@@ -769,6 +769,35 @@ START_TEST(ReadStructureDataTypeDefinitionOwnsTransferredContent) {
     UA_DataValue_clear(&copy);
 } END_TEST
 
+START_TEST(ReadStructureDataTypeDefinitionBaseDataType) {
+    /* The BaseDataType is the direct supertype (Part 3 v1.05, 8.48) */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT);
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+
+    UA_DataValue resp =
+        UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+    UA_StructureDefinition *def = (UA_StructureDefinition*)resp.value.data;
+    UA_NodeId structure = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    ck_assert(UA_NodeId_equal(&def->baseDataType, &structure));
+    UA_DataValue_clear(&resp);
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* UserNameIdentityToken is a subtype of UserIdentityToken */
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_USERNAMEIDENTITYTOKEN);
+    resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_uint_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(resp.value.type, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+    def = (UA_StructureDefinition*)resp.value.data;
+    UA_NodeId userIdentityToken = UA_NODEID_NUMERIC(0, UA_NS0ID_USERIDENTITYTOKEN);
+    ck_assert(UA_NodeId_equal(&def->baseDataType, &userIdentityToken));
+    UA_DataValue_clear(&resp);
+#endif
+} END_TEST
+
 START_TEST(ReadEnumDataTypeDefinitionOwnsTransferredContent) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -2009,6 +2038,8 @@ static Suite * testSuite_services_attributes(void) {
                    ReadStructureDataTypeDefinitionOwnsTransferredContent);
     tcase_add_test(tc_readSingleAttributes,
                    ReadEnumDataTypeDefinitionOwnsTransferredContent);
+    tcase_add_test(tc_readSingleAttributes,
+                   ReadStructureDataTypeDefinitionBaseDataType);
 #endif
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
     tcase_add_loop_test(tc_readSingleAttributes, ReadSingleAttributeOutOfRange, 0, 3);
