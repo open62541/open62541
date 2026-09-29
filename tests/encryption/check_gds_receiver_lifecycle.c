@@ -141,6 +141,20 @@ START_TEST(shutdownWhileApplyChangesPending) {
     ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
+/* The transaction is discarded when the queued ApplyChanges runs. An update
+ * staged in between would be lost and must be refused. */
+START_TEST(rejectUpdateWhileApplyChangesQueued) {
+    startup();
+    ck_assert_uint_eq(stageAndApplyCertificateUpdate(), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callUpdateCertificate(&defaultApplicationGroup,
+                                            &rsaSha256CertificateType),
+                      UA_STATUSCODE_BADTRANSACTIONPENDING);
+
+    /* The delayed ApplyChanges completes the transaction */
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(stageAndApplyCertificateUpdate(), UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(shutdownWhileCertificateClosurePending) {
     startup();
     ck_assert_uint_eq(updateCertificate(), UA_STATUSCODE_GOOD);
@@ -252,6 +266,7 @@ main(void) {
     TCase *tc = tcase_create("lifecycle");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, shutdownWhileApplyChangesPending);
+    tcase_add_test(tc, rejectUpdateWhileApplyChangesQueued);
     tcase_add_test(tc, shutdownWhileCertificateClosurePending);
     tcase_add_test(tc, updateCertificateArguments);
     tcase_add_test(tc, rejectDuplicateReceiver);
