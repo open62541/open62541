@@ -1002,6 +1002,39 @@ START_TEST(Client_rejectedReactivation_keepsPreviousIdentity) {
 }
 END_TEST
 
+/* An empty (null) UserIdentityToken is an anonymous login (Part 4 §5.7.3). The
+ * Session must get the Anonymous Role only, not AuthenticatedUser. */
+START_TEST(Client_nullToken_isAnonymousForRoles) {
+    UA_NodeId anonymousRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_NodeId authenticatedRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(sessionHasRole(client, &anonymousRole));
+    ck_assert(!sessionHasRole(client, &authenticatedRole));
+
+    /* Re-activate with a default-initialized (ENCODED_NOBODY) token */
+    UA_ActivateSessionRequest req;
+    UA_ActivateSessionRequest_init(&req);
+    UA_ActivateSessionResponse resp;
+    UA_ActivateSessionResponse_init(&resp);
+    __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &resp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ActivateSessionResponse_clear(&resp);
+
+    ck_assert(sessionHasRole(client, &anonymousRole));
+    ck_assert_msg(!sessionHasRole(client, &authenticatedRole),
+                  "A null token was evaluated as an authenticated user");
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 /* Copy the Roles of the Session of the connected Client. */
 static size_t
 sessionRoles(UA_Client *client, UA_NodeId **outRoles) {
@@ -1157,6 +1190,7 @@ static Suite *testSuite_Server_RBAC_Client(void) {
     tcase_add_test(tc, Client_mustChangePassword_staysAnonymousAfterRoleChange);
     tcase_add_test(tc, Client_disabledUser_cannotActivate);
     tcase_add_test(tc, Client_rejectedReactivation_keepsPreviousIdentity);
+    tcase_add_test(tc, Client_nullToken_isAnonymousForRoles);
     tcase_add_test(tc, Client_manualRoles_surviveRoleSetChanges);
     tcase_add_test(tc, Client_tokenRoles_notQueriedForNonIssuedTokens);
 #ifdef UA_ENABLE_METHODCALLS

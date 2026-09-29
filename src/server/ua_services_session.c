@@ -1385,8 +1385,15 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
      * when the RoleSet changes. */
     UA_SessionIdentityContext ctx;
     memset(&ctx, 0, sizeof(ctx));
-    const UA_DataType *rbacTokenType = req->userIdentityToken.content.decoded.type;
-    ctx.isAnonymous = (rbacTokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+    /* An empty (ENCODED_NOBODY) token has no decoded type. It selects the
+     * anonymous UserTokenPolicy and is anonymous (Part 4 §5.7.3), so take
+     * that from the policy and not from the token. */
+    const UA_ExtensionObject *rbacToken = &req->userIdentityToken;
+    const UA_DataType *rbacTokenType =
+        (rbacToken->encoding == UA_EXTENSIONOBJECT_DECODED ||
+         rbacToken->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) ?
+        rbacToken->content.decoded.type : NULL;
+    ctx.isAnonymous = (utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS);
     /* Per Part 18 §4.4.3 TrustedApplication: the session shall use at least a
      * signed communication channel (Sign or SignAndEncrypt) and the client
      * application instance certificate must have been validated. A Sign-only
