@@ -579,6 +579,44 @@ START_TEST(remove_certificate_reject_while_open) {
 }
 END_TEST
 
+static UA_StatusCode
+failingGetTrustList(UA_CertificateGroup *certGroup,
+                    UA_TrustListDataType *trustList) {
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+/* Test: A failed RemoveCertificate leaves no transaction behind */
+START_TEST(remove_certificate_failure_clears_transaction) {
+    UA_Client *client = createSecureClient();
+
+    /* Copying the TrustList into the transaction fails */
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    lockServer(server);
+    UA_StatusCode (*getTrustList)(UA_CertificateGroup *, UA_TrustListDataType *) =
+        certGroup->getTrustList;
+    certGroup->getTrustList = failingGetTrustList;
+    unlockServer(server);
+
+    UA_String thumbprint = UA_STRING("0000000000000000000000000000000000000000");
+    UA_StatusCode retval = callRemoveCertificate(client, &thumbprint, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+
+    lockServer(server);
+    certGroup->getTrustList = getTrustList;
+    unlockServer(server);
+
+    /* No transaction is pending, so the TrustList can be changed again */
+    UA_ByteString cert;
+    cert.length = APPLICATION_CERT_DER_LENGTH;
+    cert.data = APPLICATION_CERT_DER_DATA;
+    retval = callAddCertificate(client, &cert, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(rw_trustlist) {
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -923,6 +961,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, remove_certificate_success);
     tcase_add_test(tc_cert, remove_certificate_not_found);
     tcase_add_test(tc_cert, remove_certificate_reject_while_open);
+    tcase_add_test(tc_cert, remove_certificate_failure_clears_transaction);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
     return s;
