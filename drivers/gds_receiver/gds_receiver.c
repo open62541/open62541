@@ -598,10 +598,14 @@ UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
     if(!fileContext)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* If a close is called, a current transaction is cancelled.
-     * If the list was opened in read mode, there are no changes to discard. */
+    /* Close discards the data written to the file (Part 12 §7.8.2.5). It is
+     * not staged in the transaction yet. Other changes of the transaction are
+     * kept. A transaction without changes is ended. If the list was opened in
+     * read mode, there are no changes to discard. */
     if(fileContext->openFileMode ==
-       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING) &&
+       transaction->certGroupSize == 0 &&
+       transaction->certificateInfosSize == 0)
         UA_GDSTransaction_clear(transaction);
 
     LIST_REMOVE(fileContext, listEntry);
@@ -1102,8 +1106,13 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     UA_Server *server = ctx->drv.server;
 
     UA_GDSTransaction *transaction = &ctx->transaction;
-    /* Cannot be opened when a transaction is running */
-    if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING)
+    /* Cannot be opened when a transaction is running. Only an Open for writing
+     * from the session of the transaction continues it (Part 12 §7.8.2.2),
+     * unless ApplyChanges is already queued. */
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING &&
+       (fileOpenMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING) ||
+        transaction->applyChangesQueued ||
+        !UA_NodeId_equal(&transaction->sessionId, sessionId)))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_FileInfo *fileInfo =
@@ -1125,7 +1134,8 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     }
 
     /* If the list is opened for writing, a transaction must be created */
-    if(fileOpenMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING)) {
+    if(fileOpenMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING) &&
+       transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -1619,6 +1629,17 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
             return UA_STATUSCODE_BADINTERNALERROR;
         if(fileInfo->openCount > 0)
             return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
+    /* No changes are applied while any TrustList is open for writing (Part 12
+     * §7.10.9). The transaction may also hold a certificate update only. */
+    for(UA_FileInfo *fi = ctx->fileInfos; fi; fi = fi->next) {
+        UA_FileContext *fileContext;
+        LIST_FOREACH(fileContext, &fi->fileContext, listEntry) {
+            if(fileContext->openFileMode ==
+               (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+                return UA_STATUSCODE_BADINVALIDSTATE;
+        }
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

@@ -137,15 +137,16 @@ openTrustList(UA_Client *client, UA_Byte mode, UA_Variant* fileHandler) {
 
     UA_CallResponse response = UA_Client_Service_call(client, callOpenTrustList);
     ck_assert_uint_eq(1, response.resultsSize);
-    ck_assert_int_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(1, response.results[0].outputArgumentsSize);
-
-    UA_Variant_copy(&response.results[0].outputArguments[0], fileHandler);
+    UA_StatusCode res = response.results[0].statusCode;
+    if(res == UA_STATUSCODE_GOOD) {
+        ck_assert_uint_eq(1, response.results[0].outputArgumentsSize);
+        UA_Variant_copy(&response.results[0].outputArguments[0], fileHandler);
+    }
 
     UA_free(inputArguments);
     UA_CallResponse_clear(&response);
 
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode
@@ -456,6 +457,43 @@ callRemoveCertificate(UA_Client *client, UA_String *thumbprint, UA_Boolean isTru
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
     callMethodRequest.methodId = UA_NODEID_NUMERIC(0,
         UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_REMOVECERTIFICATE);
+
+    UA_CallRequest callReq;
+    UA_CallRequest_init(&callReq);
+    callReq.methodsToCallSize = 1;
+    callReq.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callReq);
+    ck_assert_uint_eq(1, response.resultsSize);
+    UA_StatusCode res = response.results[0].statusCode;
+    UA_CallResponse_clear(&response);
+    return res;
+}
+
+/* Helper: stage the current server certificate again with UpdateCertificate */
+static UA_StatusCode
+callUpdateCertificate(UA_Client *client) {
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_String privateKeyFormat = UA_STRING("DER");
+
+    UA_Variant inputArguments[6];
+    UA_Variant_setScalar(&inputArguments[0], &groupId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&inputArguments[1], &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&inputArguments[2], &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setArray(&inputArguments[3], NULL, 0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&inputArguments[4], &privateKeyFormat, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[5], &privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 6;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE);
 
     UA_CallRequest callReq;
     UA_CallRequest_init(&callReq);
@@ -804,6 +842,79 @@ START_TEST(apply_changes_without_transaction) {
 }
 END_TEST
 
+/* Part 12 §7.8.2.2: Open with the write bit continues the transaction of the
+ * session. Other sessions cannot open the TrustList meanwhile. */
+START_TEST(open_continues_transaction) {
+    UA_Client *client = createSecureClient();
+    UA_Client *other = createSecureClient();
+
+    /* The TrustList that is written back */
+    UA_CertificateGroup *certGroup = &UA_Server_getConfig(server)->secureChannelPKI;
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    lockServer(server);
+    UA_StatusCode retval = certGroup->getTrustList(certGroup, &trustList);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString encTrustList = UA_BYTESTRING_NULL;
+    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE],
+                             &encTrustList, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* UpdateCertificate starts the transaction */
+    retval = callUpdateCertificate(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant fileHandler;
+    UA_Variant_init(&fileHandler);
+    UA_Byte mode = UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING;
+    retval = openTrustList(other, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTRANSACTIONPENDING);
+
+    /* Close discards the written data, but not the certificate update */
+    retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
+    UA_Variant_clear(&fileHandler);
+    retval = writeTrustList(client, fd, encTrustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = closeTrustList(client, fd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = openTrustList(other, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTRANSACTIONPENDING);
+
+    /* Write the TrustList in the same transaction */
+    retval = openTrustList(client, mode, &fileHandler);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    fd = *(UA_UInt32*)fileHandler.data;
+    UA_Variant_clear(&fileHandler);
+    retval = writeTrustList(client, fd, encTrustList);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Part 12 §7.10.9: Nothing is applied while the TrustList is open for
+     * writing */
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+
+    UA_Variant applyRequiredVar;
+    UA_Variant_init(&applyRequiredVar);
+    retval = closeAndUpdateTrustList(client, fd, &applyRequiredVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&applyRequiredVar);
+
+    retval = applyChanges(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_TrustListDataType_clear(&trustList);
+    UA_ByteString_clear(&encTrustList);
+    UA_Client_disconnect(other);
+    UA_Client_delete(other);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(read_trustlist_reject_negative_length) {
     UA_Client *client = createSecureClient();
 
@@ -1021,6 +1132,7 @@ static Suite* testSuite_create_certificate(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, rw_trustlist);
     tcase_add_test(tc_cert, apply_changes_without_transaction);
+    tcase_add_test(tc_cert, open_continues_transaction);
     tcase_add_test(tc_cert, gds_callback_argument_counts);
     tcase_add_test(tc_cert, read_trustlist_reject_negative_length);
     tcase_add_test(tc_cert, add_certificate_replaced_input_metadata);
