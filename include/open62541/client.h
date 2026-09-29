@@ -468,6 +468,8 @@ UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
  *   to the UA_DataTypeArray array.
  * - If the dataTypesNodeSize is zero, then the type hierarchy in the server is
  *   browsed to find any unknown DataTypes.
+ * - customTypes is set to NULL if the call fails or if no unknown DataTypes
+ *   are found.
  * - The "cleanup"-flag in the UA_DataTypeArray is set to true, so it is cleaned
  *   up together with the client configuration -- if it is added there. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
