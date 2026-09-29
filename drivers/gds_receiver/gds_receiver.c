@@ -715,11 +715,9 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
     if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* The server currently only supports the following certificate type */
-    static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
-       !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
+    /* The certificate type must be one of the CertificateTypes of the group */
+    UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+    if(!UA_GDSReceiver_certificateTypeSupported(sc, certificateTypeId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Verify that the privateKey is in a supported format and
@@ -1259,6 +1257,31 @@ getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
     return NULL;
 }
 
+/* The receiver updates the RSA application certificates of the
+ * DefaultApplicationGroup. A certificate type is supported only if an endpoint
+ * uses a SecurityPolicy with that type, so that an update takes effect. The
+ * supported types are the CertificateTypes of the group (Part 12 §7.10.5). */
+UA_Boolean
+UA_GDSReceiver_certificateTypeSupported(UA_ServerConfig *sc,
+                                        const UA_NodeId *certificateTypeId) {
+    static UA_NodeId defaultApplicationGroup =
+        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
+    static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
+       !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
+        return false;
+
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        UA_SecurityPolicy *sp =
+            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+        if(sp && UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
+           UA_NodeId_equal(&sp->certificateGroupId, &defaultApplicationGroup))
+            return true;
+    }
+    return false;
+}
+
 /* Update every SecurityPolicy and endpoint that uses the certificate type.
  * First resolve all endpoint policies and allocate the replacement endpoint
  * certificates. This ensures configuration and allocation errors are reported
@@ -1310,6 +1333,11 @@ applyCertificateToPolicies(UA_ServerConfig *sc,
         if(j == policiesSize)
             policies[policiesSize++] = sp;
     }
+
+    /* No endpoint uses the certificate type. The update would have no
+     * effect. */
+    if(policiesSize == 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* A SecurityPolicy#None endpoint presents the certificate of the None
      * SecurityPolicy, which is usually the replaced certificate. Update it as
@@ -1499,15 +1527,12 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    static UA_NodeId rsaShaCertificateType =
-        STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    static UA_NodeId rsaMinCertificateType =
-        STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
-       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
+    /* Without a SecurityPolicy for the certificate type, no CSR would be
+     * created */
+    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
+    if(!UA_GDSReceiver_certificateTypeSupported(sc, &certificateTypeId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
                         &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
