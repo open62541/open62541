@@ -191,6 +191,10 @@ struct UA_Client {
     /* Overall connection status */
     UA_StatusCode connectStatus;
 
+    /* An async connect is aborted with BadTimeout if the client is not fully
+     * connected at this (monotonic) time. Zero if not set. */
+    UA_DateTime connectDeadline;
+
     /* Old status to notify only changes */
     UA_SecureChannelState oldChannelState;
     UA_SessionState oldSessionState;
