@@ -2506,6 +2506,15 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    /* TimestampsToReturn Neither is not valid (Part 4, 5.11.3.2). The parameter
+     * is ignored for Events (Part 11, 4.5). */
+    if(readKind != HISTORYREAD_EVENT &&
+       request->timestampsToReturn > UA_TIMESTAMPSTORETURN_BOTH) {
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return true;
+    }
+
     /* Check if the configured History-Backend supports the requested history type */
     if((readKind == HISTORYREAD_RAW && !server->config.historyDatabase.readRaw) ||
        (readKind == HISTORYREAD_MODIFIED && !server->config.historyDatabase.readModified) ||
@@ -2514,7 +2523,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
        (readKind == HISTORYREAD_ATTIME && !server->config.historyDatabase.readAtTime)) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "The configured HistoryBackend does not support the selected history-type");
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
         return true;
     }
 
