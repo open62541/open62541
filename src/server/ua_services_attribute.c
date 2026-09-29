@@ -416,8 +416,10 @@ addMissingTimestamps(UA_Server *server, UA_DataValue *v,
               timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
         /* Optional behavior and not required by the specification: Always
          * set a SourceTimestamp for the value attribute, even if the value
-         * source didn't return one. */
-        if(!v->hasSourceTimestamp && id->attributeId == UA_ATTRIBUTEID_VALUE) {
+         * source didn't return one. But not for a Bad status. Then the
+         * SourceTimestamp shall be null (Part 4, 7.11.3). */
+        if(!v->hasSourceTimestamp && id->attributeId == UA_ATTRIBUTEID_VALUE &&
+           !(v->hasStatus && UA_StatusCode_isBad(v->status))) {
             UA_EventLoop *el = server->config.eventLoop;
             v->sourceTimestamp = el->dateTime_now(el);
             v->hasSourceTimestamp = true;
