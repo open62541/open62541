@@ -639,16 +639,22 @@ START_TEST(Node_ReadWrite_Description) {
 }
 END_TEST
 
+/* The server never advertises these attributes as writable */
+#define UNWRITABLE_MASK                                                  \
+    (UA_WRITEMASK_NODEID | UA_WRITEMASK_NODECLASS | UA_WRITEMASK_BROWSENAME | \
+     UA_WRITEMASK_USERACCESSLEVEL | UA_WRITEMASK_USEREXECUTABLE |       \
+     UA_WRITEMASK_USERWRITEMASK)
+
 START_TEST(Node_ReadWrite_WriteMask) {
 
     UA_UInt32 writeMask;
     UA_StatusCode retval = UA_Client_readWriteMaskAttribute(client, nodeReadWriteInt, &writeMask);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(writeMask, 0xFFFFFFFF);
+    ck_assert_int_eq(writeMask, 0xFFFFFFFF & ~UNWRITABLE_MASK);
 
     // Disable a random write mask bit
-    UA_UInt32 newMask = 0xFFFFFFFF & ~UA_WRITEMASK_BROWSENAME;
+    UA_UInt32 newMask = 0xFFFFFFFF & ~UA_WRITEMASK_DISPLAYNAME;
 
     retval = UA_Client_writeWriteMaskAttribute(client, nodeReadWriteInt, &newMask);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -656,7 +662,7 @@ START_TEST(Node_ReadWrite_WriteMask) {
     UA_UInt32 writeMaskChangedRead;
     retval = UA_Client_readWriteMaskAttribute(client, nodeReadWriteInt, &writeMaskChangedRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(writeMaskChangedRead, newMask);
+    ck_assert_int_eq(writeMaskChangedRead, newMask & ~UNWRITABLE_MASK);
 
 }
 END_TEST
@@ -666,7 +672,8 @@ START_TEST(Node_ReadWrite_UserWriteMask) {
     UA_UInt32 userWriteMask;
     UA_StatusCode retval = UA_Client_readUserWriteMaskAttribute(client, nodeReadWriteInt, &userWriteMask);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(userWriteMask, 0xFFFFFFFF & ~UA_WRITEMASK_BROWSENAME);
+    ck_assert_int_eq(userWriteMask,
+                     0xFFFFFFFF & ~UA_WRITEMASK_DISPLAYNAME & ~UNWRITABLE_MASK);
 
     // Disable a random write mask bit
     UA_UInt32 newMask = 0xFFFFFFFF & ~UA_WRITEMASK_DISPLAYNAME;

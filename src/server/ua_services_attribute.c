@@ -91,6 +91,13 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                           &head->nodeId, head->context);
 }
 
+/* The Write service refuses these Attributes in any case (see
+ * copyAttributeIntoNode). The (User)WriteMask never advertises them. */
+#define UA_WRITEMASK_UNWRITABLE                                         \
+    (UA_WRITEMASK_NODEID | UA_WRITEMASK_NODECLASS | UA_WRITEMASK_BROWSENAME | \
+     UA_WRITEMASK_USERACCESSLEVEL | UA_WRITEMASK_USEREXECUTABLE |      \
+     UA_WRITEMASK_USERWRITEMASK)
+
 static UA_Byte
 getAccessLevel(UA_Server *server, const UA_Session *session,
                const UA_VariableNode *node) {
@@ -571,12 +578,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     }
-    case UA_ATTRIBUTEID_WRITEMASK:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.writeMask,
+    case UA_ATTRIBUTEID_WRITEMASK: {
+        UA_UInt32 writeMask = node->head.writeMask & ~(UA_UInt32)UA_WRITEMASK_UNWRITABLE;
+        retval = UA_Variant_setScalarCopy(&v->value, &writeMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
         break;
+    }
     case UA_ATTRIBUTEID_USERWRITEMASK: {
-        UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
+        UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head) &
+            ~(UA_UInt32)UA_WRITEMASK_UNWRITABLE;
         retval = UA_Variant_setScalarCopy(&v->value, &userWriteMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
         break;

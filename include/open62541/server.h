@@ -512,8 +512,7 @@ UA_Server_readAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  *
  * - NodeClass
  * - NodeId
- * - Symmetric
- * - ContainsNoLoops
+ * - BrowseName
  *
  * The following attributes cannot be written from C-API, as they are specific
  * to the session (context set by the access control callback):
@@ -521,7 +520,8 @@ UA_Server_readAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable
- */
+ *
+ * The WriteMask and UserWriteMask never mark these attributes as writable. */
 
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value);
