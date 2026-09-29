@@ -1682,17 +1682,31 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
 
     /* Handle StatusChangeNotification */
     if(msg->content.decoded.type == &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]) {
+        UA_StatusChangeNotification *scn =
+            (UA_StatusChangeNotification*)msg->content.decoded.data;
+        UA_StatusCode status = scn->status;
         UA_UInt32 subId = sub->subscriptionId;
         if(sub->statusChangeCallback) {
             void *subC = sub->context;
-            sub->statusChangeCallback(client, subId, subC,
-                                      (UA_StatusChangeNotification*)msg->content.decoded.data);
+            sub->statusChangeCallback(client, subId, subC, scn);
+            if(findSubscriptionById(client, subId) != sub)
+                return false;
         } else {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Dropped a StatusChangeNotification since no "
                            "callback is registered");
         }
-        return findSubscriptionById(client, subId) == sub;
+        /* The server has deleted the Subscription or transferred it to another
+         * Session (Part 4, 5.14.1.1 and 5.14.7.1). Delete it locally. */
+        if(UA_StatusCode_isBad(status) ||
+           status == UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "Subscription %" PRIu32 " | Removed after a "
+                        "StatusChange with status %s", subId, UA_StatusCode_name(status));
+            __Client_Subscription_deleteInternal(client, sub);
+            return false;
+        }
+        return true;
     }
 
     UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
