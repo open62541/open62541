@@ -28,7 +28,15 @@ _UA_BEGIN_DECLS
  *
  * Every log message consists of a log level, a log category and a string
  * message content. The timestamp of the log message is created within the
- * logger. */
+ * logger.
+ *
+ * The logger is often called while the internal (recursive) lock of the
+ * server or client is held. So the log callback should return quickly. It must
+ * not block on another thread that uses the same server or client, as that
+ * thread can be waiting for the lock. The application deadlocks then. Calling
+ * back into the server or client from the log callback is not supported
+ * either. With multithreading (UA_MULTITHREADING >= 100), the logger can be
+ * called from several threads at once and has to be thread-safe. */
 
 typedef enum {
     UA_LOGLEVEL_TRACE   = 100,
