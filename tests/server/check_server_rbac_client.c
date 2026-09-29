@@ -950,9 +950,11 @@ START_TEST(Client_rejectedReactivation_keepsPreviousIdentity) {
     }
     ck_assert(userNamePolicyId.length > 0);
 
-    /* Re-activate the very same Session as the disabled user. The request is
-     * built by hand: UA_Client_activateCurrentSession tears the Client-side
-     * Session down on any error, which would end the test early. */
+    /* Re-activate the very same Session as the disabled user. The server does
+     * not support changing the user of an activated Session and refuses the
+     * request before the AccessControl plugin is asked. The request is built
+     * by hand: UA_Client_activateCurrentSession tears the Client-side Session
+     * down on any error, which would end the test early. */
     UA_ActivateSessionRequest req;
     UA_ActivateSessionRequest_init(&req);
     UA_UserNameIdentityToken token;
@@ -967,7 +969,7 @@ START_TEST(Client_rejectedReactivation_keepsPreviousIdentity) {
     __UA_Client_Service(client, &req, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                         &resp, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
     ck_assert_uint_eq(resp.responseHeader.serviceResult,
-                      UA_STATUSCODE_BADIDENTITYTOKENINVALID);
+                      UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED);
     UA_ActivateSessionResponse_clear(&resp);
 
     /* The Session kept the identity and the Roles of the previous activation */
