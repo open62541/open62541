@@ -223,10 +223,12 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
             res |= UA_ByteString_copy(privateKey, &newPrivateKey);
         if(res != UA_STATUSCODE_GOOD) {
             UA_ByteString_clear(&newCertificate);
+            UA_ByteString_memZero(&newPrivateKey);
             UA_ByteString_clear(&newPrivateKey);
             return res;
         }
         UA_ByteString_clear(&certInfo->certificate);
+        UA_ByteString_memZero(&certInfo->privateKey);
         UA_ByteString_clear(&certInfo->privateKey);
         certInfo->certificate = newCertificate;
         certInfo->privateKey = newPrivateKey;
@@ -242,6 +244,7 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
         res |= UA_ByteString_copy(privateKey, &stagedInfo.privateKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&stagedInfo.certificate);
+        UA_ByteString_memZero(&stagedInfo.privateKey);
         UA_ByteString_clear(&stagedInfo.privateKey);
         UA_NodeId_clear(&stagedInfo.certificateGroup);
         UA_NodeId_clear(&stagedInfo.certificateType);
@@ -253,6 +256,7 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
                    (transaction->certificateInfosSize + 1) * sizeof(UA_GDSCertificateInfo));
     if(!newCertInfos) {
         UA_ByteString_clear(&stagedInfo.certificate);
+        UA_ByteString_memZero(&stagedInfo.privateKey);
         UA_ByteString_clear(&stagedInfo.privateKey);
         UA_NodeId_clear(&stagedInfo.certificateGroup);
         UA_NodeId_clear(&stagedInfo.certificateType);
@@ -289,6 +293,7 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
     if(transaction->certificateInfos) {
         for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
             UA_ByteString_clear(&transaction->certificateInfos[i].certificate);
+            UA_ByteString_memZero(&transaction->certificateInfos[i].privateKey);
             UA_ByteString_clear(&transaction->certificateInfos[i].privateKey);
             UA_NodeId_clear(&transaction->certificateInfos[i].certificateGroup);
             UA_NodeId_clear(&transaction->certificateInfos[i].certificateType);
