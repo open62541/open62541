@@ -812,8 +812,10 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
 
     UA_CertificateGroup *transactionCG =
         UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCG)
+    if(!transactionCG) {
+        UA_GDSTransaction_clear(transaction);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
