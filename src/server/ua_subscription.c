@@ -312,6 +312,19 @@ deleteMonitoredItemVisitor(void *context, UA_MonitoredItem *mon) {
     return NULL;
 }
 
+static void
+deleteAllMonitoredItems(UA_Server *server, UA_Subscription *sub) {
+    UA_UInt32 monitoredItemsSize = sub->monitoredItemsSize;
+    UA_assert(server->monitoredItemsSize >= monitoredItemsSize);
+    /* Detach the index so deletion does not rebalance a discarded tree. */
+    UA_MonitoredItemIdTree monitoredItems = sub->monitoredItemsById;
+    ZIP_INIT(&sub->monitoredItemsById);
+    sub->monitoredItemsSize = 0;
+    server->monitoredItemsSize -= monitoredItemsSize;
+    ZIP_ITER(UA_MonitoredItemIdTree, &monitoredItems,
+             deleteMonitoredItemVisitor, server);
+}
+
 void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notify) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -325,15 +338,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Delete monitored Items */
-    UA_UInt32 monitoredItemsSize = sub->monitoredItemsSize;
-    UA_assert(server->monitoredItemsSize >= monitoredItemsSize);
-    /* Detach the index so deletion does not rebalance a discarded tree. */
-    UA_MonitoredItemIdTree monitoredItems = sub->monitoredItemsById;
-    ZIP_INIT(&sub->monitoredItemsById);
-    sub->monitoredItemsSize = 0;
-    server->monitoredItemsSize -= monitoredItemsSize;
-    ZIP_ITER(UA_MonitoredItemIdTree, &monitoredItems,
-             deleteMonitoredItemVisitor, server);
+    deleteAllMonitoredItems(server, sub);
 
     /* Remove delayed callbacks for processing remaining notifications */
     if(sub->delayedCallbackRegistered) {
@@ -630,17 +635,35 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 static void
 sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
                        UA_PublishResponseEntry *pre) {
-    /* Cannot send out the StatusChange because no response is queued. Delete
-     * the Subscription without sending the StatusChange. */
+    /* Cannot send out the StatusChange because no response is queued */
     if(!pre) {
         UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Cannot send the StatusChange notification because "
                                   "no response is queued.");
-        if(UA_StatusCode_isBad(sub->statusChange)) {
+        if(!UA_StatusCode_isBad(sub->statusChange))
+            return;
+
+        /* Without a Session the StatusChange can never be sent. Delete the
+         * Subscription right away. */
+        if(!sub->session) {
             UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                       "Removing the subscription.");
             UA_Subscription_delete(server, sub, true);
+            return;
         }
+
+        /* Close the Subscription and keep it as a tombstone until the next
+         * Publish request carries the StatusChange (Part 4, 5.14.1.1). The
+         * publish callback is stopped and the MonitoredItems are deleted.
+         * Lookups skip the tombstone. Only the loop over late Subscriptions in
+         * Service_Publish reaches it. UA_Session_remove deletes it if the
+         * Session goes away first. */
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
+                                  "Closing the subscription until the "
+                                  "StatusChange can be sent.");
+        sub->late = true;
+        Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_STOPPED);
+        deleteAllMonitoredItems(server, sub);
         return;
     }
 

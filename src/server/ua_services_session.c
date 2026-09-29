@@ -128,11 +128,16 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
      * Otherwise remove them now. The Session is already closed and absent from
      * lookup, so callbacks during Subscription teardown cannot remove it again.
      * Keeping this synchronous also makes the Subscription state consistent
-     * as soon as UA_Session_remove returns. */
+     * as soon as UA_Session_remove returns.
+     *
+     * Subscriptions waiting to send a StatusChange (e.g. closed after their
+     * lifetime expired) are always removed. They cannot be looked up or
+     * transferred and would never be deleted once detached. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT) {
+        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT &&
+           sub->statusChange == UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                                      "Detaching the Subscription from the timed-out Session");
             UA_Session_detachSubscription(server, session, sub, true);
@@ -1547,10 +1552,14 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_INFO_SESSION(server->config.logging, session, "Closing the Session");
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* If Subscriptions are not deleted, detach them from the Session */
+    /* If Subscriptions are not deleted, detach them from the Session.
+     * Subscriptions waiting to send a StatusChange are removed with the
+     * Session, see UA_Session_remove. */
     if(!request->deleteSubscriptions) {
         UA_Subscription *sub, *sub_tmp;
         TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
+            if(sub->statusChange != UA_STATUSCODE_GOOD)
+                continue;
             UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                                      "Detaching the Subscription from the Session");
             UA_Session_detachSubscription(server, session, sub, true);
