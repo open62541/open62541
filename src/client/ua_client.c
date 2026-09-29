@@ -369,6 +369,10 @@ void
 notifyClientState(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
+    /* The async connect has completed */
+    if(client->connectDeadline != 0 && isFullyConnected(client))
+        client->connectDeadline = 0;
+
     if(client->connectStatus == client->oldConnectStatus &&
        client->channel.state == client->oldChannelState &&
        client->sessionState == client->oldSessionState)
@@ -1327,6 +1331,32 @@ __Client_backgroundConnectivity(UA_Client *client) {
         client->pendingConnectivityCheck = true;
 }
 
+/* Abort an async connect that is not fully connected within the timeout. A
+ * listening reverse connect waits for the server without a deadline. */
+static void
+connectTimeoutCheck(UA_Client *client) {
+    if(client->connectDeadline == 0)
+        return;
+
+    /* Connected, or the connect has failed otherwise */
+    if(isFullyConnected(client) || client->connectStatus != UA_STATUSCODE_GOOD) {
+        client->connectDeadline = 0;
+        return;
+    }
+
+    if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+        return;
+
+    UA_EventLoop *el = client->config.eventLoop;
+    if(el->dateTime_nowMonotonic(el) < client->connectDeadline)
+        return;
+
+    UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                 "The connection has timed out before it could be fully opened");
+    client->connectDeadline = 0;
+    setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
+}
+
 /* Regular housekeeping activities in the client -- called via a cyclic callback */
 static void
 clientHouseKeeping(void *client_, void *_) {
@@ -1336,6 +1366,9 @@ clientHouseKeeping(void *client_, void *_) {
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Internally check the the client state and "
                  "required activities");
+
+    /* Abort an async connect that takes too long */
+    connectTimeoutCheck(client);
 
     /* Renew Secure Channel */
     __Client_renewSecureChannel(client);

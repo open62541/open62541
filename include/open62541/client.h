@@ -160,12 +160,14 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl);
  * call UA_Client_run_iterate repeatedly until the connection is fully
  * established. You can set a callback to client->config.stateCallback to be
  * notified when the connection status changes. Or use UA_Client_getState to get
- * the state manually. */
+ * the state manually. If the connection is not fully established within the
+ * timeout from the client configuration, it is closed with the connectStatus
+ * UA_STATUSCODE_BADTIMEOUT. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_connectAsync(UA_Client *client, const char *endpointUrl);
 
 /* Connect async to the server with a SecureChannel, but without creating a
- * Session */
+ * Session. The same timeout applies as for UA_Client_connectAsync. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl);
 
@@ -605,7 +607,9 @@ struct UA_ClientConfig {
     /* Response timeout in ms (0 -> no timeout). If the server does not answer a
      * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is
      * returned. This timeout can be overridden for individual requests by
-     * setting a non-null "timeoutHint" in the request header. */
+     * setting a non-null "timeoutHint" in the request header. The timeout
+     * also limits the time until a (sync or async) connect is fully
+     * established. */
     UA_UInt32 timeout;
 
     /* Self-description of the client.
