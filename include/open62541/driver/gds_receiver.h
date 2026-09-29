@@ -11,10 +11,10 @@
 #include <open62541/server.h>
 
 /**
- * GDS Receiver Driver
- * -------------------
+ * GDS Push Receiver Driver
+ * ------------------------
  *
- * The GDS Receiver driver implements the server side of OPC UA
+ * The GDS Push Receiver driver implements the server side of OPC UA
  * PushManagement. It exposes the ServerConfiguration methods for updating the
  * application certificate and the CertificateGroup trust lists. Changes are
  * collected in a transaction and applied together with the ApplyChanges
@@ -26,51 +26,51 @@
  * PushManagement additionally requires encryption and the full Namespace
  * Zero.
  *
- * Create the driver with UA_GDSReceiver_new() and attach its ``drv`` member to
- * the server with UA_Server_addDriver() before calling
- * UA_Server_run_startup(). A server can have at most one GDS Receiver driver.
- * The server takes ownership of the receiver after it has been added
+ * Create the driver with UA_GDSPushReceiver_new() and attach its ``drv``
+ * member to the server with UA_Server_addDriver() before calling
+ * UA_Server_run_startup(). A server can have at most one GDS Push Receiver
+ * driver. The server takes ownership of the receiver after it has been added
  * successfully. */
 
 #ifdef UA_ENABLE_DRIVER_GDS_RECEIVER
 
 _UA_BEGIN_DECLS
 
-typedef struct UA_GDSReceiver {
+typedef struct UA_GDSPushReceiver {
     UA_Driver drv; /* Must be the first member */
-} UA_GDSReceiver;
+} UA_GDSPushReceiver;
 
-/* Create a GDS Receiver driver. The returned driver is heap-allocated and
- * must either be passed to UA_Server_addDriver() or released with its ``free``
- * callback. Returns NULL if allocation fails. */
-UA_EXPORT UA_GDSReceiver *
-UA_GDSReceiver_new(void);
+/* Create a GDS Push Receiver driver. The returned driver is heap-allocated
+ * and must either be passed to UA_Server_addDriver() or released with its
+ * ``free`` callback. Returns NULL if allocation fails. */
+UA_EXPORT UA_GDSPushReceiver *
+UA_GDSPushReceiver_new(void);
 
 /* Update the application certificate used by the server endpoints. The GDS
- * Receiver driver must be attached and started. If certificateGroupId is
+ * Push Receiver driver must be attached and started. If certificateGroupId is
  * null, the DefaultApplicationGroup is used. Returns BadInvalidArgument for a
  * null receiver or empty certificate and BadInvalidState if the receiver is
  * not attached and started. This function is thread-safe. */
 UA_EXPORT UA_StatusCode
-UA_GDSReceiver_updateCertificate(UA_GDSReceiver *receiver,
-                                const UA_NodeId certificateGroupId,
-                                const UA_NodeId certificateTypeId,
-                                const UA_ByteString certificate,
-                                const UA_ByteString *privateKey);
+UA_GDSPushReceiver_updateCertificate(UA_GDSPushReceiver *receiver,
+                                     const UA_NodeId certificateGroupId,
+                                     const UA_NodeId certificateTypeId,
+                                     const UA_ByteString certificate,
+                                     const UA_ByteString *privateKey);
 
-/* Create a PKCS #10 DER-encoded certificate signing request. The GDS Receiver
- * driver must be attached and started. If certificateGroupId is null,
- * the DefaultApplicationGroup is used. Returns BadInvalidArgument for a null
- * receiver or output pointer and BadInvalidState if the receiver is not
+/* Create a PKCS #10 DER-encoded certificate signing request. The GDS Push
+ * Receiver driver must be attached and started. If certificateGroupId is
+ * null, the DefaultApplicationGroup is used. Returns BadInvalidArgument for a
+ * null receiver or output pointer and BadInvalidState if the receiver is not
  * attached and started. This function is thread-safe. */
 UA_EXPORT UA_StatusCode
-UA_GDSReceiver_createSigningRequest(UA_GDSReceiver *receiver,
-                                   const UA_NodeId certificateGroupId,
-                                   const UA_NodeId certificateTypeId,
-                                   const UA_String *subjectName,
-                                   const UA_Boolean *regenerateKey,
-                                   const UA_ByteString *nonce,
-                                   UA_ByteString *csr);
+UA_GDSPushReceiver_createSigningRequest(UA_GDSPushReceiver *receiver,
+                                        const UA_NodeId certificateGroupId,
+                                        const UA_NodeId certificateTypeId,
+                                        const UA_String *subjectName,
+                                        const UA_Boolean *regenerateKey,
+                                        const UA_ByteString *nonce,
+                                        UA_ByteString *csr);
 
 _UA_END_DECLS
 

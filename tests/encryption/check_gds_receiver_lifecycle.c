@@ -10,7 +10,7 @@
 #include "certificates.h"
 
 static UA_Server *server;
-static UA_GDSReceiver *receiver;
+static UA_GDSPushReceiver *receiver;
 static UA_Boolean serverStarted;
 
 static UA_NodeId defaultApplicationGroup;
@@ -29,7 +29,7 @@ setup(void) {
         4840, &certificate, &privateKey, NULL, 0, NULL, 0, NULL, 0);
     ck_assert_ptr_nonnull(server);
 
-    receiver = UA_GDSReceiver_new();
+    receiver = UA_GDSPushReceiver_new();
     ck_assert_ptr_nonnull(receiver);
     ck_assert_uint_eq(UA_Server_addDriver(server, &receiver->drv),
                       UA_STATUSCODE_GOOD);
@@ -54,7 +54,7 @@ static UA_StatusCode
 updateCertificate(void) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    return UA_GDSReceiver_updateCertificate(
+    return UA_GDSPushReceiver_updateCertificate(
         receiver, defaultApplicationGroup, rsaSha256CertificateType,
         certificate, &privateKey);
 }
@@ -62,7 +62,7 @@ updateCertificate(void) {
 static UA_StatusCode
 createSigningRequest(void) {
     UA_ByteString csr = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_GDSReceiver_createSigningRequest(
+    UA_StatusCode res = UA_GDSPushReceiver_createSigningRequest(
         receiver, defaultApplicationGroup, rsaSha256CertificateType,
         NULL, NULL, NULL, &csr);
     UA_ByteString_clear(&csr);
@@ -145,7 +145,7 @@ START_TEST(shutdownWhileCertificateClosurePending) {
 } END_TEST
 
 START_TEST(rejectDuplicateReceiver) {
-    UA_GDSReceiver *duplicate = UA_GDSReceiver_new();
+    UA_GDSPushReceiver *duplicate = UA_GDSPushReceiver_new();
     ck_assert_ptr_nonnull(duplicate);
     ck_assert_uint_eq(UA_Server_addDriver(server, &duplicate->drv),
                       UA_STATUSCODE_BADALREADYEXISTS);
@@ -156,16 +156,16 @@ START_TEST(rejectDuplicateReceiver) {
 START_TEST(helpersBeforeStartupAndDuringShutdown) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
-    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+    ck_assert_uint_eq(UA_GDSPushReceiver_updateCertificate(
                           NULL, defaultApplicationGroup,
                           rsaSha256CertificateType, certificate, &privateKey),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+    ck_assert_uint_eq(UA_GDSPushReceiver_updateCertificate(
                           receiver, defaultApplicationGroup,
                           rsaSha256CertificateType, UA_BYTESTRING_NULL,
                           &privateKey),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
-    ck_assert_uint_eq(UA_GDSReceiver_createSigningRequest(
+    ck_assert_uint_eq(UA_GDSPushReceiver_createSigningRequest(
                           receiver, defaultApplicationGroup,
                           rsaSha256CertificateType, NULL, NULL, NULL, NULL),
                       UA_STATUSCODE_BADINVALIDARGUMENT);
@@ -205,7 +205,7 @@ START_TEST(removeStoppedReceiver) {
     ck_assert_uint_eq(receiver->drv.free(&receiver->drv), UA_STATUSCODE_GOOD);
     receiver = NULL;
 
-    receiver = UA_GDSReceiver_new();
+    receiver = UA_GDSPushReceiver_new();
     ck_assert_ptr_nonnull(receiver);
     ck_assert_uint_eq(UA_Server_addDriver(server, &receiver->drv),
                       UA_STATUSCODE_GOOD);
@@ -222,7 +222,7 @@ START_TEST(removeStoppedReceiver) {
 
 int
 main(void) {
-    Suite *suite = suite_create("GDS Receiver lifecycle");
+    Suite *suite = suite_create("GDS Push Receiver lifecycle");
     TCase *tc = tcase_create("lifecycle");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, shutdownWhileApplyChangesPending);
