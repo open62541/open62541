@@ -191,8 +191,11 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
                                           size_t listenHostnamesLength,
                                           UA_UInt16 port);
 
-/* Disconnect and close a connection to the selected server. Disconnection is
- * always performed async (without blocking). */
+/* Disconnect and close a connection to the selected server. This call blocks:
+ * An activated Session is first closed with a CloseSession request, waiting for
+ * the response up to the timeout from the client configuration. Then the call
+ * waits until the SecureChannel is closed. Use UA_Client_disconnectAsync to
+ * disconnect without blocking. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_disconnect(UA_Client *client);
 
