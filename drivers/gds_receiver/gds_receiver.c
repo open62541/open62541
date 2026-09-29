@@ -699,18 +699,21 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
                                 const UA_ByteString *certificate,
                                 const UA_String *privateKeyFormat,
                                 const UA_ByteString *privateKey) {
-    /* The server currently only supports the DefaultApplicationGroup */
+    /* The server currently only supports the DefaultApplicationGroup. A null
+     * CertificateGroupId selects it (Part 12, 7.10.5). */
     static UA_NodeId defaultApplicationGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    if(UA_NodeId_isNull(certificateGroupId))
+        certificateGroupId = &defaultApplicationGroup;
     if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The server currently only supports the following certificate type */
     static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
     static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
        !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
