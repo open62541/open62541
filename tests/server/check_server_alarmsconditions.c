@@ -1697,6 +1697,62 @@ START_TEST(triggerCondition_multipleTimes) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+static void
+refreshEventCallback(UA_Server *s, UA_UInt32 monitoredItemId,
+                     void *monitoredItemContext, const UA_KeyValueMap eventFields) {
+    (void)s; (void)monitoredItemId; (void)monitoredItemContext; (void)eventFields;
+}
+
+/* ConditionRefresh and ConditionRefresh2 accept their UInt32 arguments. The
+ * Call service adjusts them to the IntegerId DataType of the InputArguments. */
+START_TEST(conditionRefresh_integerIdArguments) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        "IntegerIdRefreshCondition", source);
+
+    /* Local event MonitoredItem of the admin Session (SubscriptionId 0) */
+    UA_QualifiedName eventIdName = UA_QUALIFIEDNAME(0, "EventId");
+    UA_SimpleAttributeOperand select;
+    UA_SimpleAttributeOperand_init(&select);
+    select.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    select.browsePathSize = 1;
+    select.browsePath = &eventIdName;
+    select.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClausesSize = 1;
+    filter.selectClauses = &select;
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server_ac, source, filter, NULL,
+                                           refreshEventCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 ids[2] = {0, mon.monitoredItemId};
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &ids[0], &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &ids[1], &UA_TYPES[UA_TYPES_UINT32]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = input;
+    UA_CallMethodResult result = UA_Server_call(server_ac, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2);
+    request.inputArgumentsSize = 2;
+    result = UA_Server_call(server_ac, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server_ac, mon.monitoredItemId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 START_TEST(addDriver_rejectsDuplicateAlarmsConditions) {
     UA_AlarmConditionsDriver *acDriver =
         UA_AlarmsConditionsDriver(UA_KEYVALUEMAP_NULL);
@@ -1800,6 +1856,7 @@ int main(void) {
     tcase_add_test(tc_trigger, triggerConditionEvent_disabled);
     tcase_add_test(tc_trigger, triggerConditionEvent_nullEventId);
     tcase_add_test(tc_trigger, enableDisable_condition);
+    tcase_add_test(tc_trigger, conditionRefresh_integerIdArguments);
 #endif
     tcase_add_checked_fixture(tc_trigger, setup, teardown);
     suite_add_tcase(s, tc_trigger);
