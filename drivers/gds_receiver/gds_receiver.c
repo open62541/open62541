@@ -1298,6 +1298,38 @@ applyCertificateToPolicies(UA_ServerConfig *sc,
             policies[policiesSize++] = sp;
     }
 
+    /* A SecurityPolicy#None endpoint presents the certificate of the None
+     * SecurityPolicy, which is usually the replaced certificate. Update it as
+     * well, so that all endpoints present the same certificate. */
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        if(updateEndpoint[i])
+            continue;
+        UA_SecurityPolicy *sp =
+            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+        if(!sp || sp->policyType != UA_SECURITYPOLICYTYPE_NONE ||
+           sp->localCertificate.length == 0)
+            continue;
+
+        UA_Boolean replaced = false;
+        size_t j = 0;
+        for(; j < policiesSize; j++) {
+            if(policies[j] == sp)
+                break;
+            if(UA_ByteString_equal(&sp->localCertificate,
+                                   &policies[j]->localCertificate))
+                replaced = true;
+        }
+        if(j == policiesSize && !replaced)
+            continue;
+
+        res = UA_ByteString_copy(&certificate, &endpointCertificates[i]);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        updateEndpoint[i] = true;
+        if(j == policiesSize)
+            policies[policiesSize++] = sp;
+    }
+
     /* Endpoint resolution and allocations cannot fail from here onwards. */
     for(size_t i = 0; i < policiesSize; i++) {
         res = policies[i]->updateCertificate(policies[i], certificate,
