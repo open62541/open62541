@@ -731,7 +731,11 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
+    /* The transaction is discarded once the queued ApplyChanges has run.
+     * Refuse new changes instead of silently dropping them. */
     UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, ctx->drv.server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
