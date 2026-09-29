@@ -130,6 +130,21 @@ START_TEST(csr_generation_wrong_typeId) {
 }
 END_TEST
 
+/* No SecurityPolicy with the RsaMin certificate type is configured */
+START_TEST(csr_generation_unconfigured_typeId) {
+    UA_ByteString *csr = UA_ByteString_new();
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    UA_Boolean regenerateKey = false;
+    UA_StatusCode retval =
+            UA_GDSReceiver_createSigningRequest(receiver, groupId, typeId, NULL, &regenerateKey, NULL, csr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(csr->length, 0);
+
+    UA_ByteString_delete(csr);
+}
+END_TEST
+
 START_TEST(csr_generation_wrong_groupId) {
     UA_ByteString *csr = UA_ByteString_new();
     UA_String subjectName = UA_STRING("CN=open62541Server@localhost O=open62541 L=Here C=DE");
@@ -155,6 +170,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, csr_generation_add_nonce);
     tcase_add_test(tc_cert, csr_generation_add_subject_name);
     tcase_add_test(tc_cert, csr_generation_wrong_typeId);
+    tcase_add_test(tc_cert, csr_generation_unconfigured_typeId);
     tcase_add_test(tc_cert, csr_generation_wrong_groupId);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
