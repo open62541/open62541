@@ -133,6 +133,11 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 static UA_StatusCode
 readRolePermissions(UA_Server *server, UA_Session *session,
                     const UA_Node *node, UA_DataValue *v) {
+    /* A detached Subscription samples without a Session. Without roles the
+     * effective permissions would fall back to allPermissionsForAnonymous. */
+    if(!session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Check if the user has ReadRolePermissions permission on this node */
     UA_UInt32 effectivePerms = 0;
     UA_StatusCode retval = UA_Server_getEffectivePermissions(
@@ -192,6 +197,10 @@ readRolePermissions(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 readUserRolePermissions(UA_Server *server, UA_Session *session,
                         const UA_Node *node, UA_DataValue *v) {
+    /* A detached Subscription samples without a Session */
+    if(!session)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Return only the roles that the current session has been granted */
     size_t entriesSize = 0;
     UA_RolePermissionType *entries = NULL;
@@ -565,14 +574,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
 
     /* Browse permission also controls reading Node attributes other than
      * Value and RolePermissions (Part 3, Browse Permission). The two excluded
-     * attributes have their own Read and ReadRolePermissions gates. */
+     * attributes have their own Read and ReadRolePermissions gates. A detached
+     * Subscription samples without a Session and is denied. */
     if(id->attributeId != UA_ATTRIBUTEID_VALUE &&
        id->attributeId != UA_ATTRIBUTEID_ROLEPERMISSIONS &&
        session != &server->adminSession &&
-       !server->config.accessControl.allowBrowseNode(
+       (!session || !server->config.accessControl.allowBrowseNode(
            server, &server->config.accessControl,
            &session->sessionId, session->context,
-           &node->head.nodeId, node->head.context)) {
+           &node->head.nodeId, node->head.context))) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADUSERACCESSDENIED;
         addMissingTimestamps(server, v, timestampsToReturn, id);
