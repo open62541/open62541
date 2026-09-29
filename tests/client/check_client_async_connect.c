@@ -282,6 +282,29 @@ START_TEST(Client_connectUsername_async) {
 }
 END_TEST
 
+START_TEST(Client_connect_async_timeout) {
+    /* The server is not iterated and never answers the HEL message */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Still connecting */
+    UA_Client_run_iterate(client, 0);
+    UA_StatusCode connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+    UA_Client_getState(client, NULL, NULL, &connectStatus);
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
+
+    /* The connect is aborted after the timeout */
+    UA_fakeSleep(cc->timeout + 1500);
+    UA_Client_run_iterate(client, 0);
+    UA_Client_getState(client, NULL, NULL, &connectStatus);
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_BADTIMEOUT);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_connect = tcase_create("Client Connect Async");
@@ -294,6 +317,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connectSecureChannelAsync);
     tcase_add_test(tc_client_connect, Client_connect_async_wrongUrl);
     tcase_add_test(tc_client_connect, Client_connectUsername_async);
+    tcase_add_test(tc_client_connect, Client_connect_async_timeout);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }
