@@ -668,7 +668,7 @@ Client_MonitoredItems_create(UA_Client *client,
         for(size_t i = 0; i < request.itemsToCreateSize; i++) {
             if(mons[i])
                 MonitoredItem_delete(client, sub, mons[i]);
-            else if(deleteCallbacks && contexts)
+            else if(deleteCallbacks && deleteCallbacks[i] && contexts)
                 deleteCallbacks[i](client, request.subscriptionId,
                                    sub->context, 0, contexts[i]);
         }
@@ -915,7 +915,7 @@ Client_MonitoredItems_createAsync(UA_Client *client,
         for(size_t i = 0; i < request.itemsToCreateSize; i++) {
             if(mons[i])
                 MonitoredItem_delete(client, sub, mons[i]);
-            else if(deleteCallbacks && contexts)
+            else if(deleteCallbacks && deleteCallbacks[i] && contexts)
                 deleteCallbacks[i](client, request.subscriptionId,
                                    sub->context, 0, contexts[i]);
         }
