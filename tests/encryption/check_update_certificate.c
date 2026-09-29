@@ -218,6 +218,47 @@ START_TEST(update_certificate_preflightsAllEndpoints) {
 }
 END_TEST
 
+/* The SecurityPolicy#None endpoint presents the certificate of the None
+ * SecurityPolicy (GetEndpoints). It gets the new certificate as well. */
+START_TEST(update_certificate_noneEndpoint) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_SecurityPolicy *nonePolicy = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(config->securityPolicies[i].policyType == UA_SECURITYPOLICYTYPE_NONE)
+            nonePolicy = &config->securityPolicies[i];
+    }
+    ck_assert_ptr_nonnull(nonePolicy);
+    UA_ByteString oldCertificate = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_copy(&nonePolicy->localCertificate,
+                                         &oldCertificate),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(oldCertificate.length, 0);
+
+    UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+    generateCertificate(&newCertificate, &newPrivateKey);
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+                          receiver, defaultApplicationGroup, certTypRsaSha256,
+                          newCertificate, &newPrivateKey),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_ByteString_equal(&nonePolicy->localCertificate,
+                                  &newCertificate));
+    for(size_t i = 0; i < config->endpointsSize; i++)
+        ck_assert(!UA_ByteString_equal(&config->endpoints[i].serverCertificate,
+                                       &oldCertificate));
+
+    UA_ByteString_clear(&oldCertificate);
+    UA_ByteString_clear(&newCertificate);
+    UA_ByteString_clear(&newPrivateKey);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -228,6 +269,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate_noKey);
     tcase_add_test(tc_cert, addDriver_rejectsDuplicateGDSReceiver);
     tcase_add_test(tc_cert, update_certificate_preflightsAllEndpoints);
+    tcase_add_test(tc_cert, update_certificate_noneEndpoint);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -240,6 +282,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, update_certificate_noKey);
     tcase_add_test(tc_cert_filestore, addDriver_rejectsDuplicateGDSReceiver);
     tcase_add_test(tc_cert_filestore, update_certificate_preflightsAllEndpoints);
+    tcase_add_test(tc_cert_filestore, update_certificate_noneEndpoint);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
