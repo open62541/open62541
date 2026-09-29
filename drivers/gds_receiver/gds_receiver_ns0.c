@@ -678,7 +678,7 @@ setPositionFileAction(UA_Server *server,
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-    UA_UInt64 position = *(UA_UInt32*)input[1].data;
+    UA_UInt64 position = *(UA_UInt64*)input[1].data;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)

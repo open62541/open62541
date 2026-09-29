@@ -210,6 +210,67 @@ readTrustList(UA_Client *client, UA_UInt32 fileHandler, UA_Int32 lengthToRead, U
 }
 
 static UA_StatusCode
+setPositionTrustList(UA_Client *client, UA_UInt32 fileHandler, UA_UInt64 position) {
+    UA_Variant *inputArguments = (UA_Variant *) UA_calloc(2, (sizeof(UA_Variant)));
+    UA_Variant_setScalar(&inputArguments[0], &fileHandler, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputArguments[1], &position, &UA_TYPES[UA_TYPES_UINT64]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 2;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_SETPOSITION);
+
+    UA_CallRequest callSetPosition;
+    UA_CallRequest_init(&callSetPosition);
+    callSetPosition.methodsToCallSize = 1;
+    callSetPosition.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callSetPosition);
+    ck_assert_uint_eq(1, response.resultsSize);
+    ck_assert_int_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(0, response.results[0].outputArgumentsSize);
+
+    UA_free(inputArguments);
+    UA_CallResponse_clear(&response);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+getPositionTrustList(UA_Client *client, UA_UInt32 fileHandler, UA_UInt64 *position) {
+    UA_Variant *inputArguments = (UA_Variant *) UA_calloc(1, (sizeof(UA_Variant)));
+    UA_Variant_setScalar(&inputArguments[0], &fileHandler, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 1;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_GETPOSITION);
+
+    UA_CallRequest callGetPosition;
+    UA_CallRequest_init(&callGetPosition);
+    callGetPosition.methodsToCallSize = 1;
+    callGetPosition.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callGetPosition);
+    ck_assert_uint_eq(1, response.resultsSize);
+    ck_assert_int_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(1, response.results[0].outputArgumentsSize);
+    ck_assert(UA_Variant_hasScalarType(&response.results[0].outputArguments[0],
+                                       &UA_TYPES[UA_TYPES_UINT64]));
+
+    *position = *(UA_UInt64*)response.results[0].outputArguments[0].data;
+
+    UA_free(inputArguments);
+    UA_CallResponse_clear(&response);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 writeTrustList(UA_Client *client, UA_UInt32 fileHandler, UA_ByteString data) {
     UA_Variant *inputArguments = (UA_Variant *) UA_calloc(2, (sizeof(UA_Variant)));
     UA_Variant_setScalar(&inputArguments[0], &fileHandler, &UA_TYPES[UA_TYPES_UINT32]);
@@ -666,6 +727,15 @@ START_TEST(rw_trustlist) {
 
     UA_ByteString data = *(UA_ByteString*)bufferVar.data;
     ck_assert_uint_ne(data.length, 0);
+
+    /* The position is a UInt64. Positions beyond the end of the file are
+     * clamped to its length. */
+    retval = setPositionTrustList(client, fd, (UA_UInt64)1 << 32);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_UInt64 position = 0;
+    retval = getPositionTrustList(client, fd, &position);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(position, data.length);
 
     UA_TrustListDataType trustList;
     memset(&trustList, 0, sizeof(UA_TrustListDataType));
