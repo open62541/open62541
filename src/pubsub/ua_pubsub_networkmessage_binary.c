@@ -628,11 +628,12 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
             space = space << 1;
         }
 
-        /* Decode the PromotedField */
+        /* Decode the PromotedField. A failed Variant can already hold
+         * allocated members, so it is cleared along with the previous ones. */
         rv = _DECODE_BINARY(&pf[counter], VARIANT);
         if(rv != UA_STATUSCODE_GOOD) {
             if(!ctx->ctx.opts.calloc)
-                UA_Array_delete(pf, counter, &UA_TYPES[UA_TYPES_VARIANT]);
+                UA_Array_delete(pf, counter + 1, &UA_TYPES[UA_TYPES_VARIANT]);
             return rv;
         }
 

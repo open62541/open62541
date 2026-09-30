@@ -2038,6 +2038,23 @@ START_TEST(UA_PubSub_Encode_RawFixedSizeStringTooLong) {
     UA_ByteString_clear(&buffer);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_PromotedFieldTruncatedVariant) {
+    /* ExtendedFlags2 announces PromotedFields. The Int32 Variant that follows
+     * needs four bytes of data and only two are left before the end of the
+     * receive buffer, so it fails after allocating its scalar. Nothing is
+     * asserted about the allocation itself, the leak shows up under Valgrind
+     * and AddressSanitizer. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x01, 0x00, 0x06, 0x2a, 0x00};
+    UA_ByteString buffer;
+    buffer.data = data;
+    buffer.length = sizeof(data);
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -2085,6 +2102,7 @@ int main(void) {
                    UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_RejectsInvalidSecurityFlags);
+    tcase_add_test(tc_decode_err, UA_PubSub_Decode_PromotedFieldTruncatedVariant);
 
     TCase *tc_nm_optional = tcase_create("NetworkMessage optional headers");
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_PicosecondsRoundtrip);
