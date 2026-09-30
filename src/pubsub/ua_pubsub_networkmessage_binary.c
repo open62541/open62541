@@ -604,13 +604,22 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
     UA_Byte *endPos = ctx->ctx.pos + promotedFieldsLength;
     if(endPos > ctx->ctx.end)
         return UA_STATUSCODE_BADDECODINGERROR;
-    
+
     size_t counter = 0;
     size_t space = 4;
-    UA_Variant *pf = (UA_Variant*)
+    UA_Variant *pf = NULL;
+
+    /* The PromotedFields are confined to the declared length. Part 14,
+     * 7.2.4.4.2. */
+    const UA_Byte *end = ctx->ctx.end;
+    ctx->ctx.end = endPos;
+
+    pf = (UA_Variant*)
         ctxCalloc(&ctx->ctx, space, UA_TYPES[UA_TYPES_VARIANT].memSize);
-    if(!pf)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!pf) {
+        rv = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
 
     do {
         /* Increase the available space */
@@ -620,7 +629,8 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
             if(!tmp) {
                 if(!ctx->ctx.opts.calloc)
                     UA_Array_delete(pf, counter, &UA_TYPES[UA_TYPES_VARIANT]);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
+                rv = UA_STATUSCODE_BADOUTOFMEMORY;
+                goto cleanup;
             }
             memcpy(tmp, pf, space * UA_TYPES[UA_TYPES_VARIANT].memSize);
             ctxFree(&ctx->ctx, pf);
@@ -634,7 +644,7 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
         if(rv != UA_STATUSCODE_GOOD) {
             if(!ctx->ctx.opts.calloc)
                 UA_Array_delete(pf, counter + 1, &UA_TYPES[UA_TYPES_VARIANT]);
-            return rv;
+            goto cleanup;
         }
 
         counter++;
@@ -643,7 +653,9 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(PubSubDecodeCtx *ctx,
     nm->promotedFields = pf;
     nm->promotedFieldsSize = (UA_UInt16)counter;
 
-    return UA_STATUSCODE_GOOD;
+ cleanup:
+    ctx->ctx.end = end;
+    return rv;
 }
 
 static UA_StatusCode
@@ -766,10 +778,12 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
 
     /* Get the payload sizes */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    UA_Boolean sizesDeclared = false;
     size_t dataSetMessageSizes[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
     if(nm->messageCount == 1) {
-        /* Not contained in the message, but can be inferred from the
-         * remaining message length */
+        /* Not contained in the message, but can be inferred from the remaining
+         * message length. This is an upper bound only: the SecurityFooter is
+         * still part of the remainder. */
         dataSetMessageSizes[0] = (size_t)(ctx->ctx.end - ctx->ctx.pos);
     } else {
         if(nm->payloadHeaderEnabled) {
@@ -782,6 +796,7 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
                 if(size == 0)
                     return UA_STATUSCODE_BADDECODINGERROR;
             }
+            sizesDeclared = true;
         } else {
             /* If no PayloadHeader is defined, then assume the EncodingOptions
              * reflect the DataSetMessages */
@@ -790,13 +805,18 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
         }
     }
 
-    /* Decode the DataSetMessages */
+    /* Decode the DataSetMessages. A size from the PayloadHeader states where
+     * the next one begins, however far the decoding got. Part 14, 7.2.4.5.3. */
     for(size_t i = 0; i < nm->messageCount; i++) {
         const UA_DataSetMessage_EncodingMetaData *emd =
             findEncodingMetaData(&ctx->eo, nm->dataSetWriterIds[i]);
-        rv |= UA_DataSetMessage_decodeBinary(ctx, emd,
-                                             &nm->payload.dataSetMessages[i],
-                                             dataSetMessageSizes[i]);
+        UA_Byte *dsmBegin = ctx->ctx.pos;
+        rv = UA_DataSetMessage_decodeBinary(ctx, emd,
+                                            &nm->payload.dataSetMessages[i],
+                                            dataSetMessageSizes[i]);
+        UA_CHECK_STATUS(rv, return rv);
+        if(sizesDeclared)
+            ctx->ctx.pos = dsmBegin + dataSetMessageSizes[i];
     }
 
     return rv;
