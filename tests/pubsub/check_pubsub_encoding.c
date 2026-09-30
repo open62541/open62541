@@ -2055,6 +2055,45 @@ START_TEST(UA_PubSub_Decode_PromotedFieldTruncatedVariant) {
     ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize) {
+    /* ExtendedFlags2 announces PromotedFields of one byte, the Variant that
+     * follows is an Int32 and takes five. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x01, 0x00,
+                      0x06, 0x2a, 0x00, 0x00, 0x00,
+                      0x01, 0x00, 0x00};
+    UA_ByteString buffer;
+    buffer.data = data;
+    buffer.length = sizeof(data);
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset) {
+    /* The first DataSetMessage declares 5 bytes but fills only 3. The second
+     * one begins at the declared offset, where the flags are 0x00 and mark it
+     * as not valid. Reading on from where the first one ended would find a
+     * valid one instead. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x05, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00,
+                      0x00, 0x00, 0x00};
+    UA_ByteString buffer;
+    buffer.data = data;
+    buffer.length = sizeof(data);
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(m.messageCount, 2);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(!m.payload.dataSetMessages[1].header.dataSetMessageValid);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -2114,6 +2153,9 @@ int main(void) {
     tcase_add_test(tc_nm_optional,
                    UA_PubSub_Encode_RejectsMissingRawFieldMetadata);
 
+    TCase *tc_sizes = tcase_create("declared sizes");
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset);
 
     Suite *s = suite_create("PubSub NetworkMessage");
     suite_add_tcase(s, tc_encode);
@@ -2123,6 +2165,7 @@ int main(void) {
     suite_add_tcase(s, tc_pid);
     suite_add_tcase(s, tc_decode_err);
     suite_add_tcase(s, tc_nm_optional);
+    suite_add_tcase(s, tc_sizes);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
