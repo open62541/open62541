@@ -1307,6 +1307,39 @@ START_TEST(CheckDescriptionLocalization) {
     UA_LocalizedText_clear(&lt);
 } END_TEST
 
+/* A null and an empty locale are the same (Part 3, 8.4). A DisplayName written
+ * with a null locale is removed by an empty text with the "" locale. */
+START_TEST(CheckNullAndEmptyLocale) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_LocalizedText noLocale;
+    UA_LocalizedText_init(&noLocale);
+    noLocale.text = UA_STRING("NoLocaleName");
+    UA_Variant_setScalar(&wValue.value.value, &noLocale,
+                         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    wValue.nodeId = UA_NODEID_STRING(1, "localized.attrs");
+    wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    wValue.value.hasValue = true;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText emptyLocale = UA_LOCALIZEDTEXT("", "");
+    UA_Variant_setScalar(&wValue.value.value, &emptyLocale,
+                         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Only the original en-US DisplayName is left */
+    const UA_Node *node = UA_NODESTORE_GET(server, &wValue.nodeId);
+    ck_assert_ptr_nonnull(node);
+    const UA_LocalizedTextListEntry *entry = node->head.displayName;
+    ck_assert_ptr_nonnull(entry);
+    UA_String enUS = UA_STRING("en-US");
+    ck_assert(UA_String_equal(&entry->localizedText.locale, &enUS));
+    ck_assert_ptr_null(entry->next);
+    UA_NODESTORE_RELEASE(server, node);
+} END_TEST
+
 /* --- Extended coverage tests --- */
 
 START_TEST(ReadObjectProperty) {
@@ -1930,6 +1963,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_checked_fixture(tc_localization, setup, teardown);
     tcase_add_test(tc_localization, CheckDisplayNameLocalization);
     tcase_add_test(tc_localization, CheckDescriptionLocalization);
+    tcase_add_test(tc_localization, CheckNullAndEmptyLocale);
     suite_add_tcase(s, tc_localization);
 
     TCase *tc_ext = tcase_create("extendedCoverage");
