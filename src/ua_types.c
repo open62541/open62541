@@ -1453,7 +1453,9 @@ UA_Variant_setScalarCopy(UA_Variant *v, const void * UA_RESTRICT p,
 void UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
                          size_t arraySize, const UA_DataType *type) {
     UA_Variant_init(v);
-    v->data = array;
+    /* A variant with length zero and a data pointer is a scalar. An empty
+     * array uses the sentinel, like UA_Array_copy. NULL is a null array. */
+    v->data = (arraySize == 0 && array) ? UA_EMPTY_ARRAY_SENTINEL : array;
     v->arrayLength = arraySize;
     v->type = type;
 }

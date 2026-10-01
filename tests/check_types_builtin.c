@@ -1552,6 +1552,32 @@ START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
 }
 END_TEST
 
+/* An array of length zero is an empty array, not a scalar */
+START_TEST(UA_Variant_setArrayWithSizeZeroIsEmptyArray) {
+    UA_Int32 values[1] = {42};
+    UA_Variant v;
+    UA_Variant_setArray(&v, values, 0, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert(!UA_Variant_isScalar(&v));
+    ck_assert(UA_Variant_hasArrayType(&v, &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_ptr_eq(v.data, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(v.arrayLength, 0);
+
+    /* Copied and cleared as an empty array. The array is not taken over. */
+    UA_Variant copy;
+    ck_assert_uint_eq(UA_Variant_copy(&v, &copy), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_Variant_isScalar(&copy));
+    ck_assert_uint_eq(copy.arrayLength, 0);
+    UA_Variant_clear(&copy);
+    UA_Variant_clear(&v);
+    ck_assert_int_eq(values[0], 42);
+
+    /* NULL with length zero remains a null array */
+    UA_Variant_setArray(&v, NULL, 0, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(v.data, NULL);
+    ck_assert(!UA_Variant_isScalar(&v));
+}
+END_TEST
+
 START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
     UA_UInt32 initial[10] = {0};
     UA_Variant value;
@@ -2083,6 +2109,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
     tcase_add_test(tc_copy, UA_Variant_setRangeRejectsUnclampedSourceSize);
+    tcase_add_test(tc_copy, UA_Variant_setArrayWithSizeZeroIsEmptyArray);
 
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
