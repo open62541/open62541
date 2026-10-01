@@ -4216,6 +4216,126 @@ START_TEST(userManagement_changePasswordNeedsOwnEncryptedSession) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_AUDITING
+/* The /InputArguments of the last AuditUpdateMethodEvent (deep copy) */
+static UA_Variant umAuditInputs;
+
+static void
+umAuditCallback(UA_Server *s, UA_ApplicationNotificationType type,
+                const UA_KeyValueMap payload) {
+    (void)s;
+    if(type != UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD)
+        return;
+    const UA_Variant *inputs =
+        UA_KeyValueMap_get(&payload, UA_QUALIFIEDNAME(0, "/InputArguments"));
+    ck_assert_ptr_nonnull(inputs);
+    UA_Variant_clear(&umAuditInputs);
+    ck_assert_uint_eq(UA_Variant_copy(inputs, &umAuditInputs), UA_STATUSCODE_GOOD);
+}
+
+static const UA_Variant *
+umAuditInput(size_t index) {
+    ck_assert(umAuditInputs.type == &UA_TYPES[UA_TYPES_VARIANT]);
+    ck_assert_uint_gt(umAuditInputs.arrayLength, index);
+    return &((const UA_Variant*)umAuditInputs.data)[index];
+}
+
+static void
+umAssertAuditString(size_t index, const UA_String *expected) {
+    const UA_Variant *v = umAuditInput(index);
+    ck_assert(UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert(UA_String_equal((const UA_String*)v->data, expected));
+}
+
+/* The AuditUpdateMethodEvent of the UserManagement Methods does not carry the
+ * passwords. The other arguments are kept, and the provider still receives the
+ * password. The event is emitted also when the Method refuses the call. */
+START_TEST(auditMethodUpdate_redactsPasswords) {
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->auditingEnabled = true;
+    cfg->auditMethodUpdateEnabled = true;
+    cfg->auditNotificationCallback = umAuditCallback;
+    UA_Variant_init(&umAuditInputs);
+
+    /* AddUser: argument 1 is the password */
+    UA_String name = UA_STRING("alice");
+    UA_String password = UA_STRING("s3cret-password");
+    UA_String description = UA_STRING("plant operator");
+    UA_UserConfigurationMask mask = UA_USERCONFIGURATIONMASK_NONE;
+    UA_Variant in[4];
+    setUserArgs(in, &name, &password, &mask, &description);
+    UA_CallMethodResult res =
+        callUserMethod(UA_NS0ID_USERMANAGEMENT_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert(UA_String_equal(&umLastPassword, &password));
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 4);
+    umAssertAuditString(0, &name);
+    ck_assert(UA_Variant_isEmpty(umAuditInput(1)));
+    ck_assert(UA_Variant_hasScalarType(umAuditInput(2),
+                  &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]));
+    umAssertAuditString(3, &description);
+
+    /* The same through the MethodId of the ObjectType declaration */
+    UA_String name2 = UA_STRING("bob");
+    setUserArgs(in, &name2, &password, &mask, &description);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENTTYPE_ADDUSER, 4, in);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    umAssertAuditString(0, &name2);
+    ck_assert(UA_Variant_isEmpty(umAuditInput(1)));
+
+    /* ModifyUser: argument 2 is the password */
+    UA_Boolean yes = true, no = false;
+    UA_String newPassword = UA_STRING("n3w-s3cret-password");
+    UA_Variant mod[7];
+    UA_Variant_setScalar(&mod[0], &name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[1], &yes, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[2], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&mod[3], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[4], &mask,
+                         &UA_TYPES[UA_TYPES_USERCONFIGURATIONMASK]);
+    UA_Variant_setScalar(&mod[5], &no, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&mod[6], &description, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_MODIFYUSER, 7, mod);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert(UA_String_equal(&umUsers[0].password, &newPassword));
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 7);
+    umAssertAuditString(0, &name);
+    ck_assert(UA_Variant_hasScalarType(umAuditInput(1), &UA_TYPES[UA_TYPES_BOOLEAN]));
+    ck_assert(UA_Variant_isEmpty(umAuditInput(2)));
+    ck_assert(UA_Variant_hasScalarType(umAuditInput(3), &UA_TYPES[UA_TYPES_BOOLEAN]));
+    umAssertAuditString(6, &description);
+
+    /* ChangePassword: both arguments are passwords. The local admin Session
+     * is refused, but the event is emitted. */
+    UA_Variant change[2];
+    UA_Variant_setScalar(&change[0], &newPassword, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&change[1], &password, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_clear(&umAuditInputs);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_CHANGEPASSWORD, 2, change);
+    ck_assert_uint_ne(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 2);
+    ck_assert(UA_Variant_isEmpty(umAuditInput(0)));
+    ck_assert(UA_Variant_isEmpty(umAuditInput(1)));
+
+    /* RemoveUser has no secret argument */
+    UA_Variant rm;
+    UA_Variant_setScalar(&rm, &name2, &UA_TYPES[UA_TYPES_STRING]);
+    res = callUserMethod(UA_NS0ID_USERMANAGEMENT_REMOVEUSER, 1, &rm);
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&res);
+    ck_assert_uint_eq(umAuditInputs.arrayLength, 1);
+    umAssertAuditString(0, &name2);
+
+    cfg->auditNotificationCallback = NULL;
+    UA_Variant_clear(&umAuditInputs);
+}
+END_TEST
+#endif /* UA_ENABLE_AUDITING */
+
 /* Without a complete provider the Object stays inert: no DataSource behind the
  * Properties and no callbacks on the Methods. */
 START_TEST(userManagement_inertWithoutProvider) {
@@ -4246,6 +4366,9 @@ static Suite *testSuite_UserManagement(void) {
     tcase_add_test(tc, userManagement_modifyUserAppliesSelectedFields);
     tcase_add_test(tc, userManagement_removeUserReachesProvider);
     tcase_add_test(tc, userManagement_changePasswordNeedsOwnEncryptedSession);
+#ifdef UA_ENABLE_AUDITING
+    tcase_add_test(tc, auditMethodUpdate_redactsPasswords);
+#endif
     suite_add_tcase(s, tc);
 
     TCase *tc_none = tcase_create("NoProvider");
