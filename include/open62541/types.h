@@ -802,7 +802,9 @@ UA_StatusCode UA_EXPORT
 UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /* Set the variant to an existing array value. The array is cleared together
- * with the variant. */
+ * with the variant. With arraySize zero, the variant is an empty array (with
+ * UA_EMPTY_ARRAY_SENTINEL as data) and the array is not taken over. A NULL
+ * array with arraySize zero is a null array. */
 void UA_EXPORT
 UA_Variant_setArray(UA_Variant *v, void *array, size_t arraySize,
                     const UA_DataType *type);

@@ -260,6 +260,40 @@ START_TEST(removeStoppedReceiver) {
     ck_assert_ptr_eq(methodContext, receiver);
 } END_TEST
 
+/* Without an RSA endpoint, no certificate type can be updated. The
+ * CertificateTypes are an empty array, and the methods are still bound. */
+START_TEST(noUpdatableCertificateType) {
+    UA_Server *plainServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(plainServer);
+    UA_GDSReceiver *plainReceiver = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(plainReceiver);
+    ck_assert_uint_eq(UA_Server_addDriver(plainServer, &plainReceiver->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(plainServer), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(plainReceiver->drv.state, UA_LIFECYCLESTATE_STARTED);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(plainServer, UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
+        &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert_uint_eq(value.arrayLength, 0);
+    UA_Variant_clear(&value);
+
+    void *methodContext = NULL;
+    ck_assert_uint_eq(UA_Server_getNodeContext(
+                          plainServer,
+                          UA_NODEID_NUMERIC(
+                              0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+                          &methodContext),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(methodContext, plainReceiver);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(plainServer), UA_STATUSCODE_GOOD);
+    UA_Server_delete(plainServer);
+} END_TEST
+
 int
 main(void) {
     Suite *suite = suite_create("GDS Receiver lifecycle");
@@ -273,6 +307,10 @@ main(void) {
     tcase_add_test(tc, helpersBeforeStartupAndDuringShutdown);
     tcase_add_test(tc, removeStoppedReceiver);
     suite_add_tcase(suite, tc);
+
+    TCase *tcPlain = tcase_create("no RSA endpoint");
+    tcase_add_test(tcPlain, noUpdatableCertificateType);
+    suite_add_tcase(suite, tcPlain);
 
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);
