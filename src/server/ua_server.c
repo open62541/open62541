@@ -1256,6 +1256,16 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* The services call these AccessControl callbacks without a NULL check */
+    const UA_AccessControl *ac = &config->accessControl;
+    if(!ac->activateSession || !ac->getUserRightsMask ||
+       !ac->getUserAccessLevel || !ac->getUserExecutable ||
+       !ac->getUserExecutableOnObject || !ac->allowBrowseNode) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "The AccessControl plugin lacks a mandatory callback");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     /* Start the EventLoop if not already started */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = config->eventLoop;
