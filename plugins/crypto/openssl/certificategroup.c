@@ -1150,6 +1150,71 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     return UA_STATUSCODE_GOOD;
 }
 
+/* The public key required by an ApplicationCertificateType (Part 12, 7.8.4) */
+static UA_Boolean
+certificateTypeKey(const UA_NodeId *certificateTypeId,
+                   int *keyType, int *curveNid) {
+    if(certificateTypeId->namespaceIndex != 0 ||
+       certificateTypeId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return false;
+    *curveNid = NID_undef;
+    switch(certificateTypeId->identifier.numeric) {
+    case UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE:
+    case UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_RSA;
+        return true;
+    case UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_EC;
+        *curveNid = NID_X9_62_prime256v1;
+        return true;
+    case UA_NS0ID_ECCNISTP384APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_EC;
+        *curveNid = NID_secp384r1;
+        return true;
+    case UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_EC;
+        *curveNid = NID_brainpoolP256r1;
+        return true;
+    case UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_EC;
+        *curveNid = NID_brainpoolP384r1;
+        return true;
+#ifdef EVP_PKEY_ED25519
+    case UA_NS0ID_ECCCURVE25519APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_ED25519;
+        return true;
+#endif
+#ifdef EVP_PKEY_ED448
+    case UA_NS0ID_ECCCURVE448APPLICATIONCERTIFICATETYPE:
+        *keyType = EVP_PKEY_ED448;
+        return true;
+#endif
+    default:
+        return false;
+    }
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkCertificateType(const UA_ByteString *certificate,
+                                         const UA_NodeId *certificateTypeId) {
+    if(!certificate || !certificateTypeId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    int keyType = EVP_PKEY_NONE;
+    int curveNid = NID_undef;
+    if(!certificateTypeKey(certificateTypeId, &keyType, &curveNid))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!cert)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    EVP_PKEY *pkey = X509_get_pubkey(cert);
+    UA_Boolean matches = UA_OpenSSL_publicKeyMatches(pkey, keyType, curveNid);
+    EVP_PKEY_free(pkey);
+    X509_free(cert);
+    return matches ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADCERTIFICATEINVALID;
+}
+
 UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(certificate == NULL)

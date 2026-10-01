@@ -1196,6 +1196,59 @@ cleanup:
     return retval;
 }
 
+/* The key algorithm required by an ApplicationCertificateType (Part 12,
+ * 7.8.4). mbedTLS has no curve25519 and curve448 certificates. */
+static UA_Boolean
+certificateTypeKeyAlgorithm(const UA_NodeId *certificateTypeId,
+                            UA_mbedTLS_KeyAlgorithm *keyAlgorithm) {
+    if(certificateTypeId->namespaceIndex != 0 ||
+       certificateTypeId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return false;
+    switch(certificateTypeId->identifier.numeric) {
+    case UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE:
+    case UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE:
+        *keyAlgorithm = UA_MBEDTLS_KEYALGORITHM_RSA;
+        return true;
+    case UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE:
+        *keyAlgorithm = UA_MBEDTLS_KEYALGORITHM_ECC_SECP256R1;
+        return true;
+    case UA_NS0ID_ECCNISTP384APPLICATIONCERTIFICATETYPE:
+        *keyAlgorithm = UA_MBEDTLS_KEYALGORITHM_ECC_SECP384R1;
+        return true;
+    case UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE:
+        *keyAlgorithm = UA_MBEDTLS_KEYALGORITHM_ECC_BP256R1;
+        return true;
+    case UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE:
+        *keyAlgorithm = UA_MBEDTLS_KEYALGORITHM_ECC_BP384R1;
+        return true;
+    default:
+        return false;
+    }
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkCertificateType(const UA_ByteString *certificate,
+                                         const UA_NodeId *certificateTypeId) {
+    if(!certificate || !certificateTypeId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_mbedTLS_KeyAlgorithm required = UA_MBEDTLS_KEYALGORITHM_OTHER;
+    if(!certificateTypeKeyAlgorithm(certificateTypeId, &required))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+
+    if(!certificateGroupValidByteString(certificate))
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval == UA_STATUSCODE_GOOD &&
+       UA_mbedTLS_compat_getKeyAlgorithm(&cert.pk) != required)
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+    mbedtls_x509_crt_free(&cert);
+    return (retval == UA_STATUSCODE_GOOD) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADCERTIFICATEINVALID;
+}
+
 UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(!certificateGroupValidByteString(certificate))

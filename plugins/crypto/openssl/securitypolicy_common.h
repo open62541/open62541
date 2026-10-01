@@ -248,6 +248,13 @@ X509 *
 UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate,
                            int keyType);
 
+/* Does the key have the key type (EVP_PKEY_RSA, EVP_PKEY_EC, ...) and, for EC
+ * keys, the named curve? NID_undef as curveNid omits the curve check. EC keys
+ * with explicit curve parameters have no curve name and never match a
+ * curve. */
+UA_Boolean
+UA_OpenSSL_publicKeyMatches(EVP_PKEY *pkey, int keyType, int curveNid);
+
 X509 *
 UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate);
 

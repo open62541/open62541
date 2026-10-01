@@ -1463,6 +1463,31 @@ UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate,
     return result;
 }
 
+UA_Boolean
+UA_OpenSSL_publicKeyMatches(EVP_PKEY *pkey, int keyType, int curveNid) {
+    if(!pkey || EVP_PKEY_base_id(pkey) != keyType)
+        return false;
+    if(curveNid == NID_undef)
+        return true;
+    if(keyType != EVP_PKEY_EC)
+        return false;
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    char curveName[64];
+    size_t curveNameLen = 0;
+    if(!EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME,
+                                       curveName, sizeof(curveName),
+                                       &curveNameLen))
+        return false;
+    return OBJ_sn2nid(curveName) == curveNid;
+#else
+    const EC_KEY *ecKey = EVP_PKEY_get0_EC_KEY(pkey);
+    if(!ecKey)
+        return false;
+    const EC_GROUP *group = EC_KEY_get0_group(ecKey);
+    return group && EC_GROUP_get_curve_name(group) == curveNid;
+#endif
+}
+
 X509 *
 UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate) {
     const unsigned char *pData = certificate->data;

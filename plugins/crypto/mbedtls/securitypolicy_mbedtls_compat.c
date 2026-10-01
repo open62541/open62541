@@ -52,6 +52,45 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key) {
 #endif
 }
 
+UA_mbedTLS_KeyAlgorithm
+UA_mbedTLS_compat_getKeyAlgorithm(const mbedtls_pk_context *key) {
+    if(!key)
+        return UA_MBEDTLS_KEYALGORITHM_OTHER;
+#if MBEDTLS_VERSION_NUMBER >= 0x04000000
+    psa_key_type_t keyType = mbedtls_pk_get_key_type(key);
+    if(PSA_KEY_TYPE_IS_RSA(keyType))
+        return UA_MBEDTLS_KEYALGORITHM_RSA;
+    if(!PSA_KEY_TYPE_IS_ECC(keyType))
+        return UA_MBEDTLS_KEYALGORITHM_OTHER;
+    psa_ecc_family_t family = PSA_KEY_TYPE_ECC_GET_FAMILY(keyType);
+    size_t bits = mbedtls_pk_get_bitlen(key);
+    if(family == PSA_ECC_FAMILY_SECP_R1 && bits == 256)
+        return UA_MBEDTLS_KEYALGORITHM_ECC_SECP256R1;
+    if(family == PSA_ECC_FAMILY_SECP_R1 && bits == 384)
+        return UA_MBEDTLS_KEYALGORITHM_ECC_SECP384R1;
+    if(family == PSA_ECC_FAMILY_BRAINPOOL_P_R1 && bits == 256)
+        return UA_MBEDTLS_KEYALGORITHM_ECC_BP256R1;
+    if(family == PSA_ECC_FAMILY_BRAINPOOL_P_R1 && bits == 384)
+        return UA_MBEDTLS_KEYALGORITHM_ECC_BP384R1;
+    return UA_MBEDTLS_KEYALGORITHM_ECC_OTHER;
+#else
+    if(mbedtls_pk_can_do(key, MBEDTLS_PK_RSA))
+        return UA_MBEDTLS_KEYALGORITHM_RSA;
+    if(!mbedtls_pk_can_do(key, MBEDTLS_PK_ECKEY))
+        return UA_MBEDTLS_KEYALGORITHM_OTHER;
+    const mbedtls_ecp_keypair *pair = mbedtls_pk_ec(*key);
+    if(!pair)
+        return UA_MBEDTLS_KEYALGORITHM_ECC_OTHER;
+    switch(pair->MBEDTLS_PRIVATE(grp).id) {
+    case MBEDTLS_ECP_DP_SECP256R1: return UA_MBEDTLS_KEYALGORITHM_ECC_SECP256R1;
+    case MBEDTLS_ECP_DP_SECP384R1: return UA_MBEDTLS_KEYALGORITHM_ECC_SECP384R1;
+    case MBEDTLS_ECP_DP_BP256R1:   return UA_MBEDTLS_KEYALGORITHM_ECC_BP256R1;
+    case MBEDTLS_ECP_DP_BP384R1:   return UA_MBEDTLS_KEYALGORITHM_ECC_BP384R1;
+    default:                       return UA_MBEDTLS_KEYALGORITHM_ECC_OTHER;
+    }
+#endif
+}
+
 UA_Boolean
 UA_mbedTLS_compat_isRsaKey(const mbedtls_pk_context *key) {
 #if MBEDTLS_VERSION_NUMBER >= 0x04000000

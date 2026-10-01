@@ -876,6 +876,104 @@ START_TEST(memorystore_limits_final_trust_list) {
 END_TEST
 #endif
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* The public key of a certificate against the ApplicationCertificateTypes
+ * (Part 12, 7.8.4) */
+START_TEST(check_certificate_type) {
+    const UA_NodeId types[6] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCNISTP384APPLICATIONCERTIFICATETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCBRAINPOOLP256R1APPLICATIONCERTIFICATETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCBRAINPOOLP384R1APPLICATIONCERTIFICATETYPE)
+    };
+
+    /* Each certificate fits the types with a set bit. Brainpool and NIST
+     * curves of the same size must not be confused. */
+    struct {
+        UA_ByteString certificate;
+        UA_Byte matchingTypes;
+    } cases[] = {
+        {{CERT_DER_LENGTH, CERT_DER_DATA}, 0x03},
+        {{CERT_P256_DER_LENGTH, CERT_P256_DER_DATA}, 0x04},
+        {{CERT_P256_PEM_LENGTH, CERT_P256_PEM_DATA}, 0x04},
+        {{CERT_P384_DER_LENGTH, CERT_P384_DER_DATA}, 0x08},
+        {{CERT_P384_PEM_LENGTH, CERT_P384_PEM_DATA}, 0x08},
+        {{CERT_BP256R1_DER_LENGTH, CERT_BP256R1_DER_DATA}, 0x10},
+        {{CERT_BP384R1_DER_LENGTH, CERT_BP384R1_DER_DATA}, 0x20}
+    };
+
+    for(size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        for(size_t t = 0; t < 6; t++) {
+            UA_StatusCode expected = (cases[c].matchingTypes & (1 << t)) ?
+                UA_STATUSCODE_GOOD : UA_STATUSCODE_BADCERTIFICATEINVALID;
+            UA_StatusCode res =
+                UA_CertificateUtils_checkCertificateType(&cases[c].certificate,
+                                                         &types[t]);
+            ck_assert_msg(res == expected,
+                          "Certificate %u, type %u: %s instead of %s",
+                          (unsigned)c, (unsigned)t, UA_StatusCode_name(res),
+                          UA_StatusCode_name(expected));
+        }
+    }
+
+    const UA_NodeId curve25519 =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCCURVE25519APPLICATIONCERTIFICATETYPE);
+    const UA_NodeId curve448 =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCCURVE448APPLICATIONCERTIFICATETYPE);
+    UA_ByteString p256 = {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA};
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    UA_ByteString ed25519 = {CERT_ED25519_DER_LENGTH, CERT_ED25519_DER_DATA};
+    UA_ByteString ed448 = {CERT_ED448_DER_LENGTH, CERT_ED448_DER_DATA};
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&ed25519, &curve25519),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&ed448, &curve448),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&ed25519, &curve448),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&ed448, &types[2]),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, &curve25519),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+#endif
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    /* mbedTLS has no curve25519 and curve448 certificates */
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, &curve25519),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, &curve448),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+#endif
+
+    /* Abstract and unknown certificate types */
+    const UA_NodeId applicationType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_APPLICATIONCERTIFICATETYPE);
+    const UA_NodeId eccType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCAPPLICATIONCERTIFICATETYPE);
+    const UA_NodeId customType = UA_NODEID_NUMERIC(1, UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, &applicationType),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, &eccType),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, &customType),
+                      UA_STATUSCODE_BADNOTSUPPORTED);
+
+    /* Garbage and missing arguments */
+    UA_Byte garbageData[16] = {0x30, 0x82, 0x01, 0x00};
+    UA_ByteString garbage = {sizeof(garbageData), garbageData};
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&garbage, &types[2]),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    UA_ByteString empty = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&empty, &types[2]),
+                      UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(NULL, &types[2]),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(UA_CertificateUtils_checkCertificateType(&p256, NULL),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+}
+END_TEST
+#endif /* UA_ENABLE_ENCRYPTION */
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("CertificateGroup");
     TCase *tc_encryption_memorystore = tcase_create("CertificateGroup Memorystore");
@@ -896,6 +994,12 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_memorystore);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    TCase *tc_certificate_utils = tcase_create("CertificateUtils");
+    tcase_add_test(tc_certificate_utils, check_certificate_type);
+    suite_add_tcase(s, tc_certificate_utils);
+#endif
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     TCase *tc_mbedtls_memorystore =

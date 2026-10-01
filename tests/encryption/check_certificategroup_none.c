@@ -102,6 +102,11 @@ START_TEST(CertificateUtils_StubsAreSafeWithoutEncryption) {
     rv = UA_CertificateUtils_checkKeyPair(&cert, &key);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
 
+    UA_NodeId type =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ECCNISTP256APPLICATIONCERTIFICATETYPE);
+    rv = UA_CertificateUtils_checkCertificateType(&cert, &type);
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
+
     rv = UA_CertificateUtils_checkCA(&cert);
     ck_assert_int_eq(rv, UA_STATUSCODE_BADNOTSUPPORTED);
 }

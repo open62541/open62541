@@ -29,6 +29,21 @@ UA_mbedTLS_compat_isRsaKeyPair(const mbedtls_pk_context *key);
 UA_Boolean
 UA_mbedTLS_compat_isRsaKey(const mbedtls_pk_context *key);
 
+/* The algorithm of a public or private key. ECC keys are distinguished by the
+ * curve. */
+typedef enum {
+    UA_MBEDTLS_KEYALGORITHM_OTHER = 0,
+    UA_MBEDTLS_KEYALGORITHM_RSA,
+    UA_MBEDTLS_KEYALGORITHM_ECC_SECP256R1,
+    UA_MBEDTLS_KEYALGORITHM_ECC_SECP384R1,
+    UA_MBEDTLS_KEYALGORITHM_ECC_BP256R1,
+    UA_MBEDTLS_KEYALGORITHM_ECC_BP384R1,
+    UA_MBEDTLS_KEYALGORITHM_ECC_OTHER
+} UA_mbedTLS_KeyAlgorithm;
+
+UA_mbedTLS_KeyAlgorithm
+UA_mbedTLS_compat_getKeyAlgorithm(const mbedtls_pk_context *key);
+
 UA_Boolean
 UA_mbedTLS_compat_verifyCertificateSignature(const mbedtls_x509_crt *certificate,
                                               mbedtls_x509_crt *issuer);

@@ -131,6 +131,22 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey);
 
+/* Check the public key of the certificate against an ApplicationCertificateType
+ * (OPC UA Part 12, 7.8.4). RsaMinApplicationCertificateType and
+ * RsaSha256ApplicationCertificateType require an RSA key. The key size and the
+ * signature algorithm are not checked. The Ecc...ApplicationCertificateTypes
+ * require a key on the named curve (nistP256, nistP384, brainpoolP256r1,
+ * brainpoolP384r1, curve25519 or curve448).
+ *
+ * @return UA_STATUSCODE_GOOD if the key fits the certificate type,
+ *         UA_STATUSCODE_BADCERTIFICATEINVALID if the certificate cannot be
+ *         decoded or has a different key,
+ *         UA_STATUSCODE_BADNOTSUPPORTED for abstract or unknown certificate
+ *         types and for types the crypto backend does not support. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_checkCertificateType(const UA_ByteString *certificate,
+                                         const UA_NodeId *certificateTypeId);
+
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkCA(const UA_ByteString *certificate);
 
