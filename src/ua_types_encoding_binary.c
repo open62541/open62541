@@ -1797,6 +1797,20 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
     return ret;
 }
 
+/* Encode without a buffer to compute the size. The size is only set for a
+ * good status. */
+static status
+calcSizeBinaryInternal(const void *p, const UA_DataType *type,
+                       UA_EncodeBinaryOptions *options, size_t *size) {
+    /* A non-null sentinel keeps sizing pointer arithmetic well-defined. */
+    u8 *pos = (u8*)(uintptr_t)1u;
+    const u8 *posEnd = NULL;
+    status res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        *size = (size_t)((uintptr_t)pos - 1u);
+    return res;
+}
+
 UA_StatusCode
 UA_encodeBinary(const void *p, const UA_DataType *type,
                 UA_ByteString *outBuf, UA_EncodeBinaryOptions *options) {
@@ -1804,7 +1818,12 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
     UA_Boolean allocated = false;
     status res = UA_STATUSCODE_GOOD;
     if(outBuf->length == 0) {
-        size_t len = UA_calcSizeBinary(p, type, options);
+        /* Report why the size cannot be computed. Encoding into an empty
+         * buffer would only answer BadEncodingError. */
+        size_t len = 0;
+        res = calcSizeBinaryInternal(p, type, options, &len);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
         res = UA_ByteString_allocBuffer(outBuf, len);
         if(res != UA_STATUSCODE_GOOD)
             return res;
@@ -2043,11 +2062,8 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 size_t
 UA_calcSizeBinary(const void *p, const UA_DataType *type,
                   UA_EncodeBinaryOptions *options) {
-    /* A non-null sentinel keeps sizing pointer arithmetic well-defined. */
-    u8 *pos = (u8*)(uintptr_t)1u;
-    const u8 *posEnd = NULL;
-    UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
-    if(res != UA_STATUSCODE_GOOD)
+    size_t size = 0;
+    if(calcSizeBinaryInternal(p, type, options, &size) != UA_STATUSCODE_GOOD)
         return 0;
-    return (size_t)((uintptr_t)pos - 1u);
+    return size;
 }
