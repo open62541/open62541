@@ -10,6 +10,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
 #include <open62541/transport_generated.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
@@ -137,6 +138,61 @@ START_TEST(checkGetLifecycleState) {
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+static size_t
+countNoneEndpointTokens(UA_UserTokenType tokenType) {
+    UA_GetEndpointsRequest request;
+    UA_GetEndpointsRequest_init(&request);
+    request.endpointUrl = UA_STRING("opc.tcp://localhost:4840");
+    UA_GetEndpointsResponse response;
+    UA_GetEndpointsResponse_init(&response);
+    lockServer(server);
+    Service_GetEndpoints(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    size_t count = 0;
+    for(size_t i = 0; i < response.endpointsSize; i++) {
+        const UA_EndpointDescription *ep = &response.endpoints[i];
+        if(!UA_String_equal(&ep->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI))
+            continue;
+        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
+            if(ep->userIdentityTokens[j].tokenType == tokenType)
+                count++;
+        }
+    }
+    UA_GetEndpointsResponse_clear(&response);
+    return count;
+}
+
+/* Without an encrypting SecurityPolicy, ActivateSession rejects x509 and
+ * password tokens on #None. So the #None endpoint does not offer them. */
+START_TEST(checkNoneEndpointUserTokens) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UsernamePasswordLogin login = {UA_STRING_STATIC("user"),
+                                      UA_STRING_STATIC("password")};
+    ck_assert_uint_eq(UA_AccessControl_default(config, true, NULL, 1, &login),
+                      UA_STATUSCODE_GOOD);
+
+    /* The AccessControl offers x509, as the session PKI accepts all */
+    UA_Boolean haveX509 = false;
+    for(size_t i = 0; i < config->accessControl.userTokenPoliciesSize; i++) {
+        if(config->accessControl.userTokenPolicies[i].tokenType ==
+           UA_USERTOKENTYPE_CERTIFICATE)
+            haveX509 = true;
+    }
+    ck_assert(haveX509);
+
+    config->allowNonePolicyPassword = false;
+    ck_assert_uint_gt(countNoneEndpointTokens(UA_USERTOKENTYPE_ANONYMOUS), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_USERNAME), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_CERTIFICATE), 0);
+
+    /* Passwords can be allowed without encryption, x509 tokens cannot */
+    config->allowNonePolicyPassword = true;
+    ck_assert_uint_gt(countNoneEndpointTokens(UA_USERTOKENTYPE_USERNAME), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_CERTIFICATE), 0);
 } END_TEST
 
 /* ---- Additional coverage tests ---- */
@@ -767,6 +823,7 @@ int main(void) {
     tcase_add_test(tc_call, checkServer_run);
     tcase_add_test(tc_call, helloEndpointUrlLimit);
     tcase_add_test(tc_call, helloTrailingData);
+    tcase_add_test(tc_call, checkNoneEndpointUserTokens);
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");
