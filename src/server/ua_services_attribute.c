@@ -91,6 +91,13 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                           &head->nodeId, head->context);
 }
 
+/* The Write service refuses these Attributes in any case (see
+ * copyAttributeIntoNode). The (User)WriteMask never advertises them. */
+#define UA_WRITEMASK_UNWRITABLE                                         \
+    (UA_WRITEMASK_NODEID | UA_WRITEMASK_NODECLASS | UA_WRITEMASK_BROWSENAME | \
+     UA_WRITEMASK_USERACCESSLEVEL | UA_WRITEMASK_USEREXECUTABLE |      \
+     UA_WRITEMASK_USERWRITEMASK)
+
 static UA_Byte
 getAccessLevel(UA_Server *server, const UA_Session *session,
                const UA_VariableNode *node) {
@@ -409,8 +416,10 @@ addMissingTimestamps(UA_Server *server, UA_DataValue *v,
               timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
         /* Optional behavior and not required by the specification: Always
          * set a SourceTimestamp for the value attribute, even if the value
-         * source didn't return one. */
-        if(!v->hasSourceTimestamp && id->attributeId == UA_ATTRIBUTEID_VALUE) {
+         * source didn't return one. But not for a Bad status. Then the
+         * SourceTimestamp shall be null (Part 4, 7.11.3). */
+        if(!v->hasSourceTimestamp && id->attributeId == UA_ATTRIBUTEID_VALUE &&
+           !(v->hasStatus && UA_StatusCode_isBad(v->status))) {
             UA_EventLoop *el = server->config.eventLoop;
             v->sourceTimestamp = el->dateTime_now(el);
             v->hasSourceTimestamp = true;
@@ -571,12 +580,15 @@ Operation_ReadWithNode(UA_Server *server, UA_Session *session,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     }
-    case UA_ATTRIBUTEID_WRITEMASK:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.writeMask,
+    case UA_ATTRIBUTEID_WRITEMASK: {
+        UA_UInt32 writeMask = node->head.writeMask & ~(UA_UInt32)UA_WRITEMASK_UNWRITABLE;
+        retval = UA_Variant_setScalarCopy(&v->value, &writeMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
         break;
+    }
     case UA_ATTRIBUTEID_USERWRITEMASK: {
-        UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
+        UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head) &
+            ~(UA_UInt32)UA_WRITEMASK_UNWRITABLE;
         retval = UA_Variant_setScalarCopy(&v->value, &userWriteMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
         break;
@@ -1144,7 +1156,10 @@ compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
  *
  * 5.6.2 Variable NodeClass: If the maximum is unknown the value shall be 0. The
  * number of elements shall be equal to the value of the ValueRank Attribute.
- * This Attribute shall be null if ValueRank <= 0. */
+ * This Attribute shall be null if ValueRank <= 0.
+ *
+ * The ArrayDimensions Attribute is optional. So it can also be null for a
+ * ValueRank >= 1. */
 UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize) {
@@ -1173,7 +1188,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
 
     /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the
        specified number of dimensions */
-    if(arrayDimensionsSize != (size_t)valueRank) {
+    if(arrayDimensionsSize > 0 && arrayDimensionsSize != (size_t)valueRank) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "The number of ArrayDimensions is not equal to "
                             "the (positive) ValueRank");
@@ -1475,8 +1490,9 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the array dimensions match with the wildcards in the
-     * variabletype (dimension length 0) */
-    if(type->arrayDimensions &&
+     * variabletype (dimension length 0). Without ArrayDimensions the maximum
+     * lengths are unknown, the same as all-wildcard dimensions. */
+    if(type->arrayDimensions && arrayDimensionsSize > 0 &&
        !compatibleArrayDimensions(type->arrayDimensionsSize, type->arrayDimensions,
                                   arrayDimensionsSize, arrayDimensions)) {
        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -1539,8 +1555,8 @@ writeValueRank(UA_Server *server, UA_Session *session,
      * the read service to handle data sources. */
     size_t arrayDims = node->arrayDimensionsSize;
     if(arrayDims == 0) {
-        /* the value could be an array with no arrayDimensions defined.
-           dimensions zero indicate a scalar for compatibleValueRankArrayDimensions. */
+        /* The value could be an array with no arrayDimensions defined. Then
+         * it has one implicit dimension. */
         UA_DataValue value;
         UA_DataValue_init(&value);
         UA_StatusCode retval = readValueAttribute(server, session, node, &value);
@@ -1551,9 +1567,14 @@ writeValueRank(UA_Server *server, UA_Session *session,
             node->valueRank = valueRank;
             return UA_STATUSCODE_GOOD;
         }
-        if(!UA_Variant_isScalar(&value.value))
-            arrayDims = 1;
+        UA_Boolean scalar = UA_Variant_isScalar(&value.value);
         UA_DataValue_clear(&value);
+        /* A scalar value does not fit a ValueRank with fixed dimensions. Zero
+         * ArrayDimensions don't rule this out, as they are optional. */
+        if(scalar && valueRank >= UA_VALUERANK_ONE_DIMENSION)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        if(!scalar)
+            arrayDims = 1;
     }
     if(!compatibleValueRankArrayDimensions(server, session, valueRank, arrayDims))
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -2497,6 +2518,15 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    /* TimestampsToReturn Neither is not valid (Part 4, 5.11.3.2). The parameter
+     * is ignored for Events (Part 11, 4.5). */
+    if(readKind != HISTORYREAD_EVENT &&
+       request->timestampsToReturn > UA_TIMESTAMPSTORETURN_BOTH) {
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return true;
+    }
+
     /* Check if the configured History-Backend supports the requested history type */
     if((readKind == HISTORYREAD_RAW && !server->config.historyDatabase.readRaw) ||
        (readKind == HISTORYREAD_MODIFIED && !server->config.historyDatabase.readModified) ||
@@ -2505,7 +2535,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
        (readKind == HISTORYREAD_ATTIME && !server->config.historyDatabase.readAtTime)) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "The configured HistoryBackend does not support the selected history-type");
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
         return true;
     }
 

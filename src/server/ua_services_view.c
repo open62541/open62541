@@ -582,11 +582,12 @@ struct BrowseContext {
     UA_Boolean done;
 };
 
-/* Target node on top of the stack */
+/* Target node on top of the stack. The node is NULL for a remote target. Then
+ * only the fields from the reference itself are set. The NodeClass stays
+ * Unspecified. */
 static UA_StatusCode
 addReferenceDescription(struct BrowseContext *bc, UA_NodePointer nodeP,
                         const UA_Node *curr) {
-    UA_assert(curr);
     UA_BrowseDescription *bd = &bc->cp->browseDescription;
 
     /* Ensure capacity is left */
@@ -614,6 +615,9 @@ addReferenceDescription(struct BrowseContext *bc, UA_NodePointer nodeP,
         descr->isForward = !bc->rk->isInverse;
 
     /* Create fields that require access to the actual node */
+    if(!curr)
+        goto cleanup;
+
     if(bd->resultMask & UA_BROWSERESULTMASK_NODECLASS)
         descr->nodeClass = curr->head.nodeClass;
 
@@ -643,6 +647,7 @@ addReferenceDescription(struct BrowseContext *bc, UA_NodePointer nodeP,
     }
 
     /* Clean up and return */
+ cleanup:
     if(res != UA_STATUSCODE_GOOD) {
         UA_ReferenceDescription_clear(descr);
         return res;
@@ -657,37 +662,39 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     const UA_BrowseDescription *bd = &bc->cp->browseDescription;
     ContinuationPoint *cp = bc->cp;
 
-    /* Remote references are ignored */
-    if(!UA_NodePointer_isLocal(t->targetId))
-        return NULL;
+    /* A remote target is returned without the attributes of the node. Its
+     * NodeClass is unknown, so the nodeClassMask is ignored (Part 4,
+     * 5.9.2.2). */
+    const UA_Node *target = NULL;
+    if(UA_NodePointer_isLocal(t->targetId)) {
+        /* Include references only for figuring out the TypeDefinition within
+         * addReferenceDescription. */
+        UA_BrowseDirection direction = UA_BROWSEDIRECTION_INVALID;
+        UA_ReferenceTypeSet refs = UA_REFERENCETYPESET_NONE;
+        if(bd->resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
+            direction = UA_BROWSEDIRECTION_BOTH;
+            UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+            UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
+        }
 
-    /* Include references only for figuring out the TypeDefinition within
-     * addReferenceDescription. */
-    UA_BrowseDirection direction = UA_BROWSEDIRECTION_INVALID;
-    UA_ReferenceTypeSet refs = UA_REFERENCETYPESET_NONE;
-    if(bd->resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
-        direction = UA_BROWSEDIRECTION_BOTH;
-        UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
-        UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
+        /* Get the node */
+        target = UA_NODESTORE_GETFROMREF_SELECTIVE(bc->server, t->targetId,
+                                                   resultMask2AttributesMask(bd->resultMask),
+                                                   refs, direction);
+        if(!target)
+            return NULL;
+
+        /* The node class has to match */
+        if(!matchClassMask(target, bd->nodeClassMask)) {
+            UA_NODESTORE_RELEASE(bc->server, target);
+            return NULL;
+        }
     }
-    
-    /* Get the node */
-    const UA_Node *target =
-        UA_NODESTORE_GETFROMREF_SELECTIVE(bc->server, t->targetId,
-                                          resultMask2AttributesMask(bd->resultMask),
-                                          refs, direction);
-    if(!target)
-        return NULL;
-    
-    /* The node class has to match */
-    if(!matchClassMask(target, bd->nodeClassMask)) {
-        UA_NODESTORE_RELEASE(bc->server, target);
-        return NULL;
-    }
-    
+
     /* Reached maxrefs. Return the "abort" signal. */
     if(bc->rr.size >= cp->maxReferences) {
-        UA_NODESTORE_RELEASE(bc->server, target);
+        if(target)
+            UA_NODESTORE_RELEASE(bc->server, target);
         return (void*)0x01;
     }
 
@@ -695,7 +702,8 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     bc->status = addReferenceDescription(bc, t->targetId, target);
 
     /* Release the node */
-    UA_NODESTORE_RELEASE(bc->server, target);
+    if(target)
+        UA_NODESTORE_RELEASE(bc->server, target);
 
     /* Store as last target. The itarget-id is a shallow copy for now. */
     cp->lastTarget = t->targetId;

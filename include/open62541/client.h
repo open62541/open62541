@@ -597,7 +597,16 @@ typedef void (*UA_ClientNotificationCallback)(UA_Client *client,
 
 struct UA_ClientConfig {
     void *clientContext; /* User-defined pointer attached to the client */
-    UA_Logger *logging;  /* Plugin for log output */
+    /* Plugin for log output. The default configuration (setDefault and
+     * similar) hands this pointer on to other plugins, such as the EventLoop
+     * and the SecurityPolicies. Replacing the pointer afterwards reaches only
+     * part of the library. Set the logger before calling setDefault, or
+     * overwrite the logger in place and keep its clear callback:
+     *
+     *   UA_Logger logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_WARNING);
+     *   logger.clear = config->logging->clear;
+     *   *config->logging = logger; */
+    UA_Logger *logging;
 
     /* Response timeout in ms (0 -> no timeout). If the server does not answer a
      * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is
