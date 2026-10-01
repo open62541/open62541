@@ -387,6 +387,15 @@ struct UA_Subscription {
 #endif
 };
 
+/* The Session whose access rights apply when a MonitoredItem is sampled. This
+ * is the Session of the subscriber, never the Session that caused the change.
+ * NULL if the Subscription is detached. The read path then denies the
+ * attributes that are gated by the AccessControl. */
+static UA_INLINE UA_Session *
+UA_MonitoredItem_getSamplingSession(const UA_MonitoredItem *mon) {
+    return mon->subscription->session;
+}
+
 UA_Subscription * UA_Subscription_new(void);
 
 void

@@ -873,7 +873,8 @@ END_TEST
 /* --------------------------------------------------------------------- */
 /* 7. Node-management permissions (Part 3 §8.55 bits 13..16).            */
 /*    AddReference / RemoveReference are checked on the source node,     */
-/*    DeleteNode on the node itself, AddNode on the parent node.         */
+/*    DeleteNode on the node itself, AddNode on the target namespace.    */
+/*    AddNodes also needs AddReference on the parent node.               */
 /* --------------------------------------------------------------------- */
 
 START_TEST(AddReference_checked_on_source) {
@@ -1034,8 +1035,11 @@ START_TEST(AddNode_checked_on_target_namespace) {
         UA_PERMISSIONTYPE_BROWSE, true, false), UA_STATUSCODE_GOOD);
     allowed = ac->allowAddNode(server, ac,
         &adminSessionId, NULL, &item);
+    /* allowAddNode only decides on the AddNode bit. The AddNodes service
+     * additionally requires AddReference (bit 13) on the parent, since the
+     * parent is the source of the new Reference. */
     ck_assert_msg(allowed == true,
-        "AddNode must be allowed once bit 16 is granted by the target "
+        "allowAddNode must be allowed once bit 16 is granted by the target "
         "namespace, regardless of the parent permission");
 
     clearAdminSessionRoles();

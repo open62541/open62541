@@ -2962,6 +2962,208 @@ START_TEST(Server_monitoredItems_sameNode_list) {
     ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server, ids[3]), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(nodeMonitoredItemCount(nodeId), 0);
 } END_TEST
+
+#ifdef UA_ENABLE_RBAC
+/* A write samples the zero-interval MonitoredItems of the node. The sample must
+ * be read with the rights of the subscriber, not with those of the writer. */
+
+static UA_NodeId
+addZeroIntervalVariable(void) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 val = 1;
+    UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "zeroInterval.var");
+    ck_assert_uint_eq(UA_Server_addVariableNode(server, nodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "zeroInterval"), UA_NODEID_NULL, attr, NULL, NULL),
+        UA_STATUSCODE_GOOD);
+    return nodeId;
+}
+
+static void
+setZeroIntervalPermissions(const UA_NodeId nodeId, UA_UInt32 roleId,
+                           UA_PermissionType permissions) {
+    UA_RolePermission rp[2];
+    rp[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    rp[0].permissions = UA_PERMISSIONTYPE_BROWSE;
+    rp[1].roleId = UA_NODEID_NUMERIC(0, roleId);
+    rp[1].permissions = permissions;
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, nodeId, 2, rp,
+                                                       false, NULL),
+                      UA_STATUSCODE_GOOD);
+}
+
+static void
+setSessionRole(UA_Session *s, UA_UInt32 roleId) {
+    UA_NodeId role = UA_NODEID_NUMERIC(0, roleId);
+    UA_Variant v;
+    UA_Variant_setArray(&v, &role, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(UA_Server_setSessionAttribute(server, &s->sessionId,
+                                                    UA_QUALIFIEDNAME(0, "roles"), &v),
+                      UA_STATUSCODE_GOOD);
+}
+
+/* Subscribe to the Value of the node with SamplingInterval 0 in the global
+ * Session */
+static UA_MonitoredItem *
+createZeroIntervalValueItem(const UA_NodeId nodeId) {
+    createSubscription();
+
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = nodeId;
+    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    item.requestedParameters.samplingInterval = 0.0;
+    item.requestedParameters.queueSize = 10;
+    UA_CreateMonitoredItemsRequest request;
+    UA_CreateMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subscriptionId;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+    request.itemsToCreateSize = 1;
+    request.itemsToCreate = &item;
+
+    UA_CreateMonitoredItemsResponse response;
+    UA_CreateMonitoredItemsResponse_init(&response);
+    lockServer(server);
+    Service_CreateMonitoredItems(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = response.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&response);
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, monitoredItemId);
+    ck_assert_ptr_ne(mon, NULL);
+    ck_assert_uint_eq(mon->samplingType, UA_MONITOREDITEMSAMPLINGTYPE_EVENT);
+    unlockServer(server);
+    return mon;
+}
+
+static UA_StatusCode
+writeInt32As(UA_Session *writer, const UA_NodeId nodeId, UA_Int32 value) {
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = nodeId;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wv.value.hasValue = true;
+    UA_Variant_setScalar(&wv.value.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    lockServer(server);
+    UA_Boolean done = Operation_Write(server, writer, &wv, &res);
+    unlockServer(server);
+    ck_assert(done);
+    return res;
+}
+
+/* Every queued Notification carries the status and no value */
+static void
+assertNoValueNotified(UA_MonitoredItem *mon, UA_StatusCode expectedStatus) {
+    ck_assert_uint_gt(mon->queueSize, 0);
+    UA_Notification *n;
+    TAILQ_FOREACH(n, &mon->queue, monEntry) {
+        ck_assert(!n->data.dataChange.value.hasValue);
+        ck_assert(n->data.dataChange.value.hasStatus);
+        ck_assert_uint_eq(n->data.dataChange.value.status, expectedStatus);
+    }
+}
+
+START_TEST(Server_zeroIntervalItem_deniedForUnreadableNode) {
+    /* Anonymous may only browse the node. SecurityAdmin may write it. */
+    UA_NodeId nodeId = addZeroIntervalVariable();
+    setZeroIntervalPermissions(nodeId, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN,
+                               UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                               UA_PERMISSIONTYPE_WRITE);
+    setSessionRole(session, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    UA_Session *writer = createSecondSession();
+    setSessionRole(writer, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+
+    /* The initial sample is denied */
+    UA_MonitoredItem *mon = createZeroIntervalValueItem(nodeId);
+    assertNoValueNotified(mon, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* Neither the write of the SecurityAdmin nor the write of the local admin
+     * reveals the value to the anonymous subscriber */
+    ck_assert_uint_eq(writeInt32As(writer, nodeId, 42), UA_STATUSCODE_GOOD);
+    assertNoValueNotified(mon, UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_Int32 adminValue = 43;
+    UA_Variant v;
+    UA_Variant_setScalar(&v, &adminValue, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, nodeId, v), UA_STATUSCODE_GOOD);
+    assertNoValueNotified(mon, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &writer->sessionId);
+    unlockServer(server);
+} END_TEST
+
+START_TEST(Server_zeroIntervalItem_respectsAccessRestrictions) {
+    /* The subscriber may read the node, but its Session has no SecureChannel
+     * and therefore cannot satisfy EncryptionRequired */
+    UA_NodeId nodeId = addZeroIntervalVariable();
+    setZeroIntervalPermissions(nodeId, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,
+                               UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ);
+    ck_assert_uint_eq(UA_Server_setNodeAccessRestrictions(server, nodeId,
+                          UA_ACCESSRESTRICTIONTYPE_ENCRYPTIONREQUIRED),
+                      UA_STATUSCODE_GOOD);
+    setSessionRole(session, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    UA_MonitoredItem *mon = createZeroIntervalValueItem(nodeId);
+    assertNoValueNotified(mon, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+
+    /* The local admin Session is exempt from AccessRestrictions. Its write
+     * must not lend that exemption to the subscriber. */
+    UA_Int32 adminValue = 42;
+    UA_Variant v;
+    UA_Variant_setScalar(&v, &adminValue, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, nodeId, v), UA_STATUSCODE_GOOD);
+    assertNoValueNotified(mon, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+} END_TEST
+
+START_TEST(Server_zeroIntervalItem_readerGetsValue) {
+    /* The subscriber may read the node. The Operator may also write it. */
+    UA_NodeId nodeId = addZeroIntervalVariable();
+    UA_RolePermission rp[3];
+    rp[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    rp[0].permissions = UA_PERMISSIONTYPE_BROWSE;
+    rp[1].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+    rp[1].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    rp[2].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    rp[2].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+        UA_PERMISSIONTYPE_WRITE;
+    ck_assert_uint_eq(UA_Server_setNodeRolePermissions(server, nodeId, 3, rp,
+                                                       false, NULL),
+                      UA_STATUSCODE_GOOD);
+    setSessionRole(session, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+    UA_Session *writer = createSecondSession();
+    setSessionRole(writer, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+
+    UA_MonitoredItem *mon = createZeroIntervalValueItem(nodeId);
+    UA_Notification *n = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_ptr_ne(n, NULL);
+    ck_assert(n->data.dataChange.value.hasValue);
+    ck_assert_int_eq(*(UA_Int32*)n->data.dataChange.value.value.data, 1);
+
+    ck_assert_uint_eq(writeInt32As(writer, nodeId, 42), UA_STATUSCODE_GOOD);
+    n = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_ptr_ne(n, NULL);
+    ck_assert(n->data.dataChange.value.hasValue);
+    ck_assert(!n->data.dataChange.value.hasStatus ||
+              n->data.dataChange.value.status == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32*)n->data.dataChange.value.value.data, 42);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &writer->sessionId);
+    unlockServer(server);
+} END_TEST
+#endif /* UA_ENABLE_RBAC */
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription");
     TCase *tc_server = tcase_create("Server Subscription Basic");
@@ -3027,6 +3229,11 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_firstPublishingCycleNotBatched);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);
     tcase_add_test(tc_server, Server_monitoredItems_sameNode_list);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc_server, Server_zeroIntervalItem_deniedForUnreadableNode);
+    tcase_add_test(tc_server, Server_zeroIntervalItem_respectsAccessRestrictions);
+    tcase_add_test(tc_server, Server_zeroIntervalItem_readerGetsValue);
+#endif
     suite_add_tcase(s, tc_server);
 
     return s;

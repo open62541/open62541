@@ -522,9 +522,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* If the 'SubscribeToEvents' bit of EventNotifier attribute is
-         * zero, then the object cannot be subscribed to monitor events */
+         * zero, then the object cannot be subscribed to monitor events.
+         * If the EventNotifier cannot be read (e.g. the Session may not
+         * browse the node), return the reason. */
         if(!v.hasValue || !v.value.data) {
-            result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
+            result->statusCode = (v.hasStatus && UA_StatusCode_isBad(v.status)) ?
+                v.status : UA_STATUSCODE_BADINTERNALERROR;
             UA_DataValue_clear(&v);
             return;
         }

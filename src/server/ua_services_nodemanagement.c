@@ -1382,6 +1382,30 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         goto create_error;
 #endif
 
+    /* The new Node is referenced from its parent. That modifies the parent
+     * and requires the AddReference permission there, the same as an
+     * AddReferences call with the parent as the source. The check is done
+     * here, only for the Node requested by the client. addNode_addRefs also
+     * runs for the children of an instantiated type, where the parent is the
+     * new instance. */
+    if(session != &server->adminSession &&
+       server->config.accessControl.allowAddReference &&
+       !UA_NodeId_isNull(&item->parentNodeId.nodeId)) {
+        UA_AddReferencesItem parentRef;
+        UA_AddReferencesItem_init(&parentRef);
+        parentRef.sourceNodeId = item->parentNodeId.nodeId;
+        parentRef.referenceTypeId = item->referenceTypeId;
+        parentRef.isForward = true;
+        parentRef.targetNodeId.nodeId = item->requestedNewNodeId.nodeId;
+        parentRef.targetNodeClass = item->nodeClass;
+        if(!server->config.accessControl.
+           allowAddReference(server, &server->config.accessControl,
+                             &session->sessionId, session->context, &parentRef)) {
+            retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+            goto create_error;
+        }
+    }
+
     /* Create a current source timestamp for values that don't have any */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
         UA_VariableNode *vn = &node->variableNode;
@@ -2357,23 +2381,59 @@ buildDeleteNodeSet(UA_Server *server, UA_Session *session,
         return res;
 
     /* Find out which hierarchical children should also be deleted. We know
-     * there are no "callback" ExpandedNodeId in the RefTree. */
+     * there are no "callback" ExpandedNodeId in the RefTree. Continue after an
+     * error to collect what we can, but report the first error. */
     size_t pos = 0;
     while(pos < refTree->size) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[pos].nodeId);
         pos++;
         if(!member)
             continue;
-        res |= autoDeleteChildren(server, session, refTree, hierarchRefsSet, &member->head);
+        UA_StatusCode childRes =
+            autoDeleteChildren(server, session, refTree, hierarchRefsSet, &member->head);
+        if(res == UA_STATUSCODE_GOOD)
+            res = childRes;
         UA_NODESTORE_RELEASE(server, member);
     }
     return res;
 }
 
+/* The children in the set are deleted together with the requested node. So the
+ * Session needs the same rights for them as for the requested node (the first
+ * entry of the set, which is checked before). This is checked before anything
+ * is modified. Any refusal aborts the deletion of the whole set. */
+static UA_StatusCode
+checkDeleteNodeSetAccess(UA_Server *server, UA_Session *session,
+                         const UA_DeleteNodesItem *item, const RefTree *refTree) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_DeleteNodesItem childItem = *item; /* Shallow copy */
+    for(size_t i = 1; i < refTree->size; i++) {
+        childItem.nodeId = refTree->targets[i].nodeId;
+        if(server->config.accessControl.allowDeleteNode &&
+           !server->config.accessControl.
+           allowDeleteNode(server, &server->config.accessControl,
+                           &session->sessionId, session->context, &childItem))
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+#ifdef UA_ENABLE_RBAC
+        const UA_Node *member = UA_NODESTORE_GET(server, &childItem.nodeId);
+        if(!member)
+            continue;
+        UA_StatusCode res = checkNodeAccessRestrictions(server, session, member, false);
+        UA_NODESTORE_RELEASE(server, member);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+#endif
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The deletion is authorized at this point. The incoming references are
+ * removed with admin rights. The Session might lack the RemoveReference right
+ * on the referencing nodes. But keeping the references would leave them
+ * dangling. */
 static void
-deleteNodeSet(UA_Server *server, UA_Session *session,
-              const UA_ReferenceTypeSet *hierarchRefsSet,
-              UA_Boolean removeTargetRefs, RefTree *refTree) {
+deleteNodeSet(UA_Server *server, UA_Boolean removeTargetRefs, RefTree *refTree) {
     /* Delete the nodes based on the RefTree entries */
     for(size_t i = refTree->size; i > 0; --i) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
@@ -2387,7 +2447,7 @@ deleteNodeSet(UA_Server *server, UA_Session *session,
         /* Everything that dereferences member must happen before the node is
          * released; remove by the RefTree's own NodeId copy afterwards. */
         if(removeTargetRefs)
-            removeIncomingReferences(server, session, &member->head);
+            removeIncomingReferences(server, &server->adminSession, &member->head);
         UA_NODESTORE_RELEASE(server, member);
         UA_NODESTORE_REMOVE(server, &refTree->targets[i-1].nodeId);
     }
@@ -2457,7 +2517,19 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         return;
     *result = buildDeleteNodeSet(server, session, &hierarchRefsSet, &item->nodeId,
                                  item->deleteTargetReferences, &refTree);
-    if(*result != UA_STATUSCODE_GOOD) {
+    if(session != &server->adminSession) {
+        /* Authorize the deletion of every node in the set. An incomplete set
+         * cannot be authorized. Abort before anything is modified. */
+        if(*result == UA_STATUSCODE_GOOD)
+            *result = checkDeleteNodeSetAccess(server, session, item, &refTree);
+        if(*result != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logging, session,
+                                "DeleteNode (%N): Not deleted with StatusCode %s",
+                                item->nodeId, UA_StatusCode_name(*result));
+            RefTree_clear(&refTree);
+            return;
+        }
+    } else if(*result != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "DeleteNode: Incomplete lookup of nodes. "
                                "Still deleting what we have.");
@@ -2470,8 +2542,7 @@ deleteNodeOperation_inner(UA_Server *server, UA_Session *session,
         recordModelChangeEvent(server, &refTree.targets[i].nodeId,
                                UA_MODELCHANGESTRUCTUREVERBMASK_NODEDELETED);
     deconstructNodeSet(server, session, &hierarchRefsSet, &refTree);
-    deleteNodeSet(server, session, &hierarchRefsSet,
-                  item->deleteTargetReferences, &refTree);
+    deleteNodeSet(server, item->deleteTargetReferences, &refTree);
     RefTree_clear(&refTree);
 }
 

@@ -1943,17 +1943,23 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 /* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
  * interval. This is reached after a successful attribute update from the
  * network Write service, the UA_Server_write APIs and internal writeAttribute
- * calls. Async writes enter here when Operation_Write is resumed. */
+ * calls. Async writes enter here when Operation_Write is resumed.
+ *
+ * The node that is being edited is read directly. The read uses the Session of
+ * each subscriber, not the Session of the writer. Otherwise a subscriber would
+ * receive values it is not allowed to read. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-triggerImmediateDataChange(UA_Server *server, UA_Session *session,
-                           UA_Node *node, const UA_WriteValue *wvalue) {
+triggerImmediateDataChange(UA_Server *server, UA_Node *node,
+                           const UA_WriteValue *wvalue) {
     UA_MonitoredItem *mon = node->head.monitoredItems;
     for(; mon != NULL; mon = mon->nodeListNext) {
         /* Zero-interval items form the list prefix. Only items with a
          * positive sampling interval follow. */
         if(mon->parameters.samplingInterval > 0.0)
             return;
+        if(UA_MonitoredItem_isDeleting(mon))
+            continue;
         switch(mon->samplingType) {
         case UA_MONITOREDITEMSAMPLINGTYPE_EVENT:
             /* EVENT also covers OPC UA Event MonitoredItems. Those monitor
@@ -1974,8 +1980,8 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         UA_DataValue value;
         UA_DataValue_init(&value);
         UA_Boolean done =
-            Operation_ReadWithNode(server, session, node,
-                                   mon->timestampsToReturn,
+            Operation_ReadWithNode(server, UA_MonitoredItem_getSamplingSession(mon),
+                                   node, mon->timestampsToReturn,
                                    &mon->itemToMonitor, &value);
         if(!done) {
             if(server->config.asyncOperationCancelCallback)
@@ -2242,7 +2248,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
     /* Trigger MonitoredItems with no SamplingInterval */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    triggerImmediateDataChange(server, session, node, wvalue);
+    triggerImmediateDataChange(server, node, wvalue);
 #endif
 
     return UA_STATUSCODE_GOOD;
