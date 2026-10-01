@@ -1359,6 +1359,23 @@ START_TEST(SetAdminSessionContext) {
     ck_assert_ptr_eq(sessionCalled, ctx);
 } END_TEST
 
+static size_t externalReads;
+static size_t externalWrites;
+
+static void
+externalOnRead(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *nodeId, void *nodeContext,
+               const UA_NumericRange *range, const UA_DataValue *value) {
+    externalReads++;
+}
+
+static void
+externalOnWrite(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *nodeId, void *nodeContext,
+                const UA_NumericRange *range, const UA_DataValue *data) {
+    externalWrites++;
+}
+
 START_TEST(SetVariableValueSource) {
     /* Add a variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -1378,9 +1395,33 @@ START_TEST(SetVariableValueSource) {
     /* Set an external value source */
     UA_DataValue *externalValuePtr = UA_DataValue_new();
     UA_DataValue_init(externalValuePtr);
+    UA_Variant_setScalarCopy(&externalValuePtr->value, &myInt,
+                             &UA_TYPES[UA_TYPES_INT32]);
+    externalValuePtr->hasValue = true;
+    UA_ValueSourceNotifications notifications = {externalOnRead, externalOnWrite};
     retval = UA_Server_setVariableNode_externalValueSource(server, varId,
-                                                           &externalValuePtr, NULL);
+                                                           &externalValuePtr,
+                                                           &notifications);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Reading and writing use the notifications of the external source */
+    externalReads = 0;
+    externalWrites = 0;
+    UA_Variant out;
+    retval = UA_Server_readValue(server, varId, &out);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&out);
+    ck_assert_uint_eq(externalReads, 1);
+
+    UA_Int32 newInt = 43;
+    UA_Variant in;
+    UA_Variant_setScalar(&in, &newInt, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_writeValue(server, varId, in);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(externalWrites, 1);
+    ck_assert(UA_Variant_hasScalarType(&externalValuePtr->value,
+                                       &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_int_eq(*(UA_Int32*)externalValuePtr->value.data, 43);
 
     UA_DataValue_delete(externalValuePtr);
 } END_TEST

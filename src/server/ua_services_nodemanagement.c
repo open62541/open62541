@@ -758,7 +758,9 @@ copyObjectVariableChild(UA_Server *server, UA_Session *session,
     node->head.constructed = false;
 
     /* The value source callbacks are copied by default. But we don't want
-     * to keep it here. */
+     * to keep it here. UA_Node_copy stores the value of an external source
+     * as an internal value, which overwrites the external notifications. So
+     * the internal notifications are cleared for both. */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
         if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL ||
