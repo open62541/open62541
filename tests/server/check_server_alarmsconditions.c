@@ -8,6 +8,10 @@
 #include <open62541/server.h>
 #include <open62541/driver/alarms_conditions.h>
 #include <open62541/server_config_default.h>
+
+#include "server/ua_server_internal.h"
+#include "server/ua_services.h"
+#include "server/ua_subscription.h"
 #include "test_helpers.h"
 
 #include <check.h>
@@ -1697,6 +1701,62 @@ START_TEST(triggerCondition_multipleTimes) {
     acDriver_ac->deleteCondition(acDriver_ac, cond, source);
 } END_TEST
 
+static void
+refreshEventCallback(UA_Server *s, UA_UInt32 monitoredItemId,
+                     void *monitoredItemContext, const UA_KeyValueMap eventFields) {
+    (void)s; (void)monitoredItemId; (void)monitoredItemContext; (void)eventFields;
+}
+
+/* ConditionRefresh and ConditionRefresh2 accept their UInt32 arguments. The
+ * Call service adjusts them to the IntegerId DataType of the InputArguments. */
+START_TEST(conditionRefresh_integerIdArguments) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        "IntegerIdRefreshCondition", source);
+
+    /* Local event MonitoredItem of the admin Session (SubscriptionId 0) */
+    UA_QualifiedName eventIdName = UA_QUALIFIEDNAME(0, "EventId");
+    UA_SimpleAttributeOperand select;
+    UA_SimpleAttributeOperand_init(&select);
+    select.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    select.browsePathSize = 1;
+    select.browsePath = &eventIdName;
+    select.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClausesSize = 1;
+    filter.selectClauses = &select;
+    UA_MonitoredItemCreateResult mon =
+        UA_Server_createEventMonitoredItem(server_ac, source, filter, NULL,
+                                           refreshEventCallback);
+    ck_assert_uint_eq(mon.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 ids[2] = {0, mon.monitoredItemId};
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], &ids[0], &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&input[1], &ids[1], &UA_TYPES[UA_TYPES_UINT32]);
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH);
+    request.inputArgumentsSize = 1;
+    request.inputArguments = input;
+    UA_CallMethodResult result = UA_Server_call(server_ac, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2);
+    request.inputArgumentsSize = 2;
+    result = UA_Server_call(server_ac, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+
+    ck_assert_uint_eq(UA_Server_deleteMonitoredItem(server_ac, mon.monitoredItemId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
 START_TEST(addDriver_rejectsDuplicateAlarmsConditions) {
     UA_AlarmConditionsDriver *acDriver =
         UA_AlarmsConditionsDriver(UA_KEYVALUEMAP_NULL);
@@ -1765,6 +1825,548 @@ START_TEST(conditionRefresh_replacedInputArguments) {
 }
 END_TEST
 
+/* Helper: enable a condition, set Retain and trigger an event. Returns the
+ * EventId of the event. */
+static UA_ByteString
+triggerRetainedCondition(const UA_NodeId cond, const UA_NodeId source) {
+    UA_Variant val;
+    UA_Boolean enabled = true;
+    UA_Variant_setScalar(&val, &enabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_StatusCode retval = acDriver_ac->setConditionVariableFieldProperty(
+        acDriver_ac, cond, &val, UA_QUALIFIEDNAME(0, "EnabledState"),
+        UA_QUALIFIEDNAME(0, "Id"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean retain = true;
+    UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Retain"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString eventId = UA_BYTESTRING_NULL;
+    retval = acDriver_ac->triggerConditionEvent(acDriver_ac, cond, source, &eventId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(eventId.length > 0);
+    return eventId;
+}
+
+/* Helper: read the Id of a TwoStateVariable field (e.g. "AckedState") */
+static UA_Boolean
+readTwoStateVariableId(const UA_NodeId cond, const char *field) {
+    UA_QualifiedName path[2] = {UA_QUALIFIEDNAME(0, (char*)(uintptr_t)field),
+                                UA_QUALIFIEDNAME(0, "Id")};
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server_ac, cond, 2, path);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval =
+        UA_Server_readValue(server_ac, bpr.targets[0].targetId.nodeId, &value);
+    UA_BrowsePathResult_clear(&bpr);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_BOOLEAN]));
+    UA_Boolean id = *(UA_Boolean*)value.data;
+    UA_Variant_clear(&value);
+    return id;
+}
+
+/* Helper: create a Session without a SecureChannel */
+static UA_Session *
+createTestSession(const char *userId) {
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    request.requestedSessionTimeout = UA_UINT32_MAX;
+    UA_Session *session = NULL;
+    lockServer(server_ac);
+    UA_StatusCode retval = UA_Session_create(server_ac, NULL, &request, &session);
+    if(retval == UA_STATUSCODE_GOOD && userId) {
+        UA_String_clear(&session->clientUserIdOfSession);
+        session->clientUserIdOfSession = UA_STRING_ALLOC(userId);
+    }
+    unlockServer(server_ac);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    return session;
+}
+
+/* Helper: create a Subscription with a MonitoredItem on the Server object. An
+ * event item selects EventId and EventType, otherwise the BrowseName is
+ * monitored. */
+static UA_UInt32
+createTestSubscription(UA_Session *session, UA_Boolean eventItem) {
+    UA_CreateSubscriptionRequest subRequest;
+    UA_CreateSubscriptionRequest_init(&subRequest);
+    subRequest.publishingEnabled = true;
+    UA_CreateSubscriptionResponse subResponse;
+    UA_CreateSubscriptionResponse_init(&subResponse);
+    lockServer(server_ac);
+    Service_CreateSubscription(server_ac, session, &subRequest, &subResponse);
+    unlockServer(server_ac);
+    ck_assert_uint_eq(subResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subscriptionId = subResponse.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&subResponse);
+
+    UA_QualifiedName fieldNames[2] = {UA_QUALIFIEDNAME(0, "EventId"),
+                                      UA_QUALIFIEDNAME(0, "EventType")};
+    UA_SimpleAttributeOperand selectClauses[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_SimpleAttributeOperand_init(&selectClauses[i]);
+        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].browsePathSize = 1;
+        selectClauses[i].browsePath = &fieldNames[i];
+        selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+    }
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClausesSize = 2;
+    filter.selectClauses = selectClauses;
+
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    item.itemToMonitor.attributeId = eventItem ?
+        UA_ATTRIBUTEID_EVENTNOTIFIER : UA_ATTRIBUTEID_BROWSENAME;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    item.requestedParameters.queueSize = 10;
+    if(eventItem)
+        UA_ExtensionObject_setValue(&item.requestedParameters.filter, &filter,
+                                    &UA_TYPES[UA_TYPES_EVENTFILTER]);
+
+    UA_CreateMonitoredItemsRequest request;
+    UA_CreateMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subscriptionId;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.itemsToCreateSize = 1;
+    request.itemsToCreate = &item;
+    UA_CreateMonitoredItemsResponse response;
+    UA_CreateMonitoredItemsResponse_init(&response);
+    lockServer(server_ac);
+    Service_CreateMonitoredItems(server_ac, session, &request, &response);
+    unlockServer(server_ac);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_CreateMonitoredItemsResponse_clear(&response);
+    return subscriptionId;
+}
+
+/* Helper: count the queued event notifications of an EventType and copy the
+ * EventId of the last one */
+static size_t
+getQueuedEventId(UA_Session *session, UA_UInt32 subscriptionId,
+                 const UA_NodeId eventType, UA_ByteString *eventId) {
+    size_t found = 0;
+    lockServer(server_ac);
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
+    UA_Notification *n;
+    if(sub) {
+        TAILQ_FOREACH(n, &sub->notificationQueue, subEntry) {
+            UA_EventFieldList *efl = &n->data.event;
+            if(efl->eventFieldsSize != 2 ||
+               !UA_Variant_hasScalarType(&efl->eventFields[0],
+                                         &UA_TYPES[UA_TYPES_BYTESTRING]) ||
+               !UA_Variant_hasScalarType(&efl->eventFields[1],
+                                         &UA_TYPES[UA_TYPES_NODEID]) ||
+               !UA_NodeId_equal((UA_NodeId*)efl->eventFields[1].data, &eventType))
+                continue;
+            found++;
+            UA_ByteString_clear(eventId);
+            UA_ByteString_copy((UA_ByteString*)efl->eventFields[0].data, eventId);
+        }
+    }
+    unlockServer(server_ac);
+    return found;
+}
+
+/* Helper: call a method with the given Session (NULL for the admin Session) */
+static UA_StatusCode
+callMethod(UA_Session *session, const UA_NodeId objectId, UA_UInt32 methodId,
+           size_t inputSize, UA_Variant *input) {
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = objectId;
+    request.methodId = UA_NODEID_NUMERIC(0, methodId);
+    request.inputArgumentsSize = inputSize;
+    request.inputArguments = input;
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    lockServer(server_ac);
+    Operation_CallMethod(server_ac, session ? session : &server_ac->adminSession,
+                         &request, &result);
+    unlockServer(server_ac);
+    UA_StatusCode retval = result.statusCode;
+    UA_CallMethodResult_clear(&result);
+    return retval;
+}
+
+/* Helper: call Acknowledge, Confirm or AddComment on a condition */
+static UA_StatusCode
+callEventIdMethod(UA_Session *session, const UA_NodeId cond, UA_UInt32 methodId,
+                  const UA_ByteString *eventId, const UA_LocalizedText comment) {
+    UA_Variant input[2];
+    UA_Variant_setScalar(&input[0], (void*)(uintptr_t)eventId,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&input[1], (void*)(uintptr_t)&comment,
+                         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    return callMethod(session, cond, methodId, 2, input);
+}
+
+static UA_StatusCode
+callConditionRefresh(UA_Session *session, UA_UInt32 subscriptionId) {
+    UA_Variant input;
+    UA_Variant_setScalar(&input, &subscriptionId, &UA_TYPES[UA_TYPES_UINT32]);
+    return callMethod(session, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
+                      UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH, 1, &input);
+}
+
+/* ConditionRefresh sends the retained events with their original EventId
+ * (Part 9, 5.5.7). Another client can still acknowledge with that EventId. */
+START_TEST(conditionRefresh_keepsEventId) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "RefreshEventIdCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+
+    /* Subscribe after the event, so that only the refresh is queued */
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+    ck_assert_uint_eq(callConditionRefresh(session, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+
+    UA_ByteString refreshedId = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType,
+                                       &refreshedId), 1);
+    ck_assert(UA_ByteString_equal(&refreshedId, &eventId));
+    UA_ByteString_clear(&refreshedId);
+
+    /* The admin Session acknowledges with the original EventId */
+    UA_StatusCode retval =
+        callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                          &eventId, UA_LOCALIZEDTEXT("", ""));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "AckedState"));
+
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* ConditionRefresh follows a Subscription to the Session it is transferred to.
+ * The refresh targets are removed with the MonitoredItems. */
+START_TEST(conditionRefresh_transferredSubscription) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "TransferRefreshCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+
+    /* The default AccessControl allows the transfer for the same user */
+    UA_Session *oldSession = createTestSession("operator");
+    UA_Session *newSession = createTestSession("operator");
+    UA_UInt32 subscriptionId = createTestSubscription(oldSession, true);
+
+    UA_TransferSubscriptionsRequest request;
+    UA_TransferSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse response;
+    UA_TransferSubscriptionsResponse_init(&response);
+    lockServer(server_ac);
+    Service_TransferSubscriptions(server_ac, newSession, &request, &response);
+    unlockServer(server_ac);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_TransferSubscriptionsResponse_clear(&response);
+
+    /* The new Session refreshes, the old one no longer can */
+    ck_assert_uint_eq(callConditionRefresh(newSession, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+    UA_ByteString refreshedId = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(getQueuedEventId(newSession, subscriptionId, alarmType,
+                                       &refreshedId), 1);
+    ck_assert(UA_ByteString_equal(&refreshedId, &eventId));
+    UA_ByteString_clear(&refreshedId);
+    ck_assert_uint_eq(callConditionRefresh(oldSession, subscriptionId),
+                      UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    /* Deleting the old Subscription with its Session keeps the targets */
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &oldSession->sessionId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callConditionRefresh(newSession, subscriptionId),
+                      UA_STATUSCODE_GOOD);
+
+    /* Deleting the transferred Subscription removes them */
+    UA_DeleteSubscriptionsRequest delRequest;
+    UA_DeleteSubscriptionsRequest_init(&delRequest);
+    delRequest.subscriptionIdsSize = 1;
+    delRequest.subscriptionIds = &subscriptionId;
+    UA_DeleteSubscriptionsResponse delResponse;
+    UA_DeleteSubscriptionsResponse_init(&delResponse);
+    lockServer(server_ac);
+    Service_DeleteSubscriptions(server_ac, newSession, &delRequest, &delResponse);
+    unlockServer(server_ac);
+    ck_assert_uint_eq(delResponse.resultsSize, 1);
+    ck_assert_uint_eq(delResponse.results[0], UA_STATUSCODE_GOOD);
+    UA_DeleteSubscriptionsResponse_clear(&delResponse);
+    ck_assert_uint_eq(callConditionRefresh(newSession, subscriptionId),
+                      UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &newSession->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* ConditionRefresh on a Subscription without event MonitoredItems has nothing
+ * to do (Part 9, 5.5.7) */
+START_TEST(conditionRefresh_noEventItems) {
+    /* The first condition registers the method callbacks */
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        "NoEventItemsCondition", source);
+
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, false);
+    ck_assert_uint_eq(callConditionRefresh(session, subscriptionId),
+                      UA_STATUSCODE_BADNOTHINGTODO);
+    ck_assert_uint_eq(callConditionRefresh(session, subscriptionId + 1),
+                      UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* Helper: whether the Comment field of a condition has the given text */
+static UA_Boolean
+hasComment(const UA_NodeId cond, const UA_String text) {
+    UA_Variant fieldVal;
+    UA_Variant_init(&fieldVal);
+    UA_StatusCode retval = readConditionField(server_ac, cond, "Comment", &fieldVal);
+    UA_Boolean found = (retval == UA_STATUSCODE_GOOD &&
+        UA_Variant_hasScalarType(&fieldVal, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) &&
+        UA_String_equal(&((UA_LocalizedText*)fieldVal.data)->text, &text));
+    UA_Variant_clear(&fieldVal);
+    return found;
+}
+
+/* Application callback that counts its calls and returns a configured status */
+static size_t stateCallbackCount = 0;
+static UA_StatusCode stateCallbackStatus = UA_STATUSCODE_GOOD;
+static UA_StatusCode
+statusStateCallbackFn(UA_Server *s, const UA_NodeId *conditionId) {
+    (void)s; (void)conditionId;
+    stateCallbackCount++;
+    return stateCallbackStatus;
+}
+
+/* A Bad status of the application callback refuses Acknowledge and Confirm.
+ * The Call returns it, and neither the state nor the comment changes. */
+START_TEST(ackConfirmCallback_refuses) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "RefusingCallbackCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+
+    UA_StatusCode retval = acDriver_ac->setConditionTwoStateVariableCallback(
+        acDriver_ac, cond, source, false, statusStateCallbackFn, UA_ENTERING_ACKEDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = acDriver_ac->setConditionTwoStateVariableCallback(
+        acDriver_ac, cond, source, false, statusStateCallbackFn,
+        UA_ENTERING_CONFIRMEDSTATE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Refused */
+    stateCallbackCount = 0;
+    stateCallbackStatus = UA_STATUSCODE_BADUSERACCESSDENIED;
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "Operator note");
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(!readTwoStateVariableId(cond, "AckedState"));
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(!readTwoStateVariableId(cond, "ConfirmedState"));
+    ck_assert_uint_eq(stateCallbackCount, 2);
+
+    ck_assert(!hasComment(cond, comment.text));
+
+    UA_ByteString lastId = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 0);
+
+    /* Accepted. Each Call runs the callback and triggers the event once. */
+    stateCallbackCount = 0;
+    stateCallbackStatus = UA_STATUSCODE_GOOD;
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "AckedState"));
+    ck_assert(hasComment(cond, comment.text));
+    ck_assert_uint_eq(stateCallbackCount, 1);
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 1);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "ConfirmedState"));
+    ck_assert_uint_eq(stateCallbackCount, 2);
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 2);
+
+    UA_ByteString_clear(&lastId);
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* A comment is ignored only if both its locale and text are empty. An empty
+ * text with a locale resets it (Part 9, 5.5.6 and 5.7.3). */
+START_TEST(comment_emptyLocale) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = createTestCondition(server_ac, alarmType,
+                                         "EmptyLocaleCommentCondition", source);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+
+    /* Each call triggers an event with a new EventId */
+    UA_ByteString lastId = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT, &eventId,
+                          UA_LOCALIZEDTEXT("", "Shift note"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING("Shift note")));
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 1);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT, &lastId,
+                               UA_LOCALIZEDTEXT("", ""));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING("Shift note")));
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 2);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT, &lastId,
+                               UA_LOCALIZEDTEXT("en", ""));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING(""))); /* empty, not NULL text */
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 3);
+
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, UA_LOCALIZEDTEXT("", "Acknowledged by operator"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hasComment(cond, UA_STRING("Acknowledged by operator")));
+
+    UA_ByteString_clear(&lastId);
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* ExpirationLimit defaults to two weeks (Part 9, 5.8.24.7) */
+START_TEST(certificateExpirationAlarm_expirationLimit) {
+    UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId cond = createTestCondition(
+        server_ac, UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE),
+        "CertificateExpirationCondition", source);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = readConditionField(server_ac, cond, "ExpirationLimit", &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DURATION]) ||
+              UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DOUBLE]));
+    ck_assert(*(UA_Double*)value.data == 14.0 * 24 * 60 * 60 * 1000);
+    UA_Variant_clear(&value);
+
+    acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+} END_TEST
+
+/* Acknowledge, Confirm and AddComment on a condition and source with string
+ * NodeIds. Every return path must free the NodeId copies (leak checker). */
+START_TEST(ackConfirm_stringNodeIds) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en", "StringSource");
+    UA_NodeId source = UA_NODEID_STRING(1, "ac.string.source");
+    UA_StatusCode retval =
+        UA_Server_addObjectNode(server_ac, source,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                UA_QUALIFIEDNAME(1, "StringSource"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeId alarmType = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
+    UA_NodeId cond = UA_NODEID_NULL;
+    retval = acDriver_ac->createCondition(acDriver_ac,
+        UA_NODEID_STRING(1, "ac.string.condition"), alarmType,
+        UA_QUALIFIEDNAME(0, "StringNodeIdCondition"), source, UA_NODEID_NULL, &cond);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ByteString eventId = triggerRetainedCondition(cond, source);
+    UA_Session *session = createTestSession(NULL);
+    UA_UInt32 subscriptionId = createTestSubscription(session, true);
+    UA_LocalizedText comment = UA_LOCALIZEDTEXT("en", "Operator note");
+
+    /* Confirm, then the already confirmed path */
+    UA_ByteString lastId = UA_BYTESTRING_NULL;
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &eventId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readTwoStateVariableId(cond, "ConfirmedState"));
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 1);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONBRANCHALREADYCONFIRMED);
+
+    /* Acknowledge, then the already acknowledged path */
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(getQueuedEventId(session, subscriptionId, alarmType, &lastId), 2);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONBRANCHALREADYACKED);
+
+    /* The not retained paths */
+    UA_Variant val;
+    UA_Boolean retain = false;
+    UA_Variant_setScalar(&val, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Retain"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONDISABLED);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONDISABLED);
+    retval = callEventIdMethod(NULL, cond, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT,
+                               &lastId, comment);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONDITIONDISABLED);
+
+    /* Severity change without an event */
+    UA_UInt16 severity = 500;
+    UA_Variant_setScalar(&val, &severity, &UA_TYPES[UA_TYPES_UINT16]);
+    retval = acDriver_ac->setConditionField(acDriver_ac, cond, &val,
+                                            UA_QUALIFIEDNAME(0, "Severity"));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString_clear(&lastId);
+    UA_ByteString_clear(&eventId);
+    ck_assert_uint_eq(UA_Server_closeSession(server_ac, &session->sessionId),
+                      UA_STATUSCODE_GOOD);
+    retval = acDriver_ac->deleteCondition(acDriver_ac, cond, source);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&cond);
+} END_TEST
+
 #endif /* UA_TEST_ENABLE_ALARMS_CONDITIONS */
 
 int main(void) {
@@ -1779,6 +2381,9 @@ int main(void) {
     tcase_add_test(tc_call, createCondition_nullOutNodeId);
     tcase_add_test(tc_call, addConditionBegin_nullOutNodeId);
     tcase_add_test(tc_call, conditionRefresh_replacedInputArguments);
+    tcase_add_test(tc_call, conditionRefresh_keepsEventId);
+    tcase_add_test(tc_call, conditionRefresh_transferredSubscription);
+    tcase_add_test(tc_call, conditionRefresh_noEventItems);
 #endif
     tcase_add_checked_fixture(tc_call, setup, teardown);
     suite_add_tcase(s, tc_call);
@@ -1800,6 +2405,7 @@ int main(void) {
     tcase_add_test(tc_trigger, triggerConditionEvent_disabled);
     tcase_add_test(tc_trigger, triggerConditionEvent_nullEventId);
     tcase_add_test(tc_trigger, enableDisable_condition);
+    tcase_add_test(tc_trigger, conditionRefresh_integerIdArguments);
 #endif
     tcase_add_checked_fixture(tc_trigger, setup, teardown);
     suite_add_tcase(s, tc_trigger);
@@ -1817,6 +2423,7 @@ int main(void) {
     tcase_add_test(tc_state, activeState_triggerCycle);
     tcase_add_test(tc_state, ackCallback_withRemoveBranch);
     tcase_add_test(tc_state, confirmCallback_withRemoveBranch);
+    tcase_add_test(tc_state, ackConfirmCallback_refuses);
     tcase_add_test(tc_state, setCallback_outOfRange);
 #endif
     tcase_add_checked_fixture(tc_state, setup, teardown);
@@ -1850,6 +2457,9 @@ int main(void) {
     tcase_add_test(tc_misc, triggerAlarmCondition_fullPath);
     tcase_add_test(tc_misc, triggerCondition_multipleTimes);
     tcase_add_test(tc_misc, addDriver_rejectsDuplicateAlarmsConditions);
+    tcase_add_test(tc_misc, comment_emptyLocale);
+    tcase_add_test(tc_misc, certificateExpirationAlarm_expirationLimit);
+    tcase_add_test(tc_misc, ackConfirm_stringNodeIds);
 #endif
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     suite_add_tcase(s, tc_misc);
