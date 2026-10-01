@@ -1212,17 +1212,18 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
 
     reverse_connect_context *rev, *temp;
     LIST_FOREACH_SAFE(rev, &bpm->reverseConnects, next, temp) {
-        if(rev->handle != handle)
+        if(rev->handle != handle || rev->destruction)
             continue;
 
-        LIST_REMOVE(rev, next);
-
-        /* Connected -> disconnect, otherwise free immediately */
+        /* Connected -> disconnect, otherwise free immediately. A connected
+         * entry stays in the list until its connection has closed. Then the
+         * connection callback removes and frees it. */
         if(rev->currentConnection.connectionId) {
             UA_ConnectionManager *cm = rev->currentConnection.connectionManager;
             rev->destruction = true;
             cm->closeConnection(cm, rev->currentConnection.connectionId);
         } else {
+            LIST_REMOVE(rev, next);
             setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
             UA_String_clear(&rev->hostname);
             UA_free(rev);
@@ -1275,6 +1276,10 @@ serverReverseConnectCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectio
             LIST_REMOVE(context, next);
             UA_String_clear(&context->hostname);
             UA_free(context);
+
+            /* Removed while connected. The retry callback was kept until now. */
+            if(LIST_EMPTY(&bpm->reverseConnects))
+                setReverseConnectRetryCallback(bpm, false);
 
             /* Check if the Binary Protocol Manager is stopped */
             if(bpm->sc.state == UA_LIFECYCLESTATE_STOPPING &&
@@ -1469,9 +1474,12 @@ UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
     /* Stop the regular retry callback */
     setReverseConnectRetryCallback(bpm, false);
 
-    /* Close or free all reverse connections */
+    /* Close or free all reverse connections. Removed entries are already
+     * closing. */
     reverse_connect_context *rev, *rev_tmp;
     LIST_FOREACH_SAFE(rev, &bpm->reverseConnects, next, rev_tmp) {
+        if(rev->destruction)
+            continue;
         if(rev->currentConnection.connectionId) {
             UA_ConnectionManager *cm = rev->currentConnection.connectionManager;
             rev->destruction = true;
