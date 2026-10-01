@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### The AccessControl plugin needs its mandatory callbacks
+
+`UA_Server_run_startup` returns `Bad_ConfigurationError` if one of the
+AccessControl callbacks `activateSession`, `getUserRightsMask`,
+`getUserAccessLevel`, `getUserExecutable`, `getUserExecutableOnObject` or
+`allowBrowseNode` is NULL. Before, the server started and crashed on the first
+request that used it.
+
 ### PubSub AddConnection rolls back incomplete configurations
 
 The `PublishSubscribe.AddConnection` information model method now removes the
