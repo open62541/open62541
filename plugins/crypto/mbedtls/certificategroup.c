@@ -20,6 +20,7 @@
 
 #include "securitypolicy_common.h"
 #include "securitypolicy_mbedtls_compat.h"
+#include "utf8.h"
 
 /* Configuration parameters */
 
@@ -950,6 +951,181 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     if(retval == UA_STATUSCODE_GOOD)
         *subjectName = result;
     return retval;
+}
+
+typedef struct {
+    const char *oid;
+    size_t oidLength;
+    const char *name;
+    size_t nameLength;
+} RoleDnAttribute;
+
+static UA_Boolean
+roleOidEqual(const mbedtls_x509_buf *oid, const RoleDnAttribute *attribute) {
+    return oid->len == attribute->oidLength &&
+           memcmp(oid->p, attribute->oid, oid->len) == 0;
+}
+
+/* Convert a DirectoryString to UTF-8. mbedtls hands out the raw DER content of
+ * the attribute, so the string types that are not already UTF-8 have to be
+ * converted here. Returns false when the value cannot be represented in the
+ * criteria string (unsupported or malformed encoding, empty value, a control
+ * character or the quote that delimits the value, see Part 18 §4.4.3). The
+ * attribute is then left out instead of failing the whole derivation. *oom is
+ * set only when an allocation failed. */
+static UA_Boolean
+roleDnValueToUtf8(const mbedtls_x509_buf *val, UA_ByteString *out,
+                  UA_StatusCode *oom) {
+    if(val->len == 0)
+        return false;
+
+    /* Worst case: every input byte becomes a four-byte UTF-8 sequence */
+    UA_Byte *buf = (UA_Byte*)UA_malloc(val->len * 4);
+    if(!buf) {
+        *oom = UA_STATUSCODE_BADOUTOFMEMORY;
+        return false;
+    }
+
+    size_t n = 0;
+    switch(val->tag) {
+    case MBEDTLS_ASN1_UTF8_STRING:
+    case MBEDTLS_ASN1_PRINTABLE_STRING:
+    case MBEDTLS_ASN1_IA5_STRING:
+        memcpy(buf, val->p, val->len);
+        n = val->len;
+        break;
+    case MBEDTLS_ASN1_T61_STRING:
+        /* Approximated as ISO 8859-1, like OpenSSL does */
+        for(size_t i = 0; i < val->len; i++)
+            n += utf8_from_codepoint(&buf[n], val->p[i]);
+        break;
+    case MBEDTLS_ASN1_BMP_STRING: /* UTF-16BE */
+        if(val->len % 2 != 0)
+            goto unusable;
+        for(size_t i = 0; i < val->len; i += 2) {
+            unsigned cp = (unsigned)((val->p[i] << 8) | val->p[i+1]);
+            if(cp >= 0xD800 && cp <= 0xDBFF) {
+                if(i + 3 >= val->len)
+                    goto unusable;
+                unsigned lo = (unsigned)((val->p[i+2] << 8) | val->p[i+3]);
+                if(lo < 0xDC00 || lo > 0xDFFF)
+                    goto unusable;
+                cp = 0x10000u + ((cp - 0xD800u) << 10) + (lo - 0xDC00u);
+                i += 2;
+            } else if(cp >= 0xDC00 && cp <= 0xDFFF) {
+                goto unusable;
+            }
+            n += utf8_from_codepoint(&buf[n], cp);
+        }
+        break;
+    case MBEDTLS_ASN1_UNIVERSAL_STRING: /* UCS-4BE */
+        if(val->len % 4 != 0)
+            goto unusable;
+        for(size_t i = 0; i < val->len; i += 4) {
+            unsigned cp = (unsigned)((val->p[i] << 24) | (val->p[i+1] << 16) |
+                                     (val->p[i+2] << 8) | val->p[i+3]);
+            if(cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+                goto unusable;
+            n += utf8_from_codepoint(&buf[n], cp);
+        }
+        break;
+    default:
+        goto unusable;
+    }
+
+    if(n == 0)
+        goto unusable;
+    for(size_t i = 0; i < n; i++) {
+        if(buf[i] < 0x20 || buf[i] == 0x7f || buf[i] == '"')
+            goto unusable;
+    }
+
+    out->data = buf;
+    out->length = n;
+    return true;
+
+ unusable:
+    UA_free(buf);
+    return false;
+}
+
+static UA_StatusCode
+roleDnCriteria(const mbedtls_x509_name *dn, UA_String *output) {
+    static const RoleDnAttribute attributes[] = {
+        {"\x55\x04\x03", 3, "CN", 2},
+        {"\x55\x04\x0a", 3, "O", 1},
+        {"\x55\x04\x0b", 3, "OU", 2},
+        {"\x09\x92\x26\x89\x93\xf2\x2c\x64\x01\x19", 10, "DC", 2},
+        {"\x55\x04\x07", 3, "L", 1},
+        {"\x55\x04\x08", 3, "S", 1},
+        {"\x55\x04\x06", 3, "C", 1},
+        {"\x55\x04\x2e", 3, "dnQualifier", 11},
+        {"\x55\x04\x05", 3, "serialNumber", 12}
+    };
+    UA_ByteString result = UA_BYTESTRING_NULL;
+    for(size_t a = 0; a < sizeof(attributes) / sizeof(attributes[0]); a++) {
+        for(const mbedtls_x509_name *entry = dn; entry; entry = entry->next) {
+            if(!roleOidEqual(&entry->oid, &attributes[a]))
+                continue;
+            UA_ByteString value = UA_BYTESTRING_NULL;
+            UA_StatusCode oom = UA_STATUSCODE_GOOD;
+            if(!roleDnValueToUtf8(&entry->val, &value, &oom)) {
+                if(oom != UA_STATUSCODE_GOOD) {
+                    UA_ByteString_clear(&result);
+                    return oom;
+                }
+                continue;
+            }
+            size_t separator = result.length > 0 ? 1 : 0;
+            size_t oldLength = result.length;
+            size_t added = separator + attributes[a].nameLength + 2 +
+                           value.length + 1;
+            UA_Byte *data = (UA_Byte*)UA_realloc(result.data, oldLength + added);
+            if(!data) {
+                UA_ByteString_clear(&value);
+                UA_ByteString_clear(&result);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            result.data = data;
+            size_t offset = oldLength;
+            if(separator)
+                data[offset++] = '/';
+            memcpy(&data[offset], attributes[a].name, attributes[a].nameLength);
+            offset += attributes[a].nameLength;
+            data[offset++] = '=';
+            data[offset++] = '"';
+            memcpy(&data[offset], value.data, value.length);
+            offset += value.length;
+            data[offset] = '"';
+            result.length = oldLength + added;
+            UA_ByteString_clear(&value);
+        }
+    }
+    *output = result;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getRoleSubjectCriteria(const UA_ByteString *certificate,
+                                           UA_String *subjectCriteria,
+                                           UA_String *issuerCriteria) {
+    if(!certificate || !subjectCriteria || !issuerCriteria)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *subjectCriteria = UA_STRING_NULL;
+    *issuerCriteria = UA_STRING_NULL;
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode res = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(res == UA_STATUSCODE_GOOD)
+        res = roleDnCriteria(&cert.subject, subjectCriteria);
+    if(res == UA_STATUSCODE_GOOD)
+        res = roleDnCriteria(&cert.issuer, issuerCriteria);
+    mbedtls_x509_crt_free(&cert);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(subjectCriteria);
+        UA_String_clear(issuerCriteria);
+    }
+    return res;
 }
 
 UA_StatusCode

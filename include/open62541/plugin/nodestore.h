@@ -320,6 +320,8 @@ struct UA_NodeHead {
     UA_PermissionIndex permissionIndex; /* Index into server's rolePermissions array.
                                          * UA_PERMISSION_INDEX_INVALID means no specific
                                          * permissions configured (use defaults). */
+    UA_AccessRestrictionType accessRestrictions; /* AccessRestrictions (Part 3 §5.2.11) */
+    UA_Boolean hasAccessRestrictions; /* If false, the namespace default applies */
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
