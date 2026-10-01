@@ -90,6 +90,7 @@ UA_Policy_EccBrainpoolP256r1_Clear_Context(UA_SecurityPolicy *policy) {
     EVP_PKEY_free(pc->csrLocalPrivateKey);
     UA_ByteString_clear(&pc->localCertThumbprint);
     UA_free(pc);
+    policy->policyContext = NULL;
 }
 
 static UA_StatusCode
@@ -117,38 +118,13 @@ updateCertificateAndPrivateKey_sp_EccBrainpoolP256r1(UA_SecurityPolicy *security
                                                      const UA_ByteString newPrivateKey) {
     if(!securityPolicy || !securityPolicy->policyContext)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     Policy_Context_EccBrainpoolP256r1 *pc =
         (Policy_Context_EccBrainpoolP256r1 *)securityPolicy->policyContext;
-
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
-        &newCertificate, &securityPolicy->localCertificate,
-        EVP_PKEY_EC);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    EVP_PKEY_free(pc->localPrivateKey);
-    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
-    if(!pc->localPrivateKey) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    UA_ByteString_clear(&pc->localCertThumbprint);
-    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
-                                                      &pc->localCertThumbprint, true);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext)
-        UA_Policy_EccBrainpoolP256r1_Clear_Context(securityPolicy);
-    return retval;
+    return UA_OpenSSL_updateLocalCertificate(securityPolicy, &pc->localPrivateKey,
+                                             &pc->csrLocalPrivateKey,
+                                             &pc->localCertThumbprint,
+                                             EVP_PKEY_EC, NID_brainpoolP256r1,
+                                             newCertificate, newPrivateKey);
 }
 
 static UA_StatusCode

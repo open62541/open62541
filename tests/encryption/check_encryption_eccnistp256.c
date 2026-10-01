@@ -682,28 +682,45 @@ START_TEST(encryption_update_certificate) {
     retval = sp->updateCertificate(sp, certificate, privateKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* The mbedTLS update implementation is transactional and supports reusing
-     * the active private key. OpenSSL does not provide these guarantees. */
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    /* A failed update must leave the current policy operational */
     UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
     retval = UA_ByteString_copy(&sp->localCertificate, &originalCertificate);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ByteString invalidCertificate = UA_BYTESTRING("not a certificate");
-    retval = sp->updateCertificate(sp, invalidCertificate, privateKey);
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(sp->policyContext, NULL);
-    ck_assert(UA_ByteString_equal(&sp->localCertificate,
-                                  &originalCertificate));
+    UA_ByteString wrongCertificates[4] = {
+        UA_BYTESTRING("not a certificate"),
+        {CERT_DER_LENGTH, CERT_DER_DATA},             /* RSA */
+        {CERT_P384_DER_LENGTH, CERT_P384_DER_DATA},   /* other curve */
+        {CERT_BP256R1_DER_LENGTH, CERT_BP256R1_DER_DATA} /* same size */
+    };
+    UA_ByteString wrongKeys[4] = {
+        privateKey,
+        {KEY_DER_LENGTH, KEY_DER_DATA},
+        {KEY_P384_DER_LENGTH, KEY_P384_DER_DATA},
+        {KEY_BP256R1_DER_LENGTH, KEY_BP256R1_DER_DATA}
+    };
+    for(size_t i = 0; i < 4; i++) {
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+        /* The mbedTLS update does not check the key type yet */
+        if(i > 0)
+            break;
+#endif
+        retval = sp->updateCertificate(sp, wrongCertificates[i], wrongKeys[i]);
+        ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_ne(sp->policyContext, NULL);
+        ck_assert(UA_ByteString_equal(&sp->localCertificate,
+                                      &originalCertificate));
+    }
     UA_ByteString invalidPrivateKey = UA_BYTESTRING("not a private key");
     retval = sp->updateCertificate(sp, certificate, invalidPrivateKey);
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
     ck_assert_ptr_ne(sp->policyContext, NULL);
     ck_assert(UA_ByteString_equal(&sp->localCertificate,
                                   &originalCertificate));
+
+    /* Without a private key, the active key is used if it fits */
     retval = sp->updateCertificate(sp, certificate, UA_BYTESTRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&originalCertificate);
-#endif
 
     /* Verify the policy still works after update */
     UA_Client *client = createEncryptedClient_P256();

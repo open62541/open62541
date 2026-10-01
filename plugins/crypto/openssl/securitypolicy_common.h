@@ -255,6 +255,21 @@ UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate,
 UA_Boolean
 UA_OpenSSL_publicKeyMatches(EVP_PKEY *pkey, int keyType, int curveNid);
 
+/* Replace the certificate and the private key of a SecurityPolicy. Nothing is
+ * changed if the update fails. The certificate must have a key of keyType and,
+ * for EC keys, on the curve curveNid (NID_undef omits the curve check).
+ * Without newPrivateKey, the current key or the key of the last
+ * CreateSigningRequest is used if it belongs to the certificate. The key of
+ * the CreateSigningRequest then becomes the local key. */
+UA_StatusCode
+UA_OpenSSL_updateLocalCertificate(UA_SecurityPolicy *securityPolicy,
+                                  EVP_PKEY **localPrivateKey,
+                                  EVP_PKEY **csrLocalPrivateKey,
+                                  UA_ByteString *localCertThumbprint,
+                                  int keyType, int curveNid,
+                                  const UA_ByteString newCertificate,
+                                  const UA_ByteString newPrivateKey);
+
 X509 *
 UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate);
 

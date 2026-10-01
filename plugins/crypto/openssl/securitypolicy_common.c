@@ -1130,10 +1130,124 @@ UA_OpenSSL_writePrivateKeyDer(EVP_PKEY *key, UA_ByteString *outPrivateKey) {
     outPrivateKey->length = len;
     memset(outPrivateKey->data, 0, outPrivateKey->length);
     p = outPrivateKey->data;
-    if(i2d_PrivateKey(key, &p) <= 0)
+    if(i2d_PrivateKey(key, &p) <= 0) {
+        UA_ByteString_clear(outPrivateKey);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+isEdKey(const EVP_PKEY *key) {
+    int keyType = EVP_PKEY_base_id(key);
+#ifdef EVP_PKEY_ED25519
+    if(keyType == EVP_PKEY_ED25519)
+        return true;
+#endif
+#ifdef EVP_PKEY_ED448
+    if(keyType == EVP_PKEY_ED448)
+        return true;
+#endif
+    (void)keyType;
+    return false;
+}
+
+/* Key usage of a CSR. EC keys must not be used for key or data encipherment
+ * (RFC 5480), EdDSA keys only sign (RFC 8410). */
+static const char *
+csrKeyUsage(const EVP_PKEY *key) {
+    if(isEdKey(key))
+        return "digitalSignature,nonRepudiation";
+    if(EVP_PKEY_base_id(key) == EVP_PKEY_EC)
+        return "digitalSignature,nonRepudiation,keyAgreement";
+    return "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment";
+}
+
+/* Digest for the signature of a CSR. EdDSA signs without a separate digest.
+ * EC keys of more than 256 bit use SHA-384, like UA_CreateCertificate. */
+static const EVP_MD *
+csrDigest(EVP_PKEY *key) {
+    if(isEdKey(key))
+        return NULL;
+    if(EVP_PKEY_base_id(key) == EVP_PKEY_EC && EVP_PKEY_bits(key) > 256)
+        return EVP_sha384();
+    return EVP_sha256();
+}
+
+/* Generate a new key of the same type, curve and size as the template */
+static EVP_PKEY *
+generateKeyLike(EVP_PKEY *templateKey) {
+    int keyType = EVP_PKEY_base_id(templateKey);
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    if(keyType == EVP_PKEY_EC) {
+        char curveName[64];
+        size_t curveNameLen = 0;
+        if(!EVP_PKEY_get_utf8_string_param(templateKey, OSSL_PKEY_PARAM_GROUP_NAME,
+                                           curveName, sizeof(curveName),
+                                           &curveNameLen))
+            return NULL;
+        return EVP_PKEY_Q_keygen(NULL, NULL, "EC", curveName);
+    }
+    if(keyType == EVP_PKEY_ED25519)
+        return EVP_PKEY_Q_keygen(NULL, NULL, "ED25519");
+    if(keyType == EVP_PKEY_ED448)
+        return EVP_PKEY_Q_keygen(NULL, NULL, "ED448");
+    if(keyType == EVP_PKEY_RSA)
+        return EVP_RSA_gen((unsigned int)EVP_PKEY_bits(templateKey));
+    return NULL;
+#else
+    if(keyType == EVP_PKEY_EC) {
+        const EC_KEY *templateEcKey = EVP_PKEY_get0_EC_KEY(templateKey);
+        if(!templateEcKey)
+            return NULL;
+        EC_KEY *ecKey = EC_KEY_new_by_curve_name(
+            EC_GROUP_get_curve_name(EC_KEY_get0_group(templateEcKey)));
+        if(!ecKey || !EC_KEY_generate_key(ecKey)) {
+            EC_KEY_free(ecKey);
+            return NULL;
+        }
+        EVP_PKEY *key = EVP_PKEY_new();
+        if(!key || !EVP_PKEY_assign_EC_KEY(key, ecKey)) {
+            /* The EC key is not owned by the EVP_PKEY if the assignment
+             * failed */
+            EVP_PKEY_free(key);
+            EC_KEY_free(ecKey);
+            return NULL;
+        }
+        return key;
+    }
+    if(isEdKey(templateKey)) {
+        EVP_PKEY *key = NULL;
+        EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(keyType, NULL);
+        if(ctx && EVP_PKEY_keygen_init(ctx) == 1 &&
+           EVP_PKEY_keygen(ctx, &key) != 1) {
+            EVP_PKEY_free(key);
+            key = NULL;
+        }
+        EVP_PKEY_CTX_free(ctx);
+        return key;
+    }
+    if(keyType == EVP_PKEY_RSA) {
+        BIGNUM *exponent = BN_new();
+        RSA *rsa = RSA_new();
+        EVP_PKEY *key = EVP_PKEY_new();
+        if(!exponent || !rsa || !key ||
+           BN_set_word(exponent, RSA_F4) != 1 ||
+           RSA_generate_key_ex(rsa, EVP_PKEY_bits(templateKey), exponent, NULL) != 1 ||
+           EVP_PKEY_assign_RSA(key, rsa) != 1) {
+            /* The RSA key is not owned by the EVP_PKEY if the assignment
+             * failed */
+            BN_free(exponent);
+            RSA_free(rsa);
+            EVP_PKEY_free(key);
+            return NULL;
+        }
+        BN_free(exponent);
+        return key;
+    }
+    return NULL;
+#endif
 }
 
 UA_StatusCode
@@ -1145,9 +1259,8 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
                                 UA_ByteString *csr,
                                 UA_ByteString *newPrivateKey) {
     /* Check parameter */
-    if(!securityPolicy || !csr || !localPrivateKey) {
+    if(!securityPolicy || !csr || !localPrivateKey || !csrLocalPrivateKey)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     /* A new CSR discards the private key of the previous CSR. The
      * SecurityPolicy must not keep a pointer to the freed key. */
@@ -1157,21 +1270,21 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     /* CSR has already been generated and private key only needs to be set
      * if a new one has been generated. */
     if(newPrivateKey && newPrivateKey->length > 0) {
-        /* Set the private key */
-        *csrLocalPrivateKey = UA_OpenSSL_LoadPrivateKey(newPrivateKey);
-        if(!(*csrLocalPrivateKey))
+        EVP_PKEY *key = UA_OpenSSL_LoadPrivateKey(newPrivateKey);
+        if(!key)
             return UA_STATUSCODE_BADINTERNALERROR;
-
+        EVP_PKEY_free(*csrLocalPrivateKey);
+        *csrLocalPrivateKey = key;
         return UA_STATUSCODE_GOOD;
     }
 
-    if(csr && csr->length > 0)
+    /* The CSR was created by another SecurityPolicy with the current key */
+    if(csr->length > 0)
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* The new key becomes the CSR key of the SecurityPolicy only if the CSR is
-     * created. It is freed in all error paths. */
-    EVP_PKEY *csrKey = NULL;
+    EVP_PKEY *generated = NULL;
+    X509_REQ *request = NULL;
 
     /* Get X509 certificate */
     X509 *x509Certificate =
@@ -1179,11 +1292,21 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     if(!x509Certificate)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
+    /* Generate the new key pair. The CSR is signed with it. */
+    if(newPrivateKey) {
+        generated = generateKeyLike(localPrivateKey);
+        if(!generated) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+    }
+    EVP_PKEY *signingKey = (generated) ? generated : localPrivateKey;
+
     /* Create X509 certificate request */
-    X509_REQ *request = X509_REQ_new();
+    request = X509_REQ_new();
     if(request == NULL) {
-        X509_free(x509Certificate);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
     }
 
     /* Set version in X509 certificate request */
@@ -1202,7 +1325,8 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
 
     /* Set key usage in CSR context */
     X509_EXTENSION *key_usage_ext = NULL;
-    key_usage_ext = X509V3_EXT_conf_nid(NULL, NULL, NID_key_usage, "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment");
+    key_usage_ext = X509V3_EXT_conf_nid(NULL, NULL, NID_key_usage,
+                                        (char*)(uintptr_t)csrKeyUsage(signingKey));
     if(!key_usage_ext) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         sk_X509_EXTENSION_free(exts);
@@ -1264,111 +1388,16 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     }
     X509_NAME_free(name);
 
-    if(newPrivateKey) {
-        int keyType = EVP_PKEY_base_id(localPrivateKey);
-        if(keyType == EVP_PKEY_EC) {
-            /* Generate a new EC key on the same curve as the local key */
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-            char curveName[64];
-            size_t curveNameLen = 0;
-            if(!EVP_PKEY_get_utf8_string_param(localPrivateKey, "group",
-                                               curveName, sizeof(curveName),
-                                               &curveNameLen)) {
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                goto cleanup;
-            }
-            csrKey = EVP_PKEY_Q_keygen(NULL, NULL, "EC", curveName);
-#else
-            int nid = EC_GROUP_get_curve_name(
-                EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(localPrivateKey)));
-            EC_KEY *ecKey = EC_KEY_new_by_curve_name(nid);
-            if(!ecKey || !EC_KEY_generate_key(ecKey)) {
-                if(ecKey) EC_KEY_free(ecKey);
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                goto cleanup;
-            }
-            csrKey = EVP_PKEY_new();
-            if(!csrKey || !EVP_PKEY_assign_EC_KEY(csrKey, ecKey)) {
-                EC_KEY_free(ecKey);
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                goto cleanup;
-            }
-#endif
-        } else {
-            /* Generate a new RSA key */
-            size_t keySize = 0;
-            UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-            csrKey = EVP_RSA_gen(keySize);
-#else
-            BIGNUM *exponent = BN_new();
-            csrKey = EVP_PKEY_new();
-            RSA *rsa = RSA_new();
-            if(!csrKey || !exponent || !rsa) {
-                if(exponent)
-                    BN_free(exponent);
-                if(rsa)
-                    RSA_free(rsa);
-                retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                goto cleanup;
-            }
-
-            if(BN_set_word(exponent, RSA_F4) != 1) {
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                BN_free(exponent);
-                RSA_free(rsa);
-                goto cleanup;
-            }
-
-            if(RSA_generate_key_ex(rsa, (int) keySize, exponent, NULL) != 1) {
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                BN_free(exponent);
-                RSA_free(rsa);
-                goto cleanup;
-            }
-
-            if(EVP_PKEY_assign_RSA(csrKey, rsa) != 1) {
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                BN_free(exponent);
-                RSA_free(rsa);
-                goto cleanup;
-            }
-            BN_free(exponent);
-            /* rsa will be freed by pkey */
-            rsa = NULL;
-#endif  /* end of OPENSSL_VERSION_NUMBER >= 0x30000000L */
-        }
-        if(!csrKey) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-        if(UA_OpenSSL_writePrivateKeyDer(csrKey, newPrivateKey) != UA_STATUSCODE_GOOD) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-
-        if(!X509_REQ_set_pubkey(request, csrKey)) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-
-        if(!X509_REQ_sign(request, csrKey, EVP_sha256())) {
+    /* Set the public key. Without a new key, it is the key of the current
+     * certificate. */
+    if(generated) {
+        if(!X509_REQ_set_pubkey(request, generated)) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
     } else {
-        /* Set public key in CSR context */
         EVP_PKEY *pubkey = X509_get_pubkey(x509Certificate);
-        if(!pubkey) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
-        if(!X509_REQ_set_pubkey(request, pubkey)) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(pubkey);
-            goto cleanup;
-        }
-        if(!X509_REQ_sign(request, localPrivateKey, EVP_sha256())) {
+        if(!pubkey || !X509_REQ_set_pubkey(request, pubkey)) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(pubkey);
             goto cleanup;
@@ -1376,29 +1405,43 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
         EVP_PKEY_free(pubkey);
     }
 
-    /* Determine necessary length for CSR buffer */
-    const int csrBufferLength = i2d_X509_REQ(request, 0);
-    if(csrBufferLength < 0) {
+    if(!X509_REQ_sign(request, signingKey, csrDigest(signingKey))) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
-    /* create CSR buffer */
-    UA_ByteString_init(csr);
+    /* Return the new private key */
+    if(generated) {
+        retval = UA_OpenSSL_writePrivateKeyDer(generated, newPrivateKey);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Encode the CSR (DER format) */
+    const int csrBufferLength = i2d_X509_REQ(request, NULL);
+    if(csrBufferLength <= 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
     retval = UA_ByteString_allocBuffer(csr, (size_t)csrBufferLength);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
+    unsigned char *ptr = csr->data;
+    i2d_X509_REQ(request, &ptr);
 
-    /* Create CSR buffer (DER format) */
-    char *ptr = (char*)csr->data;
-    i2d_X509_REQ(request, (unsigned char**)&ptr);
-
-    /* The SecurityPolicy keeps the key of the CSR for UpdateCertificate */
-    *csrLocalPrivateKey = csrKey;
-    csrKey = NULL;
+    /* Keep the new key until the signed certificate is uploaded */
+    if(generated) {
+        EVP_PKEY_free(*csrLocalPrivateKey);
+        *csrLocalPrivateKey = generated;
+        generated = NULL;
+    }
 
 cleanup:
-    EVP_PKEY_free(csrKey);
+    if(retval != UA_STATUSCODE_GOOD && generated && newPrivateKey->length > 0) {
+        UA_ByteString_memZero(newPrivateKey);
+        UA_ByteString_clear(newPrivateKey);
+    }
+    EVP_PKEY_free(generated);
     X509_free(x509Certificate);
     X509_REQ_free(request);
 
@@ -1658,6 +1701,7 @@ UA_OpenSSL_Policy_clearContext_generic(UA_SecurityPolicy *policy) {
     EVP_PKEY_free(ctx->csrLocalPrivateKey);
     UA_ByteString_clear(&ctx->localCertThumbprint);
     UA_free (ctx);
+    policy->policyContext = NULL;
 }
 
 UA_StatusCode
@@ -1692,84 +1736,113 @@ UA_OpenSSL_Policy_newContext_generic(UA_SecurityPolicy *securityPolicy,
 }
 
 UA_StatusCode
-UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityPolicy,
-                                                    const UA_ByteString newCertificate,
-                                                    const UA_ByteString newPrivateKey) {
-    if(securityPolicy == NULL)
+UA_OpenSSL_updateLocalCertificate(UA_SecurityPolicy *securityPolicy,
+                                  EVP_PKEY **localPrivateKey,
+                                  EVP_PKEY **csrLocalPrivateKey,
+                                  UA_ByteString *localCertThumbprint,
+                                  int keyType, int curveNid,
+                                  const UA_ByteString newCertificate,
+                                  const UA_ByteString newPrivateKey) {
+    if(!securityPolicy || !localPrivateKey || !csrLocalPrivateKey ||
+       !localCertThumbprint)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(securityPolicy->policyContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    openssl_PolicyContext *pc =
-        (openssl_PolicyContext *)securityPolicy->policyContext;
-
-    UA_Boolean isLocalKey = false;
-    if(newPrivateKey.length <= 0) {
-        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
-            isLocalKey = true;
-    }
-
+    /* Decode the certificate and check its key */
+    X509 *cert = UA_OpenSSL_LoadCertificate(&newCertificate, EVP_PKEY_NONE);
+    if(!cert)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    EVP_PKEY *loadedKey = NULL;
     UA_ByteString certificate = UA_BYTESTRING_NULL;
     UA_ByteString thumbprint = UA_BYTESTRING_NULL;
-    UA_StatusCode retval =
-        UA_OpenSSL_LoadLocalCertificate(&newCertificate, &certificate,
-                                        pc->keyType);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    EVP_PKEY *privateKey = pc->localPrivateKey;
-    if(newPrivateKey.length > 0)
-        privateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
-    else if(!isLocalKey)
-        privateKey = pc->csrLocalPrivateKey;
-
-    if(!privateKey) {
-        retval = UA_STATUSCODE_BADNOTSUPPORTED;
+    EVP_PKEY *publicKey = X509_get_pubkey(cert);
+    UA_Boolean keyFits = UA_OpenSSL_publicKeyMatches(publicKey, keyType, curveNid);
+    EVP_PKEY_free(publicKey);
+    if(!keyFits) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
         goto error;
     }
 
-    /* The certificate must be issued for the private key. Otherwise every
-     * handshake fails after the update. For example, a certificate for the key
-     * of an earlier CSR does not match the key of the last CSR. */
-    const unsigned char *certData = certificate.data;
-    X509 *x509 = d2i_X509(NULL, &certData, (long)certificate.length);
-    int keyMatches = x509 ? X509_check_private_key(x509, privateKey) : 0;
-    X509_free(x509);
-    if(keyMatches != 1) {
-        ERR_clear_error();
+    /* Use the new private key. Without one, use the current key or the key of
+     * the last CreateSigningRequest if it belongs to the certificate. */
+    EVP_PKEY *privateKey = NULL;
+    if(newPrivateKey.length > 0) {
+        loadedKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+        if(!loadedKey) {
+            retval = UA_STATUSCODE_BADNOTSUPPORTED;
+            goto error;
+        }
+        privateKey = loadedKey;
+    } else if(*localPrivateKey &&
+              X509_check_private_key(cert, *localPrivateKey) == 1) {
+        privateKey = *localPrivateKey;
+    } else if(*csrLocalPrivateKey) {
+        privateKey = *csrLocalPrivateKey;
+    }
+    if(!privateKey || X509_check_private_key(cert, privateKey) != 1) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
 
+    /* Prepare the DER certificate and the thumbprint before anything is
+     * changed */
+    unsigned char *derData = NULL;
+    int derLength = i2d_X509(cert, &derData);
+    if(derLength <= 0) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto error;
+    }
+    UA_ByteString der = {(size_t)derLength, derData};
+    retval = UA_ByteString_copy(&der, &certificate);
+    OPENSSL_free(derData);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
     retval = UA_Openssl_X509_GetCertificateThumbprint(&certificate, &thumbprint, true);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
+    /* Commit */
     UA_ByteString_clear(&securityPolicy->localCertificate);
     securityPolicy->localCertificate = certificate;
-
-    UA_ByteString_clear(&pc->localCertThumbprint);
-    pc->localCertThumbprint = thumbprint;
-
-    if(newPrivateKey.length > 0) {
-        EVP_PKEY_free(pc->localPrivateKey);
-        pc->localPrivateKey = privateKey;
-    } else if(!isLocalKey) {
-        EVP_PKEY_free(pc->localPrivateKey);
-        pc->localPrivateKey = pc->csrLocalPrivateKey;
-        pc->csrLocalPrivateKey = NULL;
+    UA_ByteString_clear(localCertThumbprint);
+    *localCertThumbprint = thumbprint;
+    if(privateKey == loadedKey) {
+        EVP_PKEY_free(*localPrivateKey);
+        *localPrivateKey = loadedKey;
+    } else if(privateKey == *csrLocalPrivateKey) {
+        EVP_PKEY_free(*localPrivateKey);
+        *localPrivateKey = *csrLocalPrivateKey;
+        *csrLocalPrivateKey = NULL;
     }
-
+    X509_free(cert);
     return UA_STATUSCODE_GOOD;
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
+                 "Could not update certificate and private key (%s)",
+                 UA_StatusCode_name(retval));
+    /* X509_check_private_key leaves errors in the queue of the thread */
+    ERR_clear_error();
     UA_ByteString_clear(&certificate);
-    if(newPrivateKey.length > 0)
-        EVP_PKEY_free(privateKey);
+    UA_ByteString_clear(&thumbprint);
+    EVP_PKEY_free(loadedKey);
+    X509_free(cert);
     return retval;
+}
+
+UA_StatusCode
+UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityPolicy,
+                                                    const UA_ByteString newCertificate,
+                                                    const UA_ByteString newPrivateKey) {
+    if(securityPolicy == NULL || securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    openssl_PolicyContext *pc =
+        (openssl_PolicyContext *)securityPolicy->policyContext;
+    return UA_OpenSSL_updateLocalCertificate(securityPolicy, &pc->localPrivateKey,
+                                             &pc->csrLocalPrivateKey,
+                                             &pc->localCertThumbprint,
+                                             pc->keyType, NID_undef,
+                                             newCertificate, newPrivateKey);
 }
 
 UA_StatusCode

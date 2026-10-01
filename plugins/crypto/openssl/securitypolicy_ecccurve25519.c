@@ -107,6 +107,7 @@ UA_Policy_EccCurve25519_Clear_Context(UA_SecurityPolicy *policy) {
     EVP_PKEY_free(pc->csrLocalPrivateKey);
     UA_ByteString_clear(&pc->localCertThumbprint);
     UA_free(pc);
+    policy->policyContext = NULL;
 }
 
 static UA_StatusCode
@@ -130,41 +131,17 @@ createSigningRequest_sp_ecccurve25519(UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 updateCertificateAndPrivateKey_sp_EccCurve25519(UA_SecurityPolicy *securityPolicy,
-                                                 const UA_ByteString newCertificate,
-                                                 const UA_ByteString newPrivateKey) {
+                                                const UA_ByteString newCertificate,
+                                                const UA_ByteString newPrivateKey) {
     if(!securityPolicy || !securityPolicy->policyContext)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     Policy_Context_EccCurve25519 *pc =
         (Policy_Context_EccCurve25519 *)securityPolicy->policyContext;
-
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
-        &newCertificate, &securityPolicy->localCertificate, EVP_PKEY_ED25519);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    EVP_PKEY_free(pc->localPrivateKey);
-    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
-    if(!pc->localPrivateKey) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    UA_ByteString_clear(&pc->localCertThumbprint);
-    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
-                                                      &pc->localCertThumbprint, true);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext)
-        UA_Policy_EccCurve25519_Clear_Context(securityPolicy);
-    return retval;
+    return UA_OpenSSL_updateLocalCertificate(securityPolicy, &pc->localPrivateKey,
+                                             &pc->csrLocalPrivateKey,
+                                             &pc->localCertThumbprint,
+                                             EVP_PKEY_ED25519, NID_undef,
+                                             newCertificate, newPrivateKey);
 }
 
 /* --- Channel Context --- */

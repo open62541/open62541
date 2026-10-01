@@ -36,6 +36,16 @@
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
+#include <open62541/plugin/create_certificate.h>
+#include <open62541/plugin/log_stdout.h>
+
+#include <string.h>
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#endif
+
 /* --- Curve parameter table --- */
 
 /* Constructor for the deprecated (non-AEAD) ECC SecurityPolicies. They are no
@@ -56,6 +66,7 @@ typedef struct {
     UA_Byte *certPem;  size_t certPemLen;
     UA_Byte *keyPem;   size_t keyPemLen;
     EccPolicyCtor deprecatedCtor; /* non-NULL for the deprecated curves */
+    const char *eccCurve; /* ecc-curve parameter of UA_CreateCertificate */
 } EccCurveTestData;
 
 static EccCurveTestData eccCurves[] = {
@@ -65,21 +76,21 @@ static EccCurveTestData eccCurves[] = {
      KEY_P384_DER_DATA, KEY_P384_DER_LENGTH,
      CERT_P384_PEM_DATA, CERT_P384_PEM_LENGTH,
      KEY_P384_PEM_DATA, KEY_P384_PEM_LENGTH,
-     UA_SecurityPolicy_EccNistP384},
+     UA_SecurityPolicy_EccNistP384, "secp384r1"},
     {"ECC_brainpoolP256r1",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1",
      CERT_BP256R1_DER_DATA, CERT_BP256R1_DER_LENGTH,
      KEY_BP256R1_DER_DATA, KEY_BP256R1_DER_LENGTH,
      CERT_BP256R1_PEM_DATA, CERT_BP256R1_PEM_LENGTH,
      KEY_BP256R1_PEM_DATA, KEY_BP256R1_PEM_LENGTH,
-     UA_SecurityPolicy_EccBrainpoolP256r1},
+     UA_SecurityPolicy_EccBrainpoolP256r1, "brainpoolP256r1"},
     {"ECC_brainpoolP384r1",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1",
      CERT_BP384R1_DER_DATA, CERT_BP384R1_DER_LENGTH,
      KEY_BP384R1_DER_DATA, KEY_BP384R1_DER_LENGTH,
      CERT_BP384R1_PEM_DATA, CERT_BP384R1_PEM_LENGTH,
      KEY_BP384R1_PEM_DATA, KEY_BP384R1_PEM_LENGTH,
-     UA_SecurityPolicy_EccBrainpoolP384r1},
+     UA_SecurityPolicy_EccBrainpoolP384r1, "brainpoolP384r1"},
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
     {"ECC_curve25519",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519",
@@ -87,14 +98,14 @@ static EccCurveTestData eccCurves[] = {
      KEY_ED25519_DER_DATA, KEY_ED25519_DER_LENGTH,
      CERT_ED25519_PEM_DATA, CERT_ED25519_PEM_LENGTH,
      KEY_ED25519_PEM_DATA, KEY_ED25519_PEM_LENGTH,
-     NULL},
+     NULL, "ed25519"},
     {"ECC_curve448",
      "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448",
      CERT_ED448_DER_DATA, CERT_ED448_DER_LENGTH,
      KEY_ED448_DER_DATA, KEY_ED448_DER_LENGTH,
      CERT_ED448_PEM_DATA, CERT_ED448_PEM_LENGTH,
      KEY_ED448_PEM_DATA, KEY_ED448_PEM_LENGTH,
-     NULL}
+     NULL, "ed448"}
 #endif
 };
 
@@ -552,6 +563,85 @@ END_TEST
 
 /* --- Test: CSR generation for ECC policies --- */
 
+/* The CSR is signed with the digest that fits the curve (SHA-384 for the
+ * 384-bit curves, none for EdDSA). EC keys must not be used for key or data
+ * encipherment (RFC 5480). */
+static void
+checkCsr(const EccCurveTestData *c, const UA_ByteString *csr) {
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    const unsigned char *p = csr->data;
+    X509_REQ *req = d2i_X509_REQ(NULL, &p, (long)csr->length);
+    ck_assert_ptr_ne(req, NULL);
+    int expectedNid = NID_ecdsa_with_SHA256;
+    if(strstr(c->name, "384"))
+        expectedNid = NID_ecdsa_with_SHA384;
+    else if(strstr(c->name, "25519"))
+        expectedNid = NID_ED25519;
+    else if(strstr(c->name, "448"))
+        expectedNid = NID_ED448;
+    ck_assert_int_eq(X509_REQ_get_signature_nid(req), expectedNid);
+
+    STACK_OF(X509_EXTENSION) *exts = X509_REQ_get_extensions(req);
+    ck_assert_ptr_ne(exts, NULL);
+    int pos = X509v3_get_ext_by_NID(exts, NID_key_usage, -1);
+    ck_assert_int_ge(pos, 0);
+    ASN1_BIT_STRING *usage = (ASN1_BIT_STRING*)
+        X509V3_EXT_d2i(X509v3_get_ext(exts, pos));
+    ck_assert_ptr_ne(usage, NULL);
+    ck_assert_int_eq(ASN1_BIT_STRING_get_bit(usage, 0), 1); /* digitalSignature */
+    ck_assert_int_eq(ASN1_BIT_STRING_get_bit(usage, 2), 0); /* keyEncipherment */
+    ck_assert_int_eq(ASN1_BIT_STRING_get_bit(usage, 3), 0); /* dataEncipherment */
+    ASN1_BIT_STRING_free(usage);
+    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    X509_REQ_free(req);
+#else
+    (void)c;
+    (void)csr;
+#endif
+}
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+/* A certificate on the curve of the policy with a different key pair */
+static UA_ByteString
+createForeignCertificate(const EccCurveTestData *c) {
+    UA_String subject[2] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("CN=Foreign")};
+    UA_String san = UA_STRING_STATIC("URI:urn:open62541.unconfigured.application");
+    UA_String keyType = UA_STRING_STATIC("EC");
+    UA_String curve = UA_STRING((char*)(uintptr_t)c->eccCurve);
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "key-type");
+    UA_Variant_setScalar(&params[0].value, &keyType, &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "ecc-curve");
+    UA_Variant_setScalar(&params[1].value, &curve, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap map = {2, params};
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    UA_StatusCode res =
+        UA_CreateCertificate(UA_Log_Stdout, subject, 2, &san, 1,
+                             UA_CERTIFICATEFORMAT_DER, &map, &privateKey,
+                             &certificate);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&privateKey);
+    return certificate;
+}
+#endif
+
+/* A failed update leaves the policy unchanged and operational */
+static void
+checkUpdateFails(UA_SecurityPolicy *sp, const UA_ByteString certificate,
+                 const UA_ByteString privateKey) {
+    UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
+    UA_StatusCode retval =
+        UA_ByteString_copy(&sp->localCertificate, &originalCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = sp->updateCertificate(sp, certificate, privateKey);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(sp->policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&sp->localCertificate, &originalCertificate));
+    UA_ByteString_clear(&originalCertificate);
+}
+
 START_TEST(encryption_csr_generation) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -574,12 +664,9 @@ START_TEST(encryption_csr_generation) {
     UA_StatusCode retval = sp->createSigningRequest(sp, &subjectName,
                                                      NULL, NULL,
                                                      &csr, NULL);
-    /* Curve25519/448 may not support standard CSR generation */
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&csr);
-        return;
-    }
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(csr.length > 0);
+    checkCsr(c, &csr);
     UA_ByteString_clear(&csr);
 
     /* Generate a CSR with a new private key */
@@ -590,6 +677,7 @@ START_TEST(encryption_csr_generation) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(csr.length > 0);
     ck_assert(newPrivKey.length > 0);
+    checkCsr(c, &csr);
     UA_ByteString_clear(&csr);
     UA_ByteString_clear(&newPrivKey);
 }
@@ -645,30 +733,28 @@ START_TEST(encryption_update_certificate) {
     retval = sp->updateCertificate(sp, certificate, privateKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* The mbedTLS update implementation is transactional and supports reusing
-     * the active private key. OpenSSL does not provide these guarantees. */
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    /* A failed update must leave the current policy operational. */
-    UA_ByteString originalCertificate = UA_BYTESTRING_NULL;
-    retval = UA_ByteString_copy(&sp->localCertificate, &originalCertificate);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ByteString invalidCertificate = UA_BYTESTRING("not a certificate");
-    retval = sp->updateCertificate(sp, invalidCertificate, privateKey);
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(sp->policyContext, NULL);
-    ck_assert(UA_ByteString_equal(&sp->localCertificate,
-                                  &originalCertificate));
-    UA_ByteString invalidPrivateKey = UA_BYTESTRING("not a private key");
-    retval = sp->updateCertificate(sp, certificate, invalidPrivateKey);
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(sp->policyContext, NULL);
-    ck_assert(UA_ByteString_equal(&sp->localCertificate,
-                                  &originalCertificate));
+    /* A failed update must leave the current policy operational */
+    checkUpdateFails(sp, UA_BYTESTRING("not a certificate"), privateKey);
+    checkUpdateFails(sp, certificate, UA_BYTESTRING("not a private key"));
 
-    /* ECC now follows the RSA behavior for reusing the active key. */
+    /* Without a private key, the active key is used if it fits */
     retval = sp->updateCertificate(sp, certificate, UA_BYTESTRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ByteString_clear(&originalCertificate);
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    /* The key of the certificate must fit the curve of the policy */
+    EccCurveTestData *other = &eccCurves[(activeCurve + 1) % NUM_ECC_CURVES];
+    UA_ByteString otherCertificate = {other->certDerLen, other->certDer};
+    UA_ByteString otherKey = {other->keyDerLen, other->keyDer};
+    checkUpdateFails(sp, otherCertificate, otherKey);
+    UA_ByteString rsaCertificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString rsaKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    checkUpdateFails(sp, rsaCertificate, rsaKey);
+
+    /* Without a private key, the certificate must belong to the active key */
+    UA_ByteString foreignCertificate = createForeignCertificate(c);
+    checkUpdateFails(sp, foreignCertificate, UA_BYTESTRING_NULL);
+    UA_ByteString_clear(&foreignCertificate);
 #endif
 
     /* The policy should still be functional after update — connect and read */
