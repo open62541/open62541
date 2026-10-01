@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Detect a CertificateGroup that accepts all certificates
+
+`UA_CertificateGroup_isAcceptAll` tells whether a CertificateGroup was set up
+with `UA_CertificateGroup_AcceptAll`. The server uses it to warn at startup when
+the SecureChannel or Session PKI accepts all certificates while a SecurityPolicy
+other than #None is configured.
+
 ### The AccessControl plugin needs its mandatory callbacks
 
 `UA_Server_run_startup` returns `Bad_ConfigurationError` if one of the
