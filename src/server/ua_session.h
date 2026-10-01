@@ -54,7 +54,7 @@ typedef struct {
     UA_String userThumbprint;        /* hex thumbprint of the X509 user certificate */
     UA_String userSubject;           /* canonical Part 18 certificate subject */
     UA_String userIssuer;            /* canonical Part 18 certificate issuer */
-    UA_String applicationUri;        /* connecting application's ApplicationUri */
+    UA_String applicationUri;        /* ApplicationUri from the client certificate */
     UA_String endpointUrl;           /* Endpoint the Session connected through */
     UA_MessageSecurityMode endpointSecurityMode;
     UA_String securityPolicyUri;

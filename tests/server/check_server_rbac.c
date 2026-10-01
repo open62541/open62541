@@ -2864,9 +2864,25 @@ START_TEST(identityCriteria_x509SubjectUtf8) {
     ctx.userSubject = UA_STRING("CN=\"Mueller\"");
     ck_assert(!roleGrantedForContext(&ctx, &umlaut));
 
-    /* Control characters, malformed UTF-8 and empty values stay rejected */
+    /* The names are those of Table 10 in the order of the table. A name is
+     * repeated if it occurs more than once in the certificate. */
+    UA_NodeId repeated = addRoleWithRule("RepeatedSubjRole",
+                                         UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+                                         "OU=\"a\"/OU=\"b\"");
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.userSubject = UA_STRING("OU=\"a\"/OU=\"b\"");
+    ck_assert(roleGrantedForContext(&ctx, &repeated));
+    UA_NodeId allNames = addRoleWithRule(
+        "AllNamesSubjRole", UA_IDENTITYCRITERIATYPE_X509SUBJECT,
+        "CN=\"a\"/O=\"b\"/OU=\"c\"/DC=\"d\"/L=\"e\"/S=\"f\"/C=\"DE\"/"
+        "dnQualifier=\"g\"/serialNumber=\"h\"");
+
+    /* Control characters, malformed UTF-8 and empty values are rejected, and
+     * so are names that are not in Table 10 or out of the table order */
     const char *invalid[] = {"CN=\"a\tb\"", "CN=\"\xC3\"", "CN=\"\"",
-                             "CN=\"a\"/", "alice"};
+                             "CN=\"a\"/", "alice", "E=\"x\"",
+                             "CN=\"a\"/E=\"x\"", "cn=\"a\"",
+                             "O=\"a\"/CN=\"b\"", "C=\"DE\"/OU=\"a\""};
     for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
         UA_IdentityMappingRuleType rule;
         UA_IdentityMappingRuleType_init(&rule);
@@ -2883,6 +2899,8 @@ START_TEST(identityCriteria_x509SubjectUtf8) {
     }
 
     UA_NodeId_clear(&umlaut);
+    UA_NodeId_clear(&repeated);
+    UA_NodeId_clear(&allNames);
 }
 END_TEST
 

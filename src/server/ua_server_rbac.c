@@ -771,11 +771,27 @@ isUpperHexString(const UA_String *value) {
     return true;
 }
 
+/* The names of Part 18 §4.4.3 Table 10 in the order of the table */
+static const UA_String x509CriteriaNames[] = {
+    UA_STRING_STATIC("CN"), UA_STRING_STATIC("O"), UA_STRING_STATIC("OU"),
+    UA_STRING_STATIC("DC"), UA_STRING_STATIC("L"), UA_STRING_STATIC("S"),
+    UA_STRING_STATIC("C"), UA_STRING_STATIC("dnQualifier"),
+    UA_STRING_STATIC("serialNumber")
+};
+#define UA_X509CRITERIANAMESSIZE \
+    (sizeof(x509CriteriaNames) / sizeof(x509CriteriaNames[0]))
+
+/* An X509Subject criteria is a sequence of NAME="value" pairs separated by
+ * '/'. "The name shall be one of entries in Table 10" and "The order shall be
+ * by the order shown in Table 10" (Part 18 §4.4.3). A name occurs more than
+ * once if it is repeated in the certificate. The criteria of a certificate
+ * never take another form, so a rule in another form could never match. */
 static UA_Boolean
 isCanonicalX509Criteria(const UA_String *value) {
     if(value->length < 5)
         return false;
     size_t pos = 0;
+    size_t lastNameIndex = 0;
     while(pos < value->length) {
         size_t nameStart = pos;
         while(pos < value->length && value->data[pos] != '=')
@@ -783,6 +799,14 @@ isCanonicalX509Criteria(const UA_String *value) {
         if(pos == nameStart || pos + 2 >= value->length ||
            value->data[pos + 1] != '"')
             return false;
+        UA_String name = {pos - nameStart, &value->data[nameStart]};
+        size_t nameIndex = 0;
+        while(nameIndex < UA_X509CRITERIANAMESSIZE &&
+              !UA_String_equal(&name, &x509CriteriaNames[nameIndex]))
+            nameIndex++;
+        if(nameIndex == UA_X509CRITERIANAMESSIZE || nameIndex < lastNameIndex)
+            return false;
+        lastNameIndex = nameIndex;
         pos += 2;
         size_t contentStart = pos;
         while(pos < value->length && value->data[pos] != '"') {

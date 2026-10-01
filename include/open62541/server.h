@@ -2214,13 +2214,20 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * - ``X509Subject``: the subject of the user Certificate as name-value pairs
  *   separated by ``/``, each value in quotes, in the order CN, O, OU, DC, L,
  *   S, C, dnQualifier, serialNumber (Part 18 §4.4.3 Table 10). For example
- *   ``CN="Jörg Müller"/O="Müller GmbH"/C="DE"``. The value is UTF-8 and may
- *   contain any character except the quote. The rule matches the subject of
- *   the user Certificate or the subject of its issuer. The comparison is
- *   byte-wise, so write the criteria in the same normalization as the
- *   Certificate (normally NFC).
- * - ``Application``: the ApplicationUri of the client, which is evaluated only
- *   for a signed SecureChannel with an accepted client Certificate.
+ *   ``CN="Jörg Müller"/O="Müller GmbH"/C="DE"``. A name is repeated if the
+ *   Certificate repeats it. Criteria with other names or in another order are
+ *   rejected. The value is UTF-8 and may contain any printable character
+ *   except the quote. Every Table 10 attribute of the Certificate is included
+ *   and its other attributes are ignored. A Certificate name with a Table 10
+ *   value that cannot be written this way matches no rule. The rule matches
+ *   the subject of the user Certificate or the subject of its issuer. The
+ *   comparison is byte-wise, so write the criteria in the same normalization
+ *   as the Certificate (normally NFC).
+ * - ``Application``: the ApplicationUri from the URI in the subjectAltName of
+ *   the client Certificate, which is evaluated only for a signed SecureChannel
+ *   with an accepted client Certificate. The ApplicationUri declared in
+ *   CreateSession is not used. A Certificate without exactly one URI matches
+ *   no Application rule.
  * - ``GroupId``: a group returned by the AccessControl ``getUserGroups`` hook.
  * - ``Role``: a Role claim of an accepted IssuedIdentityToken, returned by the
  *   AccessControl ``getUserTokenRoles`` hook.

@@ -1181,6 +1181,179 @@ START_TEST(closingHttpChannelDrainsUntilCarrierCloses) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_RBAC
+/* POST a binary-encoded request to the mock HTTP listener and decode the
+ * response of the expected type */
+static void
+postBinaryRequest(UA_ConnectionManager *mock, const char *path,
+                  const void *request, const UA_DataType *requestType,
+                  void *response, const UA_DataType *responseType) {
+    UA_ByteString body = UA_BYTESTRING_NULL;
+    size_t idSize = UA_calcSizeBinary(&requestType->binaryEncodingId,
+                                      &UA_TYPES[UA_TYPES_NODEID], NULL);
+    size_t reqSize = UA_calcSizeBinary(request, requestType, NULL);
+    ck_assert_uint_eq(UA_ByteString_allocBuffer(&body, idSize + reqSize),
+                      UA_STATUSCODE_GOOD);
+    UA_Byte *pos = body.data;
+    const UA_Byte *end = body.data + body.length;
+    ck_assert_uint_eq(UA_encodeBinaryInternal(&requestType->binaryEncodingId,
+                                              &UA_TYPES[UA_TYPES_NODEID],
+                                              &pos, &end, NULL, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_encodeBinaryInternal(request, requestType, &pos, &end,
+                                              NULL, NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+
+    UA_String method = UA_STRING("POST");
+    UA_String urlPath = UA_STRING((char *)(uintptr_t)path);
+    UA_String contentType = UA_STRING("application/octet-stream");
+    UA_KeyValuePair header = {UA_QUALIFIEDNAME(0, "content-type"), {0}};
+    UA_Variant_setScalar(&header.value, &contentType,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    /* The request random seeds the AuthenticationToken of HTTPS Sessions */
+    static UA_Byte random[32];
+    for(size_t i = 0; i < sizeof(random); i++)
+        random[i] = (UA_Byte)(random[i] * 31u + i + 1u);
+    UA_ByteString randomBytes = {sizeof(random), random};
+    UA_KeyValuePair params[4] = {0};
+    params[0].key = UA_QUALIFIEDNAME(0, "method");
+    UA_Variant_setScalar(&params[0].value, &method, &UA_TYPES[UA_TYPES_STRING]);
+    params[1].key = UA_QUALIFIEDNAME(0, "path");
+    UA_Variant_setScalar(&params[1].value, &urlPath, &UA_TYPES[UA_TYPES_STRING]);
+    params[2].key = UA_QUALIFIEDNAME(0, "headers");
+    UA_Variant_setArray(&params[2].value, &header, 1,
+                        &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    params[3].key = UA_QUALIFIEDNAME(0, "request-random");
+    UA_Variant_setScalar(&params[3].value, &randomBytes,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_KeyValueMap requestMap = {4, params};
+
+    uintptr_t connectionId = 0;
+    ck_assert_uint_eq(TestConnectionManager_createConnection(
+                          mock, mockApplication, mockListenerContext,
+                          mockCallback, &connectionId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_inject(
+                          mock, connectionId, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &UA_KEYVALUEMAP_NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_inject(
+                          mock, connectionId, UA_CONNECTIONSTATE_ESTABLISHED,
+                          &requestMap, &body),
+                      UA_STATUSCODE_GOOD);
+    UA_ByteString_clear(&body);
+
+    const UA_ByteString *sent = TestConnectionManager_getLastSent(mock);
+    ck_assert_ptr_nonnull(sent);
+    size_t offset = 0;
+    UA_NodeId responseTypeId;
+    UA_NodeId_init(&responseTypeId);
+    ck_assert_uint_eq(UA_decodeBinaryInternal(sent, &offset, &responseTypeId,
+                                              &UA_TYPES[UA_TYPES_NODEID], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&responseTypeId, &responseType->binaryEncodingId));
+    ck_assert_uint_eq(UA_decodeBinaryInternal(sent, &offset, response,
+                                              responseType, NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(TestConnectionManager_inject(
+                          mock, connectionId, UA_CONNECTIONSTATE_CLOSING,
+                          NULL, NULL),
+                      UA_STATUSCODE_GOOD);
+}
+
+/* HTTPS is SignAndEncrypt on the transport. With SecurityPolicy None, the
+ * certificate in CreateSession is not validated (Part 4 §5.6.2.2) and no
+ * signature proves its possession. It must not grant the TrustedApplication
+ * Role or an ApplicationUri for Application identity rules. */
+START_TEST(httpsNonePolicyCertificateIsNotTrusted) {
+    mockListenersSize = 0;
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpEnabled = false;
+    config->httpEnabled = true;
+    config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
+    config->httpCertificate = UA_BYTESTRING_ALLOC("certificate");
+    config->httpPrivateKey = UA_BYTESTRING_ALLOC("private-key");
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls =
+        (UA_String *)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_ptr_nonnull(config->serverUrls);
+    config->serverUrlsSize = 1;
+    config->serverUrls[0] = UA_STRING_ALLOC("opc.https://localhost:0/secure");
+
+    TestConnectionManager_CallbackOverloads overloads = {0};
+    overloads.openConnection = mockHttpOpen;
+    UA_ConnectionManager *mock = TestConnectionManager_new("http", &overloads);
+    ck_assert_ptr_nonnull(mock);
+    ck_assert_uint_eq(config->eventLoop->registerEventSource(
+                          config->eventLoop, &mock->eventSource),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest createRequest;
+    UA_CreateSessionRequest_init(&createRequest);
+    createRequest.requestHeader.timestamp = UA_DateTime_now();
+    createRequest.clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
+    createRequest.clientDescription.applicationUri = UA_STRING("urn:unvalidated");
+    createRequest.endpointUrl = UA_STRING("opc.https://localhost:4842/secure");
+    createRequest.sessionName = UA_STRING("https-none");
+    createRequest.requestedSessionTimeout = 60000.0;
+    createRequest.clientCertificate = UA_BYTESTRING("not-a-certificate");
+    UA_CreateSessionResponse createResponse;
+    UA_CreateSessionResponse_init(&createResponse);
+    postBinaryRequest(mock, "/secure", &createRequest,
+                      &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST], &createResponse,
+                      &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+
+    /* An empty identity token selects the anonymous UserTokenPolicy */
+    UA_ActivateSessionRequest activateRequest;
+    UA_ActivateSessionRequest_init(&activateRequest);
+    activateRequest.requestHeader.timestamp = UA_DateTime_now();
+    activateRequest.requestHeader.authenticationToken =
+        createResponse.authenticationToken;
+    UA_ActivateSessionResponse activateResponse;
+    UA_ActivateSessionResponse_init(&activateResponse);
+    postBinaryRequest(mock, "/secure", &activateRequest,
+                      &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                      &activateResponse,
+                      &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+    ck_assert_uint_eq(activateResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+
+    const UA_NodeId trustedApplication =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_TRUSTEDAPPLICATION);
+    const UA_NodeId anonymous =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    lockServer(server);
+    UA_Session *session =
+        getSessionByToken(server, &createResponse.authenticationToken);
+    ck_assert_ptr_nonnull(session);
+    ck_assert_ptr_nonnull(session->channel);
+    ck_assert_int_eq(session->channel->securityMode,
+                     UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ck_assert(session->hasIdentityContext);
+    ck_assert(!session->identityContext.trustedApplication);
+    ck_assert_uint_eq(session->identityContext.applicationUri.length, 0);
+    UA_Boolean hasAnonymous = false;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        ck_assert(!UA_NodeId_equal(&session->roles[i], &trustedApplication));
+        hasAnonymous |= UA_NodeId_equal(&session->roles[i], &anonymous);
+    }
+    ck_assert(hasAnonymous);
+    unlockServer(server);
+
+    UA_ActivateSessionResponse_clear(&activateResponse);
+    UA_CreateSessionResponse_clear(&createResponse);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(server), UA_STATUSCODE_GOOD);
+}
+END_TEST
+#endif /* UA_ENABLE_RBAC */
+
 static Suite *
 testSuite(void) {
     Suite *suite = suite_create("HTTP protocol manager");
@@ -1202,6 +1375,9 @@ testSuite(void) {
     tcase_add_test(tc, mixedTransportChannelIdsAreUnique);
     tcase_add_test(tc, closingHttpChannelDrainsUntilCarrierCloses);
     tcase_add_test(tc, httpRequestTimeoutAndEncodingMetadata);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc, httpsNonePolicyCertificateIsNotTrusted);
+#endif
     /* Full namespace initialization under Valgrind exceeds Check's default
      * four-second per-test timeout. */
     tcase_set_timeout(tc, 30);

@@ -788,6 +788,50 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getApplicationUri(const UA_ByteString *certificate,
+                                      UA_String *applicationUri) {
+    if(!certificate || !applicationUri)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *applicationUri = UA_STRING_NULL;
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!x509)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    /* NULL if the extension is missing or occurs more than once */
+    GENERAL_NAMES *names = (GENERAL_NAMES *)
+        X509_get_ext_d2i(x509, NID_subject_alt_name, NULL, NULL);
+    X509_free(x509);
+    if(!names)
+        return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+
+    /* The subjectAltName shall have exactly one URI (Part 6 §6.2.2) */
+    const ASN1_IA5STRING *uri = NULL;
+    size_t uriCount = 0;
+    for(int i = 0; i < sk_GENERAL_NAME_num(names); i++) {
+        const GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
+        if(name->type != GEN_URI)
+            continue;
+        uri = name->d.uniformResourceIdentifier;
+        uriCount++;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    if(uriCount == 1 && ASN1_STRING_length(uri) > 0) {
+        size_t length = (size_t)ASN1_STRING_length(uri);
+        applicationUri->data = (UA_Byte*)UA_malloc(length);
+        if(applicationUri->data) {
+            memcpy(applicationUri->data, ASN1_STRING_get0_data(uri), length);
+            applicationUri->length = length;
+            res = UA_STATUSCODE_GOOD;
+        } else {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+    sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
+    return res;
+}
+
+UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
@@ -859,11 +903,9 @@ typedef struct {
     size_t nameLength;
 } RoleDnAttribute;
 
-/* The criteria value is UTF-8 and may contain any character except the quote
- * that delimits it (Part 18 §4.4.3). An attribute that cannot be represented is
- * left out of the criteria string instead of failing the whole derivation: the
- * Session must still activate, it just cannot match on that attribute. An empty
- * value is dropped as well, since NAME="" is not a valid criterion. */
+/* The criteria value is UTF-8 and may contain any printable character except
+ * the quote that delimits it (Part 18 §4.4.3). An empty value cannot be
+ * represented either, since NAME="" is not a valid criterion. */
 static UA_Boolean
 roleDnValueUsable(const unsigned char *utf8, int length) {
     if(length <= 0)
@@ -875,9 +917,11 @@ roleDnValueUsable(const unsigned char *utf8, int length) {
     return true;
 }
 
+/* Append every value of the attribute in the order of the certificate. Sets
+ * *usable to false if a value cannot be represented. */
 static UA_StatusCode
 appendRoleDnAttribute(X509_NAME *dn, const RoleDnAttribute *attribute,
-                      UA_ByteString *result) {
+                      UA_ByteString *result, UA_Boolean *usable) {
     int position = -1;
     while((position = X509_NAME_get_index_by_NID(dn, attribute->nid,
                                                   position)) >= 0) {
@@ -885,11 +929,14 @@ appendRoleDnAttribute(X509_NAME *dn, const RoleDnAttribute *attribute,
         unsigned char *utf8 = NULL;
         int valueLength = ASN1_STRING_to_UTF8(&utf8,
             X509_NAME_ENTRY_get_data(entry));
-        if(valueLength < 0)
-            continue; /* Not convertible to UTF-8 */
+        if(valueLength < 0) {
+            *usable = false; /* Not convertible to UTF-8 */
+            return UA_STATUSCODE_GOOD;
+        }
         if(!roleDnValueUsable(utf8, valueLength)) {
             OPENSSL_free(utf8);
-            continue;
+            *usable = false;
+            return UA_STATUSCODE_GOOD;
         }
         size_t separator = result->length > 0 ? 1 : 0;
         size_t oldLength = result->length;
@@ -917,6 +964,11 @@ appendRoleDnAttribute(X509_NAME *dn, const RoleDnAttribute *attribute,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Part 18 §4.4.3: "Every value from Table 10 present in the Certificate shall
+ * be included in the criteria". If one of them cannot be represented, the
+ * criteria of the DN is empty and never matches. Leaving out only that value
+ * would give different names the same criteria. Names not in Table 10 are
+ * ignored. */
 static UA_StatusCode
 roleDnCriteria(X509_NAME *dn, UA_String *output) {
     static const RoleDnAttribute attributes[] = {
@@ -931,13 +983,18 @@ roleDnCriteria(X509_NAME *dn, UA_String *output) {
         {NID_serialNumber, "serialNumber", 12}
     };
     UA_ByteString result = UA_BYTESTRING_NULL;
-    for(size_t i = 0; i < sizeof(attributes) / sizeof(attributes[0]); i++) {
-        UA_StatusCode res = appendRoleDnAttribute(dn, &attributes[i], &result);
+    size_t attributesSize = sizeof(attributes) / sizeof(attributes[0]);
+    UA_Boolean usable = true;
+    for(size_t i = 0; usable && i < attributesSize; i++) {
+        UA_StatusCode res =
+            appendRoleDnAttribute(dn, &attributes[i], &result, &usable);
         if(res != UA_STATUSCODE_GOOD) {
             UA_ByteString_clear(&result);
             return res;
         }
     }
+    if(!usable)
+        UA_ByteString_clear(&result);
     *output = result;
     return UA_STATUSCODE_GOOD;
 }

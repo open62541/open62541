@@ -764,11 +764,13 @@ cleanup:
 
 #if MBEDTLS_VERSION_NUMBER < 0x03040000
 
-/* Walks the raw v3_ext DER blob and performs an exact match of each URI entry
- * in the Subject Alternative Name extension against applicationURI.
- * Used only for mbedTLS < 3.4.0, which does not expose a parsed SAN URI. */
-static UA_StatusCode
-verifySanUri(const mbedtls_x509_buf *v3_ext, const UA_String *applicationURI) {
+/* Walks the raw v3_ext DER blob to the GeneralNames of the Subject Alternative
+ * Name extension. On success, *names and *namesEnd delimit the content of the
+ * GeneralNames sequence. Used only for mbedTLS < 3.4.0, which does not expose a
+ * parsed SAN URI. */
+static UA_Boolean
+findSanGeneralNames(const mbedtls_x509_buf *v3_ext, unsigned char **names,
+                    const unsigned char **namesEnd) {
     unsigned char *p = v3_ext->p;
     const unsigned char *end = p + v3_ext->len;
     size_t len;
@@ -776,7 +778,7 @@ verifySanUri(const mbedtls_x509_buf *v3_ext, const UA_String *applicationURI) {
     /* Extensions ::= SEQUENCE OF Extension */
     if(mbedtls_asn1_get_tag(&p, end, &len,
                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
-        return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+        return false;
     const unsigned char *ext_end = p + len;
 
     while(p < ext_end) {
@@ -784,12 +786,12 @@ verifySanUri(const mbedtls_x509_buf *v3_ext, const UA_String *applicationURI) {
          *                          extnValue OCTET STRING } */
         if(mbedtls_asn1_get_tag(&p, ext_end, &len,
                                  MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
-            break;
+            return false;
         unsigned char *entry_end = p + len;
 
         /* Read OID */
         if(mbedtls_asn1_get_tag(&p, entry_end, &len, MBEDTLS_ASN1_OID) != 0)
-            break;
+            return false;
         const unsigned char *oid_p = p;
         p += len;
 
@@ -803,40 +805,79 @@ verifySanUri(const mbedtls_x509_buf *v3_ext, const UA_String *applicationURI) {
         /* Skip optional critical BOOLEAN */
         if(p < entry_end && *p == MBEDTLS_ASN1_BOOLEAN) {
             if(mbedtls_asn1_get_tag(&p, entry_end, &len, MBEDTLS_ASN1_BOOLEAN) != 0)
-                break;
+                return false;
             p += len;
         }
 
         /* extnValue ::= OCTET STRING containing the encoded GeneralNames */
         if(mbedtls_asn1_get_tag(&p, entry_end, &len, MBEDTLS_ASN1_OCTET_STRING) != 0)
-            break;
+            return false;
         const unsigned char *val_end = p + len;
 
         /* GeneralNames ::= SEQUENCE OF GeneralName */
         if(mbedtls_asn1_get_tag(&p, val_end, &len,
                                  MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) != 0)
-            break;
-        const unsigned char *san_end = p + len;
+            return false;
+        *names = p;
+        *namesEnd = p + len;
+        return true;
+    }
+    return false;
+}
 
-        /* GeneralName ::= CHOICE { ..., uniformResourceIdentifier [6] IA5String, ... } */
-        const unsigned char uriTag =
-            MBEDTLS_ASN1_CONTEXT_SPECIFIC | MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
-        while(p < san_end) {
-            unsigned char tag = *p;
-            if(mbedtls_asn1_get_tag(&p, san_end, &len, tag) != 0)
-                break;
-            if(tag == uriTag &&
-               len == applicationURI->length &&
-               memcmp(p, applicationURI->data, len) == 0)
-                return UA_STATUSCODE_GOOD;
-            p += len;
-        }
+/* GeneralName ::= CHOICE { ..., uniformResourceIdentifier [6] IA5String, ... } */
+static const unsigned char sanUriTag =
+    MBEDTLS_ASN1_CONTEXT_SPECIFIC | MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
 
-        /* SAN extension found but no URI matched — do not fall through to other extensions */
+/* Performs an exact match of each URI entry in the Subject Alternative Name
+ * extension against applicationURI */
+static UA_StatusCode
+verifySanUri(const mbedtls_x509_buf *v3_ext, const UA_String *applicationURI) {
+    unsigned char *p;
+    const unsigned char *san_end;
+    if(!findSanGeneralNames(v3_ext, &p, &san_end))
         return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+
+    size_t len;
+    while(p < san_end) {
+        unsigned char tag = *p;
+        if(mbedtls_asn1_get_tag(&p, san_end, &len, tag) != 0)
+            break;
+        if(tag == sanUriTag &&
+           len == applicationURI->length &&
+           memcmp(p, applicationURI->data, len) == 0)
+            return UA_STATUSCODE_GOOD;
+        p += len;
     }
 
+    /* SAN extension found but no URI matched */
     return UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+}
+
+/* Returns the number of URI entries in the Subject Alternative Name extension
+ * and points *uri to the last one. A malformed extension has no URI. */
+static size_t
+getSanUris(const mbedtls_x509_buf *v3_ext, const unsigned char **uri,
+           size_t *uriLength) {
+    unsigned char *p;
+    const unsigned char *san_end;
+    if(!findSanGeneralNames(v3_ext, &p, &san_end))
+        return 0;
+
+    size_t len;
+    size_t uriCount = 0;
+    while(p < san_end) {
+        unsigned char tag = *p;
+        if(mbedtls_asn1_get_tag(&p, san_end, &len, tag) != 0)
+            return 0;
+        if(tag == sanUriTag) {
+            *uri = p;
+            *uriLength = len;
+            uriCount++;
+        }
+        p += len;
+    }
+    return uriCount;
 }
 
 #endif
@@ -883,6 +924,57 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
 #endif
 
     mbedtls_x509_crt_free(&remoteCertificate);
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getApplicationUri(const UA_ByteString *certificate,
+                                      UA_String *applicationUri) {
+    if(!certificateGroupValidByteString(certificate) || !applicationUri)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    *applicationUri = UA_STRING_NULL;
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD) {
+        mbedtls_x509_crt_free(&cert);
+        return retval;
+    }
+
+    /* The subjectAltName shall have exactly one URI (Part 6 §6.2.2). The URI
+     * points into the parsed certificate. */
+    const unsigned char *uri = NULL;
+    size_t uriLength = 0;
+    size_t uriCount = 0;
+#if MBEDTLS_VERSION_NUMBER >= 0x03040000
+    mbedtls_x509_subject_alternative_name san;
+    for(const mbedtls_x509_sequence *cur = &cert.subject_alt_names;
+        cur; cur = cur->next) {
+        if(mbedtls_x509_parse_subject_alt_name(&cur->buf, &san) != 0)
+            continue;
+        if(san.type == MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER) {
+            uri = san.san.unstructured_name.p;
+            uriLength = san.san.unstructured_name.len;
+            uriCount++;
+        }
+        mbedtls_x509_free_subject_alt_name(&san);
+    }
+#else
+    uriCount = getSanUris(&cert.v3_ext, &uri, &uriLength);
+#endif
+
+    retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    if(uriCount == 1 && uriLength > 0) {
+        applicationUri->data = (UA_Byte*)UA_malloc(uriLength);
+        if(applicationUri->data) {
+            memcpy(applicationUri->data, uri, uriLength);
+            applicationUri->length = uriLength;
+            retval = UA_STATUSCODE_GOOD;
+        } else {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+    mbedtls_x509_crt_free(&cert);
     return retval;
 }
 
@@ -970,8 +1062,7 @@ roleOidEqual(const mbedtls_x509_buf *oid, const RoleDnAttribute *attribute) {
  * the attribute, so the string types that are not already UTF-8 have to be
  * converted here. Returns false when the value cannot be represented in the
  * criteria string (unsupported or malformed encoding, empty value, a control
- * character or the quote that delimits the value, see Part 18 §4.4.3). The
- * attribute is then left out instead of failing the whole derivation. *oom is
+ * character or the quote that delimits the value, see Part 18 §4.4.3). *oom is
  * set only when an allocation failed. */
 static UA_Boolean
 roleDnValueToUtf8(const mbedtls_x509_buf *val, UA_ByteString *out,
@@ -989,8 +1080,25 @@ roleDnValueToUtf8(const mbedtls_x509_buf *val, UA_ByteString *out,
     size_t n = 0;
     switch(val->tag) {
     case MBEDTLS_ASN1_UTF8_STRING:
+        /* Only well-formed UTF-8 without surrogates, like the conversion of
+         * the OpenSSL backend (ASN1_STRING_to_UTF8) */
+        for(size_t i = 0; i < val->len;) {
+            unsigned cp = 0;
+            unsigned cpLen = utf8_to_codepoint(&val->p[i], val->len - i, &cp);
+            if(cpLen == 0 || (cp >= 0xD800 && cp <= 0xDFFF))
+                goto unusable;
+            i += cpLen;
+        }
+        memcpy(buf, val->p, val->len);
+        n = val->len;
+        break;
     case MBEDTLS_ASN1_PRINTABLE_STRING:
     case MBEDTLS_ASN1_IA5_STRING:
+        /* ASCII subsets. A byte >= 0x80 is a malformed value. */
+        for(size_t i = 0; i < val->len; i++) {
+            if(val->p[i] >= 0x80)
+                goto unusable;
+        }
         memcpy(buf, val->p, val->len);
         n = val->len;
         break;
@@ -1049,6 +1157,11 @@ roleDnValueToUtf8(const mbedtls_x509_buf *val, UA_ByteString *out,
     return false;
 }
 
+/* Part 18 §4.4.3: "Every value from Table 10 present in the Certificate shall
+ * be included in the criteria". If one of them cannot be represented, the
+ * criteria of the DN is empty and never matches. Leaving out only that value
+ * would give different names the same criteria. Names not in Table 10 are
+ * ignored. */
 static UA_StatusCode
 roleDnCriteria(const mbedtls_x509_name *dn, UA_String *output) {
     static const RoleDnAttribute attributes[] = {
@@ -1070,11 +1183,11 @@ roleDnCriteria(const mbedtls_x509_name *dn, UA_String *output) {
             UA_ByteString value = UA_BYTESTRING_NULL;
             UA_StatusCode oom = UA_STATUSCODE_GOOD;
             if(!roleDnValueToUtf8(&entry->val, &value, &oom)) {
-                if(oom != UA_STATUSCODE_GOOD) {
-                    UA_ByteString_clear(&result);
+                UA_ByteString_clear(&result);
+                if(oom != UA_STATUSCODE_GOOD)
                     return oom;
-                }
-                continue;
+                *output = UA_STRING_NULL;
+                return UA_STATUSCODE_GOOD;
             }
             size_t separator = result.length > 0 ? 1 : 0;
             size_t oldLength = result.length;

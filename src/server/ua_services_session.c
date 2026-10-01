@@ -1373,11 +1373,12 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     /* Per Part 18 §4.4.3 TrustedApplication: the session shall use at least a
      * signed communication channel (Sign or SignAndEncrypt) and the client
      * application instance certificate must have been validated. A Sign-only
-     * channel carries a validated remote certificate, so it qualifies. */
-    ctx.trustedApplication = (channel->securityPolicy != NULL &&
-        (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-         channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) &&
-        channel->remoteCertificate.length > 0);
+     * channel carries a validated remote certificate, so it qualifies. HTTPS
+     * with SecurityPolicy None is SignAndEncrypt on the transport, but the
+     * certificate from CreateSession is neither validated nor proven by a
+     * signature. It does not identify the application. */
+    ctx.trustedApplication = (UA_SecureChannel_hasApplicationSecurity(channel) &&
+                              channel->remoteCertificate.length > 0);
     UA_StatusCode ctxRes = UA_STATUSCODE_GOOD;
     if(rbacTokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *ut = (const UA_UserNameIdentityToken*)
@@ -1411,11 +1412,25 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
                                        UA_StatusCode_name(dnRes));
         }
     }
-    /* Only retain an ApplicationUri for authorization if CreateSession bound it
-     * to an accepted ApplicationInstance Certificate on a signed channel. */
-    if(ctxRes == UA_STATUSCODE_GOOD && ctx.trustedApplication)
-        ctxRes = UA_String_copy(&session->clientDescription.applicationUri,
-                                &ctx.applicationUri);
+    /* Part 18 §4.4.3: The Application criterion is the ApplicationUri from the
+     * Client Certificate used for the Session. Take it from the certificate of
+     * the signed SecureChannel. The ApplicationDescription from CreateSession
+     * is not bound to the certificate if allowAllCertificateUris tolerates a
+     * mismatch. Without exactly one URI in the certificate the ApplicationUri
+     * stays empty, and Application rules and filters do not match. */
+    if(ctxRes == UA_STATUSCODE_GOOD && ctx.trustedApplication) {
+        UA_StatusCode uriRes = UA_CertificateUtils_getApplicationUri(
+            &channel->remoteCertificate, &ctx.applicationUri);
+        if(uriRes == UA_STATUSCODE_BADOUTOFMEMORY)
+            ctxRes = uriRes;
+        else if(uriRes != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "ActivateSession: Could not take the "
+                                   "ApplicationUri from the client "
+                                   "certificate (%s). Application rules "
+                                   "will not match this Session",
+                                   UA_StatusCode_name(uriRes));
+    }
     /* Part 18 §4.4.1: Endpoint filters are compared with the configured
      * Endpoint used by the SecureChannel. Take the URL and the transport
      * profile from the accepting listener. The configured EndpointDescriptions
