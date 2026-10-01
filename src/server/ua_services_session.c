@@ -966,9 +966,6 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                              const UA_UserTokenPolicy **utp,
                              UA_SecurityPolicy **tokenSp) {
     UA_ServerConfig *sc = &server->config;
-    const UA_EndpointDescription *match = NULL;
-    const UA_UserTokenPolicy *matchUtp = NULL;
-    UA_SecurityPolicy *matchTokenSp = NULL;
     for(size_t i = 0; i < sc->endpointsSize; ++i) {
         const UA_EndpointDescription *desc = &sc->endpoints[i];
 
@@ -986,39 +983,18 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                             &channel->securityPolicy->policyUri))
             continue;
 
-        /* Select the UserTokenPolicy from the Endpoint */
-        UA_SecurityPolicy *candidateTokenSp = NULL;
-        const UA_UserTokenPolicy *candidateUtp =
-            selectTokenPolicy(server, channel, session, identityToken,
-                              desc, &candidateTokenSp);
-        if(!candidateUtp)
-            continue;
-
-        if(!match) {
-            match = desc;
-            matchUtp = candidateUtp;
-            matchTokenSp = candidateTokenSp;
-            continue;
-        }
-
-        /* A SecureChannel is not tied to an advertised EndpointUrl. The HEL
-         * URL is client-controlled and therefore cannot select an Endpoint for
-         * authorization. Reject an ambiguous configuration instead of taking
-         * the first entry and possibly granting endpoint-filtered Roles for a
-         * different URL or transport. Exact duplicate descriptions are safe. */
-        if(!UA_String_equal(&match->endpointUrl, &desc->endpointUrl) ||
-           !UA_String_equal(&match->transportProfileUri,
-                            &desc->transportProfileUri)) {
-            UA_LOG_ERROR_SESSION(server->config.logging, session,
-                                 "ActivateSession: Ambiguous configured "
-                                 "Endpoints for the SecureChannel");
+        /* Select the UserTokenPolicy from the Endpoint. Take the first match.
+         * Configured Endpoints that differ only in the EndpointUrl or the
+         * TransportProfileUri (e.g. one copy per hostname) are equivalent
+         * here. The RBAC context takes the URL and the transport profile from
+         * the listener of the SecureChannel, not from the description. */
+        *utp = selectTokenPolicy(server, channel, session,
+                                 identityToken, desc, tokenSp);
+        if(*utp) {
+            *ed = desc;
             return;
         }
     }
-
-    *ed = match;
-    *utp = matchUtp;
-    *tokenSp = matchTokenSp;
 }
 
 static UA_StatusCode
@@ -1440,14 +1416,19 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     if(ctxRes == UA_STATUSCODE_GOOD && ctx.trustedApplication)
         ctxRes = UA_String_copy(&session->clientDescription.applicationUri,
                                 &ctx.applicationUri);
+    /* Part 18 §4.4.1: Endpoint filters are compared with the configured
+     * Endpoint used by the SecureChannel. Take the URL and the transport
+     * profile from the accepting listener. The configured EndpointDescriptions
+     * are templates without a URL, and the URLs in the HEL message and in
+     * CreateSession are client-controlled. */
     if(ctxRes == UA_STATUSCODE_GOOD && ed) {
-        ctxRes = UA_String_copy(&ed->endpointUrl, &ctx.endpointUrl);
+        ctxRes = UA_String_copy(&channel->listenerUrl, &ctx.endpointUrl);
         ctx.endpointSecurityMode = channel->securityMode;
         if(ctxRes == UA_STATUSCODE_GOOD)
             ctxRes = UA_String_copy(&channel->securityPolicy->policyUri,
                                     &ctx.securityPolicyUri);
         if(ctxRes == UA_STATUSCODE_GOOD)
-            ctxRes = UA_String_copy(&ed->transportProfileUri,
+            ctxRes = UA_String_copy(getChannelTransportProfileUri(channel),
                                     &ctx.transportProfileUri);
     }
     /* GroupIds for the GroupId identity criterion (optional hook) */
@@ -1489,9 +1470,12 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
             UA_SessionIdentityContext_clear(&ctx);
             UA_SECURITY_REJECT;
         }
+        /* Part 18 §5.2.3: "For ActivateSession, a disabled user behaves like
+         * a user that does not exist." Return the same StatusCode as for an
+         * unknown user or a wrong password. */
         if(userConfiguration & UA_USERCONFIGURATIONMASK_DISABLED) {
             UA_SessionIdentityContext_clear(&ctx);
-            rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            rh->serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
             UA_SECURITY_REJECT;
         }
         passwordChangeRequired =

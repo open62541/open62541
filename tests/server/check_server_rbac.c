@@ -2886,6 +2886,33 @@ START_TEST(identityCriteria_x509SubjectUtf8) {
 }
 END_TEST
 
+/* Add a Role for authenticated users with a single Endpoint filter entry */
+static UA_NodeId
+addEndpointFilterRole(const char *name, const char *endpointUrl,
+                      const char *transportProfileUri, UA_Boolean exclude) {
+    UA_IdentityMappingRuleType authRule;
+    UA_IdentityMappingRuleType_init(&authRule);
+    authRule.criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+    UA_EndpointType filter;
+    UA_EndpointType_init(&filter);
+    if(endpointUrl)
+        filter.endpointUrl = UA_STRING((char*)(uintptr_t)endpointUrl);
+    if(transportProfileUri)
+        filter.transportProfileUri =
+            UA_STRING((char*)(uintptr_t)transportProfileUri);
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name);
+    role.identityMappingRules = &authRule;
+    role.identityMappingRulesSize = 1;
+    role.endpoints = &filter;
+    role.endpointsSize = 1;
+    role.endpointsExclude = exclude;
+    UA_NodeId id = UA_NODEID_NULL;
+    ck_assert_uint_eq(UA_Server_addRole(server, &role, &id), UA_STATUSCODE_GOOD);
+    return id;
+}
+
 /* The Application and Endpoint role filters gate role assignment (Part 18
  * §4.4.1), including the Exclude variants. */
 START_TEST(roleFilters_evaluated) {
@@ -2992,6 +3019,94 @@ START_TEST(roleFilters_evaluated) {
     ck_assert(!roleGrantedForContext(&ctx, &emptyAppId));
     ck_assert(!roleGrantedForContext(&ctx, &emptyEpId));
 
+    /* The Endpoint URL is compared with the configured ServerUrl of the
+     * listener. A listener without a hostname accepts connections for every
+     * hostname, so only the scheme, port and path are compared. */
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4841");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    /* Port and scheme mismatches. An absent port is the default port. */
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4841");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.wss://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+
+    /* The scheme and hostname are case-insensitive. Leading and trailing '/'
+     * of the path are ignored. The path itself is case-sensitive. */
+    ctx.endpointUrl = UA_STRING("OPC.TCP://HOST:4840/");
+    ck_assert(roleGrantedForContext(&ctx, &epId));
+    UA_NodeId pathId =
+        addEndpointFilterRole("EpPath", "opc.tcp://Host:4840/ua/server/",
+                              NULL, false);
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840/ua/server");
+    ck_assert(roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840//ua/server//");
+    ck_assert(roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840/UA/server");
+    ck_assert(!roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &pathId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4840/ua/server");
+    ck_assert(roleGrantedForContext(&ctx, &pathId));
+
+    /* IPv6 hostnames are compared without brackets and case-insensitively */
+    UA_NodeId ipv6Id =
+        addEndpointFilterRole("EpIPv6", "opc.tcp://[FE80::1]:4840", NULL, false);
+    ctx.endpointUrl = UA_STRING("opc.tcp://[fe80::1]:4840");
+    ck_assert(roleGrantedForContext(&ctx, &ipv6Id));
+    ctx.endpointUrl = UA_STRING("opc.tcp://[fe80::2]:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &ipv6Id));
+
+    /* An include list grants only on a definite match. An unknown listener URL
+     * (empty, unparseable or with a dynamically assigned port) never matches. */
+    ctx.endpointUrl = UA_STRING_NULL;
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("not-a-url");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:0");
+    ck_assert(!roleGrantedForContext(&ctx, &epId));
+
+    /* An exclude list fails closed when the listener URL is unknown */
+    UA_NodeId epExclId =
+        addEndpointFilterRole("EpExclude", "opc.tcp://host:4840", NULL, true);
+    ctx.endpointUrl = UA_STRING("opc.tcp://other:4840");
+    ck_assert(roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://:4840");
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING_NULL;
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+    ctx.endpointUrl = UA_STRING("opc.tcp://host:0");
+    ck_assert(!roleGrantedForContext(&ctx, &epExclId));
+
+    /* The same applies to the TransportProfileUri */
+    const char *uatcp =
+        "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary";
+    UA_NodeId profileId = addEndpointFilterRole("EpProfile", NULL, uatcp, false);
+    UA_NodeId profileExclId =
+        addEndpointFilterRole("EpProfileExclude", NULL, uatcp, true);
+    memset(&ctx, 0, sizeof(ctx));
+    ck_assert(!roleGrantedForContext(&ctx, &profileId));
+    ck_assert(!roleGrantedForContext(&ctx, &profileExclId));
+    ctx.transportProfileUri = UA_STRING((char*)(uintptr_t)uatcp);
+    ck_assert(roleGrantedForContext(&ctx, &profileId));
+    ck_assert(!roleGrantedForContext(&ctx, &profileExclId));
+    ctx.transportProfileUri = UA_STRING(
+        "http://opcfoundation.org/UA-Profile/Transport/wss-uasc-uabinary");
+    ck_assert(!roleGrantedForContext(&ctx, &profileId));
+    ck_assert(roleGrantedForContext(&ctx, &profileExclId));
+
+    UA_NodeId_clear(&pathId);
+    UA_NodeId_clear(&ipv6Id);
+    UA_NodeId_clear(&epExclId);
+    UA_NodeId_clear(&profileId);
+    UA_NodeId_clear(&profileExclId);
     UA_NodeId_clear(&inclId);
     UA_NodeId_clear(&exclId);
     UA_NodeId_clear(&epId);

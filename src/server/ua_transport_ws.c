@@ -97,6 +97,14 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
     if(path.length > 0)
         memcpy(&websocketPath.data[1], path.data, path.length);
 
+    /* The listen sockets are attributed to the ServerUrl via their context */
+    const UA_String *listenUrl =
+        UA_BinaryProtocolManager_addListenUrl(bpm, serverUrl);
+    if(!listenUrl) {
+        UA_String_clear(&websocketPath);
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+    }
+
     UA_String websocket = UA_STRING("websocket");
     UA_Server *server = bpm->drv.server;
     UA_ServerConfig *config = &server->config;
@@ -192,7 +200,8 @@ createWebSocketServerConnection(UA_BinaryProtocolManager *bpm,
         }
 
         UA_KeyValueMap paramsMap = {paramsSize, params};
-        openResult = cm->openConnection(cm, &paramsMap, bpm, NULL,
+        openResult = cm->openConnection(cm, &paramsMap, bpm,
+                                        (void*)(uintptr_t)listenUrl,
                                         serverNetworkCallback);
         if(openResult == UA_STATUSCODE_GOOD) {
             UA_String_clear(&websocketPath);

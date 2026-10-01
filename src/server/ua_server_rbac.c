@@ -1810,24 +1810,157 @@ identityRuleMatches(const UA_IdentityMappingRuleType *rule,
     }
 }
 
+/* Result of comparing an Endpoint filter with the Endpoint of a Session. It is
+ * UNKNOWN if a compared value of the Session is not known. */
+typedef enum {
+    ENDPOINTMATCH_NOMATCH = 0,
+    ENDPOINTMATCH_MATCH,
+    ENDPOINTMATCH_UNKNOWN
+} EndpointMatch;
+
+/* The default ports are those the server transports listen on */
+static const struct {
+    UA_String scheme;
+    UA_UInt16 defaultPort;
+} endpointUrlSchemes[] = {
+    {UA_STRING_STATIC("opc.tcp"), 4840},
+    {UA_STRING_STATIC("opc.ws"), 4840},
+    {UA_STRING_STATIC("opc.wss"), 443},
+    {UA_STRING_STATIC("opc.http"), 80},
+    {UA_STRING_STATIC("opc.https"), 443}
+};
+
+#define ENDPOINTURLSCHEMES_SIZE \
+    (sizeof(endpointUrlSchemes) / sizeof(endpointUrlSchemes[0]))
+
+/* An EndpointUrl split up for the comparison. The strings point into the
+ * parsed URL or into the buffer. */
+typedef struct {
+    size_t scheme;      /* Index in endpointUrlSchemes */
+    UA_String hostname; /* Without the IPv6 brackets. Empty for a wildcard. */
+    UA_UInt16 port;     /* The default port of the scheme if not given */
+    UA_String path;     /* Without leading and trailing '/' */
+    UA_String buffer;   /* Copy with a lower-case scheme (if required) */
+} EndpointUrlParts;
+
+static UA_StatusCode
+parseEndpointUrlParts(const UA_String *url, EndpointUrlParts *parts) {
+    memset(parts, 0, sizeof(EndpointUrlParts));
+
+    /* The scheme is case-insensitive (RFC 3986 §3.1) */
+    size_t schemeLen = 0;
+    while(schemeLen < url->length && url->data[schemeLen] != ':')
+        schemeLen++;
+    UA_String scheme = {schemeLen, url->data};
+    for(; parts->scheme < ENDPOINTURLSCHEMES_SIZE; parts->scheme++) {
+        if(stringEqualIgnoreCase(&scheme,
+                                 &endpointUrlSchemes[parts->scheme].scheme))
+            break;
+    }
+    if(parts->scheme == ENDPOINTURLSCHEMES_SIZE)
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+
+    /* UA_parseEndpointUrl expects the scheme in lower case */
+    const UA_String *lowerUrl = url;
+    const UA_String *lowerScheme = &endpointUrlSchemes[parts->scheme].scheme;
+    if(memcmp(url->data, lowerScheme->data, schemeLen) != 0) {
+        UA_StatusCode res = UA_String_copy(url, &parts->buffer);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        memcpy(parts->buffer.data, lowerScheme->data, schemeLen);
+        lowerUrl = &parts->buffer;
+    }
+
+    parts->port = endpointUrlSchemes[parts->scheme].defaultPort;
+    UA_StatusCode res = UA_parseEndpointUrl(lowerUrl, &parts->hostname,
+                                            &parts->port, &parts->path);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&parts->buffer);
+        return res;
+    }
+
+    /* Normalize the path */
+    while(parts->path.length > 0 && parts->path.data[0] == '/') {
+        parts->path.data++;
+        parts->path.length--;
+    }
+    while(parts->path.length > 0 &&
+          parts->path.data[parts->path.length - 1] == '/')
+        parts->path.length--;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Compare the EndpointUrl of a filter with the configured ServerUrl of the
+ * listener that accepted the SecureChannel (Part 18 §4.4.1). The scheme and
+ * the hostname are case-insensitive. An absent port is the default port of the
+ * scheme. A listener (or filter) without a hostname listens on all interfaces.
+ * Then only the scheme, port and path are compared. */
+static EndpointMatch
+endpointUrlMatches(const UA_String *filterUrl, const UA_String *listenerUrl) {
+    EndpointUrlParts listener;
+    if(listenerUrl->length == 0 ||
+       parseEndpointUrlParts(listenerUrl, &listener) != UA_STATUSCODE_GOOD)
+        return ENDPOINTMATCH_UNKNOWN;
+
+    /* A filter URL that cannot be parsed designates no Endpoint */
+    EndpointUrlParts filter;
+    UA_StatusCode res = parseEndpointUrlParts(filterUrl, &filter);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&listener.buffer);
+        return (res == UA_STATUSCODE_BADOUTOFMEMORY) ?
+            ENDPOINTMATCH_UNKNOWN : ENDPOINTMATCH_NOMATCH;
+    }
+
+    EndpointMatch match = ENDPOINTMATCH_MATCH;
+    if(listener.scheme != filter.scheme ||
+       !UA_String_equal(&listener.path, &filter.path) ||
+       (listener.hostname.length > 0 && filter.hostname.length > 0 &&
+        !stringEqualIgnoreCase(&listener.hostname, &filter.hostname)))
+        match = ENDPOINTMATCH_NOMATCH;
+    else if(listener.port == 0)
+        match = ENDPOINTMATCH_UNKNOWN; /* Dynamically assigned port */
+    else if(listener.port != filter.port)
+        match = ENDPOINTMATCH_NOMATCH;
+
+    UA_String_clear(&listener.buffer);
+    UA_String_clear(&filter.buffer);
+    return match;
+}
+
 /* Whether a single Endpoint filter entry matches the session's endpoint. Fields
  * left at their default/empty value are ignored (Part 18 §4.4.1). */
-static UA_Boolean
+static EndpointMatch
 endpointFilterMatches(const UA_EndpointType *ep,
                       const UA_SessionIdentityContext *ctx) {
-    if(ep->endpointUrl.length > 0 &&
-       !UA_String_equal(&ep->endpointUrl, &ctx->endpointUrl))
-        return false;
-    if(ep->securityMode != UA_MESSAGESECURITYMODE_INVALID &&
-       ep->securityMode != ctx->endpointSecurityMode)
-        return false;
-    if(ep->securityPolicyUri.length > 0 &&
-       !UA_String_equal(&ep->securityPolicyUri, &ctx->securityPolicyUri))
-        return false;
-    if(ep->transportProfileUri.length > 0 &&
-       !UA_String_equal(&ep->transportProfileUri, &ctx->transportProfileUri))
-        return false;
-    return true;
+    UA_Boolean unknown = false;
+    if(ep->endpointUrl.length > 0) {
+        EndpointMatch match =
+            endpointUrlMatches(&ep->endpointUrl, &ctx->endpointUrl);
+        if(match == ENDPOINTMATCH_NOMATCH)
+            return ENDPOINTMATCH_NOMATCH;
+        unknown |= (match == ENDPOINTMATCH_UNKNOWN);
+    }
+    if(ep->securityMode != UA_MESSAGESECURITYMODE_INVALID) {
+        if(ctx->endpointSecurityMode == UA_MESSAGESECURITYMODE_INVALID)
+            unknown = true;
+        else if(ep->securityMode != ctx->endpointSecurityMode)
+            return ENDPOINTMATCH_NOMATCH;
+    }
+    if(ep->securityPolicyUri.length > 0) {
+        if(ctx->securityPolicyUri.length == 0)
+            unknown = true;
+        else if(!UA_String_equal(&ep->securityPolicyUri,
+                                 &ctx->securityPolicyUri))
+            return ENDPOINTMATCH_NOMATCH;
+    }
+    if(ep->transportProfileUri.length > 0) {
+        if(ctx->transportProfileUri.length == 0)
+            unknown = true;
+        else if(!UA_String_equal(&ep->transportProfileUri,
+                                 &ctx->transportProfileUri))
+            return ENDPOINTMATCH_NOMATCH;
+    }
+    return unknown ? ENDPOINTMATCH_UNKNOWN : ENDPOINTMATCH_MATCH;
 }
 
 /* Apply a role's Application and Endpoint filters to the session context
@@ -1857,13 +1990,18 @@ roleFiltersMatch(const UA_Role *role, const UA_SessionIdentityContext *ctx) {
         if(inList == role->applicationsExclude)
             return false;
     }
-    /* The same include/exclude semantics apply to Endpoint filters. */
+    /* The same include/exclude semantics apply to Endpoint filters. An
+     * include list grants only on a definite match. An exclude list also
+     * applies if the match cannot be decided (fail closed). */
     if(role->endpointsSize == 0 && !role->endpointsExclude)
         return false;
     if(role->endpointsSize > 0) {
         UA_Boolean inList = false;
         for(size_t i = 0; i < role->endpointsSize; i++) {
-            if(endpointFilterMatches(&role->endpoints[i], ctx)) {
+            EndpointMatch match =
+                endpointFilterMatches(&role->endpoints[i], ctx);
+            if(match == ENDPOINTMATCH_MATCH ||
+               (match == ENDPOINTMATCH_UNKNOWN && role->endpointsExclude)) {
                 inList = true;
                 break;
             }

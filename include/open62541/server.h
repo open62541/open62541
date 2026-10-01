@@ -2283,7 +2283,17 @@ typedef struct {
     UA_String *applications;
 
     /* Endpoint filter, with the same include/exclude semantics as the
-     * Application filter above (Part 18 §4.4.1). */
+     * Application filter above (Part 18 §4.4.1). Empty fields of an entry are
+     * ignored. The EndpointUrl is compared with the configured ServerUrl of
+     * the listener that accepted the SecureChannel, never with a URL sent by
+     * the client. The scheme and hostname are case-insensitive, an absent port
+     * is the default port of the scheme and leading or trailing '/' of the
+     * path are ignored. For a ServerUrl without a hostname (listening on all
+     * interfaces, e.g. "opc.tcp://:4840") only the scheme, port and path are
+     * compared. The TransportProfileUri is derived from the transport of the
+     * SecureChannel. An entry that cannot be decided (e.g. for a dynamically
+     * assigned port) is never in an include list but always in an exclude
+     * list. */
     UA_Boolean endpointsExclude;
     size_t endpointsSize;
     UA_EndpointType *endpoints;

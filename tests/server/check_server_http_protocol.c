@@ -674,7 +674,7 @@ START_TEST(uascLimitDoesNotPurgeDirectChannel) {
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     UA_SecureChannel *created = NULL;
     UA_StatusCode res = createServerSecureChannel(
-        server, &connectionConfig, &cm, 1, NULL, &created);
+        server, &connectionConfig, &cm, 1, NULL, NULL, &created);
 
     /* Clean up an unexpected UACP channel before reporting the failure. */
     if(created) {
@@ -707,7 +707,7 @@ START_TEST(uascZeroLimitIsUnlimited) {
 
     lockServer(server);
     UA_StatusCode res = createServerSecureChannel(
-        server, &connectionConfig, &cm, 1, NULL, &created);
+        server, &connectionConfig, &cm, 1, NULL, NULL, &created);
     UA_Boolean channelCreated = (created != NULL);
     if(created) {
         unregisterSecureChannel(server, created);

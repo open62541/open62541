@@ -872,16 +872,27 @@ START_TEST(Client_mustChangePassword_staysAnonymousAfterRoleChange) {
 }
 END_TEST
 
-/* A Disabled account is refused at ActivateSession. */
-START_TEST(Client_disabledUser_cannotActivate) {
+static UA_StatusCode
+connectUsernameOnce(const char *userName, const char *password) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connectUsername(client,
                                                      "opc.tcp://localhost:4840",
-                                                     "disabled", "password");
-    printf("Disabled user activation: %s\n", UA_StatusCode_name(retval));
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+                                                     userName, password);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    return retval;
+}
+
+/* A Disabled account is refused at ActivateSession. Part 18 §5.2.3: "For
+ * ActivateSession, a disabled user behaves like a user that does not exist."
+ * The StatusCode does not reveal that the account exists. */
+START_TEST(Client_disabledUser_cannotActivate) {
+    UA_StatusCode disabledRes = connectUsernameOnce("disabled", "password");
+    ck_assert_uint_eq(disabledRes, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(connectUsernameOnce("disabled", "wrong-password"),
+                      disabledRes);
+    ck_assert_uint_eq(connectUsernameOnce("nosuchuser", "password"),
+                      disabledRes);
 }
 END_TEST
 

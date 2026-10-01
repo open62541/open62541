@@ -280,8 +280,9 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     UA_ByteString_clear(&channel->currentIKM);
     UA_ByteString_clear(&channel->channelThumbprint);
 
-    /* Clean up endpointUrl and remoteAddress */
+    /* Clean up endpointUrl, listenerUrl and remoteAddress */
     UA_String_clear(&channel->endpointUrl);
+    UA_String_clear(&channel->listenerUrl);
     UA_String_clear(&channel->remoteAddress);
 
     /* Delete remaining chunks */

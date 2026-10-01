@@ -520,6 +520,7 @@ createServerSecureChannel(UA_Server *server,
                           const UA_ConnectionConfig *connectionConfig,
                           UA_ConnectionManager *cm,
                           uintptr_t connectionId, const UA_KeyValueMap *params,
+                          const UA_String *listenerUrl,
                           UA_SecureChannel **outChannel) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ServerConfig *config = &server->config;
@@ -591,6 +592,17 @@ createServerSecureChannel(UA_Server *server,
             UA_String_copy(address, &channel->remoteAddress);
     }
 
+    /* Record the configured ServerUrl of the accepting listener. Unlike the
+     * EndpointUrl from the HEL message, it is not controlled by the client. */
+    if(listenerUrl) {
+        UA_StatusCode res = UA_String_copy(listenerUrl, &channel->listenerUrl);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_SecureChannel_clear(channel);
+            UA_free(channel);
+            return res;
+        }
+    }
+
     /* Set an initial timeout before the negotiation handshake. So the channel
      * is caught if the client is unresponsive.
      *
@@ -638,8 +650,14 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
      * set the connection context to the pointer in the
      * bpm->serverConnections list. New connections on that server socket
      * inherit the context (and on the first callback we set the context of
-     * client-connections to a SecureChannel). */
-    if(*connectionContext == NULL) {
+     * client-connections to a SecureChannel).
+     *
+     * The initial context of a server socket is either NULL or points to the
+     * configured ServerUrl in bpm->listenUrls. */
+    const UA_String *listenUrl = (const UA_String*)*connectionContext;
+    if(listenUrl == NULL ||
+       (listenUrl >= bpm->listenUrls &&
+        listenUrl < &bpm->listenUrls[UA_MAXSERVERCONNECTIONS])) {
         /* The socket is closing without being previously registered -> ignore */
         if(state == UA_CONNECTIONSTATE_CLOSED ||
            state == UA_CONNECTIONSTATE_CLOSING)
@@ -661,6 +679,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         sc->state = state;
         sc->connectionId = connectionId;
         sc->connectionManager = cm;
+        sc->serverUrl = listenUrl;
         *connectionContext = (void*)sc; /* Set the context pointer in the connection */
 
         /* Add to the DiscoveryUrls */
@@ -681,6 +700,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
             /* Server socket is closed */
             sc->state = UA_CONNECTIONSTATE_CLOSED;
             sc->connectionId = 0;
+            sc->serverUrl = NULL;
             bpm->serverConnectionsSize--;
         } else {
             /* A connection attached to a SecureChannel is closing. This is the
@@ -704,8 +724,8 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
          * createSecureChannel is used. */
         retval = createServerSecureChannel(bpm->drv.server,
                                            &bpm->connectionConfig,
-                                           cm, connectionId,
-                                           params, &channel);
+                                           cm, connectionId, params,
+                                           sc->serverUrl, &channel);
 
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
@@ -809,9 +829,36 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
 /* Binary Protocol Manager */
 /***************************/
 
+/* Only called while no listen socket is open */
+static void
+clearListenUrls(UA_BinaryProtocolManager *bpm) {
+    for(size_t i = 0; i < bpm->listenUrlsSize; i++)
+        UA_String_clear(&bpm->listenUrls[i]);
+    bpm->listenUrlsSize = 0;
+}
+
+const UA_String *
+UA_BinaryProtocolManager_addListenUrl(UA_BinaryProtocolManager *bpm,
+                                      const UA_String *serverUrl) {
+    if(bpm->listenUrlsSize >= UA_MAXSERVERCONNECTIONS) {
+        UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
+                       "Cannot add the ServerUrl %S - too many listeners",
+                       *serverUrl);
+        return NULL;
+    }
+    UA_String *listenUrl = &bpm->listenUrls[bpm->listenUrlsSize];
+    if(UA_String_copy(serverUrl, listenUrl) != UA_STATUSCODE_GOOD)
+        return NULL;
+    bpm->listenUrlsSize++;
+    return listenUrl;
+}
+
 static UA_StatusCode
 UA_BinaryProtocolManager_start(UA_Driver *drv) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)drv;
+
+    /* Discard the ServerUrls of the previous run */
+    clearListenUrls(bpm);
 
     /* Set the logging shortcut */
     UA_Server *server = drv->server;
@@ -871,6 +918,7 @@ UA_BinaryProtocolManager_free(UA_Driver *drv) {
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    clearListenUrls((UA_BinaryProtocolManager*)drv);
     UA_free(drv);
     return UA_STATUSCODE_GOOD;
 }
@@ -958,6 +1006,12 @@ createServerConnection(UA_BinaryProtocolManager *bpm,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* The listen sockets are attributed to the ServerUrl via their context */
+    const UA_String *listenUrl =
+        UA_BinaryProtocolManager_addListenUrl(bpm, serverUrl);
+    if(!listenUrl)
+        return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
+
     UA_String tcpString = UA_STRING("tcp");
     for(UA_EventSource *es = config->eventLoop->eventSources;
         es != NULL; es = es->next) {
@@ -997,7 +1051,8 @@ createServerConnection(UA_BinaryProtocolManager *bpm,
         paramsMap.mapSize = paramsSize;
 
         /* Open the server connection */
-        res = cm->openConnection(cm, &paramsMap, bpm, NULL,
+        res = cm->openConnection(cm, &paramsMap, bpm,
+                                 (void*)(uintptr_t)listenUrl,
                                  serverNetworkCallback);
         if(res == UA_STATUSCODE_GOOD)
             return res;
