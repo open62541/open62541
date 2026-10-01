@@ -1851,8 +1851,11 @@ UA_GDSReceiver_start(UA_Driver *drv) {
         /* Restrict the GDS methods to the SecurityAdmin role. Runs after the
          * ns0 GDS nodes have been created so the permissions can be applied. */
         res = initGDSRolePermissions(drv->server);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Don't leave the methods callable without their restriction */
+            clearNS0PushManagement(ctx);
             return res;
+        }
 #endif
         ctx->initialized = true;
     }
