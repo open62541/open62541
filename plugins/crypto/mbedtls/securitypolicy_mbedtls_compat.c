@@ -201,7 +201,8 @@ UA_mbedTLS_compat_generateCsrKey(const mbedtls_pk_context *templateKey,
         psa_set_key_algorithm(&attributes,
             PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_256));
     else if(PSA_KEY_TYPE_IS_ECC_KEY_PAIR(keyType))
-        psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+        /* The CSR of a 384-bit curve is signed with SHA-384 */
+        psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_ANY_HASH));
     else {
         psa_reset_key_attributes(&attributes);
         return UA_STATUSCODE_BADNOTSUPPORTED;

@@ -78,6 +78,15 @@ exercisePolicy(PolicyInit init) {
     ck_assert_ptr_ne(policy.policyContext, NULL);
     ck_assert(UA_ByteString_equal(&policy.localCertificate,
                                   &originalCertificate));
+
+    /* An ECC certificate with its key does not fit an RSA policy */
+    UA_ByteString eccCertificate = {CERT_P256_DER_LENGTH, CERT_P256_DER_DATA};
+    UA_ByteString eccKey = {KEY_P256_DER_LENGTH, KEY_P256_DER_DATA};
+    rv = policy.updateCertificate(&policy, eccCertificate, eccKey);
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADCERTIFICATEINVALID);
+    ck_assert_ptr_ne(policy.policyContext, NULL);
+    ck_assert(UA_ByteString_equal(&policy.localCertificate,
+                                  &originalCertificate));
     UA_ByteString_clear(&originalCertificate);
 
     /* New channel context: remote certificate == local certificate */

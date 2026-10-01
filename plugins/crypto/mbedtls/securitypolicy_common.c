@@ -896,6 +896,14 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
         mbedtls_pk_init(&importedKey);
         return UA_STATUSCODE_GOOD;
     }
+
+    /* A request for the current key discards the key of an earlier request
+     * (Part 12, 7.10.10) */
+    if(!newPrivateKey) {
+        mbedtls_pk_free(csrLocalPrivateKey);
+        mbedtls_pk_init(csrLocalPrivateKey);
+    }
+
     if(csr->length > 0)
         return UA_STATUSCODE_GOOD;
 
@@ -920,17 +928,6 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     UA_ByteString_clear(&certificateData);
     if(err != 0) {
         retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
-        goto cleanup;
-    }
-
-    mbedtls_x509write_csr_set_md_alg(&request, MBEDTLS_MD_SHA256);
-    err = mbedtls_x509write_csr_set_key_usage(
-        &request, MBEDTLS_X509_KU_DIGITAL_SIGNATURE |
-                  MBEDTLS_X509_KU_DATA_ENCIPHERMENT |
-                  MBEDTLS_X509_KU_NON_REPUDIATION |
-                  MBEDTLS_X509_KU_KEY_ENCIPHERMENT);
-    if(err != 0) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
@@ -985,6 +982,26 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
     mbedtls_x509write_csr_set_key(&request, requestKey);
+
+    /* EC keys must not be used for key or data encipherment (RFC 5480). EC
+     * keys of more than 256 bit sign with SHA-384, like UA_CreateCertificate. */
+    UA_mbedTLS_KeyAlgorithm keyAlgorithm =
+        UA_mbedTLS_compat_getKeyAlgorithm(requestKey);
+    UA_Boolean eccKey = (keyAlgorithm != UA_MBEDTLS_KEYALGORITHM_RSA &&
+                         keyAlgorithm != UA_MBEDTLS_KEYALGORITHM_OTHER);
+    mbedtls_x509write_csr_set_md_alg(&request,
+        (eccKey && mbedtls_pk_get_bitlen(requestKey) > 256) ?
+        MBEDTLS_MD_SHA384 : MBEDTLS_MD_SHA256);
+    unsigned char keyUsage = eccKey ?
+        (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_NON_REPUDIATION |
+         MBEDTLS_X509_KU_KEY_AGREEMENT) :
+        (MBEDTLS_X509_KU_DIGITAL_SIGNATURE | MBEDTLS_X509_KU_DATA_ENCIPHERMENT |
+         MBEDTLS_X509_KU_NON_REPUDIATION | MBEDTLS_X509_KU_KEY_ENCIPHERMENT);
+    err = mbedtls_x509write_csr_set_key_usage(&request, keyUsage);
+    if(err != 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     unsigned char requestBuffer[CSR_BUFFER_SIZE] = {0};
     err = UA_mbedTLS_compat_writeCsrDer(
@@ -1161,6 +1178,17 @@ UA_mbedTLS_UpdateCertificateAndPrivateKey(UA_SecurityPolicy *securityPolicy,
         UA_mbedTLS_LoadLocalCertificate(&newCertificate, &certificate);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
+
+    /* The key of the certificate must fit the certificate type of the
+     * SecurityPolicy. Custom certificate types are not checked. */
+    retval = UA_CertificateUtils_checkCertificateType(
+        &certificate, &securityPolicy->certificateTypeId);
+    if(retval == UA_STATUSCODE_BADNOTSUPPORTED) {
+        retval = UA_STATUSCODE_GOOD;
+    } else if(retval != UA_STATUSCODE_GOOD) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto cleanup;
+    }
 
     const mbedtls_pk_context *candidateKey = NULL;
     if(newPrivateKey.length > 0) {

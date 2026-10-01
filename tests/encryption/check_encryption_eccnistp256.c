@@ -699,11 +699,6 @@ START_TEST(encryption_update_certificate) {
         {KEY_BP256R1_DER_LENGTH, KEY_BP256R1_DER_DATA}
     };
     for(size_t i = 0; i < 4; i++) {
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-        /* The mbedTLS update does not check the key type yet */
-        if(i > 0)
-            break;
-#endif
         retval = sp->updateCertificate(sp, wrongCertificates[i], wrongKeys[i]);
         ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
         ck_assert_ptr_ne(sp->policyContext, NULL);

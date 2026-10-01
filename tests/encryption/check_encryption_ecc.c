@@ -45,6 +45,10 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #endif
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include <mbedtls/version.h>
+#include <mbedtls/x509_csr.h>
+#endif
 
 /* --- Curve parameter table --- */
 
@@ -594,13 +598,21 @@ checkCsr(const EccCurveTestData *c, const UA_ByteString *csr) {
     ASN1_BIT_STRING_free(usage);
     sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
     X509_REQ_free(req);
+#elif defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER < 0x04000000
+    (void)c;
+    mbedtls_x509_csr req;
+    mbedtls_x509_csr_init(&req);
+    ck_assert_int_eq(mbedtls_x509_csr_parse_der(&req, csr->data, csr->length), 0);
+    ck_assert(req.key_usage & MBEDTLS_X509_KU_DIGITAL_SIGNATURE);
+    ck_assert(!(req.key_usage & MBEDTLS_X509_KU_KEY_ENCIPHERMENT));
+    ck_assert(!(req.key_usage & MBEDTLS_X509_KU_DATA_ENCIPHERMENT));
+    mbedtls_x509_csr_free(&req);
 #else
     (void)c;
     (void)csr;
 #endif
 }
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 /* A certificate on the curve of the policy with a different key pair */
 static UA_ByteString
 createForeignCertificate(const EccCurveTestData *c) {
@@ -625,7 +637,6 @@ createForeignCertificate(const EccCurveTestData *c) {
     UA_ByteString_clear(&privateKey);
     return certificate;
 }
-#endif
 
 /* A failed update leaves the policy unchanged and operational */
 static void
@@ -741,7 +752,6 @@ START_TEST(encryption_update_certificate) {
     retval = sp->updateCertificate(sp, certificate, UA_BYTESTRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
     /* The key of the certificate must fit the curve of the policy */
     EccCurveTestData *other = &eccCurves[(activeCurve + 1) % NUM_ECC_CURVES];
     UA_ByteString otherCertificate = {other->certDerLen, other->certDer};
@@ -755,7 +765,6 @@ START_TEST(encryption_update_certificate) {
     UA_ByteString foreignCertificate = createForeignCertificate(c);
     checkUpdateFails(sp, foreignCertificate, UA_BYTESTRING_NULL);
     UA_ByteString_clear(&foreignCertificate);
-#endif
 
     /* The policy should still be functional after update — connect and read */
     UA_Client *client = createEncryptedClient();
