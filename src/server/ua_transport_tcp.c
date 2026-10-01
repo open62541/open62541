@@ -811,9 +811,15 @@ UA_BinaryProtocolManager_start(UA_Driver *drv) {
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
+    /* The server can keep running without this transport. So don't leave the
+     * housekeeping behind. */
+    bpm->listening = false;
     retVal = bpm->startTransport(bpm);
-    if(retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD) {
+        removeCallback(server, bpm->houseKeepingCallbackId);
+        bpm->houseKeepingCallbackId = 0;
         return retVal;
+    }
 
     /* Set the state to started */
     setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STARTED);
@@ -828,6 +834,7 @@ UA_BinaryProtocolManager_stop(UA_Driver *drv) {
     /* Stop the Housekeeping Task */
     removeCallback(bpm->drv.server, bpm->houseKeepingCallbackId);
     bpm->houseKeepingCallbackId = 0;
+    bpm->listening = false;
 
     /* Stop all SecureChannels */
     UA_SecureChannel *channel, *channelTmp;
@@ -1039,6 +1046,7 @@ startTcpTransport(UA_BinaryProtocolManager *bpm) {
                      "The server has no server socket");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    bpm->listening = true;
 
     /* Update the application description to include the server urls for
      * discovery. Don't add the urls with an empty host (listening on all
