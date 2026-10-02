@@ -884,6 +884,7 @@ struct UA_BinaryProtocolManager {
 
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
+    UA_Boolean listening; /* A server socket was opened at startup */
 
     /* SecureChannels */
     TAILQ_HEAD(, UA_SecureChannel) channels;
@@ -910,6 +911,7 @@ UA_Driver * UA_BinaryProtocolManager_new(void);
 UA_Driver * UA_WebSocketProtocolManager_new(void);
 UA_Driver * UA_HttpProtocolManager_new(void);
 UA_StatusCode UA_HttpProtocolManager_validateConfig(UA_Driver *drv);
+UA_Boolean UA_HttpProtocolManager_isListening(const UA_Driver *drv);
 
 UA_StatusCode registerSecureChannel(UA_Server *server,
                                     UA_SecureChannel *channel);

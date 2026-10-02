@@ -806,6 +806,25 @@ START_TEST(memorystore_limits_final_trust_list) {
 END_TEST
 #endif
 
+#ifdef UA_ENABLE_ENCRYPTION
+START_TEST(detect_accept_all) {
+    UA_CertificateGroup group;
+    memset(&group, 0, sizeof(group));
+    UA_CertificateGroup_AcceptAll(&group);
+    ck_assert(UA_CertificateGroup_isAcceptAll(&group));
+    group.clear(&group);
+
+    memset(&group, 0, sizeof(group));
+    UA_NodeId groupId = UA_NODEID_NUMERIC(0, 1);
+    UA_StatusCode retval =
+        UA_CertificateGroup_Memorystore(&group, &groupId, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(!UA_CertificateGroup_isAcceptAll(&group));
+    group.clear(&group);
+}
+END_TEST
+#endif
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("CertificateGroup");
     TCase *tc_encryption_memorystore = tcase_create("CertificateGroup Memorystore");
@@ -825,6 +844,12 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_memorystore);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    TCase *tc_accept_all = tcase_create("CertificateGroup AcceptAll");
+    tcase_add_test(tc_accept_all, detect_accept_all);
+    suite_add_tcase(s, tc_accept_all);
+#endif
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     TCase *tc_mbedtls_memorystore =

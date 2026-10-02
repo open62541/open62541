@@ -220,9 +220,15 @@ addDriver(UA_Server *server, UA_Driver *drv) {
     drv->next = server->drivers;
     server->drivers = drv;
 
-    /* Start the component if the server is started */
-    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start)
-        drv->start(drv);
+    /* Start the component if the server is started. The driver stays
+     * registered if it cannot be started. */
+    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start) {
+        UA_StatusCode res = drv->start(drv);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not start the driver \"%S\" (%s)",
+                           drv->name, UA_StatusCode_name(res));
+    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -318,6 +324,30 @@ finishShutdown(UA_Server *server) {
     if(res == UA_STATUSCODE_GOOD)
         setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
     return res;
+}
+
+/* Stop the server components and drain the shutdown. Used by
+ * UA_Server_run_shutdown and to undo a failed startup. The caller holds the
+ * server lock. */
+static UA_StatusCode
+serverShutdown(UA_Server *server) {
+    /* Set to stopping and notify the application */
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
+
+#if UA_MULTITHREADING >= 100
+    /* Stop regular callback for async operation processing */
+    UA_AsyncManager_stop(&server->asyncManager, server);
+#endif
+
+    /* Stop the regular housekeeping tasks */
+    if(server->houseKeepingCallbackId != 0) {
+        removeCallback(server, server->houseKeepingCallbackId);
+        server->houseKeepingCallbackId = 0;
+    }
+
+    stopDrivers(server);
+
+    return finishShutdown(server);
 }
 
 /********************/
@@ -933,6 +963,30 @@ verifyServerApplicationUri(const UA_Server *server) {
 #endif
 }
 
+/* The PKI of the default configuration accepts all certificates. Warn once at
+ * startup if it is used with a SecurityPolicy other than #None. */
+static void
+warnAcceptAllPKI(const UA_Server *server) {
+#if defined(UA_ENABLE_ENCRYPTION) && UA_LOGLEVEL <= 400
+    const UA_ServerConfig *sc = &server->config;
+    size_t i = 0;
+    for(; i < sc->securityPoliciesSize; i++) {
+        if(sc->securityPolicies[i].policyType != UA_SECURITYPOLICYTYPE_NONE)
+            break;
+    }
+    if(i == sc->securityPoliciesSize)
+        return;
+    if(UA_CertificateGroup_isAcceptAll(&sc->secureChannelPKI))
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "The SecureChannel PKI accepts all certificates. "
+                       "Configure a trust list for production use.");
+    if(UA_CertificateGroup_isAcceptAll(&sc->sessionPKI))
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "The Session PKI accepts all certificates. "
+                       "Configure a trust list for production use.");
+#endif
+}
+
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
@@ -1100,6 +1154,16 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* The services call these AccessControl callbacks without a NULL check */
+    const UA_AccessControl *ac = &config->accessControl;
+    if(!ac->activateSession || !ac->getUserRightsMask ||
+       !ac->getUserAccessLevel || !ac->getUserExecutable ||
+       !ac->getUserExecutableOnObject || !ac->allowBrowseNode) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "The AccessControl plugin lacks a mandatory callback");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     /* Start the EventLoop if not already started */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = config->eventLoop;
@@ -1124,6 +1188,8 @@ UA_Server_run_startup(UA_Server *server) {
     /* Does the ApplicationUri match the local certificates? */
     verifyServerApplicationUri(server);
 
+    warnAcceptAllPKI(server);
+
     /* Async operation timeouts are only enforced with multithreading */
 #if UA_MULTITHREADING >= 100
     /* Add regulare callback for async operation processing */
@@ -1141,9 +1207,11 @@ UA_Server_run_startup(UA_Server *server) {
     /* Add a regular callback for housekeeping tasks. With a 1s interval. */
     retVal = addRepeatedCallback(server, serverHouseKeeping,
                                  NULL, 1000.0, &server->houseKeepingCallbackId);
-    UA_CHECK_STATUS_ERROR(retVal, unlockServer(server); return retVal,
-                          config->logging, UA_LOGCATEGORY_SERVER,
-                          "Could not create the server housekeeping task");
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "Could not create the server housekeeping task");
+        goto undo;
+    }
 
     /* Ensure that the uri for ns1 is set up from the app description */
     UA_String_clear(&server->namespaces[1]);
@@ -1178,9 +1246,34 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start all drivers */
+    /* Start all drivers. A failed transport aborts the startup only if no
+     * transport listens, as the server cannot be reached then. Other drivers
+     * can fail in normal setups (e.g. mDNS without multicast) and are only
+     * logged. */
+    UA_StatusCode transportRes = UA_STATUSCODE_GOOD;
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
-        drv->start(drv);
+        UA_StatusCode res = drv->start(drv);
+        if(res == UA_STATUSCODE_GOOD)
+            continue;
+        if(drv == server->binaryDriver || drv == server->webSocketDriver ||
+           drv == server->httpDriver) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "Could not start the transport driver \"%S\" (%s)",
+                         drv->name, UA_StatusCode_name(res));
+            if(transportRes == UA_STATUSCODE_GOOD)
+                transportRes = res;
+        } else {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not start the driver \"%S\" (%s)",
+                           drv->name, UA_StatusCode_name(res));
+        }
+    }
+    if(transportRes != UA_STATUSCODE_GOOD &&
+       !((UA_BinaryProtocolManager*)server->binaryDriver)->listening &&
+       !((UA_BinaryProtocolManager*)server->webSocketDriver)->listening &&
+       !UA_HttpProtocolManager_isListening(server->httpDriver)) {
+        retVal = transportRes;
+        goto undo;
     }
 
     /* Set the server to STARTED. From here on, only use
@@ -1196,6 +1289,18 @@ UA_Server_run_startup(UA_Server *server) {
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+
+ undo:
+    /* Undo the startup like UA_Server_run_shutdown */
+    if(serverShutdown(server) != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "Could not stop the server after the failed startup");
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_assert(server->modelChangeSuppressionDepth > 0);
+    server->modelChangeSuppressionDepth--;
+#endif
+    unlockServer(server);
+    return retVal;
 }
 
 UA_UInt16
@@ -1242,24 +1347,7 @@ UA_Server_run_shutdown(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Set to stopping and notify the application */
-    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
-
-#if UA_MULTITHREADING >= 100
-    /* Stop regular callback for async operation processing */
-    UA_AsyncManager_stop(&server->asyncManager, server);
-#endif
-
-    /* Stop the regular housekeeping tasks */
-    if(server->houseKeepingCallbackId != 0) {
-        removeCallback(server, server->houseKeepingCallbackId);
-        server->houseKeepingCallbackId = 0;
-    }
-
-    /* Stop all drivers */
-    stopDrivers(server);
-
-    UA_StatusCode res = finishShutdown(server);
+    UA_StatusCode res = serverShutdown(server);
     unlockServer(server);
     return res;
 }

@@ -615,6 +615,7 @@ readRaw_service_default(UA_Server *server,
                         &historyData[i]->dataValuesSize,
                         &historyData[i]->dataValues);
         }
+        UA_free(range.dimensions);
         if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
             response->results[i].statusCode = getHistoryDataStatusCode;
             continue;

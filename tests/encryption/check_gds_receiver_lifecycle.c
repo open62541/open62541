@@ -260,6 +260,43 @@ START_TEST(removeStoppedReceiver) {
     ck_assert_ptr_eq(methodContext, receiver);
 } END_TEST
 
+#ifdef UA_ENABLE_RBAC
+/* Only the role setup needs the CertificateGroups folder. Without it, the
+ * receiver does not start and leaves no push method behind. */
+START_TEST(failedRoleSetupRemovesMethods) {
+    const UA_NodeId folder = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS);
+    const UA_UInt32 groups[] = {
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP
+    };
+    /* Detach the groups so that they are not deleted with the folder */
+    for(size_t i = 0; i < sizeof(groups) / sizeof(groups[0]); i++) {
+        ck_assert_uint_eq(UA_Server_deleteReference(
+                              server, folder, UA_NS0ID(HASCOMPONENT), true,
+                              UA_EXPANDEDNODEID_NUMERIC(0, groups[i]), true),
+                          UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(UA_Server_deleteNode(server, folder, true),
+                      UA_STATUSCODE_GOOD);
+
+    /* A failed GDS receiver does not abort the server startup */
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    serverStarted = true;
+    ck_assert_uint_ne(receiver->drv.state, UA_LIFECYCLESTATE_STARTED);
+
+    void *methodContext = NULL;
+    ck_assert_uint_eq(UA_Server_getNodeContext(
+                          server,
+                          UA_NODEID_NUMERIC(
+                              0, UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE),
+                          &methodContext),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(methodContext);
+    ck_assert_uint_ne(stageAndApplyCertificateUpdate(), UA_STATUSCODE_GOOD);
+} END_TEST
+#endif
+
 int
 main(void) {
     Suite *suite = suite_create("GDS Receiver lifecycle");
@@ -272,6 +309,9 @@ main(void) {
     tcase_add_test(tc, rejectDuplicateReceiver);
     tcase_add_test(tc, helpersBeforeStartupAndDuringShutdown);
     tcase_add_test(tc, removeStoppedReceiver);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc, failedRoleSetupRemovesMethods);
+#endif
     suite_add_tcase(suite, tc);
 
     SRunner *runner = srunner_create(suite);

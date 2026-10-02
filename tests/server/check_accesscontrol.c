@@ -338,6 +338,28 @@ START_TEST(Server_allowCreateSubscription) {
 } END_TEST
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
+/* The services call these callbacks without a NULL check. So the server does
+ * not start if one of them is missing. */
+START_TEST(Server_nullMandatoryCallback) {
+    server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_AccessControl_default(config, true, NULL, 0, NULL);
+    UA_AccessControl *ac = &config->accessControl;
+    switch(_i) {
+    case 0: ac->activateSession = NULL; break;
+    case 1: ac->getUserRightsMask = NULL; break;
+    case 2: ac->getUserAccessLevel = NULL; break;
+    case 3: ac->getUserExecutable = NULL; break;
+    case 4: ac->getUserExecutableOnObject = NULL; break;
+    default: ac->allowBrowseNode = NULL; break;
+    }
+    ck_assert_uint_eq(UA_Server_run_startup(server),
+                      UA_STATUSCODE_BADCONFIGURATIONERROR);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     UA_LIFECYCLESTATE_STOPPED);
+    UA_Server_delete(server);
+} END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_user = tcase_create("Client User/Password");
@@ -356,6 +378,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_denyCreateSubscription);
     tcase_add_test(tc_server, Server_nullCreateSubscriptionCallback);
 #endif
+    tcase_add_loop_test(tc_server, Server_nullMandatoryCallback, 0, 6);
     suite_add_tcase(s,tc_server);
     return s;
 }

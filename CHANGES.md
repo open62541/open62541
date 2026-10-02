@@ -3,6 +3,31 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Detect a CertificateGroup that accepts all certificates
+
+`UA_CertificateGroup_isAcceptAll` tells whether a CertificateGroup was set up
+with `UA_CertificateGroup_AcceptAll`. The server uses it to warn at startup when
+the SecureChannel or Session PKI accepts all certificates while a SecurityPolicy
+other than #None is configured.
+
+### The AccessControl plugin needs its mandatory callbacks
+
+`UA_Server_run_startup` returns `Bad_ConfigurationError` if one of the
+AccessControl callbacks `activateSession`, `getUserRightsMask`,
+`getUserAccessLevel`, `getUserExecutable`, `getUserExecutableOnObject` or
+`allowBrowseNode` is NULL. Before, the server started and crashed on the first
+request that used it.
+
+### The server startup fails without a server socket
+
+`UA_Server_run_startup` (and so `UA_Server_run` and
+`UA_Server_runUntilInterrupt`) returns an error when a transport (TCP, WebSocket
+or HTTP) cannot open its server socket, e.g. because the port is in use, and no
+other transport listens. The startup is then undone as in
+`UA_Server_run_shutdown`. Before, the server reported success and ran without
+listening. A failed transport next to a listening one is only logged, as are
+failures of other drivers.
+
 ### Removing a PublishedDataSet removes the connected DataSetWriters
 
 `UA_Server_removePublishedDataSet` removes the connected DataSetWriters together

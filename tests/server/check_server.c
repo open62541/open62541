@@ -9,6 +9,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
@@ -145,6 +146,110 @@ START_TEST(checkGetLifecycleState) {
 
     state = UA_Server_getLifecycleState(server);
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+static void
+setLoopbackUrl(UA_ServerConfig *config, UA_UInt16 port) {
+    char url[64];
+    snprintf(url, sizeof(url), "opc.tcp://127.0.0.1:%u", (unsigned)port);
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = UA_String_new();
+    ck_assert_ptr_ne(config->serverUrls, NULL);
+    config->serverUrlsSize = 1;
+    config->serverUrls[0] = UA_STRING_ALLOC(url);
+    config->tcpReuseAddr = false;
+}
+
+/* The second server cannot bind the port of the first one. Without a server
+ * socket its startup fails and leaves it stopped. */
+START_TEST(checkStartupFailsWithoutServerSocket) {
+    /* Let the OS choose an unused port for the first server */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    setLoopbackUrl(config, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0;
+    UA_ApplicationDescription *ad = &config->applicationDescription;
+    for(size_t i = 0; i < ad->discoveryUrlsSize; i++) {
+        UA_String hostname;
+        UA_UInt16 urlPort = 0;
+        if(UA_parseEndpointUrl(&ad->discoveryUrls[i], &hostname,
+                               &urlPort, NULL) == UA_STATUSCODE_GOOD &&
+           urlPort != 0)
+            port = urlPort;
+    }
+    ck_assert_uint_ne(port, 0);
+
+    UA_Server *second = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(second, NULL);
+    setLoopbackUrl(UA_Server_getConfig(second), port);
+    ck_assert_uint_ne(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STOPPED);
+
+    /* Once the port is free, the second server can be started */
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(UA_Server_run_shutdown(second), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(second), UA_STATUSCODE_GOOD);
+} END_TEST
+
+static size_t
+countNoneEndpointTokens(UA_UserTokenType tokenType) {
+    UA_GetEndpointsRequest request;
+    UA_GetEndpointsRequest_init(&request);
+    request.endpointUrl = UA_STRING("opc.tcp://localhost:4840");
+    UA_GetEndpointsResponse response;
+    UA_GetEndpointsResponse_init(&response);
+    lockServer(server);
+    Service_GetEndpoints(server, &server->adminSession, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    size_t count = 0;
+    for(size_t i = 0; i < response.endpointsSize; i++) {
+        const UA_EndpointDescription *ep = &response.endpoints[i];
+        if(!UA_String_equal(&ep->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI))
+            continue;
+        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
+            if(ep->userIdentityTokens[j].tokenType == tokenType)
+                count++;
+        }
+    }
+    UA_GetEndpointsResponse_clear(&response);
+    return count;
+}
+
+/* Without an encrypting SecurityPolicy, ActivateSession rejects x509 and
+ * password tokens on #None. So the #None endpoint does not offer them. */
+START_TEST(checkNoneEndpointUserTokens) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UsernamePasswordLogin login = {UA_STRING_STATIC("user"),
+                                      UA_STRING_STATIC("password")};
+    ck_assert_uint_eq(UA_AccessControl_default(config, true, NULL, 1, &login),
+                      UA_STATUSCODE_GOOD);
+
+    /* The AccessControl offers x509, as the session PKI accepts all */
+    UA_Boolean haveX509 = false;
+    for(size_t i = 0; i < config->accessControl.userTokenPoliciesSize; i++) {
+        if(config->accessControl.userTokenPolicies[i].tokenType ==
+           UA_USERTOKENTYPE_CERTIFICATE)
+            haveX509 = true;
+    }
+    ck_assert(haveX509);
+
+    config->allowNonePolicyPassword = false;
+    ck_assert_uint_gt(countNoneEndpointTokens(UA_USERTOKENTYPE_ANONYMOUS), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_USERNAME), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_CERTIFICATE), 0);
+
+    /* Passwords can be allowed without encryption, x509 tokens cannot */
+    config->allowNonePolicyPassword = true;
+    ck_assert_uint_gt(countNoneEndpointTokens(UA_USERTOKENTYPE_USERNAME), 0);
+    ck_assert_uint_eq(countNoneEndpointTokens(UA_USERTOKENTYPE_CERTIFICATE), 0);
 } END_TEST
 
 /* ---- Additional coverage tests ---- */
@@ -699,6 +804,8 @@ int main(void) {
     tcase_add_test(tc_call, checkServer_run);
     tcase_add_test(tc_call, checkGetStatistics);
     tcase_add_test(tc_call, checkGetLifecycleState);
+    tcase_add_test(tc_call, checkStartupFailsWithoutServerSocket);
+    tcase_add_test(tc_call, checkNoneEndpointUserTokens);
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");

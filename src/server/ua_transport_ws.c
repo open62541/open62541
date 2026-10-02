@@ -262,8 +262,10 @@ startWebSocketTransport(UA_BinaryProtocolManager *bpm) {
                      "opc.wss:// ServerUrl is configured");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
-    if(haveServerSocket)
+    if(haveServerSocket) {
+        bpm->listening = true;
         return UA_STATUSCODE_GOOD;
+    }
 
     UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                  "The server has no WebSocket server socket");

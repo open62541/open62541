@@ -128,7 +128,9 @@ UA_EXPORT UA_StatusCode
 UA_Server_runUntilInterrupt(UA_Server *server);
 
 /* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+ * UA_Server_run or UA_Server_runUntilInterrupt). Fails if a transport (TCP,
+ * WebSocket, HTTP) cannot open its server socket and no other transport
+ * listens. Then the startup is undone as in UA_Server_run_shutdown. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
