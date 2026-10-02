@@ -2389,6 +2389,109 @@ START_TEST(Client_monitoredItem_getSetContext) {
 }
 END_TEST
 
+/* The results of a DeleteMonitoredItems response are indexed like the
+ * MonitoredItemIds of the request. A server that returns more results than
+ * requested must not make the client read MonitoredItemIds past the end of
+ * its own request. */
+START_TEST(Client_monitoredItems_delete_resultsSizeMismatch) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Create two monitored items */
+    UA_UInt32 monIds[2];
+    for(size_t i = 0; i < 2; i++) {
+        UA_MonitoredItemCreateRequest monReq =
+            UA_MonitoredItemCreateRequest_default(
+                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+        UA_MonitoredItemCreateResult monResult =
+            UA_Client_MonitoredItems_createDataChange(client, subId,
+                UA_TIMESTAMPSTORETURN_BOTH, monReq, NULL, dataChangeCallback_ext, NULL);
+        ck_assert_uint_eq(monResult.statusCode, UA_STATUSCODE_GOOD);
+        monIds[i] = monResult.monitoredItemId;
+    }
+
+    /* Request the deletion of the first monitored item only. The response is
+     * injected below instead of taken from the server. */
+    pauseServer();
+
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIds = &monIds[0];
+    deleteRequest.monitoredItemIdsSize = 1;
+    UA_DeleteMonitoredItemsResponse deleteResponse;
+    UA_DeleteMonitoredItemsResponse_init(&deleteResponse);
+    UA_UInt32 requestId = 0;
+    retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest,
+                                                   deleteMonitoredItemsCallback,
+                                                   &deleteResponse, &requestId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Encode a response with two results for the one requested item */
+    UA_StatusCode results[2] = {UA_STATUSCODE_GOOD, UA_STATUSCODE_GOOD};
+    UA_DeleteMonitoredItemsResponse badResponse;
+    UA_DeleteMonitoredItemsResponse_init(&badResponse);
+    badResponse.results = results;
+    badResponse.resultsSize = 2;
+
+    const UA_DataType *responseType =
+        &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE];
+    UA_ByteString encodedType = UA_BYTESTRING_NULL;
+    UA_ByteString encodedResponse = UA_BYTESTRING_NULL;
+    retval = UA_encodeBinary(&responseType->binaryEncodingId,
+                             &UA_TYPES[UA_TYPES_NODEID], &encodedType, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_encodeBinary(&badResponse, responseType, &encodedResponse, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString message;
+    retval = UA_ByteString_allocBuffer(&message, encodedType.length +
+                                       encodedResponse.length);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memcpy(message.data, encodedType.data, encodedType.length);
+    memcpy(message.data + encodedType.length, encodedResponse.data,
+           encodedResponse.length);
+
+    lockClient(client);
+    retval = __Client_processServiceResponsePayload(client, requestId, &message,
+                                                    UA_SECURECHANNEL_ENCODING_BINARY);
+    unlockClient(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The application still sees the response as sent by the server */
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 2);
+
+    /* The internal representation of both monitored items was left alone */
+    void *ctx = NULL;
+    retval = UA_Client_MonitoredItem_getContext(client, subId, monIds[0], &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Client_MonitoredItem_getContext(client, subId, monIds[1], &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString_clear(&message);
+    UA_ByteString_clear(&encodedResponse);
+    UA_ByteString_clear(&encodedType);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    runServer();
+
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_setMonitoringMode) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2756,6 +2859,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_deleteSingle);
     tcase_add_test(tc_client, Client_subscription_setPublishingMode);
     tcase_add_test(tc_client, Client_monitoredItem_getSetContext);
+    tcase_add_test(tc_client, Client_monitoredItems_delete_resultsSizeMismatch);
     tcase_add_test(tc_client, Client_subscription_setMonitoringMode);
     tcase_add_test(tc_client, Client_subscription_setTriggering);
     tcase_add_test(tc_client, Client_subscription_modifyAsync);
