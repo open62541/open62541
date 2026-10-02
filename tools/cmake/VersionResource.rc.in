@@ -1,0 +1,49 @@
+#if defined(__MINGW64__) || defined(__MINGW32__)
+	#if defined(__has_include) && __has_include(<winres.h>)
+		#include <winres.h>
+	#else
+		#include <afxres.h>
+		#include <winresrc.h>
+	#endif
+#else
+	#include <winres.h>
+#endif
+
+#ifdef _DEBUG
+#define FILENAME "@OPEN62541-LIB@@CMAKE_DEBUG_POSTFIX@.dll"
+#else
+#define FILENAME "@OPEN62541-LIB@@CMAKE_RELEASE_POSTFIX@.dll"
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @OPEN62541_VER_MAJOR@,@OPEN62541_VER_MINOR@,@OPEN62541_VER_PATCH@,0
+ PRODUCTVERSION @OPEN62541_VER_MAJOR@,@OPEN62541_VER_MINOR@,@OPEN62541_VER_PATCH@,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040004b0"
+        BEGIN
+            VALUE "CompanyName", "open62541 project"
+            VALUE "FileDescription", "Open source implementation of OPC UA (OPC Unified Architecture) aka IEC 62541"
+            VALUE "FileVersion", "@OPEN62541_VER_MAJOR@.@OPEN62541_VER_MINOR@.@OPEN62541_VER_PATCH@.0"
+            VALUE "InternalName", FILENAME
+            VALUE "LegalCopyright", "Copyright (C) 2024"
+            VALUE "OriginalFilename", FILENAME
+            VALUE "ProductName", "@OPEN62541-LIB@"
+            VALUE "ProductVersion", "@OPEN62541_VER_MAJOR@.@OPEN62541_VER_MINOR@.@OPEN62541_VER_PATCH@.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x400, 1200
+    END
+END
