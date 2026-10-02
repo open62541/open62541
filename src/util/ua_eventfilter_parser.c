@@ -32,6 +32,10 @@ pos2lines(const UA_ByteString content, size_t pos,
 static Operand *
 newOperand(EFParseContext *ctx) {
     Operand *op = (Operand*)UA_calloc(1, sizeof(Operand));
+    if(!op) {
+        ctx->error = UA_STATUSCODE_BADOUTOFMEMORY;
+        return NULL;
+    }
     LIST_INSERT_HEAD(&ctx->operands, op, entries);
     ctx->operandsSize++;
     return op;
@@ -100,6 +104,8 @@ char *
 save_string(char *str) {
     size_t strLen = strlen(str);
     char *local_str = (char*) UA_calloc(strLen + 1, sizeof(char));
+    if(!local_str)
+        return NULL;
     memcpy(local_str, str, strLen + 1);
     return local_str;
 }
@@ -107,6 +113,8 @@ save_string(char *str) {
 Operand *
 create_operand(EFParseContext *ctx, OperandType ot) {
     Operand *on = newOperand(ctx);
+    if(!on)
+        return NULL;
     on->type = ot;
     return on;
 }
@@ -114,6 +122,8 @@ create_operand(EFParseContext *ctx, OperandType ot) {
 Operand *
 create_operator(EFParseContext *ctx, UA_FilterOperator fo) {
     Operand *on = create_operand(ctx, OT_OPERATOR);
+    if(!on)
+        return NULL;
     on->operand.op.filter = fo;
     return on;
 }
