@@ -7,7 +7,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
- * Copyright 2025 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ * Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
@@ -31,6 +31,18 @@ UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id) {
             if(UA_NodeId_equal(&id, &rg->head.identifier))
                 return rg;
         }
+    }
+    return NULL;
+}
+
+UA_ReaderGroup *
+UA_ReaderGroup_findByName(UA_PubSubConnection *c, const UA_String name) {
+    if(UA_String_isEmpty(&name))
+        return NULL;
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(!rg->deleteFlag && UA_String_equal(&name, &rg->config.name))
+            return rg;
     }
     return NULL;
 }
@@ -394,13 +406,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     /* Children evaluate their state machine after the state change of the parent.
      * Keep the current child state as the target state for the child. */
     UA_DataSetReader *dsr;
-    LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        if(psm->pubSubInitialSetupMode && dsr->config.enabled) {
-            UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_PREOPERATIONAL, UA_STATUSCODE_GOOD);
-        } else {
-            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
-        }
-    }
+    LIST_FOREACH(dsr, &rg->readers, listEntry)
+        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
      * the last socket has closed. */
@@ -1254,24 +1261,13 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
-                                  const UA_ReaderGroupConfig *config) {
-    if(!server || !config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    UA_PubSubManager *psm = getPSM(server);
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), rgId);
-    if(!rg) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
+UA_ReaderGroup_updateConfig(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                            const UA_ReaderGroupConfig *config) {
+    UA_LOCK_ASSERT(&psm->drv.server->serviceMutex);
 
     if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg,
                             "The ReaderGroup must be disabled to update the config");
-        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1318,7 +1314,6 @@ UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
 
     /* Clean up and return */
     UA_ReaderGroupConfig_clear(&oldConfig);
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 
  errout:
@@ -1329,6 +1324,25 @@ UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
 #endif
     UA_ReaderGroupConfig_clear(&rg->config);
     rg->config = oldConfig;
+    return retval;
+}
+
+UA_StatusCode
+UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
+                                  const UA_ReaderGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, rgId);
+    if(!rg) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode retval = UA_ReaderGroup_updateConfig(psm, rg, config);
     unlockServer(server);
     return retval;
 }
