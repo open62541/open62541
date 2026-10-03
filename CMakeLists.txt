@@ -160,6 +160,8 @@ mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 # Drivers
 option(UA_ENABLE_DRIVER_GDS_RECEIVER "Enable the GDS Receiver driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_GDS_RECEIVER)
+option(UA_ENABLE_DRIVER_FILE_TRANSFER "Enable the file transfer driver (Part 20)" OFF)
+mark_as_advanced(UA_ENABLE_DRIVER_FILE_TRANSFER)
 option(UA_ENABLE_DRIVER_MDNS_AVAHI "Enable the Avahi mDNS discovery driver" OFF)
 mark_as_advanced(UA_ENABLE_DRIVER_MDNS_AVAHI)
 set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
@@ -1407,6 +1409,28 @@ if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
 
+# The file transfer driver uses the OS-specific file handling definitions.
+# It is appended after the eventloop sources so that the amalgamation
+# integrates the architecture header before the driver code.
+if(UA_ENABLE_DRIVER_FILE_TRANSFER)
+    if(NOT UA_ENABLE_METHODCALLS)
+        message(FATAL_ERROR "The file transfer driver requires UA_ENABLE_METHODCALLS")
+    endif()
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "REDUCED" AND
+       NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "The file transfer driver requires "
+                            "UA_NAMESPACE_ZERO=REDUCED or FULL")
+    endif()
+    list(APPEND exported_headers
+         ${PROJECT_SOURCE_DIR}/include/open62541/driver/file_transfer.h)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/drivers/file_transfer_internal.h)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer_driver.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer_filetype.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer_directory.c
+         ${PROJECT_SOURCE_DIR}/drivers/file_transfer_backend_localfs.c)
+endif()
+
 # For file based server and client configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_config_json.c)
@@ -1561,6 +1585,11 @@ else()
     if(UA_ENABLE_HISTORIZING)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.HistorizingMinimal.xml)
         list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_historizing.txt)
+    endif()
+
+    if(UA_ENABLE_DRIVER_FILE_TRANSFER)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.FileTransferMinimal.xml)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_filetransfer.txt)
     endif()
 
     if(UA_ENABLE_QUERY)

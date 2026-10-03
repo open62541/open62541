@@ -19,6 +19,7 @@
  *    Copyright 2022-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -188,18 +189,17 @@ addDriver(UA_Server *server, UA_Driver *drv) {
     if(!drv)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* A server can expose the GDS PushManagement information model only once. */
-    if(drv->driverType == UA_DRIVERTYPE_GDS_RECEIVER) {
-        UA_Driver *registered = server->drivers;
-        while(registered) {
-            if(registered->driverType == UA_DRIVERTYPE_GDS_RECEIVER) {
-                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                             "Cannot add the driver \"%S\". A GDS Receiver "
-                             "driver is already configured",
-                             drv->name);
-                return UA_STATUSCODE_BADALREADYEXISTS;
-            }
-            registered = registered->next;
+    /* A driver of a dedicated type (e.g. the GDS PushManagement information
+     * model or the file transfer driver) can be added only once */
+    if(drv->driverType != UA_DRIVERTYPE_GENERIC) {
+        for(UA_Driver *registered = server->drivers; registered;
+            registered = registered->next) {
+            if(registered->driverType != drv->driverType)
+                continue;
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "Cannot add the driver \"%S\". A driver of the same "
+                         "type is already configured", drv->name);
+            return UA_STATUSCODE_BADALREADYEXISTS;
         }
     }
 

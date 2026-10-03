@@ -1947,9 +1947,11 @@ UA_Server_deregisterServerOnNetwork(UA_Server *server,
  * Some drivers define core functionality and are added internally in the server
  * implementation. */
 
+/* A driver of a type other than GENERIC can be added only once to a server */
 typedef enum {
     UA_DRIVERTYPE_GENERIC = 0,
-    UA_DRIVERTYPE_GDS_RECEIVER
+    UA_DRIVERTYPE_GDS_RECEIVER,
+    UA_DRIVERTYPE_FILE_TRANSFER
 } UA_DriverType;
 
 struct UA_Driver;

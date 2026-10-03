@@ -147,6 +147,7 @@ function build_amalgamation_mingw_cross {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ARCHITECTURE=win32 \
+          -DUA_ENABLE_DRIVER_FILE_TRANSFER=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -261,6 +262,7 @@ function unit_tests {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DRIVER_FILE_TRANSFER=ON \
           -DUA_ENABLE_COVERAGE=${COVERAGE} \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -547,6 +549,7 @@ function unit_tests_alarms {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_DA=ON \
+          -DUA_ENABLE_DRIVER_FILE_TRANSFER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \
@@ -563,6 +566,7 @@ function unit_tests_alarms_memcheck {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DA=ON \
+          -DUA_ENABLE_DRIVER_FILE_TRANSFER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \

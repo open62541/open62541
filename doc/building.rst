@@ -325,6 +325,12 @@ Detailed SDK Features
 **UA_ENABLE_DIAGNOSTICS**
    Enable diagnostics information exposed by the server. Enabled by default.
 
+**UA_ENABLE_DRIVER_FILE_TRANSFER**
+   Enable the file transfer driver (OPC UA Part 20). It needs
+   ``UA_ENABLE_METHODCALLS`` and ``UA_NAMESPACE_ZERO`` set to ``REDUCED`` or
+   ``FULL``. With the reduced namespace zero, the FileType and
+   FileDirectoryType definitions are added to it. Disabled by default.
+
 **UA_ENABLE_JSON_ENCODING**
    Enable JSON encoding. Enabled by default. The JSON encoding changed with the
    1.05 version of the OPC UA specification.
