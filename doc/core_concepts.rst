@@ -137,7 +137,13 @@ Some numerical attributes are used as bitfields or come with special semantics.
 In particular, see the sections on :ref:`access-level-mask`, :ref:`write-mask`,
 :ref:`valuerank-defines` and :ref:`eventnotifier`.
 
-The AccessRestrictions Attribute is not yet supported by the open62541 server.
+The RolePermissions, UserRolePermissions and AccessRestrictions Attributes are
+supported when the server is built with ``UA_ENABLE_RBAC`` (Part 3,
+§5.2.9-§5.2.11, see :ref:`security-rbac`). They are configured through the
+server API, not written by clients. The AccessRestrictions Attribute reports
+the effective value, including the default of the Node's namespace. Without
+``UA_ENABLE_RBAC``, RolePermissions and AccessRestrictions are not supported
+(``Bad_AttributeIdInvalid``).
 
 VariableNode
 ~~~~~~~~~~~~

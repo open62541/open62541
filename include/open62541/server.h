@@ -2153,6 +2153,8 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              UA_Variant *value);
 
 /**
+ * .. _server-rbac:
+ *
  * Role-Based Access Control (RBAC)
  * --------------------------------
  *

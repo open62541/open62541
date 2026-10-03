@@ -11,6 +11,60 @@ it returns `Bad_ConfigurationError`. Otherwise, while the WriterGroup of a
 connected writer is enabled, it returns `Bad_InvalidState` and changes nothing.
 Before, the PublishedDataSet was freed even when removing a connected writer failed.
 
+### RBAC: Part 18 identity mapping, AccessRestrictions and UserManagement
+
+Servers built with `UA_ENABLE_RBAC` implement the Role model of Part 18:
+
+- The identity mapping rules of a Role are evaluated for all criteria of
+  Part 18 §4.4.2: UserName, Thumbprint, X509Subject (subject or issuer of the
+  user Certificate), Application (the ApplicationUri in the client
+  Certificate), GroupId (new optional `UA_AccessControl::getUserGroups`), Role
+  (claims of an IssuedIdentityToken, new optional
+  `UA_AccessControl::getUserTokenRoles`), Anonymous, AuthenticatedUser and
+  TrustedApplication. TrustedApplication and Application require a validated
+  client Certificate on a SecureChannel with a SecurityPolicy other than None.
+- The Application and Endpoint filters of a Role are enforced; an empty
+  include list grants nothing. Endpoint filters are compared with the
+  configured ServerUrl of the listener that accepted the SecureChannel, not
+  with the URL the client sent.
+- Changes of the RoleSet take effect for active Sessions immediately.
+- `UA_Role` has the new field `customConfiguration` (Part 18 §4.4.1). A Role
+  without Identities is only granted when it is set.
+- The RoleType Methods (AddIdentity ... RemoveEndpoint) are available on every
+  Role Object, and ApplicationsExclude and EndpointsExclude are writable. The
+  RoleSet, the Role Objects and their Methods require SecurityAdmin over an
+  encrypted SecureChannel.
+- `UA_ServerConfig::wellKnownRoleMappings` configures the identity mapping
+  rules of the well-known Roles.
+- AccessRestrictions (Part 3 §5.2.11) are enforced by all services, including
+  Browse, TranslateBrowsePathsToNodeIds and the history services. New API:
+  `UA_Server_setNodeAccessRestrictions`,
+  `UA_Server_getNodeAccessRestrictions` and
+  `UA_Server_setNamespaceDefaultAccessRestrictions`.
+- The UserManagement Object (Part 18 §5) is published when the callbacks
+  `getUsers`, `getPasswordPolicy`, `getUserConfiguration`, `addUser`,
+  `modifyUser`, `removeUser` and `changePassword` of `UA_AccessControl` are
+  configured. A disabled user is refused at ActivateSession like an unknown
+  user.
+- Changes of the Roles emit RoleMappingRuleChangedAuditEventType events. Audit
+  events no longer contain passwords, access tokens, private keys or PubSub
+  security keys.
+- New `UA_CertificateUtils_getRoleSubjectCriteria` (the X509Subject criteria
+  of the subject and the issuer of a Certificate) and
+  `UA_CertificateUtils_getApplicationUri`.
+- The JSON server configuration has a new `rbac` object with `roles`,
+  `wellKnownRoleMappings`, `rolePermissionPresets` and
+  `allPermissionsForAnonymous`.
+- `UA_ENABLE_RBAC` requires `UA_ENABLE_METHODCALLS` and
+  `UA_NAMESPACE_ZERO=FULL`; CMake stops with an error otherwise.
+
+### Events with the full Namespace Zero require Method calls
+
+Building with `UA_NAMESPACE_ZERO=FULL` and `UA_ENABLE_SUBSCRIPTIONS_EVENTS`
+now requires `UA_ENABLE_METHODCALLS`, also without RBAC. CMake stops with an
+error otherwise, since the Alarms & Conditions driver binds the ConditionType
+Methods.
+
 ### PubSub message security with OpenSSL and LibreSSL
 
 The PubSub SecurityPolicies `PubSub-Aes128-CTR` and `PubSub-Aes256-CTR`

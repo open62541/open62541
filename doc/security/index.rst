@@ -4,10 +4,11 @@
 Security
 ========
 
-OPC UA security rests on two layers: the *SecureChannel* protects the wire
-between client and server, and the *Session* authenticates the user on top of
-an open channel.  open62541 ships with a complete, pluggable security stack
-covering both.
+OPC UA security rests on three parts: the *SecureChannel* protects the wire
+between client and server, the *Session* authenticates the user on top of an
+open channel, and *authorization* decides what the authenticated Session may
+do with each Node.  open62541 ships with a complete, pluggable security stack
+covering all three.
 
 This section documents the parts you actually configure and operate:
 
@@ -18,6 +19,7 @@ This section documents the parts you actually configure and operate:
    authentication
    certificates
    ecc
+   rbac
 
 - :doc:`policies` -- the standard OPC UA SecurityPolicies supported by
   open62541 and how to register them on a server.
@@ -30,6 +32,8 @@ This section documents the parts you actually configure and operate:
   and the ``UA_CreateCertificate`` helper.
 - :doc:`ecc` -- ECC specifics: supported curves, certificate requirements,
   generation, and the related examples.
+- :doc:`rbac` -- Role-Based Access Control: Roles, identity mapping,
+  RolePermissions, the default rights and AccessRestrictions.
 
 For the protocol-level overview (SecureChannel, SecurityMode, Endpoint
 discovery) -- see :doc:`../core_concepts`.  This section focuses on the
