@@ -69,6 +69,42 @@ getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Discovery on a client without an open SecureChannel uses a temporary
+ * connection. That sets noSession and the EndpointUrl in the client
+ * configuration. The original values are restored afterwards. */
+typedef struct {
+    UA_String endpointUrl;
+    UA_Boolean noSession;
+} SavedDiscoveryConfig;
+
+static void
+restoreDiscoveryConfig(UA_Client *client, SavedDiscoveryConfig *saved) {
+    UA_String_clear(&client->config.endpointUrl);
+    client->config.endpointUrl = saved->endpointUrl;
+    client->config.noSession = saved->noSession;
+}
+
+static UA_StatusCode
+connectDiscovery(UA_Client *client, const char *serverUrl,
+                 SavedDiscoveryConfig *saved) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+    saved->noSession = client->config.noSession;
+    saved->endpointUrl = client->config.endpointUrl; /* Move */
+    UA_String_init(&client->config.endpointUrl);
+    UA_StatusCode res = connectSecureChannel(client, serverUrl);
+    if(res != UA_STATUSCODE_GOOD)
+        restoreDiscoveryConfig(client, saved);
+    return res;
+}
+
+static void
+disconnectDiscovery(UA_Client *client, SavedDiscoveryConfig *saved) {
+    UA_Client_disconnect(client);
+    lockClient(client);
+    restoreDiscoveryConfig(client, saved);
+    unlockClient(client);
+}
+
 UA_StatusCode
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t *endpointDescriptionsSize,
@@ -85,8 +121,9 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
+    SavedDiscoveryConfig saved = {{0, NULL}, false};
     if(!connected) {
-        retval = connectSecureChannel(client, serverUrl);
+        retval = connectDiscovery(client, serverUrl, &saved);
         if(retval != UA_STATUSCODE_GOOD) {
             unlockClient(client);
             return retval;
@@ -97,7 +134,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
     unlockClient(client);
 
     if(!connected)
-        UA_Client_disconnect(client);
+        disconnectDiscovery(client, &saved);
     return retval;
 }
 
@@ -118,8 +155,9 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
+    SavedDiscoveryConfig saved = {{0, NULL}, false};
     if(!connected) {
-        retval = connectSecureChannel(client, serverUrl);
+        retval = connectDiscovery(client, serverUrl, &saved);
         if(retval != UA_STATUSCODE_GOOD) {
             unlockClient(client);
             return retval;
@@ -157,7 +195,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     /* Clean up */
     UA_FindServersResponse_clear(&response);
     if(!connected)
-        UA_Client_disconnect(client);
+        disconnectDiscovery(client, &saved);
     return retval;
 }
 
@@ -177,8 +215,9 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     }
 
     UA_StatusCode retval;
+    SavedDiscoveryConfig saved = {{0, NULL}, false};
     if(!connected) {
-        retval = connectSecureChannel(client, serverUrl);
+        retval = connectDiscovery(client, serverUrl, &saved);
         if(retval != UA_STATUSCODE_GOOD) {
             unlockClient(client);
             return retval;
@@ -215,6 +254,6 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     /* Clean up */
     UA_FindServersOnNetworkResponse_clear(&response);
     if(!connected)
-        UA_Client_disconnect(client);
+        disconnectDiscovery(client, &saved);
     return retval;
 }

@@ -1196,8 +1196,10 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
             goto cleanup;
         }
+        /* Good subcodes such as GoodNoData and GoodMoreData are regular
+         * results (Part 11, 6.2.2) */
         retval = response.results[0].statusCode;
-        if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
+        if(UA_StatusCode_isBad(retval))
             goto cleanup;
 
         UA_HistoryReadResult *res = response.results;

@@ -13,6 +13,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "client/ua_client_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -242,6 +243,56 @@ START_TEST(noListenWhileConnected) {
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(listenFailureReleasesLock) {
+    /* Without a SecurityPolicy the listen fails */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    size_t securityPoliciesSize = cc->securityPoliciesSize;
+    cc->securityPoliciesSize = 0;
+
+    const UA_String listenHost = UA_STRING("127.0.0.1");
+    UA_StatusCode ret =
+        UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                  reverseListenPort);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* The client lock was released */
+#if UA_MULTITHREADING >= 100
+    ck_assert_uint_eq(client->clientMutex.count, 0);
+#endif
+
+    /* The client remains closed and usable */
+    UA_SecureChannelState channelState;
+    UA_Client_getState(client, &channelState, NULL, NULL);
+    ck_assert_int_eq(channelState, UA_SECURECHANNELSTATE_CLOSED);
+
+    cc->securityPoliciesSize = securityPoliciesSize;
+    listenForReverseConnect();
+    UA_Client_disconnect(client);
+} END_TEST
+
+START_TEST(listenUsesConfiguredEndpoint) {
+    /* The SecurityPolicy of the configured endpoint is unknown */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->endpoint.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->endpoint.securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Unknown");
+
+    const UA_String listenHost = UA_STRING("127.0.0.1");
+    UA_StatusCode ret =
+        UA_Client_startListeningForReverseConnect(client, &listenHost, 1,
+                                                  reverseListenPort);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADINTERNALERROR);
+
+    /* A known SecurityPolicy is used for the reverse connect */
+    cc->endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    UA_String_clear(&cc->endpoint.securityPolicyUri);
+    UA_String_copy(&UA_SECURITY_POLICY_NONE_URI, &cc->endpoint.securityPolicyUri);
+    listenForReverseConnect();
+    ck_assert(UA_String_equal(&client->endpoint.securityPolicyUri,
+                              &UA_SECURITY_POLICY_NONE_URI));
+    UA_Client_disconnect(client);
+} END_TEST
+
 START_TEST(addBeforeStart) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
@@ -442,6 +493,8 @@ int main(void) {
     tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, listenAndTeardown);
     tcase_add_test(tc_call, noListenWhileConnected);
+    tcase_add_test(tc_call, listenFailureReleasesLock);
+    tcase_add_test(tc_call, listenUsesConfiguredEndpoint);
     tcase_add_test(tc_call, addBeforeStart);
     tcase_add_test(tc_call, addAfterStart);
     tcase_add_test(tc_call, checkReconnect);

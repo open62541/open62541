@@ -97,6 +97,25 @@ START_TEST(Client_nsMapping){
     idx = UA_NamespaceMapping_remote2Local(client->channel.namespaceMapping, 3);
     ck_assert_uint_eq(idx, 3);
 
+    /* The mapping is deleted with the SecureChannel. After a reconnect the
+     * NamespaceArray is read again and the same mapping is set up. */
+    UA_Client_disconnect(client);
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(client->channel.namespaceMapping, NULL);
+
+    idx = UA_NamespaceMapping_local2Remote(client->channel.namespaceMapping, 2);
+    ck_assert_uint_eq(idx, 2);
+
+    idx = UA_NamespaceMapping_local2Remote(client->channel.namespaceMapping, 3);
+    ck_assert_uint_eq(idx, 3);
+
+    idx = UA_NamespaceMapping_remote2Local(client->channel.namespaceMapping, 2);
+    ck_assert_uint_eq(idx, 2);
+
+    idx = UA_NamespaceMapping_remote2Local(client->channel.namespaceMapping, 3);
+    ck_assert_uint_eq(idx, 3);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }

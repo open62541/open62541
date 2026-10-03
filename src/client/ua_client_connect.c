@@ -123,6 +123,15 @@ endpointUnconfigured(const UA_EndpointDescription *endpoint) {
     return UA_equal(&tmp, endpoint, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 }
 
+/* An exact endpoint was configured. Use it. */
+static UA_StatusCode
+useConfiguredEndpoint(UA_Client *client) {
+    if(endpointUnconfigured(&client->config.endpoint))
+        return UA_STATUSCODE_GOOD;
+    UA_EndpointDescription_clear(&client->endpoint);
+    return UA_EndpointDescription_copy(&client->config.endpoint, &client->endpoint);
+}
+
 UA_Boolean
 isFullyConnected(UA_Client *client) {
     /* No SecureChannel */
@@ -815,6 +824,8 @@ UA_Client_renewSecureChannel(UA_Client *client) {
 static void
 responseReadNamespacesArray(UA_Client *client, void *userdata,
                             UA_UInt32 requestId, void *response) {
+    /* The handshake is done also if the read fails. Otherwise the client never
+     * becomes fully connected. The flag is reset when the channel closes. */
     client->namespacesHandshake = false;
     client->haveNamespaces = true;
 
@@ -845,6 +856,7 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
                      "Read NamespaceArray returned too few entries");
         return;
     }
+    UA_String_clear(&client->namespaces[1]);
     UA_String_copy(&ns[1], &client->namespaces[1]);
     for(size_t i = 2; i < nsSize; ++i) {
         UA_UInt16 nsIndex = 0;
@@ -2427,8 +2439,11 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * Requests immediately. */
         __Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
-        /* Clean up the channel and set the status to CLOSED */
+        /* Clean up the channel and set the status to CLOSED. This deletes the
+         * NamespaceMapping. Read the NamespaceArray again after the next
+         * Session activation. */
         UA_SecureChannel_clear(&client->channel);
+        client->haveNamespaces = false;
 
         /* The connection closed before it actually opened. Since we are
          * connecting asynchronously, this happens when the transport connection
@@ -2549,16 +2564,10 @@ initConnect(UA_Client *client) {
         return;
     }
 
-    UA_StatusCode res = UA_STATUSCODE_BADNOTSUPPORTED;
-
-    /* An exact endpoint was configured. Use it. */
-    if(!endpointUnconfigured(&client->config.endpoint)) {
-        UA_EndpointDescription_clear(&client->endpoint);
-        res = UA_EndpointDescription_copy(&client->config.endpoint, &client->endpoint);
-        if(res != UA_STATUSCODE_GOOD) {
-            setConnectStatus(client, res);
-            return;
-        }
+    UA_StatusCode res = useConfiguredEndpoint(client);
+    if(res != UA_STATUSCODE_GOOD) {
+        setConnectStatus(client, res);
+        return;
     }
 
     /* Start the EventLoop if not already started */
@@ -2572,6 +2581,7 @@ initConnect(UA_Client *client) {
 
     /* Initialize the SecureChannel */
     UA_SecureChannel_clear(&client->channel);
+    client->haveNamespaces = false;
     client->channel.config = client->config.localConnectionConfig;
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
     client->channel.processOPNHeaderApplication = client;
@@ -2806,6 +2816,14 @@ connectInternal(UA_Client *client, UA_Boolean async) {
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
+
+    /* The sync connect has its own deadline. The async connect is aborted in
+     * the housekeeping when it is not fully connected within the timeout. */
+    client->connectDeadline = 0;
+    UA_EventLoop *el = client->config.eventLoop;
+    if(async && el && client->config.timeout > 0)
+        client->connectDeadline = el->dateTime_nowMonotonic(el) +
+            ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     if(async)
         initConnect(client);
@@ -3092,17 +3110,25 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
     client->connectStatus = UA_STATUSCODE_GOOD;
+    client->connectDeadline = 0; /* No deadline for a reverse connect */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
     UA_SecureChannel_init(&client->channel);
+    client->haveNamespaces = false;
     client->channel.config = client->config.localConnectionConfig;
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
     client->channel.processOPNHeaderApplication = client;
     client->channel.connectionId = 0;
 
-    setConnectStatus(client, initSecurityPolicy(client, NULL));
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
+    /* Initialize the SecurityPolicy from the configured endpoint (if any) */
+    res = useConfiguredEndpoint(client);
+    if(res == UA_STATUSCODE_GOOD)
+        res = initSecurityPolicy(client, NULL);
+    setConnectStatus(client, res);
+    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+        unlockClient(client);
         return client->connectStatus;
+    }
 
     UA_EventLoop *el = client->config.eventLoop;
     if(!el) {
@@ -3270,6 +3296,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
      * explicitly closed */
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
+
+    /* An ongoing async connect is cancelled */
+    client->connectDeadline = 0;
 
     /* Manually set the status to closed to prevent an automatic reconnection.
      * Do this before closing because some ConnectionManagers report the close

@@ -248,6 +248,69 @@ START_TEST(Client_HistorizingReadRawAll) {
 }
 END_TEST
 
+/* A backend that has no data for any range */
+static UA_StatusCode
+getHistoryDataNoData(UA_Server *s, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_HistoryDataBackend *backend,
+                     const UA_DateTime start, const UA_DateTime end,
+                     const UA_NodeId *nodeId, size_t maxSizePerResponse,
+                     UA_UInt32 numValuesPerNode, UA_Boolean returnBounds,
+                     UA_TimestampsToReturn timestampsToReturn,
+                     UA_NumericRange range, UA_Boolean releaseContinuationPoints,
+                     const UA_ByteString *continuationPoint,
+                     UA_ByteString *outContinuationPoint,
+                     UA_HistoryData *result) {
+    return UA_STATUSCODE_GOODNODATA;
+}
+
+static size_t noDataCallbackCount;
+
+static UA_Boolean
+noDataCallback(UA_Client *clt, const UA_NodeId *nodeId,
+               UA_Boolean moreDataAvailable, const UA_ExtensionObject *data,
+               void *callbackContext) {
+    UA_HistoryData *hd = (UA_HistoryData*)data->content.decoded.data;
+    ck_assert_uint_eq(hd->dataValuesSize, 0);
+    noDataCallbackCount++;
+    return true;
+}
+
+START_TEST(Client_HistorizingReadRawNoData) {
+    /* A historizing node without data */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_HISTORYREAD;
+    attr.historizing = true;
+    UA_NodeId noDataNodeId = UA_NODEID_STRING(1, "no.data");
+    UA_StatusCode ret =
+        UA_Server_addVariableNode(server, noDataNodeId, parentNodeId,
+                                  parentReferenceNodeId,
+                                  UA_QUALIFIEDNAME(1, "no data"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = UA_HistoryDataBackend_Memory(1, 1);
+    setting.historizingBackend.getHistoryData = getHistoryDataNoData;
+    setting.maxHistoryDataResponseSize = 100;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    ret = gathering->registerNodeId(server, gathering->context,
+                                    &noDataNodeId, setting);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    /* GoodNoData reaches the callback */
+    noDataCallbackCount = 0;
+    ret = UA_Client_HistoryRead_raw(client, &noDataNodeId, noDataCallback,
+                                    TESTDATA_START_TIME, TESTDATA_STOP_TIME,
+                                    UA_STRING_NULL, false, 100,
+                                    UA_TIMESTAMPSTORETURN_BOTH, NULL);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOODNODATA);
+    ck_assert_uint_eq(noDataCallbackCount, 1);
+
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
+}
+END_TEST
+
 START_TEST(Client_HistorizingDeniedByUserAccessLevel) {
     lockServer(server);
     UA_Server_getConfig(server)->accessControl.getUserAccessLevel = denyHistoryAccess;
@@ -684,6 +747,7 @@ testSuite_Client(void) {
     tcase_add_test(tc_client, Client_HistorizingReadRawAllInv);
     tcase_add_test(tc_client, Client_HistorizingReadRawOneInv);
     tcase_add_test(tc_client, Client_HistorizingReadRawTwoInv);
+    tcase_add_test(tc_client, Client_HistorizingReadRawNoData);
     tcase_add_test(tc_client, Client_HistorizingInsertRawSuccess);
     tcase_add_test(tc_client, Client_HistorizingReplaceRawSuccess);
     tcase_add_test(tc_client, Client_HistorizingUpdateRawSuccess);
