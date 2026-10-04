@@ -8,6 +8,9 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "server/ua_subscription.h"
+#ifdef UA_ENABLE_RBAC
+#include "server/ua_server_rbac.h"
+#endif
 
 #include <check.h>
 #include <math.h>
@@ -220,7 +223,7 @@ createSubscription(void) {
 }
 
 static void
-createMonitoredItem(void) {
+createMonitoredItemForAttribute(UA_UInt32 attributeId) {
     UA_CreateMonitoredItemsRequest request;
     UA_CreateMonitoredItemsRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -230,7 +233,7 @@ createMonitoredItem(void) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.attributeId = attributeId;
     rvi.indexRange = UA_STRING_NULL;
     item.itemToMonitor = rvi;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
@@ -256,6 +259,11 @@ createMonitoredItem(void) {
 
     UA_MonitoredItemCreateRequest_clear(&item);
     UA_CreateMonitoredItemsResponse_clear(&response);
+}
+
+static void
+createMonitoredItem(void) {
+    createMonitoredItemForAttribute(UA_ATTRIBUTEID_BROWSENAME);
 }
 
 START_TEST(Server_createSubscription) {
@@ -1342,6 +1350,49 @@ START_TEST(Server_transferSubscription_anonymous) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_RBAC
+START_TEST(Server_transferSubscription_rejectsDifferentRoles) {
+    lockServer(server);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("testuser");
+    UA_NodeId oldRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session, &oldRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    createSubscription();
+    createMonitoredItem();
+    UA_Session *session2 = createAuthenticatedSession("testuser");
+    lockServer(server);
+    UA_NodeId newRole =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    ck_assert_uint_eq(UA_Session_setRoles(server, session2, &newRole, 1),
+                      UA_STATUSCODE_GOOD);
+    unlockServer(server);
+
+    UA_TransferSubscriptionsRequest request;
+    UA_TransferSubscriptionsRequest_init(&request);
+    request.subscriptionIdsSize = 1;
+    request.subscriptionIds = &subscriptionId;
+    UA_TransferSubscriptionsResponse response;
+    UA_TransferSubscriptionsResponse_init(&response);
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_TransferSubscriptionsResponse_clear(&response);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+}
+END_TEST
+#endif
+
 /* --- Extended coverage tests --- */
 
 START_TEST(Server_setTriggering_nothingToDo) {
@@ -1840,6 +1891,53 @@ START_TEST(Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable) {
     createSession();
 }END_TEST
 
+/* A detached Subscription keeps sampling its MonitoredItems without a Session.
+ * The attributes gated by RBAC must then be denied instead of dereferencing the
+ * missing Session. */
+START_TEST(Server_detachedSubscriptionSamplesWithoutSession) {
+    const UA_UInt32 attributeIds[] = {
+        UA_ATTRIBUTEID_BROWSENAME, UA_ATTRIBUTEID_DISPLAYNAME,
+#ifdef UA_ENABLE_RBAC
+        UA_ATTRIBUTEID_ROLEPERMISSIONS
+#endif
+    };
+    const size_t attributeIdsSize = sizeof(attributeIds) / sizeof(attributeIds[0]);
+    UA_UInt32 itemIds[3];
+
+    createSubscription();
+    for(size_t i = 0; i < attributeIdsSize; i++) {
+        createMonitoredItemForAttribute(attributeIds[i]);
+        itemIds[i] = monitoredItemId;
+    }
+
+    /* Force a session timeout. The Subscription survives detached. */
+    lockServer(server);
+    session->validTill = UA_DateTime_nowMonotonic() - UA_DATETIME_SEC;
+    cleanupSessions(server, UA_DateTime_nowMonotonic());
+    unlockServer(server);
+    session = NULL;
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_ptr_eq(sub->session, NULL);
+    for(size_t i = 0; i < attributeIdsSize; i++) {
+        UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, itemIds[i]);
+        ck_assert_ptr_ne(mon, NULL);
+        UA_MonitoredItem_sample(server, mon);
+#ifdef UA_ENABLE_RBAC
+        UA_Notification *notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+        ck_assert_ptr_ne(notification, NULL);
+        ck_assert(notification->data.dataChange.value.hasStatus);
+        ck_assert_uint_eq(notification->data.dataChange.value.status,
+                          UA_STATUSCODE_BADUSERACCESSDENIED);
+#endif
+    }
+    unlockServer(server);
+
+    createSession();
+}END_TEST
+
 /* Companion to the previous test: a custom allowTransferSubscription hook
  * re-enables transfer of a detached subscription for the same user. Documents
  * that the default policy can be overridden for this scenario. */
@@ -1897,21 +1995,39 @@ START_TEST(Server_subscriptionRecoverableWithOverride) {
 
     ck_assert_uint_eq(transferResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(transferResponse.resultsSize, 1);
-    ck_assert_uint_eq(transferResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+#ifdef UA_ENABLE_RBAC
+    UA_StatusCode expectedTransferStatus = UA_STATUSCODE_BADUSERACCESSDENIED;
+#else
+    UA_StatusCode expectedTransferStatus = UA_STATUSCODE_GOOD;
+#endif
+    ck_assert_uint_eq(transferResponse.results[0].statusCode,
+                      expectedTransferStatus);
     UA_TransferSubscriptionsResponse_clear(&transferResponse);
 
-    /* Re-attached to the new session */
+    /* RBAC cannot compare the former authorization context once its Session
+     * has gone away, so a custom identity hook cannot recover the detached
+     * Subscription in that build. */
     lockServer(server);
     sub = getSubscriptionById(server, subscriptionId);
     unlockServer(server);
     ck_assert_ptr_ne(sub, NULL);
+#ifdef UA_ENABLE_RBAC
+    ck_assert_ptr_eq(sub->session, NULL);
+#else
     ck_assert_ptr_eq(sub->session, session2);
+#endif
 
     /* Restore hook before cleanup so other tests see the default policy. */
     ac->allowTransferSubscription = prevHook;
     recoverOverrideExpectedUser = NULL;
 
     /* Cleanup */
+#ifdef UA_ENABLE_RBAC
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+    createSession();
+#else
     UA_DeleteSubscriptionsRequest delRequest;
     UA_DeleteSubscriptionsRequest_init(&delRequest);
     delRequest.subscriptionIdsSize = 1;
@@ -1932,6 +2048,7 @@ START_TEST(Server_subscriptionRecoverableWithOverride) {
     unlockServer(server);
 
     createSession();
+#endif
 }END_TEST
 
 /* DataSource nodes with SamplingInterval=0 must use PUBLISH (periodic) sampling,
@@ -2685,6 +2802,9 @@ static Suite* testSuite_Client(void) {
                    Server_diagnosticsRejectLongBrowseNames);
 #endif
     tcase_add_test(tc_server, Server_transferSubscription_anonymous);
+#ifdef UA_ENABLE_RBAC
+    tcase_add_test(tc_server, Server_transferSubscription_rejectsDifferentRoles);
+#endif
     tcase_add_test(tc_server, Server_setTriggering_nothingToDo);
     tcase_add_test(tc_server, Server_setTriggering_invalidSubscription);
     tcase_add_test(tc_server, Server_setTriggering_invalidMonitoredItem);
@@ -2699,6 +2819,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_transferSubscription_keepsMonitoredItemsTree);
     tcase_add_test(tc_server, Server_deleteMonitoredItems_partial_keepsTreeConsistent);
     tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable);
+    tcase_add_test(tc_server, Server_detachedSubscriptionSamplesWithoutSession);
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);
     tcase_add_test(tc_server, Server_monitoredItems_sameNode_list);

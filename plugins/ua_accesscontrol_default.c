@@ -16,6 +16,11 @@ UA_Server_getEffectivePermissions(UA_Server *server,
                                   const UA_NodeId *sessionId,
                                   const UA_NodeId *nodeId,
                                   UA_PermissionType *effectivePermissions);
+UA_StatusCode
+UA_Server_getEffectiveNamespacePermissions(UA_Server *server,
+                                           const UA_NodeId *sessionId,
+                                           UA_UInt16 namespaceIndex,
+                                           UA_PermissionType *effectivePermissions);
 #endif
 
 /* Example access control management. Anonymous and username / password login.
@@ -274,16 +279,16 @@ getUserExecutableOnObject_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
-/* AddNode permission is checked on the parent node. */
+/* AddNode is granted by the target Namespace's default permissions. */
 static UA_Boolean
 allowAddNode_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext,
                      const UA_AddNodesItem *item) {
 #ifdef UA_ENABLE_RBAC
     UA_PermissionType effectivePerms = 0;
-    UA_StatusCode res = UA_Server_getEffectivePermissions(server, sessionId,
-                                                          &item->parentNodeId.nodeId,
-                                                          &effectivePerms);
+    UA_StatusCode res = UA_Server_getEffectiveNamespacePermissions(
+        server, sessionId, item->requestedNewNodeId.nodeId.namespaceIndex,
+        &effectivePerms);
     if(res != UA_STATUSCODE_GOOD || effectivePerms == 0xFFFFFFFF)
         return true;
     return (effectivePerms & UA_PERMISSIONTYPE_ADDNODE) != 0;

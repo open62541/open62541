@@ -426,7 +426,13 @@ START_TEST(async_readRbacAttributes) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     iterateClient(client);
     ck_assert(asyncCallbackDone);
+#ifdef UA_ENABLE_RBAC
+    /* With RBAC the attribute reports the effective AccessRestrictions of the
+     * Node (Part 3 §5.2.11) instead of being unsupported. */
+    ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_GOOD);
+#else
     ck_assert_uint_eq(asyncOperationStatus, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+#endif
     disconnectClient(client);
 } END_TEST
 

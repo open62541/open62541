@@ -594,6 +594,8 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->constructed = srchead->constructed;
 #ifdef UA_ENABLE_RBAC
     dsthead->permissionIndex = srchead->permissionIndex;
+    dsthead->accessRestrictions = srchead->accessRestrictions;
+    dsthead->hasAccessRestrictions = srchead->hasAccessRestrictions;
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     dsthead->monitoredItems = NULL;
