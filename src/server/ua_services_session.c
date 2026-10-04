@@ -1427,9 +1427,12 @@ Service_Cancel(UA_Server *server, UA_Session *session,
             SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
         session->responseQueueSize--;
 
-        /* Send response and clean up */
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
-        sendResponse(server, session->channel, pre->requestId, (UA_Response *)response,
+        /* Cancel the queued Publish response. Keep the CancelResponse good
+         * so the client receives the number of cancelled requests. */
+        pre->response.responseHeader.serviceResult =
+            UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        sendResponse(server, session->channel, pre->requestId,
+                     (UA_Response *)&pre->response,
                      &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(&pre->response);
         UA_free(pre);

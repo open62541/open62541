@@ -28,7 +28,9 @@
 #include <open62541/plugin/historydatabase.h>
 #endif
 
+/* Indexed by the AttributeId, which starts at 1 */
 static const UA_NodeAttributesMask attr2mask[28] = {
+    UA_NODEATTRIBUTESMASK_NONE,
     UA_NODEATTRIBUTESMASK_NODEID,
     UA_NODEATTRIBUTESMASK_NODECLASS,
     UA_NODEATTRIBUTESMASK_BROWSENAME,
