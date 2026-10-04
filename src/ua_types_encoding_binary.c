@@ -1245,6 +1245,10 @@ DECODE_BINARY(Variant) {
      * for types up to DiagnsticInfo equals to the index in the encoding
      * byte. */
     size_t typeKind = (size_t)((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
+    /* Reserved wire type ids 26..31 contain ByteStrings (Part 6, 5.2.2.16).
+     * Normalize them to ByteString; the original reserved id is not retained. */
+    if(typeKind >= 25 && typeKind <= 30)
+        typeKind = UA_DATATYPEKIND_BYTESTRING;
     UA_CHECK(typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO, return UA_STATUSCODE_BADDECODINGERROR);
 
     /* A variant cannot contain a variant. But it can contain an array of

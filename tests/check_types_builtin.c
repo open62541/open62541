@@ -1885,6 +1885,91 @@ START_TEST(UA_Variant_decodeNullEncodingId) {
     UA_Variant_clear(&v);
 } END_TEST
 
+START_TEST(UA_Variant_decodeReservedTypeIds) {
+    UA_Byte scalar[] = {0, 3, 0, 0, 0, 0x00, 0x80, 0xff};
+    UA_Byte nullScalar[] = {0, 0xff, 0xff, 0xff, 0xff};
+    UA_Byte emptyScalar[] = {0, 0, 0, 0, 0};
+    UA_Byte nullArray[] = {0x80, 0xff, 0xff, 0xff, 0xff};
+    UA_Byte emptyArray[] = {0x80, 0, 0, 0, 0};
+    UA_Byte array[] = {0x80, 2, 0, 0, 0,
+                      3, 0, 0, 0, 0x00, 0x80, 0xff,
+                      1, 0, 0, 0, 0x05};
+    UA_Byte matrix[] = {0xc0, 2, 0, 0, 0,
+                       3, 0, 0, 0, 0x00, 0x80, 0xff,
+                       1, 0, 0, 0, 0x05,
+                       2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
+    UA_ByteString inputs[] = {
+        {sizeof(scalar), scalar}, {sizeof(nullScalar), nullScalar},
+        {sizeof(emptyScalar), emptyScalar}, {sizeof(nullArray), nullArray},
+        {sizeof(emptyArray), emptyArray}, {sizeof(array), array},
+        {sizeof(matrix), matrix}
+    };
+
+    for(UA_Byte id = 26; id <= 31; id++) {
+        for(size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+            UA_ByteString *input = &inputs[i];
+            UA_Byte flags = input->data[0] & 0xc0;
+            input->data[0] = flags | id;
+            UA_Variant v;
+            size_t offset = 0;
+            ck_assert_uint_eq(UA_decodeBinaryInternal(input, &offset, &v,
+                              &UA_TYPES[UA_TYPES_VARIANT], NULL), UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(offset, input->length);
+            ck_assert_ptr_eq(v.type, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            ck_assert_int_eq(UA_Variant_isScalar(&v), flags == 0);
+            if(flags & 0x80)
+                ck_assert_uint_eq(v.arrayLength, i >= 5 ? 2 : 0);
+            if(flags & 0x40) {
+                ck_assert_uint_eq(v.arrayDimensionsSize, 2);
+                ck_assert_uint_eq(v.arrayDimensions[0], 1);
+                ck_assert_uint_eq(v.arrayDimensions[1], 2);
+            }
+
+            /* Preserve payload, null/empty distinctions and dimensions, but
+             * re-encode with the ordinary ByteString wire type id (15). */
+            UA_ByteString encoded = UA_BYTESTRING_NULL;
+            ck_assert_uint_eq(UA_encodeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT],
+                                              &encoded), UA_STATUSCODE_GOOD);
+            input->data[0] = flags | 15;
+            ck_assert(UA_ByteString_equal(input, &encoded));
+            UA_ByteString_clear(&encoded);
+            UA_Variant_clear(&v);
+        }
+    }
+} END_TEST
+
+START_TEST(UA_Variant_decodeReservedTypeIdsMalformed) {
+    UA_Byte scalar[] = {0, 3, 0, 0, 0, 0x00, 0x80, 0xff};
+    UA_Byte matrix[] = {0xc0, 2, 0, 0, 0,
+                       1, 0, 0, 0, 0x05, 1, 0, 0, 0, 0x06,
+                       2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
+    UA_ByteString inputs[] = {{sizeof(scalar), scalar}, {sizeof(matrix), matrix}};
+    for(UA_Byte id = 26; id <= 31; id++) {
+        scalar[0] = id;
+        matrix[0] = 0xc0 | id;
+        for(size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+            for(size_t length = 1; length < inputs[i].length; length++) {
+                UA_ByteString truncated = {length, inputs[i].data};
+                UA_Variant v;
+                ck_assert_uint_eq(UA_decodeBinary(&truncated, &v,
+                                  &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                                  UA_STATUSCODE_BADDECODINGERROR);
+                UA_Variant_clear(&v);
+            }
+        }
+    }
+
+    /* Only ids 26..31 are normalized; higher ids still fail. */
+    for(UA_Byte id = 32; id <= 63; id++) {
+        scalar[0] = id;
+        UA_Variant v;
+        ck_assert_uint_eq(UA_decodeBinary(&inputs[0], &v,
+                          &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                          UA_STATUSCODE_BADDECODINGERROR);
+        UA_Variant_clear(&v);
+    }
+} END_TEST
+
 START_TEST(UA_Variant_decodeScalarDimensions) {
     /* Reject the illegal flag even without trailing bytes. */
     UA_Byte data[] = {0x46, 0xff, 0xff, 0xff, 0xff, 0xde, 0xad, 0xbe, 0xef};
@@ -1937,6 +2022,8 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_decode, UA_Variant_decodeWithTooSmallSourceShallReturnWithError);
     tcase_add_test(tc_decode, UA_ExtensionObject_decodeNullEncodingId);
     tcase_add_test(tc_decode, UA_Variant_decodeNullEncodingId);
+    tcase_add_test(tc_decode, UA_Variant_decodeReservedTypeIds);
+    tcase_add_test(tc_decode, UA_Variant_decodeReservedTypeIdsMalformed);
     tcase_add_test(tc_decode, UA_Variant_decodeScalarDimensions);
     suite_add_tcase(s, tc_decode);
 
