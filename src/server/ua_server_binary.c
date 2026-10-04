@@ -484,9 +484,15 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Currently not checked */
-    UA_String_copy(&helloMessage.endpointUrl, &channel->endpointUrl);
+    if(helloMessage.endpointUrl.length > 4096) {
+        UA_String_clear(&helloMessage.endpointUrl);
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    }
+
+    retval = UA_String_copy(&helloMessage.endpointUrl, &channel->endpointUrl);
     UA_String_clear(&helloMessage.endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Parameterize the connection. The TcpHelloMessage casts to a
      * TcpAcknowledgeMessage. */
