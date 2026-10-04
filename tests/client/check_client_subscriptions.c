@@ -1390,6 +1390,71 @@ START_TEST(Client_subscription_createDataChanges_async) {
 }
 END_TEST
 
+typedef struct {
+    UA_UInt32 requestId;
+    UA_UInt32 requestHandle;
+    UA_Boolean received;
+} CancelledPublish;
+
+static void
+cancelledPublishCallback(UA_Client *client, void *userdata,
+                         UA_UInt32 requestId, void *response) {
+    CancelledPublish *expected = (CancelledPublish*)userdata;
+    UA_PublishResponse *pr = (UA_PublishResponse*)response;
+    ck_assert(!expected->received);
+    ck_assert_uint_eq(requestId, expected->requestId);
+    ck_assert_uint_eq(pr->responseHeader.requestHandle, expected->requestHandle);
+    ck_assert_uint_eq(pr->responseHeader.serviceResult,
+                      UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT);
+    expected->received = true;
+}
+
+START_TEST(Client_cancelQueuedPublish) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    /* Interleave matching and non-matching handles to exercise removal from
+     * both the head and the tail, while preserving the middle request. */
+    CancelledPublish pending[3] = {{0, 1234, false}, {0, 5678, false}, {0, 1234, false}};
+    for(size_t i = 0; i < 3; i++) {
+        UA_PublishRequest pr;
+        UA_PublishRequest_init(&pr);
+        pr.requestHeader.requestHandle = pending[i].requestHandle;
+        pr.requestHeader.timeoutHint = 60000;
+        ck_assert_uint_eq(__UA_Client_AsyncService(
+            client, &pr, &UA_TYPES[UA_TYPES_PUBLISHREQUEST], cancelledPublishCallback,
+            &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], &pending[i], &pending[i].requestId),
+            UA_STATUSCODE_GOOD);
+    }
+
+    UA_UInt32 count = 0;
+    ck_assert_uint_eq(UA_Client_cancelByRequestHandle(client, 1234, &count),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(count, 2);
+    ck_assert(pending[0].received);
+    ck_assert(!pending[1].received);
+    ck_assert(pending[2].received);
+
+    ck_assert_uint_eq(UA_Client_cancelByRequestHandle(client, 5678, &count),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(count, 1);
+    ck_assert(pending[1].received);
+    ck_assert_uint_eq(UA_Client_cancelByRequestHandle(client, 1234, &count),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(count, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(Client_subscription_keepAlive) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2744,6 +2809,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_createDataChanges_negativeInterval);
     tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
     tcase_add_test(tc_client, Client_subscription_createDataChanges_async);
+    tcase_add_test(tc_client, Client_cancelQueuedPublish);
     tcase_add_test(tc_client, Client_subscription_keepAlive);
     tcase_add_test(tc_client, Client_subscription_priority);
     tcase_add_test(tc_client, Client_subscription_without_notification);

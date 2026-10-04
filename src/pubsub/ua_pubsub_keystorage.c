@@ -32,6 +32,27 @@ static void sksClientCleanupCb(void *client, void *context);
 static void addDelayedSksClientCleanupCb(UA_Client *client,
                                          sksClientContext *context);
 
+static void
+detachSksClientConfigPlugins(UA_ClientConfig *config) {
+    /* These plugins are shallow-copied and owned by the key storage. Keep the
+     * external event loop available until the temporary client is deleted. */
+    config->securityPolicies = NULL;
+    config->securityPoliciesSize = 0;
+    config->authSecurityPolicies = NULL;
+    config->authSecurityPoliciesSize = 0;
+    config->securityPolicyHistory = NULL;
+    config->certificateVerification.context = NULL;
+    config->logging = NULL;
+    config->customDataTypes = NULL;
+}
+
+static void
+prepareSksClientForDelete(UA_Client *client) {
+    client->config.stateCallback = NULL;
+    detachSksClientConfigPlugins(&client->config);
+    client->config.clientContext = NULL;
+}
+
 UA_PubSubKeyStorage *
 UA_PubSubKeyStorage_find(UA_PubSubManager *psm, UA_String securityGroupId) {
     if(!psm)
@@ -58,19 +79,6 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyU
             return &config->pubSubConfig.securityPolicies[i];
     }
     return NULL;
-}
-
-static void
-prepareSksClientForDelete(UA_Client *client) {
-    client->config.stateCallback = NULL;
-    /* These members are borrowed from the key-storage client configuration. */
-    client->config.securityPolicies = NULL;
-    client->config.securityPoliciesSize = 0;
-    client->config.authSecurityPolicies = NULL;
-    client->config.authSecurityPoliciesSize = 0;
-    client->config.certificateVerification.context = NULL;
-    client->config.logging = NULL;
-    client->config.clientContext = NULL;
 }
 
 void
@@ -941,6 +949,7 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
     /* this is cleanedup in sksClientCleanupCb */
     sksClientContext *ctx   = (sksClientContext *)UA_calloc(1, sizeof(sksClientContext));
     if(!ctx) {
+        detachSksClientConfigPlugins(&cc);
         UA_ClientConfig_clear(&cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -957,6 +966,7 @@ getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *k
     UA_Client *client = UA_Client_newWithConfig(&cc);
     if(!client) {
         UA_free(ctx);
+        detachSksClientConfigPlugins(&cc);
         UA_ClientConfig_clear(&cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -1024,6 +1034,8 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     }
     UA_String newEndpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(strlen(endpointUrl) > 0 && !newEndpointUrl.data) {
+        detachSksClientConfigPlugins(&newConfig);
+        newConfig.eventLoop = NULL;
         UA_ClientConfig_clear(&newConfig);
         unlockServer(server);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1033,12 +1045,9 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     UA_String_clear(&ks->sksConfig.endpointUrl);
     ks->sksConfig.clientConfig = newConfig;
     ks->sksConfig.endpointUrl = newEndpointUrl;
-    /*Clear the content of original config, so that no body can access the original config */
-    clientConfig->authSecurityPolicies = NULL;
-    clientConfig->certificateVerification.context = NULL;
+    /* Transfer the borrowed plugins to the key storage. */
+    detachSksClientConfigPlugins(clientConfig);
     clientConfig->eventLoop = NULL;
-    clientConfig->logging = NULL;
-    clientConfig->securityPolicies = NULL;
     UA_ClientConfig_clear(clientConfig);
 
     ks->sksConfig.userNotifyCallback = callback;
