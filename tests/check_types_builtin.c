@@ -1885,6 +1885,25 @@ START_TEST(UA_Variant_decodeNullEncodingId) {
     UA_Variant_clear(&v);
 } END_TEST
 
+START_TEST(UA_Variant_decodeScalarDimensions) {
+    /* Reject the illegal flag even without trailing bytes. */
+    UA_Byte data[] = {0x46, 0xff, 0xff, 0xff, 0xff, 0xde, 0xad, 0xbe, 0xef};
+    UA_ByteString input = {sizeof(data), data};
+    UA_Variant v;
+    for(size_t len = 5; len <= sizeof(data); len += 4) {
+        input.length = len;
+        ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                          UA_STATUSCODE_BADDECODINGERROR);
+        UA_Variant_clear(&v);
+    }
+    data[0] = 0x06;
+    input.length = 5;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32*)v.data, -1);
+    UA_Variant_clear(&v);
+} END_TEST
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -1918,6 +1937,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_decode, UA_Variant_decodeWithTooSmallSourceShallReturnWithError);
     tcase_add_test(tc_decode, UA_ExtensionObject_decodeNullEncodingId);
     tcase_add_test(tc_decode, UA_Variant_decodeNullEncodingId);
+    tcase_add_test(tc_decode, UA_Variant_decodeScalarDimensions);
     suite_add_tcase(s, tc_decode);
 
     TCase *tc_encode = tcase_create("encode");
