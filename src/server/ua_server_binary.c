@@ -229,6 +229,11 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* HEL has no fields after the EndpointUrl. */
+    if(offset != msg->length) {
+        UA_String_clear(&helloMessage.endpointUrl);
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
     /* Part 6, 7.1.2.3: the EndpointUrl shall be less than 4096 bytes. The
      * resource it identifies is currently not checked. */
     if(helloMessage.endpointUrl.length >= 4096) {

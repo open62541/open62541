@@ -1769,6 +1769,89 @@ START_TEST(ReadSingleAttributeIsAbstractOnNonAbstract) {
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+/* Records the attribute mask of the first getNode call, which is the call
+ * that looks up the node of the Read operation */
+static const UA_Node *
+(*originalGetNode)(UA_Nodestore *ns, const UA_NodeId *nodeId,
+                   UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+                   UA_BrowseDirection referenceDirections);
+static UA_Boolean attributeMaskRecorded;
+static UA_UInt32 recordedAttributeMask;
+
+static const UA_Node *
+recordAttributeMaskGetNode(UA_Nodestore *ns, const UA_NodeId *nodeId,
+                           UA_UInt32 attributeMask,
+                           UA_ReferenceTypeSet references,
+                           UA_BrowseDirection referenceDirections) {
+    if(!attributeMaskRecorded) {
+        recordedAttributeMask = attributeMask;
+        attributeMaskRecorded = true;
+    }
+    return originalGetNode(ns, nodeId, attributeMask, references,
+                           referenceDirections);
+}
+
+/* The Read service tells the Nodestore which attribute is read, so that a
+ * Nodestore can return a node with only that attribute */
+START_TEST(ReadRequestsAttributeFromNodestore) {
+    static const struct {
+        UA_UInt32 attributeId;
+        UA_UInt32 attributeMask;
+    } expected[] = {
+        {UA_ATTRIBUTEID_NODEID, UA_NODEATTRIBUTESMASK_NODEID},
+        {UA_ATTRIBUTEID_NODECLASS, UA_NODEATTRIBUTESMASK_NODECLASS},
+        {UA_ATTRIBUTEID_BROWSENAME, UA_NODEATTRIBUTESMASK_BROWSENAME},
+        {UA_ATTRIBUTEID_DISPLAYNAME, UA_NODEATTRIBUTESMASK_DISPLAYNAME},
+        {UA_ATTRIBUTEID_DESCRIPTION, UA_NODEATTRIBUTESMASK_DESCRIPTION},
+        {UA_ATTRIBUTEID_WRITEMASK, UA_NODEATTRIBUTESMASK_WRITEMASK},
+        {UA_ATTRIBUTEID_USERWRITEMASK, UA_NODEATTRIBUTESMASK_USERWRITEMASK},
+        {UA_ATTRIBUTEID_ISABSTRACT, UA_NODEATTRIBUTESMASK_ISABSTRACT},
+        {UA_ATTRIBUTEID_SYMMETRIC, UA_NODEATTRIBUTESMASK_SYMMETRIC},
+        {UA_ATTRIBUTEID_INVERSENAME, UA_NODEATTRIBUTESMASK_INVERSENAME},
+        {UA_ATTRIBUTEID_CONTAINSNOLOOPS, UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS},
+        {UA_ATTRIBUTEID_EVENTNOTIFIER, UA_NODEATTRIBUTESMASK_EVENTNOTIFIER},
+        {UA_ATTRIBUTEID_VALUE, UA_NODEATTRIBUTESMASK_VALUE},
+        {UA_ATTRIBUTEID_DATATYPE, UA_NODEATTRIBUTESMASK_DATATYPE},
+        {UA_ATTRIBUTEID_VALUERANK, UA_NODEATTRIBUTESMASK_VALUERANK},
+        {UA_ATTRIBUTEID_ARRAYDIMENSIONS, UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS},
+        {UA_ATTRIBUTEID_ACCESSLEVEL, UA_NODEATTRIBUTESMASK_ACCESSLEVEL},
+        {UA_ATTRIBUTEID_USERACCESSLEVEL, UA_NODEATTRIBUTESMASK_USERACCESSLEVEL},
+        {UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+         UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL},
+        {UA_ATTRIBUTEID_HISTORIZING, UA_NODEATTRIBUTESMASK_HISTORIZING},
+        {UA_ATTRIBUTEID_EXECUTABLE, UA_NODEATTRIBUTESMASK_EXECUTABLE},
+        {UA_ATTRIBUTEID_USEREXECUTABLE, UA_NODEATTRIBUTESMASK_USEREXECUTABLE},
+        {UA_ATTRIBUTEID_DATATYPEDEFINITION, UA_NODEATTRIBUTESMASK_DATATYPEDEFINITION},
+        {UA_ATTRIBUTEID_ROLEPERMISSIONS, UA_NODEATTRIBUTESMASK_ROLEPERMISSIONS},
+        /* In 1.5 these derived attributes use the underlying stored fields. */
+        {UA_ATTRIBUTEID_USERROLEPERMISSIONS, UA_NODEATTRIBUTESMASK_ROLEPERMISSIONS},
+        {UA_ATTRIBUTEID_ACCESSRESTRICTIONS, UA_NODEATTRIBUTESMASK_ACCESSRESTRICTIONS},
+        {UA_ATTRIBUTEID_ACCESSLEVELEX, UA_NODEATTRIBUTESMASK_ACCESSLEVEL},
+        {UA_ATTRIBUTEID_INVALID, UA_NODEATTRIBUTESMASK_NONE},
+        {28, UA_NODEATTRIBUTESMASK_NONE},
+        {0x80000000u, UA_NODEATTRIBUTESMASK_NONE},
+        {0xffffffffu, UA_NODEATTRIBUTESMASK_NONE}
+    };
+
+    UA_Nodestore *ns = UA_Server_getConfig(server)->nodestore;
+    originalGetNode = ns->getNode;
+    ns->getNode = recordAttributeMaskGetNode;
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    for(size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
+        rvi.attributeId = expected[i].attributeId;
+        attributeMaskRecorded = false;
+        UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        UA_DataValue_clear(&dv);
+        ck_assert(attributeMaskRecorded);
+        ck_assert_uint_eq(recordedAttributeMask, expected[i].attributeMask);
+    }
+
+    ns->getNode = originalGetNode;
+} END_TEST
+
 static Suite * testSuite_services_attributes(void) {
     Suite *s = suite_create("services_attributes_read");
 
@@ -1893,6 +1976,11 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_attr_edge, ReadSingleAttributeSymmetricOnNonReference);
     tcase_add_test(tc_attr_edge, ReadSingleAttributeIsAbstractOnNonAbstract);
     suite_add_tcase(s, tc_attr_edge);
+
+    TCase *tc_attributeMask = tcase_create("attributeMask");
+    tcase_add_checked_fixture(tc_attributeMask, setup, teardown);
+    tcase_add_test(tc_attributeMask, ReadRequestsAttributeFromNodestore);
+    suite_add_tcase(s, tc_attributeMask);
 
     return s;
 }
