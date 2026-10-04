@@ -484,6 +484,11 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* HEL has no fields after the EndpointUrl. */
+    if(offset != msg->length) {
+        UA_String_clear(&helloMessage.endpointUrl);
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
     if(helloMessage.endpointUrl.length > 4096) {
         UA_String_clear(&helloMessage.endpointUrl);
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
