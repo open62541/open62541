@@ -910,7 +910,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_Session_updateLifetime(session);
 
     /* Activate the session */
-    if(!session->activated) {
+    UA_Boolean firstActivation = !session->activated;
+    if(firstActivation) {
         session->activated = true;
         server->activeSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
@@ -923,14 +924,18 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     session->userTokenType = utp->tokenType;
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    /* Add the ClientUserId to the diagnostics history */
+    /* Identity changes are rejected for active Sessions. Record the initial
+     * authenticated identity once instead of growing the history on every
+     * reactivation. */
     UA_SessionSecurityDiagnosticsDataType *ssd = &session->securityDiagnostics;
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
-                            &ssd->clientUserIdHistorySize,
-                            &ssd->clientUserIdOfSession,
-                            &UA_TYPES[UA_TYPES_STRING]);
-    (void)res;
+    if(firstActivation) {
+        UA_StatusCode res =
+            UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                                &ssd->clientUserIdHistorySize,
+                                &session->clientUserIdOfSession,
+                                &UA_TYPES[UA_TYPES_STRING]);
+        (void)res;
+    }
 
     /* Store the auth mechanism */
     UA_String_clear(&ssd->authenticationMechanism);
