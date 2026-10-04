@@ -163,6 +163,9 @@ struct UA_Server {
      * equipped with all possible access rights (Session Id: 1). */
     UA_Session adminSession;
 
+    /* Non-NULL during the processing of a request */
+    const UA_RequestHeader *currentRequest;
+
     /* All server-side SecureChannels. Direct transports remain outside the
      * hard UASC token lifecycle and statistics. */
     TAILQ_HEAD(, UA_SecureChannel) channels;

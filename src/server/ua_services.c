@@ -409,12 +409,19 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN;
     notifyApplication(server, nt, notifyPayloadMap);
 
-    /* Process the service */
+    /* Prepare audit events handling */
     beginModelChange(server);
+    server->currentRequest = &request->requestHeader;
+
+    /* Process the service */
     UA_Boolean done = processServiceInternal(server, channel, session,
                                              responseToken, sd, request,
                                              response);
+
+    /* Unwind audit events handling */
     endModelChange(server);
+    server->currentRequest = NULL;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_assert(server->modelChangeDepth == 0);
 #endif
