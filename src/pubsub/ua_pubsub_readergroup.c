@@ -224,6 +224,12 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
         rg->securityPolicyContext = NULL;
     }
+    for(size_t i = 0; i < UA_PUBSUB_REPLAY_HISTORY_SIZE; i++) {
+        UA_PubSubReplayHistoryEntry *entry = &rg->replayHistory[i];
+        if(entry->inUse && entry->publisherIdEnabled &&
+           entry->publisherIdType == UA_PUBLISHERIDTYPE_STRING)
+            UA_String_clear(&entry->publisherId.string);
+    }
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
