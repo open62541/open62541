@@ -680,6 +680,33 @@ START_TEST(ReaderGroupsWithDifferentKeys) {
     ck_assert_int_eq(readInt32Variable(VARIABLE_SECOND), 22);
 } END_TEST
 
+START_TEST(RejectReplayNonce) {
+    UA_ReaderGroup rg;
+    memset(&rg, 0, sizeof(rg));
+    rg.securityTokenId = 7;
+
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.securityEnabled = true;
+    nm.publisherIdEnabled = true;
+    nm.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    nm.publisherId.uint16 = PUBLISHER_ID;
+    nm.securityHeader.securityTokenId = 7;
+    nm.securityHeader.messageNonceSize = 8;
+    nm.securityHeader.messageNonce[4] = 1;
+
+    UA_StatusCode res = UA_ReaderGroup_checkReplay(&rg, &nm);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_ReaderGroup_checkReplay(&rg, &nm);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    nm.securityHeader.messageNonce[4] = 2;
+    res = UA_ReaderGroup_checkReplay(&rg, &nm);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    nm.securityHeader.messageNonce[4] = 1;
+    res = UA_ReaderGroup_checkReplay(&rg, &nm);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+} END_TEST
+
 int main(void) {
 
     /*Test case to run both publisher and subscriber */
@@ -696,9 +723,13 @@ int main(void) {
     tcase_add_test(tc_pubsub_readergroup_security, ReaderGroupsOfDifferentSecurityModeNoneLast);
     tcase_add_test(tc_pubsub_readergroup_security, ReaderGroupsWithDifferentKeys);
 
+    TCase *tc_replay = tcase_create("Replay protection");
+    tcase_add_test(tc_replay, RejectReplayNonce);
+
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
     suite_add_tcase(suite, tc_pubsub_readergroup_security);
+    suite_add_tcase(suite, tc_replay);
 
     SRunner *suiteRunner = srunner_create(suite);
     srunner_set_fork_status(suiteRunner, CK_NOFORK);
