@@ -74,7 +74,25 @@ void
 UA_Server_decrementRolePermissionsRefCount(UA_Server *server,
                                            UA_PermissionIndex index);
 
+/* An instance child does not inherit the RolePermissions of its
+ * InstanceDeclaration but keeps its AccessRestrictions. Returns the index of
+ * the shared entry with only the AccessRestrictions of the entry at declIndex
+ * and takes a reference on it (release it with
+ * UA_Server_decrementRolePermissionsRefCount if the node is not added).
+ * Without AccessRestrictions at declIndex, outIndex is
+ * UA_PERMISSION_INDEX_INVALID. Must be called with the server lock held. */
+UA_StatusCode
+retainInstanceAccessRestrictions(UA_Server *server, UA_PermissionIndex declIndex,
+                                 UA_PermissionIndex *outIndex);
+
 /* Low-level permission index functions (internal, used by tests) */
+
+/* Give the node (and with recursive its hierarchical children) the
+ * RolePermissions of the entry at permissionIndex. Each node keeps its own
+ * AccessRestrictions; a node with AccessRestrictions is pointed at the shared
+ * entry that combines both. A node with an invalid (out-of-range) index is
+ * repaired. In the recursive case a failing child does not stop the
+ * traversal; the first error is returned. */
 UA_StatusCode
 UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
                                  UA_PermissionIndex permissionIndex,
@@ -90,10 +108,21 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
                                   const UA_RolePermission *entries,
                                   UA_PermissionIndex *outIndex);
 
+/* The RolePermissions of the entry at index. NULL if the index is out of
+ * range or the entry has no RolePermissions (only AccessRestrictions; the
+ * namespace default applies to its nodes). An empty set is an explicit
+ * deny-all. */
 const UA_RolePermissionSet *
 UA_Server_getRolePermissionConfig(UA_Server *server,
                                   UA_PermissionIndex index);
 
+/* Replace the RolePermissions of the configuration at index. The
+ * configuration is shared by content: the entries that combine its current
+ * RolePermissions with AccessRestrictions (nodes that use the configuration
+ * and have AccessRestrictions of their own) are updated as well and keep their
+ * AccessRestrictions. Returns BADINVALIDSTATE if the configuration or such an
+ * entry is referenced by nodes, unless the configuration is a protected preset
+ * (its nodes follow the update). */
 UA_StatusCode
 UA_Server_updateRolePermissionConfig(UA_Server *server,
                                      UA_PermissionIndex index,

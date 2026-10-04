@@ -317,11 +317,13 @@ struct UA_NodeHead {
     void *context;
     UA_Boolean constructed; /* Constructors were called */
 #ifdef UA_ENABLE_RBAC
-    UA_PermissionIndex permissionIndex; /* Index into server's rolePermissions array.
-                                         * UA_PERMISSION_INDEX_INVALID means no specific
-                                         * permissions configured (use defaults). */
-    UA_AccessRestrictionType accessRestrictions; /* AccessRestrictions (Part 3 §5.2.11) */
-    UA_Boolean hasAccessRestrictions; /* If false, the namespace default applies */
+    UA_PermissionIndex permissionIndex; /* Index into the server's shared
+                                         * rolePermissions array. The entry holds
+                                         * the RolePermissions and the
+                                         * AccessRestrictions of the node.
+                                         * UA_PERMISSION_INDEX_INVALID means
+                                         * neither is configured (namespace
+                                         * defaults apply). */
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
@@ -604,7 +606,10 @@ UA_Node_insertOrUpdateDescription(UA_Node *node,
                                   const UA_LocalizedText *description);
 
 /* Reset the destination node and copy the content of the source. Runtime
- * MonitoredItem associations are not copied. */
+ * MonitoredItem associations are not copied. The permissionIndex (RBAC) is
+ * copied without taking a reference on the shared entry: the copy is meant
+ * to replace the original in the Nodestore. A copy that is added as an
+ * additional node must get its own (counted) index. */
 UA_StatusCode UA_EXPORT
 UA_Node_copy(const UA_Node *src, UA_Node *dst);
 

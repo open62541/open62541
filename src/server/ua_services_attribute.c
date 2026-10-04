@@ -155,18 +155,18 @@ readRolePermissions(UA_Server *server, UA_Session *session,
     /* Resolve explicit permissions or the inherited namespace default. */
     const UA_RolePermission *sourcePermissions = NULL;
     size_t permissionsSize = 0;
-    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
+    const UA_RolePermissionEntry *rp =
+        getRolePermissionsEntry(server, node->head.permissionIndex);
+    if(rp) {
+        sourcePermissions = rp->rolePermissions;
+        permissionsSize = rp->rolePermissionsSize;
+    } else {
         UA_UInt16 ns = node->head.nodeId.namespaceIndex;
         if(ns < server->namespaceMetadataSize && server->namespaceMetadata &&
            server->namespaceMetadata[ns].hasDefaultRolePermissions) {
             sourcePermissions = server->namespaceMetadata[ns].entries;
             permissionsSize = server->namespaceMetadata[ns].entriesSize;
         }
-    } else if(node->head.permissionIndex < server->rolePermissionsSize) {
-        const UA_RolePermissionEntry *rp =
-            &server->rolePermissions[node->head.permissionIndex];
-        sourcePermissions = rp->rolePermissions;
-        permissionsSize = rp->rolePermissionsSize;
     }
 
     /* If no entries -> return empty array */

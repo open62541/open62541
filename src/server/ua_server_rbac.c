@@ -12,9 +12,10 @@
 
 #ifdef UA_ENABLE_RBAC
 
-/* RBAC implementation. Permission configurations are deduplicated internally;
- * nodes sharing the same role permissions reference a shared entry via a
- * compact permission index in the node head.
+/* RBAC implementation. The per-node RBAC state (the RolePermissions and the
+ * AccessRestrictions) lives in shared, reference-counted entries; nodes with
+ * the same state reference the same entry via a compact permission index in
+ * the node head. Entries are changed copy-on-write.
  *
  * - Identity criteria are evaluated for Anonymous, AuthenticatedUser,
  *   UserName, TrustedApplication (signed or encrypted SecureChannel with a
@@ -33,7 +34,8 @@
  *   per Part 18 §4.4.1.
  *
  * - AccessRestrictions (Part 3 §5.2.11: Signing/Encryption/Session required,
- *   ApplyRestrictionsToBrowse) are stored per node with a namespace default and
+ *   ApplyRestrictionsToBrowse) are set per node (held in the node's shared
+ *   entry next to its RolePermissions) with a namespace default and
  *   enforced on Read, Write, HistoryRead, HistoryUpdate, Call, Browse and
  *   TranslateBrowsePathsToNodeIds. The local admin session is exempt.
  *
@@ -311,21 +313,41 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2) {
 /* Internal UA_RolePermissionEntry Helpers */
 /*****************************************/
 
+/* An empty entry carries neither RolePermissions nor AccessRestrictions */
 static void
 rolePermissionEntry_init(UA_RolePermissionEntry *rp) {
     rp->rolePermissionsSize = 0;
     rp->rolePermissions = NULL;
     rp->refCount = 0;
+    rp->accessRestrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
+    rp->hasRolePermissions = false;
+    rp->hasAccessRestrictions = false;
 }
 
+/* Free the RolePermission array, keep the other fields */
 static void
-rolePermissionEntry_clear(UA_RolePermissionEntry *rp) {
+rolePermissionEntry_clearRolePermissions(UA_RolePermissionEntry *rp) {
     if(rp->rolePermissions) {
         for(size_t i = 0; i < rp->rolePermissionsSize; i++)
             UA_NodeId_clear(&rp->rolePermissions[i].roleId);
         UA_free(rp->rolePermissions);
     }
+    rp->rolePermissionsSize = 0;
+    rp->rolePermissions = NULL;
+}
+
+static void
+rolePermissionEntry_clear(UA_RolePermissionEntry *rp) {
+    rolePermissionEntry_clearRolePermissions(rp);
     rolePermissionEntry_init(rp);
+}
+
+const UA_RolePermissionEntry *
+getRolePermissionsEntry(const UA_Server *server, UA_PermissionIndex index) {
+    if(index == UA_PERMISSION_INDEX_INVALID || index >= server->rolePermissionsSize)
+        return NULL;
+    const UA_RolePermissionEntry *rp = &server->rolePermissions[index];
+    return rp->hasRolePermissions ? rp : NULL;
 }
 
 /* Copy an array of UA_RolePermission into a new allocation */
@@ -373,28 +395,115 @@ compareRolePermissions(size_t size1, const UA_RolePermission *rp1,
     return true;
 }
 
-/* Find or create a role-permission entry in the server's internal array.
- * Returns the index of the matching or new entry.
+/* The content of an entry (the deduplication key). The RolePermission array is
+ * borrowed. An absent part is normalized: no RolePermissions means an empty
+ * array, no AccessRestrictions means UA_ACCESSRESTRICTIONTYPE_NONE. */
+typedef struct {
+    UA_Boolean hasRolePermissions;
+    size_t rolePermissionsSize;
+    const UA_RolePermission *rolePermissions;
+    UA_Boolean hasAccessRestrictions;
+    UA_AccessRestrictionType accessRestrictions;
+} EntryContent;
+
+static void
+EntryContent_setRolePermissions(EntryContent *c, UA_Boolean hasRolePermissions,
+                                size_t rpSize, const UA_RolePermission *rp) {
+    c->hasRolePermissions = hasRolePermissions;
+    c->rolePermissionsSize = hasRolePermissions ? rpSize : 0;
+    c->rolePermissions = hasRolePermissions ? rp : NULL;
+}
+
+static void
+EntryContent_setAccessRestrictions(EntryContent *c, UA_Boolean hasAccessRestrictions,
+                                   UA_AccessRestrictionType accessRestrictions) {
+    c->hasAccessRestrictions = hasAccessRestrictions;
+    c->accessRestrictions = hasAccessRestrictions ?
+        accessRestrictions : UA_ACCESSRESTRICTIONTYPE_NONE;
+}
+
+/* The content of the entry a node references, as the base for a copy-on-write
+ * change of one part. UA_PERMISSION_INDEX_INVALID yields the empty content.
+ * The RolePermission array is borrowed from the entry; it stays valid when the
+ * entry array is reallocated.
+ *
+ * An out-of-range index is a problem in the Nodestore. A change that needs the
+ * current content (adding or removing the Permissions of one Role) fails then.
+ * A change that replaces a whole part (repair == true) starts from the empty
+ * content instead, so that the node gets a valid index again; the other part
+ * of the node is lost (it is unknown).
  * Must be called with the server lock held. */
 static UA_StatusCode
-findOrCreateRolePermissions(UA_Server *server,
-                            size_t rpSize, const UA_RolePermission *rp,
-                            UA_PermissionIndex *outIndex) {
+getEntryContent(UA_Server *server, const UA_NodeId *nodeId,
+                UA_PermissionIndex index, UA_Boolean repair, EntryContent *c) {
+    EntryContent_setRolePermissions(c, false, 0, NULL);
+    EntryContent_setAccessRestrictions(c, false, UA_ACCESSRESTRICTIONTYPE_NONE);
+    if(index == UA_PERMISSION_INDEX_INVALID)
+        return UA_STATUSCODE_GOOD;
+
+    /* Detect problems in the Nodestore. The index should always be valid. */
+    if(index >= server->rolePermissionsSize) {
+        if(repair) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "RBAC: Node %N has an invalid permission index. "
+                           "Its RolePermissions and AccessRestrictions are reset.",
+                           *nodeId);
+            return UA_STATUSCODE_GOOD;
+        }
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "RBAC: Node %N returned an invalid permission index", *nodeId);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    const UA_RolePermissionEntry *e = &server->rolePermissions[index];
+    EntryContent_setRolePermissions(c, e->hasRolePermissions,
+                                    e->rolePermissionsSize, e->rolePermissions);
+    EntryContent_setAccessRestrictions(c, e->hasAccessRestrictions,
+                                       e->accessRestrictions);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Deduplication: compare all fields of an entry except the refCount */
+static UA_Boolean
+entryHasContent(const UA_RolePermissionEntry *e, const EntryContent *c) {
+    if(e->hasRolePermissions != c->hasRolePermissions ||
+       e->hasAccessRestrictions != c->hasAccessRestrictions)
+        return false;
+    if(c->hasAccessRestrictions && e->accessRestrictions != c->accessRestrictions)
+        return false;
+    if(!c->hasRolePermissions)
+        return true;
+    return compareRolePermissions(c->rolePermissionsSize, c->rolePermissions,
+                                  e->rolePermissionsSize, e->rolePermissions);
+}
+
+/* Find or create the role-permission entry with the given content in the
+ * server's internal array. Returns the index of the matching or new entry.
+ * Content without RolePermissions and without AccessRestrictions needs no
+ * entry and yields UA_PERMISSION_INDEX_INVALID. The refCount of the entry is
+ * not changed. Must be called with the server lock held. */
+static UA_StatusCode
+findOrCreateEntry(UA_Server *server, const EntryContent *c,
+                  UA_PermissionIndex *outIndex) {
+    if(!c->hasRolePermissions && !c->hasAccessRestrictions) {
+        *outIndex = UA_PERMISSION_INDEX_INVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Check for an existing identical entry */
     for(size_t i = 0; i < server->rolePermissionsSize; i++) {
-        const UA_RolePermissionEntry *existing = &server->rolePermissions[i];
-        if(compareRolePermissions(rpSize, rp,
-                                  existing->rolePermissionsSize,
-                                  existing->rolePermissions)) {
+        if(entryHasContent(&server->rolePermissions[i], c)) {
             *outIndex = (UA_PermissionIndex)i;
             return UA_STATUSCODE_GOOD;
         }
     }
 
-    /* Never recycle a zero-refCount slot: copied nodes can carry a
-     * permissionIndex without being counted, so refCount == 0 does not prove
-     * the slot is unreferenced. The array only grows with the number of
-     * distinct permission sets. */
+    /* Never recycle a zero-refCount slot: indices are handed out through the
+     * API (UA_Server_addRolePermissionConfig, UA_Server_getNodePermissionIndex)
+     * and may be assigned later, and the refCount only covers the references
+     * the server itself takes. So refCount == 0 does not prove the slot is
+     * unused. The array grows with the number of distinct entry contents;
+     * copy-on-write changes leave the entries no longer referenced in place. */
 
     /* Bounds check */
     if(server->rolePermissionsSize >= UA_PERMISSION_INDEX_INVALID)
@@ -413,11 +522,15 @@ findOrCreateRolePermissions(UA_Server *server,
     UA_RolePermissionEntry *entry = &server->rolePermissions[newIndex];
     rolePermissionEntry_init(entry);
 
-    UA_StatusCode res = copyRolePermissionArray(rpSize, rp,
+    UA_StatusCode res = copyRolePermissionArray(c->rolePermissionsSize,
+                                                c->rolePermissions,
                                                 &entry->rolePermissionsSize,
                                                 &entry->rolePermissions);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    entry->hasRolePermissions = c->hasRolePermissions;
+    entry->hasAccessRestrictions = c->hasAccessRestrictions;
+    entry->accessRestrictions = c->accessRestrictions;
 
     server->rolePermissionsSize++;
     *outIndex = newIndex;
@@ -652,6 +765,7 @@ UA_Server_initRBAC(UA_Server *server) {
                 server->rolePermissions = NULL;
                 return res;
             }
+            entry->hasRolePermissions = true;
             entry->refCount = UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED;
         }
         server->rolePermissionsSize = config->rolePermissionPresetsSize;
@@ -1123,12 +1237,16 @@ purgeRoleFromArray(size_t *size, UA_RolePermission **arr, const UA_NodeId *roleI
 }
 
 /* Drop all RolePermission references to a removed Role (Part 18: all
- * Permissions associated with the Role shall be deleted).
+ * Permissions associated with the Role shall be deleted). The AccessRestrictions
+ * of the entries are not affected; an entry keeps its RolePermissions part even
+ * if it becomes empty (explicit deny-all).
  * Must be called with the server lock held. */
 static void
 purgeRoleFromPermissions(UA_Server *server, const UA_NodeId *roleId) {
     for(size_t i = 0; i < server->rolePermissionsSize; i++) {
         UA_RolePermissionEntry *rp = &server->rolePermissions[i];
+        if(!rp->hasRolePermissions)
+            continue; /* Only AccessRestrictions, nothing to purge */
         purgeRoleFromArray(&rp->rolePermissionsSize, &rp->rolePermissions, roleId);
     }
     for(size_t i = 0; i < server->namespaceMetadataSize; i++) {
@@ -1297,7 +1415,8 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
 /* Public API: Node Role Permissions     */
 /*****************************************/
 
-/* Internal helper: set permissionIndex on a single node.
+/* Internal helper: point a node at the entry with the given index, releasing
+ * its current entry and retaining the new one.
  * Must be called with the server lock held. */
 static UA_StatusCode
 setNodePermissionIndexLocked(UA_Server *server, const UA_NodeId *nodeId,
@@ -1326,16 +1445,62 @@ setNodePermissionIndexLocked(UA_Server *server, const UA_NodeId *nodeId,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Internal helper: recursively set permissionIndex on a node and its children.
- * The server lock is released for the browse call and re-acquired for
- * each node edit. */
+/* Internal helper: copy-on-write change of a node's entry. Entries are shared
+ * between nodes and never modified on behalf of a single node. Instead, the
+ * node is pointed at the (found or created) entry with the new content.
+ * Must be called with the server lock held. */
 static UA_StatusCode
-setPermissionIndexRecursive(UA_Server *server, const UA_NodeId *nodeId,
-                            UA_PermissionIndex index) {
-    /* Set on this node (already locked by caller) */
-    UA_StatusCode res = setNodePermissionIndexLocked(server, nodeId, index);
+setNodeEntryContent(UA_Server *server, const UA_NodeId *nodeId,
+                    const EntryContent *c) {
+    UA_PermissionIndex index;
+    UA_StatusCode res = findOrCreateEntry(server, c, &index);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    return setNodePermissionIndexLocked(server, nodeId, index);
+}
+
+/* Internal helper: replace the RolePermissions of a node and keep its
+ * AccessRestrictions. With hasRolePermissions == false the node no longer has
+ * RolePermissions of its own (the namespace default applies).
+ * Must be called with the server lock held. */
+static UA_StatusCode
+setNodeRolePermissionsLocked(UA_Server *server, const UA_NodeId *nodeId,
+                             UA_Boolean hasRolePermissions, size_t rpSize,
+                             const UA_RolePermission *rp) {
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, nodeId, currentIndex, true, &c);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    EntryContent_setRolePermissions(&c, hasRolePermissions, rpSize, rp);
+    return setNodeEntryContent(server, nodeId, &c);
+}
+
+/* Internal helper: recursively set the RolePermissions of a node and its
+ * children. Each node keeps its own AccessRestrictions. The server lock is
+ * released for the browse call and re-acquired for each node edit. A failure
+ * on the root node is returned. Failures on children are logged and ignored;
+ * the descent continues below a failing child. */
+static UA_StatusCode
+setRolePermissionsRecursive(UA_Server *server, const UA_NodeId *nodeId,
+                            UA_Boolean hasRolePermissions, size_t rpSize,
+                            const UA_RolePermission *rp, UA_Boolean isRoot) {
+    /* Set on this node (already locked by caller) */
+    UA_StatusCode res = setNodeRolePermissionsLocked(server, nodeId,
+                                                     hasRolePermissions,
+                                                     rpSize, rp);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(isRoot)
+            return res;
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Could not set the RolePermissions of Node %N (%s)",
+                       *nodeId, UA_StatusCode_name(res));
+    }
 
     /* Browse for hierarchical children - need to release lock since
      * UA_Server_browse does its own locking */
@@ -1364,7 +1529,8 @@ setPermissionIndexRecursive(UA_Server *server, const UA_NodeId *nodeId,
         if(!UA_ExpandedNodeId_isLocal(&ref->nodeId))
             continue;
         /* Recurse - ignore errors on individual children */
-        setPermissionIndexRecursive(server, &ref->nodeId.nodeId, index);
+        setRolePermissionsRecursive(server, &ref->nodeId.nodeId,
+                                    hasRolePermissions, rpSize, rp, false);
     }
 
     UA_BrowseResult_clear(&br);
@@ -1384,21 +1550,16 @@ UA_Server_setNodeRolePermissions(UA_Server *server,
 
     lockServer(server);
 
-    /* Find or create the internal entry (deduplication) */
-    UA_PermissionIndex index;
-    UA_StatusCode res =
-        findOrCreateRolePermissions(server, rolePermissionsSize,
-                                    rolePermissions, &index);
-    if(res != UA_STATUSCODE_GOOD) {
-        unlockServer(server);
-        return res;
-    }
-
-    /* Set the index on the node (and optionally its children) */
+    /* Point the node (and optionally its children) at the deduplicated entry
+     * with these RolePermissions and the node's own AccessRestrictions */
+    UA_StatusCode res;
     if(recursive)
-        res = setPermissionIndexRecursive(server, &nodeId, index);
+        res = setRolePermissionsRecursive(server, &nodeId, true,
+                                          rolePermissionsSize, rolePermissions,
+                                          true);
     else
-        res = setNodePermissionIndexLocked(server, &nodeId, index);
+        res = setNodeRolePermissionsLocked(server, &nodeId, true,
+                                           rolePermissionsSize, rolePermissions);
 
     unlockServer(server);
     return res;
@@ -1423,16 +1584,15 @@ UA_Server_getNodeRolePermissions(UA_Server *server,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_PermissionIndex index = node->head.permissionIndex;
+    const UA_RolePermissionEntry *rp =
+        getRolePermissionsEntry(server, node->head.permissionIndex);
     UA_NODESTORE_RELEASE(server, node);
 
-    if(index == UA_PERMISSION_INDEX_INVALID ||
-       index >= server->rolePermissionsSize) {
+    if(!rp) {
         unlockServer(server);
         return UA_STATUSCODE_GOOD; /* No role permissions set */
     }
 
-    const UA_RolePermissionEntry *rp = &server->rolePermissions[index];
     UA_StatusCode res = copyRolePermissionArray(rp->rolePermissionsSize,
                                                 rp->rolePermissions,
                                                 rolePermissionsSize,
@@ -1450,13 +1610,12 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 
     lockServer(server);
 
+    /* The AccessRestrictions of the nodes are kept */
     UA_StatusCode res;
     if(recursive)
-        res = setPermissionIndexRecursive(server, &nodeId,
-                                          UA_PERMISSION_INDEX_INVALID);
+        res = setRolePermissionsRecursive(server, &nodeId, false, 0, NULL, true);
     else
-        res = setNodePermissionIndexLocked(server, &nodeId,
-                                           UA_PERMISSION_INDEX_INVALID);
+        res = setNodeRolePermissionsLocked(server, &nodeId, false, 0, NULL);
 
     unlockServer(server);
     return res;
@@ -2239,22 +2398,42 @@ struct ApplyToHierarchicalChildrenContext {
     void *callbackContext;
     UA_StatusCode (*applyCallback)(UA_Server *server, const UA_NodeId *nodeId,
                                    void *context);
-    UA_StatusCode status;
+    UA_Boolean continueOnError;
+    UA_StatusCode status; /* The first error */
 };
+
+/* Stop the traversal at the first error unless continueOnError is set */
+static UA_Boolean
+applyAborted(const struct ApplyToHierarchicalChildrenContext *ctx) {
+    return !ctx->continueOnError && ctx->status != UA_STATUSCODE_GOOD;
+}
 
 static void *
 applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
     struct ApplyToHierarchicalChildrenContext *ctx =
         (struct ApplyToHierarchicalChildrenContext*)context;
 
+    /* A non-NULL return value stops the iteration of the parent's references */
+    if(applyAborted(ctx))
+        return ctx;
+
     if(!UA_NodePointer_isLocal(t->targetId))
         return NULL;
 
     UA_NodeId childId = UA_NodePointer_toNodeId(t->targetId);
 
-    ctx->status = ctx->applyCallback(ctx->server, &childId, ctx->callbackContext);
-    if(ctx->status != UA_STATUSCODE_GOOD)
-        return NULL;
+    UA_StatusCode res = ctx->applyCallback(ctx->server, &childId,
+                                           ctx->callbackContext);
+    if(res != UA_STATUSCODE_GOOD) {
+        if(ctx->status == UA_STATUSCODE_GOOD)
+            ctx->status = res;
+        if(!ctx->continueOnError)
+            return ctx;
+        /* A failing child does not stop the descent into its children */
+        UA_LOG_WARNING(ctx->server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Could not apply the change to Node %N (%s)",
+                       childId, UA_StatusCode_name(res));
+    }
 
     const UA_Node *childNode = UA_NODESTORE_GET(ctx->server, &childId);
     if(!childNode)
@@ -2268,15 +2447,11 @@ applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
         if(!UA_ReferenceTypeSet_contains(ctx->hierarchRefsSet, rk->referenceTypeIndex))
             continue;
 
-        void *res = UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, ctx);
-        if(res != NULL) {
+        void *stop =
+            UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, ctx);
+        if(stop != NULL) {
             UA_NODESTORE_RELEASE(ctx->server, childNode);
-            return res;
-        }
-
-        if(ctx->status != UA_STATUSCODE_GOOD) {
-            UA_NODESTORE_RELEASE(ctx->server, childNode);
-            return NULL;
+            return stop;
         }
     }
 
@@ -2284,14 +2459,17 @@ applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
     return NULL;
 }
 
-/* Apply a callback to all hierarchical children of a node.
+/* Apply a callback to all hierarchical children of a node. Without
+ * continueOnError the traversal stops at the first error. With continueOnError
+ * all nodes are visited (a failing node does not cut off its subtree). Returns
+ * the first error.
  * Must be called with the server lock held. */
 static UA_StatusCode
 applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
                             UA_StatusCode (*callback)(UA_Server *server,
                                                       const UA_NodeId *nodeId,
                                                       void *context),
-                            void *callbackContext) {
+                            void *callbackContext, UA_Boolean continueOnError) {
     UA_ReferenceTypeSet hierarchRefsSet;
     UA_ReferenceTypeSet_init(&hierarchRefsSet);
     UA_NodeId hierarchRefTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
@@ -2309,6 +2487,7 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
     ctx.hierarchRefsSet = &hierarchRefsSet;
     ctx.callbackContext = callbackContext;
     ctx.applyCallback = callback;
+    ctx.continueOnError = continueOnError;
     ctx.status = UA_STATUSCODE_GOOD;
 
     for(size_t i = 0; i < node->head.referencesSize; i++) {
@@ -2320,7 +2499,7 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
             continue;
 
         UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, &ctx);
-        if(ctx.status != UA_STATUSCODE_GOOD)
+        if(applyAborted(&ctx))
             break;
     }
 
@@ -2335,10 +2514,11 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
 /* Internal helper for adding role permissions to a single node.
  * Must be called with the server lock held.
  *
- * IMPORTANT: RolePermission entries are IMMUTABLE once created with refCount > 0.
- * When modifying permissions for a node, we:
- * 1. Get the node's current permissionIndex
- * 2. Build the new desired permission set
+ * IMPORTANT: RolePermission entries are shared between nodes and never modified
+ * on behalf of a single node (copy-on-write). When modifying permissions for a
+ * node, we:
+ * 1. Get the content of the node's current entry
+ * 2. Build the new desired permission set (the AccessRestrictions are kept)
  * 3. Find or create a matching entry
  * 4. Update refcounts and the node's permissionIndex */
 static UA_StatusCode
@@ -2352,127 +2532,47 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
     UA_PermissionIndex currentIndex = node->head.permissionIndex;
     UA_NODESTORE_RELEASE(server, node);
 
-    /* Build the new desired permission entries array */
-    size_t newEntriesSize = 0;
-    UA_RolePermission *newEntries = NULL;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-
-    if(currentIndex == UA_PERMISSION_INDEX_INVALID) {
-        /* No existing permissions - create new with just this role */
-        newEntriesSize = 1;
-        newEntries = (UA_RolePermission*)UA_malloc(sizeof(UA_RolePermission));
-        if(!newEntries)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        res = UA_NodeId_copy(roleId, &newEntries[0].roleId);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_free(newEntries);
-            return res;
-        }
-        newEntries[0].permissions = permissions;
-    } else {
-        /* Detect problems in the Nodestore. The index should always be valid. */
-        if(currentIndex >= server->rolePermissionsSize) {
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "RBAC: Node %N returned an invalid permission index", &nodeId);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        /* Copy existing entries and modify/add the role entry */
-        UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
-
-        /* Find if this role already exists in current permissions */
-        size_t existingRoleIdx = SIZE_MAX;
-        for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-            if(UA_NodeId_equal(&oldRp->rolePermissions[i].roleId, roleId)) {
-                existingRoleIdx = i;
-                break;
-            }
-        }
-
-        if(existingRoleIdx != SIZE_MAX) {
-            /* Role exists - copy all and modify the role's permissions */
-            newEntriesSize = oldRp->rolePermissionsSize;
-            newEntries = (UA_RolePermission*)
-                UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
-            if(!newEntries)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-
-            for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-                res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[i].roleId);
-                if(res != UA_STATUSCODE_GOOD) {
-                    for(size_t j = 0; j < i; j++)
-                        UA_NodeId_clear(&newEntries[j].roleId);
-                    UA_free(newEntries);
-                    return res;
-                }
-                if(i == existingRoleIdx) {
-                    if(overwriteExisting)
-                        newEntries[i].permissions = permissions;
-                    else
-                        newEntries[i].permissions = oldRp->rolePermissions[i].permissions | permissions;
-                } else {
-                    newEntries[i].permissions = oldRp->rolePermissions[i].permissions;
-                }
-            }
-        } else {
-            /* Role doesn't exist - copy all and add new entry */
-            newEntriesSize = oldRp->rolePermissionsSize + 1;
-            newEntries = (UA_RolePermission*)
-                UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
-            if(!newEntries)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-
-            for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-                res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[i].roleId);
-                if(res != UA_STATUSCODE_GOOD) {
-                    for(size_t j = 0; j < i; j++)
-                        UA_NodeId_clear(&newEntries[j].roleId);
-                    UA_free(newEntries);
-                    return res;
-                }
-                newEntries[i].permissions = oldRp->rolePermissions[i].permissions;
-            }
-            res = UA_NodeId_copy(roleId, &newEntries[oldRp->rolePermissionsSize].roleId);
-            if(res != UA_STATUSCODE_GOOD) {
-                for(size_t j = 0; j < oldRp->rolePermissionsSize; j++)
-                    UA_NodeId_clear(&newEntries[j].roleId);
-                UA_free(newEntries);
-                return res;
-            }
-            newEntries[oldRp->rolePermissionsSize].permissions = permissions;
-        }
-    }
-
-    /* Find or create a slot for the new permissions */
-    UA_PermissionIndex targetIndex;
-    res = findOrCreateRolePermissions(server, newEntriesSize, newEntries, &targetIndex);
-
-    /* Clean up temporary entries */
-    for(size_t i = 0; i < newEntriesSize; i++)
-        UA_NodeId_clear(&newEntries[i].roleId);
-    UA_free(newEntries);
-
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, nodeId, currentIndex, false, &c);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Update refcounts and node's permissionIndex if changed */
-    if(targetIndex != currentIndex) {
-        decrementRefCount(server, currentIndex);
-        incrementRefCount(server, targetIndex);
-
-        /* Update node's permission index */
-        UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
-        if(!editNode) {
-            /* Rollback refcount changes */
-            decrementRefCount(server, targetIndex);
-            incrementRefCount(server, currentIndex);
-            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Find if this role already exists in the current permissions. A node
+     * without RolePermissions of its own starts from the empty set. */
+    size_t oldSize = c.rolePermissionsSize;
+    size_t existingRoleIdx = SIZE_MAX;
+    for(size_t i = 0; i < oldSize; i++) {
+        if(UA_NodeId_equal(&c.rolePermissions[i].roleId, roleId)) {
+            existingRoleIdx = i;
+            break;
         }
-        editNode->head.permissionIndex = targetIndex;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)editNode);
     }
 
-    return UA_STATUSCODE_GOOD;
+    /* Build the new desired permission entries array. The NodeIds are
+     * borrowed, the array is copied when a new entry is created. */
+    size_t newEntriesSize = (existingRoleIdx != SIZE_MAX) ? oldSize : oldSize + 1;
+    UA_RolePermission *newEntries = (UA_RolePermission*)
+        UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
+    if(!newEntries)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(oldSize > 0)
+        memcpy(newEntries, c.rolePermissions, oldSize * sizeof(UA_RolePermission));
+    if(existingRoleIdx != SIZE_MAX) {
+        if(overwriteExisting)
+            newEntries[existingRoleIdx].permissions = permissions;
+        else
+            newEntries[existingRoleIdx].permissions |= permissions;
+    } else {
+        newEntries[oldSize].roleId = *roleId;
+        newEntries[oldSize].permissions = permissions;
+    }
+
+    /* Find or create a slot for the new permissions, update the refcounts and
+     * the node's permissionIndex */
+    EntryContent_setRolePermissions(&c, true, newEntriesSize, newEntries);
+    res = setNodeEntryContent(server, nodeId, &c);
+    UA_free(newEntries);
+    return res;
 }
 
 /* Callback context for recursive addRolePermissions */
@@ -2516,7 +2616,8 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
         ctx.roleId = &roleId;
         ctx.permissions = permissions;
         ctx.overwriteExisting = overwriteExisting;
-        res = applyToHierarchicalChildren(server, &nodeId, addRolePermissionsCallback, &ctx);
+        res = applyToHierarchicalChildren(server, &nodeId, addRolePermissionsCallback,
+                                          &ctx, false);
     }
 
     unlockServer(server);
@@ -2535,22 +2636,17 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
     UA_PermissionIndex currentIndex = node->head.permissionIndex;
     UA_NODESTORE_RELEASE(server, node);
 
-    if(currentIndex == UA_PERMISSION_INDEX_INVALID)
-        return UA_STATUSCODE_GOOD;
-
-    /* Detect problems in the Nodestore. The index should always be valid. */
-    if(currentIndex >= server->rolePermissionsSize) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "RBAC: Node %N returned an invalid permission index", &nodeId);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, nodeId, currentIndex, false, &c);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!c.hasRolePermissions)
+        return UA_STATUSCODE_GOOD; /* No RolePermissions of its own */
 
     /* Find the role in current permissions */
     size_t roleEntryIdx = SIZE_MAX;
-    for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-        if(UA_NodeId_equal(&oldRp->rolePermissions[i].roleId, roleId)) {
+    for(size_t i = 0; i < c.rolePermissionsSize; i++) {
+        if(UA_NodeId_equal(&c.rolePermissions[i].roleId, roleId)) {
             roleEntryIdx = i;
             break;
         }
@@ -2560,76 +2656,37 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
         return UA_STATUSCODE_GOOD; /* Role not found, nothing to remove */
 
     /* Calculate new permissions for this role */
-    UA_PermissionType newPerms = oldRp->rolePermissions[roleEntryIdx].permissions & ~permissions;
+    UA_PermissionType newPerms =
+        c.rolePermissions[roleEntryIdx].permissions & ~permissions;
 
-    /* Build new entries array */
+    /* Build new entries array. The NodeIds are borrowed, the array is copied
+     * when a new entry is created. */
     size_t newEntriesSize = (newPerms == 0) ?
-        oldRp->rolePermissionsSize - 1 : oldRp->rolePermissionsSize;
-
-    UA_PermissionIndex targetIndex = UA_PERMISSION_INDEX_INVALID;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-
+        c.rolePermissionsSize - 1 : c.rolePermissionsSize;
+    UA_RolePermission *newEntries = NULL;
     if(newEntriesSize > 0) {
-        UA_RolePermission *newEntries = (UA_RolePermission*)
+        newEntries = (UA_RolePermission*)
             UA_malloc(newEntriesSize * sizeof(UA_RolePermission));
         if(!newEntries)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-
         size_t j = 0;
-        for(size_t i = 0; i < oldRp->rolePermissionsSize; i++) {
-            if(i == roleEntryIdx) {
-                if(newPerms != 0) {
-                    res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[j].roleId);
-                    if(res != UA_STATUSCODE_GOOD) {
-                        for(size_t k = 0; k < j; k++)
-                            UA_NodeId_clear(&newEntries[k].roleId);
-                        UA_free(newEntries);
-                        return res;
-                    }
-                    newEntries[j].permissions = newPerms;
-                    j++;
-                }
-            } else {
-                res = UA_NodeId_copy(&oldRp->rolePermissions[i].roleId, &newEntries[j].roleId);
-                if(res != UA_STATUSCODE_GOOD) {
-                    for(size_t k = 0; k < j; k++)
-                        UA_NodeId_clear(&newEntries[k].roleId);
-                    UA_free(newEntries);
-                    return res;
-                }
-                newEntries[j].permissions = oldRp->rolePermissions[i].permissions;
-                j++;
-            }
+        for(size_t i = 0; i < c.rolePermissionsSize; i++) {
+            if(i == roleEntryIdx && newPerms == 0)
+                continue;
+            newEntries[j] = c.rolePermissions[i];
+            if(i == roleEntryIdx)
+                newEntries[j].permissions = newPerms;
+            j++;
         }
-
-        res = findOrCreateRolePermissions(server, newEntriesSize, newEntries, &targetIndex);
-
-        for(size_t i = 0; i < newEntriesSize; i++)
-            UA_NodeId_clear(&newEntries[i].roleId);
-        UA_free(newEntries);
-
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
     }
 
-    /* Update refcounts and node's permissionIndex if changed */
-    if(targetIndex != currentIndex) {
-        decrementRefCount(server, currentIndex);
-        if(targetIndex != UA_PERMISSION_INDEX_INVALID)
-            incrementRefCount(server, targetIndex);
-
-        UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
-        if(!editNode) {
-            if(targetIndex != UA_PERMISSION_INDEX_INVALID)
-                decrementRefCount(server, targetIndex);
-            incrementRefCount(server, currentIndex);
-            return UA_STATUSCODE_BADNODEIDUNKNOWN;
-        }
-        editNode->head.permissionIndex = targetIndex;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)editNode);
-    }
-
-    return UA_STATUSCODE_GOOD;
+    /* Removing the last entry drops the node's own RolePermissions (the
+     * namespace default applies again). The AccessRestrictions are kept. */
+    EntryContent_setRolePermissions(&c, newEntriesSize > 0,
+                                    newEntriesSize, newEntries);
+    res = setNodeEntryContent(server, nodeId, &c);
+    UA_free(newEntries);
+    return res;
 }
 
 struct RemoveRolePermissionsContext {
@@ -2668,7 +2725,9 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
         struct RemoveRolePermissionsContext ctx;
         ctx.roleId = &roleId;
         ctx.permissions = permissions;
-        res = applyToHierarchicalChildren(server, &nodeId, removeRolePermissionsCallback, &ctx);
+        res = applyToHierarchicalChildren(server, &nodeId,
+                                          removeRolePermissionsCallback, &ctx,
+                                          false);
     }
 
     unlockServer(server);
@@ -2679,7 +2738,11 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
 /* Permission Index Management      */
 /************************************/
 
-/* Internal helper for setting a node's permission index directly.
+/* Internal helper for setting a node's permission index directly. The index
+ * selects the RolePermissions; the node keeps its own AccessRestrictions. If
+ * the entry at the index carries other AccessRestrictions than the node, the
+ * node is pointed at the entry with the RolePermissions of the index and its
+ * own AccessRestrictions instead (copy-on-write).
  * Must be called with the server lock held. */
 static UA_StatusCode
 setNodePermissionIndexDirect(UA_Server *server, const UA_NodeId *nodeId,
@@ -2699,22 +2762,26 @@ setNodePermissionIndexDirect(UA_Server *server, const UA_NodeId *nodeId,
     if(currentIndex == permissionIndex)
         return UA_STATUSCODE_GOOD;
 
-    decrementRefCount(server, currentIndex);
-    if(permissionIndex != UA_PERMISSION_INDEX_INVALID)
-        incrementRefCount(server, permissionIndex);
+    /* A node with an invalid index gets a valid one (repair) */
+    EntryContent current, target;
+    UA_StatusCode res =
+        getEntryContent(server, nodeId, currentIndex, true, &current);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = getEntryContent(server, nodeId, permissionIndex, false, &target);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
-    if(!editNode) {
-        if(permissionIndex != UA_PERMISSION_INDEX_INVALID)
-            decrementRefCount(server, permissionIndex);
-        incrementRefCount(server, currentIndex);
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    if(target.hasAccessRestrictions != current.hasAccessRestrictions ||
+       target.accessRestrictions != current.accessRestrictions) {
+        EntryContent_setAccessRestrictions(&target, current.hasAccessRestrictions,
+                                           current.accessRestrictions);
+        res = findOrCreateEntry(server, &target, &permissionIndex);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
-    editNode->head.permissionIndex = permissionIndex;
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)editNode);
-
-    return UA_STATUSCODE_GOOD;
+    return setNodePermissionIndexLocked(server, nodeId, permissionIndex);
 }
 
 struct SetNodePermissionIndexContext {
@@ -2745,7 +2812,10 @@ UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
     if(recursive) {
         struct SetNodePermissionIndexContext ctx;
         ctx.permissionIndex = permissionIndex;
-        res = applyToHierarchicalChildren(server, &nodeId, setNodePermissionIndexCallback, &ctx);
+        /* Replaces the RolePermissions: visit the whole tree */
+        res = applyToHierarchicalChildren(server, &nodeId,
+                                          setNodePermissionIndexCallback, &ctx,
+                                          true);
     }
 
     unlockServer(server);
@@ -2815,6 +2885,7 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
 
     UA_RolePermissionEntry *entry = &server->rolePermissions[newIndex];
     rolePermissionEntry_init(entry);
+    entry->hasRolePermissions = true;
 
     if(entriesSize > 0) {
         UA_StatusCode res = copyRolePermissionArray(entriesSize, entries,
@@ -2840,9 +2911,31 @@ UA_Server_getRolePermissionConfig(UA_Server *server, UA_PermissionIndex index) {
     if(!server || index >= server->rolePermissionsSize)
         return NULL;
 
+    /* An entry with only AccessRestrictions has no RolePermission set. Its
+     * empty array must not be mistaken for an explicit deny-all. */
+    const UA_RolePermissionEntry *e = &server->rolePermissions[index];
+    if(!e->hasRolePermissions)
+        return NULL;
+
     /* Cast UA_RolePermissionEntry to UA_RolePermissionSet — they have the same
      * layout for the first two fields (rolePermissionsSize, rolePermissions) */
-    return (const UA_RolePermissionSet*)&server->rolePermissions[index];
+    return (const UA_RolePermissionSet*)e;
+}
+
+/* An entry that a node reaches with the RolePermissions of the configuration
+ * and its own AccessRestrictions (copy-on-write). The configuration is shared
+ * by content: every entry with the same RolePermissions and with
+ * AccessRestrictions counts, regardless of how the node reached it. */
+static UA_Boolean
+isDerivedEntry(const UA_RolePermissionEntry *config,
+               const UA_RolePermissionEntry *e) {
+    if(!config->hasRolePermissions || config->hasAccessRestrictions)
+        return false; /* Not a RolePermission configuration */
+    if(e == config || !e->hasRolePermissions || !e->hasAccessRestrictions)
+        return false;
+    return compareRolePermissions(config->rolePermissionsSize,
+                                  config->rolePermissions,
+                                  e->rolePermissionsSize, e->rolePermissions);
 }
 
 UA_StatusCode
@@ -2852,18 +2945,32 @@ UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index
     if(!server || (entriesSize > 0 && !entries))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(index >= server->rolePermissionsSize)
-        return UA_STATUSCODE_BADOUTOFRANGE;
-
     lockServer(server);
+
+    if(index >= server->rolePermissionsSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
 
     UA_RolePermissionEntry *config = &server->rolePermissions[index];
 
-    /* Cannot modify entries that are still referenced by nodes */
-    if(config->refCount > 0 &&
-       config->refCount != UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADINVALIDSTATE;
+    /* The entries to update: the configuration and the entries derived from
+     * it, which keep their AccessRestrictions. Unless the configuration is a
+     * protected preset, the update is refused while any of them is still
+     * referenced by nodes. */
+    UA_Boolean isProtected =
+        (config->refCount == UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED);
+    size_t targetsSize = 0;
+    for(size_t i = 0; i < server->rolePermissionsSize; i++) {
+        const UA_RolePermissionEntry *e = &server->rolePermissions[i];
+        if(i != index && !isDerivedEntry(config, e))
+            continue;
+        if(!isProtected && e->refCount > 0 &&
+           e->refCount != UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        }
+        targetsSize++;
     }
 
     /* Validate that all role IDs exist */
@@ -2875,21 +2982,51 @@ UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index
         }
     }
 
-    /* Clear old entries */
-    size_t savedRefCount = config->refCount;
-    rolePermissionEntry_clear(config);
-
-    /* Copy new entries */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(entriesSize > 0) {
-        res = copyRolePermissionArray(entriesSize, entries,
-                                      &config->rolePermissionsSize,
-                                      &config->rolePermissions);
+    /* Prepare a copy of the new RolePermissions for every entry first, so that
+     * the update is all-or-nothing */
+    UA_RolePermission **copies = (UA_RolePermission**)
+        UA_calloc(targetsSize, sizeof(UA_RolePermission*));
+    if(!copies) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    config->refCount = savedRefCount;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t k = 0; k < targetsSize; k++) {
+        size_t copySize = 0;
+        res = copyRolePermissionArray(entriesSize, entries, &copySize, &copies[k]);
+        if(res != UA_STATUSCODE_GOOD) {
+            for(size_t j = 0; j < k; j++) {
+                for(size_t r = 0; r < entriesSize; r++)
+                    UA_NodeId_clear(&copies[j][r].roleId);
+                UA_free(copies[j]);
+            }
+            UA_free(copies);
+            unlockServer(server);
+            return res;
+        }
+    }
 
+    /* Replace the RolePermissions. The refCount and the AccessRestrictions of
+     * the entries are kept. The derived entries are updated before the
+     * configuration, as they are identified by its current RolePermissions. */
+    size_t k = 0;
+    for(size_t i = 0; i < server->rolePermissionsSize; i++) {
+        UA_RolePermissionEntry *e = &server->rolePermissions[i];
+        if(i == index || !isDerivedEntry(config, e))
+            continue;
+        rolePermissionEntry_clearRolePermissions(e);
+        e->rolePermissions = copies[k++];
+        e->rolePermissionsSize = entriesSize;
+    }
+    rolePermissionEntry_clearRolePermissions(config);
+    config->rolePermissions = copies[k++];
+    config->rolePermissionsSize = entriesSize;
+    config->hasRolePermissions = true;
+    UA_assert(k == targetsSize);
+
+    UA_free(copies);
     unlockServer(server);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 /************************************/
@@ -2906,12 +3043,16 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
     size_t entriesSize = 0;
     UA_Boolean permissionsConfigured = false;
 
-    /* If node has explicit permission configuration, use it */
-    if(permIdx != UA_PERMISSION_INDEX_INVALID) {
+    /* Fail closed on an index that is out of range (Nodestore problem) */
+    if(permIdx != UA_PERMISSION_INDEX_INVALID &&
+       permIdx >= server->rolePermissionsSize)
+        return 0;
+
+    /* If node has explicit permission configuration, use it. An entry with
+     * only AccessRestrictions does not configure RolePermissions. */
+    const UA_RolePermissionEntry *rp = getRolePermissionsEntry(server, permIdx);
+    if(rp) {
         permissionsConfigured = true;
-        if(permIdx >= server->rolePermissionsSize)
-            return 0;
-        const UA_RolePermissionEntry *rp = &server->rolePermissions[permIdx];
         entries = rp->rolePermissions;
         entriesSize = rp->rolePermissionsSize;
     } else {
@@ -3092,10 +3233,9 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
 
     const UA_RolePermission *permissionEntries = NULL;
     size_t permissionEntriesSize = 0;
-    if(node->head.permissionIndex != UA_PERMISSION_INDEX_INVALID &&
-       node->head.permissionIndex < server->rolePermissionsSize) {
-        const UA_RolePermissionEntry *rp =
-            &server->rolePermissions[node->head.permissionIndex];
+    const UA_RolePermissionEntry *rp =
+        getRolePermissionsEntry(server, node->head.permissionIndex);
+    if(rp) {
         permissionEntries = rp->rolePermissions;
         permissionEntriesSize = rp->rolePermissionsSize;
     } else {
@@ -3291,16 +3431,40 @@ UA_Server_decrementRolePermissionsRefCount(UA_Server *server,
     unlockServer(server);
 }
 
+UA_StatusCode
+retainInstanceAccessRestrictions(UA_Server *server, UA_PermissionIndex declIndex,
+                                 UA_PermissionIndex *outIndex) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    *outIndex = UA_PERMISSION_INDEX_INVALID;
+    if(declIndex == UA_PERMISSION_INDEX_INVALID ||
+       declIndex >= server->rolePermissionsSize ||
+       !server->rolePermissions[declIndex].hasAccessRestrictions)
+        return UA_STATUSCODE_GOOD;
+
+    EntryContent c;
+    EntryContent_setRolePermissions(&c, false, 0, NULL);
+    EntryContent_setAccessRestrictions(&c, true,
+        server->rolePermissions[declIndex].accessRestrictions);
+    UA_StatusCode res = findOrCreateEntry(server, &c, outIndex);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    incrementRefCount(server, *outIndex);
+    return UA_STATUSCODE_GOOD;
+}
+
 /************************************/
 /* AccessRestrictions (Part 3)      */
 /************************************/
 
 /* Effective AccessRestrictions of a node: its own value if set, otherwise the
- * namespace default (Part 3 §5.2.11). Requires the server lock. */
+ * namespace default (Part 3 §5.2.11). The node's own value is stored in its
+ * shared role-permission entry. Requires the server lock. */
 UA_AccessRestrictionType
 getNodeAccessRestrictions(UA_Server *server, const UA_Node *node) {
-    if(node->head.hasAccessRestrictions)
-        return node->head.accessRestrictions;
+    UA_PermissionIndex idx = node->head.permissionIndex;
+    if(idx != UA_PERMISSION_INDEX_INVALID && idx < server->rolePermissionsSize &&
+       server->rolePermissions[idx].hasAccessRestrictions)
+        return server->rolePermissions[idx].accessRestrictions;
     UA_UInt16 ns = node->head.nodeId.namespaceIndex;
     if(ns < server->namespaceMetadataSize && server->namespaceMetadata &&
        server->namespaceMetadata[ns].hasDefaultAccessRestrictions)
@@ -3350,16 +3514,24 @@ UA_Server_setNodeAccessRestrictions(UA_Server *server, const UA_NodeId nodeId,
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
-    UA_Node *node = UA_NODESTORE_GET_EDIT(server, &nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
     if(!node) {
         unlockServer(server);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    node->head.accessRestrictions = restrictions;
-    node->head.hasAccessRestrictions = true;
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+
+    /* Copy-on-write: keep the RolePermissions of the node and point it at the
+     * (shared) entry with the new AccessRestrictions */
+    EntryContent c;
+    UA_StatusCode res = getEntryContent(server, &nodeId, currentIndex, true, &c);
+    if(res == UA_STATUSCODE_GOOD) {
+        EntryContent_setAccessRestrictions(&c, true, restrictions);
+        res = setNodeEntryContent(server, &nodeId, &c);
+    }
     unlockServer(server);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 UA_StatusCode

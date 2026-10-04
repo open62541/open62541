@@ -593,9 +593,11 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
 #ifdef UA_ENABLE_RBAC
+    /* The copy references the same shared entry (RolePermissions and
+     * AccessRestrictions). The refCount is not taken: a copy replaces its
+     * source in the Nodestore. Callers creating an additional node from the
+     * copy must set the index themselves (see copyChildNode). */
     dsthead->permissionIndex = srchead->permissionIndex;
-    dsthead->accessRestrictions = srchead->accessRestrictions;
-    dsthead->hasAccessRestrictions = srchead->hasAccessRestrictions;
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     dsthead->monitoredItems = NULL;

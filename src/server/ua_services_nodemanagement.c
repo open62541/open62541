@@ -860,8 +860,11 @@ copyChildNode(UA_Server *server, UA_Session *session,
     node->head.constructed = false;
 #ifdef UA_ENABLE_RBAC
     /* The new instance child starts without explicit RolePermissions (falls
-     * back to the namespace defaults). Keeping the copied permissionIndex
-     * would reference the shared entry without adjusting its refCount. */
+     * back to the namespace defaults) but keeps the AccessRestrictions of the
+     * InstanceDeclaration (set up before the node is inserted). Keeping the
+     * copied permissionIndex would reference the shared entry without
+     * adjusting its refCount. */
+    UA_PermissionIndex declPermissionIndex = node->head.permissionIndex;
     node->head.permissionIndex = UA_PERMISSION_INDEX_INVALID;
 #endif
 
@@ -926,12 +929,28 @@ copyChildNode(UA_Server *server, UA_Session *session,
     }
     UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
+#ifdef UA_ENABLE_RBAC
+    /* Reference the shared entry with only the AccessRestrictions of the
+     * InstanceDeclaration (if it has any). Released by the node deletion. */
+    res = retainInstanceAccessRestrictions(server, declPermissionIndex,
+                                           &node->head.permissionIndex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_DELETE(server, node);
+        return res;
+    }
+    UA_PermissionIndex instancePermissionIndex = node->head.permissionIndex;
+#endif
+
     /* Add the node to the nodestore */
     UA_NodeId newNodeId = UA_NODEID_NULL;
     res = UA_NODESTORE_INSERT(server, node, &newNodeId);
     /* node = NULL; The pointer is no longer valid */
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+#ifdef UA_ENABLE_RBAC
+        UA_Server_decrementRolePermissionsRefCount(server, instancePermissionIndex);
+#endif
         return res;
+    }
 
     /* Add the node references */
     res = addNode_addRefs(server, session, &newNodeId, destinationNodeId,

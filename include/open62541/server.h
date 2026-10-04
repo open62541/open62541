@@ -2782,9 +2782,18 @@ struct UA_ServerConfig {
      * - Custom nodestore implementations should be aware of these
      *   index-stability guarantees when managing node permission storage.
      *
+     * A node with AccessRestrictions of its own references a shared entry
+     * that holds both the RolePermissions and the AccessRestrictions. The
+     * RolePermission configuration is therefore shared by content: updating
+     * a preset also updates the entries that combine its RolePermissions
+     * with AccessRestrictions, so that nodes with their own
+     * AccessRestrictions keep following the preset. Presets with equal
+     * RolePermissions are indistinguishable for such nodes.
+     *
      * Additional role-permission sets can be added at runtime through
-     * the server API (UA_Server_setNodeRolePermissions). Runtime entries
-     * may be garbage-collected when no longer referenced by any node. */
+     * the server API (UA_Server_setNodeRolePermissions). Entries are never
+     * removed or recycled at runtime: changes are copy-on-write and leave
+     * entries that are no longer referenced by any node in the table. */
     size_t rolePermissionPresetsSize;
     UA_RolePermissionSet *rolePermissionPresets;
 
