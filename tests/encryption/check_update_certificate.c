@@ -327,6 +327,19 @@ START_TEST(update_certificate_noneEndpoint) {
 }
 END_TEST
 
+START_TEST(update_certificate_noKey_invalid) {
+    UA_ByteString newCertificate = UA_BYTESTRING("not a certificate");
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -340,6 +353,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, addDriver_rejectsDuplicateGDSReceiver);
     tcase_add_test(tc_cert, update_certificate_preflightsAllEndpoints);
     tcase_add_test(tc_cert, update_certificate_noneEndpoint);
+    tcase_add_test(tc_cert, update_certificate_noKey_invalid);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -354,6 +368,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, addDriver_rejectsDuplicateGDSReceiver);
     tcase_add_test(tc_cert_filestore, update_certificate_preflightsAllEndpoints);
     tcase_add_test(tc_cert_filestore, update_certificate_noneEndpoint);
+    tcase_add_test(tc_cert_filestore, update_certificate_noKey_invalid);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */

@@ -736,6 +736,12 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
         retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
+    } else {
+        /* Validate the certificate before staging a keyless update. */
+        size_t keySize = 0;
+        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)certificate,
+                                          &keySize) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     /* The transaction is discarded once the queued ApplyChanges has run.
@@ -1466,6 +1472,11 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
            UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
         newPrivateKey = *privateKey;
+    } else {
+        size_t keySize = 0;
+        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)&certificate,
+                                          &keySize) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     UA_Server *server = receiver->drv.server;

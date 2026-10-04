@@ -870,6 +870,10 @@ FUNC_DECODE_BINARY(LocalizedText) {
  * possible to reuse UA_findDataType */
 static const UA_DataType *
 UA_findDataTypeByBinaryInternal(Ctx *ctx, const UA_NodeId *typeId) {
+    /* A null identifier means that the type has no binary encoding. */
+    if(UA_NodeId_isNull(typeId))
+        return NULL;
+
     /* Always look in the built-in types first. Assume that only numeric
      * identifiers are used for the builtin types. (They may contain data types
      * from all namespaces though.) */
@@ -1325,12 +1329,18 @@ FUNC_DECODE_BINARY(Variant) {
 
     /* Does the variant contain an array? */
     const UA_Boolean isArray = (encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
+    UA_CHECK(isArray || !(encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS),
+             return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Get the datatype of the content. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. The "type kind"
      * for types up to DiagnsticInfo equals to the index in the encoding
      * byte. */
     size_t typeKind = (size_t)((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
+    /* Reserved wire type ids 26..31 contain ByteStrings (Part 6, 5.2.2.16).
+     * Normalize them to ByteString; the original reserved id is not retained. */
+    if(typeKind >= 25 && typeKind <= 30)
+        typeKind = UA_DATATYPEKIND_BYTESTRING;
     UA_CHECK(typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO, return UA_STATUSCODE_BADDECODINGERROR);
 
     /* A variant cannot contain a variant. But it can contain an array of

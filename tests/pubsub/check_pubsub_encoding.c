@@ -107,6 +107,49 @@ START_TEST(UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_Decode_RawDataSizeMustFitBuffer) {
+    UA_FieldMetaData field;
+    UA_FieldMetaData_init(&field);
+    field.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    field.builtInType = UA_NS0ID_BYTE;
+    field.valueRank = UA_VALUERANK_SCALAR;
+    UA_DataSetMessage_EncodingMetaData em;
+    memset(&em, 0, sizeof(em));
+    em.fieldsSize = 1;
+    em.fields = &field;
+
+    UA_Byte data[] = {0x03, 0xaa};
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx.pos = data;
+    ctx.ctx.end = data + sizeof(data);
+    UA_DataSetMessage dsm;
+    memset(&dsm, 0, sizeof(dsm));
+    UA_StatusCode res = UA_DataSetMessage_decodeBinary(&ctx, &em, &dsm, 1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_ptr_eq(ctx.ctx.end, data + sizeof(data));
+    UA_DataSetMessage_clear(&dsm);
+
+    memset(&dsm, 0, sizeof(dsm));
+    ctx.ctx.pos = data;
+    res = UA_DataSetMessage_decodeBinary(&ctx, &em, &dsm, sizeof(data) + 1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_BADDECODINGERROR);
+    UA_DataSetMessage_clear(&dsm);
+
+    /* A sized DSM and a single DSM with implicit size both use metadata. */
+    for(size_t size = 0; size <= sizeof(data); size += sizeof(data)) {
+        memset(&dsm, 0, sizeof(dsm));
+        ctx.ctx.pos = data;
+        res = UA_DataSetMessage_decodeBinary(&ctx, &em, &dsm, size);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(ctx.ctx.pos, data + sizeof(data));
+        ck_assert_uint_eq(dsm.fieldCount, 1);
+        ck_assert_uint_eq(*(UA_Byte*)dsm.data.keyFrameFields[0].value.data, 0xaa);
+        UA_DataSetMessage_clear(&dsm);
+    }
+}
+END_TEST
+
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
@@ -1995,6 +2038,62 @@ START_TEST(UA_PubSub_Encode_RawFixedSizeStringTooLong) {
     UA_ByteString_clear(&buffer);
 } END_TEST
 
+START_TEST(UA_PubSub_Decode_PromotedFieldTruncatedVariant) {
+    /* ExtendedFlags2 announces PromotedFields. The Int32 Variant that follows
+     * needs four bytes of data and only two are left before the end of the
+     * receive buffer, so it fails after allocating its scalar. Nothing is
+     * asserted about the allocation itself, the leak shows up under Valgrind
+     * and AddressSanitizer. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x01, 0x00, 0x06, 0x2a, 0x00};
+    UA_ByteString buffer;
+    buffer.data = data;
+    buffer.length = sizeof(data);
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_ne(rv, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize) {
+    /* ExtendedFlags2 announces PromotedFields of one byte, the Variant that
+     * follows is an Int32 and takes five. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x01, 0x00,
+                      0x06, 0x2a, 0x00, 0x00, 0x00,
+                      0x01, 0x00, 0x00};
+    UA_ByteString buffer;
+    buffer.data = data;
+    buffer.length = sizeof(data);
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset) {
+    /* The first DataSetMessage declares 5 bytes but fills only 3. The second
+     * one begins at the declared offset, where the flags are 0x00 and mark it
+     * as not valid. Reading on from where the first one ended would find a
+     * valid one instead. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x05, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00,
+                      0x00, 0x00, 0x00};
+    UA_ByteString buffer;
+    buffer.data = data;
+    buffer.length = sizeof(data);
+
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &m, NULL, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(m.messageCount, 2);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(!m.payload.dataSetMessages[1].header.dataSetMessageValid);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -2003,6 +2102,7 @@ int main(void) {
     tcase_add_test(tc_decode, UA_PubSub_Decode_WithBufferTooSmallShallReturnError);
     tcase_add_test(tc_decode, UA_PubSub_Decode_KeyFrameFieldCountMustFitBuffer);
     tcase_add_test(tc_decode, UA_PubSub_Decode_DeltaFrameFieldCountMustFitBuffer);
+    tcase_add_test(tc_decode, UA_PubSub_Decode_RawDataSizeMustFitBuffer);
 
     TCase *tc_ende1 = tcase_create("encode_decode1DS");
     tcase_add_test(tc_ende1, UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame);
@@ -2041,6 +2141,7 @@ int main(void) {
                    UA_PubSub_Decode_InvalidDsmSizeStaysWithinBuffer);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_InvalidPublisherIdTypeReturnsBadInternalError);
     tcase_add_test(tc_decode_err, UA_PubSub_Decode_RejectsInvalidSecurityFlags);
+    tcase_add_test(tc_decode_err, UA_PubSub_Decode_PromotedFieldTruncatedVariant);
 
     TCase *tc_nm_optional = tcase_create("NetworkMessage optional headers");
     tcase_add_test(tc_nm_optional, UA_PubSub_EnDecode_PicosecondsRoundtrip);
@@ -2052,6 +2153,9 @@ int main(void) {
     tcase_add_test(tc_nm_optional,
                    UA_PubSub_Encode_RejectsMissingRawFieldMetadata);
 
+    TCase *tc_sizes = tcase_create("declared sizes");
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset);
 
     Suite *s = suite_create("PubSub NetworkMessage");
     suite_add_tcase(s, tc_encode);
@@ -2061,6 +2165,7 @@ int main(void) {
     suite_add_tcase(s, tc_pid);
     suite_add_tcase(s, tc_decode_err);
     suite_add_tcase(s, tc_nm_optional);
+    suite_add_tcase(s, tc_sizes);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

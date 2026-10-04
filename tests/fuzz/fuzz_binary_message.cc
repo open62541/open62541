@@ -21,6 +21,7 @@
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
     if(size <= 4)
         return 0;
 
@@ -57,13 +58,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     memcpy(msg.data, data, size);
 
-    /* Get the binary server components */
-    UA_String binStr = UA_STRING((char*)(uintptr_t)"binary");
-    UA_Driver *bpm = NULL;
-    for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
-        if(UA_String_equal(&binStr, &drv->name))
-            bpm = drv;
-    }
+    UA_Driver *bpm = server->binaryDriver;
     UA_assert(bpm != NULL);
 
     UA_ConnectionManager *cm = TestConnectionManager_new("tcp", NULL);
@@ -92,5 +87,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_clear(&msg);
     UA_Server_delete(server);
+    UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
     return 0;
 }

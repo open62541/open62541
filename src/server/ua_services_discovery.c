@@ -623,6 +623,11 @@ static UA_StatusCode
 updateEndpointUserIdentityToken(UA_Server *server,
                                 UA_SecurityPolicyType policyType,
                                 UA_EndpointDescription *ed) {
+    /* Public endpoint configurations must be checked before indexing by mode. */
+    if((UA_UInt32)ed->securityMode < UA_MESSAGESECURITYMODE_NONE ||
+       (UA_UInt32)ed->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+
     /* Don't modify the UserIdentityTokens if there are manually configured
      * entries */
     if(ed->userIdentityTokensSize > 0)
@@ -1057,6 +1062,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     /* Check the presence of at least one DiscoveryUrl */
     if(requestServer->discoveryUrlsSize == 0)
         return UA_STATUSCODE_BADDISCOVERYURLMISSING;
+
+    /* Bound the records queued for mDNS probing by one registration. */
+    if(requestServer->discoveryUrlsSize > 16)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
 
     /* If a semaphore file path is defined, check that the file exists */
     if(requestServer->semaphoreFilePath.length) {
