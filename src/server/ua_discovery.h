@@ -88,6 +88,7 @@ struct UA_DiscoveryManager {
 
     LIST_HEAD(, registeredServer_list_entry) registeredServers;
     size_t registeredServersSize;
+    size_t maxRegisteredServers;
     UA_Server_registerServerCallback registerServerCallback;
     void* registerServerCallbackData;
 
