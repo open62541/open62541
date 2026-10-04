@@ -35,13 +35,22 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
 
     UA_UInt32 channelId = (channel) ? channel->securityToken.channelId : 0;
     UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
-    UA_Byte entryIdBuf[521];
-    UA_String auditEntryId = {512, entryIdBuf};
-    UA_String_format(&auditEntryId, "%u:%N:%s", channelId, sessionId, serviceName);
     UA_String clientUserId = (session) ?
         session->clientUserIdOfSession : UA_STRING_NULL;
     UA_DateTime actionTimestamp =
         config->eventLoop->dateTime_now(config->eventLoop);
+
+    /* Create an internal audit entry id if none is defined. The server-global
+     * pointer to the current RequestHeader is set in processRequest. */
+    UA_Byte entryIdBuf[521];
+    UA_String auditEntryId;
+    if(server->currentRequest && server->currentRequest->auditEntryId.length > 0) {
+        auditEntryId = server->currentRequest->auditEntryId;
+    } else {
+        auditEntryId.length = 512;
+        auditEntryId.data = entryIdBuf;
+        UA_String_format(&auditEntryId, "%u:%N:%s", channelId, sessionId, serviceName);
+    }
 
     UA_Variant_setScalar(&payload.map[0].value, &actionTimestamp,
                          &UA_TYPES[UA_TYPES_DATETIME]);
