@@ -793,6 +793,10 @@ DECODE_BINARY(LocalizedText) {
  * possible to reuse UA_findDataType */
 static const UA_DataType *
 UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
+    /* A null identifier means that the type has no binary encoding. */
+    if(UA_NodeId_isNull(typeId))
+        return NULL;
+
     /* Always look in the built-in types first. Assume that only numeric
      * identifiers are used for the builtin types. (They may contain data types
      * from all namespaces though.) */
