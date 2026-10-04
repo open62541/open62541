@@ -169,6 +169,11 @@ START_TEST(helloEndpointUrlLimit) {
     checkHello(32, 0, 0xdeadbeef, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(helloTrailingData) {
+    checkHello(32, 1, 0, UA_STATUSCODE_BADDECODINGERROR);
+    checkHello(32, 8, 0, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server");
 
@@ -179,6 +184,7 @@ int main(void) {
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
     tcase_add_test(tc_call, helloEndpointUrlLimit);
+    tcase_add_test(tc_call, helloTrailingData);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);
