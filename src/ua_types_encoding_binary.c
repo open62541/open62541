@@ -1237,6 +1237,8 @@ DECODE_BINARY(Variant) {
 
     /* Does the variant contain an array? */
     const UA_Boolean isArray = (encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
+    UA_CHECK(isArray || !(encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS),
+             return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Get the datatype of the content. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. The "type kind"
