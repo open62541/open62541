@@ -368,7 +368,7 @@ START_TEST(Client_commonAttributes_requireBrowse) {
         attr, NULL, NULL), UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
-    running = true;
+    UA_atomic_store(&running, true);
     THREAD_CREATE(server_thread, serverloop);
 
     UA_Client *client = UA_Client_new();
@@ -388,7 +388,7 @@ START_TEST(Client_commonAttributes_requireBrowse) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    running = false;
+    UA_atomic_store(&running, false);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
