@@ -1814,6 +1814,77 @@ START_TEST(UA_StatusCode_utils) {
 
 } END_TEST
 
+START_TEST(UA_ExtensionObject_decodeNullEncodingId) {
+    UA_NodeId nullId = UA_NODEID_NULL;
+    ck_assert_ptr_eq(UA_findDataTypeByBinary(&nullId), NULL);
+
+    UA_Byte data[] = {0, 0, 1, 1, 0, 0, 0, 5};
+    UA_ByteString input = {sizeof(data), data};
+    UA_ExtensionObject eo;
+    size_t offset = 0;
+    ck_assert_uint_eq(UA_decodeBinaryInternal(&input, &offset, &eo,
+                      &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, input.length);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert(UA_NodeId_isNull(&eo.content.encoded.typeId));
+    ck_assert_uint_eq(eo.content.encoded.body.length, 1);
+    ck_assert_uint_eq(eo.content.encoded.body.data[0], 5);
+    UA_ExtensionObject_clear(&eo);
+
+    /* Numeric zero in another namespace can be a registered encoding id. */
+    UA_DataType custom = UA_TYPES[UA_TYPES_BOOLEAN];
+    custom.typeId = UA_NODEID_NUMERIC(1, 123);
+    custom.binaryEncodingId = UA_NODEID_NUMERIC(1, 0);
+    UA_DataTypeArray customTypes = {NULL, 1, &custom, false};
+    UA_Byte namespaced[] = {1, 1, 0, 0, 1, 1, 0, 0, 0, 5};
+    input.data = namespaced;
+    input.length = sizeof(namespaced);
+    offset = 0;
+    ck_assert_uint_eq(UA_decodeBinaryInternal(&input, &offset, &eo,
+                      &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customTypes), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(eo.content.decoded.type, &custom);
+    UA_ExtensionObject_clear(&eo);
+
+    /* Legitimate null ExtensionObjects still have no body. */
+    data[2] = 0;
+    input.data = data;
+    input.length = 3;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT],
+                                     NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    UA_ExtensionObject_clear(&eo);
+} END_TEST
+
+START_TEST(UA_Variant_decodeNullEncodingId) {
+    UA_Byte data[] = {0x96, 2, 0, 0, 0,
+                     0, 0, 1, 1, 0, 0, 0, 5,
+                     0, 0, 1, 1, 0, 0, 0, 0};
+    UA_ByteString input = {sizeof(data), data};
+    UA_Variant v;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(v.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(v.arrayLength, 2);
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)v.data;
+    ck_assert_uint_eq(eo[0].encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_uint_eq(eo[1].encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_uint_eq(eo[0].content.encoded.body.data[0], 5);
+    ck_assert_uint_eq(eo[1].content.encoded.body.data[0], 0);
+    UA_Variant_clear(&v);
+
+    data[4] = 0x16;
+    input.data = data + 4;
+    input.length = 9;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]));
+    eo = (UA_ExtensionObject*)v.data;
+    ck_assert_uint_eq(eo->encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_uint_eq(eo->content.encoded.body.data[0], 5);
+    UA_Variant_clear(&v);
+} END_TEST
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -1845,6 +1916,8 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_decode, UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray);
     tcase_add_test(tc_decode, UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem);
     tcase_add_test(tc_decode, UA_Variant_decodeWithTooSmallSourceShallReturnWithError);
+    tcase_add_test(tc_decode, UA_ExtensionObject_decodeNullEncodingId);
+    tcase_add_test(tc_decode, UA_Variant_decodeNullEncodingId);
     suite_add_tcase(s, tc_decode);
 
     TCase *tc_encode = tcase_create("encode");
