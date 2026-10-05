@@ -120,7 +120,11 @@ struct UA_AccessControl {
 
     /* Allow transfer of a subscription to another session. The Server shall
      * validate that the Client of that Session is operating on behalf of the
-     * same user */
+     * same user. The oldSessionId is NULL for a Subscription that is detached
+     * from its Session. The server only calls this after it has verified that
+     * the new Session has the identity (user, and for anonymous users the
+     * client ApplicationUri over a secure SecureChannel) of the Session the
+     * Subscription was detached from. */
     UA_Boolean (*allowTransferSubscription)(UA_Server *server, UA_AccessControl *ac,
                                             const UA_NodeId *oldSessionId, void *oldSessionContext,
                                             const UA_NodeId *newSessionId, void *newSessionContext);

@@ -558,6 +558,24 @@ setMonitoredItemSubscriptionVisitor(void *context, UA_MonitoredItem *mon) {
     return NULL;
 }
 
+/* The Session has the identity of the Session the Subscription was detached
+ * from. Same rules as the default AccessControl for attached Subscriptions: The
+ * same user. For anonymous users the same client application, which is only
+ * verified (against the client certificate) on secure SecureChannels. */
+static UA_Boolean
+isDetachedSubscriptionOwner(const UA_Subscription *sub, const UA_Session *session) {
+    if(!sub->ownerKnown || sub->ownerTokenType != session->userTokenType ||
+       !UA_String_equal(&sub->ownerUserId, &session->clientUserIdOfSession))
+        return false;
+    if(sub->ownerUserId.length > 0)
+        return true;
+    UA_Boolean secure = session->channel &&
+        session->channel->securityMode != UA_MESSAGESECURITYMODE_NONE;
+    return sub->ownerSecure && secure && sub->ownerApplicationUri.length > 0 &&
+        UA_String_equal(&sub->ownerApplicationUri,
+                        &session->clientDescription.applicationUri);
+}
+
 static void
 Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                const void *context /* UA_Boolean */,
@@ -588,6 +606,13 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DIAGNOSTICS
         sub->transferredToSameClientCount++;
 #endif
+        return;
+    }
+
+    /* A detached Subscription has no Session to compare against. Check the
+     * identity of the Session it was detached from. */
+    if(!oldSession && !isDetachedSubscriptionOwner(sub, session)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
 
@@ -632,6 +657,11 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * sent. The elements for lists and queues are moved over manually to ensure
      * that all backpointers are set correctly. */
     memcpy(newSub, sub, sizeof(UA_Subscription));
+
+    /* The owner identity remains with (and is freed by) the original */
+    newSub->ownerKnown = false;
+    UA_String_init(&newSub->ownerUserId);
+    UA_String_init(&newSub->ownerApplicationUri);
 
     /* Set to the same state as the original subscription */
     newSub->publishCallbackId = 0;
