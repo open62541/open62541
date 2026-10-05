@@ -235,8 +235,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         /* Change the repeated callback to the new interval. This cannot fail as
          * memory is reused. */
         if(sub->publishCallbackId > 0)
-            changeRepeatedCallbackInterval(server, sub->publishCallbackId,
-                                           sub->publishingInterval);
+            Subscription_setPublishTimer(server, sub);
 
         /* For each MonitoredItem check if it was/shall be attached to the
          * publish interval. This ensures that we have less cyclic callbacks
