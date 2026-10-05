@@ -23,14 +23,13 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
     UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local nonce");
 
-    /* Is the length of the previous nonce correct? */
+    /* Is the length of the previous nonce correct? The SecureChannel nonce has
+     * exactly the SecureChannelNonceLength of the SecurityPolicy (Part 7).
+     * E.g. 16 byte for Basic128Rsa15; other stacks reject a longer nonce
+     * with Bad_NonceInvalid. */
     size_t nonceLength = sp->nonceLength;
     if(nonceLength == 0)
         return UA_STATUSCODE_GOOD;
-
-    /* At least 32 byte */
-    if(nonceLength < 32)
-        nonceLength = 32;
 
     if(channel->localNonce.length != nonceLength) {
         UA_ByteString_clear(&channel->localNonce);
