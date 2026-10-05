@@ -1076,6 +1076,24 @@ sampleAndPublishCallback(UA_Server *server,
     unlockServer(server);
 }
 
+/* The publishing cycles start when the timer is (re)started. The BASETIME
+ * policy with "now" as the base time keeps the timer from being batched with
+ * other timers: batching moves the first execution by up to 1/4 of the
+ * interval, but the first (keep-alive) message is due at the end of the first
+ * publishing cycle (Part 4, 5.13.1.1). */
+UA_StatusCode
+Subscription_setPublishTimer(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    if(sub->publishCallbackId != 0)
+        return el->modifyTimer(el, sub->publishCallbackId, sub->publishingInterval,
+                               &now, UA_TIMERPOLICY_BASETIME);
+    return el->addTimer(el, (UA_Callback)sampleAndPublishCallback, server, sub,
+                        sub->publishingInterval, &now, UA_TIMERPOLICY_BASETIME,
+                        &sub->publishCallbackId);
+}
+
 UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state) {
@@ -1092,9 +1110,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 #endif
         }
     } else if(sub->publishCallbackId == 0) {
-        UA_StatusCode res =
-            addRepeatedCallback(server, sampleAndPublishCallback,
-                                sub, sub->publishingInterval, &sub->publishCallbackId);
+        UA_StatusCode res = Subscription_setPublishTimer(server, sub);
         if(res != UA_STATUSCODE_GOOD) {
             sub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
             return res;

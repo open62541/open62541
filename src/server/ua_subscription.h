@@ -358,6 +358,11 @@ UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state);
 
+/* Add the publish timer of the Subscription, or change it to the current
+ * publishing interval. The next publishing cycle ends one interval from now. */
+UA_StatusCode
+Subscription_setPublishTimer(UA_Server *server, UA_Subscription *sub);
+
 void
 Subscription_resetLifetime(UA_Subscription *sub);
 
