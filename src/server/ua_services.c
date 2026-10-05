@@ -380,8 +380,23 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_Session *session = NULL;
     response->responseHeader.serviceResult =
         getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
-    if(!session && sd->sessionRequired)
+    if(!session && sd->sessionRequired) {
+        /* Part 4, 5.7.4.3 lists only Bad_SessionIdInvalid for CloseSession.
+         * Rewrite every other StatusCode except for the listed exceptions.
+         * E.g. a Session bound to another SecureChannel is invalid from the
+         * view of this (still valid) SecureChannel. */
+        if(sd->requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
+            switch(response->responseHeader.serviceResult) {
+            case UA_STATUSCODE_BADSESSIONCLOSED:
+                break;
+            default:
+                response->responseHeader.serviceResult =
+                    UA_STATUSCODE_BADSESSIONIDINVALID;
+                break;
+            }
+        }
         return true;
+    }
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
