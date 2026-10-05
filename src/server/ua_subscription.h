@@ -270,6 +270,15 @@ struct UA_Subscription {
     UA_Session *session; /* May be NULL if no session is attached. */
     UA_UInt32 subscriptionId;
 
+    /* Identity of the Session the Subscription was detached from (CloseSession
+     * with DeleteSubscriptions=false, Session timeout). A detached Subscription
+     * can only be transferred to a Session with the same identity. */
+    UA_Boolean ownerKnown;
+    UA_Boolean ownerSecure; /* SecureChannel with SecurityMode other than None */
+    UA_UserTokenType ownerTokenType;
+    UA_String ownerUserId;
+    UA_String ownerApplicationUri;
+
     /* Settings */
     UA_UInt32 lifeTimeCount;
     UA_UInt32 maxKeepAliveCount;

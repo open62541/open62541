@@ -351,6 +351,9 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
     /* Detach from the session if necessary */
     if(sub->session)
         UA_Session_detachSubscription(server, sub->session, sub, true);
+    UA_String_clear(&sub->ownerUserId);
+    UA_String_clear(&sub->ownerApplicationUri);
+    sub->ownerKnown = false;
 
     /* Remove from the server if not previously registered */
     if(sub->serverListEntry.le_prev) {
