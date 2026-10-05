@@ -50,6 +50,8 @@ struct HTTPConnection {
     UA_Boolean closing;
     UA_Boolean useSSL;
     UA_UInt16 timeout;
+    UA_UInt32 maxConnections;
+    UA_UInt32 acceptedConnectionsCount;
     UA_UInt32 recvMaxMessageSize;
     UA_UInt32 recvMaxDecompressedMessageSize;
     UA_UInt32 sendMaxMessageSize;
