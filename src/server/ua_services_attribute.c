@@ -1819,7 +1819,8 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
         node->dataTypeNode.isAbstract = value;
         break;
     default:
-        return UA_STATUSCODE_BADNODECLASSINVALID;
+        /* The NodeClass does not have the attribute (as for Read) */
+        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1844,17 +1845,41 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
         break;                                                          \
     }
 
+/* The NodeClass does not have the attribute (as for Read) */
 #define CHECK_NODECLASS_WRITE(CLASS)                                    \
     if((node->head.nodeClass & (CLASS)) == 0) {                         \
-        retval = UA_STATUSCODE_BADNODECLASSINVALID;                     \
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;                   \
         break;                                                          \
     }
 
-#define CHECK_USERWRITEMASK(mask)                           \
-    if(!(userWriteMask & (mask))) {                         \
-        retval = UA_STATUSCODE_BADUSERACCESSDENIED;         \
-        break;                                              \
+/* The WriteMask defines whether an attribute is writable at all
+ * (Bad_NotWritable), the UserWriteMask whether the current user may write it
+ * (Bad_UserAccessDenied). The local admin session (UA_Server_write) is not
+ * restricted by the WriteMask. */
+#define CHECK_USERWRITEMASK(mask)                                       \
+    if(session != &server->adminSession &&                              \
+       !(node->head.writeMask & (mask))) {                              \
+        retval = UA_STATUSCODE_BADNOTWRITABLE;                          \
+        break;                                                          \
+    }                                                                   \
+    if(!(userWriteMask & (mask))) {                                     \
+        retval = UA_STATUSCODE_BADUSERACCESSDENIED;                     \
+        break;                                                          \
     }
+
+/* WriteMask bit of the attributes that cannot be written in open62541 */
+static UA_UInt32
+unsupportedAttributeWriteMask(UA_UInt32 attributeId) {
+    switch(attributeId) {
+    case UA_ATTRIBUTEID_NODEID: return UA_WRITEMASK_NODEID;
+    case UA_ATTRIBUTEID_NODECLASS: return UA_WRITEMASK_NODECLASS;
+    case UA_ATTRIBUTEID_BROWSENAME: return UA_WRITEMASK_BROWSENAME;
+    case UA_ATTRIBUTEID_USERWRITEMASK: return UA_WRITEMASK_USERWRITEMASK;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL: return UA_WRITEMASK_USERACCESSLEVEL;
+    case UA_ATTRIBUTEID_USEREXECUTABLE: return UA_WRITEMASK_USEREXECUTABLE;
+    default: return 0;
+    }
+}
 
 #define GET_NODETYPE                                    \
     type = (const UA_VariableTypeNode*)                 \
@@ -1953,7 +1978,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_USEREXECUTABLE:
     case UA_ATTRIBUTEID_BROWSENAME: /* BrowseName is tracked in a binary tree
                                        for fast lookup */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        /* Bad_NotWritable if the WriteMask does not allow writing. Otherwise
+         * the attribute is writable in principle, but not supported. */
+        retval = (session != &server->adminSession &&
+                  !(node->head.writeMask & unsupportedAttributeWriteMask(wvalue->attributeId))) ?
+            UA_STATUSCODE_BADNOTWRITABLE : UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
@@ -2011,7 +2040,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         UA_Boolean semanticChange = false;
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the UserAccessLevel
-             * attribute (masked with the AccessLevel attribute) */
+             * attribute (masked with the AccessLevel attribute). Bad_NotWritable
+             * if the AccessLevel itself does not allow writing. */
+            if(session != &server->adminSession &&
+               !(node->variableNode.accessLevel & UA_ACCESSLEVELMASK_WRITE)) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+                break;
+            }
             UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
