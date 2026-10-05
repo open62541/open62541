@@ -955,7 +955,7 @@ START_TEST(WriteSingleAttributeIsAbstract) {
     wValue.attributeId = UA_ATTRIBUTEID_ISABSTRACT;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeSymmetric) {
@@ -967,7 +967,7 @@ START_TEST(WriteSingleAttributeSymmetric) {
     wValue.attributeId = UA_ATTRIBUTEID_SYMMETRIC;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeInverseName) {
@@ -979,7 +979,7 @@ START_TEST(WriteSingleAttributeInverseName) {
     wValue.attributeId = UA_ATTRIBUTEID_INVERSENAME;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeContainsNoLoops) {
@@ -991,7 +991,7 @@ START_TEST(WriteSingleAttributeContainsNoLoops) {
     wValue.attributeId = UA_ATTRIBUTEID_CONTAINSNOLOOPS;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeEventNotifier) {
@@ -1003,7 +1003,7 @@ START_TEST(WriteSingleAttributeEventNotifier) {
     wValue.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleAttributeValue) {
@@ -1265,7 +1265,7 @@ START_TEST(WriteSingleAttributeExecutable) {
     wValue.attributeId = UA_ATTRIBUTEID_EXECUTABLE;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 } END_TEST
 
 START_TEST(WriteSingleDataSourceAttributeValue) {
