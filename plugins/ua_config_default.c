@@ -461,7 +461,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #ifdef UA_ENABLE_ENCRYPTION
     /* Limits for TrustList */
     conf->maxTrustListSize = 0;
-    conf->maxRejectedListSize = 0;
+    conf->maxRejectedListSize = 100;
 #endif
 
     /* Certificate Verification that accepts every certificate. Can be
