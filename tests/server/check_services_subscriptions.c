@@ -1438,6 +1438,41 @@ START_TEST(Server_setTriggering_addAndRemoveLinks) {
     UA_SetTriggeringResponse_clear(&tres2);
 } END_TEST
 
+/* Links to add and to remove both count towards maxMonitoredItemsPerCall */
+START_TEST(Server_setTriggering_maxMonitoredItemsPerCall) {
+    createSubscription();
+    createMonitoredItem();
+
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    UA_UInt32 orig = cfg->maxMonitoredItemsPerCall;
+    cfg->maxMonitoredItemsPerCall = 1;
+
+    UA_UInt32 linkId = monitoredItemId;
+    UA_SetTriggeringRequest req;
+    UA_SetTriggeringRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.triggeringItemId = monitoredItemId;
+    req.linksToAddSize = 1;
+    req.linksToAdd = &linkId;
+    req.linksToRemoveSize = 1; /* one link each, two operations in total */
+    req.linksToRemove = &linkId;
+
+    UA_SetTriggeringResponse resp;
+    UA_SetTriggeringResponse_init(&resp);
+
+    lockServer(server);
+    Service_SetTriggering(server, session, &req, &resp);
+    unlockServer(server);
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADTOOMANYOPERATIONS);
+    ck_assert_uint_eq(resp.addResultsSize, 0);
+    ck_assert_uint_eq(resp.removeResultsSize, 0);
+
+    cfg->maxMonitoredItemsPerCall = orig;
+    UA_SetTriggeringResponse_clear(&resp);
+} END_TEST
+
 START_TEST(Server_modifySubscription_invalid) {
     /* Modify a subscription that doesn't exist */
     UA_ModifySubscriptionRequest request;
@@ -2557,6 +2592,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_setTriggering_invalidSubscription);
     tcase_add_test(tc_server, Server_setTriggering_invalidMonitoredItem);
     tcase_add_test(tc_server, Server_setTriggering_addAndRemoveLinks);
+    tcase_add_test(tc_server, Server_setTriggering_maxMonitoredItemsPerCall);
     tcase_add_test(tc_server, Server_modifySubscription_invalid);
     tcase_add_test(tc_server, Server_deleteSubscription_invalid);
     tcase_add_test(tc_server, Server_createMonitoredItems_invalidSubscription);
