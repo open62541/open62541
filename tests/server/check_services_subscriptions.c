@@ -1813,6 +1813,55 @@ START_TEST(Server_transferSubscription_statusChangeWithNextPublish) {
 }
 END_TEST
 
+static void dummyRepeatedCallback(UA_Server *s, void *data) {}
+
+/* The first publishing cycle ends one publishing interval after the
+ * subscription was created (Part 4, 5.13.1.1). The publish timer must not be
+ * batched with another timer of the same interval, which would end the first
+ * cycle (and send the first keep-alive) early. */
+START_TEST(Server_firstPublishingCycleNotBatched) {
+    UA_UInt64 otherTimer;
+    ck_assert_uint_eq(UA_Server_addRepeatedCallback(server, dummyRepeatedCallback,
+                                                    NULL, 1000.0, &otherTimer),
+                      UA_STATUSCODE_GOOD);
+    UA_fakeSleep(200);
+    UA_Server_run_iterate(server, false);
+
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionRequest_init(&request);
+    request.publishingEnabled = true;
+    request.requestedPublishingInterval = 1000.0;
+    UA_CreateSubscriptionResponse response;
+    UA_CreateSubscriptionResponse_init(&response);
+    lockServer(server);
+    Service_CreateSubscription(server, session, &request, &response);
+    unlockServer(server);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(response.revisedPublishingInterval == 1000.0);
+    subscriptionId = response.subscriptionId;
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    unlockServer(server);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
+
+    /* The other timer fires after 800ms. The first publishing cycle has not
+     * ended yet. */
+    UA_fakeSleep(801);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
+
+    /* The first publishing cycle ends after 1000ms */
+    UA_fakeSleep(200);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount + 1);
+
+    UA_Server_removeCallback(server, otherTimer);
+}
+END_TEST
+
 /* A subscription survives the session timeout (detached). Only a session of
  * the same user can transfer it. */
 START_TEST(Server_subscriptionSurvivesSessionTimeoutTransferableToSameUser) {
@@ -2801,6 +2850,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
     tcase_add_test(tc_server, Server_transferSubscription_statusChangeWithNextPublish);
     tcase_add_test(tc_server, Server_detachedSubscription_anonymousInsecureNotTransferable);
+    tcase_add_test(tc_server, Server_firstPublishingCycleNotBatched);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);
     tcase_add_test(tc_server, Server_monitoredItems_sameNode_list);
     suite_add_tcase(s, tc_server);
