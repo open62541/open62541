@@ -708,8 +708,21 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Set StatusChange in the original subscription and force publish. This
      * also removes the Subscription, even if there was no PublishResponse
      * queued to send a StatusChangeNotification. */
+    UA_Boolean publishReqQueued = oldSession && oldSession->responseQueueSize > 0;
     sub->statusChange = UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED;
     UA_Subscription_publish(server, sub);
+
+    /* No PublishRequest was queued on the old Session, so the original
+     * subscription remains until it can send the StatusChangeNotification.
+     * Mark it late and move it to the front of the Session's queue. Then the
+     * next PublishRequest of the old Session is answered with the
+     * StatusChangeNotification and not with the notifications (or keep-alive)
+     * of another late Subscription. */
+    if(oldSession && !publishReqQueued && sub->session == oldSession) {
+        sub->late = true;
+        TAILQ_REMOVE(&oldSession->subscriptions, sub, sessionListEntry);
+        TAILQ_INSERT_HEAD(&oldSession->subscriptions, sub, sessionListEntry);
+    }
 
     /* Re-create notifications with the current values for the new subscription */
     if(*sendInitialValues)
