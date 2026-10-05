@@ -1773,6 +1773,46 @@ allowTransferSubscription_recoverOverride(UA_Server *server, UA_AccessControl *a
     return result;
 }
 
+/* Transfer between two live Sessions without a queued PublishRequest on the
+ * old Session. The original subscription waits to send the
+ * Good_SubscriptionTransferred StatusChange. It is late and first in the queue
+ * of the old Session, so that the next PublishRequest of the old Session
+ * receives the StatusChange (and not a keep-alive of another subscription). */
+START_TEST(Server_transferSubscription_statusChangeWithNextPublish) {
+    lockServer(server);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("testuser");
+    unlockServer(server);
+
+    createSubscription(); /* Stays in the old session */
+    createSubscription(); /* Transferred */
+    UA_UInt32 transferredId = subscriptionId;
+
+    UA_Session *session2 = createAuthenticatedSession("testuser");
+    UA_TransferSubscriptionsRequest transferRequest;
+    UA_TransferSubscriptionsRequest_init(&transferRequest);
+    transferRequest.subscriptionIdsSize = 1;
+    transferRequest.subscriptionIds = &transferredId;
+    UA_TransferSubscriptionsResponse transferResponse;
+    UA_TransferSubscriptionsResponse_init(&transferResponse);
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &transferRequest, &transferResponse);
+    unlockServer(server);
+    ck_assert_uint_eq(transferResponse.resultsSize, 1);
+    ck_assert_uint_eq(transferResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_TransferSubscriptionsResponse_clear(&transferResponse);
+
+    lockServer(server);
+    UA_Subscription *first = TAILQ_FIRST(&session->subscriptions);
+    ck_assert_ptr_ne(first, NULL);
+    ck_assert_uint_eq(first->subscriptionId, transferredId);
+    ck_assert_uint_eq(first->statusChange, UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED);
+    ck_assert(first->late);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+}
+END_TEST
+
 START_TEST(Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable) {
     /* Authenticated user to allow transfer */
     lockServer(server);
@@ -2700,6 +2740,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_deleteMonitoredItems_partial_keepsTreeConsistent);
     tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeoutButIsNotTransferable);
     tcase_add_test(tc_server, Server_subscriptionRecoverableWithOverride);
+    tcase_add_test(tc_server, Server_transferSubscription_statusChangeWithNextPublish);
     tcase_add_test(tc_server, Server_dataSourceSamplingIntervalZero);
     tcase_add_test(tc_server, Server_monitoredItems_sameNode_list);
     suite_add_tcase(s, tc_server);
