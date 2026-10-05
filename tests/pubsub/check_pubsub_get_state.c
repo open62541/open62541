@@ -480,6 +480,23 @@ START_TEST(Test_error_case) {
 
 } END_TEST
 
+/* enableAll must release the server lock when the PubSubManager cannot start */
+START_TEST(Test_enable_all_releases_lock) {
+    UA_PubSubManager *psm = getPSM(server);
+    ck_assert(psm != NULL);
+    UA_LifecycleState state = psm->drv.state;
+    psm->drv.state = UA_LIFECYCLESTATE_STOPPING;
+    ck_assert_uint_ne(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    psm->drv.state = state;
+#if UA_MULTITHREADING >= 100
+    unsigned count = server->serviceMutex.count;
+    /* Release a leaked recursive lock so the teardown can clean up. */
+    if(count)
+        unlockServer(server);
+    ck_assert_uint_eq(count, 0);
+#endif
+} END_TEST
+
 int main(void) {
     TCase *tc_normal_operation = tcase_create("normal_operation");
     tcase_add_checked_fixture(tc_normal_operation, setup, teardown);
@@ -488,6 +505,7 @@ int main(void) {
     TCase *tc_corner_cases = tcase_create("corner cases");
     tcase_add_checked_fixture(tc_corner_cases, setup, teardown);
     tcase_add_test(tc_corner_cases, Test_corner_cases);
+    tcase_add_test(tc_corner_cases, Test_enable_all_releases_lock);
 
     TCase *tc_error_case = tcase_create("error case");
     tcase_add_checked_fixture(tc_error_case, setup, teardown);
