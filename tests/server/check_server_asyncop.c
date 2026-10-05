@@ -439,10 +439,12 @@ START_TEST(Async_serviceNotificationCloseCancelsPersistedResponse) {
         clientReadCallback, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* Wait for network delivery as well as iterating the event loop. A fixed
+     * number of non-blocking polls can finish before lwIP delivers the request. */
     for(size_t i = 0;
         i < 20 && closeAtServiceAsyncResult == UA_STATUSCODE_BADUNEXPECTEDERROR;
         i++) {
-        UA_Server_run_iterate(server, false);
+        UA_Server_run_iterate(server, true);
         UA_Client_run_iterate(client, 0);
     }
     ck_assert_uint_eq(closeAtServiceAsyncResult, UA_STATUSCODE_GOOD);
