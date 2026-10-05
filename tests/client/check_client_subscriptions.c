@@ -1658,6 +1658,46 @@ START_TEST(Client_subscription_connectionClose) {
 }
 END_TEST
 
+/* The server closes the Session while PublishRequests are queued. The first
+ * BadSessionClosed response cleans up the Session and resets the counter of
+ * outstanding PublishRequests before the response itself is processed. */
+START_TEST(Client_subscription_publishCounterAfterSessionClosed) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Send the PublishRequests */
+    UA_Client_run_iterate(client, 1);
+    ck_assert_uint_gt(client->currentlyOutStandingPublishRequests, 1);
+
+    /* Close the Session on the server. The queued PublishRequests are answered
+     * with BadSessionClosed. */
+    pauseServer();
+    retval = UA_Server_closeSession(server, &client->sessionId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 100 &&
+            client->sessionState == UA_SESSIONSTATE_ACTIVATED; i++) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert(client->sessionState != UA_SESSIONSTATE_ACTIVATED);
+
+    /* The counter did not wrap around */
+    ck_assert_uint_le(client->currentlyOutStandingPublishRequests,
+                      cc->outStandingPublishRequests);
+
+    runServer();
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_statusChange) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -2741,6 +2781,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_timeout);
     tcase_add_test(tc_client, Client_subscription_detach);
     tcase_add_test(tc_client, Client_subscription_connectionClose);
+    tcase_add_test(tc_client, Client_subscription_publishCounterAfterSessionClosed);
     tcase_add_test(tc_client, Client_subscription_createDataChanges);
     tcase_add_test(tc_client, Client_subscription_createDataChanges_negativeInterval);
     tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
