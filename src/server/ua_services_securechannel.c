@@ -154,6 +154,8 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Create a new SecurityToken. It will be switched over when the first
      * message is received. The ChannelId is left unchanged. */
     channel->altSecurityToken.channelId = channel->securityToken.channelId;
+    if(server->lastTokenId == 0)
+        server->lastTokenId++; /* TokenId zero is the placeholder */
     channel->altSecurityToken.tokenId = server->lastTokenId++;
     channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =

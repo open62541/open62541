@@ -1043,8 +1043,10 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
         break;
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER:
-        /* Old token still in use */
-        if(tokenId == channel->securityToken.tokenId)
+        /* Old token still in use. After an ISSUE there is no old token, only a
+         * placeholder with TokenId zero and no keys (Part 4, 5.6.2). It was
+         * never issued, so it is unknown (Part 6, 6.7.2.3). */
+        if(tokenId == channel->securityToken.tokenId && tokenId != 0)
             break;
 
         /* Not the new token */
@@ -1062,8 +1064,10 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
         break;
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT:
-        /* The server is still using the old token. That's okay. */
-        if(tokenId == channel->altSecurityToken.tokenId) {
+        /* The server is still using the old token. That's okay. After an
+         * ISSUE the old token is the placeholder with TokenId zero, which the
+         * server never issued (Part 4, 5.6.2). */
+        if(tokenId == channel->altSecurityToken.tokenId && tokenId != 0) {
             token = &channel->altSecurityToken;
             break;
         }
