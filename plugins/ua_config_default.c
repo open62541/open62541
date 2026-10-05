@@ -529,7 +529,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    conf->maxAsyncOperationQueueSize = 0;
+    conf->maxAsyncOperationQueueSize = 1024;
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
