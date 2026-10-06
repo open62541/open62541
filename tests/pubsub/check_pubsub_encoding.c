@@ -1412,6 +1412,97 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize) {
+    /* The Int32 Variant takes five bytes, but only one is declared. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x01, 0x00,
+                      0x06, 0x2a, 0x00, 0x00, 0x00,
+                      0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_PromotedFieldsTruncatedAfterString) {
+    /* A complete String followed by an Int32 that crosses the declared end.
+     * Clearing the failed message must also release the String. */
+    UA_Byte data[] = {0x81, 0x80, 0x02, 0x07, 0x00,
+                      0x0c, 0x01, 0x00, 0x00, 0x00, 'a',
+                      0x06, 0x2a, 0x00, 0x00, 0x00,
+                      0x01, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageSizeMustFit) {
+    /* Oversized first DSM, oversized sum, truncated first DSM, zero size. */
+    const UA_Byte sizes[][2] = {{10, 3}, {3, 4}, {2, 4}, {0, 3}};
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x03, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00, 0x00};
+    data[6] = sizes[_i][0];
+    data[8] = sizes[_i][1];
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m, NULL);
+    UA_NetworkMessage_clear(&m);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_BADDECODINGERROR);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset) {
+    /* DSM1 uses three of its five bytes. DSM2 is invalid at its declared
+     * offset; continuing immediately after DSM1 would report it as valid. */
+    UA_Byte data[] = {0x41, 0x02, 0x01, 0x00, 0x02, 0x00,
+                      0x05, 0x00, 0x03, 0x00,
+                      0x01, 0x00, 0x00, 0x01, 0x00,
+                      0x00, 0x00, 0x00};
+    UA_ByteString buffer = {sizeof(data), data};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, sizeof(data));
+    ck_assert_uint_eq(m.payloadHeader.dataSetPayloadHeader.count, 2);
+    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(!m.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageValid);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
+START_TEST(UA_PubSub_Decode_DeclaredSizesPreserveSecurityFooter) {
+    /* Single DSMs have no Sizes array. Multiple DSMs include padding before
+     * the footer, which must be read after the declared payload spans. */
+    UA_Byte single[] = {0x81, 0x10, 0x04, 0, 0, 0, 0, 0, 0x02, 0,
+                        0x01, 0, 0, 0xaa, 0xbb};
+    UA_Byte multiple[] = {0xc1, 0x10, 0x02, 0x01, 0, 0x02, 0,
+                          0x04, 0, 0, 0, 0, 0, 0x02, 0,
+                          0x04, 0, 0x04, 0,
+                          0x01, 0, 0, 0xcc, 0x01, 0, 0, 0xdd,
+                          0xaa, 0xbb};
+    UA_ByteString buffer = {_i ? sizeof(multiple) : sizeof(single),
+                            _i ? multiple : single};
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(m));
+    size_t offset = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m, NULL);
+    ck_assert_uint_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, buffer.length);
+    ck_assert_uint_eq(m.securityFooter.length, 2);
+    ck_assert_uint_eq(m.securityFooter.data[0], 0xaa);
+    ck_assert_uint_eq(m.securityFooter.data[1], 0xbb);
+    UA_NetworkMessage_clear(&m);
+} END_TEST
+
 int main(void) {
     TCase *tc_encode = tcase_create("encode");
     tcase_add_test(tc_encode, UA_PubSub_Encode_WithBufferTooSmallShallReturnError);
@@ -1440,7 +1531,15 @@ int main(void) {
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
 
+    TCase *tc_sizes = tcase_create("declared sizes");
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsExceedDeclaredSize);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_PromotedFieldsTruncatedAfterString);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DataSetMessageSizeMustFit, 0, 4);
+    tcase_add_test(tc_sizes, UA_PubSub_Decode_DataSetMessageStartsAtDeclaredOffset);
+    tcase_add_loop_test(tc_sizes, UA_PubSub_Decode_DeclaredSizesPreserveSecurityFooter, 0, 2);
+
     Suite *s = suite_create("PubSub NetworkMessage");
+    suite_add_tcase(s, tc_sizes);
     suite_add_tcase(s, tc_encode);
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);
