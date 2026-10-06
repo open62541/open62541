@@ -110,22 +110,30 @@ size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
-    u32 n = 0;
+    /* Accumulate in 64 bits. n stays below 2^32 between the digits, so n * base
+     * + digit cannot overflow for any base up to 36. */
+    u64 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
         u8 c = buf[progress];
+        u32 digit;
         if(c >= '0' && c <= '9' && c <= '0' + (base-1))
-           n = (n * base) + c - '0';
+           digit = c - '0';
         else if(base > 9 && c >= 'a' && c <= 'z' && c <= 'a' + (base-11))
-           n = (n * base) + c-'a' + 10;
+           digit = c-'a' + 10;
         else if(base > 9 && c >= 'A' && c <= 'Z' && c <= 'A' + (base-11))
-           n = (n * base) + c-'A' + 10;
+           digit = c-'A' + 10;
         else
            break;
+        n = (n * base) + digit;
+        /* The number does not fit into 32 bits. Report no valid digits
+         * instead of returning a wrapped value. */
+        if(n > UA_UINT32_MAX)
+            return 0;
         ++progress;
     }
-    *number = n;
+    *number = (u32)n;
     return progress;
 }
 
