@@ -241,6 +241,12 @@ START_TEST(readNumber) {
 
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"123456789", 9, &result), 9);
     ck_assert_uint_eq(result, 123456789);
+
+    /* The largest value that fits, then one more */
+    ck_assert_uint_eq(UA_readNumber((UA_Byte*)"4294967295", 10, &result), 10);
+    ck_assert_uint_eq(result, UA_UINT32_MAX);
+    ck_assert_uint_eq(UA_readNumber((UA_Byte*)"4294967296", 10, &result), 0);
+    ck_assert_uint_eq(UA_readNumber((UA_Byte*)"99999999999", 11, &result), 0);
 }
 END_TEST
 
@@ -341,6 +347,10 @@ START_TEST(readNumberWithBase) {
 
     ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"123456789", 9, &result, 8), 7);
     ck_assert_uint_eq(result, 01234567);
+
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"ffffffff", 8, &result, 16), 8);
+    ck_assert_uint_eq(result, UA_UINT32_MAX);
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"100000000", 9, &result, 16), 0);
 }
 END_TEST
 
