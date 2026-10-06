@@ -668,8 +668,14 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *o
 
         // promotedFieldsSize: here size in Byte, not the number of objects!
         if(promotedFieldsSize > 0) {
-            // store offset, later compared with promotedFieldsSize
-            size_t offsetEnd = (*offset) + promotedFieldsSize;
+            /* Confine Variants to the declared PromotedFields span. */
+            if(*offset > src->length || promotedFieldsSize > src->length - *offset) {
+                rv = UA_STATUSCODE_BADDECODINGERROR;
+                goto error;
+            }
+            size_t offsetEnd = *offset + promotedFieldsSize;
+            UA_ByteString promotedFields = *src;
+            promotedFields.length = offsetEnd;
 
             unsigned int counter = 0;
             do {
@@ -680,17 +686,20 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *o
                     // set promotedFieldsSize to the number of objects
                     dst->promotedFieldsSize = (UA_UInt16) (counter + 1);
                 } else {
-                    dst->promotedFields = (UA_Variant*)
+                    UA_Variant *fields = (UA_Variant*)
                         UA_realloc(dst->promotedFields,
                                    (size_t) UA_TYPES[UA_TYPES_VARIANT].memSize * (counter + 1));
-                    UA_CHECK_MEM(dst->promotedFields,
-                                 return UA_STATUSCODE_BADOUTOFMEMORY);
+                    if(!fields) {
+                        rv = UA_STATUSCODE_BADOUTOFMEMORY;
+                        goto error;
+                    }
+                    dst->promotedFields = fields;
                     // set promotedFieldsSize to the number of objects
                     dst->promotedFieldsSize = (UA_UInt16) (counter + 1);
                 }
 
                 UA_Variant_init(&dst->promotedFields[counter]);
-                rv = UA_Variant_decodeBinary(src, offset, &dst->promotedFields[counter]);
+                rv = UA_Variant_decodeBinary(&promotedFields, offset, &dst->promotedFields[counter]);
                 UA_CHECK_STATUS(rv, goto error);
 
                 counter++;
@@ -701,8 +710,11 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *o
 
 error:
     if(dst->promotedFields) {
-        UA_free(dst->promotedFields);
+        /* Include the Variant whose decoding failed and any owned members. */
+        UA_Array_delete(dst->promotedFields, dst->promotedFieldsSize,
+                        &UA_TYPES[UA_TYPES_VARIANT]);
         dst->promotedFields = NULL;
+        dst->promotedFieldsSize = 0;
     }
     return rv;
 }
@@ -796,9 +808,13 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
         count = dst->payloadHeader.dataSetPayloadHeader.count;
         if(count > 1) {
             dst->payload.dataSetPayload.sizes = (UA_UInt16 *)UA_Array_new(count, &UA_TYPES[UA_TYPES_UINT16]);
+            UA_CHECK_MEM(dst->payload.dataSetPayload.sizes,
+                         return UA_STATUSCODE_BADOUTOFMEMORY);
             for(UA_Byte i = 0; i < count; i++) {
                 rv = UA_UInt16_decodeBinary(src, offset, &dst->payload.dataSetPayload.sizes[i]);
                 UA_CHECK_STATUS(rv, return rv);
+                if(dst->payload.dataSetPayload.sizes[i] == 0)
+                    return UA_STATUSCODE_BADDECODINGERROR;
             }
         }
     }
@@ -818,11 +834,15 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
                                             0, customTypes, dsm);
     else {
         for(UA_Byte i = 0; i < count; i++) {
+            size_t dsmBegin = *offset;
             rv = UA_DataSetMessage_decodeBinary(src, offset,
                                                 &dst->payload.dataSetPayload.dataSetMessages[i],
                                                 dst->payload.dataSetPayload.sizes[i], customTypes,
                                                 dsm);
             UA_CHECK_STATUS(rv, return rv);
+            /* A declared size locates the next DSM, including any padding.
+             * Single DSMs have no declared size and may precede a footer. */
+            *offset = dsmBegin + dst->payload.dataSetPayload.sizes[i];
         }
     }
     UA_CHECK_STATUS(rv, return rv);
@@ -1426,6 +1446,14 @@ UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_DataSetMessage* dst, UA_UInt16 dsmSize, const UA_DataTypeArray *customTypes, UA_DataSetMetaDataType *dsm) {
     size_t initialOffset = *offset;
     memset(dst, 0, sizeof(UA_DataSetMessage));
+    /* Bound all header and field decoders by the declared DSM size. */
+    UA_ByteString bounded = *src;
+    if(initialOffset > src->length || dsmSize > src->length - initialOffset)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(dsmSize != 0) {
+        bounded.length = initialOffset + dsmSize;
+        src = &bounded;
+    }
     UA_StatusCode rv = UA_DataSetMessageHeader_decodeBinary(src, offset, &dst->header);
     UA_CHECK_STATUS(rv, return rv);
 
