@@ -208,6 +208,18 @@ New_Context(const UA_SecurityPolicy * securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* The key length of the remote certificate must be within the bounds of
+     * the SecurityPolicy (Part 7). The mbedTLS backend checks the same. */
+    UA_Int32 keyLen = 0;
+    UA_Openssl_RSA_Public_GetKeyLength(context->remoteCertificateX509, &keyLen);
+    if(keyLen < UA_SECURITYPOLICY_BASIC256SHA256_MINASYMKEYLENGTH ||
+       keyLen > UA_SECURITYPOLICY_BASIC256SHA256_MAXASYMKEYLENGTH) {
+        X509_free(context->remoteCertificateX509);
+        UA_ByteString_clear(&context->remoteCertificate);
+        UA_free(context);
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    }
+
     *channelContext = context;
 
     return UA_STATUSCODE_GOOD;

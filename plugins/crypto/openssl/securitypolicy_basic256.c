@@ -21,6 +21,8 @@
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_KEY_LENGTH         32
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_BLOCK_SIZE         16
 #define UA_SECURITYPOLICY_BASIC256_SYM_SIGNING_KEY_LENGTH            24
+#define UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH                  128
+#define UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH                  512
 #define UA_SHA1_LENGTH                                               20
 
 typedef struct {
@@ -205,6 +207,18 @@ Basic256_New_Context(const UA_SecurityPolicy * securityPolicy,
         UA_ByteString_clear (&context->remoteCertificate);
         UA_free (context);
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+    }
+
+    /* The key length of the remote certificate must be within the bounds of
+     * the SecurityPolicy (Part 7). The mbedTLS backend checks the same. */
+    UA_Int32 keyLen = 0;
+    UA_Openssl_RSA_Public_GetKeyLength(context->remoteCertificateX509, &keyLen);
+    if(keyLen < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
+       keyLen > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH) {
+        X509_free(context->remoteCertificateX509);
+        UA_ByteString_clear(&context->remoteCertificate);
+        UA_free(context);
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
 
     *channelContext = context;
