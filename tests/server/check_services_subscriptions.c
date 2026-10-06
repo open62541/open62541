@@ -1473,6 +1473,71 @@ START_TEST(Server_setTriggering_maxMonitoredItemsPerCall) {
     UA_SetTriggeringResponse_clear(&resp);
 } END_TEST
 
+static void
+addTriggeringLink(UA_UInt32 triggeringItemId, UA_UInt32 linkId) {
+    UA_SetTriggeringRequest req;
+    UA_SetTriggeringRequest_init(&req);
+    req.subscriptionId = subscriptionId;
+    req.triggeringItemId = triggeringItemId;
+    req.linksToAddSize = 1;
+    req.linksToAdd = &linkId;
+
+    UA_SetTriggeringResponse resp;
+    UA_SetTriggeringResponse_init(&resp);
+    lockServer(server);
+    Service_SetTriggering(server, session, &req, &resp);
+    unlockServer(server);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.addResultsSize, 1);
+    ck_assert_uint_eq(resp.addResults[0], UA_STATUSCODE_GOOD);
+    UA_SetTriggeringResponse_clear(&resp);
+}
+
+/* A link to a deleted MonitoredItem does not survive the next SetTriggering
+ * on the triggering item, also if that item never reported in between */
+START_TEST(Server_setTriggering_pruneDeletedLinks) {
+    createSubscription();
+    createMonitoredItem();
+    UA_UInt32 triggeringId = monitoredItemId;
+    createMonitoredItem();
+    UA_UInt32 deletedId = monitoredItemId;
+    createMonitoredItem();
+    UA_UInt32 keptId = monitoredItemId;
+
+    addTriggeringLink(triggeringId, deletedId);
+
+    UA_DeleteMonitoredItemsRequest dreq;
+    UA_DeleteMonitoredItemsRequest_init(&dreq);
+    dreq.subscriptionId = subscriptionId;
+    dreq.monitoredItemIdsSize = 1;
+    dreq.monitoredItemIds = &deletedId;
+    UA_DeleteMonitoredItemsResponse dres;
+    UA_DeleteMonitoredItemsResponse_init(&dres);
+    lockServer(server);
+    Service_DeleteMonitoredItems(server, session, &dreq, &dres);
+    unlockServer(server);
+    ck_assert_uint_eq(dres.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_DeleteMonitoredItemsResponse_clear(&dres);
+
+    addTriggeringLink(triggeringId, keptId);
+
+    /* Only the link to the existing MonitoredItem is left */
+    size_t linksSize = 0;
+    UA_UInt32 firstLink = 0;
+    lockServer(server);
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
+    UA_MonitoredItem *mon = (sub) ? UA_Subscription_getMonitoredItem(sub, triggeringId) : NULL;
+    if(mon) {
+        linksSize = mon->triggeringLinksSize;
+        if(linksSize > 0)
+            firstLink = mon->triggeringLinks[0];
+    }
+    unlockServer(server);
+    ck_assert(mon != NULL);
+    ck_assert_uint_eq(linksSize, 1);
+    ck_assert_uint_eq(firstLink, keptId);
+} END_TEST
+
 START_TEST(Server_modifySubscription_invalid) {
     /* Modify a subscription that doesn't exist */
     UA_ModifySubscriptionRequest request;
@@ -2593,6 +2658,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_setTriggering_invalidMonitoredItem);
     tcase_add_test(tc_server, Server_setTriggering_addAndRemoveLinks);
     tcase_add_test(tc_server, Server_setTriggering_maxMonitoredItemsPerCall);
+    tcase_add_test(tc_server, Server_setTriggering_pruneDeletedLinks);
     tcase_add_test(tc_server, Server_modifySubscription_invalid);
     tcase_add_test(tc_server, Server_deleteSubscription_invalid);
     tcase_add_test(tc_server, Server_createMonitoredItems_invalidSubscription);
