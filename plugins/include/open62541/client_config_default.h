@@ -17,6 +17,9 @@ UA_StatusCode UA_EXPORT
 UA_ClientConfig_setDefault(UA_ClientConfig *config);
 
 #ifdef UA_ENABLE_ENCRYPTION
+/* Replaces the configured encryption policies. Previous policy arrays are
+ * retained until the configuration is cleared, preserving references held by
+ * open SecureChannels and Sessions, including across repeated calls. */
 UA_StatusCode UA_EXPORT
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                                      UA_ByteString localCertificate,

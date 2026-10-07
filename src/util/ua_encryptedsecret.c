@@ -418,7 +418,7 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
      * This needs to include the 2x4 byte length fields. */
     if(esd.keyDataLen != (UA_UInt16)(offset - oldoffset)) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
-                             "Inconstent KeyDataLength");
+                             "Inconsistent KeyDataLength");
         res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         goto cleanecc;
     }

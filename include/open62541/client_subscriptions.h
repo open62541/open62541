@@ -31,7 +31,7 @@ _UA_BEGIN_DECLS
  *
  * The client automatically processes PublishResponses (with a callback) in the
  * background and keeps enough PublishRequests in transit. The PublishResponses
- * may be recieved during a synchronous service call or in
+ * may be received during a synchronous service call or in
  * ``UA_Client_run_iterate``. See more about
  * :ref:`asynchronicity<client-async-services>`.
  */

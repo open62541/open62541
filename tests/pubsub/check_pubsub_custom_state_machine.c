@@ -455,7 +455,7 @@ fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
         UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId,
                        &pMetaData->fields[i].dataType);
         pMetaData->fields[i].builtInType = UA_NS0ID_UINT32;
-        pMetaData->fields[i].name =  UA_STRING ("UInt32 varibale");
+        pMetaData->fields[i].name =  UA_STRING ("UInt32 variable");
         pMetaData->fields[i].valueRank = -1; /* scalar */
     }
 }
@@ -589,7 +589,7 @@ subscriberComponentLifecycleCallback(UA_Server *server, const UA_NodeId id,
     if(componentType != UA_PUBSUBCOMPONENT_CONNECTION)
         return UA_STATUSCODE_GOOD;
 
-    printf("XXX Set the custom state machine for the new Connction\n");
+    printf("XXX Set the custom state machine for the new Connection\n");
 
     UA_PubSubConnectionConfig cc;
     UA_StatusCode res = UA_Server_getPubSubConnectionConfig(server, id, &cc);

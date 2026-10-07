@@ -176,7 +176,7 @@ static UA_FieldMetaData*
 newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    /* Common encryption key informaton */
+    /* Common encryption key information */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
@@ -196,7 +196,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
 
     UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
 
-    /* Add the encryption key informaton for readergroup */
+    /* Add the encryption key information for readergroup */
     // TODO security token not necessary for readergroup (extracted from security-header)
     UA_Server_setReaderGroupEncryptionKeys(server, readerGroupId, 1, sk, ek, kn);
 
@@ -391,6 +391,30 @@ START_TEST(InvalidSignature) {
 }
 END_TEST
 
+START_TEST(ShortSignedNetworkMessage) {
+    UA_FieldMetaData *fields = newReaderGroupWithSecurity(
+        UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
+    ck_assert_ptr_ne(rg, NULL);
+
+    UA_ByteString buffer;
+    buffer.length = (sizeof(MSG_HEADER) - 1) / 2;
+    buffer.data = hexstr_to_char(MSG_HEADER);
+
+    UA_NetworkMessage msg;
+    memset(&msg, 0, sizeof(UA_NetworkMessage));
+
+    UA_StatusCode rv = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &msg);
+    ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_NetworkMessage_clear(&msg);
+
+    UA_free(fields);
+    free(buffer.data);
+}
+END_TEST
+
 START_TEST(InvalidSecurityModeInsufficientSig) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(UA_MESSAGESECURITYMODE_NONE);
     UA_PubSubManager *psm = getPSM(server);
@@ -480,6 +504,7 @@ main(void) {
     TCase *tc_pubsub_subscribe_invalid_sig = tcase_create("PubSub Subscribe Invalid Signature");
     tcase_add_checked_fixture(tc_pubsub_subscribe_invalid_sig, setup, teardown);
     tcase_add_test(tc_pubsub_subscribe_invalid_sig, InvalidSignature);
+    tcase_add_test(tc_pubsub_subscribe_invalid_sig, ShortSignedNetworkMessage);
 
     TCase *tc_pubsub_subscribe_invalid_securitymode =
         tcase_create("PubSub Subscribe Invalid SecurityMode");

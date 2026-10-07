@@ -71,6 +71,31 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     return resultNodeId;
 }
 
+static UA_Boolean
+isDirectlyReferencedBy(UA_Server *server, const UA_NodeId *parentId,
+                       const UA_NodeId *childId, UA_UInt32 referenceType) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *parentId;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, referenceType);
+    bd.includeSubtypes = false;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_Boolean found = false;
+    if(br.statusCode == UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < br.referencesSize; i++) {
+            if(UA_ExpandedNodeId_isLocal(&br.references[i].nodeId) &&
+               UA_NodeId_equal(&br.references[i].nodeId.nodeId, childId)) {
+                found = true;
+                break;
+            }
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return found;
+}
+
 static UA_StatusCode
 findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId,
                               void **component, UA_Boolean *isPublishSubscribeObject) {
@@ -1278,6 +1303,13 @@ removeDataSetReaderAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *)input[0].data);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, nodeToRemove);
+    if(!dsr || !dsr->linkedReaderGroup ||
+       !UA_NodeId_equal(&dsr->linkedReaderGroup->head.identifier, objectId))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_removeDataSetReader(server, nodeToRemove);
 }
 
@@ -1415,6 +1447,9 @@ removeDataSetFolderAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    if(!isDirectlyReferencedBy(server, objectId, &nodeToRemove,
+                               UA_NS0ID_ORGANIZES))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     res = disablePubSubFolderChildren(server, nodeToRemove);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -1745,6 +1780,9 @@ removePublishedDataSetAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    if(!isDirectlyReferencedBy(server, objectId, &nodeToRemove,
+                               UA_NS0ID_HASCOMPONENT))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_removePublishedDataSet(server, nodeToRemove);
 }
 
@@ -2108,16 +2146,12 @@ removeGroupAction(UA_Server *server,
            !UA_NodeId_equal(&wg->linkedConnection->head.identifier, objectId))
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
         return UA_Server_removeWriterGroup(server, nodeToRemove);
-    } else {
-        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, nodeToRemove);
-        if(rg) {
-            if(!rg->linkedConnection ||
-               !UA_NodeId_equal(&rg->linkedConnection->head.identifier, objectId))
-                return UA_STATUSCODE_BADNODEIDUNKNOWN;
-            return UA_Server_removeReaderGroup(server, nodeToRemove);
-        }
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, nodeToRemove);
+    if(!rg || !rg->linkedConnection ||
+       !UA_NodeId_equal(&rg->linkedConnection->head.identifier, objectId))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    return UA_Server_removeReaderGroup(server, nodeToRemove);
 }
 
 /**********************************************/
@@ -2423,6 +2457,13 @@ removeDataSetWriterAction(UA_Server *server,
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, nodeToRemove);
+    if(!dsw || !dsw->linkedWriterGroup ||
+       !UA_NodeId_equal(&dsw->linkedWriterGroup->head.identifier, objectId))
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return UA_Server_removeDataSetWriter(server, nodeToRemove);
 }
 

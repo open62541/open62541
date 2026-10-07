@@ -8,7 +8,7 @@ typedef struct {
     void (*func)(void *param); //function to execute
     size_t counter; //index of the iteration
     size_t index; // index within workerContext array of global TestContext
-    size_t upperBound; //number of iterations each thread schould execute func
+    size_t upperBound; //number of iterations each thread should execute func
     THREAD_HANDLE handle;
 } ThreadContext;
 

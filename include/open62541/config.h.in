@@ -369,7 +369,7 @@
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
  * Otherwise revert to alloca. Note that alloca is not supported on some
- * plattforms. */
+ * platforms. */
 #ifndef UA_STACKARRAY
 # if defined(__GNUC__) || defined(__clang__)
 #  define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]

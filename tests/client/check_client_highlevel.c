@@ -195,7 +195,7 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
-    // create View 'AllTopCoordinates' whithin Views Folder
+    // create View 'AllTopCoordinates' within Views Folder
     {
         UA_ViewAttributes attr = UA_ViewAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en-US", "List of all top coordinates");
@@ -491,7 +491,7 @@ START_TEST(Node_AddReadWriteNodes) {
     }
 
 
-    // create View 'AllTopCoordinates' whithin Views Folder
+    // create View 'AllTopCoordinates' within Views Folder
     {
         UA_ViewAttributes attr = UA_ViewAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en-US", "List of all top coordinates");
@@ -577,9 +577,11 @@ START_TEST(Node_ReadWrite_BrowseName) {
 
     browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
 
+    /* The WriteMask of the Server object does not allow writing the BrowseName */
     retval = UA_Client_writeBrowseNameAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTWRITABLE);
 
+    /* Allowed by the WriteMask, but not supported by open62541 */
     retval = UA_Client_writeBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 }

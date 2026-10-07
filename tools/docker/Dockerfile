@@ -7,7 +7,7 @@ COPY . /opt/open62541
 WORKDIR /opt/open62541
 RUN git remote add github-upstream https://github.com/open62541/open62541.git && \
     git fetch -f --tags github-upstream
-# Ignore error here. This always fails on Docker Cloud. It's fine there because the submodule is alread initialized. See also:
+# Ignore error here. This always fails on Docker Cloud. It's fine there because the submodule is already initialized. See also:
 # https://stackoverflow.com/questions/58690455/how-to-correctly-initialize-git-submodules-in-dockerfile-for-docker-cloud
 RUN git submodule update --init --recursive || true
 

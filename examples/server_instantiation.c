@@ -32,7 +32,7 @@ int main(void) {
      */
     UA_StatusCode retval;
     UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
-    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
+    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mammal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MamalType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
                                 UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE),
@@ -53,7 +53,7 @@ int main(void) {
                               UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
 
     otAttr = UA_ObjectTypeAttributes_default;
-    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mamal");
+    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mammal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DogType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10002),
                                 UA_NODEID_NUMERIC(1, 10000), UA_NS0ID(HASSUBTYPE),
@@ -69,7 +69,7 @@ int main(void) {
                               UA_QUALIFIEDNAME(1, "Name"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
-    /* Instatiate a dog named bello:
+    /* Instantiate a dog named bello:
      * (O) Objects
      *   + O Bello <DogType>
      *     + Age
@@ -83,7 +83,7 @@ int main(void) {
                             UA_QUALIFIEDNAME(1, "Bello"), UA_NODEID_NUMERIC(1, 10002),
                             oAttr, NULL, NULL);
 
-    /* Instatiate a dog named doge:
+    /* Instantiate a dog named doge:
      * (O) Objects
      *   + O Bello <DogType>
      *     + Age

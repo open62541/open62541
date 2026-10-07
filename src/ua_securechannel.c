@@ -113,7 +113,7 @@ UA_StatusCode
 UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
                                  UA_MessageSecurityMode securityMode) {
     if(securityMode == UA_MESSAGESECURITYMODE_INVALID ||
-       securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+       (UA_UInt32)securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
     UA_SecurityPolicy *sp = channel->securityPolicy;
     if(!sp)
@@ -533,7 +533,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     res = encodeHeadersSym(mc, total_length);
     UA_CHECK_STATUS(res, goto error);
 
-    /* Sign and encrypt the messge */
+    /* Sign and encrypt the message */
     res = signAndEncryptSym(mc, pre_sig_length, total_length);
     UA_CHECK_STATUS(res, goto error);
 

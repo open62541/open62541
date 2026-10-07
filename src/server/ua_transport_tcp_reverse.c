@@ -512,7 +512,7 @@ UA_ReverseBinaryProtocolManager_start(UA_Driver *drv) {
     /* Set the logging shortcut */
     rpm->logging = config->logging;
     
-    /* Set the houskeeping callback */
+    /* Set the housekeeping callback */
     UA_StatusCode res =
         addRepeatedCallback(server, reverseSecureChannelHouseKeeping,
                             rpm, 1000.0, &rpm->houseKeepingCallbackId);

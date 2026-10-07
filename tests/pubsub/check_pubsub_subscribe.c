@@ -317,7 +317,7 @@ START_TEST(GetReaderGroupConfigWithInvalidConfig) {
     } END_TEST
 
 START_TEST(GetReaderGroupConfigWithInvalidIdentifier) {
-        /* Check status of getting ReaderGroup configuration with invlaid identifier */
+        /* Check status of getting ReaderGroup configuration with invalid identifier */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;

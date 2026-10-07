@@ -158,6 +158,74 @@ START_TEST(update_certificate_noKey) {
 }
 END_TEST
 
+/* Only the certificate types of the configured SecurityPolicies are
+ * advertised. No SecurityPolicy of the default configuration uses RsaMin. */
+START_TEST(certificate_types_configured) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = UA_Server_readValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
+        &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert_uint_eq(value.arrayLength, 1);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    ck_assert(UA_NodeId_equal((UA_NodeId*)value.data, &certTypRsaSha256));
+    UA_Variant_clear(&value);
+}
+END_TEST
+
+/* UpdateCertificate refuses a certificate type that is not advertised */
+START_TEST(update_certificate_unconfiguredType) {
+    UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
+    UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
+    UA_String privateKeyFormat = UA_STRING_STATIC("DER");
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+
+    UA_Variant input[6];
+    memset(input, 0, sizeof(input));
+    UA_Variant_setScalar(&input[0], &defaultApplicationGroup, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&input[1], &certTypRsaMin, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&input[2], &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setArray(&input[3], NULL, 0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&input[4], &privateKeyFormat, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&input[5], &privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    request.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE);
+    request.inputArgumentsSize = 6;
+    request.inputArguments = input;
+
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+    UA_CallMethodResult_clear(&result);
+}
+END_TEST
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+/* The filestore configuration also has the Basic128Rsa15 and Basic256
+ * SecurityPolicies. So RsaMin is advertised as well. */
+START_TEST(certificate_types_configured_filestore) {
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = UA_Server_readValue(server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
+        &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert_uint_eq(value.arrayLength, 2);
+    UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    ck_assert(UA_NodeId_equal(&((UA_NodeId*)value.data)[0], &certTypRsaMin));
+    ck_assert(UA_NodeId_equal(&((UA_NodeId*)value.data)[1], &certTypRsaSha256));
+    UA_Variant_clear(&value);
+}
+END_TEST
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
 START_TEST(addDriver_rejectsDuplicateGDSReceiver) {
     UA_GDSReceiver *duplicate = UA_GDSReceiver_new();
     ck_assert_ptr_nonnull(duplicate);
@@ -218,6 +286,60 @@ START_TEST(update_certificate_preflightsAllEndpoints) {
 }
 END_TEST
 
+/* The SecurityPolicy#None endpoint presents the certificate of the None
+ * SecurityPolicy (GetEndpoints). It gets the new certificate as well. */
+START_TEST(update_certificate_noneEndpoint) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_SecurityPolicy *nonePolicy = NULL;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        if(config->securityPolicies[i].policyType == UA_SECURITYPOLICYTYPE_NONE)
+            nonePolicy = &config->securityPolicies[i];
+    }
+    ck_assert_ptr_nonnull(nonePolicy);
+    UA_ByteString oldCertificate = UA_BYTESTRING_NULL;
+    ck_assert_uint_eq(UA_ByteString_copy(&nonePolicy->localCertificate,
+                                         &oldCertificate),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(oldCertificate.length, 0);
+
+    UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+    generateCertificate(&newCertificate, &newPrivateKey);
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    ck_assert_uint_eq(UA_GDSReceiver_updateCertificate(
+                          receiver, defaultApplicationGroup, certTypRsaSha256,
+                          newCertificate, &newPrivateKey),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_ByteString_equal(&nonePolicy->localCertificate,
+                                  &newCertificate));
+    for(size_t i = 0; i < config->endpointsSize; i++)
+        ck_assert(!UA_ByteString_equal(&config->endpoints[i].serverCertificate,
+                                       &oldCertificate));
+
+    UA_ByteString_clear(&oldCertificate);
+    UA_ByteString_clear(&newCertificate);
+    UA_ByteString_clear(&newPrivateKey);
+}
+END_TEST
+
+START_TEST(update_certificate_noKey_invalid) {
+    UA_ByteString newCertificate = UA_BYTESTRING("not a certificate");
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_GDSReceiver_updateCertificate(receiver, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEINVALID);
+}
+END_TEST
+
 static Suite* testSuite_create_certificate(void) {
     Suite *s = suite_create("Update Certificate");
     TCase *tc_cert = tcase_create("Update Certificate");
@@ -226,8 +348,12 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert, update_certificate);
     tcase_add_test(tc_cert, update_certificate_wrongKey);
     tcase_add_test(tc_cert, update_certificate_noKey);
+    tcase_add_test(tc_cert, certificate_types_configured);
+    tcase_add_test(tc_cert, update_certificate_unconfiguredType);
     tcase_add_test(tc_cert, addDriver_rejectsDuplicateGDSReceiver);
     tcase_add_test(tc_cert, update_certificate_preflightsAllEndpoints);
+    tcase_add_test(tc_cert, update_certificate_noneEndpoint);
+    tcase_add_test(tc_cert, update_certificate_noKey_invalid);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -238,8 +364,11 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, update_certificate);
     tcase_add_test(tc_cert_filestore, update_certificate_wrongKey);
     tcase_add_test(tc_cert_filestore, update_certificate_noKey);
+    tcase_add_test(tc_cert_filestore, certificate_types_configured_filestore);
     tcase_add_test(tc_cert_filestore, addDriver_rejectsDuplicateGDSReceiver);
     tcase_add_test(tc_cert_filestore, update_certificate_preflightsAllEndpoints);
+    tcase_add_test(tc_cert_filestore, update_certificate_noneEndpoint);
+    tcase_add_test(tc_cert_filestore, update_certificate_noKey_invalid);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */

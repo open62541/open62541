@@ -163,6 +163,9 @@ struct UA_Server {
      * equipped with all possible access rights (Session Id: 1). */
     UA_Session adminSession;
 
+    /* Non-NULL during the processing of a request */
+    const UA_RequestHeader *currentRequest;
+
     /* All server-side SecureChannels. Direct transports remain outside the
      * hard UASC token lifecycle and statistics. */
     TAILQ_HEAD(, UA_SecureChannel) channels;
@@ -943,6 +946,11 @@ deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 #ifdef UA_ENABLE_PUBSUB
 UA_Driver * UA_PubSubManager_new(UA_Server *server);
+#endif
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+/* AuthenticationToken of the session prepared by the message fuzzer. */
+extern UA_NodeId unsafe_fuzz_authenticationToken;
 #endif
 
 /***********/

@@ -178,9 +178,21 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Currently not checked */
-    UA_String_copy(&helloMessage.endpointUrl, &channel->endpointUrl);
+    /* HEL has no fields after the EndpointUrl. */
+    if(offset != msg->length) {
+        UA_String_clear(&helloMessage.endpointUrl);
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+    /* Part 6, 7.1.2.3: the EndpointUrl shall be less than 4096 bytes. The
+     * resource it identifies is currently not checked. */
+    if(helloMessage.endpointUrl.length >= 4096) {
+        UA_String_clear(&helloMessage.endpointUrl);
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    }
+    retval = UA_String_copy(&helloMessage.endpointUrl, &channel->endpointUrl);
     UA_String_clear(&helloMessage.endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Parameterize the connection. The TcpHelloMessage casts to a
      * TcpAcknowledgeMessage. */
@@ -569,7 +581,7 @@ createServerSecureChannel(UA_Server *server,
     channel->connectionManager = cm;
     channel->connectionId = connectionId;
 
-    /* The remote addresss is given in the very first callback from the
+    /* The remote address is given in the very first callback from the
      * ConnectionManager. */
     if(params) {
         const UA_String *address = (const UA_String *)

@@ -9,6 +9,7 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server_pubsub.h>
@@ -649,16 +650,45 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    /* Search for referenced writers -> delete this writers. (Standard: writer
-     * must be connected with PDS) */
+    /* The connected DataSetWriters are removed with the PDS. A writer can only
+     * be removed while its WriterGroup is disabled. Check this for all writers
+     * before anything is changed. */
     UA_PubSubConnection *conn;
+    TAILQ_FOREACH(conn, &psm->connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
+            if(!UA_PubSubState_isEnabled(wg->head.state))
+                continue;
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(dsw->connectedDataSet != pds)
+                    continue;
+                UA_LOG_WARNING_PUBSUB(psm->logging, pds,
+                                      "Cannot remove the PublishedDataSet while "
+                                      "the WriterGroup of a connected "
+                                      "DataSetWriter is enabled");
+                return UA_STATUSCODE_BADINVALIDSTATE;
+            }
+        }
+    }
+
+    /* Remove the connected writers. The PDS must not be freed while a writer
+     * still points to it. */
     TAILQ_FOREACH(conn, &psm->connections, listEntry) {
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
             UA_DataSetWriter *dsw, *tmpWriter;
             LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, tmpWriter) {
-                if(dsw->connectedDataSet == pds)
-                    UA_DataSetWriter_remove(psm, dsw);
+                if(dsw->connectedDataSet != pds)
+                    continue;
+                UA_StatusCode res = UA_DataSetWriter_remove(psm, dsw);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING_PUBSUB(psm->logging, pds,
+                                          "Cannot remove the PublishedDataSet. "
+                                          "Removing a connected DataSetWriter "
+                                          "failed with %s", UA_StatusCode_name(res));
+                    return res;
+                }
             }
         }
     }

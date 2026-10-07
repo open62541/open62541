@@ -1123,7 +1123,7 @@ configureNS0(UA_Server *server) {
 
 #ifndef UA_ENABLE_DIAGNOSTICS
     /* Removing these NodeIds make Server Object to be non-complaint with UA
-     * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
+     * 1.03 in CTT (Base Information/Base Info Core Structure/ 001.js) In the
      * 1.04 specification this has been resolved by allowing to remove these
      * static nodes as well */
     deleteNode(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);

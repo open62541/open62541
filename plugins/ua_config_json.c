@@ -1212,7 +1212,7 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     /* skip value of unknown item */
                     skipUnknownItem(&ctx);
                     /* after skipUnknownItem() ctx->index points to the name of the following item.
-                       We must decrement index in oder following increment will
+                       We must decrement index in order following increment will
                        still set index to the right position (name of the following item) */
                     --ctx.index;
                 }
@@ -1772,7 +1772,7 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
                     /* skip value of unknown item */
                     skipUnknownItem(&ctx);
                     /* after skipUnknownItem() ctx->index points to the name of the following item.
-                       We must decrement index in oder following increment will
+                       We must decrement index in order following increment will
                        still set index to the right position (name of the following item) */
                     --ctx.index;
                 }

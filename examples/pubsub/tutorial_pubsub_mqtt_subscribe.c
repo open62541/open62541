@@ -143,7 +143,7 @@ addReaderGroup(UA_Server *server) {
     UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                              &readerGroupIdent);
 #if defined(UA_ENABLE_ENCRYPTION)
-    /* Add the encryption key informaton */
+    /* Add the encryption key information */
     if(!useJson) {
         UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
         UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};

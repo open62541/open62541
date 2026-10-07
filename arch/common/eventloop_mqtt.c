@@ -449,9 +449,9 @@ MQTTPublishResponseCallback(void** state, struct mqtt_response_publish *publish)
                      UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Received a message of "
                      "%u bytes", (unsigned)tc->topicConnectionId, (unsigned)msg.length);
 
-        /* Notify the appliation that the connection is now established. The
+        /* Notify the application that the connection is now established. The
          * only way to know about this is to receive the first message for the
-         * topic (MQTT-C recieves a SUBACK message but does not forward that
+         * topic (MQTT-C receives a SUBACK message but does not forward that
          * information). */
         if(tc->topicConnectionState != UA_CONNECTIONSTATE_ESTABLISHED) {
             tc->topicConnectionState = UA_CONNECTIONSTATE_ESTABLISHED;

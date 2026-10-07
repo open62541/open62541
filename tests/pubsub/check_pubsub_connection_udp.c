@@ -140,6 +140,29 @@ START_TEST(AddConnectionWithInvalidAddress){
     ck_assert_uint_eq(psm->connectionsSize, 0);
 } END_TEST
 
+START_TEST(AddConnectionWithOversizedInterface){
+    char interfaceName[512];
+    memset(interfaceName, 'A', sizeof(interfaceName));
+
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {
+        {sizeof(interfaceName), (UA_Byte*)interfaceName},
+        UA_STRING("opc.udp://224.0.0.22:4840/")
+    };
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING(
+        "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+    UA_StatusCode retVal =
+        UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(getPSM(server)->connectionsSize, 0);
+}
+END_TEST
+
 START_TEST(AddConnectionWithInvalidIPv6Address){
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retVal;
@@ -295,6 +318,7 @@ int main(void) {
     TCase *tc_add_pubsub_connections_invalid_config = tcase_create("Create PubSub UDP Connections with invalid configurations");
     tcase_add_checked_fixture(tc_add_pubsub_connections_invalid_config, setup, teardown);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithInvalidAddress);
+    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithOversizedInterface);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithInvalidIPv6Address);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithoutPort);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithUnknownTransportURL);

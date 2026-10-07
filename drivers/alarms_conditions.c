@@ -2331,7 +2331,7 @@ setStandardConditionFields(AlarmsConditionsDriver *acd, const UA_NodeId* conditi
     if(!isSubtypeOf(server, conditionType, &LimitAlarmTypeId))
         return res;
 
-    /* Set optional field property. For the LimitAlarm and its subtypes, atleast
+    /* Set optional field property. For the LimitAlarm and its subtypes, at least
      * one limit is mandatory */
     /* Add optional field LowLimit */
     res = addConditionOptionalField(&acd->driver, *condition, LimitAlarmTypeId, fieldLowLimitQN, NULL);
@@ -2888,7 +2888,7 @@ setExpirationDate(UA_AlarmConditionsDriver *driver,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Write the expiry date to the propery of the condition instance */
+    /* Write the expiry date to the property of the condition instance */
     res = UA_Server_writeObjectProperty_scalar(server, conditionId, fieldExpirationDateQN,
                                                &getExpiryDateAndTime, &UA_TYPES[UA_TYPES_DATETIME]);
     return res;

@@ -8,6 +8,7 @@
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  * Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -488,8 +489,10 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pdsId,
                                       UA_DataSetMetaDataType *metaData);
 
 /* Remove PublishedDataSet, identified by the NodeId. Deletion of PDS removes
- * all contained and linked PDS Fields. Connected WriterGroups will be also
- * removed. */
+ * all contained and linked PDS Fields and the connected DataSetWriters. Returns
+ * Bad_ConfigurationError while a connected DataSetWriter is enabled and
+ * Bad_InvalidState (without changes) while the WriterGroup of a connected
+ * DataSetWriter is enabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pdsId);
 
@@ -628,6 +631,9 @@ UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
                                              const UA_NodeId wgId,
                                              UA_DateTime *timestamp);
 
+/* Remove the group and its DataSetWriters. A failed child removal is returned
+ * and leaves the group pending deletion; retry after resolving the failure.
+ * New writers cannot be added once group deletion has started. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId wgId);
 
@@ -1074,7 +1080,7 @@ typedef void
  * @param callback the user defined callback to notify the user about the status
  *        of SKS Pull request.
  * @param context passed to the callback function
- * @return UA_StatusCode the retuned status */
+ * @return UA_StatusCode the returned status */
 UA_StatusCode UA_EXPORT
 UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
                        UA_ClientConfig *clientConfig, const char *endpointUrl,

@@ -3,15 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/client.h>
-#include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/types.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-#include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #endif
 
@@ -46,7 +45,7 @@ static void setup(void) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->allowNonePolicyPassword = true;
 
-    /* Instatiate a new AccessControl plugin that knows username/pw */
+    /* Instantiate a new AccessControl plugin that knows username/pw */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
     UA_AccessControl_default(config, true, &sp->policyUri,
@@ -111,6 +110,19 @@ allowBrowseNode(UA_Server *s, UA_AccessControl *ac,
                                   UA_QUALIFIEDNAME(0, "my_custom_attribute"),
                                   &attribute);
     return true;
+}
+
+static UA_Boolean
+denyTestNodeBrowse(UA_Server *s, UA_AccessControl *ac,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *nodeId, void *nodeContext) {
+    (void)s;
+    (void)ac;
+    (void)sessionId;
+    (void)sessionContext;
+    (void)nodeContext;
+    const UA_NodeId denied = UA_NODEID_NUMERIC(1, 5001);
+    return !UA_NodeId_equal(nodeId, &denied);
 }
 
 static void setCustomAccessControl(UA_ServerConfig* config) {
@@ -337,6 +349,163 @@ START_TEST(Server_allowCreateSubscription) {
     UA_Server_delete(server);
 } END_TEST
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
+START_TEST(Client_commonAttributes_requireBrowse) {
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+    config->accessControl.allowBrowseNode = denyTestNodeBrowse;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    const UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 5001);
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "BrowseDenied"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Byte userAccessLevel = 0;
+    ck_assert_uint_eq(UA_Client_readUserAccessLevelAttribute(
+        client, nodeId, &userAccessLevel), UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    UA_Variant readValue;
+    UA_Variant_init(&readValue);
+    ck_assert_uint_eq(UA_Client_readValueAttribute(client, nodeId, &readValue),
+                      UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&readValue);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+
+/* Write status codes: Bad_NotWritable if the WriteMask (AccessLevel for the
+ * Value) does not allow writing, Bad_UserAccessDenied if only the
+ * UserWriteMask (UserAccessLevel) of the current user does not. */
+static const UA_NodeId notWritableNode = {1, UA_NODEIDTYPE_NUMERIC, {5010}};
+static const UA_NodeId userDeniedNode = {1, UA_NODEIDTYPE_NUMERIC, {5011}};
+static const UA_NodeId writableNode = {1, UA_NODEIDTYPE_NUMERIC, {5012}};
+
+static UA_Byte
+userAccessLevel_readOnlyForDenied(UA_Server *s, UA_AccessControl *ac,
+                                  const UA_NodeId *sessionId, void *sessionContext,
+                                  const UA_NodeId *nodeId, void *nodeContext) {
+    return UA_NodeId_equal(nodeId, &userDeniedNode) ? UA_ACCESSLEVELMASK_READ : 0xFF;
+}
+
+static UA_UInt32
+userRightsMask_noneForDenied(UA_Server *s, UA_AccessControl *ac,
+                             const UA_NodeId *sessionId, void *sessionContext,
+                             const UA_NodeId *nodeId, void *nodeContext) {
+    return UA_NodeId_equal(nodeId, &userDeniedNode) ? 0 : 0xFFFFFFFF;
+}
+
+static void
+addWriteTestNode(const UA_NodeId nodeId, const char *name,
+                 UA_Byte accessLevel, UA_UInt32 writeMask) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    attr.displayName = UA_LOCALIZEDTEXT("", (char*)(uintptr_t)name);
+    attr.accessLevel = accessLevel;
+    attr.writeMask = writeMask;
+    ck_assert_uint_eq(UA_Server_addVariableNode(
+        server, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, (char*)(uintptr_t)name),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL), UA_STATUSCODE_GOOD);
+}
+
+START_TEST(Client_write_notWritableVsUserAccessDenied) {
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+    config->accessControl.getUserAccessLevel = userAccessLevel_readOnlyForDenied;
+    config->accessControl.getUserRightsMask = userRightsMask_noneForDenied;
+
+    const UA_Byte rw = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    const UA_UInt32 mask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_BROWSENAME;
+    addWriteTestNode(notWritableNode, "NotWritable", UA_ACCESSLEVELMASK_READ, 0);
+    addWriteTestNode(userDeniedNode, "UserDenied", rw, mask);
+    addWriteTestNode(writableNode, "Writable", rw, mask);
+
+    /* The local admin session is not restricted by WriteMask and AccessLevel */
+    UA_Int32 newValue = 43;
+    UA_Variant v;
+    UA_Variant_setScalar(&v, &newValue, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(UA_Server_writeValue(server, notWritableNode, v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_writeDisplayName(server, notWritableNode,
+                                                 UA_LOCALIZEDTEXT("", "Local")),
+                      UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    ck_assert_uint_eq(UA_Client_connect(client, "opc.tcp://localhost:4840"),
+                      UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText dn = UA_LOCALIZEDTEXT("", "NewName");
+    UA_QualifiedName bn = UA_QUALIFIEDNAME(1, "NewBrowseName");
+    UA_NodeId newId = UA_NODEID_NUMERIC(1, 6000);
+
+    /* Not writable at all */
+    ck_assert_uint_eq(UA_Client_writeValueAttribute(client, notWritableNode, &v),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(UA_Client_writeDisplayNameAttribute(client, notWritableNode, &dn),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(UA_Client_writeBrowseNameAttribute(client, notWritableNode, &bn),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_uint_eq(UA_Client_writeNodeIdAttribute(client, notWritableNode, &newId),
+                      UA_STATUSCODE_BADNOTWRITABLE);
+
+    /* Writable, but not for the current user */
+    ck_assert_uint_eq(UA_Client_writeValueAttribute(client, userDeniedNode, &v),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(UA_Client_writeDisplayNameAttribute(client, userDeniedNode, &dn),
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    /* Writable according to the WriteMask, but not supported by open62541 */
+    ck_assert_uint_eq(UA_Client_writeBrowseNameAttribute(client, writableNode, &bn),
+                      UA_STATUSCODE_BADWRITENOTSUPPORTED);
+
+    /* The NodeClass (Variable) does not have the attribute */
+    UA_Boolean symmetric = true;
+    ck_assert_uint_eq(UA_Client_writeSymmetricAttribute(client, writableNode, &symmetric),
+                      UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+
+    /* Writable */
+    ck_assert_uint_eq(UA_Client_writeValueAttribute(client, writableNode, &v),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_writeDisplayNameAttribute(client, writableNode, &dn),
+                      UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
@@ -356,6 +525,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_denyCreateSubscription);
     tcase_add_test(tc_server, Server_nullCreateSubscriptionCallback);
 #endif
+    tcase_add_test(tc_server, Client_commonAttributes_requireBrowse);
+    tcase_add_test(tc_server, Client_write_notWritableVsUserAccessDenied);
     suite_add_tcase(s,tc_server);
     return s;
 }

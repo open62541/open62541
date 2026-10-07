@@ -81,16 +81,34 @@ checkHelpersDuringShutdown(void *application, void *context) {
 }
 
 static UA_StatusCode
-stageAndApplyCertificateUpdate(void) {
+callServerConfigurationMethod(UA_UInt32 methodId, size_t inputSize,
+                              UA_Variant *input) {
+    UA_CallMethodRequest request;
+    UA_CallMethodRequest_init(&request);
+    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
+    request.methodId = UA_NODEID_NUMERIC(0, methodId);
+    request.inputArgumentsSize = inputSize;
+    request.inputArguments = input;
+
+    UA_CallMethodResult result = UA_Server_call(server, &request);
+    UA_StatusCode res = result.statusCode;
+    UA_CallMethodResult_clear(&result);
+    return res;
+}
+
+/* The UpdateCertificate Method with the test certificate and key */
+static UA_StatusCode
+callUpdateCertificate(UA_NodeId *certificateGroupId,
+                      UA_NodeId *certificateTypeId) {
     UA_ByteString certificate = {CERT_DER_LENGTH, CERT_DER_DATA};
     UA_ByteString privateKey = {KEY_DER_LENGTH, KEY_DER_DATA};
     UA_String privateKeyFormat = UA_STRING_STATIC("DER");
 
     UA_Variant input[6];
     memset(input, 0, sizeof(input));
-    UA_Variant_setScalar(&input[0], &defaultApplicationGroup,
+    UA_Variant_setScalar(&input[0], certificateGroupId,
                          &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&input[1], &rsaSha256CertificateType,
+    UA_Variant_setScalar(&input[1], certificateTypeId,
                          &UA_TYPES[UA_TYPES_NODEID]);
     UA_Variant_setScalar(&input[2], &certificate,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -99,29 +117,18 @@ stageAndApplyCertificateUpdate(void) {
                          &UA_TYPES[UA_TYPES_STRING]);
     UA_Variant_setScalar(&input[5], &privateKey,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return callServerConfigurationMethod(
+        UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE, 6, input);
+}
 
-    UA_CallMethodRequest request;
-    UA_CallMethodRequest_init(&request);
-    request.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION);
-    request.methodId = UA_NODEID_NUMERIC(
-        0, UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE);
-    request.inputArgumentsSize = 6;
-    request.inputArguments = input;
-
-    UA_CallMethodResult result = UA_Server_call(server, &request);
-    UA_StatusCode res = result.statusCode;
-    UA_CallMethodResult_clear(&result);
+static UA_StatusCode
+stageAndApplyCertificateUpdate(void) {
+    UA_StatusCode res = callUpdateCertificate(&defaultApplicationGroup,
+                                              &rsaSha256CertificateType);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-
-    request.methodId = UA_NODEID_NUMERIC(
-        0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES);
-    request.inputArgumentsSize = 0;
-    request.inputArguments = NULL;
-    result = UA_Server_call(server, &request);
-    res = result.statusCode;
-    UA_CallMethodResult_clear(&result);
-    return res;
+    return callServerConfigurationMethod(
+        UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES, 0, NULL);
 }
 
 START_TEST(shutdownWhileApplyChangesPending) {
@@ -134,6 +141,20 @@ START_TEST(shutdownWhileApplyChangesPending) {
     ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
+/* The transaction is discarded when the queued ApplyChanges runs. An update
+ * staged in between would be lost and must be refused. */
+START_TEST(rejectUpdateWhileApplyChangesQueued) {
+    startup();
+    ck_assert_uint_eq(stageAndApplyCertificateUpdate(), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callUpdateCertificate(&defaultApplicationGroup,
+                                            &rsaSha256CertificateType),
+                      UA_STATUSCODE_BADTRANSACTIONPENDING);
+
+    /* The delayed ApplyChanges completes the transaction */
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(stageAndApplyCertificateUpdate(), UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(shutdownWhileCertificateClosurePending) {
     startup();
     ck_assert_uint_eq(updateCertificate(), UA_STATUSCODE_GOOD);
@@ -142,6 +163,25 @@ START_TEST(shutdownWhileCertificateClosurePending) {
     ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
     serverStarted = false;
     ck_assert_uint_eq(receiver->drv.state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
+/* Part 12, 7.10.5: a null CertificateGroupId selects the
+ * DefaultApplicationGroup, an unsupported group or type is an invalid
+ * argument */
+START_TEST(updateCertificateArguments) {
+    startup();
+    UA_NodeId nullId = UA_NODEID_NULL;
+    UA_NodeId objectsFolder = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    ck_assert_uint_eq(callUpdateCertificate(&objectsFolder,
+                                            &rsaSha256CertificateType),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(callUpdateCertificate(&defaultApplicationGroup, &nullId),
+                      UA_STATUSCODE_BADINVALIDARGUMENT);
+    ck_assert_uint_eq(callUpdateCertificate(&nullId, &rsaSha256CertificateType),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callServerConfigurationMethod(
+                          UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES, 0, NULL),
+                      UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(rejectDuplicateReceiver) {
@@ -220,17 +260,57 @@ START_TEST(removeStoppedReceiver) {
     ck_assert_ptr_eq(methodContext, receiver);
 } END_TEST
 
+/* Without an RSA endpoint, no certificate type can be updated. The
+ * CertificateTypes are an empty array, and the methods are still bound. */
+START_TEST(noUpdatableCertificateType) {
+    UA_Server *plainServer = UA_Server_newForUnitTest();
+    ck_assert_ptr_nonnull(plainServer);
+    UA_GDSReceiver *plainReceiver = UA_GDSReceiver_new();
+    ck_assert_ptr_nonnull(plainReceiver);
+    ck_assert_uint_eq(UA_Server_addDriver(plainServer, &plainReceiver->drv),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(plainServer), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(plainReceiver->drv.state, UA_LIFECYCLESTATE_STARTED);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_uint_eq(UA_Server_readValue(plainServer, UA_NODEID_NUMERIC(0,
+        UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
+        &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_NODEID]));
+    ck_assert_uint_eq(value.arrayLength, 0);
+    UA_Variant_clear(&value);
+
+    void *methodContext = NULL;
+    ck_assert_uint_eq(UA_Server_getNodeContext(
+                          plainServer,
+                          UA_NODEID_NUMERIC(
+                              0, UA_NS0ID_SERVERCONFIGURATION_APPLYCHANGES),
+                          &methodContext),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(methodContext, plainReceiver);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(plainServer), UA_STATUSCODE_GOOD);
+    UA_Server_delete(plainServer);
+} END_TEST
+
 int
 main(void) {
     Suite *suite = suite_create("GDS Receiver lifecycle");
     TCase *tc = tcase_create("lifecycle");
     tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, shutdownWhileApplyChangesPending);
+    tcase_add_test(tc, rejectUpdateWhileApplyChangesQueued);
     tcase_add_test(tc, shutdownWhileCertificateClosurePending);
+    tcase_add_test(tc, updateCertificateArguments);
     tcase_add_test(tc, rejectDuplicateReceiver);
     tcase_add_test(tc, helpersBeforeStartupAndDuringShutdown);
     tcase_add_test(tc, removeStoppedReceiver);
     suite_add_tcase(suite, tc);
+
+    TCase *tcPlain = tcase_create("no RSA endpoint");
+    tcase_add_test(tcPlain, noUpdatableCertificateType);
+    suite_add_tcase(suite, tcPlain);
 
     SRunner *runner = srunner_create(suite);
     srunner_set_fork_status(runner, CK_NOFORK);

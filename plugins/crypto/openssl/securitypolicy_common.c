@@ -1211,7 +1211,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     X509_EXTENSION *subject_alt_name_ext = NULL;
     int pos = X509_get_ext_by_NID(x509Certificate, NID_subject_alt_name, -1);
     if(pos >= 0) {
-        subject_alt_name_ext = X509_get_ext(x509Certificate, pos);
+        subject_alt_name_ext = X509_EXTENSION_dup(X509_get_ext(x509Certificate, pos));
         if(subject_alt_name_ext) {
             /* Set subject alternate name in CSR context */
             sk_X509_EXTENSION_push(exts, subject_alt_name_ext);
@@ -1222,6 +1222,7 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     X509_REQ_add_extensions(request, exts);
     sk_X509_EXTENSION_free(exts);
     X509_EXTENSION_free(key_usage_ext);
+    X509_EXTENSION_free(subject_alt_name_ext);
 
     /* Get subject from argument or read it from certificate */
     X509_NAME *name = NULL;
@@ -1239,12 +1240,11 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
         }
     } else {
         /* Get subject name from certificate */
-        X509_NAME *tmpName = X509_get_subject_name(x509Certificate);
-        if(!tmpName) {
+        name = X509_NAME_dup(X509_get_subject_name(x509Certificate));
+        if(!name) {
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
         }
-        name = X509_NAME_dup(tmpName);
     }
 
     /* Set the subject in CSR context */

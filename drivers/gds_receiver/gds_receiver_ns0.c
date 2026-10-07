@@ -152,11 +152,19 @@ static UA_StatusCode
 writeGroupVariables(UA_GDSReceiverContext *ctx) {
     UA_Server *server = ((UA_GDSReceiver*)ctx)->drv.server;
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_NodeId certificateTypes[2] = {
+
+    /* Advertise only the certificate types that can be updated. These are the
+     * permitted types for UpdateCertificate and CreateSigningRequest. */
+    const UA_NodeId knownCertificateTypes[2] = {
         UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
         UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE)
     };
-    size_t certificateTypesSize = 2;
+    UA_NodeId certificateTypes[2];
+    size_t certificateTypesSize = 0;
+    for(size_t i = 0; i < 2; i++) {
+        if(UA_GDSReceiver_certificateTypeSupported(config, &knownCertificateTypes[i]))
+            certificateTypes[certificateTypesSize++] = knownCertificateTypes[i];
+    }
 
     UA_String supportedPrivateKeyFormats[2] =
         {UA_STRING("PEM"), UA_STRING("DER")};
@@ -678,7 +686,7 @@ setPositionFileAction(UA_Server *server,
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
-    UA_UInt64 position = *(UA_UInt32*)input[1].data;
+    UA_UInt64 position = *(UA_UInt64*)input[1].data;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)

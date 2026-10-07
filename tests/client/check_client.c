@@ -14,6 +14,7 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "test_helpers.h"
 #include "testing_clock.h"
@@ -68,7 +69,7 @@ static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
-    /* Instatiate a new AccessControl plugin that knows username/pw */
+    /* Instantiate a new AccessControl plugin that knows username/pw */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
     UA_AccessControl_default(config, true, &sp->policyUri,
@@ -104,6 +105,9 @@ START_TEST(ClientConfig_Copy){
     srcConfig.httpTimeout = 17;
     srcConfig.httpMaxMsgSize = 123456;
     srcConfig.httpMaxDecompressedMsgSize = 654321;
+    srcConfig.namespaces = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    srcConfig.namespacesSize = 1;
+    srcConfig.namespaces[0] = UA_STRING_ALLOC("urn:test:configured-namespace");
 
     UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -133,11 +137,67 @@ START_TEST(ClientConfig_Copy){
     UA_String_clear(&srcConfig.httpClientPrivateKeyPassword);
 
     UA_Client *dstConfigClient = UA_Client_newWithConfig(&dstConfig);
+    ck_assert_ptr_ne(dstConfigClient, NULL);
+    UA_UInt16 nsIndex = 0;
+    retval = UA_Client_getNamespaceIndex(dstConfigClient, srcConfig.namespaces[0], &nsIndex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nsIndex, 2);
     retval = UA_Client_connect(dstConfigClient, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnect(dstConfigClient);
     UA_Client_delete(dstConfigClient);
     UA_ApplicationDescription_clear(&srcConfig.clientDescription);
+    UA_Array_delete(srcConfig.namespaces, srcConfig.namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+}
+END_TEST
+
+START_TEST(ClientConfig_CopyOwnedMembers){
+    UA_ClientConfig srcConfig;
+    UA_ClientConfig dstConfig;
+    memset(&srcConfig, 0, sizeof(srcConfig));
+    memset(&dstConfig, 0, sizeof(dstConfig));
+
+    srcConfig.endpointUrl = UA_STRING_ALLOC("opc.tcp://example:4840");
+    srcConfig.applicationUri = UA_STRING_ALLOC("urn:example:application");
+    srcConfig.authSecurityPolicyUri = UA_STRING_ALLOC("urn:example:auth-policy");
+    srcConfig.sessionName = UA_STRING_ALLOC("copied-session");
+    srcConfig.userTokenPolicy.policyId = UA_STRING_ALLOC("username-policy");
+    srcConfig.userTokenPolicy.securityPolicyUri =
+        UA_STRING_ALLOC("urn:example:user-policy");
+    srcConfig.noSession = true;
+    srcConfig.noReconnect = true;
+    srcConfig.noNewSession = true;
+    srcConfig.tcpReuseAddr = true;
+    srcConfig.allowNonePolicyPassword = true;
+    srcConfig.namespaces = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    srcConfig.namespacesSize = 1;
+    srcConfig.namespaces[0] = UA_STRING_ALLOC("urn:example:namespace");
+
+    UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&srcConfig.endpointUrl, &dstConfig.endpointUrl));
+    ck_assert(UA_String_equal(&srcConfig.applicationUri, &dstConfig.applicationUri));
+    ck_assert(UA_String_equal(&srcConfig.authSecurityPolicyUri,
+                              &dstConfig.authSecurityPolicyUri));
+    ck_assert(UA_String_equal(&srcConfig.sessionName, &dstConfig.sessionName));
+    ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.policyId,
+                              &dstConfig.userTokenPolicy.policyId));
+    ck_assert(UA_String_equal(&srcConfig.userTokenPolicy.securityPolicyUri,
+                              &dstConfig.userTokenPolicy.securityPolicyUri));
+    ck_assert_ptr_ne(srcConfig.endpointUrl.data, dstConfig.endpointUrl.data);
+    ck_assert_ptr_ne(srcConfig.userTokenPolicy.policyId.data,
+                     dstConfig.userTokenPolicy.policyId.data);
+    ck_assert(dstConfig.noSession);
+    ck_assert(dstConfig.noReconnect);
+    ck_assert(dstConfig.noNewSession);
+    ck_assert(dstConfig.tcpReuseAddr);
+    ck_assert(dstConfig.allowNonePolicyPassword);
+    ck_assert_uint_eq(dstConfig.namespacesSize, 1);
+    ck_assert(UA_String_equal(&srcConfig.namespaces[0], &dstConfig.namespaces[0]));
+    ck_assert_ptr_ne(srcConfig.namespaces[0].data, dstConfig.namespaces[0].data);
+
+    UA_ClientConfig_clear(&srcConfig);
+    UA_ClientConfig_clear(&dstConfig);
 }
 END_TEST
 
@@ -166,6 +226,30 @@ START_TEST(Client_connect_unknownHost) {
     UA_StatusCode retval =
         UA_Client_connect(client, "opc.tcp://WrongHost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The client sends the URL it connects to as the EndpointUrl of its HEL.
+ * Part 6 requires less than 4096 bytes and BadTcpEndpointUrlInvalid beyond. */
+START_TEST(Client_connect_endpointUrlLimit) {
+    const char *prefix = "opc.tcp://localhost:4840/";
+    size_t prefixLen = strlen(prefix);
+    char url[4097];
+    memcpy(url, prefix, prefixLen);
+    memset(url + prefixLen, 'a', sizeof(url) - 1 - prefixLen);
+
+    url[4095] = 0;
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, url), UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    url[4095] = 'a';
+    url[4096] = 0;
+    client = UA_Client_newForUnitTest();
+    ck_assert_uint_eq(UA_Client_connect(client, url),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
     UA_Client_delete(client);
 }
 END_TEST
@@ -1033,9 +1117,11 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, ClientConfig_Copy);
+    tcase_add_test(tc_client, ClientConfig_CopyOwnedMembers);
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_invalidEndpointUrl);
     tcase_add_test(tc_client, Client_connect_unknownHost);
+    tcase_add_test(tc_client, Client_connect_endpointUrlLimit);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);
     tcase_add_test(tc_client, Client_new_default);

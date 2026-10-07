@@ -351,6 +351,9 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub, UA_Boolean notif
     /* Detach from the session if necessary */
     if(sub->session)
         UA_Session_detachSubscription(server, sub->session, sub, true);
+    UA_String_clear(&sub->ownerUserId);
+    UA_String_clear(&sub->ownerApplicationUri);
+    sub->ownerKnown = false;
 
     /* Remove from the server if not previously registered */
     if(sub->serverListEntry.le_prev) {
@@ -814,7 +817,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         return;
     }
 
-    /* Dsiabled subscriptions do not send notifications */
+    /* Disabled subscriptions do not send notifications */
     UA_UInt32 notifications = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED) ?
         sub->notificationQueueSize : 0;
 
@@ -1073,6 +1076,24 @@ sampleAndPublishCallback(UA_Server *server,
     unlockServer(server);
 }
 
+/* The publishing cycles start when the timer is (re)started. The BASETIME
+ * policy with "now" as the base time keeps the timer from being batched with
+ * other timers: batching moves the first execution by up to 1/4 of the
+ * interval, but the first (keep-alive) message is due at the end of the first
+ * publishing cycle (Part 4, 5.13.1.1). */
+UA_StatusCode
+Subscription_setPublishTimer(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    if(sub->publishCallbackId != 0)
+        return el->modifyTimer(el, sub->publishCallbackId, sub->publishingInterval,
+                               &now, UA_TIMERPOLICY_BASETIME);
+    return el->addTimer(el, (UA_Callback)sampleAndPublishCallback, server, sub,
+                        sub->publishingInterval, &now, UA_TIMERPOLICY_BASETIME,
+                        &sub->publishCallbackId);
+}
+
 UA_StatusCode
 Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state) {
@@ -1089,9 +1110,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 #endif
         }
     } else if(sub->publishCallbackId == 0) {
-        UA_StatusCode res =
-            addRepeatedCallback(server, sampleAndPublishCallback,
-                                sub, sub->publishingInterval, &sub->publishCallbackId);
+        UA_StatusCode res = Subscription_setPublishTimer(server, sub);
         if(res != UA_STATUSCODE_GOOD) {
             sub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
             return res;
@@ -1277,7 +1296,7 @@ UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon) {
     /* Assertion that at most one notification is in the queue */
     UA_assert(n == TAILQ_LAST(&mon->queue, NotificationQueue));
 
-    /* Remve the Infobits */
+    /* Remove the Infobits */
     n->data.dataChange.value.status &= ~(UA_StatusCode)
         (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 }

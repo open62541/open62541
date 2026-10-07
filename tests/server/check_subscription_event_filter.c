@@ -526,7 +526,7 @@ START_TEST(equalOperatorValidation) {
     deleteMonitoredItems();
     UA_EventFilter_clear(&filter);
 
-    // types wich need implicit cast
+    // types which need implicit cast
     query =
         "SELECT /Severity, /Message, /EventType, /SourceNode "
         "WHERE INT32 62541 == INT64 62541";

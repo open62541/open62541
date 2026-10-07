@@ -1552,6 +1552,32 @@ START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
 }
 END_TEST
 
+/* An array of length zero is an empty array, not a scalar */
+START_TEST(UA_Variant_setArrayWithSizeZeroIsEmptyArray) {
+    UA_Int32 values[1] = {42};
+    UA_Variant v;
+    UA_Variant_setArray(&v, values, 0, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert(!UA_Variant_isScalar(&v));
+    ck_assert(UA_Variant_hasArrayType(&v, &UA_TYPES[UA_TYPES_INT32]));
+    ck_assert_ptr_eq(v.data, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(v.arrayLength, 0);
+
+    /* Copied and cleared as an empty array. The array is not taken over. */
+    UA_Variant copy;
+    ck_assert_uint_eq(UA_Variant_copy(&v, &copy), UA_STATUSCODE_GOOD);
+    ck_assert(!UA_Variant_isScalar(&copy));
+    ck_assert_uint_eq(copy.arrayLength, 0);
+    UA_Variant_clear(&copy);
+    UA_Variant_clear(&v);
+    ck_assert_int_eq(values[0], 42);
+
+    /* NULL with length zero remains a null array */
+    UA_Variant_setArray(&v, NULL, 0, &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(v.data, NULL);
+    ck_assert(!UA_Variant_isScalar(&v));
+}
+END_TEST
+
 START_TEST(UA_Variant_setRangeRejectsUnclampedSourceSize) {
     UA_UInt32 initial[10] = {0};
     UA_Variant value;
@@ -1999,6 +2025,183 @@ START_TEST(UA_DataType_getStructMember_test) {
 } END_TEST
 #endif
 
+START_TEST(UA_ExtensionObject_decodeNullEncodingId) {
+    UA_NodeId nullId = UA_NODEID_NULL;
+    ck_assert_ptr_eq(UA_findDataTypeByBinary(&nullId), NULL);
+
+    UA_Byte data[] = {0, 0, 1, 1, 0, 0, 0, 5};
+    UA_ByteString input = {sizeof(data), data};
+    UA_ExtensionObject eo;
+    size_t offset = 0;
+    ck_assert_uint_eq(UA_decodeBinaryInternal(&input, &offset, &eo,
+                      &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, input.length);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert(UA_NodeId_isNull(&eo.content.encoded.typeId));
+    ck_assert_uint_eq(eo.content.encoded.body.length, 1);
+    ck_assert_uint_eq(eo.content.encoded.body.data[0], 5);
+    UA_ExtensionObject_clear(&eo);
+
+    /* Numeric zero in another namespace can be a registered encoding id. */
+    UA_DataType custom = UA_TYPES[UA_TYPES_BOOLEAN];
+    custom.typeId = UA_NODEID_NUMERIC(1, 123);
+    custom.binaryEncodingId = UA_NODEID_NUMERIC(1, 0);
+    UA_DataTypeArray customTypes = {NULL, 1, &custom, false};
+    UA_DecodeBinaryOptions options = {0};
+    options.customTypes = &customTypes;
+    UA_Byte namespaced[] = {1, 1, 0, 0, 1, 1, 0, 0, 0, 5};
+    input.data = namespaced;
+    input.length = sizeof(namespaced);
+    offset = 0;
+    ck_assert_uint_eq(UA_decodeBinaryInternal(&input, &offset, &eo,
+                      &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &options), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert_ptr_eq(eo.content.decoded.type, &custom);
+    UA_ExtensionObject_clear(&eo);
+
+    /* Legitimate null ExtensionObjects still have no body. */
+    data[2] = 0;
+    input.data = data;
+    input.length = 3;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT],
+                                     NULL), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eo.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    UA_ExtensionObject_clear(&eo);
+} END_TEST
+
+START_TEST(UA_Variant_decodeNullEncodingId) {
+    UA_Byte data[] = {0x96, 2, 0, 0, 0,
+                     0, 0, 1, 1, 0, 0, 0, 5,
+                     0, 0, 1, 1, 0, 0, 0, 0};
+    UA_ByteString input = {sizeof(data), data};
+    UA_Variant v;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(v.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert_uint_eq(v.arrayLength, 2);
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)v.data;
+    ck_assert_uint_eq(eo[0].encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_uint_eq(eo[1].encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_uint_eq(eo[0].content.encoded.body.data[0], 5);
+    ck_assert_uint_eq(eo[1].content.encoded.body.data[0], 0);
+    UA_Variant_clear(&v);
+
+    data[4] = 0x16;
+    input.data = data + 4;
+    input.length = 9;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]));
+    eo = (UA_ExtensionObject*)v.data;
+    ck_assert_uint_eq(eo->encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_uint_eq(eo->content.encoded.body.data[0], 5);
+    UA_Variant_clear(&v);
+} END_TEST
+
+START_TEST(UA_Variant_decodeReservedTypeIds) {
+    UA_Byte scalar[] = {0, 3, 0, 0, 0, 0x00, 0x80, 0xff};
+    UA_Byte nullScalar[] = {0, 0xff, 0xff, 0xff, 0xff};
+    UA_Byte emptyScalar[] = {0, 0, 0, 0, 0};
+    UA_Byte nullArray[] = {0x80, 0xff, 0xff, 0xff, 0xff};
+    UA_Byte emptyArray[] = {0x80, 0, 0, 0, 0};
+    UA_Byte array[] = {0x80, 2, 0, 0, 0,
+                      3, 0, 0, 0, 0x00, 0x80, 0xff,
+                      1, 0, 0, 0, 0x05};
+    UA_Byte matrix[] = {0xc0, 2, 0, 0, 0,
+                       3, 0, 0, 0, 0x00, 0x80, 0xff,
+                       1, 0, 0, 0, 0x05,
+                       2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
+    UA_ByteString inputs[] = {
+        {sizeof(scalar), scalar}, {sizeof(nullScalar), nullScalar},
+        {sizeof(emptyScalar), emptyScalar}, {sizeof(nullArray), nullArray},
+        {sizeof(emptyArray), emptyArray}, {sizeof(array), array},
+        {sizeof(matrix), matrix}
+    };
+
+    for(UA_Byte id = 26; id <= 31; id++) {
+        for(size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+            UA_ByteString *input = &inputs[i];
+            UA_Byte flags = input->data[0] & 0xc0;
+            input->data[0] = flags | id;
+            UA_Variant v;
+            size_t offset = 0;
+            ck_assert_uint_eq(UA_decodeBinaryInternal(input, &offset, &v,
+                              &UA_TYPES[UA_TYPES_VARIANT], NULL), UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(offset, input->length);
+            ck_assert_ptr_eq(v.type, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            ck_assert_int_eq(UA_Variant_isScalar(&v), flags == 0);
+            if(flags & 0x80)
+                ck_assert_uint_eq(v.arrayLength, i >= 5 ? 2 : 0);
+            if(flags & 0x40) {
+                ck_assert_uint_eq(v.arrayDimensionsSize, 2);
+                ck_assert_uint_eq(v.arrayDimensions[0], 1);
+                ck_assert_uint_eq(v.arrayDimensions[1], 2);
+            }
+
+            /* Preserve payload, null/empty distinctions and dimensions, but
+             * re-encode with the ordinary ByteString wire type id (15). */
+            UA_ByteString encoded = UA_BYTESTRING_NULL;
+            ck_assert_uint_eq(UA_encodeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT],
+                                              &encoded, NULL), UA_STATUSCODE_GOOD);
+            input->data[0] = flags | 15;
+            ck_assert(UA_ByteString_equal(input, &encoded));
+            UA_ByteString_clear(&encoded);
+            UA_Variant_clear(&v);
+        }
+    }
+} END_TEST
+
+START_TEST(UA_Variant_decodeReservedTypeIdsMalformed) {
+    UA_Byte scalar[] = {0, 3, 0, 0, 0, 0x00, 0x80, 0xff};
+    UA_Byte matrix[] = {0xc0, 2, 0, 0, 0,
+                       1, 0, 0, 0, 0x05, 1, 0, 0, 0, 0x06,
+                       2, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
+    UA_ByteString inputs[] = {{sizeof(scalar), scalar}, {sizeof(matrix), matrix}};
+    for(UA_Byte id = 26; id <= 31; id++) {
+        scalar[0] = id;
+        matrix[0] = 0xc0 | id;
+        for(size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+            for(size_t length = 1; length < inputs[i].length; length++) {
+                UA_ByteString truncated = {length, inputs[i].data};
+                UA_Variant v;
+                ck_assert_uint_eq(UA_decodeBinary(&truncated, &v,
+                                  &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                                  UA_STATUSCODE_BADDECODINGERROR);
+                UA_Variant_clear(&v);
+            }
+        }
+    }
+
+    /* Only ids 26..31 are normalized; higher ids still fail. */
+    for(UA_Byte id = 32; id <= 63; id++) {
+        scalar[0] = id;
+        UA_Variant v;
+        ck_assert_uint_eq(UA_decodeBinary(&inputs[0], &v,
+                          &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                          UA_STATUSCODE_BADDECODINGERROR);
+        UA_Variant_clear(&v);
+    }
+} END_TEST
+
+START_TEST(UA_Variant_decodeScalarDimensions) {
+    /* Reject the illegal flag even without trailing bytes. */
+    UA_Byte data[] = {0x46, 0xff, 0xff, 0xff, 0xff, 0xde, 0xad, 0xbe, 0xef};
+    UA_ByteString input = {sizeof(data), data};
+    UA_Variant v;
+    for(size_t len = 5; len <= sizeof(data); len += 4) {
+        input.length = len;
+        ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                          UA_STATUSCODE_BADDECODINGERROR);
+        UA_Variant_clear(&v);
+    }
+    data[0] = 0x06;
+    input.length = 5;
+    ck_assert_uint_eq(UA_decodeBinary(&input, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32*)v.data, -1);
+    UA_Variant_clear(&v);
+} END_TEST
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -2030,6 +2233,11 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_decode, UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray);
     tcase_add_test(tc_decode, UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem);
     tcase_add_test(tc_decode, UA_Variant_decodeWithTooSmallSourceShallReturnWithError);
+    tcase_add_test(tc_decode, UA_ExtensionObject_decodeNullEncodingId);
+    tcase_add_test(tc_decode, UA_Variant_decodeNullEncodingId);
+    tcase_add_test(tc_decode, UA_Variant_decodeReservedTypeIds);
+    tcase_add_test(tc_decode, UA_Variant_decodeReservedTypeIdsMalformed);
+    tcase_add_test(tc_decode, UA_Variant_decodeScalarDimensions);
     suite_add_tcase(s, tc_decode);
 
     TCase *tc_encode = tcase_create("encode");
@@ -2083,6 +2291,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
     tcase_add_test(tc_copy, UA_Variant_setRangeRejectsUnclampedSourceSize);
+    tcase_add_test(tc_copy, UA_Variant_setArrayWithSizeZeroIsEmptyArray);
 
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);

@@ -223,10 +223,12 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
             res |= UA_ByteString_copy(privateKey, &newPrivateKey);
         if(res != UA_STATUSCODE_GOOD) {
             UA_ByteString_clear(&newCertificate);
+            UA_ByteString_memZero(&newPrivateKey);
             UA_ByteString_clear(&newPrivateKey);
             return res;
         }
         UA_ByteString_clear(&certInfo->certificate);
+        UA_ByteString_memZero(&certInfo->privateKey);
         UA_ByteString_clear(&certInfo->privateKey);
         certInfo->certificate = newCertificate;
         certInfo->privateKey = newPrivateKey;
@@ -242,6 +244,7 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
         res |= UA_ByteString_copy(privateKey, &stagedInfo.privateKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&stagedInfo.certificate);
+        UA_ByteString_memZero(&stagedInfo.privateKey);
         UA_ByteString_clear(&stagedInfo.privateKey);
         UA_NodeId_clear(&stagedInfo.certificateGroup);
         UA_NodeId_clear(&stagedInfo.certificateType);
@@ -253,6 +256,7 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
                    (transaction->certificateInfosSize + 1) * sizeof(UA_GDSCertificateInfo));
     if(!newCertInfos) {
         UA_ByteString_clear(&stagedInfo.certificate);
+        UA_ByteString_memZero(&stagedInfo.privateKey);
         UA_ByteString_clear(&stagedInfo.privateKey);
         UA_NodeId_clear(&stagedInfo.certificateGroup);
         UA_NodeId_clear(&stagedInfo.certificateType);
@@ -289,6 +293,7 @@ UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
     if(transaction->certificateInfos) {
         for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
             UA_ByteString_clear(&transaction->certificateInfos[i].certificate);
+            UA_ByteString_memZero(&transaction->certificateInfos[i].privateKey);
             UA_ByteString_clear(&transaction->certificateInfos[i].privateKey);
             UA_NodeId_clear(&transaction->certificateInfos[i].certificateGroup);
             UA_NodeId_clear(&transaction->certificateInfos[i].certificateType);
@@ -360,10 +365,12 @@ UA_StatusCode
 UA_GDSReceiver_applyChangesForSession(UA_GDSReceiverContext *ctx,
                                      const UA_NodeId *sessionId) {
     UA_GDSTransaction *transaction = &ctx->transaction;
-    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
-        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    /* A fresh transaction has no owning session. Check the state first, so
+     * that the session comparison does not hide Bad_NothingToDo. */
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADNOTHINGTODO;
+    if(!UA_NodeId_equal(&transaction->sessionId, sessionId))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     return UA_GDSReceiver_applyChanges(ctx);
 }
 
@@ -591,10 +598,14 @@ UA_GDSReceiver_closeTrustList(UA_GDSReceiverContext *ctx,
     if(!fileContext)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* If a close is called, a current transaction is cancelled.
-     * If the list was opened in read mode, there are no changes to discard. */
+    /* Close discards the data written to the file (Part 12 §7.8.2.5). It is
+     * not staged in the transaction yet. Other changes of the transaction are
+     * kept. A transaction without changes is ended. If the list was opened in
+     * read mode, there are no changes to discard. */
     if(fileContext->openFileMode ==
-       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+       (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING) &&
+       transaction->certGroupSize == 0 &&
+       transaction->certificateInfosSize == 0)
         UA_GDSTransaction_clear(transaction);
 
     LIST_REMOVE(fileContext, listEntry);
@@ -699,18 +710,19 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
                                 const UA_ByteString *certificate,
                                 const UA_String *privateKeyFormat,
                                 const UA_ByteString *privateKey) {
-    /* The server currently only supports the DefaultApplicationGroup */
+    /* The server currently only supports the DefaultApplicationGroup. A null
+     * CertificateGroupId selects it (Part 12, 7.10.5). */
     static UA_NodeId defaultApplicationGroup =
         STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    if(UA_NodeId_isNull(certificateGroupId))
+        certificateGroupId = &defaultApplicationGroup;
     if(!UA_NodeId_equal(certificateGroupId, &defaultApplicationGroup))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* The server currently only supports the following certificate type */
-    static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
-       !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+    /* The certificate type must be one of the CertificateTypes of the group */
+    UA_ServerConfig *sc = UA_Server_getConfig(ctx->drv.server);
+    if(!UA_GDSReceiver_certificateTypeSupported(sc, certificateTypeId))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
@@ -724,9 +736,19 @@ UA_GDSReceiver_stageCertificateUpdate(UA_GDSReceiverContext *ctx,
         retval = UA_CertificateUtils_checkKeyPair(certificate, privateKey);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
+    } else {
+        /* Validate the certificate before staging a keyless update. */
+        size_t keySize = 0;
+        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)certificate,
+                                          &keySize) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
+    /* The transaction is discarded once the queued ApplyChanges has run.
+     * Refuse new changes instead of silently dropping them. */
     UA_GDSTransaction *transaction = &ctx->transaction;
+    if(transaction->applyChangesQueued)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, ctx->drv.server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
@@ -796,15 +818,17 @@ UA_GDSReceiver_removeCertificate(UA_GDSReceiverContext *ctx,
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* When a certificate is removed, a transaction is created which is then
-     * executed directly. No apply cahnges is required */
+     * executed directly. No apply changes is required */
     UA_StatusCode retval = UA_GDSTransaction_init(transaction, server, *sessionId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_CertificateGroup *transactionCG =
         UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCG)
+    if(!transactionCG) {
+        UA_GDSTransaction_clear(transaction);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
@@ -1088,8 +1112,13 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     UA_Server *server = ctx->drv.server;
 
     UA_GDSTransaction *transaction = &ctx->transaction;
-    /* Cannot be opened when a transaction is running */
-    if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING)
+    /* Cannot be opened when a transaction is running. Only an Open for writing
+     * from the session of the transaction continues it (Part 12 §7.8.2.2),
+     * unless ApplyChanges is already queued. */
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING &&
+       (fileOpenMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING) ||
+        transaction->applyChangesQueued ||
+        !UA_NodeId_equal(&transaction->sessionId, sessionId)))
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_FileInfo *fileInfo =
@@ -1111,7 +1140,8 @@ UA_GDSReceiver_openTrustList(UA_GDSReceiverContext *ctx, UA_CertificateGroup *ce
     }
 
     /* If the list is opened for writing, a transaction must be created */
-    if(fileOpenMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING)) {
+    if(fileOpenMode == (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING) &&
+       transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -1243,6 +1273,31 @@ getSecPolicyByUri(UA_ServerConfig *sc, const UA_String *securityPolicyUri) {
     return NULL;
 }
 
+/* The receiver updates the RSA application certificates of the
+ * DefaultApplicationGroup. A certificate type is supported only if an endpoint
+ * uses a SecurityPolicy with that type, so that an update takes effect. The
+ * supported types are the CertificateTypes of the group (Part 12 §7.10.5). */
+UA_Boolean
+UA_GDSReceiver_certificateTypeSupported(UA_ServerConfig *sc,
+                                        const UA_NodeId *certificateTypeId) {
+    static UA_NodeId defaultApplicationGroup =
+        STATIC_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    static UA_NodeId certTypRsaMin = STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
+    static UA_NodeId certTypRsaSha256 = STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(certificateTypeId, &certTypRsaSha256) &&
+       !UA_NodeId_equal(certificateTypeId, &certTypRsaMin))
+        return false;
+
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        UA_SecurityPolicy *sp =
+            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+        if(sp && UA_NodeId_equal(&sp->certificateTypeId, certificateTypeId) &&
+           UA_NodeId_equal(&sp->certificateGroupId, &defaultApplicationGroup))
+            return true;
+    }
+    return false;
+}
+
 /* Update every SecurityPolicy and endpoint that uses the certificate type.
  * First resolve all endpoint policies and allocate the replacement endpoint
  * certificates. This ensures configuration and allocation errors are reported
@@ -1291,6 +1346,43 @@ applyCertificateToPolicies(UA_ServerConfig *sc,
             if(policies[j] == sp)
                 break;
         }
+        if(j == policiesSize)
+            policies[policiesSize++] = sp;
+    }
+
+    /* No endpoint uses the certificate type. The update would have no
+     * effect. */
+    if(policiesSize == 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* A SecurityPolicy#None endpoint presents the certificate of the None
+     * SecurityPolicy, which is usually the replaced certificate. Update it as
+     * well, so that all endpoints present the same certificate. */
+    for(size_t i = 0; i < sc->endpointsSize; i++) {
+        if(updateEndpoint[i])
+            continue;
+        UA_SecurityPolicy *sp =
+            getSecPolicyByUri(sc, &sc->endpoints[i].securityPolicyUri);
+        if(!sp || sp->policyType != UA_SECURITYPOLICYTYPE_NONE ||
+           sp->localCertificate.length == 0)
+            continue;
+
+        UA_Boolean replaced = false;
+        size_t j = 0;
+        for(; j < policiesSize; j++) {
+            if(policies[j] == sp)
+                break;
+            if(UA_ByteString_equal(&sp->localCertificate,
+                                   &policies[j]->localCertificate))
+                replaced = true;
+        }
+        if(j == policiesSize && !replaced)
+            continue;
+
+        res = UA_ByteString_copy(&certificate, &endpointCertificates[i]);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        updateEndpoint[i] = true;
         if(j == policiesSize)
             policies[policiesSize++] = sp;
     }
@@ -1380,6 +1472,11 @@ updateCertificateLocked(UA_GDSReceiver *receiver,
            UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
         newPrivateKey = *privateKey;
+    } else {
+        size_t keySize = 0;
+        if(UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)&certificate,
+                                          &keySize) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     UA_Server *server = receiver->drv.server;
@@ -1451,15 +1548,12 @@ createSigningRequestLocked(UA_GDSReceiver *receiver,
     if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    static UA_NodeId rsaShaCertificateType =
-        STATIC_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
-    static UA_NodeId rsaMinCertificateType =
-        STATIC_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
-       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
+    /* Without a SecurityPolicy for the certificate type, no CSR would be
+     * created */
+    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
+    if(!UA_GDSReceiver_certificateTypeSupported(sc, &certificateTypeId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_ServerConfig *sc = UA_Server_getConfig(receiver->drv.server);
     if(!UA_NodeId_equal(&sc->secureChannelPKI.certificateGroupId,
                         &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1546,6 +1640,17 @@ UA_GDSReceiver_applyChanges(UA_GDSReceiverContext *ctx) {
             return UA_STATUSCODE_BADINTERNALERROR;
         if(fileInfo->openCount > 0)
             return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
+    /* No changes are applied while any TrustList is open for writing (Part 12
+     * §7.10.9). The transaction may also hold a certificate update only. */
+    for(UA_FileInfo *fi = ctx->fileInfos; fi; fi = fi->next) {
+        UA_FileContext *fileContext;
+        LIST_FOREACH(fileContext, &fi->fileContext, listEntry) {
+            if(fileContext->openFileMode ==
+               (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+                return UA_STATUSCODE_BADINVALIDSTATE;
+        }
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

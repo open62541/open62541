@@ -33,6 +33,11 @@ initGDSRolePermissions(UA_Server *server);
 UA_CertificateGroup *
 getCertGroup(UA_Server *server, const UA_NodeId *objectId);
 
+/* Can certificates of the type be updated in the DefaultApplicationGroup */
+UA_Boolean
+UA_GDSReceiver_certificateTypeSupported(UA_ServerConfig *sc,
+                                        const UA_NodeId *certificateTypeId);
+
 UA_StatusCode
 writeOpenCountVariable(UA_GDSReceiverContext *ctx, UA_CertificateGroup *group);
 

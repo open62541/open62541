@@ -278,11 +278,15 @@ newContext_pubsub_aes256ctr_tpm(UA_PubSubSecurityPolicy *policy,
                                 const UA_ByteString *encryptingKey,
                                 const UA_ByteString *keyNonce,
                                 void **gContext) {
-    if(keyNonce->length != UA_AES256CTR_KEYNONCE_LENGTH)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
     PUBSUB_AES256CTR_PolicyContext *pc =
         (PUBSUB_AES256CTR_PolicyContext*)policy->policyContext;
+
+    if(!signingKey || !encryptingKey || !keyNonce || !gContext ||
+       keyNonce->length != UA_AES256CTR_KEYNONCE_LENGTH ||
+       ((signingKey->length != 0 || encryptingKey->length != 0) &&
+        (signingKey->length != sizeof(unsigned long) ||
+         encryptingKey->length != sizeof(unsigned long))))
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Allocate the channel context */
     PUBSUB_AES256CTR_GroupContext *gc = (PUBSUB_AES256CTR_GroupContext *)
@@ -316,15 +320,8 @@ newContext_pubsub_aes256ctr_tpm(UA_PubSubSecurityPolicy *policy,
             goto errout;
         }
     } else {
-        if(encryptingKey->length < sizeof(gc->encryptingKeyHandle) ||
-           signingKey->length < sizeof(gc->signingKeyHandle)) {
-            rv = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-            goto errout;
-        }
-        memcpy(&gc->encryptingKeyHandle, encryptingKey->data,
-               sizeof(gc->encryptingKeyHandle));
-        memcpy(&gc->signingKeyHandle, signingKey->data,
-               sizeof(gc->signingKeyHandle));
+        memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(gc->encryptingKeyHandle));
+        memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(gc->signingKeyHandle));
     }
 
     memcpy(&gc->keyNonceHandle, keyNonce->data, UA_AES256CTR_KEYNONCE_LENGTH);
@@ -637,12 +634,13 @@ setKeys_pubsub_aes256ctr_tpm(UA_PubSubSecurityPolicy *policy, void *gContext,
                              const UA_ByteString *keyNonce) {
     PUBSUB_AES256CTR_GroupContext *gc =
         (PUBSUB_AES256CTR_GroupContext*)gContext;
-    if(encryptingKey->length < sizeof(gc->encryptingKeyHandle) ||
-       signingKey->length < sizeof(gc->signingKeyHandle) ||
+    if(!gc || !signingKey || !encryptingKey || !keyNonce ||
+       signingKey->length != sizeof(gc->signingKeyHandle) ||
+       encryptingKey->length != sizeof(gc->encryptingKeyHandle) ||
        keyNonce->length != UA_AES256CTR_KEYNONCE_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    memcpy(&gc->encryptingKeyHandle, encryptingKey->data,
-           sizeof(gc->encryptingKeyHandle));
+
+    memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(gc->encryptingKeyHandle));
     memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(gc->signingKeyHandle));
     memcpy(&gc->keyNonceHandle, keyNonce->data, UA_AES256CTR_KEYNONCE_LENGTH);
     return UA_STATUSCODE_GOOD;

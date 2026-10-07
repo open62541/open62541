@@ -209,7 +209,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
 
 START_TEST(SinglePublishSubscribeInt32) {
 
-        /* Common encryption key informaton */
+        /* Common encryption key information */
         UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
         UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
         UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
@@ -308,7 +308,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-        /* Add the encryption key informaton for readergroup */
+        /* Add the encryption key information for readergroup */
         // TODO security token not necessary for readergroup (extracted from security-header)
         UA_Server_setReaderGroupEncryptionKeys(server, readerGroupTest, 1, sk, ek, kn);
 

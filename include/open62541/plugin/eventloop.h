@@ -124,7 +124,7 @@ struct UA_EventLoop {
      * EventLoop is not stopped. */
     UA_StatusCode (*free)(UA_EventLoop *el);
 
-    /* Wait for events and processs them for at most "timeout" ms or until an
+    /* Wait for events and process them for at most "timeout" ms or until an
      * unrecoverable error occurs. If timeout==0, then only already received
      * events are processed. Returns immediately after processing the first
      * (batch of) event(s). */
@@ -153,7 +153,7 @@ struct UA_EventLoop {
      * independently. If the logger uses a different time domain than the
      * EventLoop, discrepancies may appear in the logs.
      *
-     * The EventLoop clocks can be read via the following functons. See
+     * The EventLoop clocks can be read via the following functions. See
      * `open62541/types.h` for the documentation of their equivalent globally
      * defined functions. */
 
@@ -1156,7 +1156,7 @@ struct UA_EventLoopConfiguration {
  * LWIP EventLoop Implementation
  * -----------------------------
  * This EventLoop is built on LWIP's socket-like API.
- * The configuration paramaters must be set before starting the EventLoop.
+ * The configuration parameters must be set before starting the EventLoop.
  *
  * **Clock configuration (Linux and BSDs only)**
  *

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server_config_default.h>
@@ -11,6 +12,7 @@
 #include "ua_server_internal.h"
 #include "ua_pubsub_internal.h"
 #include "test_helpers.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -306,6 +308,359 @@ START_TEST(AddDataSetFieldRejectedWhenPDSInUse) {
     UA_Server_removePublishedDataSet(server, pdsId);
 } END_TEST
 
+static UA_NodeId
+addTestPds(const char *name) {
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    pdsConfig.name = UA_STRING((char*)(uintptr_t)name);
+    UA_NodeId pdsId;
+    UA_StatusCode rv =
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsId).addResult;
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    return pdsId;
+}
+
+static UA_NodeId
+addTestConnection(void) {
+    UA_PubSubConnectionConfig cc;
+    memset(&cc, 0, sizeof(cc));
+    cc.name = UA_STRING("Conn-Remove");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_Variant_setScalar(&cc.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    cc.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NodeId connId;
+    UA_StatusCode rv = UA_Server_addPubSubConnection(server, &cc, &connId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    return connId;
+}
+
+static UA_NodeId
+addTestWriterGroup(UA_NodeId connId, const char *name, UA_UInt16 id) {
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING((char*)(uintptr_t)name);
+    wgc.writerGroupId = id;
+    wgc.publishingInterval = 100;
+    UA_NodeId wgId;
+    UA_StatusCode rv = UA_Server_addWriterGroup(server, connId, &wgc, &wgId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    return wgId;
+}
+
+static UA_NodeId
+addTestWriter(UA_NodeId wgId, UA_NodeId pdsId, const char *name, UA_UInt16 id) {
+    UA_DataSetWriterConfig dswc;
+    memset(&dswc, 0, sizeof(dswc));
+    dswc.name = UA_STRING((char*)(uintptr_t)name);
+    dswc.dataSetWriterId = id;
+    UA_NodeId dswId;
+    UA_StatusCode rv = UA_Server_addDataSetWriter(server, wgId, pdsId, &dswc, &dswId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    return dswId;
+}
+
+/* A disabled writer in an enabled WriterGroup does not freeze the PDS, but it
+ * cannot be removed. The PDS must then stay, the writer keeps pointing to it. */
+START_TEST(RemovePdsWithWriterInEnabledGroupFails) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_NodeId pdsId = addTestPds("PDS-Remove");
+    UA_NodeId connId = addTestConnection();
+    UA_NodeId wgId = addTestWriterGroup(connId, "WG-Remove", 1);
+    UA_NodeId dswId = addTestWriter(wgId, pdsId, "DSW-Remove", 1);
+
+    UA_StatusCode rv = UA_Server_enableWriterGroup(server, wgId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
+    ck_assert_ptr_nonnull(pds);
+    ck_assert_uint_eq(pds->configurationFreezeCounter, 0);
+
+    rv = UA_Server_removePublishedDataSet(server, pdsId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(psm->publishedDataSetsSize, 1);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    ck_assert_ptr_nonnull(dsw);
+    ck_assert_ptr_eq(dsw->connectedDataSet, pds);
+
+    /* Enabling the writer freezes the (still valid) PDS */
+    rv = UA_Server_enableDataSetWriter(server, dswId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(pds->configurationFreezeCounter, 1);
+
+    /* With the writer and the group disabled the removal succeeds */
+    UA_Server_disableDataSetWriter(server, dswId);
+    UA_Server_disableWriterGroup(server, wgId);
+    rv = UA_Server_removePublishedDataSet(server, pdsId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(psm->publishedDataSetsSize, 0);
+    ck_assert_ptr_null(UA_DataSetWriter_find(psm, dswId));
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    ck_assert_ptr_nonnull(wg);
+    ck_assert_uint_eq(wg->writersCount, 0);
+} END_TEST
+
+static UA_StatusCode
+vetoWriterRemoval(UA_Server *s, const UA_NodeId id,
+                  const UA_PubSubComponentType componentType,
+                  UA_Boolean remove) {
+    if(remove && componentType == UA_PUBSUBCOMPONENT_DATASETWRITER)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* A vetoed writer removal stops the PDS removal. The PDS is not freed. */
+START_TEST(RemovePdsStopsOnVetoedWriterRemoval) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_NodeId pdsId = addTestPds("PDS-Veto");
+    UA_NodeId connId = addTestConnection();
+    UA_NodeId wgId = addTestWriterGroup(connId, "WG-Veto", 1);
+    UA_NodeId dswId = addTestWriter(wgId, pdsId, "DSW-Veto", 1);
+
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->pubSubConfig.componentLifecycleCallback = vetoWriterRemoval;
+    UA_StatusCode rv = UA_Server_removePublishedDataSet(server, pdsId);
+    sc->pubSubConfig.componentLifecycleCallback = NULL;
+
+    ck_assert_int_eq(rv, UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
+    ck_assert_ptr_nonnull(pds);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    ck_assert_ptr_nonnull(dsw);
+    ck_assert_ptr_eq(dsw->connectedDataSet, pds);
+} END_TEST
+
+/* The removal takes all connected writers along, over several groups, and
+ * leaves the writers of other PDS in place */
+START_TEST(RemovePdsRemovesWritersInDisabledGroups) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_NodeId pdsA = addTestPds("PDS-A");
+    UA_NodeId pdsB = addTestPds("PDS-B");
+    UA_NodeId connId = addTestConnection();
+    UA_NodeId wg1 = addTestWriterGroup(connId, "WG-1", 1);
+    UA_NodeId wg2 = addTestWriterGroup(connId, "WG-2", 2);
+    UA_NodeId dswA1 = addTestWriter(wg1, pdsA, "DSW-A1", 1);
+    UA_NodeId dswA2 = addTestWriter(wg2, pdsA, "DSW-A2", 1);
+    UA_NodeId dswB = addTestWriter(wg2, pdsB, "DSW-B", 2);
+
+    UA_StatusCode rv = UA_Server_removePublishedDataSet(server, pdsA);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(UA_PublishedDataSet_find(psm, pdsA));
+    ck_assert_ptr_null(UA_DataSetWriter_find(psm, dswA1));
+    ck_assert_ptr_null(UA_DataSetWriter_find(psm, dswA2));
+    UA_DataSetWriter *writerB = UA_DataSetWriter_find(psm, dswB);
+    ck_assert_ptr_nonnull(writerB);
+    ck_assert_ptr_eq(writerB->connectedDataSet,
+                     UA_PublishedDataSet_find(psm, pdsB));
+} END_TEST
+
+static UA_NodeId
+addTestUnicastWriterGroup(UA_NodeId connId) {
+    UA_WriterGroupConfig wgc;
+    memset(&wgc, 0, sizeof(wgc));
+    wgc.name = UA_STRING("WG-Unicast-Remove");
+    wgc.writerGroupId = 1;
+    wgc.publishingInterval = 100;
+    wgc.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_DatagramWriterGroupTransport2DataType transport;
+    memset(&transport, 0, sizeof(transport));
+    UA_NetworkAddressUrlDataType address =
+        {UA_STRING_NULL, UA_STRING("opc.udp://127.0.0.1:4841/")};
+    UA_ExtensionObject_setValue(&transport.address, &address,
+                               &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_ExtensionObject_setValue(&wgc.transportSettings, &transport,
+                               &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]);
+    UA_NodeId wgId;
+    UA_StatusCode rv = UA_Server_addWriterGroup(server, connId, &wgc, &wgId);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+    return wgId;
+}
+
+static void
+iteratePubSub(void) {
+    for(size_t i = 0; i < 10; i++) {
+        UA_fakeSleep(10);
+        UA_Server_run_iterate(server, false);
+    }
+}
+
+static size_t writerRemovalVetoes;
+static size_t writerRemovalNotifications;
+static size_t groupRemovalNotifications;
+
+static UA_StatusCode
+countAndVetoWriterRemoval(UA_Server *s, const UA_NodeId id,
+                         const UA_PubSubComponentType componentType,
+                         UA_Boolean remove) {
+    if(!remove)
+        return UA_STATUSCODE_GOOD;
+    if(componentType == UA_PUBSUBCOMPONENT_WRITERGROUP)
+        groupRemovalNotifications++;
+    if(componentType == UA_PUBSUBCOMPONENT_DATASETWRITER) {
+        writerRemovalNotifications++;
+        if(writerRemovalVetoes > 0) {
+            writerRemovalVetoes--;
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+setWriterRemovalVetoes(size_t count) {
+    writerRemovalVetoes = count;
+    writerRemovalNotifications = 0;
+    groupRemovalNotifications = 0;
+    UA_Server_getConfig(server)->pubSubConfig.componentLifecycleCallback =
+        countAndVetoWriterRemoval;
+}
+
+/* The group has its own socket, so closing it really resumes removal. A
+ * previously vetoed writer must be removed without asking about the group again. */
+START_TEST(DeferredWriterGroupDeleteRetriesVetoedWriter) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_NodeId pdsId = addTestPds("PDS-Deferred-Veto");
+    UA_NodeId connId = addTestConnection();
+    UA_NodeId wgId = addTestUnicastWriterGroup(connId);
+    UA_NodeId dswId = addTestWriter(wgId, pdsId, "DSW-Deferred-Veto", 1);
+    ck_assert_int_eq(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    iteratePubSub();
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
+    ck_assert(wg->sendChannel != 0);
+    ck_assert_uint_eq(pds->configurationFreezeCounter, 1);
+
+    setWriterRemovalVetoes(1);
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId),
+                     UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert(wg->deleteFlag && wg->sendChannel != 0);
+    ck_assert_uint_eq(wg->writersCount, 1);
+    iteratePubSub();
+    ck_assert_ptr_null(UA_WriterGroup_find(psm, wgId));
+    ck_assert_ptr_null(UA_DataSetWriter_find(psm, dswId));
+    ck_assert_uint_eq(groupRemovalNotifications, 1);
+    ck_assert_uint_eq(writerRemovalNotifications, 2);
+    ck_assert_uint_eq(pds->configurationFreezeCounter, 0);
+    ck_assert_int_eq(UA_Server_removePublishedDataSet(server, pdsId), UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server)->pubSubConfig.componentLifecycleCallback = NULL;
+} END_TEST
+
+/* A persistent child veto must retain both parent and child, with or without a
+ * deferred channel close. An explicit retry completes the approved deletion. */
+START_TEST(WriterGroupDeletePreservesVetoedWriter) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_NodeId pdsId = addTestPds("PDS-Persistent-Veto");
+    UA_NodeId connId = addTestConnection();
+    UA_NodeId wgId = (_i == 0) ? addTestWriterGroup(connId, "WG-Veto", 1) :
+        addTestUnicastWriterGroup(connId);
+    UA_NodeId dswId = addTestWriter(wgId, pdsId, "DSW-Persistent-Veto", 1);
+    ck_assert_int_eq(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    iteratePubSub();
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    if(_i != 0)
+        ck_assert(wg->sendChannel != 0);
+    setWriterRemovalVetoes(100);
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId),
+                     UA_STATUSCODE_BADUSERACCESSDENIED);
+    iteratePubSub();
+    ck_assert_ptr_eq(UA_WriterGroup_find(psm, wgId), wg);
+    ck_assert(wg->deleteFlag && wg->sendChannel == 0);
+    ck_assert_uint_eq(wg->writersCount, 1);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    ck_assert_ptr_nonnull(dsw);
+    ck_assert_ptr_eq(dsw->linkedWriterGroup, wg);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
+    ck_assert_uint_eq(pds->configurationFreezeCounter, 1);
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId),
+                     UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_ptr_eq(UA_WriterGroup_find(psm, wgId), wg);
+
+    writerRemovalVetoes = 0;
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId), UA_STATUSCODE_GOOD);
+    ck_assert_ptr_null(UA_WriterGroup_find(psm, wgId));
+    ck_assert_ptr_null(UA_DataSetWriter_find(psm, dswId));
+    ck_assert_uint_eq(groupRemovalNotifications, 1);
+    ck_assert_uint_eq(pds->configurationFreezeCounter, 0);
+    ck_assert_int_eq(UA_Server_removePublishedDataSet(server, pdsId), UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server)->pubSubConfig.componentLifecycleCallback = NULL;
+} END_TEST
+
+START_TEST(DeferredWriterGroupDeleteRejectsNewWriters) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_NodeId pdsId = addTestPds("PDS-Late-Writer");
+    UA_NodeId connId = addTestConnection();
+    UA_NodeId wgId = addTestUnicastWriterGroup(connId);
+    ck_assert_int_eq(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    iteratePubSub();
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    ck_assert(wg->sendChannel != 0);
+    setWriterRemovalVetoes(0);
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId), UA_STATUSCODE_GOOD);
+    ck_assert(wg->deleteFlag && wg->sendChannel != 0);
+
+    UA_DataSetWriterConfig dswc;
+    memset(&dswc, 0, sizeof(dswc));
+    dswc.name = UA_STRING("DSW-Late");
+    dswc.dataSetWriterId = 1;
+    ck_assert_int_eq(UA_Server_addDataSetWriter(server, wgId, pdsId, &dswc, NULL),
+                     UA_STATUSCODE_BADINVALIDSTATE);
+    ck_assert_uint_eq(wg->writersCount, 0);
+    ck_assert_uint_eq(UA_PublishedDataSet_find(psm, pdsId)->configurationFreezeCounter, 0);
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId), UA_STATUSCODE_GOOD);
+    iteratePubSub();
+    ck_assert_ptr_null(UA_WriterGroup_find(psm, wgId));
+    ck_assert_uint_eq(groupRemovalNotifications, 1);
+    ck_assert_uint_eq(writerRemovalNotifications, 0);
+    ck_assert_int_eq(UA_Server_removePublishedDataSet(server, pdsId), UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server)->pubSubConfig.componentLifecycleCallback = NULL;
+} END_TEST
+
+/* A retained group has no open socket after its close callback. It must not
+ * prevent the PubSubManager from completing a stop request. */
+START_TEST(DeferredWriterGroupVetoCompletesManagerStop) {
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnectionConfig cc;
+    memset(&cc, 0, sizeof(cc));
+    cc.name = UA_STRING("Conn-Unicast-Only");
+    cc.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType address =
+        {UA_STRING_NULL, UA_STRING("opc.udp://localhost:4840/")};
+    UA_Variant_setScalar(&cc.address, &address,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_NodeId connId;
+    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &cc, &connId), UA_STATUSCODE_GOOD);
+    UA_NodeId pdsId = addTestPds("PDS-Stop-Veto");
+    UA_NodeId wgId = addTestUnicastWriterGroup(connId);
+    addTestWriter(wgId, pdsId, "DSW-Stop-Veto", 1);
+    ck_assert_int_eq(UA_Server_enableAllPubSubComponents(server), UA_STATUSCODE_GOOD);
+    iteratePubSub();
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    ck_assert(wg->sendChannel != 0);
+    UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connId);
+    ck_assert_uint_eq(conn->sendChannel, 0);
+    ck_assert_uint_eq(conn->recvChannelsSize, 0);
+
+    setWriterRemovalVetoes(100);
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId),
+                     UA_STATUSCODE_BADUSERACCESSDENIED);
+    lockServer(server);
+    UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
+    unlockServer(server);
+    ck_assert_int_eq(psm->drv.state, UA_LIFECYCLESTATE_STOPPING);
+    iteratePubSub();
+    ck_assert_ptr_eq(UA_WriterGroup_find(psm, wgId), wg);
+    ck_assert_uint_eq(wg->sendChannel, 0);
+    ck_assert_int_eq(psm->drv.state, UA_LIFECYCLESTATE_STOPPED);
+
+    writerRemovalVetoes = 0;
+    ck_assert_int_eq(UA_Server_removeWriterGroup(server, wgId), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_removePublishedDataSet(server, pdsId), UA_STATUSCODE_GOOD);
+    UA_Server_getConfig(server)->pubSubConfig.componentLifecycleCallback = NULL;
+} END_TEST
+
 START_TEST(GetPublishedDataSetConfigInvalidArgs) {
     /* unknown id */
     UA_PublishedDataSetConfig copy;
@@ -355,6 +710,13 @@ int main(void) {
     tcase_add_test(tc_pds_extra, AddDataSetFieldVariableInvalidSourceNodeReturnsError);
     tcase_add_test(tc_pds_extra, AddDataSetFieldRejectedWhenPDSInUse);
     tcase_add_test(tc_pds_extra, GetPublishedDataSetConfigInvalidArgs);
+    tcase_add_test(tc_pds_extra, RemovePdsWithWriterInEnabledGroupFails);
+    tcase_add_test(tc_pds_extra, RemovePdsStopsOnVetoedWriterRemoval);
+    tcase_add_test(tc_pds_extra, RemovePdsRemovesWritersInDisabledGroups);
+    tcase_add_test(tc_pds_extra, DeferredWriterGroupDeleteRetriesVetoedWriter);
+    tcase_add_loop_test(tc_pds_extra, WriterGroupDeletePreservesVetoedWriter, 0, 2);
+    tcase_add_test(tc_pds_extra, DeferredWriterGroupDeleteRejectsNewWriters);
+    tcase_add_test(tc_pds_extra, DeferredWriterGroupVetoCompletesManagerStop);
 
     Suite *s = suite_create("PubSub PublishedDataSets handling");
     suite_add_tcase(s, tc_add_pubsub_pds_minimal_config);

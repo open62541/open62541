@@ -210,7 +210,7 @@ UA_PubSubKeyStorage *
 UA_PubSubKeyStorage_find(UA_PubSubManager *psm, UA_String securityGroupId);
 
 /**
- * @brief retreives the security policy pointer from the PubSub configuration by
+ * @brief retrieves the security policy pointer from the PubSub configuration by
  * SecurityPolicyUri
  *
  * @param psm the PubSubManager
@@ -246,7 +246,7 @@ UA_PubSubKeyStorage_deleteNow(UA_PubSubManager *psm,
  * @param psm the PubSubManager
  * @param keyStorage Pointer to the keystorage to be initialized
  * @param securityGroupId The identifier of the SecurityGroup
- * @param policy The security policy assocaited with the security algorithm
+ * @param policy The security policy associated with the security algorithm
  * @param maxPastKeyCount maximum number of past keys a keystorage is allowed to store
  * @param maxFutureKeyCount maximum number of future keys a keystorage is allowed to store
  * @return UA_StatusCode return status code
@@ -353,7 +353,7 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
 /**
  * @brief It takes the current Key data, divide it into signing key, encrypting key and
  * keyNonce according to security policy associated with PubSub Group and set it in
- * channel context of the assocaited PubSub Group. In case of pubSubGroupId is
+ * channel context of the associated PubSub Group. In case of pubSubGroupId is
  * UA_NODEID_NULL, all the Reader/WriterGroup's channelcontext are updated with matching
  * SecurityGroupId.
  *
@@ -379,7 +379,7 @@ void
 UA_PubSubKeyStorage_keyRolloverCallback(void *application /* UA_PubSubManager */,
                                         void *context /* UA_PubSubKeyStorage */);
 
-/* KeyStorage must be referenced by atleast one PubSubGroup. This method reduces
+/* KeyStorage must be referenced by at least one PubSubGroup. This method reduces
  * the reference count by one. If no PubSubGroup uses the key storage, then it
  * is deleted. */
 void

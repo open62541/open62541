@@ -157,7 +157,7 @@ main(int argc, char *argv[]) {
                                                readValueAttributeCallback, NULL,
                                                &reqId);
 
-//TODO: check the existance of the nodes inside these functions (otherwise seg faults)
+//TODO: check the existence of the nodes inside these functions (otherwise seg faults)
 #ifdef NODES_EXIST
 #ifdef UA_ENABLE_METHODCALLS
             UA_String stringValue = UA_String_fromChars("World");
