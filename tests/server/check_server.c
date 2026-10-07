@@ -150,6 +150,63 @@ START_TEST(checkGetLifecycleState) {
     ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
 } END_TEST
 
+static void
+setLoopbackUrl(UA_ServerConfig *config, UA_UInt16 port) {
+    char url[64];
+    snprintf(url, sizeof(url), "opc.tcp://127.0.0.1:%u", (unsigned)port);
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = UA_String_new();
+    ck_assert_ptr_ne(config->serverUrls, NULL);
+    config->serverUrlsSize = 1;
+    config->serverUrls[0] = UA_STRING_ALLOC(url);
+    config->tcpReuseAddr = false;
+}
+
+/* The second server cannot bind the port of the first one. Without a server
+ * socket its startup fails and leaves it stopped. */
+START_TEST(checkStartupFailsWithoutServerSocket) {
+    /* Let the OS choose an unused port for the first server */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    setLoopbackUrl(config, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    UA_UInt16 port = 0;
+    UA_ApplicationDescription *ad = &config->applicationDescription;
+    for(size_t i = 0; i < ad->discoveryUrlsSize; i++) {
+        UA_String hostname;
+        UA_UInt16 urlPort = 0;
+        if(UA_parseEndpointUrl(&ad->discoveryUrls[i], &hostname,
+                               &urlPort, NULL) == UA_STATUSCODE_GOOD &&
+           urlPort != 0)
+            port = urlPort;
+    }
+    ck_assert_uint_ne(port, 0);
+
+    UA_Server *second = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(second, NULL);
+    setLoopbackUrl(UA_Server_getConfig(second), port);
+    UA_Server_getConfig(second)->globalNotificationCallback =
+        serverNotificationCallback;
+    receivedNotificationsCount = 0;
+    ck_assert_uint_ne(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(receivedNotificationsCount, 2);
+    ck_assert_int_eq(receivedNotifications[0],
+                     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING);
+    ck_assert_int_eq(receivedNotifications[1],
+                     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED);
+
+    /* Once the port is free, the second server can be started */
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(second), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(second),
+                     UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_eq(UA_Server_run_shutdown(second), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(second), UA_STATUSCODE_GOOD);
+} END_TEST
+
 /* ---- Additional coverage tests ---- */
 
 START_TEST(checkGetDataTypes) {
@@ -795,6 +852,7 @@ int main(void) {
     tcase_add_test(tc_call, checkGetLifecycleState);
     tcase_add_test(tc_call, helloEndpointUrlLimit);
     tcase_add_test(tc_call, helloTrailingData);
+    tcase_add_test(tc_call, checkStartupFailsWithoutServerSocket);
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");

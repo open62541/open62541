@@ -565,6 +565,13 @@ UA_ReverseBinaryProtocolManager_stop(UA_Driver *drv) {
     }
 }
 
+UA_Boolean
+UA_ReverseBinaryProtocolManager_hasReverseConnects(const UA_Driver *drv) {
+    const UA_ReverseBinaryProtocolManager *rpm =
+        (const UA_ReverseBinaryProtocolManager*)drv;
+    return !LIST_EMPTY(&rpm->reverseConnects);
+}
+
 static UA_StatusCode
 UA_ReverseBinaryProtocolManager_free(UA_Driver *drv) {
     if(drv->state != UA_LIFECYCLESTATE_STOPPED) {

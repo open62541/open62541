@@ -220,9 +220,15 @@ addDriver(UA_Server *server, UA_Driver *drv) {
     drv->next = server->drivers;
     server->drivers = drv;
 
-    /* Start the component if the server is started */
-    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start)
-        drv->start(drv);
+    /* Start the component if the server is started. The driver stays
+     * registered if it cannot be started. */
+    if(server->state == UA_LIFECYCLESTATE_STARTED && drv->start) {
+        UA_StatusCode res = drv->start(drv);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "Could not start the driver \"%S\" (%s)",
+                           drv->name, UA_StatusCode_name(res));
+    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -318,6 +324,31 @@ finishShutdown(UA_Server *server) {
     if(res == UA_STATUSCODE_GOOD)
         setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
     return res;
+}
+
+/* Stop the server components and drain the shutdown. Also undoes a failed
+ * startup. */
+static UA_StatusCode
+stopServer(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Set to stopping and notify the application */
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
+
+#if UA_MULTITHREADING >= 100
+    /* Stop regular callback for async operation processing */
+    UA_AsyncManager_stop(&server->asyncManager, server);
+#endif
+
+    /* Stop the regular housekeeping tasks */
+    if(server->houseKeepingCallbackId != 0) {
+        removeCallback(server, server->houseKeepingCallbackId);
+        server->houseKeepingCallbackId = 0;
+    }
+
+    stopDrivers(server);
+
+    return finishShutdown(server);
 }
 
 /********************/
@@ -984,6 +1015,21 @@ UA_Server_getLifecycleState(UA_Server *server) {
     return server->state;
 }
 
+/* The server can be reached if a transport has opened a server socket or if
+ * reverse connects are registered. Disabled transports start without a
+ * server socket. */
+static UA_Boolean
+isReachable(UA_Server *server) {
+    const UA_BinaryProtocolManager *tcp =
+        (const UA_BinaryProtocolManager*)server->binaryDriver;
+    const UA_BinaryProtocolManager *ws =
+        (const UA_BinaryProtocolManager*)server->webSocketDriver;
+    return tcp->serverConnectionsSize > 0 || ws->serverConnectionsSize > 0 ||
+        UA_HttpProtocolManager_isListening(server->httpDriver) ||
+        UA_ReverseBinaryProtocolManager_hasReverseConnects(
+            server->reverseBinaryDriver);
+}
+
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
  * Iterate: Process repeated callbacks and events in the network layer. This
@@ -1141,9 +1187,11 @@ UA_Server_run_startup(UA_Server *server) {
     /* Add a regular callback for housekeeping tasks. With a 1s interval. */
     retVal = addRepeatedCallback(server, serverHouseKeeping,
                                  NULL, 1000.0, &server->houseKeepingCallbackId);
-    UA_CHECK_STATUS_ERROR(retVal, unlockServer(server); return retVal,
-                          config->logging, UA_LOGCATEGORY_SERVER,
-                          "Could not create the server housekeeping task");
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "Could not create the server housekeeping task");
+        goto undo;
+    }
 
     /* Ensure that the uri for ns1 is set up from the app description */
     UA_String_clear(&server->namespaces[1]);
@@ -1178,9 +1226,30 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start all drivers */
+    /* Start all drivers. A failed transport aborts the startup only if the
+     * server cannot be reached otherwise. Other drivers can fail in normal
+     * setups (e.g. mDNS without multicast) and are only logged. */
+    UA_StatusCode transportRes = UA_STATUSCODE_GOOD;
     for(UA_Driver *drv = server->drivers; drv; drv = drv->next) {
-        drv->start(drv);
+        UA_StatusCode res = drv->start(drv);
+        if(res == UA_STATUSCODE_GOOD)
+            continue;
+        if(drv == server->binaryDriver || drv == server->webSocketDriver ||
+           drv == server->httpDriver) {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                         "Could not start the transport driver \"%S\" (%s)",
+                         drv->name, UA_StatusCode_name(res));
+            if(transportRes == UA_STATUSCODE_GOOD)
+                transportRes = res;
+        } else {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
+                           "Could not start the driver \"%S\" (%s)",
+                           drv->name, UA_StatusCode_name(res));
+        }
+    }
+    if(transportRes != UA_STATUSCODE_GOOD && !isReachable(server)) {
+        retVal = transportRes;
+        goto undo;
     }
 
     /* Set the server to STARTED. From here on, only use
@@ -1196,6 +1265,17 @@ UA_Server_run_startup(UA_Server *server) {
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
+
+ undo:
+    if(stopServer(server) != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "Could not stop the server after the failed startup");
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_assert(server->modelChangeSuppressionDepth > 0);
+    server->modelChangeSuppressionDepth--;
+#endif
+    unlockServer(server);
+    return retVal;
 }
 
 UA_UInt16
@@ -1242,24 +1322,7 @@ UA_Server_run_shutdown(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Set to stopping and notify the application */
-    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
-
-#if UA_MULTITHREADING >= 100
-    /* Stop regular callback for async operation processing */
-    UA_AsyncManager_stop(&server->asyncManager, server);
-#endif
-
-    /* Stop the regular housekeeping tasks */
-    if(server->houseKeepingCallbackId != 0) {
-        removeCallback(server, server->houseKeepingCallbackId);
-        server->houseKeepingCallbackId = 0;
-    }
-
-    /* Stop all drivers */
-    stopDrivers(server);
-
-    UA_StatusCode res = finishShutdown(server);
+    UA_StatusCode res = stopServer(server);
     unlockServer(server);
     return res;
 }

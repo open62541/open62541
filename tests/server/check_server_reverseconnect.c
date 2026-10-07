@@ -435,6 +435,55 @@ START_TEST(removeOnShutdownWithoutConnection) {
     ck_assert_int_eq(serverCallbackStates[1], UA_SECURECHANNELSTATE_CLOSED);
 } END_TEST
 
+static void
+setTcpUrl(UA_ServerConfig *config, UA_UInt16 port) {
+    char url[64];
+    snprintf(url, sizeof(url), "opc.tcp://127.0.0.1:%u", (unsigned)port);
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = UA_String_new();
+    ck_assert_ptr_ne(config->serverUrls, NULL);
+    config->serverUrlsSize = 1;
+    config->serverUrls[0] = UA_STRING_ALLOC(url);
+    config->tcpReuseAddr = false;
+}
+
+/* A busy TCP port does not abort the startup, as the server reaches the client
+ * over its registered reverse connect */
+START_TEST(startupWithoutServerSocket) {
+    UA_Server *blocker = UA_Server_newForUnitTest();
+    ck_assert_ptr_ne(blocker, NULL);
+    UA_ServerConfig *bc = UA_Server_getConfig(blocker);
+    setTcpUrl(bc, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(blocker), UA_STATUSCODE_GOOD);
+    UA_UInt16 port = 0;
+    for(size_t i = 0; i < bc->applicationDescription.discoveryUrlsSize; i++) {
+        UA_String hostname;
+        UA_UInt16 urlPort = 0;
+        if(UA_parseEndpointUrl(&bc->applicationDescription.discoveryUrls[i],
+                               &hostname, &urlPort, NULL) == UA_STATUSCODE_GOOD &&
+           urlPort != 0)
+            port = urlPort;
+    }
+    ck_assert_uint_ne(port, 0);
+    setTcpUrl(UA_Server_getConfig(server), port);
+
+    listenForReverseConnect();
+    UA_StatusCode ret =
+        UA_Server_addReverseConnect(server, UA_STRING(reverseConnectUrl),
+                                    serverStateCallback, (void *)1234,
+                                    &reverseConnectHandle);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+
+    iterateClientServerUntilCallbacks(4, 0, 1);
+    ck_assert_int_ge(numServerCallbackCalled, 4);
+    ck_assert_int_eq(serverCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(blocker), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_delete(blocker), UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server_reverseconnect");
 
@@ -447,6 +496,7 @@ int main(void) {
     tcase_add_test(tc_call, checkReconnect);
     tcase_add_test(tc_call, removeOnShutdownWithConnection);
     tcase_add_test(tc_call, removeOnShutdownWithoutConnection);
+    tcase_add_test(tc_call, startupWithoutServerSocket);
 
     suite_add_tcase(s, tc_call);
 

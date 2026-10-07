@@ -1979,6 +1979,60 @@ START_TEST(binaryServiceOverUnencryptedHttp) {
 }
 END_TEST
 
+static void
+setServerUrls(UA_ServerConfig *config, const char **urls, size_t urlsSize) {
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls =
+        (UA_String *)UA_Array_new(urlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert_ptr_nonnull(config->serverUrls);
+    config->serverUrlsSize = urlsSize;
+    for(size_t i = 0; i < urlsSize; i++)
+        config->serverUrls[i] = UA_STRING_ALLOC(urls[i]);
+}
+
+/* The TCP port is taken by a first server. The second server still starts, as
+ * it can be reached over HTTP. */
+START_TEST(startupListensOnHttpWithoutTcpSocket) {
+    UA_Server *first = UA_Server_new();
+    ck_assert_ptr_nonnull(first);
+    UA_ServerConfig *firstConfig = UA_Server_getConfig(first);
+    firstConfig->tcpReuseAddr = false;
+    const char *firstUrls[] = {"opc.tcp://127.0.0.1:0"};
+    setServerUrls(firstConfig, firstUrls, 1);
+    ck_assert_uint_eq(UA_Server_run_startup(first), UA_STATUSCODE_GOOD);
+    UA_UInt16 tcpPort = getAdvertisedPort(firstConfig, "opc.tcp://", 10, NULL);
+    ck_assert_uint_ne(tcpPort, 0);
+
+    UA_Server *server = UA_Server_new();
+    ck_assert_ptr_nonnull(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->tcpReuseAddr = false;
+    config->httpEnabled = true;
+    config->httpAllowUnencrypted = true;
+    config->httpListenAddress = UA_STRING_ALLOC("");
+    char tcpUrl[64];
+    snprintf(tcpUrl, sizeof(tcpUrl), "opc.tcp://127.0.0.1:%u", (unsigned)tcpPort);
+    const char *urls[] = {tcpUrl, "opc.http://localhost:0/ua"};
+    setServerUrls(config, urls, 2);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     UA_LIFECYCLESTATE_STARTED);
+    ck_assert_uint_ne(getAdvertisedPort(config, "opc.http://", 11, NULL), 0);
+
+    /* The failed TCP transport leaves no housekeeping behind */
+    const UA_BinaryProtocolManager *tcp =
+        (const UA_BinaryProtocolManager *)server->binaryDriver;
+    ck_assert_int_eq(tcp->drv.state, UA_LIFECYCLESTATE_STOPPED);
+    ck_assert_uint_eq(tcp->houseKeepingCallbackId, 0);
+
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+    ck_assert_uint_eq(UA_Server_run_shutdown(first), UA_STATUSCODE_GOOD);
+    UA_Server_delete(first);
+}
+END_TEST
+
 #ifdef UA_ENABLE_ENCRYPTION
 START_TEST(unencryptedHttpPasswordNeedsIndependentOptIn) {
     UA_Server *server = UA_Server_new();
@@ -2366,6 +2420,7 @@ int main(int argc, char **argv) {
     tcase_add_test(tc, binaryServiceOverHttps);
     tcase_add_test(tc, unencryptedHttpRequiresExplicitOptIn);
     tcase_add_test(tc, binaryServiceOverUnencryptedHttp);
+    tcase_add_test(tc, startupListensOnHttpWithoutTcpSocket);
     tcase_add_test(tc, oversizedServerResponseReturnsServiceFault);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc, securePolicyServiceOverHttps);
