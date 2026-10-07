@@ -36,6 +36,11 @@ void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
     certGroup->getCertificateCrls = NULL;
 }
 
+UA_Boolean
+UA_CertificateGroup_isAcceptAll(const UA_CertificateGroup *certGroup) {
+    return certGroup->verifyCertificate == verifyCertificateAllowAll;
+}
+
 #ifndef UA_ENABLE_ENCRYPTION
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
