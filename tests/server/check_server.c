@@ -14,6 +14,7 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "test_helpers.h"
+#include "testing_clock.h"
 #include "ua_types_encoding_binary.h"
 #include "testing_networklayers.h"
 
@@ -205,6 +206,30 @@ START_TEST(checkStartupFailsWithoutServerSocket) {
                      UA_LIFECYCLESTATE_STARTED);
     ck_assert_uint_eq(UA_Server_run_shutdown(second), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(UA_Server_delete(second), UA_STATUSCODE_GOOD);
+} END_TEST
+
+/* The listen sockets close asynchronously. With an external EventLoop, the
+ * server is stopped once the application has run the EventLoop. */
+START_TEST(checkShutdownWithExternalEventLoop) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = config->eventLoop;
+    config->externalEventLoop = true;
+    setLoopbackUrl(config, 0);
+    ck_assert_uint_eq(UA_Server_run_startup(server), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Server_run_shutdown(server), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     UA_LIFECYCLESTATE_STOPPING);
+
+    for(size_t i = 0; i < 100 && UA_Server_getLifecycleState(server) !=
+            UA_LIFECYCLESTATE_STOPPED; i++) {
+        UA_fakeSleep(100);
+        el->run(el, 10);
+    }
+    ck_assert_int_eq(UA_Server_getLifecycleState(server),
+                     UA_LIFECYCLESTATE_STOPPED);
+
+    /* The server config frees the EventLoop again */
+    config->externalEventLoop = false;
 } END_TEST
 
 /* ---- Additional coverage tests ---- */
@@ -853,6 +878,7 @@ int main(void) {
     tcase_add_test(tc_call, helloEndpointUrlLimit);
     tcase_add_test(tc_call, helloTrailingData);
     tcase_add_test(tc_call, checkStartupFailsWithoutServerSocket);
+    tcase_add_test(tc_call, checkShutdownWithExternalEventLoop);
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");

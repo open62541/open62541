@@ -148,7 +148,9 @@ UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run or UA_Server_runUntilInterrupt) */
+ * UA_Server_run or UA_Server_runUntilInterrupt). With an external EventLoop,
+ * the server can remain STOPPING until the application has run the EventLoop
+ * long enough for all connections to close. */
 UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 

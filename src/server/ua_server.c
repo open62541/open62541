@@ -290,15 +290,31 @@ testStoppedCondition(UA_Server *server) {
     return true;
 }
 
+/* The application keeps running an external EventLoop after the shutdown.
+ * The drivers that were still closing their connections stop there. */
+static void
+checkShutdownDone(UA_Server *server, void *_) {
+    lockServer(server);
+    if(testStoppedCondition(server)) {
+        removeCallback(server, server->shutdownCheckCallbackId);
+        server->shutdownCheckCallbackId = 0;
+        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+    }
+    unlockServer(server);
+}
+
 /* Drain a shutdown already initiated by stopDrivers. The caller holds the
  * server lock. */
 static UA_StatusCode
 finishShutdown(UA_Server *server) {
     /* Only stop the EventLoop if it is coupled to the server lifecycle. */
     if(server->config.externalEventLoop) {
-        if(testStoppedCondition(server))
+        if(testStoppedCondition(server)) {
             setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
-        return UA_STATUSCODE_GOOD;
+            return UA_STATUSCODE_GOOD;
+        }
+        return addRepeatedCallback(server, checkShutdownDone, NULL, 100.0,
+                                   &server->shutdownCheckCallbackId);
     }
 
     /* Iterate the EventLoop until all drivers have stopped. */

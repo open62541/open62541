@@ -135,6 +135,7 @@ struct UA_Server {
 
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
+    UA_UInt64 shutdownCheckCallbackId; /* Only with an external EventLoop */
 
     /* List of registered drivers. The internally created drivers furthermore
      * have direct pointers for fast access below. */
