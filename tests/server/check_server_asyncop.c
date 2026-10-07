@@ -1395,6 +1395,99 @@ START_TEST(Async_multiple_parallel_operations) {
     UA_Client_delete(client);
 } END_TEST
 
+static UA_StatusCode clientCallResultStatus;
+static size_t clientCallResultOutputSize;
+
+static void
+clientCallResultCallback(UA_Client *client, void *userdata,
+                         UA_UInt32 requestId, UA_CallResponse *cr) {
+    clientCallResultStatus = cr->responseHeader.serviceResult;
+    if(cr->resultsSize == 1) {
+        clientCallResultStatus = cr->results[0].statusCode;
+        clientCallResultOutputSize = cr->results[0].outputArgumentsSize;
+    }
+    clientCounter++;
+}
+
+static void
+asyncCallBadWithOutput(UA_Server *server, void *data) {
+    /* Write an output value before failing */
+    UA_Variant *out = (UA_Variant*)data;
+    UA_UInt32 value = 42;
+    UA_Variant_setScalarCopy(&out[0], &value, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_BADUNEXPECTEDERROR);
+}
+
+static UA_StatusCode
+methodCallback_asyncBadWithOutput(UA_Server *server,
+                                  const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *methodId, void *methodContext,
+                                  const UA_NodeId *objectId, void *objectContext,
+                                  size_t inputSize, const UA_Variant *input,
+                                  size_t outputSize, UA_Variant *output) {
+    UA_DateTime callTime = UA_DateTime_now_fake(NULL) + UA_DATETIME_SEC;
+    UA_Server_addTimedCallback(server, asyncCallBadWithOutput, output,
+                               callTime, &lastTimedCallback);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+START_TEST(Async_call_badResultHasNoOutputArguments) {
+    /* Part 4, 5.12.2.2: The outputArguments list shall be empty if the
+     * statusCode Severity is Bad. Also if the Bad result is set
+     * asynchronously. */
+    UA_Argument outputArgument;
+    UA_Argument_init(&outputArgument);
+    outputArgument.name = UA_STRING("Output");
+    outputArgument.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outputArgument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+    UA_StatusCode retval =
+        UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "asyncBadMethod"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                UA_QUALIFIEDNAME(1, "asyncBadMethod"),
+                                methodAttr, &methodCallback_asyncBadWithOutput,
+                                0, NULL, 1, &outputArgument, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    UA_atomic_store(&running, false);
+    THREAD_JOIN(server_thread);
+
+    clientCounter = 0;
+    clientCallResultStatus = UA_STATUSCODE_GOOD;
+    clientCallResultOutputSize = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncBadMethod"),
+                                  0, NULL, clientCallResultCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Iterate until the async result is set and the response is sent out */
+    while(clientCounter == 0) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+
+    UA_atomic_store(&running, true);
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    ck_assert_uint_eq(clientCounter, 1);
+    ck_assert_uint_eq(clientCallResultStatus, UA_STATUSCODE_BADUNEXPECTEDERROR);
+    ck_assert_uint_eq(clientCallResultOutputSize, 0);
+} END_TEST
+
 /* ==== Additional direct-API coverage ==== */
 
 START_TEST(Async_cancelAsync_unknownContext_returnsError) {
@@ -1542,6 +1635,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_direct_cancel_with_service_operation);
     tcase_add_test(tc_manager, Async_call_error_result);
     tcase_add_test(tc_manager, Async_multiple_parallel_operations);
+    tcase_add_test(tc_manager, Async_call_badResultHasNoOutputArguments);
     suite_add_tcase(s, tc_manager);
 
     return s;
