@@ -95,7 +95,11 @@ int main(int argc, char **argv) {
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
                                         &myInteger, NULL);
 
-    UA_Server_run_startup(server);
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
 
     // register server
     UA_ClientConfig cc;
@@ -103,7 +107,7 @@ int main(int argc, char **argv) {
     UA_ClientConfig_setDefault(&cc);
     cc.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
-    UA_StatusCode retval =
+    retval =
         UA_Server_registerDiscovery(server, &cc,
                                     UA_STRING(DISCOVERY_SERVER_ENDPOINT), UA_STRING_NULL);
     if(retval != UA_STATUSCODE_GOOD) {
