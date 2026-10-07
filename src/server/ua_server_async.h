@@ -170,6 +170,10 @@ UA_StatusCode
 call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *operation,
            UA_ServerAsyncMethodResultCallback callback, void *context, UA_UInt32 timeout);
 
+/* The outputArguments shall be empty if the statusCode Severity is Bad. */
+void
+clearCallOutputIfBad(UA_CallMethodResult *result);
+
 void
 async_cancel(UA_Server *server, void *context, UA_StatusCode status,
              UA_Boolean cancelSynchronous);

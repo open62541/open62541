@@ -398,6 +398,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     result->statusCode =
         callWithMethodAndObject(server, session, request,
                                 result, method, object);
+    clearCallOutputIfBad(result);
 
     /* Release the method and object node */
     UA_NODESTORE_RELEASE(server, method);
@@ -417,6 +418,7 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
         if(server->config.asyncOperationCancelCallback)
             server->config.asyncOperationCancelCallback(server, result.outputArguments);
         result.statusCode = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+        clearCallOutputIfBad(&result);
     }
     unlockServer(server);
     return result;
