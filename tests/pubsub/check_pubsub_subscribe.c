@@ -3318,14 +3318,21 @@ START_TEST(DataSetReaderMatchesConfiguredKeyFramePeriod) {
 
 static const UA_DataValue *asyncWriteId;
 static const void *asyncWriteCanceled;
+static UA_Boolean asyncTargetStatusOnly;
 
 static UA_StatusCode
 asyncTargetWrite(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
                   const UA_NodeId *nodeId, void *nodeContext,
                   const UA_NumericRange *range, const UA_DataValue *value) {
-    ck_assert(value->hasValue);
-    ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT32]));
-    ck_assert_uint_eq(*(UA_UInt32*)value->value.data, 42);
+    if(asyncTargetStatusOnly) {
+        ck_assert(!value->hasValue);
+        ck_assert(value->hasStatus);
+        ck_assert_uint_eq(value->status, UA_STATUSCODE_BADOUTOFSERVICE);
+    } else {
+        ck_assert(value->hasValue);
+        ck_assert(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT32]));
+        ck_assert_uint_eq(*(UA_UInt32*)value->value.data, 42);
+    }
     asyncWriteId = value;
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
@@ -3336,10 +3343,6 @@ cancelTargetWrite(UA_Server *s, const void *id) {
 }
 
 START_TEST(TargetWriteUsesSynchronousFacade) {
-    UA_CallbackValueSource source = {NULL, asyncTargetWrite};
-    ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(server, nodeId32, source),
-                      UA_STATUSCODE_GOOD);
-    config->asyncOperationCancelCallback = cancelTargetWrite;
     UA_ReaderGroupConfig rgc;
     memset(&rgc, 0, sizeof(rgc));
     rgc.name = UA_STRING("Async target group");
@@ -3380,6 +3383,13 @@ START_TEST(TargetWriteUsesSynchronousFacade) {
     message.header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     message.fieldCount = 1;
     message.data.keyFrameFields = &value;
+    /* Configuration writes the initial target quality synchronously. Install
+     * the async source after configuration to isolate message processing. */
+    UA_CallbackValueSource source = {NULL, asyncTargetWrite};
+    ck_assert_uint_eq(UA_Server_setVariableNode_callbackValueSource(server, nodeId32, source),
+                      UA_STATUSCODE_GOOD);
+    config->asyncOperationCancelCallback = cancelTargetWrite;
+    asyncTargetStatusOnly = false;
     asyncWriteId = NULL;
     asyncWriteCanceled = NULL;
     lockServer(server);
@@ -3388,6 +3398,27 @@ START_TEST(TargetWriteUsesSynchronousFacade) {
     ck_assert_ptr_ne(asyncWriteId, NULL);
     ck_assert_ptr_eq(asyncWriteCanceled, asyncWriteId);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
+    ck_assert_uint_eq(UA_Server_setAsyncWriteResult(server, asyncWriteId, UA_STATUSCODE_GOOD),
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
+
+    /* Disabling the reader writes BadOutOfService without a value. This path
+     * must retain the write storage until the application returns ownership. */
+    asyncTargetStatusOnly = true;
+    asyncWriteId = NULL;
+    asyncWriteCanceled = NULL;
+    lockServer(server);
+    UA_StatusCode stateResult =
+        UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
+                                        UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    ck_assert_uint_eq(stateResult, UA_STATUSCODE_BADWAITINGFORRESPONSE);
+    ck_assert_ptr_ne(asyncWriteId, NULL);
+    ck_assert_ptr_eq(asyncWriteCanceled, asyncWriteId);
+    ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 1);
+    ck_assert(!asyncWriteId->hasValue);
+    ck_assert(asyncWriteId->hasStatus);
+    ck_assert_uint_eq(asyncWriteId->status, UA_STATUSCODE_BADOUTOFSERVICE);
     ck_assert_uint_eq(UA_Server_setAsyncWriteResult(server, asyncWriteId, UA_STATUSCODE_GOOD),
                       UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->asyncManager.trackedOpsCount, 0);
