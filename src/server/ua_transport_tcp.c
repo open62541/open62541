@@ -824,8 +824,12 @@ UA_BinaryProtocolManager_start(UA_Driver *drv) {
         return retVal;
 
     retVal = bpm->startTransport(bpm);
-    if(retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD) {
+        /* The server can keep running without this transport */
+        removeCallback(server, bpm->houseKeepingCallbackId);
+        bpm->houseKeepingCallbackId = 0;
         return retVal;
+    }
 
     /* Set the state to started */
     setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STARTED);
