@@ -266,8 +266,8 @@ readExternalValueAttribute(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Update the value by the user callback */
-    if(vn->valueSource.internal.notifications.onRead)
-        vn->valueSource.internal.notifications.
+    if(vn->valueSource.external.notifications.onRead)
+        vn->valueSource.external.notifications.
             onRead(server, session ? &session->sessionId : NULL,
                    session ? session->context : NULL, &vn->head.nodeId,
                    vn->head.context, rangeptr, *vn->valueSource.external.value);
@@ -1746,14 +1746,18 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     switch(node->valueSourceType) {
     case UA_VALUESOURCETYPE_EXTERNAL:
     case UA_VALUESOURCETYPE_INTERNAL: {
-        UA_DataValue *oldValue = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
-            &node->valueSource.internal.value : UA_atomic_load(node->valueSource.external.value);
+        UA_Boolean internal = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL);
+        UA_DataValue *oldValue = (internal) ?
+            &node->valueSource.internal.value :
+            UA_atomic_load(node->valueSource.external.value);
+        const UA_ValueSourceNotifications *notifications = (internal) ?
+            &node->valueSource.internal.notifications :
+            &node->valueSource.external.notifications;
         retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
-        if(retval == UA_STATUSCODE_GOOD &&
-           node->valueSource.internal.notifications.onWrite)
-            node->valueSource.internal.notifications.
-                onWrite(server, &session->sessionId, session->context,
-                        &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
+        if(retval == UA_STATUSCODE_GOOD && notifications->onWrite)
+            notifications->onWrite(server, &session->sessionId, session->context,
+                                   &node->head.nodeId, node->head.context,
+                                   rangeptr, &adjustedValue);
         break;
     }
     case UA_VALUESOURCETYPE_CALLBACK: {

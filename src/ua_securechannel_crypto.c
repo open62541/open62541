@@ -42,14 +42,13 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
     UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local nonce");
 
-    /* Is the length of the previous nonce correct? */
+    /* Is the length of the previous nonce correct? The SecureChannel nonce has
+     * exactly the SecureChannelNonceLength of the SecurityPolicy (Part 7).
+     * E.g. 16 byte for Basic128Rsa15; other stacks reject a longer nonce
+     * with Bad_NonceInvalid. */
     size_t nonceLength = sp->nonceLength;
     if(nonceLength == 0)
         return UA_STATUSCODE_GOOD;
-
-    /* At least 32 byte */
-    if(nonceLength < 32)
-        nonceLength = 32;
 
     if(channel->localNonce.length != nonceLength) {
         UA_ByteString_clear(&channel->localNonce);
@@ -112,6 +111,21 @@ captureIKMSlot(UA_SecureChannel *channel, const UA_ByteString *combined) {
     return UA_ByteString_copy(&ikmSlot, &channel->currentIKM);
 }
 
+/* OPC UA Part 6, 6.8.1 Step 1: "When not using AuthenticatedEncryption with
+ * Sign only, the EncryptionKeyLength and InitializationVectorLength are set to
+ * 0 in the calculation of L." L is part of the HKDF salt and the length of the
+ * derived key material, so only the signing key is derived for the ECC
+ * policies without AEAD in the SecurityMode Sign. The encrypting key and IV
+ * are not used in this mode and stay zeroed. */
+static size_t
+derivedKeyMaterialLength(const UA_SecureChannel *channel, size_t signKL,
+                         size_t totalLength) {
+    if(channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_ECC &&
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGN)
+        return signKL;
+    return totalLength;
+}
+
 UA_StatusCode
 UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -137,9 +151,9 @@ UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
     UA_ByteString localSigningKey = {signKL, buf.data};
     UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
     UA_ByteString localIv = {ivLen, &buf.data[signKL + encrKL]};
-
-    /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
-    buf.data[0] = 0x00;
+    memset(buf.data, 0, buf.length);
+    UA_ByteString derived = {
+        derivedKeyMaterialLength(channel, signKL, buf.length), buf.data};
 
     /* Build the IKM-prefixed `secret` input (the helper detects
      * the prepend via the length mismatch against the local
@@ -161,7 +175,7 @@ UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
      * both derive against the same previous accumulator, so the
      * advance to IKM_n happens exactly once, in generateRemoteKeys
      * (the last of the two passes). */
-    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &buf);
+    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &derived);
     UA_CHECK_STATUS(res, goto error);
 
     /* Set the channel context */
@@ -205,9 +219,9 @@ generateRemoteKeys(UA_SecureChannel *channel) {
     UA_ByteString remoteSigningKey = {signKL, buf.data};
     UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
     UA_ByteString remoteIv = {ivLen, &buf.data[signKL + encrKL]};
-
-    /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
-    buf.data[0] = 0x00;
+    memset(buf.data, 0, buf.length);
+    UA_ByteString derived = {
+        derivedKeyMaterialLength(channel, signKL, buf.length), buf.data};
 
     /* Build the IKM-prefixed `secret` input. Both the local- and
      * remote-keys passes of one OPN derive against the *same* previous
@@ -224,7 +238,7 @@ generateRemoteKeys(UA_SecureChannel *channel) {
     /* Generate key. The policy's wrapper XORs the previous accumulator
      * with the new shared secret and writes the result (IKM_n) back
      * into secretCombined. */
-    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &buf);
+    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &derived);
     UA_CHECK_STATUS(res, goto error);
 
     /* This is the last derivation of the OPN: promote the just-updated
@@ -1062,8 +1076,10 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
         break;
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER:
-        /* Old token still in use */
-        if(tokenId == channel->securityToken.tokenId)
+        /* Old token still in use. After an ISSUE there is no old token, only a
+         * placeholder with TokenId zero and no keys (Part 4, 5.6.2). It was
+         * never issued, so it is unknown (Part 6, 6.7.2.3). */
+        if(tokenId == channel->securityToken.tokenId && tokenId != 0)
             break;
 
         /* Not the new token */
@@ -1081,8 +1097,10 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
         break;
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT:
-        /* The server is still using the old token. That's okay. */
-        if(tokenId == channel->altSecurityToken.tokenId) {
+        /* The server is still using the old token. That's okay. After an
+         * ISSUE the old token is the placeholder with TokenId zero, which the
+         * server never issued (Part 4, 5.6.2). */
+        if(tokenId == channel->altSecurityToken.tokenId && tokenId != 0) {
             token = &channel->altSecurityToken;
             break;
         }
